@@ -1,0 +1,49 @@
+{
+	"name": "localgpt",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "vite build",
+		"build:tauri": "tauri build",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"dev": "vite dev",
+		"dev:tauri": "tauri dev",
+		"format": "prettier --plugin-search-dir . --write .",
+		"lint": "prettier --plugin-search-dir . --check . && eslint .",
+		"preview": "vite preview"
+	},
+	"dependencies": {
+		"@svelteuidev/composables": "^0.10.0",
+		"@svelteuidev/core": "^0.10.0",
+		"@tauri-apps/api": "^1.2.0",
+		"axios": "^1.3.4",
+		"dompurify": "^3.0.1",
+		"highlight-words": "^1.2.1",
+		"highlight.js": "^11.7.0",
+		"lodash": "^4.17.21",
+		"marked": "^4.3.0",
+		"store2": "^2.14.2"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-static": "^2.0.0",
+		"@sveltejs/kit": "^1.5.0",
+		"@tauri-apps/cli": "^1.2.3",
+		"@types/dompurify": "^3.0.0",
+		"@types/lodash": "^4.14.192",
+		"@types/marked": "^4.0.8",
+		"@typescript-eslint/eslint-plugin": "^5.45.0",
+		"@typescript-eslint/parser": "^5.45.0",
+		"eslint": "^8.28.0",
+		"eslint-config-prettier": "^8.5.0",
+		"eslint-plugin-svelte3": "^4.0.0",
+		"prettier": "^2.8.0",
+		"prettier-plugin-svelte": "^2.8.1",
+		"svelte": "^3.54.0",
+		"svelte-check": "^3.0.1",
+		"tslib": "^2.4.1",
+		"typescript": "^5.0.0",
+		"vite": "^4.2.0"
+	}
+}
