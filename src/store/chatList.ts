@@ -1,6 +1,6 @@
-import { invoke } from '@tauri-apps/api/tauri';
 import { findIndex, remove } from 'lodash';
 import { derived, writable } from 'svelte/store';
+import Database from 'tauri-plugin-sql-api';
 
 // Types
 import type { ChatListType, ChatType } from '../app.d';
@@ -17,11 +17,11 @@ function createChatList() {
 				const createdAt = +new Date();
 				const tmpChat = { ...chat, createdAt, updatedAt: createdAt };
 
-				invoke('add_chat', {
-					chat: {
-						id: tmpChat.chatID,
-						json: JSON.stringify(tmpChat)
-					}
+				Database.load('sqlite:chat.db').then((db) => {
+					db.execute(`INSERT INTO Chat (id, json) VALUES ($1, $2)`, [
+						tmpChat.chatID,
+						JSON.stringify(tmpChat)
+					]);
 				});
 
 				return {
@@ -33,8 +33,8 @@ function createChatList() {
 			update((chatList) => {
 				remove(chatList.chats, (chat) => chat.chatID === index);
 
-				invoke('del_chat', {
-					index
+				Database.load('sqlite:chat.db').then((db) => {
+					db.execute(`DELETE FROM Chat WHERE id = $1`, [index]);
 				});
 
 				return {
@@ -51,12 +51,11 @@ function createChatList() {
 				tmpChat.messages.push(message);
 				tmpChat.updatedAt = +new Date();
 
-				invoke('update', {
-					chat: {
-						id: tmpChat.chatID,
-						json: JSON.stringify(tmpChat)
-					},
-					index: tmpChat.chatID
+				Database.load('sqlite:chat.db').then((db) => {
+					db.execute(`UPDATE Chat SET json = $1 WHERE id = $2`, [
+						JSON.stringify(tmpChat),
+						tmpChat.chatID
+					]);
 				});
 
 				return { ...chatList };
@@ -70,18 +69,17 @@ function createChatList() {
 
 				tmpChat.messages.splice(index, 1);
 
-				invoke('update', {
-					chat: {
-						id: tmpChat.chatID,
-						json: JSON.stringify(tmpChat)
-					},
-					index: tmpChat.chatID
+				Database.load('sqlite:chat.db').then((db) => {
+					db.execute(`UPDATE Chat SET json = $1 WHERE id = $2`, [
+						JSON.stringify(tmpChat),
+						tmpChat.chatID
+					]);
 				});
 
 				return { ...chatList };
 			});
 		},
-		reset: (chats = []) =>
+		reset: (chats: any[] = []) =>
 			set({
 				chats,
 				index: ''
@@ -97,12 +95,11 @@ function createChatList() {
 					if (chatIndex !== -1) {
 						chatList.chats[chatIndex] = { ...chatList.chats[chatIndex], ...chat };
 
-						invoke('update', {
-							chat: {
-								id: chatList.chats[chatIndex].chatID,
-								json: JSON.stringify(chatList.chats[chatIndex])
-							},
-							index: chatList.chats[chatIndex].chatID
+						Database.load('sqlite:chat.db').then((db) => {
+							db.execute(`UPDATE Chat SET json = $1 WHERE id = $2`, [
+								JSON.stringify(chatList.chats[chatIndex]),
+								chatList.chats[chatIndex].chatID
+							]);
 						});
 					}
 				}

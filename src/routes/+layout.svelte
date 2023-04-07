@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { Header, Navbar, SvelteUIProvider, TypographyProvider } from '@svelteuidev/core';
+	import { onMount } from 'svelte';
+	import Database from 'tauri-plugin-sql-api';
 
 	// Components
 	import HeaderContent from '../components/header.svelte';
@@ -16,6 +18,18 @@
 	function toggleTheme() {
 		isDark = !isDark;
 	}
+
+	onMount(async () => {
+		const db = await Database.load('sqlite:chat.db');
+
+		await db.execute(
+			`CREATE TABLE IF NOT EXISTS Chat (
+				id          varchar(64)     PRIMARY KEY,
+				json        text            NOT NULL,
+				is_delete   numeric         DEFAULT 0
+			)`
+		);
+	});
 </script>
 
 <SvelteUIProvider themeObserver={isDark ? 'dark' : 'light'} withGlobalStyles withNormalizeCSS>

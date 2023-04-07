@@ -17,14 +17,14 @@
 	"dependencies": {
 		"@svelteuidev/composables": "^0.10.0",
 		"@svelteuidev/core": "^0.10.0",
-		"@tauri-apps/api": "^1.2.0",
 		"axios": "^1.3.4",
 		"dompurify": "^3.0.1",
 		"highlight-words": "^1.2.1",
 		"highlight.js": "^11.7.0",
 		"lodash": "^4.17.21",
 		"marked": "^4.3.0",
-		"store2": "^2.14.2"
+		"store2": "^2.14.2",
+		"tauri-plugin-sql-api": "github:tauri-apps/tauri-plugin-sql"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-static": "^2.0.0",

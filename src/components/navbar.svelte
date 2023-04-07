@@ -12,9 +12,9 @@
 		ThemeIcon,
 		Title
 	} from '@svelteuidev/core';
-	import { invoke } from '@tauri-apps/api/tauri';
 	import highlightWords from 'highlight-words';
 	import { onMount } from 'svelte';
+	import Database from 'tauri-plugin-sql-api';
 
 	// APIs
 	import { verifyApiKey } from '../requests';
@@ -111,14 +111,12 @@
 
 	$: ({ classes, cx } = useStyles({}, { name: 'Navbar' }));
 
-	onMount(() => {
-		invoke('get_chats')
-			.then((data: any) => {
-				chatList.reset(data.map((chat: any) => JSON.parse(chat.json)));
-			})
-			.catch((err: any) => {
-				console.log('err :>> ', err);
-			});
+	onMount(async () => {
+		const db = await Database.load('sqlite:chat.db');
+
+		const result: any[] = await db.select(`SELECT * FROM Chat`);
+
+		chatList.reset(result.map((chat) => JSON.parse(chat.json)));
 	});
 </script>
 
