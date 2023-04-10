@@ -95,6 +95,8 @@ function createChatList() {
 							json: JSON.stringify(chatList.chats[chatIndex])
 						});
 					}
+
+					index = chatList.index;
 				}
 
 				return { ...chatList, index };
