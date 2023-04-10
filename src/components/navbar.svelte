@@ -14,7 +14,6 @@
 	} from '@svelteuidev/core';
 	import highlightWords from 'highlight-words';
 	import { onMount } from 'svelte';
-	import Database from 'tauri-plugin-sql-api';
 
 	// APIs
 	import { verifyApiKey } from '../requests';
