@@ -39,6 +39,7 @@
 
 	// Store
 	import { apiKey, chatList } from '../store';
+	import { get_chats } from '../store/db';
 
 	// Search
 	let search = '';
@@ -112,11 +113,9 @@
 	$: ({ classes, cx } = useStyles({}, { name: 'Navbar' }));
 
 	onMount(async () => {
-		const db = await Database.load('sqlite:chat.db');
+		const result = await get_chats();
 
-		const result: any[] = await db.select(`SELECT * FROM Chat`);
-
-		chatList.reset(result.map((chat) => JSON.parse(chat.json)));
+		chatList.reset(result.reverse().map((chat) => JSON.parse(chat.json)));
 	});
 </script>
 

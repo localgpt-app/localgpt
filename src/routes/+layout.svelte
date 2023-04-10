@@ -7,6 +7,9 @@
 	import HeaderContent from '../components/header.svelte';
 	import NavbarContent from '../components/navbar.svelte';
 
+	// Store
+	import { create } from '../store/db';
+
 	// Navbar
 	let hidden = false;
 	function toggleHidden() {
@@ -20,15 +23,7 @@
 	}
 
 	onMount(async () => {
-		const db = await Database.load('sqlite:chat.db');
-
-		await db.execute(
-			`CREATE TABLE IF NOT EXISTS Chat (
-				id          varchar(64)     PRIMARY KEY,
-				json        text            NOT NULL,
-				is_delete   numeric         DEFAULT 0
-			)`
-		);
+		await create();
 	});
 </script>
 

@@ -5,6 +5,9 @@ import Database from 'tauri-plugin-sql-api';
 // Types
 import type { ChatListType, ChatType } from '../app.d';
 
+// Store
+import { add_chat, del_chat, update_chat } from './db';
+
 function createChatList() {
 	const { set, subscribe, update } = writable<ChatListType>({
 		chats: [],
@@ -17,11 +20,9 @@ function createChatList() {
 				const createdAt = +new Date();
 				const tmpChat = { ...chat, createdAt, updatedAt: createdAt };
 
-				Database.load('sqlite:chat.db').then((db) => {
-					db.execute(`INSERT INTO Chat (id, json) VALUES ($1, $2)`, [
-						tmpChat.chatID,
-						JSON.stringify(tmpChat)
-					]);
+				add_chat({
+					id: tmpChat.chatID,
+					json: JSON.stringify(tmpChat)
 				});
 
 				return {
@@ -33,9 +34,7 @@ function createChatList() {
 			update((chatList) => {
 				remove(chatList.chats, (chat) => chat.chatID === index);
 
-				Database.load('sqlite:chat.db').then((db) => {
-					db.execute(`DELETE FROM Chat WHERE id = $1`, [index]);
-				});
+				del_chat(index);
 
 				return {
 					chats: [...chatList.chats],
@@ -51,11 +50,9 @@ function createChatList() {
 				tmpChat.messages.push(message);
 				tmpChat.updatedAt = +new Date();
 
-				Database.load('sqlite:chat.db').then((db) => {
-					db.execute(`UPDATE Chat SET json = $1 WHERE id = $2`, [
-						JSON.stringify(tmpChat),
-						tmpChat.chatID
-					]);
+				update_chat({
+					id: tmpChat.chatID,
+					json: JSON.stringify(tmpChat)
 				});
 
 				return { ...chatList };
@@ -69,17 +66,15 @@ function createChatList() {
 
 				tmpChat.messages.splice(index, 1);
 
-				Database.load('sqlite:chat.db').then((db) => {
-					db.execute(`UPDATE Chat SET json = $1 WHERE id = $2`, [
-						JSON.stringify(tmpChat),
-						tmpChat.chatID
-					]);
+				update_chat({
+					id: tmpChat.chatID,
+					json: JSON.stringify(tmpChat)
 				});
 
 				return { ...chatList };
 			});
 		},
-		reset: (chats: any[] = []) =>
+		reset: (chats: ChatType[] = []) =>
 			set({
 				chats,
 				index: ''
@@ -95,11 +90,9 @@ function createChatList() {
 					if (chatIndex !== -1) {
 						chatList.chats[chatIndex] = { ...chatList.chats[chatIndex], ...chat };
 
-						Database.load('sqlite:chat.db').then((db) => {
-							db.execute(`UPDATE Chat SET json = $1 WHERE id = $2`, [
-								JSON.stringify(chatList.chats[chatIndex]),
-								chatList.chats[chatIndex].chatID
-							]);
+						update_chat({
+							id: chatList.chats[chatIndex].chatID,
+							json: JSON.stringify(chatList.chats[chatIndex])
 						});
 					}
 				}
