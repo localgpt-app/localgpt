@@ -12,6 +12,7 @@ export default createStyles((theme, params: Record<string, any>) => {
 			[`${theme.dark} &`]: {
 				backgroundColor: theme.colors['dark700'].value
 			},
+			position: 'relative',
 			display: 'flex',
 			alignItems: 'flex-end',
 			gap: '8px',
@@ -46,6 +47,12 @@ export default createStyles((theme, params: Record<string, any>) => {
 			'&:focus, &:focus-within': {
 				borderColor: '$blue500'
 			}
+		},
+		promptAction: {
+			position: 'absolute',
+			top: '-30px',
+			left: '50%',
+			transform: 'translateX(-50%)'
 		}
 	};
 });

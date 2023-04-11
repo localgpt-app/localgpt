@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { getHotkeyHandler, useId } from '@svelteuidev/composables';
-	import { Button, Space } from '@svelteuidev/core';
+	import { Button, Group, Space } from '@svelteuidev/core';
 
 	// APIs
 	import { chatCompletions } from '../requests';
 
 	// Resources
-	import { IconArrowRight } from '../assets/icons';
+	import { IconArrowRight, IconRepeat, IconStop } from '../assets/icons';
 
 	// Styles
 	import useStyles from './prompt.styles';
@@ -16,7 +16,8 @@
 
 	// Message
 	function request(index: string) {
-		chatList.update({ chat: { loading: true }, index });
+		const controller = new AbortController();
+		chatList.update({ chat: { cancel: controller, loading: true }, index });
 
 		const tmpChat = $chat!;
 
@@ -26,6 +27,8 @@
 				role: message.role
 			})),
 			model: tmpChat.model || 'gpt-3.5-turbo'
+		}, {
+			signal: controller.signal,
 		})
 			.then(({ data }: any) => {
 				// get title
@@ -61,8 +64,20 @@
 				chatList.update({ chat: { documentText: data.choices[0].message.content }, index });
 			})
 			.finally(() => {
-				chatList.update({ chat: { loading: false }, index });
+				chatList.update({ chat: { cancel: undefined, loading: false }, index });
 			});
+	}
+
+	function regenerate() {
+		if (!$chat) return;
+
+		$chat.cancel?.abort();
+
+		if ($chat.messages.at(-1)?.role === 'assistant') {
+			chatList.delMsg($chat?.messages.length - 1);
+		}
+
+		request($chat.chatID);
 	}
 
 	let message = '';
@@ -133,5 +148,25 @@
 			<Space w={8} />
 			Send
 		</Button>
+
+		<div class={classes.promptAction}>
+			<Group>
+				{#if $chat?.messages.length}
+					{#if $chat.loading}
+						<Button color="red" radius="xl" size="xs" on:click={() => $chat?.cancel?.abort()}>
+							<IconStop size={12} />
+							<Space w={8} />
+							Stop
+						</Button>
+					{:else}
+						<Button color="green" radius="xl" size="xs" on:click={regenerate}>
+							<IconRepeat size={12} />
+							<Space w={8} />
+							Regenerate
+						</Button>
+					{/if}
+				{/if}
+			</Group>
+		</div>
 	</div>
 </div>

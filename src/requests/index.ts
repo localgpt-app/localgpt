@@ -2,6 +2,7 @@ import axios from 'axios';
 import store from 'store2';
 
 // Types
+import type { AxiosRequestConfig } from 'axios';
 import type { ChatCompletionsType } from '../app.d';
 
 // Axios
@@ -16,8 +17,8 @@ axios.interceptors.request.use((config) => {
 });
 
 // Create chat completion
-export const chatCompletions = (data: ChatCompletionsType) => {
-	return axios.post('/v1/chat/completions', data);
+export const chatCompletions = (data: ChatCompletionsType, config: AxiosRequestConfig = {}) => {
+	return axios.post('/v1/chat/completions', data, config);
 };
 
 // Verify api key

@@ -31,6 +31,7 @@ export interface ChatType {
 		};
 	}[];
 	model: string;
+	cancel?: AbortController;
 	loading?: boolean;
 	createdAt?: number;
 	updatedAt?: number;
