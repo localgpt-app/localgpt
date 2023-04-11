@@ -40,6 +40,29 @@
 	import { apiKey, chatList } from '../store';
 	import { get_chats } from '../store/db';
 
+	// State
+	const state = {
+		confirm: '',
+		confirmTimer: -1
+	};
+
+	// Events
+	function delChat(index: string) {
+		clearTimeout(state.confirmTimer);
+
+		if (state.confirm === index) {
+			state.confirm = '';
+			chatList.del(index);
+			return;
+		}
+
+		state.confirm = index;
+
+		state.confirmTimer = setTimeout(() => {
+			state.confirm = '';
+		}, 2000);
+	}
+
 	// Search
 	let search = '';
 
@@ -185,16 +208,26 @@
 						<IconPen size={12} />
 					</ActionIcon> -->
 
-					<ActionIcon
-						size={26}
-						variant="default"
-						on:click={(e) => {
-							e.stopPropagation();
-							chatList.del(chat.chatID);
-						}}
-					>
-						<IconTrash size={12} />
-					</ActionIcon>
+					{#if state.confirm === chat.chatID}
+						<Text
+							color="red"
+							override={{ fontSize: 12 }}
+							on:click={() => {
+								delChat(chat.chatID);
+							}}>Sure?</Text
+						>
+					{:else}
+						<ActionIcon
+							size={26}
+							variant="default"
+							on:click={(e) => {
+								e.stopPropagation();
+								delChat(chat.chatID);
+							}}
+						>
+							<IconTrash size={12} />
+						</ActionIcon>
+					{/if}
 				</Group>
 			</Group>
 		</div>

@@ -21,15 +21,18 @@
 
 		const tmpChat = $chat!;
 
-		chatCompletions({
-			messages: tmpChat.messages.map((message) => ({
-				content: message.content,
-				role: message.role
-			})),
-			model: tmpChat.model || 'gpt-3.5-turbo'
-		}, {
-			signal: controller.signal,
-		})
+		chatCompletions(
+			{
+				messages: tmpChat.messages.map((message) => ({
+					content: message.content,
+					role: message.role
+				})),
+				model: tmpChat.model || 'gpt-3.5-turbo'
+			},
+			{
+				signal: controller.signal
+			}
+		)
 			.then(({ data }: any) => {
 				// get title
 				if (tmpChat.messages.length === 1) {
