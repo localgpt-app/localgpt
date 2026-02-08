@@ -153,23 +153,30 @@ pub trait LLMProvider: Send + Sync {
     async fn chat_stream(
         &self,
         messages: &[Message],
-        _tools: Option<&[ToolSchema]>,
+        tools: Option<&[ToolSchema]>,
     ) -> Result<StreamResult> {
         // Default implementation: single chunk with full response
-        let resp = self.chat(messages, None).await?;
-        let text = match resp.content {
-            LLMResponseContent::Text(t) => t,
-            LLMResponseContent::ToolCalls(_) => {
-                return Err(anyhow::anyhow!("Tool calls not supported in streaming"))
+        let resp = self.chat(messages, tools).await?;
+        match resp.content {
+            LLMResponseContent::Text(text) => {
+                Ok(Box::pin(futures::stream::once(async move {
+                    Ok(StreamChunk {
+                        delta: text,
+                        done: true,
+                        tool_calls: None,
+                    })
+                })))
             }
-        };
-        Ok(Box::pin(futures::stream::once(async move {
-            Ok(StreamChunk {
-                delta: text,
-                done: true,
-                tool_calls: None,
-            })
-        })))
+            LLMResponseContent::ToolCalls(calls) => {
+                Ok(Box::pin(futures::stream::once(async move {
+                    Ok(StreamChunk {
+                        delta: String::new(),
+                        done: true,
+                        tool_calls: Some(calls),
+                    })
+                })))
+            }
+        }
     }
 }
 
@@ -1739,6 +1746,10 @@ impl LLMProvider for ClaudeCliProvider {
 }
 
 #[cfg(test)]
+#[path = "./test/unit/openaiprovider_tool_test.rs"]
+mod providers_test;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1798,4 +1809,5 @@ mod tests {
             "custom-model".to_string()
         );
     }
+
 }
