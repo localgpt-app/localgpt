@@ -337,8 +337,10 @@ impl MemoryIndex {
 
     /// Search using FTS5
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<MemoryChunk>> {
-        // Escape special FTS5 characters
-        let escaped_query = escape_fts_query(query);
+        let fts_query = match build_fts_query(query) {
+            Some(q) => q,
+            None => return Ok(Vec::new()),
+        };
 
         let conn = self
             .conn
@@ -356,7 +358,7 @@ impl MemoryIndex {
             "#,
         )?;
 
-        let rows = stmt.query_map(params![&escaped_query, limit as i64], |row| {
+        let rows = stmt.query_map(params![&fts_query, limit as i64], |row| {
             Ok(MemoryChunk {
                 file: row.get(0)?,
                 line_start: row.get(1)?,
@@ -870,32 +872,24 @@ impl MemoryIndex {
             Vec::new()
         };
 
-        // Merge results using weighted scores
+        // Merge results using rank-based scoring (OpenClaw-compatible)
         let mut merged: std::collections::HashMap<String, (f32, MemoryChunk)> =
             std::collections::HashMap::new();
 
-        // Add FTS results (normalize BM25 score to 0-1 range)
-        let max_fts_score = fts_results
-            .iter()
-            .map(|r| r.score)
-            .fold(0.0f64, |a, b| a.max(b));
-        let max_fts_score = if max_fts_score > 0.0 {
-            max_fts_score
-        } else {
-            1.0
-        };
-
-        for result in fts_results {
+        // Add FTS results using rank-based scoring (OpenClaw-compatible)
+        // BM25 results are already ordered by relevance (best first)
+        for (rank, result) in fts_results.into_iter().enumerate() {
             let key = format!("{}:{}:{}", result.file, result.line_start, result.line_end);
-            let normalized_score = (result.score / max_fts_score) as f32;
-            let weighted_score = normalized_score * text_weight;
+            let rank_score = 1.0 / (1.0 + rank as f32); // rank 0 → 1.0, rank 1 → 0.5, rank 9 → 0.1
+            let weighted_score = rank_score * text_weight;
             merged.insert(key, (weighted_score, result));
         }
 
-        // Add/merge vector results
-        for result in vector_results {
+        // Add/merge vector results using rank-based scoring
+        for (rank, result) in vector_results.into_iter().enumerate() {
             let key = format!("{}:{}:{}", result.file, result.line_start, result.line_end);
-            let weighted_score = result.score as f32 * vector_weight;
+            let rank_score = 1.0 / (1.0 + rank as f32);
+            let weighted_score = rank_score * vector_weight;
 
             if let Some((existing_score, existing_chunk)) = merged.get_mut(&key) {
                 *existing_score += weighted_score;
@@ -950,10 +944,26 @@ fn embedding_to_blob(embedding: &[f32]) -> Vec<u8> {
     blob
 }
 
-fn escape_fts_query(query: &str) -> String {
-    // Wrap in quotes to treat as phrase, escape internal quotes
-    let escaped = query.replace('"', "\"\"");
-    format!("\"{}\"", escaped)
+/// Build FTS5 query from raw input (OpenClaw-compatible)
+/// Tokenizes input and joins with AND so all terms must appear (in any order)
+fn build_fts_query(raw: &str) -> Option<String> {
+    let tokens: Vec<&str> = raw
+        .split(|c: char| !c.is_alphanumeric() && c != '_')
+        .map(|t| t.trim())
+        .filter(|t| !t.is_empty())
+        .collect();
+
+    if tokens.is_empty() {
+        return None;
+    }
+
+    // Quote each token individually, join with AND
+    let quoted: Vec<String> = tokens
+        .iter()
+        .map(|t| format!("\"{}\"", t.replace('"', "")))
+        .collect();
+
+    Some(quoted.join(" AND "))
 }
 
 struct ChunkInfo {
