@@ -180,17 +180,12 @@ async fn run_daemon_services(config: &Config, agent_id: &str) -> Result<()> {
     };
 
     // Spawn Telegram bot in background if configured
-    let telegram_handle = if config
-        .telegram
-        .as_ref()
-        .is_some_and(|t| t.enabled)
-    {
+    let telegram_handle = if config.telegram.as_ref().is_some_and(|t| t.enabled) {
         let tg_config = config.clone();
         let tg_gate = turn_gate.clone();
         println!("  Telegram: enabled");
         Some(tokio::spawn(async move {
-            if let Err(e) =
-                localgpt::server::telegram::run_telegram_bot(&tg_config, tg_gate).await
+            if let Err(e) = localgpt::server::telegram::run_telegram_bot(&tg_config, tg_gate).await
             {
                 tracing::error!("Telegram bot error: {}", e);
             }

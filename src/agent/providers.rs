@@ -158,15 +158,13 @@ pub trait LLMProvider: Send + Sync {
         // Default implementation: single chunk with full response
         let resp = self.chat(messages, tools).await?;
         match resp.content {
-            LLMResponseContent::Text(text) => {
-                Ok(Box::pin(futures::stream::once(async move {
-                    Ok(StreamChunk {
-                        delta: text,
-                        done: true,
-                        tool_calls: None,
-                    })
-                })))
-            }
+            LLMResponseContent::Text(text) => Ok(Box::pin(futures::stream::once(async move {
+                Ok(StreamChunk {
+                    delta: text,
+                    done: true,
+                    tool_calls: None,
+                })
+            }))),
             LLMResponseContent::ToolCalls(calls) => {
                 Ok(Box::pin(futures::stream::once(async move {
                     Ok(StreamChunk {
@@ -1135,15 +1133,13 @@ impl LLMProvider for OllamaProvider {
         if tools.is_some() && tools.map(|t| !t.is_empty()).unwrap_or(false) {
             let resp = self.chat(messages, tools).await?;
             return match resp.content {
-                LLMResponseContent::Text(text) => {
-                    Ok(Box::pin(futures::stream::once(async move {
-                        Ok(StreamChunk {
-                            delta: text,
-                            done: true,
-                            tool_calls: None,
-                        })
-                    })))
-                }
+                LLMResponseContent::Text(text) => Ok(Box::pin(futures::stream::once(async move {
+                    Ok(StreamChunk {
+                        delta: text,
+                        done: true,
+                        tool_calls: None,
+                    })
+                }))),
                 LLMResponseContent::ToolCalls(calls) => {
                     Ok(Box::pin(futures::stream::once(async move {
                         Ok(StreamChunk {
@@ -1933,5 +1929,4 @@ mod tests {
             "custom-model".to_string()
         );
     }
-
 }
