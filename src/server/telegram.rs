@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 use teloxide::prelude::*;
-use teloxide::types::MessageId;
+use teloxide::types::{MessageId, ParseMode};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 
@@ -156,8 +156,11 @@ async fn handle_message(bot: Bot, msg: Message, state: Arc<BotState>) -> Respons
         let paired = state.paired_user.lock().await;
         if let Some(ref pu) = *paired {
             if pu.user_id != user_id {
-                bot.send_message(chat_id, "Not authorized. This bot is paired with another user.")
-                    .await?;
+                bot.send_message(
+                    chat_id,
+                    "Not authorized. This bot is paired with another user.",
+                )
+                .await?;
                 return Ok(());
             }
         } else {
@@ -213,8 +216,7 @@ async fn handle_pairing(
                 user_id
             );
 
-            bot.send_message(
-                chat_id,
+            bot.send_message(chat_id,
                 "Paired successfully! You can now chat with LocalGPT.\n\nUse /new to start a fresh session, /status to see session info.",
             )
             .await?;
@@ -228,15 +230,18 @@ async fn handle_pairing(
         println!("\n========================================");
         println!("  TELEGRAM PAIRING CODE: {}", code);
         println!("========================================\n");
-        info!("Telegram pairing code generated for user {} (ID: {})",
-            msg.from.as_ref().and_then(|u| u.username.as_deref()).unwrap_or("unknown"),
+        info!(
+            "Telegram pairing code generated for user {} (ID: {})",
+            msg.from
+                .as_ref()
+                .and_then(|u| u.username.as_deref())
+                .unwrap_or("unknown"),
             user_id
         );
 
         *pending = Some(code);
 
-        bot.send_message(
-            chat_id,
+        bot.send_message(chat_id,
             "Welcome! A pairing code has been printed to the daemon logs/stdout.\nPlease enter the code to pair this bot with your account.",
         )
         .await?;
@@ -261,7 +266,7 @@ async fn handle_command(
                 "LocalGPT Telegram Bot\n\n{}",
                 crate::commands::format_help_text(crate::commands::Interface::Telegram)
             );
-            bot.send_message(chat_id, help).await?;
+            bot.send_message(chat_id, &help).await?;
         }
         "/new" => {
             let mut sessions = state.sessions.lock().await;
@@ -295,7 +300,7 @@ async fn handle_command(
             } else {
                 "No active session. Send a message to start one.".to_string()
             };
-            bot.send_message(chat_id, status_text).await?;
+            bot.send_message(chat_id, &status_text).await?;
         }
         "/compact" => {
             let mut sessions = state.sessions.lock().await;
@@ -311,7 +316,7 @@ async fn handle_command(
                             .await?;
                         }
                         Err(e) => {
-                            bot.send_message(chat_id, format!("Compact failed: {}", e))
+                            bot.send_message(chat_id, &format!("Compact failed: {}", e))
                                 .await?;
                         }
                     }
@@ -357,7 +362,7 @@ async fn handle_command(
                         }
                     }
                     Err(e) => {
-                        bot.send_message(chat_id, format!("Search error: {}", e))
+                        bot.send_message(chat_id, &format!("Search error: {}", e))
                             .await?;
                     }
                 }
@@ -370,18 +375,21 @@ async fn handle_command(
                     .get(&chat_id.0)
                     .map(|e| e.agent.model().to_string())
                     .unwrap_or_else(|| state.config.agent.default_model.clone());
-                bot.send_message(chat_id, format!("Current model: {}\n\nUsage: /model <name>", current))
-                    .await?;
+                bot.send_message(
+                    chat_id,
+                    &format!("Current model: {}\n\nUsage: /model <name>", current),
+                )
+                .await?;
             } else {
                 let mut sessions = state.sessions.lock().await;
                 if let Some(entry) = sessions.get_mut(&chat_id.0) {
                     match entry.agent.set_model(args) {
                         Ok(()) => {
-                            bot.send_message(chat_id, format!("Switched to model: {}", args))
+                            bot.send_message(chat_id, &format!("Switched to model: {}", args))
                                 .await?;
                         }
                         Err(e) => {
-                            bot.send_message(chat_id, format!("Failed to switch model: {}", e))
+                            bot.send_message(chat_id, &format!("Failed to switch model: {}", e))
                                 .await?;
                         }
                     }
@@ -399,15 +407,14 @@ async fn handle_command(
             match crate::agent::load_skills(&workspace_path) {
                 Ok(skills) => {
                     if skills.is_empty() {
-                        bot.send_message(chat_id, "No skills installed.")
-                            .await?;
+                        bot.send_message(chat_id, "No skills installed.").await?;
                     } else {
                         let summary = crate::agent::get_skills_summary(&skills);
-                        bot.send_message(chat_id, summary).await?;
+                        bot.send_message(chat_id, &summary).await?;
                     }
                 }
                 Err(e) => {
-                    bot.send_message(chat_id, format!("Failed to load skills: {}", e))
+                    bot.send_message(chat_id, &format!("Failed to load skills: {}", e))
                         .await?;
                 }
             }
@@ -420,12 +427,18 @@ async fn handle_command(
             let mut sessions = state.sessions.lock().await;
             sessions.remove(&chat_id.0);
             info!("Telegram bot: user unpaired");
-            bot.send_message(chat_id, "Unpaired. Send any message to start a new pairing.")
-                .await?;
+            bot.send_message(
+                chat_id,
+                "Unpaired. Send any message to start a new pairing.",
+            )
+            .await?;
         }
         _ => {
-            bot.send_message(chat_id, "Unknown command. Use /help for available commands.")
-                .await?;
+            bot.send_message(
+                chat_id,
+                "Unknown command. Use /help for available commands.",
+            )
+            .await?;
         }
     }
 
@@ -445,6 +458,168 @@ fn truncate_str(s: &str, max: usize) -> &str {
     }
 }
 
+/// Escape text for Telegram HTML parse mode.
+fn escape_html(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+/// Convert markdown to Telegram-compatible HTML.
+/// Handles: code blocks, inline code, bold, italic, links, headers.
+/// Unrecognized markup passes through as escaped HTML.
+fn markdown_to_html(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut in_code_block = false;
+    let mut code_block_lang = String::new();
+    let mut code_block_content = String::new();
+
+    for line in text.lines() {
+        if in_code_block {
+            if line.starts_with("```") {
+                // Close code block
+                let lang_attr = if code_block_lang.is_empty() {
+                    String::new()
+                } else {
+                    format!(" class=\"language-{}\"", escape_html(&code_block_lang))
+                };
+                result.push_str(&format!(
+                    "<pre><code{}>{}</code></pre>\n",
+                    lang_attr,
+                    escape_html(&code_block_content)
+                ));
+                code_block_content.clear();
+                code_block_lang.clear();
+                in_code_block = false;
+            } else {
+                if !code_block_content.is_empty() {
+                    code_block_content.push('\n');
+                }
+                code_block_content.push_str(line);
+            }
+            continue;
+        }
+
+        if line.starts_with("```") {
+            in_code_block = true;
+            code_block_lang = line[3..].trim().to_string();
+            continue;
+        }
+
+        // Headers → bold
+        let line = if let Some(rest) = line.strip_prefix("### ") {
+            format!("<b>{}</b>", escape_html(rest))
+        } else if let Some(rest) = line.strip_prefix("## ") {
+            format!("<b>{}</b>", escape_html(rest))
+        } else if let Some(rest) = line.strip_prefix("# ") {
+            format!("<b>{}</b>", escape_html(rest))
+        } else {
+            convert_inline_markdown(line)
+        };
+
+        result.push_str(&line);
+        result.push('\n');
+    }
+
+    // Handle unclosed code block
+    if in_code_block {
+        result.push_str(&format!(
+            "<pre><code>{}</code></pre>\n",
+            escape_html(&code_block_content)
+        ));
+    }
+
+    result
+}
+
+/// Convert inline markdown elements: `code`, **bold**, *italic*, [links](url)
+fn convert_inline_markdown(line: &str) -> String {
+    let mut result = String::new();
+    let chars: Vec<char> = line.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+
+    while i < len {
+        // Inline code: `...`
+        if chars[i] == '`' {
+            if let Some(end) = chars[i + 1..].iter().position(|&c| c == '`') {
+                let code: String = chars[i + 1..i + 1 + end].iter().collect();
+                result.push_str(&format!("<code>{}</code>", escape_html(&code)));
+                i += end + 2;
+                continue;
+            }
+        }
+
+        // Bold: **...**
+        if i + 1 < len && chars[i] == '*' && chars[i + 1] == '*' {
+            if let Some(end) = find_closing(&chars, i + 2, &['*', '*']) {
+                let inner: String = chars[i + 2..end].iter().collect();
+                result.push_str(&format!("<b>{}</b>", escape_html(&inner)));
+                i = end + 2;
+                continue;
+            }
+        }
+
+        // Italic: *...*
+        if chars[i] == '*' {
+            if let Some(end) = chars[i + 1..].iter().position(|&c| c == '*') {
+                let inner: String = chars[i + 1..i + 1 + end].iter().collect();
+                result.push_str(&format!("<i>{}</i>", escape_html(&inner)));
+                i += end + 2;
+                continue;
+            }
+        }
+
+        // Link: [text](url)
+        if chars[i] == '[' {
+            if let Some(close_bracket) = chars[i + 1..].iter().position(|&c| c == ']') {
+                let text_end = i + 1 + close_bracket;
+                if text_end + 1 < len && chars[text_end + 1] == '(' {
+                    if let Some(close_paren) = chars[text_end + 2..].iter().position(|&c| c == ')')
+                    {
+                        let text: String = chars[i + 1..text_end].iter().collect();
+                        let url: String = chars[text_end + 2..text_end + 2 + close_paren]
+                            .iter()
+                            .collect();
+                        result.push_str(&format!(
+                            "<a href=\"{}\">{}</a>",
+                            escape_html(&url),
+                            escape_html(&text)
+                        ));
+                        i = text_end + 2 + close_paren + 1;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        // Regular character
+        match chars[i] {
+            '&' => result.push_str("&amp;"),
+            '<' => result.push_str("&lt;"),
+            '>' => result.push_str("&gt;"),
+            c => result.push(c),
+        }
+        i += 1;
+    }
+
+    result
+}
+
+/// Find closing delimiter (e.g., ** for bold) starting from `start`.
+fn find_closing(chars: &[char], start: usize, delim: &[char]) -> Option<usize> {
+    let dlen = delim.len();
+    if start + dlen > chars.len() {
+        return None;
+    }
+    for i in start..chars.len() - dlen + 1 {
+        if chars[i..i + dlen] == *delim {
+            return Some(i);
+        }
+    }
+    None
+}
+
 async fn handle_chat(
     bot: &Bot,
     chat_id: ChatId,
@@ -452,9 +627,7 @@ async fn handle_chat(
     text: &str,
 ) -> ResponseResult<()> {
     // Send initial "thinking" message
-    let thinking_msg = bot
-        .send_message(chat_id, "Thinking...")
-        .await?;
+    let thinking_msg = bot.send_message(chat_id, "Thinking...").await?;
     let msg_id = thinking_msg.id;
 
     // Acquire turn gate
@@ -475,7 +648,7 @@ async fn handle_chat(
                 if let Err(e) = agent.new_session().await {
                     error!("Failed to create session: {}", e);
                     let _ = bot
-                        .edit_message_text(chat_id, msg_id, format!("Error: {}", e))
+                        .edit_message_text(chat_id, msg_id, &format!("Error: {}", e))
                         .await;
                     return Ok(());
                 }
@@ -490,7 +663,7 @@ async fn handle_chat(
             Err(e) => {
                 error!("Failed to create agent: {}", e);
                 let _ = bot
-                    .edit_message_text(chat_id, msg_id, format!("Error: {}", e))
+                    .edit_message_text(chat_id, msg_id, &format!("Error: {}", e))
                     .await;
                 return Ok(());
             }
@@ -518,9 +691,7 @@ async fn handle_chat(
                         // Debounced edit
                         if last_edit.elapsed().as_secs() >= EDIT_DEBOUNCE_SECS {
                             let display = format_display(&full_response, &tool_info);
-                            let _ = bot
-                                .edit_message_text(chat_id, msg_id, &display)
-                                .await;
+                            let _ = bot.edit_message_text(chat_id, msg_id, &display).await;
                             last_edit = Instant::now();
                         }
                     }
@@ -536,9 +707,7 @@ async fn handle_chat(
                         tool_info.push_str(&info_line);
 
                         let display = format_display(&full_response, &tool_info);
-                        let _ = bot
-                            .edit_message_text(chat_id, msg_id, &display)
-                            .await;
+                        let _ = bot.edit_message_text(chat_id, msg_id, &display).await;
                         last_edit = Instant::now();
                     }
                     Ok(StreamEvent::ToolCallEnd { .. }) => {}
@@ -590,22 +759,50 @@ fn format_display(response: &str, tool_info: &str) -> String {
     display
 }
 
-async fn send_long_message(
-    bot: &Bot,
-    chat_id: ChatId,
-    edit_msg_id: Option<MessageId>,
-    text: &str,
-) {
-    if text.len() <= MAX_MESSAGE_LENGTH {
-        if let Some(msg_id) = edit_msg_id {
-            let _ = bot.edit_message_text(chat_id, msg_id, text).await;
+/// Send/edit agent response as HTML-converted markdown.
+async fn send_or_edit_html(bot: &Bot, chat_id: ChatId, msg_id: Option<MessageId>, text: &str) {
+    let html = markdown_to_html(text);
+    let result = if let Some(mid) = msg_id {
+        bot.edit_message_text(chat_id, mid, &html)
+            .parse_mode(ParseMode::Html)
+            .await
+    } else {
+        bot.send_message(chat_id, &html)
+            .parse_mode(ParseMode::Html)
+            .await
+    };
+
+    // Fallback to plain text on conversion issues
+    if result.is_err() {
+        if let Some(mid) = msg_id {
+            let _ = bot.edit_message_text(chat_id, mid, text).await;
         } else {
             let _ = bot.send_message(chat_id, text).await;
         }
+    }
+}
+
+async fn send_long_message(bot: &Bot, chat_id: ChatId, edit_msg_id: Option<MessageId>, text: &str) {
+    if text.len() <= MAX_MESSAGE_LENGTH {
+        send_or_edit_html(bot, chat_id, edit_msg_id, text).await;
         return;
     }
 
     // Split into chunks at char boundaries
+    let chunks = split_text_chunks(text);
+
+    // First chunk: edit existing message or send new
+    if let Some(first) = chunks.first() {
+        send_or_edit_html(bot, chat_id, edit_msg_id, first).await;
+    }
+
+    // Remaining chunks as new messages
+    for chunk in chunks.iter().skip(1) {
+        send_or_edit_html(bot, chat_id, None, chunk).await;
+    }
+}
+
+fn split_text_chunks(text: &str) -> Vec<&str> {
     let mut chunks = Vec::new();
     let mut start = 0;
     while start < text.len() {
@@ -616,18 +813,5 @@ async fn send_long_message(
         chunks.push(&text[start..end]);
         start = end;
     }
-
-    // First chunk: edit existing message or send new
-    if let Some(first) = chunks.first() {
-        if let Some(msg_id) = edit_msg_id {
-            let _ = bot.edit_message_text(chat_id, msg_id, *first).await;
-        } else {
-            let _ = bot.send_message(chat_id, *first).await;
-        }
-    }
-
-    // Remaining chunks as new messages
-    for chunk in chunks.iter().skip(1) {
-        let _ = bot.send_message(chat_id, *chunk).await;
-    }
+    chunks
 }
