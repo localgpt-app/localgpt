@@ -1020,6 +1020,37 @@ impl LLMProvider for OllamaProvider {
             .send()
             .await?;
 
+        // If Ollama returns 400 (model doesn't support tools), retry without tools
+        if response.status() == reqwest::StatusCode::BAD_REQUEST && body.get("tools").is_some() {
+            debug!("Ollama returned 400 with tools, retrying without tools");
+            let mut body_no_tools = body.clone();
+            body_no_tools.as_object_mut().map(|o| o.remove("tools"));
+            let retry_response = self
+                .client
+                .post(format!("{}/api/chat", self.endpoint))
+                .header("Content-Type", "application/json")
+                .json(&body_no_tools)
+                .send()
+                .await?;
+            let response_body: Value = retry_response.json().await?;
+            let content = response_body["message"]["content"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            let usage = if response_body.get("prompt_eval_count").is_some() {
+                Some(Usage {
+                    input_tokens: response_body["prompt_eval_count"].as_u64().unwrap_or(0),
+                    output_tokens: response_body["eval_count"].as_u64().unwrap_or(0),
+                })
+            } else {
+                None
+            };
+            return Ok(LLMResponse {
+                content: LLMResponseContent::Text(content),
+                usage,
+            });
+        }
+
         let response_body: Value = response.json().await?;
         debug!(
             "Ollama response: {}",
