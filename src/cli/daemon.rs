@@ -179,6 +179,26 @@ async fn run_daemon_services(config: &Config, agent_id: &str) -> Result<()> {
         None
     };
 
+    // Spawn Telegram bot in background if configured
+    let telegram_handle = if config
+        .telegram
+        .as_ref()
+        .is_some_and(|t| t.enabled)
+    {
+        let tg_config = config.clone();
+        let tg_gate = turn_gate.clone();
+        println!("  Telegram: enabled");
+        Some(tokio::spawn(async move {
+            if let Err(e) =
+                localgpt::server::telegram::run_telegram_bot(&tg_config, tg_gate).await
+            {
+                tracing::error!("Telegram bot error: {}", e);
+            }
+        }))
+    } else {
+        None
+    };
+
     // Run server or wait for shutdown
     if config.server.enabled {
         println!(
@@ -196,8 +216,11 @@ async fn run_daemon_services(config: &Config, agent_id: &str) -> Result<()> {
         tokio::signal::ctrl_c().await?;
     }
 
-    // Abort heartbeat task on shutdown
+    // Abort background tasks on shutdown
     if let Some(handle) = heartbeat_handle {
+        handle.abort();
+    }
+    if let Some(handle) = telegram_handle {
         handle.abort();
     }
 

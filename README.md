@@ -11,7 +11,7 @@ A local device focused AI assistant built in Rust — persistent memory, autonom
 - **Local device focused** — runs entirely on your machine, your memory data stays yours
 - **Persistent memory** — markdown-based knowledge store with full-text and semantic search
 - **Autonomous heartbeat** — delegate tasks and let it work in the background
-- **Multiple interfaces** — CLI, web UI, desktop GUI
+- **Multiple interfaces** — CLI, web UI, desktop GUI, Telegram bot
 - **Multiple LLM providers** — Anthropic (Claude), OpenAI, Ollama
 - **OpenClaw compatible** — works with SOUL, MEMORY, HEARTBEAT markdown files and skills format
 
@@ -76,7 +76,23 @@ active_hours = { start = "09:00", end = "22:00" }
 
 [memory]
 workspace = "~/.localgpt/workspace"
+
+# Optional: Telegram bot
+[telegram]
+enabled = true
+api_token = "${TELEGRAM_BOT_TOKEN}"
 ```
+
+## Telegram Bot
+
+Access LocalGPT from Telegram with full chat, tool use, and memory support.
+
+1. Create a bot via [@BotFather](https://t.me/BotFather) and get the API token
+2. Set `TELEGRAM_BOT_TOKEN` or add the token to `config.toml`
+3. Start the daemon: `localgpt daemon start`
+4. Message your bot — enter the 6-digit pairing code shown in the daemon logs
+
+Once paired, use `/help` in Telegram to see available commands.
 
 ## CLI Commands
 

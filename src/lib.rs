@@ -8,6 +8,7 @@
 //! - Desktop GUI (egui-based)
 
 pub mod agent;
+pub mod commands;
 pub mod concurrency;
 pub mod config;
 #[cfg(feature = "desktop")]

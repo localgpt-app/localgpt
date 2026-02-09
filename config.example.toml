@@ -121,6 +121,12 @@ port = 31327
 # Bind address (127.0.0.1 for localhost only)
 bind = "127.0.0.1"
 
+# Telegram bot (optional)
+# Create a bot via @BotFather on Telegram to get an API token
+# [telegram]
+# enabled = true
+# api_token = "${TELEGRAM_BOT_TOKEN}"
+
 [logging]
 # Log level: trace, debug, info, warn, error
 level = "info"

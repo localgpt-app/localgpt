@@ -511,26 +511,10 @@ async fn handle_command(
         "/quit" | "/exit" | "/q" => CommandResult::Quit,
 
         "/help" | "/h" | "/?" => {
-            println!("\nCommands:");
-            println!("  /help, /h, /?     - Show this help");
-            println!("  /quit, /exit, /q  - Exit chat");
-            println!("  /new              - Start a fresh session (reloads memory context)");
-            println!("  /skills           - List available skills");
-            println!("  /sessions         - List available sessions");
-            println!("  /search <query>   - Search across all sessions");
-            println!("  /resume <id>      - Resume a specific session");
-            println!("  /model [name]     - Show or switch model (e.g., /model gpt-4o)");
-            println!("  /models           - List available model prefixes");
-            println!("  /context          - Show context window usage");
-            println!("  /export [file]    - Export session as markdown");
-            println!("  /attach <file>    - Attach file to next message");
-            println!("  /attachments      - List pending attachments");
-            println!("  /compact          - Compact session history");
-            println!("  /clear            - Clear session history (keeps context)");
-            println!("  /memory <query>   - Search memory");
-            println!("  /reindex          - Rebuild memory index");
-            println!("  /save             - Save current session");
-            println!("  /status           - Show session status and API token usage");
+            println!(
+                "\n{}",
+                localgpt::commands::format_help_text(localgpt::commands::Interface::Cli)
+            );
 
             // Show skill commands if any
             let invocable: Vec<&Skill> = skills.iter().filter(|s| s.can_invoke()).collect();

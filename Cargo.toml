@@ -82,6 +82,10 @@ base64 = "0.22"
 regex = "1"
 once_cell = "1"
 fs2 = "0.4"
+rand = "0.8"
+
+# Telegram bot
+teloxide = { version = "0.17", features = ["macros"] }
 
 # Desktop GUI (optional — disable with --no-default-features for headless builds)
 eframe = { version = "0.30", optional = true, default-features = false, features = [

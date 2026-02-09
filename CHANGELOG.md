@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+
+#### Telegram bot interface
+
+Access LocalGPT from Telegram with full chat, tool use, and memory support.
+Configure with `[telegram]` in `config.toml`, pair via a one-time 6-digit code,
+and use slash commands (`/help`, `/new`, `/model`, `/memory`, etc.) just like
+the CLI. Runs as a background task inside the daemon.
+
 ### Fixed
 
 #### OpenAI-compatible provider: tool calls silently dropped during streaming

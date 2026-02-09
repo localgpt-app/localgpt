@@ -48,14 +48,17 @@ LocalGPT is a local-only AI assistant with persistent markdown-based memory and 
 - **heartbeat/** - Autonomous task runner
   - `runner.rs` - Runs on configurable interval within active hours. Reads `HEARTBEAT.md` and executes pending tasks
 
-- **server/** - HTTP/WebSocket API
+- **server/** - HTTP/WebSocket API and Telegram bot
   - `http.rs` - Axum-based REST API. Note: creates new Agent per request (no session persistence via HTTP)
+  - `telegram.rs` - Telegram bot interface with one-time pairing auth, per-chat sessions, streaming responses with debounced message edits (2s), and full tool support
   - Endpoints: `/health`, `/api/status`, `/api/chat`, `/api/memory/search`, `/api/memory/stats`
 
 - **config/** - TOML configuration at `~/.localgpt/config.toml`
   - Supports `${ENV_VAR}` expansion in API keys
   - `workspace_path()` returns expanded memory workspace path
   - `migrate.rs` - Auto-migrates from OpenClaw's `~/.openclaw/config.json5` if LocalGPT config doesn't exist
+
+- **commands.rs** - Shared slash command definitions used by both CLI chat and Telegram bot
 
 - **cli/** - Clap-based subcommands: `chat`, `ask`, `daemon`, `memory`, `config`
 
@@ -79,6 +82,49 @@ Key settings:
 - `heartbeat.interval` - Duration string (e.g., "30m", "1h")
 - `heartbeat.active_hours` - Optional `{start, end}` in "HH:MM" format
 - `server.port` - HTTP server port (default: 31327)
+- `telegram.enabled` - Enable Telegram bot (default: false)
+- `telegram.api_token` - Telegram Bot API token (supports `${TELEGRAM_BOT_TOKEN}`)
+
+### Telegram Bot
+
+The Telegram bot runs as a background task inside the daemon (`localgpt daemon start`). It provides the same chat capabilities as the CLI, including tool use and memory access.
+
+**Setup:**
+
+1. Create a bot via [@BotFather](https://t.me/BotFather) and get the API token
+2. Configure in `~/.localgpt/config.toml`:
+   ```toml
+   [telegram]
+   enabled = true
+   api_token = "${TELEGRAM_BOT_TOKEN}"
+   ```
+3. Start the daemon: `localgpt daemon start`
+4. Message your bot on Telegram — it will generate a 6-digit pairing code printed to the daemon console/logs
+5. Send the code back to the bot to complete pairing
+
+**Pairing & Auth:**
+- First message triggers a one-time pairing flow with a 6-digit code
+- Code is printed to stdout and daemon logs
+- Only the paired user can interact with the bot
+- Pairing persists in `~/.localgpt/telegram_paired_user.json`
+
+**Telegram Commands:**
+- `/help` - Show available commands
+- `/new` - Start fresh session
+- `/skills` - List available skills
+- `/model [name]` - Show or switch model
+- `/compact` - Compact session history
+- `/clear` - Clear session history
+- `/memory <query>` - Search memory files
+- `/status` - Show session info
+- `/unpair` - Remove pairing (re-enables pairing flow)
+
+**Implementation notes:**
+- Uses agent ID `"telegram"` (separate sessions from CLI's `"main"`)
+- Messages >4096 chars are split into chunks for Telegram's limit
+- Streaming responses are shown via debounced message edits (every 2s)
+- Tool calls are displayed with extracted details during streaming
+- Shares `TurnGate` concurrency control with HTTP server and heartbeat
 
 ### Workspace Path Customization (OpenClaw-Compatible)
 

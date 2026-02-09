@@ -31,6 +31,9 @@ pub struct Config {
 
     #[serde(default)]
     pub tools: ToolsConfig,
+
+    #[serde(default)]
+    pub telegram: Option<TelegramConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -217,6 +220,14 @@ pub struct LoggingConfig {
     /// Days to keep log files (0 = keep forever, no auto-deletion)
     #[serde(default)]
     pub retention_days: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramConfig {
+    #[serde(default)]
+    pub enabled: bool,
+
+    pub api_token: String,
 }
 
 // Default value functions
@@ -449,6 +460,9 @@ impl Config {
         if let Some(ref mut anthropic) = self.providers.anthropic {
             anthropic.api_key = expand_env(&anthropic.api_key);
         }
+        if let Some(ref mut telegram) = self.telegram {
+            telegram.api_token = expand_env(&telegram.api_token);
+        }
     }
 
     pub fn get_value(&self, key: &str) -> Result<String> {
@@ -584,4 +598,9 @@ bind = "127.0.0.1"
 
 [logging]
 level = "info"
+
+# Telegram bot (optional)
+# [telegram]
+# enabled = true
+# api_token = "${TELEGRAM_BOT_TOKEN}"
 "#;
