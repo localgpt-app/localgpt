@@ -948,29 +948,67 @@ impl LLMProvider for OllamaProvider {
     async fn chat(
         &self,
         messages: &[Message],
-        _tools: Option<&[ToolSchema]>,
+        tools: Option<&[ToolSchema]>,
     ) -> Result<LLMResponse> {
-        // Note: Ollama tool support is limited, so we format as plain chat
         let formatted_messages: Vec<Value> = messages
             .iter()
             .map(|m| {
-                json!({
+                let mut msg = json!({
                     "role": match m.role {
                         Role::System => "system",
                         Role::User => "user",
                         Role::Assistant => "assistant",
-                        Role::Tool => "user", // Treat tool results as user messages
+                        Role::Tool => "tool",
                     },
                     "content": m.content
-                })
+                });
+                // Include tool_call_id for tool role messages
+                if m.role == Role::Tool {
+                    if let Some(ref id) = m.tool_call_id {
+                        msg["tool_call_id"] = json!(id);
+                    }
+                }
+                // Include tool_calls for assistant messages that had them
+                if m.role == Role::Assistant {
+                    if let Some(ref calls) = m.tool_calls {
+                        let tc: Vec<Value> = calls.iter().map(|c| json!({
+                            "function": {
+                                "name": c.name,
+                                "arguments": serde_json::from_str::<Value>(&c.arguments).unwrap_or(json!({}))
+                            }
+                        })).collect();
+                        msg["tool_calls"] = json!(tc);
+                    }
+                }
+                msg
             })
             .collect();
 
-        let body = json!({
+        let mut body = json!({
             "model": self.model,
             "messages": formatted_messages,
             "stream": false
         });
+
+        // Send tool schemas if provided
+        if let Some(tool_schemas) = tools {
+            if !tool_schemas.is_empty() {
+                let tools_json: Vec<Value> = tool_schemas
+                    .iter()
+                    .map(|t| {
+                        json!({
+                            "type": "function",
+                            "function": {
+                                "name": t.name,
+                                "description": t.description,
+                                "parameters": t.parameters
+                            }
+                        })
+                    })
+                    .collect();
+                body["tools"] = json!(tools_json);
+            }
+        }
 
         debug!("Ollama request: {}", serde_json::to_string_pretty(&body)?);
 
@@ -988,11 +1026,6 @@ impl LLMProvider for OllamaProvider {
             serde_json::to_string_pretty(&response_body)?
         );
 
-        let content = response_body["message"]["content"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
-
         // Ollama returns token counts in prompt_eval_count and eval_count
         let usage = if response_body.get("prompt_eval_count").is_some() {
             Some(Usage {
@@ -1002,6 +1035,41 @@ impl LLMProvider for OllamaProvider {
         } else {
             None
         };
+
+        // Check for tool calls in response
+        if let Some(tool_calls) = response_body["message"]["tool_calls"].as_array() {
+            if !tool_calls.is_empty() {
+                let calls: Vec<ToolCall> = tool_calls
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, tc)| {
+                        let name = tc["function"]["name"].as_str()?.to_string();
+                        let arguments = if tc["function"]["arguments"].is_object() {
+                            serde_json::to_string(&tc["function"]["arguments"]).ok()?
+                        } else {
+                            tc["function"]["arguments"].as_str()?.to_string()
+                        };
+                        Some(ToolCall {
+                            id: format!("call_{}", i),
+                            name,
+                            arguments,
+                        })
+                    })
+                    .collect();
+
+                if !calls.is_empty() {
+                    return Ok(LLMResponse {
+                        content: LLMResponseContent::ToolCalls(calls),
+                        usage,
+                    });
+                }
+            }
+        }
+
+        let content = response_body["message"]["content"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
 
         Ok(LLMResponse {
             content: LLMResponseContent::Text(content),
@@ -1030,8 +1098,33 @@ impl LLMProvider for OllamaProvider {
     async fn chat_stream(
         &self,
         messages: &[Message],
-        _tools: Option<&[ToolSchema]>,
+        tools: Option<&[ToolSchema]>,
     ) -> Result<StreamResult> {
+        // For tool-enabled requests, use non-streaming to properly handle tool calls
+        if tools.is_some() && tools.map(|t| !t.is_empty()).unwrap_or(false) {
+            let resp = self.chat(messages, tools).await?;
+            return match resp.content {
+                LLMResponseContent::Text(text) => {
+                    Ok(Box::pin(futures::stream::once(async move {
+                        Ok(StreamChunk {
+                            delta: text,
+                            done: true,
+                            tool_calls: None,
+                        })
+                    })))
+                }
+                LLMResponseContent::ToolCalls(calls) => {
+                    Ok(Box::pin(futures::stream::once(async move {
+                        Ok(StreamChunk {
+                            delta: String::new(),
+                            done: true,
+                            tool_calls: Some(calls),
+                        })
+                    })))
+                }
+            };
+        }
+
         let formatted_messages: Vec<Value> = messages
             .iter()
             .map(|m| {
@@ -1040,7 +1133,7 @@ impl LLMProvider for OllamaProvider {
                         Role::System => "system",
                         Role::User => "user",
                         Role::Assistant => "assistant",
-                        Role::Tool => "user",
+                        Role::Tool => "tool",
                     },
                     "content": m.content
                 })
