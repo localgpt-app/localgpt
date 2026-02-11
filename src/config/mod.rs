@@ -115,6 +115,9 @@ pub struct ProvidersConfig {
 
     #[serde(default)]
     pub claude_cli: Option<ClaudeCliConfig>,
+
+    #[serde(default)]
+    pub glm: Option<GlmConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -149,6 +152,14 @@ pub struct ClaudeCliConfig {
 
     #[serde(default = "default_claude_cli_model")]
     pub model: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlmConfig {
+    pub api_key: String,
+
+    #[serde(default = "default_glm_base_url")]
+    pub base_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -292,6 +303,9 @@ fn default_claude_cli_command() -> String {
 }
 fn default_claude_cli_model() -> String {
     "opus".to_string()
+}
+fn default_glm_base_url() -> String {
+    "https://api.z.ai/api/coding/paas/v4".to_string()
 }
 fn default_true() -> bool {
     true

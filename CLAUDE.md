@@ -32,7 +32,7 @@ LocalGPT is a local-only AI assistant with persistent markdown-based memory and 
 ### Core Modules (`src/`)
 
 - **agent/** - LLM interaction layer
-  - `providers.rs` - Trait `LLMProvider` with implementations for OpenAI, Anthropic, Ollama, and Claude CLI. Model prefix determines provider (`claude-cli/*` → Claude CLI, `gpt-*` → OpenAI, `claude-*` → Anthropic API, else Ollama)
+  - `providers.rs` - Trait `LLMProvider` with implementations for OpenAI, Anthropic, Ollama, Claude CLI, and GLM (Z.AI). Model prefix determines provider (`claude-cli/*` → Claude CLI, `gpt-*` → OpenAI, `claude-*` → Anthropic API, `glm-*` → GLM, else Ollama)
   - `session.rs` - Conversation state with automatic compaction when approaching context window limits
   - `session_store.rs` - Session metadata store (`sessions.json`) with CLI session ID persistence
   - `system_prompt.rs` - Builds system prompt with identity, safety, workspace info, tools, skills, and special tokens
@@ -76,7 +76,7 @@ Default config path: `~/.localgpt/config.toml` (see `config.example.toml`)
 **Auto-creation**: If no config file exists on first run, LocalGPT automatically creates a default config with helpful comments. If an OpenClaw config exists at `~/.openclaw/config.json5`, it will be migrated automatically.
 
 Key settings:
-- `agent.default_model` - Model name (determines provider). Default: `claude-cli/opus`
+- `agent.default_model` - Model name (determines provider). Default: `claude-cli/opus`. Supported: Anthropic (`anthropic/claude-*`), OpenAI (`openai/gpt-*`), GLM/Z.AI (`glm/glm-4.7` or alias `glm`), Claude CLI (`claude-cli/*`), Ollama (`ollama/*`)
 - `agent.context_window` / `reserve_tokens` - Context management
 - `memory.workspace` - Workspace directory path. Default: `~/.localgpt/workspace`
 - `heartbeat.interval` - Duration string (e.g., "30m", "1h")

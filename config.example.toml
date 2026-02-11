@@ -18,6 +18,9 @@
 # OpenAI API (requires OPENAI_API_KEY):
 #   - "openai/gpt-4o", "openai/gpt-4o-mini", "openai/gpt-4-turbo"
 #
+# GLM / Z.AI API (requires GLM API key):
+#   - "glm/glm-4.7" (or use alias "glm")
+#
 # Claude CLI (local, no API key needed):
 #   - "claude-cli/opus", "claude-cli/sonnet", "claude-cli/haiku"
 #
@@ -53,6 +56,12 @@ base_url = "https://api.anthropic.com"
 # [providers.claude_cli]
 # command = "claude"
 # model = "opus"  # opus, sonnet, or haiku
+
+# GLM / Z.AI configuration (optional)
+# Get your API key at: https://z.ai/manage-apikey/apikey-list
+# [providers.glm]
+# api_key = "${GLM_API_KEY}"
+# base_url = "https://api.z.ai/api/coding/paas/v4"
 
 [heartbeat]
 # Enable automatic heartbeat

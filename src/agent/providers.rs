@@ -193,6 +193,7 @@ fn resolve_model_alias(model: &str) -> String {
         "sonnet" => "anthropic/claude-sonnet-4-5".to_string(),
         "gpt" => "openai/gpt-4o".to_string(),
         "gpt-mini" => "openai/gpt-4o-mini".to_string(),
+        "glm" => "glm/glm-4.7".to_string(),
         _ => model.to_string(),
     }
 }
@@ -228,6 +229,8 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
         ("openai".to_string(), model.clone())
     } else if model.starts_with("claude-") {
         ("anthropic".to_string(), model.clone())
+    } else if model.starts_with("glm-") {
+        ("glm".to_string(), model.clone())
     } else {
         // Default to anthropic for unknown models, or ollama if configured
         if config.providers.ollama.is_some() {
@@ -300,6 +303,23 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
             )?))
         }
 
+        "glm" => {
+            let glm_config = config.providers.glm.as_ref().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "GLM provider not configured.\n\
+                    Set GLM_API_KEY env var or add to ~/.localgpt/config.toml:\n\n\
+                    [providers.glm]\n\
+                    api_key = \"your-glm-api-key\""
+                )
+            })?;
+
+            Ok(Box::new(OpenAIProvider::new(
+                &glm_config.api_key,
+                &glm_config.base_url,
+                &model_id,
+            )?))
+        }
+
         _ => {
             // Fallback: try Claude CLI if configured
             if let Some(cli_config) = &config.providers.claude_cli {
@@ -315,9 +335,10 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
                 Supported formats (OpenClaw-compatible):\n  \
                 - anthropic/claude-opus-4-5, anthropic/claude-sonnet-4-5\n  \
                 - openai/gpt-4o, openai/gpt-4o-mini\n  \
+                - glm/glm-4.7\n  \
                 - claude-cli/opus, claude-cli/sonnet\n  \
                 - ollama/llama3, ollama/mistral\n\n\
-                Or use aliases: opus, sonnet, haiku, gpt, gpt-mini",
+                Or use aliases: opus, sonnet, haiku, gpt, gpt-mini, glm",
                 provider,
                 model
             )
