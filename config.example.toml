@@ -45,6 +45,9 @@ base_url = "https://api.anthropic.com"
 # [providers.openai]
 # api_key = "${OPENAI_API_KEY}"
 # base_url = "https://api.openai.com/v1"
+# For local OpenAI-compatible servers (LM Studio, llamafile, vLLM):
+# api_key = "not-needed"
+# base_url = "http://127.0.0.1:8080/v1" # LM Studio default is http://127.0.0.1:1234/v1
 
 # Ollama configuration (for local models)
 # [providers.ollama]

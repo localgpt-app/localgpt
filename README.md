@@ -84,6 +84,25 @@ enabled = true
 api_token = "${TELEGRAM_BOT_TOKEN}"
 ```
 
+### Using a local OpenAI-compatible server (LM Studio, llamafile, etc.)
+
+If you run a local server that speaks the OpenAI API (e.g., LM Studio, llamafile, vLLM), point LocalGPT at it and pick an `openai/*` model ID so it does **not** try to spawn the `claude` CLI:
+
+1. Start your server (LM Studio default port: `1234`; llamafile default: `8080`) and note its model name.
+2. Edit `~/.localgpt/config.toml`:
+   ```toml
+   [agent]
+   default_model = "openai/<your-model-name>"
+
+   [providers.openai]
+   # Many local servers accept a dummy key
+   api_key = "not-needed"
+   base_url = "http://127.0.0.1:8080/v1" # or http://127.0.0.1:1234/v1 for LM Studio
+   ```
+3. Run `localgpt chat` (or `localgpt daemon start`) and requests will go to your local server.
+
+Tip: If you see `Failed to spawn Claude CLI`, change `agent.default_model` away from `claude-cli/*` or install the `claude` CLI.
+
 ## Telegram Bot
 
 Access LocalGPT from Telegram with full chat, tool use, and memory support.
