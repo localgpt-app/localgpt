@@ -4927,6 +4927,8 @@ dependencies = [
  "async-trait",
  "axum",
  "chrono",
+ "console_error_panic_hook",
+ "eframe",
  "futures",
  "localgpt-core",
  "mime_guess",
@@ -4938,6 +4940,9 @@ dependencies = [
  "tokio-stream",
  "tower-http",
  "tracing",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

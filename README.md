@@ -219,6 +219,14 @@ When the daemon is running:
 | `GET /api/memory/search?q=<query>` | Search memory |
 | `GET /api/memory/stats` | Memory statistics |
 
+### Egui Web UI (PoC)
+
+LocalGPT includes a Proof of Concept for running the desktop Egui UI in the browser via WebAssembly. This enables code reuse between desktop and web interfaces.
+
+**Try it**: After building the WASM UI with `./build-egui-web.sh`, visit `http://localhost:31327/egui`
+
+See [`docs/egui-web-poc.md`](docs/egui-web-poc.md) for details on architecture, benefits, tradeoffs, and implementation.
+
 ## Blog
 
 [Why I Built LocalGPT in 4 Nights](https://localgpt.app/blog/why-i-built-localgpt-in-4-nights) — the full story with commit-by-commit breakdown.
