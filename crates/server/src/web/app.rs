@@ -65,7 +65,9 @@ impl eframe::App for WebApp {
                     }
                     
                     if let Some(ref id) = self.session_id {
-                        ui.label(format!("Session: {}...", &id[..8.min(id.len())]));
+                        // Safe truncation that respects UTF-8 character boundaries
+                        let truncated: String = id.chars().take(8).collect();
+                        ui.label(format!("Session: {}...", truncated));
                     }
                 });
             });
@@ -105,7 +107,10 @@ impl eframe::App for WebApp {
                         .hint_text("Type a message..."),
                 );
 
-                if ui.button("Send").clicked() || (input_response.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.shift)) {
+                let enter_without_shift = input_response.has_focus() 
+                    && ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.shift);
+
+                if ui.button("Send").clicked() || enter_without_shift {
                     self.send_message();
                     input_response.request_focus();
                 }

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Build script for LocalGPT egui web UI
 #
 # This script compiles the server crate to WASM and generates the necessary
