@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalGPT - Egui Web UI (PoC)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1a1a;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #888;
+            text-align: center;
+        }
+
+        #the_canvas_id {
+            width: 100%;
+            height: 100%;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>Loading LocalGPT Egui Web UI...</p>
+    </div>
+    <canvas id="the_canvas_id"></canvas>
+
+    <script type="module">
+        // Import the WASM module
+        import init, { start_web_ui } from '/egui/localgpt_server.js';
+
+        async function run() {
+            try {
+                // Initialize WASM
+                await init();
+                
+                // Start the egui app
+                await start_web_ui('the_canvas_id');
+                
+                // Remove loading indicator
+                const loading = document.getElementById('loading');
+                if (loading) {
+                    loading.remove();
+                }
+            } catch (err) {
+                console.error('Failed to start egui app:', err);
+                const loading = document.getElementById('loading');
+                if (loading) {
+                    loading.innerHTML = `
+                        <p style="color: #f44;">Error: Failed to load UI</p>
+                        <p style="font-size: 0.9em; margin-top: 10px;">Check browser console for details</p>
+                    `;
+                }
+            }
+        }
+
+        run();
+    </script>
+</body>
+</html>

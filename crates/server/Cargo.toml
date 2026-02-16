@@ -6,6 +6,9 @@ license.workspace = true
 repository.workspace = true
 description = "LocalGPT HTTP server and Telegram bot"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 localgpt-core = { workspace = true }
 
@@ -32,3 +35,16 @@ teloxide = { version = "0.17", features = ["macros"] }
 # Utilities
 tokio-stream = "0.1"
 async-stream = "0.3"
+
+# Egui web UI (optional)
+eframe = { version = "0.33", optional = true, default-features = false }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["HtmlCanvasElement", "Window", "Document"] }
+console_error_panic_hook = "0.1"
+
+[features]
+default = []
+egui-web = ["eframe"]

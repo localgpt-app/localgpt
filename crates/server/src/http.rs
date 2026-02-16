@@ -139,6 +139,9 @@ impl Server {
             // Web UI routes
             .route("/", get(serve_ui_index))
             .route("/ui/{*path}", get(serve_ui_file))
+            // Egui web UI routes (PoC)
+            .route("/egui", get(serve_egui_index))
+            .route("/egui/{*path}", get(serve_egui_file))
             // API routes
             .route("/health", get(health_check))
             .route("/api/sessions", post(create_session))
@@ -362,6 +365,18 @@ fn serve_ui_asset(path: &str) -> Response {
         }
         None => (StatusCode::NOT_FOUND, "Not found").into_response(),
     }
+}
+
+// Serve egui web UI index
+async fn serve_egui_index() -> Response {
+    serve_ui_asset("egui.html")
+}
+
+// Serve egui web UI files (WASM, JS, etc.)
+async fn serve_egui_file(Path(path): Path<String>) -> Response {
+    // Serve WASM artifacts from ui/egui/ directory
+    let egui_path = format!("egui/{}", path);
+    serve_ui_asset(&egui_path)
 }
 
 // Status endpoint
