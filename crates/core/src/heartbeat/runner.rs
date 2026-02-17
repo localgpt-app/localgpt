@@ -5,7 +5,7 @@ use chrono::{Local, NaiveTime};
 use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use tokio::time::sleep;
+use tokio::time::interval;
 use tracing::{debug, info, warn};
 
 use super::events::{HeartbeatEvent, HeartbeatStatus, emit_heartbeat_event, now_ms};
@@ -89,9 +89,13 @@ impl HeartbeatRunner {
     pub async fn run(&self) -> Result<()> {
         info!(name: "Heartbeat", "starting runner with interval: {:?}", self.interval);
 
+        let mut interval = interval(self.interval);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        interval.tick().await; // Consume first (immediate) tick
+
         loop {
-            // Sleep until next interval
-            sleep(self.interval).await;
+            interval.tick().await; // Sleep until next interval
 
             // Check active hours
             if !self.in_active_hours() {
