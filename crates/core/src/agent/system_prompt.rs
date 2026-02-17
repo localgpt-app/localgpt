@@ -249,6 +249,7 @@ fn get_tool_summary(tool_name: &str) -> &'static str {
         "memory_search" => "Semantically search MEMORY.md + memory/*.md",
         "memory_get" => "Fetch specific lines from memory files (use after memory_search)",
         "web_fetch" => "Fetch and extract content from a URL",
+        "web_search" => "Search web with a Query string",
         _ => "Tool",
     }
 }
