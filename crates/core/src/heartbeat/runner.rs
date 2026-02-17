@@ -4,8 +4,8 @@ use anyhow::Result;
 use chrono::{Local, NaiveTime};
 use std::fs;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
-use tokio::time::interval;
+use std::time::{Duration, Instant, SystemTime};
+use tokio::time::interval_at;
 use tracing::{debug, info, warn};
 
 use super::events::{HeartbeatEvent, HeartbeatStatus, emit_heartbeat_event, now_ms};
@@ -85,14 +85,46 @@ impl HeartbeatRunner {
         })
     }
 
+    async fn first_delay(&self) -> Duration {
+        // Read last heartbeat event to calibrate first tick time
+        if let Ok(json) = fs::read_to_string(self.config.paths.last_heartbeat()) {
+            if let Ok(event) = serde_json::from_str::<HeartbeatEvent>(&json) {
+                let last_tick_end = std::time::UNIX_EPOCH + Duration::from_millis(event.ts as u64);
+                let last_tick_elapsed = Duration::from_millis(event.duration_ms as u64);
+                let last_tick = last_tick_end - last_tick_elapsed;
+                debug!(
+                    name: "Heartbeat",
+                    "loaded last_tick: {:?} (ts: {}, duration_ms: {})",
+                    last_tick, event.ts, event.duration_ms
+                );
+
+                let next_tick = last_tick + self.interval;
+                let now = SystemTime::now();
+                if now < next_tick {
+                    return next_tick.duration_since(now).unwrap_or(Duration::ZERO);
+                }
+            }
+        }
+
+        // heartbeat is overdue
+        return self.interval / 2;
+    }
+
     /// Run the heartbeat loop continuously
     pub async fn run(&self) -> Result<()> {
         info!(name: "Heartbeat", "starting runner with interval: {:?}", self.interval);
 
-        let mut interval = interval(self.interval);
+        // Schedule first tick at next interval from last tick
+        let first_after = self.first_delay().await;
+        let first_at = tokio::time::Instant::now() + first_after;
+        let mut interval = interval_at(first_at, self.interval);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-        interval.tick().await; // Consume first (immediate) tick
+        info!(
+            name: "Heartbeat",
+            "first tick scheduled after: {:?} at: {:?}",
+            first_after,
+            first_at,
+        );
 
         loop {
             interval.tick().await; // Sleep until next interval
