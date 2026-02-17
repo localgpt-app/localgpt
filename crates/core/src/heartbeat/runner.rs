@@ -107,7 +107,13 @@ impl HeartbeatRunner {
         }
 
         // heartbeat is overdue
-        return self.interval / 2;
+        return parse_duration(&self.config.heartbeat.overdue_delay).map_or_else(
+            |e| {
+                warn!(name: "Heartbeat", "invalid overdue_delay: {}, falling back to zero", e);
+                Duration::ZERO
+            },
+            |d| d,
+        );
     }
 
     /// Run the heartbeat loop continuously

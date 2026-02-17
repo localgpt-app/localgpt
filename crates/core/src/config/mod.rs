@@ -358,6 +358,9 @@ pub struct HeartbeatConfig {
     #[serde(default = "default_interval")]
     pub interval: String,
 
+    #[serde(default = "default_overdue_delay")]
+    pub overdue_delay: String,
+
     #[serde(default)]
     pub active_hours: Option<ActiveHours>,
 
@@ -504,6 +507,10 @@ fn default_true() -> bool {
 fn default_interval() -> String {
     "30m".to_string()
 }
+
+fn default_overdue_delay() -> String {
+    "1m".to_string()
+}
 fn default_workspace() -> String {
     "~/.local/share/localgpt/workspace".to_string()
 }
@@ -607,6 +614,7 @@ impl Default for HeartbeatConfig {
         Self {
             enabled: default_true(),
             interval: default_interval(),
+            overdue_delay: default_overdue_delay(),
             active_hours: None,
             timezone: None,
         }
