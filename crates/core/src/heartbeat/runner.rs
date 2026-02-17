@@ -152,6 +152,14 @@ impl HeartbeatRunner {
                 }
             };
 
+            // Persist last heartbeat event to disk
+            if let Err(e) = serde_json::to_writer_pretty(
+                fs::File::create(self.config.paths.last_heartbeat())?,
+                &event,
+            ) {
+                warn!(name: "Heartbeat", "failed to write event: {}", e);
+            }
+
             emit_heartbeat_event(event);
 
             info!(name: "Heartbeat", "waiting for next tick");

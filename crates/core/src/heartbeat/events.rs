@@ -1,10 +1,10 @@
 //! Heartbeat event tracking for UI status display
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
 
 /// Heartbeat event status
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HeartbeatStatus {
     /// Heartbeat ran and sent a response
@@ -18,7 +18,7 @@ pub enum HeartbeatStatus {
 }
 
 /// A heartbeat event for tracking/display
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct HeartbeatEvent {
     /// Timestamp in milliseconds
     pub ts: u64,

@@ -107,6 +107,10 @@ impl Paths {
         self.state_dir.join("localgpt.audit.jsonl")
     }
 
+    pub fn last_heartbeat(&self) -> PathBuf {
+        self.state_dir.join("last_heartbeat")
+    }
+
     /// Search index for a specific agent: cache_dir/memory/{agent_id}.sqlite
     pub fn search_index(&self, agent_id: &str) -> PathBuf {
         self.cache_dir
