@@ -112,41 +112,49 @@ impl HeartbeatRunner {
 
             // Run heartbeat with timing
             let start = Instant::now();
-            match self.run_once_internal().await {
+            info!(name: "Heartbeat", "tick starting at: {:?}", start);
+
+            let res = self.run_once_internal().await;
+            let elapsed = start.elapsed();
+            info!(name: "Heartbeat", "tick done elapsed: {:?}", elapsed);
+
+            let event = match res {
                 Ok((response, status)) => {
-                    let duration_ms = start.elapsed().as_millis() as u64;
                     let preview = if response.len() > 200 {
                         Some(format!("{}...", &response[..200]))
                     } else {
                         Some(response.clone())
                     };
 
-                    emit_heartbeat_event(HeartbeatEvent {
-                        ts: now_ms(),
-                        status,
-                        duration_ms,
-                        preview,
-                        reason: None,
-                    });
-
                     if is_heartbeat_ok(&response) {
                         debug!(name: "Heartbeat", "OK");
                     } else {
                         warn!(name: "Heartbeat", "response not OK: {}", response);
                     }
+
+                    HeartbeatEvent {
+                        ts: now_ms(),
+                        status: status.clone(),
+                        duration_ms: elapsed.as_millis() as u64,
+                        preview,
+                        reason: None,
+                    }
                 }
                 Err(e) => {
                     warn!(name: "Heartbeat", "error: {}", e);
-                    let duration_ms = start.elapsed().as_millis() as u64;
-                    emit_heartbeat_event(HeartbeatEvent {
+                    HeartbeatEvent {
                         ts: now_ms(),
                         status: HeartbeatStatus::Failed,
-                        duration_ms,
+                        duration_ms: elapsed.as_millis() as u64,
                         preview: None,
                         reason: Some(e.to_string()),
-                    });
+                    }
                 }
-            }
+            };
+
+            emit_heartbeat_event(event);
+
+            info!(name: "Heartbeat", "waiting for next tick");
         }
     }
 
