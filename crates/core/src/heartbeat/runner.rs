@@ -87,10 +87,7 @@ impl HeartbeatRunner {
 
     /// Run the heartbeat loop continuously
     pub async fn run(&self) -> Result<()> {
-        info!(
-            "Starting heartbeat runner with interval: {:?}",
-            self.interval
-        );
+        info!(name: "Heartbeat", "starting runner with interval: {:?}", self.interval);
 
         loop {
             // Sleep until next interval
@@ -98,7 +95,7 @@ impl HeartbeatRunner {
 
             // Check active hours
             if !self.in_active_hours() {
-                debug!("Outside active hours, skipping heartbeat");
+                info!(name: "Heartbeat", "skipping: outside active hours");
                 emit_heartbeat_event(HeartbeatEvent {
                     ts: now_ms(),
                     status: HeartbeatStatus::Skipped,
@@ -129,12 +126,13 @@ impl HeartbeatRunner {
                     });
 
                     if is_heartbeat_ok(&response) {
-                        debug!("Heartbeat: OK");
+                        debug!(name: "Heartbeat", "OK");
                     } else {
-                        info!("Heartbeat response: {}", response);
+                        warn!(name: "Heartbeat", "response not OK: {}", response);
                     }
                 }
                 Err(e) => {
+                    warn!(name: "Heartbeat", "error: {}", e);
                     let duration_ms = start.elapsed().as_millis() as u64;
                     emit_heartbeat_event(HeartbeatEvent {
                         ts: now_ms(),
@@ -143,7 +141,6 @@ impl HeartbeatRunner {
                         preview: None,
                         reason: Some(e.to_string()),
                     });
-                    warn!("Heartbeat error: {}", e);
                 }
             }
         }
@@ -192,7 +189,7 @@ impl HeartbeatRunner {
         if let Some(ref gate) = self.turn_gate
             && gate.is_busy()
         {
-            debug!("Skipping heartbeat: agent turn in flight (TurnGate busy)");
+            info!(name: "Heartbeat", "skipping: agent turn in flight (TurnGate busy)");
             return Ok((HEARTBEAT_OK_TOKEN.to_string(), HeartbeatStatus::Skipped));
         }
 
@@ -200,7 +197,7 @@ impl HeartbeatRunner {
         let _ws_guard = match self.workspace_lock.try_acquire()? {
             Some(guard) => guard,
             None => {
-                debug!("Skipping heartbeat: workspace locked by another process");
+                info!(name: "Heartbeat", "skipping: workspace locked by another process");
                 return Ok((HEARTBEAT_OK_TOKEN.to_string(), HeartbeatStatus::Skipped));
             }
         };
@@ -211,7 +208,7 @@ impl HeartbeatRunner {
             match gate.try_acquire() {
                 Some(permit) => Some(permit),
                 None => {
-                    debug!("Skipping heartbeat: agent turn started between check and acquire");
+                    info!(name: "Heartbeat", "skipping: agent turn started between check and acquire");
                     return Ok((HEARTBEAT_OK_TOKEN.to_string(), HeartbeatStatus::Skipped));
                 }
             }
@@ -223,13 +220,13 @@ impl HeartbeatRunner {
         let heartbeat_path = self.workspace.join("HEARTBEAT.md");
 
         if !heartbeat_path.exists() {
-            debug!("No HEARTBEAT.md found");
+            info!(name: "Heartbeat", "skipping: no HEARTBEAT.md");
             return Ok((HEARTBEAT_OK_TOKEN.to_string(), HeartbeatStatus::Skipped));
         }
 
         let content = fs::read_to_string(&heartbeat_path)?;
         if content.trim().is_empty() {
-            debug!("HEARTBEAT.md is empty");
+            info!(name: "Heartbeat", "skipping: empty HEARTBEAT.md");
             return Ok((HEARTBEAT_OK_TOKEN.to_string(), HeartbeatStatus::Skipped));
         }
 
@@ -242,6 +239,8 @@ impl HeartbeatRunner {
 
         let mut agent = Agent::new(agent_config, &self.config, self.memory.clone()).await?;
         agent.new_session().await?;
+
+        info!(name: "Heartbeat", "Running HEARTBEAT.md");
 
         // Check if workspace is a git repo
         let workspace_is_git = self.workspace.join(".git").exists();
@@ -263,8 +262,8 @@ impl HeartbeatRunner {
             if let Some(entry) = store.get(session_key)
                 && entry.is_duplicate_heartbeat(&response)
             {
-                debug!(
-                    "Skipping duplicate heartbeat (same text within 24h): {}",
+                info!(name: "Heartbeat",
+                    "skipping: duplicate (same text within 24h): {}",
                     &response[..response.len().min(100)]
                 );
                 return Ok((response, HeartbeatStatus::Skipped));
@@ -275,7 +274,7 @@ impl HeartbeatRunner {
             if let Err(e) = store.load_and_update(session_key, &session_id, |entry| {
                 entry.record_heartbeat(&response);
             }) {
-                warn!("Failed to record heartbeat in session store: {}", e);
+                warn!(name: "Heartbeat", "Failed to record in session store: {}", e);
             }
         }
 
