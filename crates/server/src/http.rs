@@ -1064,6 +1064,7 @@ async fn heartbeat_status(State(state): State<Arc<AppState>>) -> Json<HeartbeatS
             HeartbeatStatus::Sent => "sent",
             HeartbeatStatus::Ok => "ok",
             HeartbeatStatus::Skipped => "skipped",
+            HeartbeatStatus::SkippedMayTry => "skipped",
             HeartbeatStatus::Failed => "failed",
         };
 

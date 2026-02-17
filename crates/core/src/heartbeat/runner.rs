@@ -132,6 +132,11 @@ impl HeartbeatRunner {
             first_at,
         );
 
+        // Exponential backoff for SkippedMayTry retries
+        let mut skips_since_last = 0;
+        let skip_retry_base = Duration::from_millis(1000);
+        let skip_retry_max = self.interval / 2;
+
         loop {
             interval.tick().await; // Sleep until next interval
 
@@ -170,6 +175,16 @@ impl HeartbeatRunner {
                         warn!(name: "Heartbeat", "response not OK: {}", response);
                     }
 
+                    if status == HeartbeatStatus::SkippedMayTry {
+                        skips_since_last += 1;
+                        let retry_after =
+                            (skip_retry_base * 2_u32.pow(skips_since_last)).min(skip_retry_max);
+                        interval.reset_after(retry_after);
+                        info!(name: "Heartbeat", "transient skip, retry quickly after: {:?}", retry_after);
+                    } else {
+                        skips_since_last = 0;
+                    }
+
                     HeartbeatEvent {
                         ts: now_ms(),
                         status: status.clone(),
@@ -190,12 +205,14 @@ impl HeartbeatRunner {
                 }
             };
 
-            // Persist last heartbeat event to disk
-            if let Err(e) = serde_json::to_writer_pretty(
-                fs::File::create(self.config.paths.last_heartbeat())?,
-                &event,
-            ) {
-                warn!(name: "Heartbeat", "failed to write event: {}", e);
+            // Persist any non-transient heartbeat event to disk
+            if event.status != HeartbeatStatus::SkippedMayTry {
+                if let Err(e) = serde_json::to_writer_pretty(
+                    fs::File::create(self.config.paths.last_heartbeat())?,
+                    &event,
+                ) {
+                    warn!(name: "Heartbeat", "failed to write event: {}", e);
+                }
             }
 
             emit_heartbeat_event(event);
@@ -248,7 +265,10 @@ impl HeartbeatRunner {
             && gate.is_busy()
         {
             info!(name: "Heartbeat", "skipping: agent turn in flight (TurnGate busy)");
-            return Ok((HEARTBEAT_OK_TOKEN.to_string(), HeartbeatStatus::Skipped));
+            return Ok((
+                HEARTBEAT_OK_TOKEN.to_string(),
+                HeartbeatStatus::SkippedMayTry,
+            ));
         }
 
         // Try to acquire the cross-process workspace lock (non-blocking)
@@ -256,7 +276,10 @@ impl HeartbeatRunner {
             Some(guard) => guard,
             None => {
                 info!(name: "Heartbeat", "skipping: workspace locked by another process");
-                return Ok((HEARTBEAT_OK_TOKEN.to_string(), HeartbeatStatus::Skipped));
+                return Ok((
+                    HEARTBEAT_OK_TOKEN.to_string(),
+                    HeartbeatStatus::SkippedMayTry,
+                ));
             }
         };
 
@@ -267,7 +290,10 @@ impl HeartbeatRunner {
                 Some(permit) => Some(permit),
                 None => {
                     info!(name: "Heartbeat", "skipping: agent turn started between check and acquire");
-                    return Ok((HEARTBEAT_OK_TOKEN.to_string(), HeartbeatStatus::Skipped));
+                    return Ok((
+                        HEARTBEAT_OK_TOKEN.to_string(),
+                        HeartbeatStatus::SkippedMayTry,
+                    ));
                 }
             }
         } else {

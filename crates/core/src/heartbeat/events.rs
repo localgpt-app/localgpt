@@ -13,6 +13,8 @@ pub enum HeartbeatStatus {
     Ok,
     /// Heartbeat was skipped (outside active hours, empty file, etc.)
     Skipped,
+    /// Heartbeat was skipped transiently (a soon retry may be useful)
+    SkippedMayTry,
     /// Heartbeat failed with an error
     Failed,
 }
