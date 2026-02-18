@@ -358,7 +358,12 @@ impl Agent {
     }
 
     fn include_tool_for_provider(&self, tool_name: &str) -> bool {
-        !(self.use_native_web_search() && tool_name == "web_search")
+        // Elide the web search tool if the provider support native search
+        if tool_name == "web_search" {
+            return !self.use_native_web_search();
+        }
+
+        true
     }
 
     pub fn tool_names(&self) -> Vec<&str> {
