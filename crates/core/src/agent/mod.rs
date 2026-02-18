@@ -628,7 +628,8 @@ impl Agent {
             // Log warnings for suspicious patterns
             if self.app_config.tools.log_injection_warnings && !result.warnings.is_empty() {
                 tracing::warn!(
-                    "Suspicious patterns detected in {} output: {:?}",
+                    "Suspicious patterns detected in session: {:?} {} output: {:?}",
+                    self.session.id(),
                     call.name,
                     result.warnings
                 );
