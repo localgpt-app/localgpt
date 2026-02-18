@@ -330,6 +330,16 @@ impl HeartbeatRunner {
         let heartbeat_prompt = build_heartbeat_prompt(workspace_is_git);
         let response = agent.chat(&heartbeat_prompt).await?;
 
+        // Save final session log
+        match agent.save_session().await {
+            Ok(path) => {
+                info!(name: "Heartbeat", "saved session: {:?}", path.to_str().unwrap_or("<Unknown>"));
+            }
+            Err(error) => {
+                warn!(name: "Heartbeat", "failed to save session: {:?}", error);
+            }
+        }
+
         // Determine status based on response
         if is_heartbeat_ok(&response) {
             return Ok((response, HeartbeatStatus::Ok));
