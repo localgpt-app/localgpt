@@ -458,6 +458,12 @@ impl Agent {
 
         // Build system prompt with identity, safety, workspace info
         let tool_names = self.tool_names_for_provider();
+        debug!(
+            "Using tools: {:?} provider: {:?}",
+            tool_names,
+            self.provider.name(),
+        );
+
         let system_prompt_params =
             system_prompt::SystemPromptParams::new(self.memory.workspace(), &self.config.model)
                 .with_tools(tool_names)

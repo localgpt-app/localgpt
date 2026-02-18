@@ -4,6 +4,7 @@ use futures::StreamExt;
 use rustyline::DefaultEditor;
 use rustyline::error::ReadlineError;
 use std::io::{self, Write};
+use tracing::debug;
 
 use localgpt_core::agent::{
     Agent, AgentConfig, ImageAttachment, Skill, extract_tool_detail, get_last_session_id_for_agent,
@@ -127,6 +128,8 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
 
     let mut agent = Agent::new(agent_config, &config, memory).await?;
     agent.extend_tools(crate::tools::create_cli_tools(&config)?);
+    debug!("New agent with tools: {:?}", agent.tool_names());
+
     let workspace_lock = WorkspaceLock::new()?;
 
     // Determine session to use
