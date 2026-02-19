@@ -151,6 +151,9 @@ pub type StreamResult = Pin<Box<dyn Stream<Item = Result<StreamChunk>> + Send>>;
 
 #[async_trait]
 pub trait LLMProvider: Send + Sync {
+    /// Get provider name
+    fn name(&self) -> String;
+
     async fn chat(&self, messages: &[Message], tools: Option<&[ToolSchema]>)
     -> Result<LLMResponse>;
 
@@ -500,6 +503,10 @@ impl OpenAIProvider {
 
 #[async_trait]
 impl LLMProvider for OpenAIProvider {
+    fn name(&self) -> String {
+        "openai".to_string()
+    }
+
     async fn chat(
         &self,
         messages: &[Message],
@@ -777,6 +784,10 @@ impl XaiProvider {
 
 #[async_trait]
 impl LLMProvider for XaiProvider {
+    fn name(&self) -> String {
+        "xai".to_string()
+    }
+
     fn supports_native_search(&self) -> bool {
         true
     }
@@ -998,6 +1009,10 @@ impl AnthropicProvider {
 
 #[async_trait]
 impl LLMProvider for AnthropicProvider {
+    fn name(&self) -> String {
+        "anthropic".to_string()
+    }
+
     fn supports_native_search(&self) -> bool {
         true
     }
@@ -1320,6 +1335,10 @@ impl OllamaProvider {
 
 #[async_trait]
 impl LLMProvider for OllamaProvider {
+    fn name(&self) -> String {
+        "ollama".to_string()
+    }
+
     async fn chat(
         &self,
         messages: &[Message],
@@ -1915,6 +1934,10 @@ fn parse_claude_cli_output(stdout: &str) -> Result<(String, Option<String>)> {
 #[cfg(feature = "claude-cli")]
 #[async_trait]
 impl LLMProvider for ClaudeCliProvider {
+    fn name(&self) -> String {
+        "claude-cli".to_string()
+    }
+
     fn reset_session(&self) {
         if let Ok(mut cli_session) = self.cli_session_id.lock() {
             *cli_session = None;
