@@ -165,11 +165,11 @@ async fn run_daemon_services(config: &Config, agent_id: &str) -> Result<()> {
         );
         Some(tokio::spawn(async move {
             // Create tool factory that provides CLI tools to heartbeat
-            let tool_factory: localgpt_core::heartbeat::ToolFactory = 
+            let tool_factory: localgpt_core::heartbeat::ToolFactory =
                 Box::new(|config: &localgpt_core::config::Config| {
                     crate::tools::create_cli_tools(config)
                 });
-            
+
             match HeartbeatRunner::new_with_gate_and_tools(
                 &heartbeat_config,
                 &heartbeat_agent_id,
@@ -451,14 +451,13 @@ async fn show_status() -> Result<()> {
 
 async fn run_heartbeat_once(agent_id: &str) -> Result<()> {
     let config = Config::load()?;
-    
+
     // Create tool factory to provide CLI tools
-    let tool_factory: localgpt_core::heartbeat::ToolFactory = 
-        Box::new(|config: &localgpt_core::config::Config| {
-            crate::tools::create_cli_tools(config)
-        });
-    
-    let runner = HeartbeatRunner::new_with_gate_and_tools(&config, agent_id, None, Some(tool_factory))?;
+    let tool_factory: localgpt_core::heartbeat::ToolFactory =
+        Box::new(|config: &localgpt_core::config::Config| crate::tools::create_cli_tools(config));
+
+    let runner =
+        HeartbeatRunner::new_with_gate_and_tools(&config, agent_id, None, Some(tool_factory))?;
 
     println!("Running heartbeat (agent: {})...", agent_id);
     let result = runner.run_once().await?;

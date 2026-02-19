@@ -341,13 +341,13 @@ impl HeartbeatRunner {
         };
 
         let mut agent = Agent::new(agent_config, &self.config, self.memory.clone()).await?;
-        
+
         // Extend agent with additional tools from factory if provided (e.g., CLI tools from daemon)
         if let Some(ref factory) = self.tool_factory {
             let extra_tools = factory(&self.config)?;
             agent.extend_tools(extra_tools);
         }
-        
+
         agent.new_session().await?;
 
         info!(name: "Heartbeat", "Running HEARTBEAT.md");
