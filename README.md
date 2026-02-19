@@ -21,7 +21,7 @@ A local device focused AI assistant built in Rust — persistent memory, autonom
 - **Autonomous heartbeat** — delegate tasks and let it work in the background
 - **Multiple interfaces** — CLI, web UI, desktop GUI, Telegram bot
 - **Defense-in-depth security** — signed policy files, kernel-enforced sandbox, prompt injection defenses
-- **Multiple LLM providers** — Anthropic (Claude), OpenAI, xAI (Grok), Ollama, GLM (Z.AI)
+- **Multiple LLM providers** — Anthropic (Claude), OpenAI, xAI (Grok), Ollama, GLM (Z.AI), OAuth subscriptions (Claude Pro/Max, Gemini)
 - **OpenClaw compatible** — works with SOUL, MEMORY, HEARTBEAT markdown files and skills format
 
 ## Install
@@ -129,6 +129,25 @@ localgpt search stats
 ```
 
 Full setup guide: [`docs/web-search.md`](docs/web-search.md)
+
+### OAuth Subscription Plans
+
+Use Claude Pro/Max or Google Gemini subscription credentials via OAuth instead of pay-per-request API keys:
+
+```toml
+# Claude Pro/Max OAuth (preferred over api_key when configured)
+[providers.anthropic_oauth]
+access_token = "${ANTHROPIC_OAUTH_TOKEN}"
+refresh_token = "${ANTHROPIC_OAUTH_REFRESH_TOKEN}"
+
+# Google Gemini subscription OAuth
+[providers.gemini_oauth]
+access_token = "${GEMINI_OAUTH_TOKEN}"
+refresh_token = "${GEMINI_OAUTH_REFRESH_TOKEN}"
+project_id = "${GOOGLE_CLOUD_PROJECT}"  # Optional, for enterprise
+```
+
+Full setup guide: [`docs/oauth-setup.md`](docs/oauth-setup.md)
 
 ## Telegram Bot
 
