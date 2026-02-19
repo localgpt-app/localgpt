@@ -14,7 +14,7 @@ use teloxide::types::{MessageId, ParseMode};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 
-use localgpt_core::agent::{Agent, AgentConfig, StreamEvent, extract_tool_detail};
+use localgpt_core::agent::{Agent, AgentConfig, StreamEvent, extract_tool_detail, tools::Tool};
 use localgpt_core::concurrency::TurnGate;
 use localgpt_core::config::Config;
 use localgpt_core::memory::MemoryManager;
@@ -27,6 +27,10 @@ const MAX_MESSAGE_LENGTH: usize = 4096;
 
 /// Debounce interval for message edits (seconds)
 const EDIT_DEBOUNCE_SECS: u64 = 2;
+
+/// Factory function type for creating additional tools for the Telegram agent.
+/// This allows the caller (e.g., CLI daemon) to inject dangerous tools like bash, file I/O.
+pub type ToolFactory = Box<dyn Fn(&Config) -> Result<Vec<Box<dyn Tool>>> + Send + Sync>;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct PairedUser {
@@ -47,6 +51,7 @@ struct BotState {
     turn_gate: TurnGate,
     paired_user: Mutex<Option<PairedUser>>,
     pending_pairing_code: Mutex<Option<String>>,
+    tool_factory: Option<ToolFactory>,
 }
 
 fn pairing_file_path() -> Result<PathBuf> {
@@ -78,7 +83,7 @@ fn generate_pairing_code() -> String {
     format!("{:06}", code)
 }
 
-pub async fn run_telegram_bot(config: &Config, turn_gate: TurnGate) -> Result<()> {
+pub async fn run_telegram_bot(config: &Config, turn_gate: TurnGate, tool_factory: Option<ToolFactory>) -> Result<()> {
     let telegram_config = config
         .telegram
         .as_ref()
@@ -116,6 +121,7 @@ pub async fn run_telegram_bot(config: &Config, turn_gate: TurnGate) -> Result<()
         turn_gate,
         paired_user: Mutex::new(paired_user),
         pending_pairing_code: Mutex::new(None),
+        tool_factory,
     });
 
     // Register bot commands so Telegram clients show the "/" menu
@@ -667,6 +673,18 @@ async fn handle_chat(
 
         match Agent::new(agent_config, &state.config, state.memory.clone()).await {
             Ok(mut agent) => {
+                // Extend agent with additional tools from factory if provided (e.g., CLI tools from daemon)
+                if let Some(ref factory) = state.tool_factory {
+                    match factory(&state.config) {
+                        Ok(extra_tools) => {
+                            agent.extend_tools(extra_tools);
+                        }
+                        Err(err) => {
+                            error!("Failed to create additional tools: {}", err);
+                        }
+                    }
+                }
+
                 if let Err(err) = agent.new_session().await {
                     error!("Failed to create session: {}", err);
                     let _ = bot

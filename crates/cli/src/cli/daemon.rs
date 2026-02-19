@@ -196,7 +196,13 @@ async fn run_daemon_services(config: &Config, agent_id: &str) -> Result<()> {
         let tg_gate = turn_gate.clone();
         println!("  Telegram: enabled");
         Some(tokio::spawn(async move {
-            if let Err(e) = localgpt_server::telegram::run_telegram_bot(&tg_config, tg_gate).await {
+            // Create tool factory that provides CLI tools to Telegram
+            let tool_factory: localgpt_server::telegram::ToolFactory =
+                Box::new(|config: &localgpt_core::config::Config| {
+                    crate::tools::create_cli_tools(config)
+                });
+
+            if let Err(e) = localgpt_server::telegram::run_telegram_bot(&tg_config, tg_gate, Some(tool_factory)).await {
                 tracing::error!("Telegram bot error: {}", e);
             }
         }))
