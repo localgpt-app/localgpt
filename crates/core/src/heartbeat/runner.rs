@@ -435,4 +435,17 @@ mod tests {
         assert!(noon >= start && noon <= end);
         assert!(!(midnight >= start && midnight <= end));
     }
+
+    #[test]
+    fn test_tool_factory_type_signature() {
+        // Verify that the ToolFactory type can be constructed with a closure
+        // that matches create_cli_tools signature
+        let _factory: ToolFactory = Box::new(|_config: &Config| {
+            // Simulate returning CLI tools
+            Ok(Vec::new())
+        });
+
+        // This test just verifies the type signature compiles correctly
+        // Actual tool creation is tested in integration tests
+    }
 }

@@ -94,6 +94,8 @@ Mobile crate uses `default-features = false, features = ["embeddings-openai"]` â
 
 **Tool safety split:** `Agent::new()` creates safe tools only (memory_search, memory_get, web_fetch, web_search). CLI injects dangerous tools (bash, read_file, write_file, edit_file) via `agent.extend_tools(create_cli_tools())`. Server agents intentionally only get safe tools.
 
+**Heartbeat tool injection:** `HeartbeatRunner` in core accepts an optional `ToolFactory` callback to extend the agent with additional tools. CLI daemon provides `create_cli_tools` factory so heartbeat can perform file operations and execute commands. Without the factory, heartbeat runs with safe tools only.
+
 **Custom tool sets:** `Agent::new_with_tools()` replaces all tools â€” used by Gen mode for its own Bevy tools (spawn_entity, modify_entity, etc.).
 
 **Thread safety:** Agent is not `Send+Sync` due to SQLite. Use `AgentHandle` (`Arc<tokio::sync::Mutex<Agent>>`) for mobile/server. HTTP handler uses `spawn_blocking`.
