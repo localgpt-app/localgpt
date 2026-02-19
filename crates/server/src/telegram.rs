@@ -83,7 +83,11 @@ fn generate_pairing_code() -> String {
     format!("{:06}", code)
 }
 
-pub async fn run_telegram_bot(config: &Config, turn_gate: TurnGate, tool_factory: Option<ToolFactory>) -> Result<()> {
+pub async fn run_telegram_bot(
+    config: &Config,
+    turn_gate: TurnGate,
+    tool_factory: Option<ToolFactory>,
+) -> Result<()> {
     let telegram_config = config
         .telegram
         .as_ref()
