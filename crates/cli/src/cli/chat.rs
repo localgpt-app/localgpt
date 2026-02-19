@@ -7,7 +7,7 @@ use std::io::{self, Write};
 use tracing::debug;
 
 use localgpt_core::agent::{
-    Agent, AgentConfig, ImageAttachment, Skill, StreamEvent, extract_tool_detail,
+    Agent, AgentConfig, ImageAttachment, Skill, extract_tool_detail,
     get_last_session_id_for_agent, get_skills_summary, list_sessions_for_agent, load_skills,
     parse_skill_command, search_sessions_for_agent,
 };
