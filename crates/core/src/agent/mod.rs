@@ -361,6 +361,10 @@ impl Agent {
         !(self.use_native_web_search() && tool_name == "web_search")
     }
 
+    pub fn tool_names(&self) -> Vec<&str> {
+        self.tools.iter().map(|tool| tool.name()).collect()
+    }
+
     fn tool_names_for_provider(&self) -> Vec<&str> {
         self.tools
             .iter()
