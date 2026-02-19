@@ -73,18 +73,33 @@
 //! };
 //!
 //! // At context assembly — always append the security block last:
-//! let block = build_ending_security_block(user_policy.as_deref());
+//! let block = build_ending_security_block(user_policy.as_deref(), true);
 //! ```
 //!
 //! ## File Hierarchy
 //!
+//! LocalGPT follows the XDG Base Directory Specification. Paths can be customized
+//! via environment variables (see `paths.rs`).
+//!
 //! ```text
-//! ~/.localgpt/                              # State directory
-//! ├── .device_key                           # 32-byte HMAC key (0600)
-//! ├── .security_audit.jsonl                 # Append-only audit log
-//! └── workspace/
+//! ~/.config/localgpt/                       # Config directory (XDG_CONFIG_HOME)
+//! └── config.toml                           # User configuration
+//!
+//! ~/.local/share/localgpt/                  # Data directory (XDG_DATA_HOME)
+//! ├── localgpt.device.key                   # 32-byte HMAC key (0600)
+//! └── workspace/                            # Memory workspace
 //!     ├── LocalGPT.md                       # User security policy
-//!     └── .localgpt_manifest.json           # HMAC signature manifest
+//!     ├── .localgpt_manifest.json           # HMAC signature manifest
+//!     ├── MEMORY.md                         # Long-term memory
+//!     └── HEARTBEAT.md                      # Autonomous tasks
+//!
+//! ~/.local/state/localgpt/                  # State directory (XDG_STATE_HOME)
+//! ├── localgpt.audit.jsonl                  # Append-only audit log
+//! ├── agents/{agent_id}/sessions/           # Session transcripts
+//! └── logs/                                 # Application logs
+//!
+//! ~/.cache/localgpt/                        # Cache directory (XDG_CACHE_HOME)
+//! └── memory/{agent_id}.sqlite              # Search index & embeddings
 //! ```
 //!
 //! ## Threat Model
