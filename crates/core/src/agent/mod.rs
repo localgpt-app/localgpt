@@ -1500,6 +1500,12 @@ impl AgentHandle {
         let agent = self.inner.lock().await;
         agent.export_markdown()
     }
+
+    /// Check if this is a brand new workspace (first run).
+    pub async fn is_brand_new(&self) -> bool {
+        let agent = self.inner.lock().await;
+        agent.is_brand_new()
+    }
 }
 
 /// Welcome message shown on first run (brand new workspace)

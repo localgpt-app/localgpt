@@ -696,6 +696,17 @@ async fn handle_chat(
                         .await;
                     return Ok(());
                 }
+
+                // Send welcome message on first run
+                let is_brand_new = agent.is_brand_new();
+                if is_brand_new {
+                    let html = markdown_to_html(localgpt_core::agent::FIRST_RUN_WELCOME);
+                    let _ = bot
+                        .send_message(chat_id, html)
+                        .parse_mode(ParseMode::Html)
+                        .await;
+                }
+
                 e.insert(SessionEntry {
                     agent,
                     last_accessed: Instant::now(),

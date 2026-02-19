@@ -205,6 +205,12 @@ impl LocalGPTClient {
         self.runtime.block_on(self.handle.clear_session());
     }
 
+    /// Check if this is a brand new workspace (first run).
+    /// Mobile apps can use this to display a custom welcome message.
+    pub fn is_brand_new(&self) -> bool {
+        self.runtime.block_on(self.handle.is_brand_new())
+    }
+
     /// Configure an API key for a provider.
     pub fn configure_provider(&self, provider: String, api_key: String) -> Result<(), MobileError> {
         let workspace = self.config.workspace_path();
@@ -230,6 +236,17 @@ impl LocalGPTClient {
             "glm".to_string(),
         ]
     }
+}
+
+// ---------------------------------------------------------------------------
+// Standalone functions
+// ---------------------------------------------------------------------------
+
+/// Get the first-run welcome message text.
+/// Mobile apps can display this when `is_brand_new()` returns true.
+#[uniffi::export]
+pub fn get_welcome_message() -> String {
+    localgpt_core::agent::FIRST_RUN_WELCOME.to_string()
 }
 
 // ---------------------------------------------------------------------------
