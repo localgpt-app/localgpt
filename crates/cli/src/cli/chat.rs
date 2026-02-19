@@ -7,9 +7,9 @@ use std::io::{self, Write};
 use tracing::debug;
 
 use localgpt_core::agent::{
-    Agent, AgentConfig, ImageAttachment, Skill, extract_tool_detail,
-    get_last_session_id_for_agent, get_skills_summary, list_sessions_for_agent, load_skills,
-    parse_skill_command, search_sessions_for_agent,
+    Agent, AgentConfig, ImageAttachment, Skill, extract_tool_detail, get_last_session_id_for_agent,
+    get_skills_summary, list_sessions_for_agent, load_skills, parse_skill_command,
+    search_sessions_for_agent,
 };
 use localgpt_core::concurrency::WorkspaceLock;
 use localgpt_core::config::Config;
@@ -233,7 +233,7 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
         // Handle commands
         if input.starts_with('/') {
             // Special handling for /attach - adds to pending attachments
-            if input.starts_with("/attach") {
+            if input.starts_with("/attach ") || input == "/attach" {
                 let parts: Vec<&str> = input.split_whitespace().collect();
                 if parts.len() < 2 {
                     eprintln!("Usage: /attach <file_path>");
