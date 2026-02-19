@@ -11,10 +11,15 @@ use tracing::{debug, info, warn};
 use super::events::{HeartbeatEvent, HeartbeatStatus, emit_heartbeat_event, now_ms};
 use crate::agent::{
     Agent, AgentConfig, HEARTBEAT_OK_TOKEN, SessionStore, build_heartbeat_prompt, is_heartbeat_ok,
+    tools::Tool,
 };
 use crate::concurrency::{TurnGate, WorkspaceLock};
 use crate::config::{Config, parse_duration, parse_time};
 use crate::memory::MemoryManager;
+
+/// Factory function type for creating additional tools for the heartbeat agent.
+/// This allows the caller (e.g., CLI daemon) to inject dangerous tools like bash, file I/O.
+pub type ToolFactory = Box<dyn Fn(&Config) -> Result<Vec<Box<dyn Tool>>> + Send + Sync>;
 
 pub struct HeartbeatRunner {
     config: Config,
@@ -28,6 +33,8 @@ pub struct HeartbeatRunner {
     turn_gate: Option<TurnGate>,
     /// Cross-process workspace lock
     workspace_lock: WorkspaceLock,
+    /// Optional tool factory for injecting additional tools (e.g., CLI tools from daemon)
+    tool_factory: Option<ToolFactory>,
 }
 
 impl HeartbeatRunner {
@@ -49,6 +56,20 @@ impl HeartbeatRunner {
         config: &Config,
         agent_id: &str,
         turn_gate: Option<TurnGate>,
+    ) -> Result<Self> {
+        Self::new_with_gate_and_tools(config, agent_id, turn_gate, None)
+    }
+
+    /// Create a new HeartbeatRunner with optional TurnGate and tool factory.
+    ///
+    /// The tool_factory allows injecting additional tools (e.g., bash, file I/O from CLI)
+    /// into the heartbeat agent. This enables the heartbeat to perform filesystem operations
+    /// and execute commands when running in a CLI/daemon context.
+    pub fn new_with_gate_and_tools(
+        config: &Config,
+        agent_id: &str,
+        turn_gate: Option<TurnGate>,
+        tool_factory: Option<ToolFactory>,
     ) -> Result<Self> {
         let interval = parse_duration(&config.heartbeat.interval)
             .map_err(|e| anyhow::anyhow!("Invalid heartbeat interval: {}", e))?;
@@ -82,6 +103,7 @@ impl HeartbeatRunner {
             memory,
             turn_gate,
             workspace_lock,
+            tool_factory,
         })
     }
 
@@ -319,6 +341,13 @@ impl HeartbeatRunner {
         };
 
         let mut agent = Agent::new(agent_config, &self.config, self.memory.clone()).await?;
+        
+        // Extend agent with additional tools from factory if provided (e.g., CLI tools from daemon)
+        if let Some(ref factory) = self.tool_factory {
+            let extra_tools = factory(&self.config)?;
+            agent.extend_tools(extra_tools);
+        }
+        
         agent.new_session().await?;
 
         info!(name: "Heartbeat", "Running HEARTBEAT.md");
