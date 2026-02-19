@@ -497,7 +497,7 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
                                         );
                                     }
                                 }
-                                print!("{}", follow_up);
+                                print!("\nLocalGPT: {}", follow_up);
                                 stdout.flush()?;
                             }
                             Err(e) => {

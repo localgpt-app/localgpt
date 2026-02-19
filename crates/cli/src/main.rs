@@ -30,6 +30,7 @@ fn main() -> Result<()> {
                 tracing_subscriber::EnvFilter::try_from_default_env()
                     .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level)),
             )
+            .with_writer(std::io::stderr)
             .init();
         return crate::cli::gen3d::run(args, &cli.agent);
     }
@@ -66,6 +67,7 @@ async fn async_main(cli: Cli) -> Result<()> {
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level)),
         )
+        .with_writer(std::io::stderr)
         .init();
 
     match cli.command {
