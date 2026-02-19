@@ -26,7 +26,10 @@ struct Status {
 
 impl WebApp {
     /// Create a new web app
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        // Configure visuals for dark theme
+        Self::configure_style(&cc.egui_ctx);
+
         Self {
             message_input: String::new(),
             messages: Vec::new(),
@@ -37,6 +40,36 @@ impl WebApp {
                 version: "0.3.0".to_string(),
             },
         }
+    }
+
+    fn configure_style(ctx: &egui::Context) {
+        // Set dark mode
+        ctx.set_visuals(egui::Visuals::dark());
+
+        let mut style = (*ctx.style()).clone();
+
+        // Use slightly larger text
+        style.text_styles.insert(
+            egui::TextStyle::Body,
+            egui::FontId::new(14.0, egui::FontFamily::Proportional),
+        );
+        style.text_styles.insert(
+            egui::TextStyle::Button,
+            egui::FontId::new(14.0, egui::FontFamily::Proportional),
+        );
+        style.text_styles.insert(
+            egui::TextStyle::Heading,
+            egui::FontId::new(20.0, egui::FontFamily::Proportional),
+        );
+
+        // Rounded corners
+        style.visuals.window_corner_radius = egui::CornerRadius::same(8);
+        style.visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(4);
+        style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(4);
+        style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(4);
+        style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(4);
+
+        ctx.set_style(style);
     }
 }
 
