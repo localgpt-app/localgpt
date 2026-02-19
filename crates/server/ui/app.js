@@ -73,6 +73,32 @@ function showEmptyState() {
     }
 }
 
+function showFirstRunWelcome() {
+    const messages = document.getElementById('messages');
+    if (messages.children.length === 0) {
+        messages.innerHTML = `
+            <div class="empty-state welcome">
+                <h1>Welcome to LocalGPT</h1>
+                <p>This is your first session. I've set up a fresh workspace for you.</p>
+                <h3>Quick Start</h3>
+                <ol>
+                    <li><strong>Just chat</strong> - I'm ready to help with coding, writing, research, or anything else</li>
+                    <li><strong>Your memory files</strong> are in the workspace:
+                        <ul>
+                            <li><code>MEMORY.md</code> - I'll remember important things here</li>
+                            <li><code>SOUL.md</code> - Customize my personality and behavior</li>
+                            <li><code>HEARTBEAT.md</code> - Tasks for autonomous mode</li>
+                        </ul>
+                    </li>
+                </ol>
+                <h3>Tell Me About Yourself</h3>
+                <p>What's your name? What kind of projects do you work on? Any preferences for how I should communicate?</p>
+                <p><em>I'll save what I learn to MEMORY.md so I remember it next time.</em></p>
+            </div>
+        `;
+    }
+}
+
 function clearEmptyState() {
     const emptyState = document.querySelector('.empty-state');
     if (emptyState) {
@@ -440,6 +466,11 @@ async function loadStatus() {
         const heartbeat = await heartbeatRes.json();
 
         updateStatusPanel(status, heartbeat);
+        
+        // Show detailed welcome message on first run
+        if (status.is_brand_new) {
+            showFirstRunWelcome();
+        }
     } catch (err) {
         console.error('Failed to load status:', err);
     }

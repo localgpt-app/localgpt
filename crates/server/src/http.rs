@@ -388,6 +388,7 @@ struct StatusResponse {
     model: String,
     memory_chunks: usize,
     active_sessions: usize,
+    is_brand_new: bool,
 }
 
 async fn status(State(state): State<Arc<AppState>>) -> Json<StatusResponse> {
@@ -398,6 +399,7 @@ async fn status(State(state): State<Arc<AppState>>) -> Json<StatusResponse> {
         model: state.config.agent.default_model.clone(),
         memory_chunks: state.memory.chunk_count().unwrap_or(0),
         active_sessions: sessions.len(),
+        is_brand_new: state.memory.is_brand_new(),
     })
 }
 
