@@ -38,6 +38,10 @@ impl MockProvider {
 
 #[async_trait]
 impl LLMProvider for MockProvider {
+    fn name(&self) -> String {
+        "mock".to_string()
+    }
+
     async fn chat(
         &self,
         _messages: &[Message],
