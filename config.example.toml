@@ -201,6 +201,43 @@ bind = "127.0.0.1"
 # enabled = true
 # api_token = "${TELEGRAM_BOT_TOKEN}"
 
+# Sandbox configuration for shell command isolation
+# Every tool-executed shell command runs in a kernel-enforced sandbox
+[sandbox]
+# Enable sandbox (default: true)
+enabled = true
+
+# Sandbox enforcement level (default: "auto")
+# Options:
+#   - "auto"     — Use highest available level for your platform
+#   - "full"     — Landlock V4+ + seccomp + userns (Linux only)
+#   - "standard" — Landlock V1+ + seccomp (Linux) or Seatbelt (macOS)
+#   - "minimal"  — seccomp network blocking only (Linux)
+#   - "none"     — rlimits only, no filesystem or network isolation
+level = "auto"
+
+# Command timeout (default: 120 seconds)
+timeout_secs = 120
+
+# Maximum stdout+stderr bytes (default: 1MB = 1048576)
+max_output_bytes = 1048576
+
+# Maximum file size via RLIMIT_FSIZE (default: 50MB = 52428800)
+max_file_size_bytes = 52428800
+
+# Maximum child processes via RLIMIT_NPROC (default: 64)
+max_processes = 64
+
+# Network policy (default: "deny")
+# Options: "deny" (block all network) or "proxy" (future: allow via socket)
+[sandbox.network]
+policy = "deny"
+
+# Additional filesystem access beyond workspace and system directories
+# [sandbox.allow_paths]
+# read = ["/opt/data", "/mnt/shared"]
+# write = ["/tmp/scratch"]
+
 [security]
 # LocalGPT injects a security block at the end of every LLM context window.
 # The block has two independent layers:

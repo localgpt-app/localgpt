@@ -174,7 +174,7 @@ Every shell command the agent runs is executed inside an OS-level sandbox:
 | **macOS** | Seatbelt (SBPL) | Filesystem allow-listing, network denial |
 | **All** | rlimits | 120s timeout, 1MB output cap, 50MB file size, 64 process limit |
 
-The sandbox denies access to sensitive directories (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.docker`) and blocks all network syscalls by default. Configure extra paths as needed:
+The sandbox denies access to sensitive directories including `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.docker`, `~/.kube`, and credential files (`~/.npmrc`, `~/.pypirc`, `~/.netrc`). It blocks all network syscalls by default. Configure extra paths as needed:
 
 ```toml
 [sandbox]
