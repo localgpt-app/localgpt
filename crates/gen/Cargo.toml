@@ -35,6 +35,9 @@ gltf-json = { version = "1", features = ["names"] }
 # Path resolution
 shellexpand = { workspace = true }
 
+# CLI line editor
+rustyline = "17.0.2"
+
 # Procedural audio (environmental soundscapes)
 fundsp = "0.20"
 cpal = "0.15"

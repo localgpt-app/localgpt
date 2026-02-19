@@ -124,7 +124,8 @@ async fn run_agent_loop(
     use localgpt_core::agent::Agent;
     use localgpt_core::agent::tools::create_safe_tools;
     use localgpt_core::memory::MemoryManager;
-    use std::io::{self, Write};
+    use rustyline::DefaultEditor;
+    use rustyline::error::ReadlineError;
     use std::sync::Arc;
 
     // Set up memory
@@ -147,20 +148,33 @@ async fn run_agent_loop(
     }
 
     // Interactive loop
-    let stdin = io::stdin();
+    let mut rl = DefaultEditor::new()?;
     loop {
-        print!("> ");
-        io::stdout().flush()?;
+        let readline = rl.readline("> ");
 
-        let mut input = String::new();
-        if stdin.read_line(&mut input)? == 0 {
-            break; // EOF
-        }
+        let input = match readline {
+            Ok(line) => line,
+            Err(ReadlineError::Interrupted) => {
+                println!("^C");
+                continue;
+            }
+            Err(ReadlineError::Eof) => {
+                break; // Ctrl+D
+            }
+            Err(err) => {
+                eprintln!("Error: {:?}", err);
+                break;
+            }
+        };
 
         let input = input.trim();
         if input.is_empty() {
             continue;
         }
+
+        // Add to history
+        let _ = rl.add_history_entry(input);
+
         if input == "/quit" || input == "/exit" || input == "/q" {
             break;
         }
