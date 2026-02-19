@@ -74,6 +74,32 @@ base_url = "https://api.anthropic.com"
 # api_key = "${GLM_API_KEY}"
 # base_url = "https://api.z.ai/api/coding/paas/v4"
 
+# Anthropic OAuth configuration (for Claude Pro/Max subscription plans)
+# Use this instead of api_key-based authentication to leverage your subscription quota
+# To obtain OAuth tokens:
+#   1. Use PKCE flow with client_id: 9d1c250a-e61b-44d9-88ed-5944d1962f5e
+#   2. Authorize at: https://claude.ai/oauth/authorize
+#   3. Exchange code at: https://console.anthropic.com/v1/oauth/token
+# See: https://github.com/querymt/anthropic-auth for implementation examples
+# [providers.anthropic_oauth]
+# access_token = "${ANTHROPIC_OAUTH_TOKEN}"
+# refresh_token = "${ANTHROPIC_OAUTH_REFRESH_TOKEN}"  # Optional, for token renewal
+# base_url = "https://api.anthropic.com"
+
+# Gemini OAuth configuration (for Google AI subscription plans)
+# Use this for Google Gemini subscription authentication with OAuth 2.0
+# To obtain OAuth tokens:
+#   1. Enable Gemini API in Google Cloud Console
+#   2. Configure OAuth consent screen
+#   3. Create OAuth 2.0 credentials (Desktop app or Web app)
+#   4. Use authorization code flow to get access_token
+# See: https://ai.google.dev/gemini-api/docs/oauth
+# [providers.gemini_oauth]
+# access_token = "${GEMINI_OAUTH_TOKEN}"
+# refresh_token = "${GEMINI_OAUTH_REFRESH_TOKEN}"  # Optional, for token renewal
+# base_url = "https://generativelanguage.googleapis.com"
+# project_id = "${GOOGLE_CLOUD_PROJECT}"  # Optional, for enterprise/subscription plans
+
 [heartbeat]
 # Enable automatic heartbeat
 enabled = true

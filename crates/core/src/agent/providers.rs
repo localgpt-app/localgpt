@@ -254,6 +254,8 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
         ("glm".to_string(), model.clone())
     } else if model.starts_with("grok-") {
         ("xai".to_string(), model.clone())
+    } else if model.starts_with("gemini-") {
+        ("gemini".to_string(), model.clone())
     } else {
         // Default to anthropic for unknown models, or ollama if configured
         if config.providers.ollama.is_some() {
@@ -267,22 +269,36 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
 
     match provider.as_str() {
         "anthropic" => {
-            let anthropic_config = config.providers.anthropic.as_ref().ok_or_else(|| {
-                anyhow::anyhow!(
-                    "Anthropic provider not configured.\n\
-                    Set ANTHROPIC_API_KEY env var or add to ~/.localgpt/config.toml:\n\n\
-                    [providers.anthropic]\n\
-                    api_key = \"sk-ant-...\""
-                )
-            })?;
+            // Prefer OAuth config if available
+            if let Some(oauth_config) = &config.providers.anthropic_oauth {
+                let full_model = normalize_model_id("anthropic", &model_id);
+                Ok(Box::new(AnthropicOAuthProvider::new(
+                    &oauth_config.access_token,
+                    &oauth_config.base_url,
+                    &full_model,
+                    config.agent.max_tokens,
+                )?))
+            } else {
+                let anthropic_config = config.providers.anthropic.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Anthropic provider not configured.\n\
+                        Set ANTHROPIC_API_KEY env var or add to ~/.localgpt/config.toml:\n\n\
+                        [providers.anthropic]\n\
+                        api_key = \"sk-ant-...\"\n\n\
+                        Or use OAuth subscription credentials:\n\n\
+                        [providers.anthropic_oauth]\n\
+                        access_token = \"${{ANTHROPIC_OAUTH_TOKEN}}\""
+                    )
+                })?;
 
-            let full_model = normalize_model_id("anthropic", &model_id);
-            Ok(Box::new(AnthropicProvider::new(
-                &anthropic_config.api_key,
-                &anthropic_config.base_url,
-                &full_model,
-                config.agent.max_tokens,
-            )?))
+                let full_model = normalize_model_id("anthropic", &model_id);
+                Ok(Box::new(AnthropicProvider::new(
+                    &anthropic_config.api_key,
+                    &anthropic_config.base_url,
+                    &full_model,
+                    config.agent.max_tokens,
+                )?))
+            }
         }
 
         "openai" => {
@@ -365,6 +381,26 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
                 &glm_config.api_key,
                 &glm_config.base_url,
                 &model_id,
+            )?))
+        }
+
+        "gemini" => {
+            let gemini_config = config.providers.gemini_oauth.as_ref().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Gemini OAuth provider not configured.\n\
+                    Add to ~/.localgpt/config.toml:\n\n\
+                    [providers.gemini_oauth]\n\
+                    access_token = \"${{GEMINI_OAUTH_TOKEN}}\"\n\
+                    # Optional: refresh_token for automatic token renewal\n\
+                    # Optional: project_id for enterprise/subscription plans"
+                )
+            })?;
+
+            Ok(Box::new(GeminiOAuthProvider::new(
+                &gemini_config.access_token,
+                &gemini_config.base_url,
+                &model_id,
+                gemini_config.project_id.as_deref(),
             )?))
         }
 
@@ -2448,5 +2484,495 @@ mod tests {
         assert_eq!(formatted[1]["type"], "function_call_output");
         assert_eq!(formatted[1]["call_id"], "call_1");
         assert_eq!(formatted[1]["output"], "result");
+    }
+}
+
+// Anthropic OAuth Provider (for Claude Pro/Max subscription plans)
+pub struct AnthropicOAuthProvider {
+    client: Client,
+    access_token: String,
+    base_url: String,
+    model: String,
+    max_tokens: usize,
+}
+
+impl AnthropicOAuthProvider {
+    pub fn new(access_token: &str, base_url: &str, model: &str, max_tokens: usize) -> Result<Self> {
+        Ok(Self {
+            client: Client::new(),
+            access_token: access_token.to_string(),
+            base_url: base_url.to_string(),
+            model: model.to_string(),
+            max_tokens,
+        })
+    }
+
+    fn format_tools(&self, tools: &[ToolSchema]) -> Vec<Value> {
+        tools
+            .iter()
+            .map(|t| {
+                json!({
+                    "name": t.name,
+                    "description": t.description,
+                    "input_schema": t.parameters
+                })
+            })
+            .collect()
+    }
+
+    fn format_messages(&self, messages: &[Message]) -> (Option<String>, Vec<Value>) {
+        let mut system_prompt = None;
+        let mut formatted = Vec::new();
+
+        for m in messages {
+            match m.role {
+                Role::System => {
+                    system_prompt = Some(m.content.clone());
+                }
+                Role::User => {
+                    if m.images.is_empty() {
+                        formatted.push(json!({
+                            "role": "user",
+                            "content": m.content
+                        }));
+                    } else {
+                        let mut content_parts: Vec<Value> = Vec::new();
+                        for img in &m.images {
+                            content_parts.push(json!({
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": img.media_type,
+                                    "data": img.data
+                                }
+                            }));
+                        }
+                        if !m.content.is_empty() {
+                            content_parts.push(json!({
+                                "type": "text",
+                                "text": m.content
+                            }));
+                        }
+                        formatted.push(json!({
+                            "role": "user",
+                            "content": content_parts
+                        }));
+                    }
+                }
+                Role::Assistant => {
+                    if let Some(ref tool_calls) = m.tool_calls {
+                        let tool_use: Vec<Value> = tool_calls.iter().map(|tc| {
+                            json!({
+                                "type": "tool_use",
+                                "id": tc.id,
+                                "name": tc.name,
+                                "input": serde_json::from_str::<Value>(&tc.arguments).unwrap_or(json!({}))
+                            })
+                        }).collect();
+                        formatted.push(json!({
+                            "role": "assistant",
+                            "content": tool_use
+                        }));
+                    } else {
+                        formatted.push(json!({
+                            "role": "assistant",
+                            "content": m.content
+                        }));
+                    }
+                }
+                Role::Tool => {
+                    if let Some(ref tool_call_id) = m.tool_call_id {
+                        formatted.push(json!({
+                            "role": "user",
+                            "content": [{
+                                "type": "tool_result",
+                                "tool_use_id": tool_call_id,
+                                "content": m.content
+                            }]
+                        }));
+                    }
+                }
+            }
+        }
+
+        (system_prompt, formatted)
+    }
+}
+
+#[async_trait]
+impl LLMProvider for AnthropicOAuthProvider {
+    fn name(&self) -> String {
+        "anthropic-oauth".to_string()
+    }
+
+    fn supports_native_search(&self) -> bool {
+        true
+    }
+
+    fn native_tool_definitions(&self) -> Vec<Value> {
+        vec![json!({
+            "type": "web_search_20250305",
+            "name": "web_search"
+        })]
+    }
+
+    async fn chat(
+        &self,
+        messages: &[Message],
+        tools: Option<&[ToolSchema]>,
+    ) -> Result<LLMResponse> {
+        let (system_prompt, formatted_messages) = self.format_messages(messages);
+
+        let mut body = json!({
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "messages": formatted_messages
+        });
+
+        if let Some(system) = system_prompt {
+            body["system"] = json!(system);
+        }
+
+        let mut all_tools = Vec::new();
+        if let Some(tool_schemas) = tools {
+            let client_has_web_search = tool_schemas.iter().any(|t| t.name == "web_search");
+            if !client_has_web_search {
+                all_tools.extend(self.native_tool_definitions());
+            }
+            if !tool_schemas.is_empty() {
+                all_tools.extend(self.format_tools(tool_schemas));
+            }
+        }
+        if !all_tools.is_empty() {
+            body["tools"] = json!(all_tools);
+        }
+
+        debug!(
+            "Anthropic OAuth request: {}",
+            serde_json::to_string_pretty(&body)?
+        );
+
+        let response = self
+            .client
+            .post(format!("{}/v1/messages", self.base_url))
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .header("anthropic-version", "2023-06-01")
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await?;
+
+        let response_body: Value = response.json().await?;
+        debug!(
+            "Anthropic OAuth response: {}",
+            serde_json::to_string_pretty(&response_body)?
+        );
+
+        if let Some(error) = response_body.get("error") {
+            anyhow::bail!("Anthropic OAuth API error: {}", error);
+        }
+
+        let content = response_body["content"]
+            .as_array()
+            .ok_or_else(|| anyhow::anyhow!("No content in response"))?;
+
+        let usage = response_body.get("usage").map(|u| Usage {
+            input_tokens: u["input_tokens"].as_u64().unwrap_or(0),
+            output_tokens: u["output_tokens"].as_u64().unwrap_or(0),
+        });
+
+        let tool_calls: Vec<ToolCall> = content
+            .iter()
+            .filter(|c| c["type"] == "tool_use")
+            .map(|c| ToolCall {
+                id: c["id"].as_str().unwrap_or("").to_string(),
+                name: c["name"].as_str().unwrap_or("").to_string(),
+                arguments: serde_json::to_string(&c["input"]).unwrap_or("{}".to_string()),
+            })
+            .collect();
+
+        if !tool_calls.is_empty() {
+            return Ok(LLMResponse {
+                content: LLMResponseContent::ToolCalls(tool_calls),
+                usage,
+            });
+        }
+
+        let text = content
+            .iter()
+            .filter(|c| c["type"] == "text")
+            .map(|c| c["text"].as_str().unwrap_or(""))
+            .collect::<Vec<_>>()
+            .join("");
+
+        Ok(LLMResponse {
+            content: LLMResponseContent::Text(text),
+            usage,
+        })
+    }
+
+    async fn summarize(&self, text: &str) -> Result<String> {
+        let messages = vec![Message {
+            role: Role::User,
+            content: format!(
+                "Summarize the following conversation concisely, preserving key information and context:\n\n{}",
+                text
+            ),
+            tool_calls: None,
+            tool_call_id: None,
+            images: Vec::new(),
+        }];
+
+        match self.chat(&messages, None).await?.content {
+            LLMResponseContent::Text(summary) => Ok(summary),
+            _ => anyhow::bail!("Unexpected response type"),
+        }
+    }
+}
+
+// Gemini OAuth Provider (for Google AI subscription plans)
+pub struct GeminiOAuthProvider {
+    client: Client,
+    access_token: String,
+    base_url: String,
+    model: String,
+    project_id: Option<String>,
+}
+
+impl GeminiOAuthProvider {
+    pub fn new(
+        access_token: &str,
+        base_url: &str,
+        model: &str,
+        project_id: Option<&str>,
+    ) -> Result<Self> {
+        Ok(Self {
+            client: Client::new(),
+            access_token: access_token.to_string(),
+            base_url: base_url.to_string(),
+            model: model.to_string(),
+            project_id: project_id.map(|s| s.to_string()),
+        })
+    }
+
+    fn format_messages(&self, messages: &[Message]) -> Vec<Value> {
+        let mut formatted = Vec::new();
+        let mut system_instruction = None;
+
+        for m in messages {
+            match m.role {
+                Role::System => {
+                    system_instruction = Some(m.content.clone());
+                }
+                Role::User => {
+                    let mut parts = Vec::new();
+                    if !m.content.is_empty() {
+                        parts.push(json!({"text": m.content}));
+                    }
+                    for img in &m.images {
+                        parts.push(json!({
+                            "inline_data": {
+                                "mime_type": img.media_type,
+                                "data": img.data
+                            }
+                        }));
+                    }
+                    formatted.push(json!({
+                        "role": "user",
+                        "parts": parts
+                    }));
+                }
+                Role::Assistant => {
+                    if let Some(ref tool_calls) = m.tool_calls {
+                        let function_calls: Vec<Value> = tool_calls
+                            .iter()
+                            .map(|tc| {
+                                json!({
+                                    "function_call": {
+                                        "name": tc.name,
+                                        "args": serde_json::from_str::<Value>(&tc.arguments)
+                                            .unwrap_or(json!({}))
+                                    }
+                                })
+                            })
+                            .collect();
+                        formatted.push(json!({
+                            "role": "model",
+                            "parts": function_calls
+                        }));
+                    } else {
+                        formatted.push(json!({
+                            "role": "model",
+                            "parts": [{"text": m.content}]
+                        }));
+                    }
+                }
+                Role::Tool => {
+                    if let Some(ref tool_call_id) = m.tool_call_id {
+                        formatted.push(json!({
+                            "role": "user",
+                            "parts": [{
+                                "function_response": {
+                                    "name": tool_call_id,
+                                    "response": {"result": m.content}
+                                }
+                            }]
+                        }));
+                    }
+                }
+            }
+        }
+
+        // Prepend system instruction if present
+        if let Some(system) = system_instruction {
+            formatted.insert(
+                0,
+                json!({
+                    "role": "user",
+                    "parts": [{"text": system}]
+                }),
+            );
+        }
+
+        formatted
+    }
+
+    fn format_tools(&self, tools: &[ToolSchema]) -> Vec<Value> {
+        tools
+            .iter()
+            .map(|t| {
+                json!({
+                    "function_declarations": [{
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": t.parameters
+                    }]
+                })
+            })
+            .collect()
+    }
+}
+
+#[async_trait]
+impl LLMProvider for GeminiOAuthProvider {
+    fn name(&self) -> String {
+        "gemini-oauth".to_string()
+    }
+
+    async fn chat(
+        &self,
+        messages: &[Message],
+        tools: Option<&[ToolSchema]>,
+    ) -> Result<LLMResponse> {
+        let formatted_messages = self.format_messages(messages);
+
+        let mut body = json!({
+            "contents": formatted_messages,
+        });
+
+        if let Some(tool_schemas) = tools
+            && !tool_schemas.is_empty()
+        {
+            body["tools"] = json!(self.format_tools(tool_schemas));
+        }
+
+        debug!(
+            "Gemini OAuth request: {}",
+            serde_json::to_string_pretty(&body)?
+        );
+
+        // Build the URL based on whether we have a project_id
+        let url = if let Some(ref project_id) = self.project_id {
+            format!(
+                "{}/v1beta/projects/{}/models/{}:generateContent",
+                self.base_url, project_id, self.model
+            )
+        } else {
+            format!(
+                "{}/v1beta/models/{}:generateContent",
+                self.base_url, self.model
+            )
+        };
+
+        let response = self
+            .client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await?;
+
+        let response_body: Value = response.json().await?;
+        debug!(
+            "Gemini OAuth response: {}",
+            serde_json::to_string_pretty(&response_body)?
+        );
+
+        if let Some(error) = response_body.get("error") {
+            anyhow::bail!("Gemini OAuth API error: {}", error);
+        }
+
+        let candidates = response_body["candidates"]
+            .as_array()
+            .ok_or_else(|| anyhow::anyhow!("No candidates in response"))?;
+
+        if candidates.is_empty() {
+            anyhow::bail!("Empty candidates in response");
+        }
+
+        let parts = candidates[0]["content"]["parts"]
+            .as_array()
+            .ok_or_else(|| anyhow::anyhow!("No parts in candidate"))?;
+
+        // Check for function calls (tool use)
+        let tool_calls: Vec<ToolCall> = parts
+            .iter()
+            .filter_map(|p| p.get("function_call"))
+            .enumerate()
+            .map(|(i, fc)| ToolCall {
+                id: format!("call_{}", i),
+                name: fc["name"].as_str().unwrap_or("").to_string(),
+                arguments: serde_json::to_string(&fc["args"]).unwrap_or("{}".to_string()),
+            })
+            .collect();
+
+        if !tool_calls.is_empty() {
+            return Ok(LLMResponse {
+                content: LLMResponseContent::ToolCalls(tool_calls),
+                usage: None,
+            });
+        }
+
+        // Get text content
+        let text = parts
+            .iter()
+            .filter_map(|p| p.get("text"))
+            .filter_map(|t| t.as_str())
+            .collect::<Vec<_>>()
+            .join("");
+
+        Ok(LLMResponse {
+            content: LLMResponseContent::Text(text),
+            usage: None,
+        })
+    }
+
+    async fn summarize(&self, text: &str) -> Result<String> {
+        let messages = vec![Message {
+            role: Role::User,
+            content: format!(
+                "Summarize the following conversation concisely, preserving key information and context:\n\n{}",
+                text
+            ),
+            tool_calls: None,
+            tool_call_id: None,
+            images: Vec::new(),
+        }];
+
+        match self.chat(&messages, None).await?.content {
+            LLMResponseContent::Text(summary) => Ok(summary),
+            _ => anyhow::bail!("Unexpected response type"),
+        }
     }
 }

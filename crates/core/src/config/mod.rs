@@ -308,6 +308,12 @@ pub struct ProvidersConfig {
 
     #[serde(default)]
     pub glm: Option<GlmConfig>,
+
+    #[serde(default)]
+    pub anthropic_oauth: Option<AnthropicOAuthConfig>,
+
+    #[serde(default)]
+    pub gemini_oauth: Option<GeminiOAuthConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -358,6 +364,36 @@ pub struct GlmConfig {
 
     #[serde(default = "default_glm_base_url")]
     pub base_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnthropicOAuthConfig {
+    /// OAuth access token (Bearer token)
+    pub access_token: String,
+
+    /// OAuth refresh token (for token renewal)
+    #[serde(default)]
+    pub refresh_token: Option<String>,
+
+    #[serde(default = "default_anthropic_base_url")]
+    pub base_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeminiOAuthConfig {
+    /// OAuth access token (Bearer token)
+    pub access_token: String,
+
+    /// OAuth refresh token (for token renewal)
+    #[serde(default)]
+    pub refresh_token: Option<String>,
+
+    #[serde(default = "default_gemini_base_url")]
+    pub base_url: String,
+
+    /// Google Cloud project ID (for enterprise/subscription plans)
+    #[serde(default)]
+    pub project_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -510,6 +546,9 @@ fn default_claude_cli_model() -> String {
 }
 fn default_glm_base_url() -> String {
     "https://api.z.ai/api/coding/paas/v4".to_string()
+}
+fn default_gemini_base_url() -> String {
+    "https://generativelanguage.googleapis.com".to_string()
 }
 fn default_true() -> bool {
     true
