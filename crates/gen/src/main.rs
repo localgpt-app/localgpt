@@ -39,6 +39,7 @@ fn main() -> Result<()> {
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level)),
         )
+        .with_writer(std::io::stderr)
         .init();
 
     // Load config early so both Bevy and agent threads can use it
@@ -144,7 +145,7 @@ async fn run_agent_loop(
     if let Some(prompt) = initial_prompt {
         println!("\n> {}", prompt);
         let response = agent.chat(&prompt).await?;
-        println!("\n{}\n", response);
+        println!("\nLocalGPT: {}\n", response);
     }
 
     // Interactive loop
@@ -180,7 +181,7 @@ async fn run_agent_loop(
         }
 
         let response = agent.chat(input).await?;
-        println!("\n{}\n", response);
+        println!("\nLocalGPT: {}\n", response);
     }
 
     Ok(())
