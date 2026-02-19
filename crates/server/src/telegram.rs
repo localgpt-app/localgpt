@@ -693,7 +693,7 @@ async fn handle_chat(
     entry.last_accessed = Instant::now();
 
     // Use streaming with tools
-    let response = match entry.agent.chat_stream_with_tools(text).await {
+    let response = match entry.agent.chat_stream_with_tools(text, Vec::new()).await {
         Ok(event_stream) => {
             use futures::StreamExt;
 

@@ -467,16 +467,20 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
 
                     if !approved_calls.is_empty() {
                         match agent
-                            .execute_streaming_tool_calls(&full_response, approved_calls, |name, args| {
-                                // Print tool call as it starts (including recursive calls)
-                                let detail = extract_tool_detail(name, args);
-                                if let Some(ref d) = detail {
-                                    println!("\n[{}: {}]", name, d);
-                                } else {
-                                    println!("\n[{}]", name);
-                                }
-                                let _ = stdout.flush();
-                            })
+                            .execute_streaming_tool_calls(
+                                &full_response,
+                                approved_calls,
+                                |name, args| {
+                                    // Print tool call as it starts (including recursive calls)
+                                    let detail = extract_tool_detail(name, args);
+                                    if let Some(ref d) = detail {
+                                        println!("\n[{}: {}]", name, d);
+                                    } else {
+                                        println!("\n[{}]", name);
+                                    }
+                                    let _ = stdout.flush();
+                                },
+                            )
                             .await
                         {
                             Ok((follow_up, warnings)) => {

@@ -114,7 +114,7 @@ async fn worker_loop(
         match msg {
             UiMessage::Chat(message) => {
                 // Stream response with tool support
-                match agent.chat_stream_with_tools(&message).await {
+                match agent.chat_stream_with_tools(&message, Vec::new()).await {
                     Ok(stream) => {
                         let mut stream = pin!(stream);
                         let mut pending_tools: Vec<ToolCall> = Vec::new();

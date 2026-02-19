@@ -639,7 +639,7 @@ impl Agent {
                 for call in &calls {
                     // Notify caller that tool is starting
                     on_tool_start(&call.name, &call.arguments);
-                    
+
                     debug!(
                         "Executing tool: {} with args: {}",
                         call.name, call.arguments
@@ -1168,7 +1168,7 @@ impl Agent {
         for call in &tool_calls {
             // Notify caller that tool is starting
             on_tool_start(&call.name, &call.arguments);
-            
+
             debug!(
                 "Executing tool: {} with args: {}",
                 call.name, call.arguments
@@ -1208,7 +1208,9 @@ impl Agent {
             .await?;
 
         // Handle the response (may have more tool calls)
-        let final_response = self.handle_response_with_callback(response, &mut on_tool_start).await?;
+        let final_response = self
+            .handle_response_with_callback(response, &mut on_tool_start)
+            .await?;
 
         // Add final response to session
         self.session.add_message(Message {

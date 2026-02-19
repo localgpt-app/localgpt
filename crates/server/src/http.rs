@@ -792,7 +792,7 @@ async fn chat_stream(
         entry.dirty = true;
 
         // Use streaming with tools
-        match entry.agent.chat_stream_with_tools(&message).await {
+        match entry.agent.chat_stream_with_tools(&message, Vec::new()).await {
             Ok(event_stream) => {
                 use futures::StreamExt;
 
