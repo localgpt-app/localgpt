@@ -7,9 +7,9 @@ use std::io::{self, Write};
 use tracing::debug;
 
 use localgpt_core::agent::{
-    Agent, AgentConfig, ImageAttachment, Skill, extract_tool_detail, get_last_session_id_for_agent,
-    get_skills_summary, list_sessions_for_agent, load_skills, parse_skill_command,
-    search_sessions_for_agent,
+    Agent, AgentConfig, ImageAttachment, Skill, StreamEvent, extract_tool_detail,
+    get_last_session_id_for_agent, get_skills_summary, list_sessions_for_agent, load_skills,
+    parse_skill_command, search_sessions_for_agent,
 };
 use localgpt_core::concurrency::WorkspaceLock;
 use localgpt_core::config::Config;
@@ -467,7 +467,16 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
 
                     if !approved_calls.is_empty() {
                         match agent
-                            .execute_streaming_tool_calls(&full_response, approved_calls)
+                            .execute_streaming_tool_calls(&full_response, approved_calls, |name, args| {
+                                // Print tool call as it starts (including recursive calls)
+                                let detail = extract_tool_detail(name, args);
+                                if let Some(ref d) = detail {
+                                    println!("\n[{}: {}]", name, d);
+                                } else {
+                                    println!("\n[{}]", name);
+                                }
+                                let _ = stdout.flush();
+                            })
                             .await
                         {
                             Ok((follow_up, warnings)) => {

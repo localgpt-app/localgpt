@@ -617,6 +617,79 @@ impl Agent {
         }
     }
 
+    /// Handle LLM response with callback for tool executions
+    /// This version calls the callback before executing each tool (including recursive calls)
+    async fn handle_response_with_callback<F>(
+        &mut self,
+        response: LLMResponse,
+        on_tool_start: &mut F,
+    ) -> Result<String>
+    where
+        F: FnMut(&str, &str) + Send,
+    {
+        // Track usage
+        self.add_usage(response.usage);
+
+        match response.content {
+            LLMResponseContent::Text(text) => Ok(text),
+            LLMResponseContent::ToolCalls(calls) => {
+                // Execute tool calls
+                let mut results = Vec::new();
+
+                for call in &calls {
+                    // Notify caller that tool is starting
+                    on_tool_start(&call.name, &call.arguments);
+                    
+                    debug!(
+                        "Executing tool: {} with args: {}",
+                        call.name, call.arguments
+                    );
+
+                    let result = self.execute_tool(call).await;
+                    let output = match result {
+                        Ok((content, _warnings)) => content,
+                        Err(e) => format!("Error: {}", e),
+                    };
+                    results.push(ToolResult {
+                        call_id: call.id.clone(),
+                        output,
+                    });
+                }
+
+                // Add tool call message
+                self.session.add_message(Message {
+                    role: Role::Assistant,
+                    content: String::new(),
+                    tool_calls: Some(calls),
+                    tool_call_id: None,
+                    images: Vec::new(),
+                });
+
+                // Add tool results
+                for result in &results {
+                    self.session.add_message(Message {
+                        role: Role::Tool,
+                        content: result.output.clone(),
+                        tool_calls: None,
+                        tool_call_id: Some(result.call_id.clone()),
+                        images: Vec::new(),
+                    });
+                }
+
+                // Continue conversation with tool results (with per-turn security block)
+                let messages = self.messages_for_api_call();
+                let tool_schemas = self.tool_schemas_for_provider();
+                let next_response = self
+                    .provider
+                    .chat(&messages, Some(tool_schemas.as_slice()))
+                    .await?;
+
+                // Recursively handle (in case of more tool calls)
+                Box::pin(self.handle_response_with_callback(next_response, on_tool_start)).await
+            }
+        }
+    }
+
     async fn execute_tool(&mut self, call: &ToolCall) -> Result<(String, Vec<String>)> {
         let raw_output = {
             let tool = self
@@ -1070,11 +1143,16 @@ impl Agent {
 
     /// Execute tool calls that were accumulated during streaming
     /// Returns (final_response, Vec<(tool_name, warnings)>)
-    pub async fn execute_streaming_tool_calls(
+    /// The on_tool_start callback is called before each tool executes (including recursive calls)
+    pub async fn execute_streaming_tool_calls<F>(
         &mut self,
         text_response: &str,
         tool_calls: Vec<ToolCall>,
-    ) -> Result<(String, Vec<(String, Vec<String>)>)> {
+        mut on_tool_start: F,
+    ) -> Result<(String, Vec<(String, Vec<String>)>)>
+    where
+        F: FnMut(&str, &str) + Send,
+    {
         // Add assistant message with tool calls
         self.session.add_message(Message {
             role: Role::Assistant,
@@ -1088,6 +1166,9 @@ impl Agent {
         let mut results = Vec::new();
         let mut all_warnings: Vec<(String, Vec<String>)> = Vec::new();
         for call in &tool_calls {
+            // Notify caller that tool is starting
+            on_tool_start(&call.name, &call.arguments);
+            
             debug!(
                 "Executing tool: {} with args: {}",
                 call.name, call.arguments
@@ -1127,7 +1208,7 @@ impl Agent {
             .await?;
 
         // Handle the response (may have more tool calls)
-        let final_response = self.handle_response(response).await?;
+        let final_response = self.handle_response_with_callback(response, &mut on_tool_start).await?;
 
         // Add final response to session
         self.session.add_message(Message {
@@ -1184,6 +1265,7 @@ impl Agent {
     pub async fn chat_stream_with_tools(
         &mut self,
         message: &str,
+        images: Vec<ImageAttachment>,
     ) -> Result<impl futures::Stream<Item = Result<StreamEvent>> + '_> {
         // Add user message
         self.session.add_message(Message {
@@ -1191,7 +1273,7 @@ impl Agent {
             content: message.to_string(),
             tool_calls: None,
             tool_call_id: None,
-            images: Vec::new(),
+            images,
         });
 
         // Check if we should run pre-compaction memory flush (soft threshold)
