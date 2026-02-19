@@ -21,7 +21,6 @@ struct Message {
 struct Status {
     connected: bool,
     model: String,
-    version: String,
 }
 
 impl WebApp {
@@ -37,7 +36,6 @@ impl WebApp {
             status: Status {
                 connected: true,
                 model: "claude-cli/opus".to_string(),
-                version: "0.3.0".to_string(),
             },
         }
     }
