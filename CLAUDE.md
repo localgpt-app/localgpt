@@ -163,6 +163,10 @@ Key settings:
 - `server.port` — HTTP server port (default: 31327)
 - `telegram.enabled` / `telegram.api_token` — Telegram bot (supports `${ENV_VAR}` syntax)
 
+**OAuth Subscription Plans:**
+- `providers.anthropic_oauth` — Claude Pro/Max OAuth credentials (uses Bearer token, preferred over API key)
+- `providers.gemini_oauth` — Google Gemini subscription OAuth credentials (supports project_id for enterprise)
+
 Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env > `memory.workspace` config > `~/.localgpt/workspace`
 
 ## Runtime Directory Structure
