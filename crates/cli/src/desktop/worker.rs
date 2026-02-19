@@ -104,6 +104,14 @@ async fn worker_loop(
     // Send initial status
     let _ = tx.send(WorkerMessage::Status(agent.session_status()));
 
+    // Send welcome message on first run
+    let is_brand_new = agent.is_brand_new();
+    if is_brand_new {
+        let _ = tx.send(WorkerMessage::SystemMessage(
+            localgpt_core::agent::FIRST_RUN_WELCOME.to_string(),
+        ));
+    }
+
     // Track tools requiring approval
     let approval_tools: Vec<String> = agent.approval_required_tools().to_vec();
 

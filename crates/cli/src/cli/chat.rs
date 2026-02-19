@@ -191,6 +191,11 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
         println!("{}\n", notice);
     }
 
+    // Display welcome message on first run
+    if agent.is_brand_new() {
+        println!("{}\n", localgpt_core::agent::FIRST_RUN_WELCOME);
+    }
+
     // Store agent_id for command handling
     let agent_id = agent_id.to_string();
 

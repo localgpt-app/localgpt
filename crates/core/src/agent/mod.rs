@@ -294,6 +294,11 @@ impl Agent {
         self.memory.has_embeddings()
     }
 
+    /// Check if this is a brand new workspace (first run)
+    pub fn is_brand_new(&self) -> bool {
+        self.memory.is_brand_new()
+    }
+
     /// Get context window configuration
     pub fn context_window(&self) -> usize {
         self.config.context_window
@@ -1498,7 +1503,7 @@ impl AgentHandle {
 }
 
 /// Welcome message shown on first run (brand new workspace)
-const FIRST_RUN_WELCOME: &str = r#"# Welcome to LocalGPT
+pub const FIRST_RUN_WELCOME: &str = r#"# Welcome to LocalGPT
 
 This is your first session. I've set up a fresh workspace for you.
 
