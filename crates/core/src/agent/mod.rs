@@ -640,6 +640,130 @@ impl Agent {
         }
     }
 
+    /// Like `handle_response`, but saves the session for `agent_id` after each tool call round.
+    /// Used by the heartbeat runner so the session log is visible while the heartbeat is running.
+    async fn handle_response_saving_session(
+        &mut self,
+        response: LLMResponse,
+        agent_id: &str,
+    ) -> Result<String> {
+        // Track usage
+        self.add_usage(response.usage);
+
+        match response.content {
+            LLMResponseContent::Text(text) => Ok(text),
+            LLMResponseContent::ToolCalls(calls) => {
+                // Execute tool calls
+                let mut results = Vec::new();
+
+                for call in &calls {
+                    debug!(
+                        "Executing tool: {} with args: {}",
+                        call.name, call.arguments
+                    );
+
+                    let result = self.execute_tool(call).await;
+                    let output = match result {
+                        Ok((content, _warnings)) => content,
+                        Err(e) => format!("Error: {}", e),
+                    };
+                    results.push(ToolResult {
+                        call_id: call.id.clone(),
+                        output,
+                    });
+                }
+
+                // Add tool call message
+                self.session.add_message(Message {
+                    role: Role::Assistant,
+                    content: String::new(),
+                    tool_calls: Some(calls),
+                    tool_call_id: None,
+                    images: Vec::new(),
+                });
+
+                // Add tool results
+                for result in &results {
+                    self.session.add_message(Message {
+                        role: Role::Tool,
+                        content: result.output.clone(),
+                        tool_calls: None,
+                        tool_call_id: Some(result.call_id.clone()),
+                        images: Vec::new(),
+                    });
+                }
+
+                // Save session after each tool call round so it's visible during a long run
+                if let Err(e) = self.session.save_for_agent(agent_id) {
+                    debug!("Incremental session save failed: {}", e);
+                }
+
+                // Continue conversation with tool results (with per-turn security block)
+                let messages = self.messages_for_api_call();
+                let tool_schemas = self.tool_schemas_for_provider();
+                let next_response = self
+                    .provider
+                    .chat(&messages, Some(tool_schemas.as_slice()))
+                    .await?;
+
+                // Recursively handle (in case of more tool calls)
+                Box::pin(self.handle_response_saving_session(next_response, agent_id)).await
+            }
+        }
+    }
+
+    /// Like `chat`, but saves the session log to `agent_id`'s sessions directory after each
+    /// tool call round. Used by the heartbeat runner so in-progress sessions are visible.
+    pub async fn chat_saving_session(&mut self, message: &str, agent_id: &str) -> Result<String> {
+        // Add user message
+        self.session.add_message(Message {
+            role: Role::User,
+            content: message.to_string(),
+            tool_calls: None,
+            tool_call_id: None,
+            images: Vec::new(),
+        });
+
+        // Check if we should run pre-compaction memory flush (soft threshold)
+        if self.should_memory_flush() {
+            info!("Running pre-compaction memory flush (soft threshold)");
+            self.memory_flush().await?;
+        }
+
+        // Check if we need to compact (hard limit)
+        if self.should_compact() {
+            self.compact_session().await?;
+        }
+
+        // Build messages for LLM (with per-turn security block)
+        let messages = self.messages_for_api_call();
+
+        // Get available tools
+        let tool_schemas = self.tool_schemas_for_provider();
+
+        // Invoke LLM
+        let response = self
+            .provider
+            .chat(&messages, Some(tool_schemas.as_slice()))
+            .await?;
+
+        // Handle tool calls, saving session after each round
+        let final_response = self
+            .handle_response_saving_session(response, agent_id)
+            .await?;
+
+        // Add assistant response
+        self.session.add_message(Message {
+            role: Role::Assistant,
+            content: final_response.clone(),
+            tool_calls: None,
+            tool_call_id: None,
+            images: Vec::new(),
+        });
+
+        Ok(final_response)
+    }
+
     /// Handle LLM response with callback for tool executions
     /// This version calls the callback before executing each tool (including recursive calls)
     async fn handle_response_with_callback<F>(

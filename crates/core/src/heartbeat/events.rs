@@ -17,6 +17,8 @@ pub enum HeartbeatStatus {
     SkippedMayTry,
     /// Heartbeat failed with an error
     Failed,
+    /// Heartbeat was cancelled because it exceeded the configured timeout
+    TimedOut,
 }
 
 /// A heartbeat event for tracking/display

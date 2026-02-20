@@ -24,6 +24,9 @@ pub type ToolFactory = Box<dyn Fn(&Config) -> Result<Vec<Box<dyn Tool>>> + Send 
 pub struct HeartbeatRunner {
     config: Config,
     interval: Duration,
+    /// Maximum wall-clock time for a single heartbeat run.
+    /// Defaults to half the interval when not explicitly configured.
+    run_timeout: Duration,
     active_hours: Option<(NaiveTime, NaiveTime)>,
     workspace: PathBuf,
     agent_id: String,
@@ -74,6 +77,13 @@ impl HeartbeatRunner {
         let interval = parse_duration(&config.heartbeat.interval)
             .map_err(|e| anyhow::anyhow!("Invalid heartbeat interval: {}", e))?;
 
+        // Resolve run timeout: explicit config value or default to half the interval.
+        let run_timeout = if let Some(ref t) = config.heartbeat.timeout {
+            parse_duration(t).map_err(|e| anyhow::anyhow!("Invalid heartbeat timeout: {}", e))?
+        } else {
+            interval / 2
+        };
+
         let active_hours = if let Some(ref hours) = config.heartbeat.active_hours {
             let (start_h, start_m) = parse_time(&hours.start)
                 .map_err(|e| anyhow::anyhow!("Invalid start time: {}", e))?;
@@ -97,6 +107,7 @@ impl HeartbeatRunner {
         Ok(Self {
             config: config.clone(),
             interval,
+            run_timeout,
             active_hours,
             workspace,
             agent_id: agent_id.to_string(),
@@ -138,6 +149,7 @@ impl HeartbeatRunner {
     /// Run the heartbeat loop continuously
     pub async fn run(&self) -> Result<()> {
         info!(name: "Heartbeat", "starting runner with interval: {:?}", self.interval);
+        info!(name: "Heartbeat", "run timeout: {:?}", self.run_timeout);
 
         // Schedule first tick at next interval from last tick
         let first_after = self.first_delay().await;
@@ -172,12 +184,44 @@ impl HeartbeatRunner {
                 continue;
             }
 
-            // Run heartbeat with timing
+            // Run heartbeat with timing, enforcing the configured deadline
             let start = Instant::now();
             info!(name: "Heartbeat", "tick starting at: {:?}", start);
 
-            let res = self.run_once_internal().await;
+            let timed_result =
+                tokio::time::timeout(self.run_timeout, self.run_once_internal()).await;
             let elapsed = start.elapsed();
+
+            let res = match timed_result {
+                Ok(inner) => inner,
+                Err(_) => {
+                    warn!(
+                        name: "Heartbeat",
+                        "tick timed out after {:?} (deadline: {:?})", elapsed, self.run_timeout
+                    );
+                    let event = HeartbeatEvent {
+                        ts: now_ms(),
+                        status: HeartbeatStatus::TimedOut,
+                        duration_ms: elapsed.as_millis() as u64,
+                        preview: None,
+                        reason: Some(format!(
+                            "exceeded deadline of {}",
+                            &self.config.heartbeat.timeout.as_deref().unwrap_or("half the interval")
+                        )),
+                    };
+                    if let Err(e) = serde_json::to_writer_pretty(
+                        fs::File::create(self.config.paths.last_heartbeat())?,
+                        &event,
+                    ) {
+                        warn!(name: "Heartbeat", "failed to write event: {}", e);
+                    }
+                    emit_heartbeat_event(event);
+                    skips_since_last = 0;
+                    info!(name: "Heartbeat", "waiting for next tick");
+                    continue;
+                }
+            };
+
             info!(name: "Heartbeat", "tick done elapsed: {:?}", elapsed);
 
             let event = match res {
@@ -355,12 +399,15 @@ impl HeartbeatRunner {
         // Check if workspace is a git repo
         let workspace_is_git = self.workspace.join(".git").exists();
 
-        // Send heartbeat prompt
+        // Send heartbeat prompt; save session after each tool call round so the log
+        // is visible while the heartbeat is still running.
         let heartbeat_prompt = build_heartbeat_prompt(workspace_is_git);
-        let response = agent.chat(&heartbeat_prompt).await?;
+        let response = agent
+            .chat_saving_session(&heartbeat_prompt, &self.agent_id)
+            .await?;
 
         // Save final session log
-        match agent.save_session().await {
+        match agent.save_session_for_agent(&self.agent_id).await {
             Ok(path) => {
                 info!(name: "Heartbeat", "saved session: {:?}", path.to_str().unwrap_or("<Unknown>"));
             }
@@ -447,5 +494,29 @@ mod tests {
 
         // This test just verifies the type signature compiles correctly
         // Actual tool creation is tested in integration tests
+    }
+
+    #[test]
+    fn test_run_timeout_defaults_to_half_interval() {
+        // Default HeartbeatConfig has interval="30m", no explicit timeout
+        let config = Config::default();
+        assert_eq!(config.heartbeat.timeout, None);
+
+        // Verify that interval / 2 is the default timeout (30m / 2 = 15m)
+        let interval =
+            parse_duration(&config.heartbeat.interval).expect("default interval is valid");
+        let expected_timeout = interval / 2;
+        assert_eq!(expected_timeout, Duration::from_secs(15 * 60));
+    }
+
+    #[test]
+    fn test_explicit_timeout_config() {
+        use crate::config::HeartbeatConfig;
+        let cfg = HeartbeatConfig {
+            timeout: Some("5m".to_string()),
+            ..HeartbeatConfig::default()
+        };
+        let timeout = parse_duration(cfg.timeout.as_ref().unwrap()).unwrap();
+        assert_eq!(timeout, Duration::from_secs(5 * 60));
     }
 }

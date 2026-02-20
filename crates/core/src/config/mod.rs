@@ -423,6 +423,12 @@ pub struct HeartbeatConfig {
     #[serde(default = "default_overdue_delay")]
     pub overdue_delay: String,
 
+    /// Maximum duration for a single heartbeat run.
+    /// If not set, defaults to half the heartbeat interval.
+    /// Accepts the same format as `interval` (e.g., "15m", "1h").
+    #[serde(default)]
+    pub timeout: Option<String>,
+
     #[serde(default)]
     pub active_hours: Option<ActiveHours>,
 
@@ -681,6 +687,7 @@ impl Default for HeartbeatConfig {
             enabled: default_true(),
             interval: default_interval(),
             overdue_delay: default_overdue_delay(),
+            timeout: None,
             active_hours: None,
             timezone: None,
         }
@@ -938,6 +945,12 @@ command = "claude"
 [heartbeat]
 enabled = true
 interval = "30m"
+
+# Maximum wall-clock time for a single heartbeat run (optional).
+# If the heartbeat LLM turn exceeds this deadline it is cancelled and
+# a TimedOut event is recorded so the next interval can run on schedule.
+# Defaults to half the interval (e.g., "15m" when interval = "30m").
+# timeout = "15m"
 
 # Only run during these hours (optional)
 # [heartbeat.active_hours]

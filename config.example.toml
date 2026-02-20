@@ -107,6 +107,12 @@ enabled = true
 # How often to check HEARTBEAT.md
 interval = "30m"
 
+# Maximum wall-clock time for a single heartbeat run (optional).
+# If the heartbeat LLM turn exceeds this deadline it is cancelled and
+# a TimedOut event is recorded so the next interval can run on schedule.
+# Defaults to half the interval (e.g., "15m" when interval = "30m").
+# timeout = "15m"
+
 # Only run during these hours (optional)
 # [heartbeat.active_hours]
 # start = "09:00"
