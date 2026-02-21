@@ -8,35 +8,79 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # Point ort-sys to the system-installed ONNX Runtime so it never tries to
+  # reach cdn.pyke.io (which is not available on GitHub-hosted runners).
+  ORT_LIB_LOCATION: /opt/onnxruntime/lib
+  ORT_PREFER_DYNAMIC_LINK: "1"
 
 jobs:
+  setup-onnxruntime:
+    name: Cache ONNX Runtime
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache ONNX Runtime
+        id: cache-ort
+        uses: actions/cache@v4
+        with:
+          path: /opt/onnxruntime
+          key: onnxruntime-1.23.2-linux-x64
+
+      - name: Download ONNX Runtime 1.23.2
+        if: steps.cache-ort.outputs.cache-hit != 'true'
+        run: |
+          curl -L "https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-linux-x64-1.23.2.tgz" \
+            -o /tmp/onnxruntime.tgz
+          mkdir -p /opt/onnxruntime
+          tar -xzf /tmp/onnxruntime.tgz --strip-components=1 -C /opt/onnxruntime
+
   check:
     name: Check
     runs-on: ubuntu-latest
+    needs: setup-onnxruntime
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Restore ONNX Runtime
+        uses: actions/cache@v4
+        with:
+          path: /opt/onnxruntime
+          key: onnxruntime-1.23.2-linux-x64
+      - run: echo "/opt/onnxruntime/lib" | sudo tee /etc/ld.so.conf.d/onnxruntime.conf && sudo ldconfig
       - run: cargo check
 
   test:
     name: Test
     runs-on: ubuntu-latest
+    needs: setup-onnxruntime
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Restore ONNX Runtime
+        uses: actions/cache@v4
+        with:
+          path: /opt/onnxruntime
+          key: onnxruntime-1.23.2-linux-x64
+      - run: echo "/opt/onnxruntime/lib" | sudo tee /etc/ld.so.conf.d/onnxruntime.conf && sudo ldconfig
       - run: cargo test
 
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
+    needs: setup-onnxruntime
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
+      - name: Restore ONNX Runtime
+        uses: actions/cache@v4
+        with:
+          path: /opt/onnxruntime
+          key: onnxruntime-1.23.2-linux-x64
+      - run: echo "/opt/onnxruntime/lib" | sudo tee /etc/ld.so.conf.d/onnxruntime.conf && sudo ldconfig
       - run: cargo clippy -- -D warnings
 
   fmt:
