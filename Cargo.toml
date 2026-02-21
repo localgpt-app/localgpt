@@ -5,7 +5,7 @@ members = [
     "crates/server",
     "crates/sandbox",
     "crates/mobile",
-    "crates/gen", "crates/bridge", "crates/bridge-telegram",
+    "crates/gen", "crates/bridge", "crates/bridge-telegram", "crates/bridge-discord",
 ]
 default-members = ["crates/cli"]
 resolver = "3"

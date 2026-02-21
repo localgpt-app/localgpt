@@ -206,7 +206,12 @@ impl HeartbeatRunner {
                         preview: None,
                         reason: Some(format!(
                             "exceeded deadline of {}",
-                            &self.config.heartbeat.timeout.as_deref().unwrap_or("half the interval")
+                            &self
+                                .config
+                                .heartbeat
+                                .timeout
+                                .as_deref()
+                                .unwrap_or("half the interval")
                         )),
                     };
                     if let Err(e) = serde_json::to_writer_pretty(

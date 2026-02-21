@@ -1,13 +1,13 @@
-pub mod protocol;
 pub mod peer_identity;
+pub mod protocol;
 
 pub use interprocess::local_socket::tokio::{LocalSocketListener, LocalSocketStream};
 
 // Re-export protocol
-pub use protocol::{BridgeService, BridgeServiceClient, BridgeError};
+pub use protocol::{BRIDGE_PROTOCOL_VERSION, BridgeError, BridgeService, BridgeServiceClient};
 
-use tarpc::server::{BaseChannel, Channel};
 use futures::StreamExt;
+use tarpc::server::{BaseChannel, Channel};
 
 pub struct BridgeServer;
 
@@ -33,39 +33,39 @@ where
     // Wrap with tokio-util compat
     use tokio_util::compat::FuturesAsyncReadCompatExt;
     let conn = conn.compat();
-    
-    use tokio_serde::formats::Json;
+
     use tarpc::tokio_util::codec::{Framed, LengthDelimitedCodec};
+    use tokio_serde::formats::Json;
 
     let transport = tarpc::serde_transport::new(
         Framed::new(conn, LengthDelimitedCodec::new()),
         Json::default(),
     );
-    
+
     BaseChannel::with_defaults(transport)
         .execute(service.serve())
         .for_each(|span| async move {
-             span.await;
+            span.await;
         })
         .await;
-        
+
     Ok(())
 }
 
 pub async fn connect(socket_name: &str) -> anyhow::Result<BridgeServiceClient> {
     let conn = LocalSocketStream::connect(socket_name).await?;
-    
+
     use tokio_util::compat::FuturesAsyncReadCompatExt;
     let conn = conn.compat();
-    
-    use tokio_serde::formats::Json;
+
     use tarpc::tokio_util::codec::{Framed, LengthDelimitedCodec};
+    use tokio_serde::formats::Json;
 
     let transport = tarpc::serde_transport::new(
         Framed::new(conn, LengthDelimitedCodec::new()),
         Json::default(),
     );
-    
+
     let client = BridgeServiceClient::new(tarpc::client::Config::default(), transport).spawn();
     Ok(client)
 }

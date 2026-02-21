@@ -1,21 +1,21 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use localgpt_bridge::{BridgeService, BridgeError, BridgeServer};
-use localgpt_bridge::peer_identity::{PeerIdentity, get_peer_identity};
-use tracing::{info, error};
-use tarpc::context;
 use anyhow::Result;
 use chacha20poly1305::{
+    ChaCha20Poly1305, Key, Nonce,
     aead::{Aead, KeyInit},
-    ChaCha20Poly1305, Key, Nonce
 };
-use rand::RngExt;
 use hmac::{Hmac, Mac};
+use localgpt_bridge::peer_identity::{PeerIdentity, get_peer_identity};
+use localgpt_bridge::{BridgeError, BridgeServer, BridgeService};
+use rand::RngExt;
 use sha2::Sha256;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tarpc::context;
+use tokio::sync::RwLock;
+use tracing::{error, info};
 
-use crate::security::signing::read_device_key;
 use crate::paths::Paths;
+use crate::security::signing::read_device_key;
 
 /// Manages bridge processes and their credentials.
 #[derive(Clone)]
@@ -46,22 +46,23 @@ impl BridgeManager {
 
         // 3. Encrypt Secret
         let cipher = ChaCha20Poly1305::new(&bridge_key);
-        
+
         // Generate nonce manually to avoid rand_core version mismatch
         let mut nonce_bytes = [0u8; 12];
         rand::rng().fill(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
 
-        let ciphertext = cipher.encrypt(nonce, secret)
+        let ciphertext = cipher
+            .encrypt(nonce, secret)
             .map_err(|e| anyhow::anyhow!("Encryption failed: {}", e))?;
 
         // 4. Save to file: [Nonce (12 bytes)][Ciphertext]
         let mut file_content = nonce_bytes.to_vec();
         file_content.extend(ciphertext);
-        
+
         let file_path = bridges_dir.join(format!("{}.enc", bridge_id));
         std::fs::write(&file_path, file_content)?;
-        
+
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -71,18 +72,25 @@ impl BridgeManager {
         // 5. Update Cache
         let mut creds = self.credentials.write().await;
         creds.insert(bridge_id.to_string(), secret.to_vec());
-        
+
         info!("Registered credentials for bridge: {}", bridge_id);
         Ok(())
     }
 
     /// Retrieve credentials if the identity is authorized.
     /// Loads from disk if not in cache.
-    pub async fn get_credentials_for(&self, bridge_id: &str, identity: &PeerIdentity) -> Result<Vec<u8>, BridgeError> {
+    pub async fn get_credentials_for(
+        &self,
+        bridge_id: &str,
+        identity: &PeerIdentity,
+    ) -> Result<Vec<u8>, BridgeError> {
         // Verify identity (Basic check for now)
         // TODO: Implement stricter checks based on OS user or code signature
-        info!("Checking access for bridge: {} from {:?}", bridge_id, identity);
-        
+        info!(
+            "Checking access for bridge: {} from {:?}",
+            bridge_id, identity
+        );
+
         // Check cache first
         {
             let creds = self.credentials.read().await;
@@ -98,7 +106,7 @@ impl BridgeManager {
                 let mut creds = self.credentials.write().await;
                 creds.insert(bridge_id.to_string(), secret.clone());
                 Ok(secret)
-            },
+            }
             Err(e) => {
                 error!("Failed to load credentials for {}: {}", bridge_id, e);
                 Err(BridgeError::NotRegistered)
@@ -108,15 +116,18 @@ impl BridgeManager {
 
     async fn load_credentials_from_disk(&self, bridge_id: &str) -> Result<Vec<u8>> {
         let paths = Paths::resolve()?;
-        let file_path = paths.data_dir.join("bridges").join(format!("{}.enc", bridge_id));
-        
+        let file_path = paths
+            .data_dir
+            .join("bridges")
+            .join(format!("{}.enc", bridge_id));
+
         if !file_path.exists() {
             anyhow::bail!("Credential file not found");
         }
 
         let file_content = std::fs::read(&file_path)?;
         if file_content.len() < 12 {
-             anyhow::bail!("Invalid credential file format (too short)");
+            anyhow::bail!("Invalid credential file format (too short)");
         }
 
         let (nonce_bytes, ciphertext) = file_content.split_at(12);
@@ -128,8 +139,9 @@ impl BridgeManager {
 
         // Decrypt
         let cipher = ChaCha20Poly1305::new(&bridge_key);
-        let plaintext = cipher.decrypt(nonce, ciphertext)
-             .map_err(|e| anyhow::anyhow!("Decryption failed: {}", e))?;
+        let plaintext = cipher
+            .decrypt(nonce, ciphertext)
+            .map_err(|e| anyhow::anyhow!("Decryption failed: {}", e))?;
 
         Ok(plaintext)
     }
@@ -138,7 +150,7 @@ impl BridgeManager {
     pub async fn serve(self, socket_path: &str) -> anyhow::Result<()> {
         let listener = BridgeServer::bind(socket_path)?;
         let manager = self.clone();
-        
+
         info!("BridgeManager listening on {}", socket_path);
 
         loop {
@@ -149,13 +161,17 @@ impl BridgeManager {
                     continue;
                 }
             };
-            
+
             // Verify peer identity
             let identity_result = {
                 #[cfg(unix)]
-                { get_peer_identity(&conn) }
+                {
+                    get_peer_identity(&conn)
+                }
                 #[cfg(windows)]
-                { get_peer_identity(&conn) }
+                {
+                    get_peer_identity(&conn)
+                }
             };
 
             let identity = match identity_result {
@@ -167,7 +183,7 @@ impl BridgeManager {
             };
 
             info!("Accepted connection from: {:?}", identity);
-            
+
             let handler = ConnectionHandler {
                 manager: manager.clone(),
                 identity,
@@ -187,10 +203,10 @@ fn derive_bridge_key(master_key: &[u8; 32], bridge_id: &str) -> Result<Key> {
     // Disambiguate Mac vs KeyInit
     let mut mac = <HmacSha256 as Mac>::new_from_slice(master_key)
         .map_err(|e| anyhow::anyhow!("HMAC init failed: {}", e))?;
-    
+
     mac.update(b"bridge-key:");
     mac.update(bridge_id.as_bytes());
-    
+
     let result = mac.finalize().into_bytes();
     // ChaCha20Poly1305 key is 32 bytes, which matches SHA256 output size.
     Ok(*Key::from_slice(&result))
@@ -204,7 +220,21 @@ struct ConnectionHandler {
 }
 
 impl BridgeService for ConnectionHandler {
-    async fn get_credentials(self, _: context::Context, bridge_id: String) -> Result<Vec<u8>, BridgeError> {
-        self.manager.get_credentials_for(&bridge_id, &self.identity).await
+    async fn get_version(self, _: context::Context) -> String {
+        localgpt_bridge::BRIDGE_PROTOCOL_VERSION.to_string()
+    }
+
+    async fn ping(self, _: context::Context) -> bool {
+        true
+    }
+
+    async fn get_credentials(
+        self,
+        _: context::Context,
+        bridge_id: String,
+    ) -> Result<Vec<u8>, BridgeError> {
+        self.manager
+            .get_credentials_for(&bridge_id, &self.identity)
+            .await
     }
 }

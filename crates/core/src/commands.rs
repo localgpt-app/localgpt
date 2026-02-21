@@ -5,6 +5,7 @@
 pub enum Interface {
     Cli,
     Telegram,
+    Discord,
 }
 
 /// A slash command definition.
@@ -40,7 +41,7 @@ pub const COMMANDS: &[SlashCommand] = &[
         description: "Show available commands",
         aliases: &["h", "?"],
         usage: "",
-        interfaces: &[Interface::Cli, Interface::Telegram],
+        interfaces: &[Interface::Cli, Interface::Telegram, Interface::Discord],
     },
     SlashCommand {
         name: "quit",
@@ -54,14 +55,14 @@ pub const COMMANDS: &[SlashCommand] = &[
         description: "Start a fresh session",
         aliases: &[],
         usage: "",
-        interfaces: &[Interface::Cli, Interface::Telegram],
+        interfaces: &[Interface::Cli, Interface::Telegram, Interface::Discord],
     },
     SlashCommand {
         name: "skills",
         description: "List available skills",
         aliases: &[],
         usage: "",
-        interfaces: &[Interface::Cli, Interface::Telegram],
+        interfaces: &[Interface::Cli, Interface::Telegram, Interface::Discord],
     },
     SlashCommand {
         name: "sessions",
@@ -89,7 +90,7 @@ pub const COMMANDS: &[SlashCommand] = &[
         description: "Show or switch model",
         aliases: &[],
         usage: "[name]",
-        interfaces: &[Interface::Cli, Interface::Telegram],
+        interfaces: &[Interface::Cli, Interface::Telegram, Interface::Discord],
     },
     SlashCommand {
         name: "models",
@@ -131,21 +132,21 @@ pub const COMMANDS: &[SlashCommand] = &[
         description: "Compact session history",
         aliases: &[],
         usage: "",
-        interfaces: &[Interface::Cli, Interface::Telegram],
+        interfaces: &[Interface::Cli, Interface::Telegram, Interface::Discord],
     },
     SlashCommand {
         name: "clear",
         description: "Clear session history",
         aliases: &[],
         usage: "",
-        interfaces: &[Interface::Cli, Interface::Telegram],
+        interfaces: &[Interface::Cli, Interface::Telegram, Interface::Discord],
     },
     SlashCommand {
         name: "memory",
         description: "Search memory files",
         aliases: &[],
         usage: "<query>",
-        interfaces: &[Interface::Cli, Interface::Telegram],
+        interfaces: &[Interface::Cli, Interface::Telegram, Interface::Discord],
     },
     SlashCommand {
         name: "reindex",
@@ -166,14 +167,14 @@ pub const COMMANDS: &[SlashCommand] = &[
         description: "Show session info",
         aliases: &[],
         usage: "",
-        interfaces: &[Interface::Cli, Interface::Telegram],
+        interfaces: &[Interface::Cli, Interface::Telegram, Interface::Discord],
     },
     SlashCommand {
         name: "unpair",
-        description: "Unpair Telegram account",
+        description: "Unpair this bot account",
         aliases: &[],
         usage: "",
-        interfaces: &[Interface::Telegram],
+        interfaces: &[Interface::Telegram, Interface::Discord],
     },
 ];
 

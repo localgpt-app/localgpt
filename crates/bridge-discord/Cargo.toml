@@ -1,7 +1,8 @@
 [package]
-name = "localgpt-bridge-telegram"
+name = "localgpt-bridge-discord"
 version = "0.1.0"
 edition = "2024"
+description = "Discord bridge for LocalGPT"
 
 [dependencies]
 localgpt-core = { path = "../core" }
@@ -20,6 +21,5 @@ rand = { workspace = true }
 # RPC
 tarpc = { version = "0.37", features = ["tokio1", "serde-transport"] }
 
-# Telegram
-teloxide = { version = "0.17", features = ["macros"] }
-# dptree is re-exported by teloxide
+# Discord
+serenity = { version = "0.12", features = ["client", "gateway", "model", "cache"] }
