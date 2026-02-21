@@ -407,11 +407,12 @@ impl HeartbeatRunner {
         // Send heartbeat prompt; save session after each tool call round so the log
         // is visible while the heartbeat is still running.
         let heartbeat_prompt = build_heartbeat_prompt(workspace_is_git);
-        let response = agent
+        let res = agent
             .chat_saving_session(&heartbeat_prompt, &self.agent_id)
-            .await?;
+            .await;
 
-        // Save final session log
+        // Save final session log, even if the chat failed, and even if this write if futile in the
+        // happy path, this ensures we at least save at the end
         match agent.save_session_for_agent(&self.agent_id).await {
             Ok(path) => {
                 info!(name: "Heartbeat", "saved session: {:?}", path.to_str().unwrap_or("<Unknown>"));
@@ -422,6 +423,7 @@ impl HeartbeatRunner {
         }
 
         // Determine status based on response
+        let response = res?;
         if is_heartbeat_ok(&response) {
             return Ok((response, HeartbeatStatus::Ok));
         }
