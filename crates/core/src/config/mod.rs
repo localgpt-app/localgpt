@@ -330,6 +330,9 @@ pub struct ProvidersConfig {
 
     #[serde(default)]
     pub gemini_oauth: Option<GeminiOAuthConfig>,
+
+    #[serde(default)]
+    pub openai_oauth: Option<OpenAIOAuthConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -410,6 +413,19 @@ pub struct GeminiOAuthConfig {
     /// Google Cloud project ID (for enterprise/subscription plans)
     #[serde(default)]
     pub project_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenAIOAuthConfig {
+    /// OAuth access token (Bearer token)
+    pub access_token: String,
+
+    /// OAuth refresh token (for token renewal)
+    #[serde(default)]
+    pub refresh_token: Option<String>,
+
+    #[serde(default = "default_openai_base_url")]
+    pub base_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -852,6 +868,12 @@ impl Config {
             && let Some(ref mut perplexity) = ws.perplexity
         {
             perplexity.api_key = expand_env(&perplexity.api_key);
+        }
+        if let Some(ref mut openai_oauth) = self.providers.openai_oauth {
+            openai_oauth.access_token = expand_env(&openai_oauth.access_token);
+            if let Some(ref mut refresh) = openai_oauth.refresh_token {
+                *refresh = expand_env(refresh);
+            }
         }
     }
 

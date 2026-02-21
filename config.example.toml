@@ -52,6 +52,17 @@ base_url = "https://api.anthropic.com"
 # api_key = "not-needed"
 # base_url = "http://127.0.0.1:8080/v1" # LM Studio default is http://127.0.0.1:1234/v1
 
+# OpenAI OAuth configuration (for ChatGPT Plus/Pro/Team subscription plans)
+# Use this instead of api_key-based authentication to leverage your subscription quota
+# To obtain OAuth tokens:
+#   1. Use OAuth 2.0 PKCE flow with OpenAI's authorization endpoint
+#   2. Authorize at: https://auth.openai.com/authorize
+#   3. Exchange code for access_token
+# [providers.openai_oauth]
+# access_token = "${OPENAI_OAUTH_TOKEN}"
+# refresh_token = "${OPENAI_OAUTH_REFRESH_TOKEN}"  # Optional, for token renewal
+# base_url = "https://api.openai.com/v1"
+
 # xAI configuration (optional, for xai/* models)
 # [providers.xai]
 # api_key = "${XAI_API_KEY}"

@@ -304,21 +304,33 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
         }
 
         "openai" => {
-            let openai_config = config.providers.openai.as_ref().ok_or_else(|| {
-                anyhow::anyhow!(
-                    "OpenAI provider not configured.\n\
-                    Set OPENAI_API_KEY env var or add to {}/config.toml:\n\n\
-                    [providers.openai]\n\
-                    api_key = \"sk-...\"",
-                    DEFAULT_CONFIG_DIR_STR
-                )
-            })?;
+            // Prefer OAuth config if available
+            if let Some(oauth_config) = &config.providers.openai_oauth {
+                Ok(Box::new(OpenAIProvider::new(
+                    &oauth_config.access_token,
+                    &oauth_config.base_url,
+                    &model_id,
+                )?))
+            } else {
+                let openai_config = config.providers.openai.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "OpenAI provider not configured.\n\
+                        Set OPENAI_API_KEY env var or add to {}/config.toml:\n\n\
+                        [providers.openai]\n\
+                        api_key = \"sk-...\"\n\n\
+                        Or use OAuth credentials:\n\n\
+                        [providers.openai_oauth]\n\
+                        access_token = \"${{OPENAI_OAUTH_TOKEN}}\"",
+                        DEFAULT_CONFIG_DIR_STR
+                    )
+                })?;
 
-            Ok(Box::new(OpenAIProvider::new(
-                &openai_config.api_key,
-                &openai_config.base_url,
-                &model_id,
-            )?))
+                Ok(Box::new(OpenAIProvider::new(
+                    &openai_config.api_key,
+                    &openai_config.base_url,
+                    &model_id,
+                )?))
+            }
         }
 
         "xai" => {
