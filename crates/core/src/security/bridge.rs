@@ -198,6 +198,12 @@ impl BridgeManager {
     }
 }
 
+impl Default for BridgeManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn derive_bridge_key(master_key: &[u8; 32], bridge_id: &str) -> Result<Key> {
     type HmacSha256 = Hmac<Sha256>;
     // Disambiguate Mac vs KeyInit

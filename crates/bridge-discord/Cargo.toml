@@ -3,6 +3,7 @@ name = "localgpt-bridge-discord"
 version = "0.1.0"
 edition = "2024"
 description = "Discord bridge for LocalGPT"
+license.workspace = true
 
 [dependencies]
 localgpt-core = { path = "../core" }

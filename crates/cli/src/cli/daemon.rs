@@ -219,13 +219,13 @@ async fn run_daemon_services(config: &Config, agent_id: &str) -> Result<()> {
             "  Server: http://{}:{}",
             config.server.bind, config.server.port
         );
-        
+
         // Start Bridge Manager (Process Isolation)
         // This runs alongside the HTTP server
         let paths = localgpt_core::paths::Paths::resolve()?;
         let bridge_socket = paths.bridge_socket_name();
         let manager = localgpt_core::security::BridgeManager::new();
-        
+
         println!("  Bridge: enabled (socket: {})", bridge_socket);
         tokio::spawn(async move {
             if let Err(e) = manager.serve(&bridge_socket).await {
