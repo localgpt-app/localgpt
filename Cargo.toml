@@ -30,7 +30,7 @@ tag-name = "v{{version}}"
 tokio = { version = "1.49", features = ["full"] }
 
 # HTTP client for LLM APIs
-reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "multipart", "native-tls-vendored"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "multipart", "form", "native-tls-vendored"] }
 
 # Database
 rusqlite = { version = "0.38", features = ["bundled", "functions", "vtab", "load_extension"] }

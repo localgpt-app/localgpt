@@ -12,9 +12,6 @@ use std::process::Stdio;
 use std::sync::Mutex as StdMutex;
 #[cfg(feature = "claude-cli")]
 use tokio::io::{AsyncBufReadExt, BufReader};
-#[cfg(not(feature = "claude-cli"))]
-use tracing::debug;
-#[cfg(feature = "claude-cli")]
 use tracing::{debug, info};
 
 use crate::config::Config;
@@ -462,7 +459,7 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
                 github_config.refresh_token.clone(),
                 github_config.client_id.clone(),
                 github_config.client_secret.clone(),
-                github_config.expires_at.unwrap_or(0),
+                github_config.expires_at,
                 &model_id,
             )?))
         }

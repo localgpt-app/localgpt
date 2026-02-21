@@ -8,6 +8,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use tracing::debug;
 
 use crate::env::LOCALGPT_WORKSPACE;
 use crate::paths::Paths;
