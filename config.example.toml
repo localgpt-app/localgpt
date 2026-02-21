@@ -57,7 +57,8 @@ base_url = "https://api.anthropic.com"
 # To obtain OAuth tokens:
 #   1. Use OAuth 2.0 PKCE flow with OpenAI's authorization endpoint
 #   2. Authorize at: https://auth.openai.com/authorize
-#   3. Exchange code for access_token
+#   3. Exchange code for access_token at the token endpoint
+# See: https://platform.openai.com/docs/guides/oauth
 # [providers.openai_oauth]
 # access_token = "${OPENAI_OAUTH_TOKEN}"
 # refresh_token = "${OPENAI_OAUTH_REFRESH_TOKEN}"  # Optional, for token renewal
