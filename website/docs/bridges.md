@@ -177,7 +177,7 @@ Once WhatsApp Web is connected:
 
 ### Architecture Notes
 
-- The Node.js adapter (`adapter.js`) uses [`whatsapp-web.js`](https://github.com/nicholasantonio/whatsapp-web.js) for WhatsApp Web protocol support.
+- The Node.js adapter (`adapter.js`) uses [`whatsapp-web.js`](https://github.com/pedroslopez/whatsapp-web.js) for WhatsApp Web protocol support.
 - Messages are relayed via `POST /webhook` to the Rust bridge on `localhost:3000`.
 - A `/health` endpoint is available for monitoring.
 
