@@ -14,7 +14,7 @@ LocalGPT is a **local AI assistant with persistent memory, semantic search, and 
 - **Desktop App** - Optional native desktop GUI built with egui — chat, sessions, memory browser, and status dashboard. Disable with `--no-default-features` for headless/Docker deployments.
 - **Embedded Web UI** - Browser-based chat interface served directly from the binary
 - **Multi-Provider Support** - Works with Claude CLI, Anthropic API, OpenAI, Ollama, and GLM (Z.AI) — all with full tool calling support
-- **Telegram Bot** - Access LocalGPT from Telegram with full chat, tool use, and memory support — secured with one-time pairing auth
+- **Telegram, Discord & WhatsApp** - Access LocalGPT from Telegram, Discord, or WhatsApp via bridge binaries with full chat, tool use, and memory support — secured with one-time pairing auth
 - **Autonomous Heartbeat** - Daemon mode with scheduled background tasks that run automatically
 - **Skills System** - Extensible skills for specialized tasks
 - **Shell Sandbox** - Kernel-level isolation (Landlock + seccomp + Seatbelt) on every shell command. Zero configuration, enabled by default, graceful degradation. [Not a guarantee](/docs/sandbox#limitations) — defense in depth.

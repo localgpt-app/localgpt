@@ -71,12 +71,12 @@ This preserves your conversation history, session IDs, and CLI session mappings.
 
 ## Key differences
 
-LocalGPT removes several OpenClaw features that were specific to multi-channel or remote operation:
+LocalGPT takes a different approach from OpenClaw in several areas:
 
-- **No remote channels** &mdash; Telegram, Discord, Slack, and other integrations are removed (Telegram bot is available as a separate feature)
+- **Bridge-based integrations** &mdash; Telegram, Discord, and WhatsApp are supported via standalone bridge binaries in the `bridges/` directory, connected to the daemon via secure IPC (rather than built-in channels)
 - **No plugin/extension system** &mdash; LocalGPT uses a simpler skills-based approach
-- **No gateway routing** &mdash; single-agent, local-first design
-- **No web UI/Canvas** &mdash; CLI and HTTP API only
+- **No gateway routing** &mdash; single-agent, local-first design with bridge daemons instead of a multi-channel gateway
+- **Embedded web UI** &mdash; browser-based chat interface served directly from the binary, plus an optional desktop GUI (egui)
 - **No subagent spawning** &mdash; single "main" agent
 
 Everything else &mdash; memory, heartbeat, skills, session management &mdash; works the same way.

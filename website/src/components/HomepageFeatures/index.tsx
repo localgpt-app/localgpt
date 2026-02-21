@@ -31,13 +31,13 @@ const FeatureList: FeatureItem[] = [
     ),
   },
   {
-    title: 'Desktop, Web, CLI & Telegram',
+    title: 'Desktop, Web, CLI & Bridges',
     description: (
       <>
-        Four ways to interact: a full-featured CLI, an optional native desktop
-        GUI (egui), an embedded web UI, and a Telegram bot with one-time pairing
-        auth. Build with <code>--no-default-features</code> for headless
-        Docker/server deployments.
+        Multiple ways to interact: a full-featured CLI, an optional native desktop
+        GUI (egui), an embedded web UI, and bridge integrations for Telegram,
+        Discord, and WhatsApp. Build with <code>--no-default-features</code> for
+        headless Docker/server deployments.
       </>
     ),
   },
