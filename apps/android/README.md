@@ -22,7 +22,7 @@ This directory contains the Android integration for LocalGPT using Rust, UniFFI,
 ### 1. Build the Rust Library
 Run the build script from the repository root:
 ```bash
-bash crates/mobile/android/scripts/build_android.sh
+bash apps/android/scripts/build_android.sh
 ```
 This will populate `LocalGPTLib/src/main/jniLibs` and `LocalGPTLib/src/main/java`.
 

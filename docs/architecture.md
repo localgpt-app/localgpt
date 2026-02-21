@@ -43,10 +43,10 @@ The following concepts were directly inspired by OpenClaw:
 
 ### Key Differences
 
-1. **No Remote Channels**: LocalGPT is purely local - no Telegram, Discord, WhatsApp, etc.
+1. **Bridge-Based Channels**: OpenClaw has built-in remote channels; LocalGPT uses standalone bridge binaries (Telegram, Discord, WhatsApp) that connect to the daemon via secure IPC
 2. **No Plugin System**: OpenClaw has an extension architecture; LocalGPT is monolithic
-3. **No Gateway**: OpenClaw's gateway handles multi-channel routing; LocalGPT has only CLI and HTTP
-4. **No Canvas/UI**: OpenClaw has web-based chat UI; LocalGPT is CLI-first
+3. **Bridge Architecture**: OpenClaw's gateway handles multi-channel routing; LocalGPT uses a bridge daemon model with encrypted credential exchange
+4. **Web UI**: OpenClaw has a full web-based chat UI; LocalGPT has an embedded web UI served by the daemon, plus a desktop GUI (egui)
 
 ---
 

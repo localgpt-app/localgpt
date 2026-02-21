@@ -18,7 +18,7 @@ rustup target add aarch64-apple-ios aarch64-apple-ios-sim
 
 Run the build script from the repository root:
 ```bash
-bash crates/mobile/ios/scripts/build_ios.sh
+bash apps/ios/scripts/build_ios.sh
 ```
 This will create `LocalGPTWrapper/LocalGPTCore.xcframework`.
 

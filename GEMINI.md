@@ -22,7 +22,10 @@ The project is organized as a Rust workspace:
 - `crates/server/`: Implements the background daemon, HTTP REST API, embedded Web UI, and Telegram bot.
 - `crates/sandbox/`: Low-level OS-specific sandbox implementations used to confine shell commands executed by the agent.
 - `crates/gen/`: A specialized 3D world generation tool (`localgpt-gen`) built with the Bevy engine.
-- `crates/mobile/`: UniFFI bindings for embedding LocalGPT core into iOS/Android apps.
+- `crates/mobile-ffi/`: UniFFI bindings for embedding LocalGPT core into iOS/Android apps.
+- `crates/bridge/`: Secure IPC protocol for bridge daemons (credential exchange, peer identity).
+- `bridges/`: Standalone bridge binaries (Telegram, Discord, WhatsApp) that connect to the daemon via IPC.
+- `apps/`: Native mobile app projects (iOS SwiftUI, Android Jetpack Compose).
 
 ## Key Concepts
 

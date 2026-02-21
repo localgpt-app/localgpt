@@ -25,8 +25,8 @@ cargo clippy --workspace
 cargo fmt --check
 
 # Cross-compile checks (mobile)
-cargo check -p localgpt-mobile --target aarch64-apple-ios
-cargo check -p localgpt-mobile --target aarch64-apple-ios-sim
+cargo check -p localgpt-mobile-ffi --target aarch64-apple-ios
+cargo check -p localgpt-mobile-ffi --target aarch64-apple-ios-sim
 
 # Gen (3D scene generation with Bevy)
 cargo run -p localgpt-gen                          # Interactive mode
@@ -38,31 +38,33 @@ cargo run -p localgpt-gen -- -v                    # Verbose logging
 cargo build -p localgpt --no-default-features
 
 # Generate UniFFI bindings (after building mobile crate)
-cargo build -p localgpt-mobile
+cargo build -p localgpt-mobile-ffi
 target/debug/uniffi-bindgen generate \
   --library target/debug/liblocalgpt_mobile.dylib \
-  --language swift --out-dir mobile/ios/Generated
+  --language swift --out-dir apps/ios/Generated
 target/debug/uniffi-bindgen generate \
   --library target/debug/liblocalgpt_mobile.dylib \
-  --language kotlin --out-dir mobile/android/Generated
+  --language kotlin --out-dir apps/android/Generated
 ```
 
 ## Architecture
 
 LocalGPT is a local-only AI assistant with persistent markdown-based memory and optional autonomous operation via heartbeat.
 
-### Workspace (6 crates)
+### Workspace (7 crates)
 
 ```
 crates/
-├── core/      # localgpt-core — shared library (agent, memory, config, security)
-├── cli/       # localgpt — binary with clap CLI, desktop GUI, dangerous tools
-├── server/    # localgpt-server — HTTP/WS API, Telegram bot, embedded Web UI
-├── sandbox/   # localgpt-sandbox — Landlock/Seatbelt process sandboxing
-├── mobile/    # localgpt-mobile — UniFFI bindings for iOS/Android
-└── gen/       # localgpt-gen — Bevy 3D scene generation binary
+├── core/        # localgpt-core — shared library (agent, memory, config, security)
+├── cli/         # localgpt — binary with clap CLI, desktop GUI, dangerous tools
+├── server/      # localgpt-server — HTTP/WS API, Telegram bot, embedded Web UI
+├── sandbox/     # localgpt-sandbox — Landlock/Seatbelt process sandboxing
+├── mobile-ffi/  # localgpt-mobile-ffi — UniFFI bindings for iOS/Android
+├── gen/         # localgpt-gen — Bevy 3D scene generation binary
+└── bridge/      # localgpt-bridge — secure IPC protocol for bridge daemons
 
-mobile/        # Non-Rust: iOS build scripts, Android gradle config
+bridges/         # Standalone bridge binaries (Telegram, Discord, WhatsApp)
+apps/            # Native mobile app projects (iOS, Android)
 ```
 
 ### Dependency Graph
@@ -72,8 +74,8 @@ localgpt ──→ localgpt-core
              ──→ localgpt-server ──→ localgpt-core
              ──→ localgpt-sandbox ──→ localgpt-core
 
-localgpt-mobile ──→ localgpt-core (default-features = false, embeddings-openai)
-localgpt-gen    ──→ localgpt-core
+localgpt-mobile-ffi ──→ localgpt-core (default-features = false, embeddings-openai)
+localgpt-gen        ──→ localgpt-core
 ```
 
 **Critical rule:** `localgpt-core` must have zero platform-specific dependencies. It must compile cleanly for `aarch64-apple-ios` and `aarch64-linux-android`. No clap, eframe, axum, teloxide, landlock, nix, etc.
@@ -146,10 +148,10 @@ See `docs/gen-audio.md` for detailed architecture and usage examples.
 
 ### Mobile
 
-UniFFI proc-macro bindings (`crates/mobile/`). `LocalGPTClient` owns its own tokio runtime and wraps `AgentHandle`. Error type: `MobileError` enum (Init, Chat, Memory, Config).
+UniFFI proc-macro bindings (`crates/mobile-ffi/`). `LocalGPTClient` owns its own tokio runtime and wraps `AgentHandle`. Error type: `MobileError` enum (Init, Chat, Memory, Config).
 
-iOS: `mobile/ios/scripts/build-rust.sh` → XCFramework + Swift bindings
-Android: `mobile/android/gradle/rust.gradle` → cargo-ndk + Kotlin bindings
+iOS: `apps/ios/scripts/build_ios.sh` → XCFramework + Swift bindings
+Android: `apps/android/scripts/build_android.sh` → cargo-ndk + Kotlin bindings
 
 ## Configuration
 

@@ -35,22 +35,26 @@ cargo run -- daemon start       # HTTP server + Telegram bot + heartbeat
 
 ```bash
 # Mobile cross-compile checks (required for core changes)
-cargo check -p localgpt-mobile --target aarch64-apple-ios
-cargo check -p localgpt-mobile --target aarch64-apple-ios-sim
+cargo check -p localgpt-mobile-ffi --target aarch64-apple-ios
+cargo check -p localgpt-mobile-ffi --target aarch64-apple-ios-sim
 ```
 
 ## Architecture
 
-### Workspace Structure (6 crates)
+### Workspace Structure (7 crates)
 
 ```
 crates/
-├── core/      # localgpt-core — shared library (agent, memory, config, security)
-├── cli/       # localgpt-cli — binary with clap CLI, desktop GUI, dangerous tools
-├── server/    # localgpt-server — HTTP/WS API, Telegram bot, optional WASM web UI
-├── sandbox/   # localgpt-sandbox — Landlock/Seatbelt process sandboxing
-├── mobile/    # localgpt-mobile — UniFFI bindings for iOS/Android
-└── gen/       # localgpt-gen — Bevy 3D scene generation binary
+├── core/        # localgpt-core — shared library (agent, memory, config, security)
+├── cli/         # localgpt — binary with clap CLI, desktop GUI, dangerous tools
+├── server/      # localgpt-server — HTTP/WS API, Telegram bot, optional WASM web UI
+├── sandbox/     # localgpt-sandbox — Landlock/Seatbelt process sandboxing
+├── mobile-ffi/  # localgpt-mobile-ffi — UniFFI bindings for iOS/Android
+├── gen/         # localgpt-gen — Bevy 3D scene generation binary
+└── bridge/      # localgpt-bridge — secure IPC protocol for bridge daemons
+
+bridges/         # Standalone bridge binaries (Telegram, Discord, WhatsApp)
+apps/            # Native mobile app projects (iOS, Android)
 ```
 
 ### Dependency Rules
@@ -58,12 +62,12 @@ crates/
 **CRITICAL**: `localgpt-core` must have zero platform-specific dependencies. It must compile cleanly for `aarch64-apple-ios` and `aarch64-linux-android`. No clap, eframe, axum, teloxide, landlock, nix, etc.
 
 ```
-localgpt-cli ──→ localgpt-core
+localgpt ──→ localgpt-core
              ──→ localgpt-server ──→ localgpt-core
              ──→ localgpt-sandbox ──→ localgpt-core
 
-localgpt-mobile ──→ localgpt-core (default-features = false, embeddings-openai)
-localgpt-gen    ──→ localgpt-core
+localgpt-mobile-ffi ──→ localgpt-core (default-features = false, embeddings-openai)
+localgpt-gen        ──→ localgpt-core
 ```
 
 ### Feature Flags (`localgpt-core`)
@@ -194,8 +198,8 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env > `
 
 ### Mobile Changes
 1. Make changes in `localgpt-core` with `default-features = false`
-2. Verify no platform-specific deps: `cargo check -p localgpt-mobile --target aarch64-apple-ios`
-3. Rebuild mobile crate: `cargo build -p localgpt-mobile`
+2. Verify no platform-specific deps: `cargo check -p localgpt-mobile-ffi --target aarch64-apple-ios`
+3. Rebuild mobile crate: `cargo build -p localgpt-mobile-ffi`
 4. Regenerate UniFFI bindings (Swift/Kotlin)
 
 ## Validation Checklist
@@ -205,7 +209,7 @@ Before submitting a PR:
 - [ ] `cargo fmt --check` passes
 - [ ] `cargo clippy --workspace` has no warnings
 - [ ] `cargo test --workspace` passes
-- [ ] If core changes: `cargo check -p localgpt-mobile --target aarch64-apple-ios` succeeds
+- [ ] If core changes: `cargo check -p localgpt-mobile-ffi --target aarch64-apple-ios` succeeds
 - [ ] Documentation updated (if public API changed)
 - [ ] CHANGELOG.md updated (if user-facing changes)
 - [ ] Security considerations reviewed (if touching tool execution, sandbox, or memory)
