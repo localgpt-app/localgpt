@@ -66,7 +66,7 @@ localgpt memory reindex --force
 Output:
 ```
 Reindexing memory...
-  Scanning: ~/.localgpt/workspace
+  Scanning: ~/.local/share/localgpt/workspace
   Found: 45 markdown files
   Indexed: 42 files (3 unchanged)
   Chunks: 156 total
@@ -83,7 +83,7 @@ Output:
 ```
 Memory Statistics
 ─────────────────
-Location: ~/.localgpt/workspace
+Location: ~/.local/share/localgpt/workspace
 
 Files:
   MEMORY.md:     2.4 KB (42 lines)
@@ -127,7 +127,7 @@ Recent Memory Entries
 The memory system uses three types of files:
 
 ```
-~/.localgpt/workspace/
+~/.local/share/localgpt/workspace/
 ├── MEMORY.md          # Curated long-term knowledge
 ├── HEARTBEAT.md       # Pending autonomous tasks
 └── memory/

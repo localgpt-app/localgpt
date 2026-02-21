@@ -137,7 +137,7 @@ Goodbye!
 Sessions are stored as JSONL files in:
 
 ```text
-~/.localgpt/sessions/{session-id}.jsonl
+~/.local/state/localgpt/agents/{agent-id}/sessions/{session-id}.jsonl
 ```
 
 Each line contains a message in the conversation.

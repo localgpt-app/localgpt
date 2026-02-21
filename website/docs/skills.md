@@ -21,8 +21,8 @@ Skills are loaded from two locations (in priority order):
 
 | Location | Priority | Purpose |
 |----------|----------|---------|
-| `~/.localgpt/workspace/skills/` | Highest | Workspace-specific skills |
-| `~/.localgpt/skills/` | Lower | User-level skills shared across workspaces |
+| `~/.local/share/localgpt/workspace/skills/` | Highest | Workspace-specific skills |
+| `~/.local/share/localgpt/skills/` | Lower | User-level skills shared across workspaces |
 
 When skills have the same name, workspace skills take precedence.
 
@@ -254,8 +254,8 @@ Use cases:
 LocalGPT's skills system is fully compatible with OpenClaw. You can copy skills directly:
 
 ```bash
-cp -r ~/.openclaw/skills/* ~/.localgpt/skills/
-cp -r ~/.openclaw/workspace/skills/* ~/.localgpt/workspace/skills/
+cp -r ~/.openclaw/skills/* ~/.local/share/localgpt/skills/
+cp -r ~/.openclaw/workspace/skills/* ~/.local/share/localgpt/workspace/skills/
 ```
 
 All frontmatter fields and features are supported.

@@ -97,7 +97,7 @@ This is useful for:
 The daemon writes its PID to:
 
 ```
-~/.localgpt/daemon.pid
+~/.local/state/localgpt/daemon.pid
 ```
 
 This file is used by `status` and `stop` commands.

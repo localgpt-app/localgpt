@@ -25,6 +25,11 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Messaging Bridges',
+      items: ['bridges'],
+    },
+    {
+      type: 'category',
       label: 'Security',
       items: ['sandbox', 'localgpt'],
     },

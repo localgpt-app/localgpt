@@ -169,7 +169,7 @@ GET /api/memory/stats
 **Response:**
 ```json
 {
-  "workspace": "~/.localgpt/workspace",
+  "workspace": "~/.local/share/localgpt/workspace",
   "files": {
     "total": 47,
     "memory_md": {
