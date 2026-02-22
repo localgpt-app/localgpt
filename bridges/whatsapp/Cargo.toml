@@ -5,17 +5,17 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.49", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 # wa-rs = "0.2.0" # Removed due to libsqlite3-sys conflict
-axum = { version = "0.7", features = ["macros"] }
-tower-http = { version = "0.5", features = ["trace", "cors"] }
+axum = { version = "0.8", features = ["macros"] }
+tower-http = { version = "0.6", features = ["trace", "cors"] }
 futures = "0.3"
 chrono = "0.4"
-rand = "0.8"
+rand = "0.10"
 tarpc = { version = "0.37.0", features = ["tokio1", "serde-transport"] }
 
 [dependencies.localgpt-bridge]

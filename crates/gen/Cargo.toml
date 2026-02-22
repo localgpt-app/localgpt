@@ -40,5 +40,5 @@ shellexpand = { workspace = true }
 rustyline = "17.0.2"
 
 # Procedural audio (environmental soundscapes)
-fundsp = "0.20"
-cpal = "0.15"
+fundsp = "0.23"
+cpal = "0.17"

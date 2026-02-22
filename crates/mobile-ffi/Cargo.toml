@@ -17,7 +17,7 @@ path = "uniffi-bindgen.rs"
 
 [dependencies]
 localgpt-core = { path = "../core", default-features = false, features = ["embeddings-openai"] }
-uniffi = { version = "0.29", features = ["cli"] }
+uniffi = { version = "0.31", features = ["cli"] }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
