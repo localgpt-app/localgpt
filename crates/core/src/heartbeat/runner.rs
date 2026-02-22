@@ -232,6 +232,7 @@ impl HeartbeatRunner {
             let event = match res {
                 Ok((response, status)) => {
                     let preview = if response.len() > 200 {
+                        // TODO this byte-string slice is not safe, can panick like "byte index 200 is not a char boundary"
                         Some(format!("{}...", &response[..200]))
                     } else {
                         Some(response.clone())
@@ -297,6 +298,7 @@ impl HeartbeatRunner {
             Ok((response, status)) => {
                 let duration_ms = start.elapsed().as_millis() as u64;
                 let preview = if response.len() > 200 {
+                    // TODO this byte-string slice is not safe, can panick like "byte index 200 is not a char boundary"
                     Some(format!("{}...", &response[..200]))
                 } else {
                     Some(response.clone())
@@ -438,6 +440,7 @@ impl HeartbeatRunner {
             {
                 info!(name: "Heartbeat",
                     "skipping: duplicate (same text within 24h): {}",
+                    // TODO this byte-string slice is not safe, can panick like "byte index 200 is not a char boundary"
                     &response[..response.len().min(100)]
                 );
                 return Ok((response, HeartbeatStatus::Skipped));
