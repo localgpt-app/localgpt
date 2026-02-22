@@ -148,7 +148,7 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
                 let status = agent.session_status();
                 println!(
                     "Resumed session {} ({} messages)\n",
-                    &session_id[..8],
+                    &session_id[..session_id.floor_char_boundary(8)],
                     status.message_count
                 );
             }
@@ -589,7 +589,7 @@ async fn handle_command(
                         println!(
                             "  {}. {} ({} messages, {})",
                             i + 1,
-                            &session.id[..8],
+                            &session.id[..session.id.floor_char_boundary(8)],
                             session.message_count,
                             session.created_at.format("%Y-%m-%d %H:%M")
                         );
@@ -620,7 +620,7 @@ async fn handle_command(
                             println!(
                                 "  {}. {} ({} matches, {})",
                                 i + 1,
-                                &result.session_id[..8.min(result.session_id.len())],
+                                &result.session_id[..result.session_id.floor_char_boundary(8)],
                                 result.match_count,
                                 result.created_at.format("%Y-%m-%d")
                             );
@@ -665,7 +665,7 @@ async fn handle_command(
                                     let status = agent.session_status();
                                     println!(
                                         "\nResumed session {} ({} messages)\n",
-                                        &full_id[..8],
+                                        &full_id[..full_id.floor_char_boundary(8)],
                                         status.message_count
                                     );
                                     CommandResult::Continue

@@ -31,7 +31,10 @@ impl SessionsView {
         if let Some(ref current) = state.current_session {
             ui.group(|ui| {
                 ui.label(RichText::new("Current Session").strong());
-                ui.label(format!("ID: {}...", &current.id[..8.min(current.id.len())]));
+                ui.label(format!(
+                    "ID: {}...",
+                    &current.id[..current.id.floor_char_boundary(8)]
+                ));
                 ui.label(format!("Messages: {}", current.message_count));
             });
             ui.add_space(10.0);
@@ -56,7 +59,7 @@ impl SessionsView {
                             .unwrap_or(false);
 
                         ui.horizontal(|ui| {
-                            let short_id = &session.id[..8.min(session.id.len())];
+                            let short_id = &session.id[..session.id.floor_char_boundary(8)];
                             let date = session.created_at.format("%Y-%m-%d %H:%M");
 
                             if is_current {

@@ -49,7 +49,7 @@ pub async fn run_sandboxed(
 
     if !stdout.is_empty() {
         if stdout.len() > max_bytes {
-            result.push_str(&stdout[..max_bytes]);
+            result.push_str(&stdout[..stdout.floor_char_boundary(max_bytes)]);
             result.push_str(&format!(
                 "\n\n[Output truncated, {} bytes total]",
                 stdout.len()
@@ -65,7 +65,7 @@ pub async fn run_sandboxed(
         }
         let remaining = max_bytes.saturating_sub(result.len());
         if stderr.len() > remaining && remaining > 0 {
-            result.push_str(&stderr[..remaining]);
+            result.push_str(&stderr[..stderr.floor_char_boundary(remaining)]);
             result.push_str("\n[stderr truncated]");
         } else {
             result.push_str(&stderr);

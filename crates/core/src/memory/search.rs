@@ -38,7 +38,10 @@ impl MemoryChunk {
         if self.content.len() <= max_len {
             self.content.clone()
         } else {
-            format!("{}...", &self.content[..max_len])
+            format!(
+                "{}...",
+                &self.content[..self.content.floor_char_boundary(max_len)]
+            )
         }
     }
 
@@ -81,5 +84,40 @@ mod tests {
         );
 
         assert_eq!(chunk.location(), "test.md:10");
+    }
+
+    #[test]
+    fn test_memory_chunk_preview_multibyte() {
+        // Emoji are 4 bytes each in UTF-8
+        let chunk = MemoryChunk::new(
+            "test.md".to_string(),
+            1,
+            1,
+            "Hello 🌍🌎🌏 world".to_string(),
+            1.0,
+        );
+
+        // max_len=8 lands inside the first emoji (bytes 6-9), should not panic
+        let preview = chunk.preview(8);
+        assert!(preview.ends_with("..."));
+        // Should truncate to "Hello " (6 bytes) since byte 8 is mid-emoji
+        assert_eq!(preview, "Hello ...");
+    }
+
+    #[test]
+    fn test_memory_chunk_preview_emdash() {
+        // Em-dash (—) is 3 bytes in UTF-8
+        let chunk = MemoryChunk::new(
+            "test.md".to_string(),
+            1,
+            1,
+            "one—two—three—four—five".to_string(),
+            1.0,
+        );
+
+        // "one—" is 3 + 3 = 6 bytes; max_len=5 lands mid-emdash
+        let preview = chunk.preview(5);
+        assert!(preview.ends_with("..."));
+        assert_eq!(preview, "one...");
     }
 }

@@ -96,7 +96,7 @@ async fn run_test() -> Result<()> {
             println!(
                 "FAIL (exit={}, output={})",
                 code,
-                &output[..output.len().min(100)]
+                &output[..output.floor_char_boundary(100)]
             );
             failed += 1;
         }
@@ -232,7 +232,7 @@ async fn run_test() -> Result<()> {
             println!(
                 "FAIL (exit={}, output={})",
                 code,
-                &output[..output.len().min(100)]
+                &output[..output.floor_char_boundary(100)]
             );
             failed += 1;
         }

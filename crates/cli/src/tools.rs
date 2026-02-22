@@ -200,7 +200,7 @@ impl Tool for BashTool {
             let detail = format!(
                 "Bash command references protected files: {:?} (cmd: {})",
                 suspicious,
-                &command[..command.len().min(200)]
+                &command[..command.floor_char_boundary(command.len().min(200))]
             );
             let _ = security::append_audit_entry_with_detail(
                 &self.state_dir,
