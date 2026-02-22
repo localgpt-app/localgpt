@@ -444,6 +444,7 @@ impl HeartbeatRunner {
             {
                 info!(name: "Heartbeat",
                     "skipping: duplicate (same text within 24h): {}",
+                    // TODO this byte-string slice is not safe, can panick like "byte index 200 is not a char boundary"
                     &response[..response.len().min(100)]
                 );
                 return Ok((response, HeartbeatStatus::Skipped));
