@@ -82,7 +82,7 @@ impl LocalGPTClient {
             reserve_tokens: config.agent.reserve_tokens,
         };
 
-        let memory = MemoryManager::new_with_agent(&config.memory, "mobile")
+        let memory = MemoryManager::new_with_full_config(&config.memory, Some(&config), "mobile")
             .map_err(|e| MobileError::Init(e.to_string()))?;
 
         let agent = rt
