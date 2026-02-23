@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Args, Subcommand};
 use std::fs;
 use std::path::PathBuf;
+use tokio::task::JoinSet;
 
 #[cfg(unix)]
 use daemonize::Daemonize;
@@ -154,8 +155,11 @@ async fn run_daemon_services(config: &Config, agent_id: &str) -> Result<()> {
     // Create shared turn gate for heartbeat + HTTP concurrency control
     let turn_gate = TurnGate::new();
 
+    // Collect all running JoinHandles
+    let mut handles = JoinSet::new();
+
     // Spawn heartbeat in background if enabled
-    let heartbeat_handle = if config.heartbeat.enabled {
+    if config.heartbeat.enabled {
         let heartbeat_config = config.clone();
         let heartbeat_agent_id = agent_id.to_string();
         let heartbeat_gate = turn_gate.clone();
@@ -163,94 +167,99 @@ async fn run_daemon_services(config: &Config, agent_id: &str) -> Result<()> {
             "  Heartbeat: enabled (interval: {})",
             config.heartbeat.interval
         );
-        Some(tokio::spawn(async move {
+        handles.spawn(async move {
             // Create tool factory that provides CLI tools to heartbeat
             let tool_factory: localgpt_core::heartbeat::ToolFactory =
                 Box::new(|config: &localgpt_core::config::Config| {
                     crate::tools::create_cli_tools(config)
                 });
 
-            match HeartbeatRunner::new_with_gate_and_tools(
+            let runner = match HeartbeatRunner::new_with_gate_and_tools(
                 &heartbeat_config,
                 &heartbeat_agent_id,
                 Some(heartbeat_gate),
                 Some(tool_factory),
             ) {
-                Ok(runner) => {
-                    if let Err(e) = runner.run().await {
-                        tracing::error!("Heartbeat runner error: {}", e);
-                    }
-                }
+                Ok(runner) => runner,
                 Err(e) => {
                     tracing::error!("Failed to create heartbeat runner: {}", e);
+                    return;
                 }
+            };
+            tracing::info!("Heartbeat runner created");
+            if let Err(e) = runner.run().await {
+                tracing::error!("Heartbeat runner error: {}", e);
             }
-        }))
+        });
     } else {
-        None
-    };
+        println!("  Heartbeat: disabled");
+    }
 
     // Spawn Telegram bot in background if configured
-    let telegram_handle = if config.telegram.as_ref().is_some_and(|t| t.enabled) {
+    if config.telegram.as_ref().is_some_and(|t| t.enabled) {
         let tg_config = config.clone();
         let tg_gate = turn_gate.clone();
         println!("  Telegram: enabled");
-        Some(tokio::spawn(async move {
+        handles.spawn(async move {
             // Create tool factory that provides CLI tools to Telegram
             let tool_factory: localgpt_server::telegram::ToolFactory =
                 Box::new(|config: &localgpt_core::config::Config| {
                     crate::tools::create_cli_tools(config)
                 });
 
-            if let Err(e) =
-                localgpt_server::telegram::run_telegram_bot(&tg_config, tg_gate, Some(tool_factory))
-                    .await
-            {
+            let bot = localgpt_server::telegram::run_telegram_bot(
+                &tg_config,
+                tg_gate,
+                Some(tool_factory),
+            );
+            tracing::info!("Telegram bot created");
+            if let Err(e) = bot.await {
                 tracing::error!("Telegram bot error: {}", e);
             }
-        }))
+        });
     } else {
-        None
-    };
+        println!("  Telegram: disabled");
+    }
 
-    // Run server or wait for shutdown
     if config.server.enabled {
+        // Spawn Server
+        let server_config = config.clone();
+        let server_gate = turn_gate.clone();
         println!(
             "  Server: http://{}:{}",
-            config.server.bind, config.server.port
+            server_config.server.bind, server_config.server.port
         );
+        handles.spawn(async move {
+            match Server::new_with_gate(&server_config, server_gate) {
+                Err(e) => {
+                    tracing::error!("Failed to create HTTP server: {}", e);
+                }
+                Ok(server) => {
+                    if let Err(e) = server.run().await {
+                        tracing::error!("HTTP server error: {}", e);
+                    }
+                }
+            }
+        });
 
-        // Start Bridge Manager (Process Isolation)
-        // This runs alongside the HTTP server
+        // Spawn Bridge Manager
         let paths = localgpt_core::paths::Paths::resolve()?;
         let bridge_socket = paths.bridge_socket_name();
-        let manager = localgpt_server::BridgeManager::new();
-
         println!("  Bridge: enabled (socket: {})", bridge_socket);
-        tokio::spawn(async move {
+        handles.spawn(async move {
+            let manager = localgpt_server::BridgeManager::new();
             if let Err(e) = manager.serve(&bridge_socket).await {
                 tracing::error!("Bridge server error: {}", e);
             }
         });
-
-        let server = Server::new_with_gate(config, turn_gate)?;
-        server.run().await?;
-    } else if heartbeat_handle.is_some() {
-        // Server not enabled but heartbeat is - wait for Ctrl+C
-        println!("  Server: disabled");
-        tokio::signal::ctrl_c().await?;
     } else {
-        println!("  Neither server nor heartbeat is enabled. Use Ctrl+C to stop.");
-        tokio::signal::ctrl_c().await?;
+        println!("  Server: disabled");
     }
 
-    // Abort background tasks on shutdown
-    if let Some(handle) = heartbeat_handle {
-        handle.abort();
-    }
-    if let Some(handle) = telegram_handle {
-        handle.abort();
-    }
+    tokio::signal::ctrl_c().await?;
+
+    println!("  Server: shutting down");
+    handles.shutdown().await;
 
     Ok(())
 }
