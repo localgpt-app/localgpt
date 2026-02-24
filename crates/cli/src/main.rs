@@ -72,8 +72,14 @@ fn main() -> Result<()> {
 
 async fn async_main(cli: Cli) -> Result<()> {
     // Initialize logging
-    // Use "warn" by default for cleaner TUI, "debug" with --verbose
-    let log_level = if cli.verbose { "debug" } else { "warn" };
+    // Use "warn" by default for cleaner TUI, "info" for daemon mode, "debug" with --verbose
+    let log_level = if cli.verbose {
+        "debug"
+    } else if matches!(&cli.command, Commands::Daemon(_)) {
+        "info"
+    } else {
+        "warn"
+    };
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
