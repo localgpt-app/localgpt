@@ -573,6 +573,14 @@ impl Agent {
         // Handle tool calls if any
         let final_response = self.handle_response(response).await?;
 
+        // Filter out NO_REPLY silent tokens — small/local models may output these
+        // literally instead of answering, so don't leak them to users
+        let final_response = if is_silent_reply(&final_response) {
+            String::new()
+        } else {
+            final_response
+        };
+
         // Add assistant response
         self.session.add_message(Message {
             role: Role::Assistant,
@@ -758,6 +766,14 @@ impl Agent {
         let final_response = self
             .handle_response_saving_session(response, agent_id)
             .await?;
+
+        // Filter out NO_REPLY silent tokens — small/local models may output these
+        // literally instead of answering, so don't leak them to users
+        let final_response = if is_silent_reply(&final_response) {
+            String::new()
+        } else {
+            final_response
+        };
 
         // Add assistant response
         self.session.add_message(Message {
@@ -1490,6 +1506,14 @@ impl Agent {
 
                         match resp.content {
                             LLMResponseContent::Text(text) => {
+                                // Filter out NO_REPLY silent tokens — small/local models
+                                // may output these literally instead of answering
+                                let text = if is_silent_reply(&text) {
+                                    String::new()
+                                } else {
+                                    text
+                                };
+
                                 // No tool calls - yield the text and we're done
                                 yield Ok(StreamEvent::Content(text.clone()));
                                 yield Ok(StreamEvent::Done);
