@@ -378,8 +378,9 @@ impl BridgeService for ConnectionHandler {
 
         let mut sessions = support.sessions.lock().await;
 
-        // Create session if it doesn't exist
-        if !sessions.contains_key(&session_id) {
+        // Create session if it doesn't exist, using entry API to avoid unwrap
+        if let std::collections::hash_map::Entry::Vacant(entry) = sessions.entry(session_id.clone())
+        {
             let agent_config = AgentConfig {
                 model: support.config.agent.default_model.clone(),
                 context_window: support.config.agent.context_window,
@@ -392,10 +393,12 @@ impl BridgeService for ConnectionHandler {
                 .new_session()
                 .await
                 .map_err(|e| BridgeError::Internal(format!("Failed to init session: {}", e)))?;
-            sessions.insert(session_id.clone(), AgentSession { agent });
+            entry.insert(AgentSession { agent });
         }
 
-        let session = sessions.get_mut(&session_id).unwrap();
+        let session = sessions
+            .get_mut(&session_id)
+            .ok_or_else(|| BridgeError::Internal("Session unexpectedly missing".into()))?;
         let response = session
             .agent
             .chat(&message)

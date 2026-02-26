@@ -68,18 +68,27 @@ async fn main() -> Result<()> {
         }
     };
 
-    // 2. Verify protocol version
+    // 2. Verify protocol version (require major version 1)
     match client.get_version(context::current()).await {
         Ok(v) => {
-            if !v.starts_with("1.") {
-                eprintln!(
-                    "Unsupported bridge protocol version '{}'. Expected 1.x.\n\
-                     Please update localgpt-bridge-cli.",
-                    v
-                );
-                std::process::exit(1);
+            let major = v.split('.').next().and_then(|s| s.parse::<u32>().ok());
+            match major {
+                Some(1) => {
+                    info!("Bridge protocol version: {}", v);
+                }
+                Some(m) => {
+                    eprintln!(
+                        "Unsupported bridge protocol major version {} (got '{}', need 1.x).\n\
+                         Please update localgpt-bridge-cli.",
+                        m, v
+                    );
+                    std::process::exit(1);
+                }
+                None => {
+                    eprintln!("Invalid bridge protocol version: '{}'", v);
+                    std::process::exit(1);
+                }
             }
-            info!("Bridge protocol version: {}", v);
         }
         Err(e) => {
             eprintln!("Could not retrieve bridge version: {}", e);
