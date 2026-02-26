@@ -1,0 +1,31 @@
+[package]
+name = "localgpt-bridge-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CLI bridge for LocalGPT — interactive chat via the daemon's bridge socket"
+
+[[bin]]
+name = "localgpt-bridge-cli"
+path = "src/main.rs"
+
+[dependencies]
+localgpt-core = { path = "../../crates/core", default-features = false, features = ["embeddings-none", "claude-cli", "sqlite-vec"] }
+localgpt-bridge = { workspace = true }
+
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+futures = { workspace = true }
+uuid = { workspace = true }
+
+# RPC
+tarpc = { version = "0.37", features = ["tokio1", "serde-transport"] }
+
+# Interactive line editing
+rustyline = "15"
+
+# CLI argument parsing
+clap = { version = "4.5.60", features = ["derive"] }

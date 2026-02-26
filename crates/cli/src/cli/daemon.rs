@@ -15,6 +15,9 @@ use localgpt_core::memory::MemoryManager;
 use localgpt_server::Server;
 use std::time::Duration;
 
+/// Agent ID used for bridge CLI sessions.
+const BRIDGE_CLI_AGENT_ID: &str = "bridge-cli";
+
 /// Synchronously stop the daemon (for use before Tokio runtime starts)
 pub fn stop_sync() -> Result<()> {
     let pid_file = get_pid_file()?;
@@ -321,7 +324,10 @@ async fn run_daemon_services(
     }
 
     if config.server.enabled {
-        let bridge_manager = localgpt_server::BridgeManager::new();
+        let bridge_memory =
+            MemoryManager::new_with_full_config(&config.memory, Some(config), BRIDGE_CLI_AGENT_ID)?;
+        let bridge_manager =
+            localgpt_server::BridgeManager::new_with_agent_support(config.clone(), bridge_memory);
 
         // Spawn Server
         let server_config = config.clone();

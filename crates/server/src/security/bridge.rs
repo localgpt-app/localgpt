@@ -14,11 +14,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tarpc::context;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
+use localgpt_core::agent::{Agent, AgentConfig};
+use localgpt_core::config::Config;
+use localgpt_core::memory::MemoryManager;
 use localgpt_core::paths::Paths;
 use localgpt_core::security::read_device_key;
+
+/// Agent ID used for bridge CLI sessions.
+const BRIDGE_CLI_AGENT_ID: &str = "bridge-cli";
 
 /// Status and health info for a connected bridge.
 #[derive(Debug, Clone, Serialize)]
@@ -31,6 +37,18 @@ pub struct BridgeStatus {
     pub uid: Option<u32>,
 }
 
+/// Shared agent session for bridge CLI connections.
+struct AgentSession {
+    agent: Agent,
+}
+
+/// Optional agent support for handling chat/memory RPCs.
+struct AgentSupport {
+    config: Config,
+    memory: Arc<MemoryManager>,
+    sessions: tokio::sync::Mutex<HashMap<String, AgentSession>>,
+}
+
 /// Manages bridge processes and their credentials.
 #[derive(Clone)]
 pub struct BridgeManager {
@@ -38,6 +56,8 @@ pub struct BridgeManager {
     credentials: Arc<RwLock<HashMap<String, Vec<u8>>>>,
     // Active connections: connection_id -> info
     active_bridges: Arc<RwLock<HashMap<String, BridgeStatus>>>,
+    // Optional agent support for CLI bridge
+    agent_support: Option<Arc<AgentSupport>>,
 }
 
 impl BridgeManager {
@@ -45,6 +65,21 @@ impl BridgeManager {
         Self {
             credentials: Arc::new(RwLock::new(HashMap::new())),
             active_bridges: Arc::new(RwLock::new(HashMap::new())),
+            agent_support: None,
+        }
+    }
+
+    /// Create a BridgeManager with agent support for handling chat/memory RPCs.
+    /// This is used by the daemon when serving bridge CLI connections.
+    pub fn new_with_agent_support(config: Config, memory: MemoryManager) -> Self {
+        Self {
+            credentials: Arc::new(RwLock::new(HashMap::new())),
+            active_bridges: Arc::new(RwLock::new(HashMap::new())),
+            agent_support: Some(Arc::new(AgentSupport {
+                config,
+                memory: Arc::new(memory),
+                sessions: tokio::sync::Mutex::new(HashMap::new()),
+            })),
         }
     }
 
@@ -326,6 +361,287 @@ impl BridgeService for ConnectionHandler {
         self.manager
             .get_credentials_for(&bridge_id, &self.identity)
             .await
+    }
+
+    async fn chat(
+        self,
+        _: context::Context,
+        session_id: String,
+        message: String,
+    ) -> Result<String, BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        let support = self
+            .manager
+            .agent_support
+            .as_ref()
+            .ok_or_else(|| BridgeError::NotSupported("Agent support not available".into()))?;
+
+        let mut sessions = support.sessions.lock().await;
+
+        // Create session if it doesn't exist
+        if !sessions.contains_key(&session_id) {
+            let agent_config = AgentConfig {
+                model: support.config.agent.default_model.clone(),
+                context_window: support.config.agent.context_window,
+                reserve_tokens: support.config.agent.reserve_tokens,
+            };
+            let mut agent = Agent::new(agent_config, &support.config, Arc::clone(&support.memory))
+                .await
+                .map_err(|e| BridgeError::Internal(format!("Failed to create agent: {}", e)))?;
+            agent
+                .new_session()
+                .await
+                .map_err(|e| BridgeError::Internal(format!("Failed to init session: {}", e)))?;
+            sessions.insert(session_id.clone(), AgentSession { agent });
+        }
+
+        let session = sessions.get_mut(&session_id).unwrap();
+        let response = session
+            .agent
+            .chat(&message)
+            .await
+            .map_err(|e| BridgeError::Internal(format!("Chat error: {}", e)))?;
+
+        if let Err(e) = session
+            .agent
+            .save_session_for_agent(BRIDGE_CLI_AGENT_ID)
+            .await
+        {
+            warn!("Failed to save bridge-cli session: {}", e);
+        }
+
+        Ok(response)
+    }
+
+    async fn new_session(
+        self,
+        _: context::Context,
+        session_id: String,
+    ) -> Result<String, BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        let support = self
+            .manager
+            .agent_support
+            .as_ref()
+            .ok_or_else(|| BridgeError::NotSupported("Agent support not available".into()))?;
+
+        let mut sessions = support.sessions.lock().await;
+
+        let agent_config = AgentConfig {
+            model: support.config.agent.default_model.clone(),
+            context_window: support.config.agent.context_window,
+            reserve_tokens: support.config.agent.reserve_tokens,
+        };
+        let mut agent = Agent::new(agent_config, &support.config, Arc::clone(&support.memory))
+            .await
+            .map_err(|e| BridgeError::Internal(format!("Failed to create agent: {}", e)))?;
+        agent
+            .new_session()
+            .await
+            .map_err(|e| BridgeError::Internal(format!("Failed to init session: {}", e)))?;
+
+        let model = agent.model().to_string();
+        let chunks = agent.memory_chunk_count();
+        sessions.insert(session_id, AgentSession { agent });
+
+        Ok(format!(
+            "New session created. Model: {} | Memory: {} chunks",
+            model, chunks
+        ))
+    }
+
+    async fn session_status(
+        self,
+        _: context::Context,
+        session_id: String,
+    ) -> Result<String, BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        let support = self
+            .manager
+            .agent_support
+            .as_ref()
+            .ok_or_else(|| BridgeError::NotSupported("Agent support not available".into()))?;
+
+        let sessions = support.sessions.lock().await;
+        let session = sessions
+            .get(&session_id)
+            .ok_or_else(|| BridgeError::Internal("No active session".into()))?;
+
+        let status = session.agent.session_status();
+        let mut output = String::new();
+        output.push_str(&format!("Session ID: {}\n", status.id));
+        output.push_str(&format!("Model: {}\n", session.agent.model()));
+        output.push_str(&format!("Messages: {}\n", status.message_count));
+        output.push_str(&format!("Context tokens: ~{}\n", status.token_count));
+        output.push_str(&format!("Compactions: {}\n", status.compaction_count));
+        output.push_str(&format!(
+            "Memory chunks: {}",
+            session.agent.memory_chunk_count()
+        ));
+
+        if status.api_input_tokens > 0 || status.api_output_tokens > 0 {
+            output.push_str(&format!(
+                "\nAPI tokens: {} in / {} out",
+                status.api_input_tokens, status.api_output_tokens
+            ));
+        }
+
+        Ok(output)
+    }
+
+    async fn set_model(
+        self,
+        _: context::Context,
+        session_id: String,
+        model: String,
+    ) -> Result<String, BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        let support = self
+            .manager
+            .agent_support
+            .as_ref()
+            .ok_or_else(|| BridgeError::NotSupported("Agent support not available".into()))?;
+
+        let mut sessions = support.sessions.lock().await;
+        let session = sessions
+            .get_mut(&session_id)
+            .ok_or_else(|| BridgeError::Internal("No active session".into()))?;
+
+        session
+            .agent
+            .set_model(&model)
+            .map_err(|e| BridgeError::Internal(format!("Failed to set model: {}", e)))?;
+
+        Ok(format!("Switched to model: {}", model))
+    }
+
+    async fn compact_session(
+        self,
+        _: context::Context,
+        session_id: String,
+    ) -> Result<String, BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        let support = self
+            .manager
+            .agent_support
+            .as_ref()
+            .ok_or_else(|| BridgeError::NotSupported("Agent support not available".into()))?;
+
+        let mut sessions = support.sessions.lock().await;
+        let session = sessions
+            .get_mut(&session_id)
+            .ok_or_else(|| BridgeError::Internal("No active session".into()))?;
+
+        let (before, after) = session
+            .agent
+            .compact_session()
+            .await
+            .map_err(|e| BridgeError::Internal(format!("Failed to compact: {}", e)))?;
+
+        Ok(format!(
+            "Session compacted. Token count: {} → {}",
+            before, after
+        ))
+    }
+
+    async fn clear_session(
+        self,
+        _: context::Context,
+        session_id: String,
+    ) -> Result<String, BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        let support = self
+            .manager
+            .agent_support
+            .as_ref()
+            .ok_or_else(|| BridgeError::NotSupported("Agent support not available".into()))?;
+
+        let mut sessions = support.sessions.lock().await;
+        let session = sessions
+            .get_mut(&session_id)
+            .ok_or_else(|| BridgeError::Internal("No active session".into()))?;
+
+        session.agent.clear_session();
+        Ok("Session cleared.".into())
+    }
+
+    async fn memory_search(
+        self,
+        _: context::Context,
+        query: String,
+        limit: u32,
+    ) -> Result<String, BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        let support = self
+            .manager
+            .agent_support
+            .as_ref()
+            .ok_or_else(|| BridgeError::NotSupported("Agent support not available".into()))?;
+
+        let results = support
+            .memory
+            .search(&query, limit as usize)
+            .map_err(|e| BridgeError::Internal(format!("Memory search failed: {}", e)))?;
+
+        if results.is_empty() {
+            return Ok(format!("No results found for '{}'", query));
+        }
+
+        let mut output = format!("Found {} results for '{}':\n", results.len(), query);
+        for (i, result) in results.iter().enumerate() {
+            output.push_str(&format!(
+                "\n{}. {} (lines {}-{})\n",
+                i + 1,
+                result.file,
+                result.line_start,
+                result.line_end
+            ));
+            output.push_str(&format!("   Score: {:.3}\n", result.score));
+            let preview: String = result.content.chars().take(200).collect();
+            let preview = preview.replace('\n', " ");
+            output.push_str(&format!(
+                "   {}{}\n",
+                preview,
+                if result.content.len() > 200 {
+                    "..."
+                } else {
+                    ""
+                }
+            ));
+        }
+
+        Ok(output)
+    }
+
+    async fn memory_stats(self, _: context::Context) -> Result<String, BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        let support = self
+            .manager
+            .agent_support
+            .as_ref()
+            .ok_or_else(|| BridgeError::NotSupported("Agent support not available".into()))?;
+
+        let stats = support
+            .memory
+            .stats()
+            .map_err(|e| BridgeError::Internal(format!("Failed to get stats: {}", e)))?;
+
+        let mut output = String::new();
+        output.push_str("Memory Statistics\n");
+        output.push_str("-----------------\n");
+        output.push_str(&format!("Workspace: {}\n", stats.workspace));
+        output.push_str(&format!("Total files: {}\n", stats.total_files));
+        output.push_str(&format!("Total chunks: {}\n", stats.total_chunks));
+        output.push_str(&format!("Index size: {} KB\n", stats.index_size_kb));
+        output.push_str("\nFiles:\n");
+        for file in &stats.files {
+            output.push_str(&format!(
+                "  {} ({} chunks, {} lines)\n",
+                file.name, file.chunks, file.lines
+            ));
+        }
+
+        Ok(output)
     }
 }
 
