@@ -305,14 +305,14 @@ impl SpawnAgentTool {
                     });
                 }
 
-                crate::agent::providers::LLMResponseContent::ToolCalls(calls) => {
+                crate::agent::providers::LLMResponseContent::ToolCalls { calls, text } => {
                     // Execute tool calls
                     debug!("Subagent executing {} tool calls", calls.len());
 
-                    // Add assistant message with tool calls
+                    // Add assistant message with tool calls (preserving any reasoning text)
                     session.add_message(Message {
                         role: Role::Assistant,
-                        content: String::new(),
+                        content: text.unwrap_or_default(),
                         tool_calls: Some(calls.clone()),
                         tool_call_id: None,
                         images: Vec::new(),

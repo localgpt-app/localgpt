@@ -548,7 +548,7 @@ pub async fn list_models(
 fn to_completion_response(response: LLMResponse, model: &str) -> ChatCompletionResponse {
     let (content, tool_calls, finish_reason) = match response.content {
         LLMResponseContent::Text(text) => (Some(text), None, "stop"),
-        LLMResponseContent::ToolCalls(calls) => {
+        LLMResponseContent::ToolCalls { calls, text } => {
             let oai_calls: Vec<OaiToolCallResponse> = calls
                 .iter()
                 .map(|c| OaiToolCallResponse {
@@ -560,7 +560,7 @@ fn to_completion_response(response: LLMResponse, model: &str) -> ChatCompletionR
                     },
                 })
                 .collect();
-            (None, Some(oai_calls), "tool_calls")
+            (text, Some(oai_calls), "tool_calls")
         }
     };
 

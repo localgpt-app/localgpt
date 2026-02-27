@@ -82,7 +82,11 @@ pub struct LLMResponse {
 
 pub enum LLMResponseContent {
     Text(String),
-    ToolCalls(Vec<ToolCall>),
+    ToolCalls {
+        calls: Vec<ToolCall>,
+        /// Reasoning or interleaved assistant text emitted alongside the tool calls
+        text: Option<String>,
+    },
 }
 
 impl LLMResponse {
@@ -102,14 +106,14 @@ impl LLMResponse {
 
     pub fn tool_calls(calls: Vec<ToolCall>) -> Self {
         Self {
-            content: LLMResponseContent::ToolCalls(calls),
+            content: LLMResponseContent::ToolCalls { calls, text: None },
             usage: None,
         }
     }
 
     pub fn tool_calls_with_usage(calls: Vec<ToolCall>, usage: Usage) -> Self {
         Self {
-            content: LLMResponseContent::ToolCalls(calls),
+            content: LLMResponseContent::ToolCalls { calls, text: None },
             usage: Some(usage),
         }
     }
@@ -212,10 +216,11 @@ pub trait LLMProvider: Send + Sync {
                     tool_calls: None,
                 })
             }))),
-            LLMResponseContent::ToolCalls(calls) => {
+            LLMResponseContent::ToolCalls { calls, text } => {
+                let delta = text.unwrap_or_default();
                 Ok(Box::pin(futures::stream::once(async move {
                     Ok(StreamChunk {
-                        delta: String::new(),
+                        delta,
                         done: true,
                         tool_calls: Some(calls),
                     })
@@ -749,8 +754,15 @@ impl LLMProvider for OpenAIProvider {
                 .collect();
 
             if !parsed_calls.is_empty() {
+                let text = message["content"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string);
                 return Ok(LLMResponse {
-                    content: LLMResponseContent::ToolCalls(parsed_calls),
+                    content: LLMResponseContent::ToolCalls {
+                        calls: parsed_calls,
+                        text,
+                    },
                     usage,
                 });
             }
@@ -980,8 +992,15 @@ impl LLMProvider for OpenAICompatibleProvider {
                 .collect();
 
             if !parsed_calls.is_empty() {
+                let text = message["content"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string);
                 return Ok(LLMResponse {
-                    content: LLMResponseContent::ToolCalls(parsed_calls),
+                    content: LLMResponseContent::ToolCalls {
+                        calls: parsed_calls,
+                        text,
+                    },
                     usage,
                 });
             }
@@ -1261,8 +1280,15 @@ impl LLMProvider for XaiProvider {
 
         let parsed_calls = Self::parse_tool_calls(&output);
         if !parsed_calls.is_empty() {
+            let text = {
+                let t = Self::parse_output_text(&response_body);
+                if t.is_empty() { None } else { Some(t) }
+            };
             return Ok(LLMResponse {
-                content: LLMResponseContent::ToolCalls(parsed_calls),
+                content: LLMResponseContent::ToolCalls {
+                    calls: parsed_calls,
+                    text,
+                },
                 usage,
             });
         }
@@ -1509,8 +1535,20 @@ impl LLMProvider for AnthropicProvider {
             .collect();
 
         if !tool_calls.is_empty() {
+            let text = {
+                let t = content
+                    .iter()
+                    .filter(|c| c["type"] == "text")
+                    .map(|c| c["text"].as_str().unwrap_or(""))
+                    .collect::<Vec<_>>()
+                    .join("");
+                if t.is_empty() { None } else { Some(t) }
+            };
             return Ok(LLMResponse {
-                content: LLMResponseContent::ToolCalls(tool_calls),
+                content: LLMResponseContent::ToolCalls {
+                    calls: tool_calls,
+                    text,
+                },
                 usage,
             });
         }
@@ -1888,8 +1926,15 @@ impl LLMProvider for OllamaProvider {
                 .collect();
 
             if !calls.is_empty() {
+                let text = response_body["message"]["content"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string);
                 return Ok(LLMResponse {
-                    content: LLMResponseContent::ToolCalls(calls),
+                    content: LLMResponseContent::ToolCalls {
+                        calls,
+                        text,
+                    },
                     usage,
                 });
             }
@@ -1940,10 +1985,11 @@ impl LLMProvider for OllamaProvider {
                         tool_calls: None,
                     })
                 }))),
-                LLMResponseContent::ToolCalls(calls) => {
+                LLMResponseContent::ToolCalls { calls, text } => {
+                    let delta = text.unwrap_or_default();
                     Ok(Box::pin(futures::stream::once(async move {
                         Ok(StreamChunk {
-                            delta: String::new(),
+                            delta,
                             done: true,
                             tool_calls: Some(calls),
                         })
@@ -3254,7 +3300,7 @@ mod tests {
             arguments: "{}".to_string(),
         }];
         let resp = LLMResponse::tool_calls(calls);
-        assert!(matches!(resp.content, LLMResponseContent::ToolCalls(_)));
+        assert!(matches!(resp.content, LLMResponseContent::ToolCalls { .. }));
         assert!(resp.usage.is_none());
     }
 
@@ -3692,8 +3738,20 @@ impl LLMProvider for AnthropicOAuthProvider {
             .collect();
 
         if !tool_calls.is_empty() {
+            let text = {
+                let t = content
+                    .iter()
+                    .filter(|c| c["type"] == "text")
+                    .map(|c| c["text"].as_str().unwrap_or(""))
+                    .collect::<Vec<_>>()
+                    .join("");
+                if t.is_empty() { None } else { Some(t) }
+            };
             return Ok(LLMResponse {
-                content: LLMResponseContent::ToolCalls(tool_calls),
+                content: LLMResponseContent::ToolCalls {
+                    calls: tool_calls,
+                    text,
+                },
                 usage,
             });
         }
@@ -4091,8 +4149,20 @@ impl LLMProvider for GeminiOAuthProvider {
             .collect();
 
         if !tool_calls.is_empty() {
+            let text = {
+                let t = parts
+                    .iter()
+                    .filter_map(|p| p.get("text"))
+                    .filter_map(|t| t.as_str())
+                    .collect::<Vec<_>>()
+                    .join("");
+                if t.is_empty() { None } else { Some(t) }
+            };
             return Ok(LLMResponse {
-                content: LLMResponseContent::ToolCalls(tool_calls),
+                content: LLMResponseContent::ToolCalls {
+                    calls: tool_calls,
+                    text,
+                },
                 usage: None,
             });
         }
@@ -4448,8 +4518,15 @@ impl LLMProvider for OpenAIOAuthProvider {
                 .collect();
 
             if !parsed_calls.is_empty() {
+                let text = message["content"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string);
                 return Ok(LLMResponse {
-                    content: LLMResponseContent::ToolCalls(parsed_calls),
+                    content: LLMResponseContent::ToolCalls {
+                        calls: parsed_calls,
+                        text,
+                    },
                     usage,
                 });
             }

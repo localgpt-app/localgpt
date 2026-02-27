@@ -802,14 +802,14 @@ impl Agent {
 
         match response.content {
             LLMResponseContent::Text(_) => Ok(response),
-            LLMResponseContent::ToolCalls(calls) => {
+            LLMResponseContent::ToolCalls { calls, text } => {
                 // Build new messages with tool results
                 let mut updated_messages = messages.to_vec();
 
-                // Add assistant message with tool calls
+                // Add assistant message with tool calls (preserving any reasoning text)
                 updated_messages.push(Message {
                     role: Role::Assistant,
-                    content: String::new(),
+                    content: text.unwrap_or_default(),
                     tool_calls: Some(calls.clone()),
                     tool_call_id: None,
                     images: Vec::new(),
@@ -876,7 +876,7 @@ impl Agent {
 
         match response.content {
             LLMResponseContent::Text(text) => Ok(text),
-            LLMResponseContent::ToolCalls(calls) => {
+            LLMResponseContent::ToolCalls { calls, text } => {
                 // Execute tool calls
                 let mut results = Vec::new();
 
@@ -920,10 +920,10 @@ impl Agent {
                     });
                 }
 
-                // Add tool call message
+                // Add tool call message (preserving any reasoning text)
                 self.session.add_message(Message {
                     role: Role::Assistant,
-                    content: String::new(),
+                    content: text.unwrap_or_default(),
                     tool_calls: Some(calls),
                     tool_call_id: None,
                     images: Vec::new(),
@@ -967,11 +967,11 @@ impl Agent {
 
             match response.content {
                 LLMResponseContent::Text(text) => return Ok(text),
-                LLMResponseContent::ToolCalls(calls) => {
+                LLMResponseContent::ToolCalls { calls, text } => {
                     // Add and save intent to call tools so it's visible during a long run
                     self.session.add_message(Message {
                         role: Role::Assistant,
-                        content: String::new(),
+                        content: text.unwrap_or_default(),
                         tool_calls: Some(calls.clone()),
                         tool_call_id: None,
                         images: Vec::new(),
@@ -1103,7 +1103,7 @@ impl Agent {
 
         match response.content {
             LLMResponseContent::Text(text) => Ok(text),
-            LLMResponseContent::ToolCalls(calls) => {
+            LLMResponseContent::ToolCalls { calls, text } => {
                 // Execute tool calls
                 let mut results = Vec::new();
 
@@ -1133,10 +1133,10 @@ impl Agent {
                     });
                 }
 
-                // Add tool call message
+                // Add tool call message (preserving any reasoning text)
                 self.session.add_message(Message {
                     role: Role::Assistant,
-                    content: String::new(),
+                    content: text.unwrap_or_default(),
                     tool_calls: Some(calls),
                     tool_call_id: None,
                     images: Vec::new(),
@@ -1842,7 +1842,14 @@ impl Agent {
                                 });
                                 break;
                             }
-                            LLMResponseContent::ToolCalls(calls) => {
+                            LLMResponseContent::ToolCalls { calls, text } => {
+                        // If the model emitted reasoning text alongside tool calls, yield it
+                        if let Some(ref reasoning) = text
+                            && !reasoning.is_empty()
+                        {
+                            yield Ok(StreamEvent::Content(reasoning.clone()));
+                        }
+
                         // Notify about tool calls
                         for call in &calls {
                             yield Ok(StreamEvent::ToolCallStart {
@@ -1875,10 +1882,10 @@ impl Agent {
                             });
                         }
 
-                        // Add tool call message to session
+                        // Add tool call message to session (preserving any reasoning text)
                         self.session.add_message(Message {
                             role: Role::Assistant,
-                            content: String::new(),
+                            content: text.unwrap_or_default(),
                             tool_calls: Some(calls),
                             tool_call_id: None,
                             images: Vec::new(),
