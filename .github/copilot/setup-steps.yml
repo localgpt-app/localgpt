@@ -1,0 +1,19 @@
+steps:
+  # Install ONNX Runtime before the sandbox firewall activates.
+  # ort-sys (used by fastembed/embeddings-local) tries to download prebuilt
+  # binaries from cdn.pyke.io at build time; providing a pre-installed copy
+  # via ORT_LIB_LOCATION avoids any network access during cargo build/test.
+  - name: Install ONNX Runtime 1.23.2
+    run: |
+      curl -L "https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-linux-x64-1.23.2.tgz" \
+        -o /tmp/onnxruntime.tgz
+      sudo mkdir -p /opt/onnxruntime
+      sudo tar -xzf /tmp/onnxruntime.tgz --strip-components=1 -C /opt/onnxruntime
+      echo "/opt/onnxruntime/lib" | sudo tee /etc/ld.so.conf.d/onnxruntime.conf
+      sudo ldconfig
+
+  - name: Export ORT environment variables
+    run: |
+      echo "ORT_LIB_LOCATION=/opt/onnxruntime/lib" >> "$GITHUB_ENV"
+      echo "ORT_PREFER_DYNAMIC_LINK=1" >> "$GITHUB_ENV"
+      echo "LD_LIBRARY_PATH=/opt/onnxruntime/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
