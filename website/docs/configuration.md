@@ -101,26 +101,10 @@ model = "gemini-3.1-pro-preview"
 command = "codex"
 model = "gpt-4o"
 
-[providers.github_copilot]
-# GitHub Copilot OAuth token
-access_token = "${GITHUB_COPILOT_TOKEN}"
-
 [providers.openai_compatible]
 # Generic OpenAI-compatible endpoint (OpenRouter, DeepSeek, etc.)
 api_key = "${OPENROUTER_API_KEY}"
 base_url = "https://openrouter.ai/api/v1"
-
-[providers.openai_oauth]
-# OpenAI OAuth for ChatGPT subscription plans
-access_token = "${OPENAI_OAUTH_TOKEN}"
-
-[providers.anthropic_oauth]
-# Anthropic OAuth for Claude subscription plans
-access_token = "${ANTHROPIC_OAUTH_TOKEN}"
-
-[providers.gemini_oauth]
-# Gemini OAuth for Google AI subscription plans
-access_token = "${GEMINI_OAUTH_TOKEN}"
 
 #──────────────────────────────────────────────────────────────────────────────
 # Tool Settings
@@ -333,15 +317,6 @@ default_model = "openai/gpt-4o"  # or openai/gpt-4o-mini, or alias: gpt
 api_key = "${OPENAI_API_KEY}"
 ```
 
-**OAuth Setup (for ChatGPT Plus/Pro/Team plans):**
-You can use OAuth instead of an API key to leverage your subscription quota:
-
-```toml
-[providers.openai_oauth]
-access_token = "${OPENAI_OAUTH_TOKEN}"
-# refresh_token = "${OPENAI_OAUTH_REFRESH_TOKEN}"  # Optional
-```
-
 ### Anthropic
 
 ```toml
@@ -350,15 +325,6 @@ default_model = "anthropic/claude-opus-4-5"  # or anthropic/claude-sonnet-4-5, o
 
 [providers.anthropic]
 api_key = "${ANTHROPIC_API_KEY}"
-```
-
-**OAuth Setup (for Claude Pro/Max plans):**
-You can use OAuth instead of an API key to leverage your subscription quota:
-
-```toml
-[providers.anthropic_oauth]
-access_token = "${ANTHROPIC_OAUTH_TOKEN}"
-# refresh_token = "${ANTHROPIC_OAUTH_REFRESH_TOKEN}"  # Optional
 ```
 
 ### Claude CLI
@@ -439,7 +405,7 @@ base_url = "https://api.x.ai/v1"
 
 ### Gemini (Google)
 
-LocalGPT supports Gemini via API key (simplest), OAuth, or Vertex AI.
+LocalGPT supports Gemini via API key (simplest) or Vertex AI.
 
 **API Key (Simplest):**
 
@@ -452,20 +418,6 @@ api_key = "${GEMINI_API_KEY}"
 ```
 
 Get your API key at [Google AI Studio](https://aistudio.google.com/app/apikey).
-
-**OAuth Setup (For Subscription Plans):**
-
-```bash
-localgpt auth gemini
-```
-
-Follow the browser prompts to authenticate. This automatically configures your credentials in `~/.config/localgpt/config.toml`.
-
-Then use:
-```toml
-[agent]
-default_model = "gemini/gemini-3.1-pro-preview"  # or gemini-3.1-flash, etc.
-```
 
 ### Vertex AI (Google Cloud)
 

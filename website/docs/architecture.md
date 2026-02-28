@@ -168,7 +168,6 @@ Primary user-facing binary with commands:
 | `config` | View/edit configuration |
 | `bridge` | Register bridge credentials |
 | `gen` | 3D scene generation |
-| `auth` | OAuth setup |
 
 ### `localgpt-gen`
 

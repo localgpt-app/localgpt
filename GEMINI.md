@@ -11,7 +11,7 @@ LocalGPT is a local-first, privacy-focused AI assistant built in Rust. It is ins
   - **Database**: SQLite with FTS5 (keyword search) and `sqlite-vec` (semantic search)
   - **UI**: CLI (clap), Desktop (egui/eframe), Telegram (teloxide)
   - **Security**: OS-level sandboxing (Landlock on Linux, Seatbelt on macOS)
-  - **LLM Providers**: Support for Anthropic, OpenAI, Ollama, xAI, and OAuth-based subscriptions.
+  - **LLM Providers**: Support for Anthropic, OpenAI, Ollama, xAI, Google Vertex AI, and CLI-based providers (claude-cli, gemini-cli, codex-cli).
 
 ## Workspace Structure
 
