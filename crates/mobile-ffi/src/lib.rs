@@ -13,6 +13,7 @@ use std::sync::Arc;
 use localgpt_core::agent::{Agent, AgentConfig, AgentHandle};
 use localgpt_core::config::Config;
 use localgpt_core::memory::MemoryManager;
+use localgpt_core::security;
 
 // ---------------------------------------------------------------------------
 // Types exposed to foreign code
@@ -33,6 +34,18 @@ pub struct SessionStatus {
     pub tokens_used: u64,
     pub tokens_available: u64,
 }
+
+/// A workspace file entry for the editor.
+#[derive(uniffi::Record)]
+pub struct WorkspaceFile {
+    /// File name (e.g. "MEMORY.md").
+    pub name: String,
+    /// File content, or empty string if the file does not yet exist.
+    pub content: String,
+}
+
+/// The set of workspace markdown files that can be edited by the mobile app.
+const EDITABLE_FILES: &[&str] = &["MEMORY.md", "SOUL.md", "HEARTBEAT.md", "LocalGPT.md"];
 
 // ---------------------------------------------------------------------------
 // The main entry point: LocalGPTClient
@@ -171,6 +184,102 @@ impl LocalGPTClient {
     pub fn set_heartbeat(&self, content: String) -> Result<(), MobileError> {
         let workspace = self.config.workspace_path();
         std::fs::write(workspace.join("HEARTBEAT.md"), content)
+            .map_err(|e| MobileError::Memory(e.to_string()))
+    }
+
+    /// Write new MEMORY.md content.
+    pub fn set_memory(&self, content: String) -> Result<(), MobileError> {
+        let workspace = self.config.workspace_path();
+        std::fs::write(workspace.join("MEMORY.md"), content)
+            .map_err(|e| MobileError::Memory(e.to_string()))
+    }
+
+    /// Get the LocalGPT.md content (security policy / standing instructions).
+    pub fn get_localgpt_md(&self) -> Result<String, MobileError> {
+        self.runtime
+            .block_on(self.handle.memory_get("LocalGPT.md"))
+            .map_err(|e| MobileError::Memory(e.to_string()))
+    }
+
+    /// Write new LocalGPT.md content and re-sign the policy.
+    ///
+    /// The policy file is HMAC-signed with a device-local key so that the
+    /// agent cannot tamper with it. After writing, this method automatically
+    /// re-signs the file and updates `.localgpt_manifest.json`.
+    pub fn set_localgpt_md(&self, content: String) -> Result<(), MobileError> {
+        let workspace = self.config.workspace_path();
+        let state_dir = &self.config.paths.data_dir;
+
+        // Ensure the device signing key exists.
+        security::ensure_device_key(state_dir).map_err(|e| MobileError::Memory(e.to_string()))?;
+
+        // Write the policy file.
+        std::fs::write(workspace.join(security::POLICY_FILENAME), &content)
+            .map_err(|e| MobileError::Memory(e.to_string()))?;
+
+        // Re-sign the policy so the agent recognises it.
+        security::sign_policy(state_dir, &workspace, "mobile")
+            .map_err(|e| MobileError::Memory(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// List the editable workspace files with their current content.
+    ///
+    /// Returns `WorkspaceFile` entries for MEMORY.md, SOUL.md,
+    /// HEARTBEAT.md, and LocalGPT.md. Files that do not exist yet are
+    /// returned with an empty `content` string.
+    pub fn list_workspace_files(&self) -> Vec<WorkspaceFile> {
+        let workspace = self.config.workspace_path();
+        EDITABLE_FILES
+            .iter()
+            .map(|name| {
+                let path = workspace.join(name);
+                let content = std::fs::read_to_string(&path).unwrap_or_default();
+                WorkspaceFile {
+                    name: name.to_string(),
+                    content,
+                }
+            })
+            .collect()
+    }
+
+    /// Read an arbitrary workspace file by name.
+    ///
+    /// Only the known editable files (MEMORY.md, SOUL.md, HEARTBEAT.md,
+    /// LocalGPT.md) are allowed. Returns `MobileError::Memory` for
+    /// unknown file names to prevent path-traversal.
+    pub fn get_workspace_file(&self, filename: String) -> Result<String, MobileError> {
+        if !EDITABLE_FILES.contains(&filename.as_str()) {
+            return Err(MobileError::Memory(format!(
+                "File '{}' is not an editable workspace file",
+                filename
+            )));
+        }
+        let workspace = self.config.workspace_path();
+        std::fs::read_to_string(workspace.join(&filename))
+            .map_err(|e| MobileError::Memory(e.to_string()))
+    }
+
+    /// Write an arbitrary workspace file by name.
+    ///
+    /// Only the known editable files (MEMORY.md, SOUL.md, HEARTBEAT.md,
+    /// LocalGPT.md) are allowed. For LocalGPT.md the policy is
+    /// automatically re-signed.
+    pub fn set_workspace_file(&self, filename: String, content: String) -> Result<(), MobileError> {
+        if !EDITABLE_FILES.contains(&filename.as_str()) {
+            return Err(MobileError::Memory(format!(
+                "File '{}' is not an editable workspace file",
+                filename
+            )));
+        }
+
+        if filename == security::POLICY_FILENAME {
+            return self.set_localgpt_md(content);
+        }
+
+        let workspace = self.config.workspace_path();
+        std::fs::write(workspace.join(&filename), content)
             .map_err(|e| MobileError::Memory(e.to_string()))
     }
 
