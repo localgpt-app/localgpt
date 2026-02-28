@@ -3,3 +3,6 @@ target
 node_modules
 .localgpt
 .localgpt-cache
+apps
+website
+docs

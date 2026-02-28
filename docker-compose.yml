@@ -22,6 +22,8 @@ services:
       - ./.localgpt:/home/localgpt/.localgpt
       - ./.localgpt-cache:/home/localgpt/.cache/localgpt
       - ./:/home/localgpt/.localgpt/workspace/repo:rw
+      # Bridge state: encrypted credentials for connected bridges
+      - localgpt-bridges:/home/localgpt/.local/share/localgpt/bridges
 
     working_dir: /home/localgpt/.localgpt/workspace
 
@@ -48,8 +50,13 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=256m
       - /run:rw,nosuid,nodev,size=16m
+      # Bridge socket directory (Unix domain socket for IPC)
+      - /home/localgpt/.local/state/localgpt/locks:rw,nosuid,nodev,size=16m
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
     pids_limit: 256
+
+volumes:
+  localgpt-bridges:
