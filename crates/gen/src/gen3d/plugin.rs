@@ -126,7 +126,6 @@ pub fn setup_gen_app(
                 audio::init_audio_engine,
             ),
         )
-        .add_systems(Update, process_load_gltf_commands)
         .add_systems(Update, process_gen_commands)
         .add_systems(Update, process_pending_screenshots)
         .add_systems(Update, process_pending_gltf_loads)
@@ -232,7 +231,9 @@ fn process_gen_commands(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut registry: ResMut<NameRegistry>,
     mut pending_screenshots: ResMut<PendingScreenshots>,
+    mut pending_gltf: ResMut<PendingGltfLoads>,
     mut audio_engine: ResMut<audio::AudioEngine>,
+    asset_server: Res<AssetServer>,
     workspace: Res<GenWorkspace>,
     transforms: Query<&Transform>,
     gen_entities: Query<&GenEntity>,
@@ -331,8 +332,32 @@ fn process_gen_commands(
                 &mesh_handles,
                 &meshes,
             ),
-            GenCommand::LoadGltf { path: _ } => {
-                // Handled by a separate system
+            GenCommand::LoadGltf { path } => {
+                if let Some(resolved) = resolve_gltf_path(&path, &workspace.path) {
+                    let name = resolved
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| "imported_scene".to_string());
+
+                    let asset_path = resolved
+                        .to_string_lossy()
+                        .trim_start_matches('/')
+                        .to_string();
+                    let handle = asset_server.load::<Scene>(format!("{}#Scene0", asset_path));
+
+                    pending_gltf.queue.push(PendingGltfLoad {
+                        handle,
+                        name,
+                        path: resolved.to_string_lossy().into_owned(),
+                        send_response: true,
+                    });
+                } else {
+                    let response = GenResponse::Error {
+                        message: format!("Failed to resolve path: {}", path),
+                    };
+                    let _ = channel_res.channels.resp_tx.send(response);
+                }
+                // Response for successful loads is sent by process_pending_gltf_loads
                 continue;
             }
 
@@ -351,47 +376,6 @@ fn process_gen_commands(
         };
 
         let _ = channel_res.channels.resp_tx.send(response);
-    }
-}
-
-/// Handle LoadGltf commands in a separate system.
-fn process_load_gltf_commands(
-    mut channel_res: ResMut<GenChannelRes>,
-    asset_server: Res<AssetServer>,
-    mut pending_gltf: ResMut<PendingGltfLoads>,
-    workspace: Res<GenWorkspace>,
-) {
-    while let Ok(cmd) = channel_res.channels.cmd_rx.try_recv() {
-        if let GenCommand::LoadGltf { path } = cmd {
-            if let Some(resolved) = resolve_gltf_path(&path, &workspace.path) {
-                let name = resolved
-                    .file_stem()
-                    .map(|s| s.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| "imported_scene".to_string());
-
-                let asset_path = resolved
-                    .to_string_lossy()
-                    .trim_start_matches('/')
-                    .to_string();
-                let handle = asset_server.load::<Scene>(format!("{}#Scene0", asset_path));
-
-                pending_gltf.queue.push(PendingGltfLoad {
-                    handle,
-                    name,
-                    path: resolved.to_string_lossy().into_owned(),
-                    send_response: true,
-                });
-            } else {
-                let response = GenResponse::Error {
-                    message: format!("Failed to resolve path: {}", path),
-                };
-                let _ = channel_res.channels.resp_tx.send(response);
-            }
-        } else {
-            // Not a LoadGltf command, put it back by sending an error
-            // Actually we can't put it back, so we just drop it
-            // This shouldn't happen since we're filtering by command type
-        }
     }
 }
 

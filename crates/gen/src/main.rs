@@ -252,6 +252,13 @@ async fn run_agent_loop(
         memory.clone(),
     )]);
 
+    // Gen mode needs many repeated tool calls to build scenes (e.g., spawning
+    // multiple primitives, checking scene_info between steps).  The default
+    // loop-detection threshold (3) is too aggressive and causes the agent to
+    // abort mid-scene.  Raise it so legitimate scene-building isn't blocked.
+    let mut config = config;
+    config.agent.max_tool_repeats = config.agent.max_tool_repeats.max(20);
+
     // Create agent with combined tools
     let mut agent = Agent::new_with_tools(config.clone(), agent_id, memory, tools)?;
     agent.new_session().await?;

@@ -2045,3 +2045,69 @@ This is your first session. I've set up a fresh workspace for you.
 What's your name? What kind of projects do you work on? Any preferences for how I should communicate?
 
 I'll save what I learn to MEMORY.md so I remember it next time."#;
+
+#[cfg(test)]
+mod tests {
+    use super::LoopDetector;
+
+    #[test]
+    fn loop_detector_triggers_at_threshold() {
+        let mut ld = LoopDetector::new(3);
+        // 3 identical calls should trigger
+        ld.record("gen_scene_info", "{}");
+        assert!(!ld.is_stuck());
+        ld.record("gen_scene_info", "{}");
+        assert!(!ld.is_stuck());
+        ld.record("gen_scene_info", "{}");
+        assert!(ld.is_stuck());
+    }
+
+    #[test]
+    fn loop_detector_no_false_positive_with_different_args() {
+        let mut ld = LoopDetector::new(3);
+        ld.record("gen_spawn_primitive", r#"{"name":"a","shape":"Cuboid"}"#);
+        ld.record("gen_spawn_primitive", r#"{"name":"b","shape":"Cuboid"}"#);
+        ld.record("gen_spawn_primitive", r#"{"name":"c","shape":"Cuboid"}"#);
+        assert!(!ld.is_stuck());
+    }
+
+    #[test]
+    fn loop_detector_interleaved_calls_dont_trigger() {
+        let mut ld = LoopDetector::new(3);
+        ld.record("gen_scene_info", "{}");
+        ld.record("gen_spawn_primitive", r#"{"name":"a"}"#);
+        ld.record("gen_scene_info", "{}");
+        assert!(!ld.is_stuck());
+    }
+
+    #[test]
+    fn loop_detector_disabled_when_zero() {
+        let mut ld = LoopDetector::new(0);
+        for _ in 0..100 {
+            ld.record("gen_scene_info", "{}");
+            assert!(!ld.is_stuck());
+        }
+    }
+
+    #[test]
+    fn loop_detector_reset_clears_history() {
+        let mut ld = LoopDetector::new(3);
+        ld.record("gen_scene_info", "{}");
+        ld.record("gen_scene_info", "{}");
+        ld.reset();
+        ld.record("gen_scene_info", "{}");
+        assert!(!ld.is_stuck());
+    }
+
+    #[test]
+    fn loop_detector_higher_threshold_for_gen() {
+        // With threshold=20, gen-style repeated no-arg calls need 20 repeats
+        let mut ld = LoopDetector::new(20);
+        for i in 0..19 {
+            ld.record("gen_scene_info", "{}");
+            assert!(!ld.is_stuck(), "should not trigger at call {}", i + 1);
+        }
+        ld.record("gen_scene_info", "{}");
+        assert!(ld.is_stuck(), "should trigger at call 20");
+    }
+}
