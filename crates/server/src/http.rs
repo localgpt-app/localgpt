@@ -1274,11 +1274,10 @@ async fn get_saved_session(Path(session_id): Path<String>) -> Response {
     use std::fs::File;
     use std::io::{BufRead, BufReader};
 
-    // Reject session IDs containing path traversal characters
-    if session_id.contains('/')
-        || session_id.contains('\\')
-        || session_id.contains("..")
-        || session_id.contains('\0')
+    // Validate session_id uses only safe characters (alphanumeric, hyphens, underscores)
+    if !session_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     {
         return AppError(StatusCode::BAD_REQUEST, "Invalid session ID".to_string()).into_response();
     }

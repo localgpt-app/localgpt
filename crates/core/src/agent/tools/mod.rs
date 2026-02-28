@@ -342,18 +342,23 @@ impl MemoryGetTool {
     }
 
     /// Validate that a resolved path stays within the workspace directory.
+    /// Checks the parent directory's canonical path if the file doesn't exist yet.
     fn is_within_workspace(&self, resolved: &std::path::Path) -> bool {
-        // Use canonicalize on the workspace, and check if resolved starts with it.
-        // If the resolved file doesn't exist, we build the canonical prefix manually.
         let workspace_canonical = match self.workspace.canonicalize() {
             Ok(p) => p,
             Err(_) => return false,
         };
-        match resolved.canonicalize() {
-            Ok(canonical) => canonical.starts_with(&workspace_canonical),
-            // File doesn't exist — still reject since we can't verify containment
-            Err(_) => false,
+        // Try canonicalizing the file itself first
+        if let Ok(canonical) = resolved.canonicalize() {
+            return canonical.starts_with(&workspace_canonical);
         }
+        // File doesn't exist — check the parent directory instead
+        if let Some(parent) = resolved.parent()
+            && let Ok(parent_canonical) = parent.canonicalize()
+        {
+            return parent_canonical.starts_with(&workspace_canonical);
+        }
+        false
     }
 }
 
@@ -394,15 +399,23 @@ impl Tool for MemoryGetTool {
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing path"))?;
 
-        // Reject paths with traversal sequences
-        if path.contains("..") || path.contains('\0') {
-            anyhow::bail!("Invalid path: path traversal not allowed");
+        // Reject null bytes in raw input
+        if path.contains('\0') {
+            anyhow::bail!("Invalid path: null bytes not allowed");
         }
 
         let from = args["from"].as_u64().unwrap_or(1).max(1) as usize;
         let lines_count = (args["lines"].as_u64().unwrap_or(50) as usize).min(10_000);
 
         let resolved_path = self.resolve_path(path);
+
+        // Check for path traversal on the resolved path (catches .. after tilde expansion)
+        if resolved_path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            anyhow::bail!("Invalid path: path traversal not allowed");
+        }
 
         // Verify resolved path stays within workspace
         if !self.is_within_workspace(&resolved_path) {
@@ -694,15 +707,33 @@ impl Tool for WebFetchTool {
         // Limit download size to prevent memory exhaustion from malicious servers.
         // Allow up to 2x max_bytes raw download since extraction often shrinks content.
         let download_limit = self.max_bytes * 2;
-        let bytes = response.bytes().await?;
-        if bytes.len() > download_limit {
+
+        // Fast reject via Content-Length header when available
+        if let Some(content_length) = response.content_length()
+            && content_length as usize > download_limit
+        {
             anyhow::bail!(
                 "Response too large ({} bytes, limit {})",
-                bytes.len(),
+                content_length,
                 download_limit
             );
         }
-        let body = String::from_utf8_lossy(&bytes).to_string();
+
+        // Stream response body with size cap (handles chunked/missing Content-Length)
+        let mut body_bytes = Vec::new();
+        let mut stream = response.bytes_stream();
+        use futures::StreamExt;
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            body_bytes.extend_from_slice(&chunk);
+            if body_bytes.len() > download_limit {
+                anyhow::bail!(
+                    "Response too large (>{} bytes), download aborted",
+                    download_limit
+                );
+            }
+        }
+        let body = String::from_utf8_lossy(&body_bytes).to_string();
         let extracted =
             if content_type.contains("text/html") || content_type.contains("application/xhtml") {
                 extract_readable_text(&body, &final_url)
