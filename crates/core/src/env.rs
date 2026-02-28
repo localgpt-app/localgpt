@@ -30,17 +30,5 @@ pub const LOCALGPT_AGENT: &str = "LOCALGPT_AGENT";
 /// Test URL for SearXNG integration tests
 pub const LOCALGPT_TEST_SEARXNG_URL: &str = "LOCALGPT_TEST_SEARXNG_URL";
 
-/// Google OAuth Client ID override
-pub const LOCALGPT_GOOGLE_CLIENT_ID: &str = "LOCALGPT_GOOGLE_CLIENT_ID";
-
-/// Google OAuth Client Secret override
-pub const LOCALGPT_GOOGLE_CLIENT_SECRET: &str = "LOCALGPT_GOOGLE_CLIENT_SECRET";
-
-/// GitHub OAuth Client ID override
-pub const LOCALGPT_GITHUB_CLIENT_ID: &str = "LOCALGPT_GITHUB_CLIENT_ID";
-
-/// GitHub OAuth Client Secret override
-pub const LOCALGPT_GITHUB_CLIENT_SECRET: &str = "LOCALGPT_GITHUB_CLIENT_SECRET";
-
 /// Internal: macOS sandbox profile passing (private)
 pub const _LOCALGPT_SBPL_PROFILE: &str = "_LOCALGPT_SBPL_PROFILE";

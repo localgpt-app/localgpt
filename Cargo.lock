@@ -5593,15 +5593,12 @@ dependencies = [
  "rustyline 17.0.2",
  "serde",
  "serde_json",
- "serde_urlencoded",
- "sha2",
  "shellexpand",
  "tempfile",
  "tokio",
  "toml 1.0.3+spec-1.1.0",
  "tracing",
  "tracing-subscriber",
- "url",
  "which",
 ]
 

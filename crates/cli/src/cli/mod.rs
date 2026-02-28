@@ -1,5 +1,4 @@
 pub mod ask;
-pub mod auth;
 pub mod bridge;
 pub mod chat;
 pub mod config;
@@ -85,9 +84,6 @@ pub enum Commands {
 
     /// Test and manage web search
     Search(search::SearchArgs),
-
-    /// Authenticate with providers (Gemini, etc.)
-    Auth(auth::AuthArgs),
 
     /// Initialize configuration and keys
     Init(init::InitArgs),

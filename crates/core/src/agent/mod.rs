@@ -705,9 +705,6 @@ impl Agent {
             .chat(&messages, Some(tool_schemas.as_slice()))
             .await?;
 
-        // Handle token update if refreshed during chat
-        let _ = self.handle_token_update();
-
         // Handle tool calls if any
         let final_response = self.handle_response(response).await?;
 
@@ -781,9 +778,6 @@ impl Agent {
             .provider
             .chat(&api_messages, Some(tool_schemas.as_slice()))
             .await?;
-
-        // Handle token update if refreshed during chat
-        let _ = self.handle_token_update();
 
         // Handle tool calls recursively
         self.handle_response_stateless(response, &api_messages, &tool_schemas)
@@ -1161,9 +1155,6 @@ impl Agent {
                     .chat(&messages, Some(tool_schemas.as_slice()))
                     .await?;
 
-                // Handle token update
-                let _ = self.handle_token_update();
-
                 // Recursively handle (in case of more tool calls)
                 Box::pin(self.handle_response_with_callback(
                     next_response,
@@ -1424,9 +1415,6 @@ impl Agent {
         let messages = self.messages_for_api_call();
 
         let response = self.provider.chat(&messages, Some(&tool_schemas)).await?;
-
-        // Handle token update
-        let _ = self.handle_token_update();
 
         // Handle response (may include tool calls)
         let final_response = self.handle_response(response).await?;
@@ -1704,9 +1692,6 @@ impl Agent {
             .chat(&messages, Some(tool_schemas.as_slice()))
             .await?;
 
-        // Handle token update
-        let _ = self.handle_token_update();
-
         // Handle the response (may have more tool calls)
         let final_response = self
             .handle_response_with_callback(response, &mut on_tool_start, &mut on_tool_end)
@@ -1912,19 +1897,6 @@ impl Agent {
     /// Auto-save session to disk (call after each message)
     pub fn auto_save_session(&self) -> Result<()> {
         self.session.auto_save()
-    }
-
-    /// Check if the provider has updated its tokens and persist them
-    pub fn handle_token_update(&mut self) -> Result<()> {
-        if let Some(update) = self.provider.token_update() {
-            self.app_config.update_oauth_token(
-                &update.provider,
-                update.access_token,
-                update.refresh_token,
-                update.expires_at,
-            )?;
-        }
-        Ok(())
     }
 }
 
