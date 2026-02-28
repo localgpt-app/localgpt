@@ -42,10 +42,25 @@ pub struct WorkspaceFile {
     pub name: String,
     /// File content, or empty string if the file does not yet exist.
     pub content: String,
+    /// Whether this file is security-sensitive and requires confirmation before editing.
+    pub is_security_sensitive: bool,
 }
 
-/// The set of workspace markdown files that can be edited by the mobile app.
-const EDITABLE_FILES: &[&str] = &["MEMORY.md", "SOUL.md", "HEARTBEAT.md", "LocalGPT.md"];
+/// Regular workspace markdown files that can be edited by the mobile app.
+const REGULAR_EDITABLE_FILES: &[&str] = &["MEMORY.md", "SOUL.md", "HEARTBEAT.md"];
+
+/// Security-sensitive files that require user confirmation before editing.
+/// These files affect the agent's security policy and are HMAC-signed.
+/// Editing is only allowed through explicit user action (never by the agent).
+const SECURITY_EDITABLE_FILES: &[&str] = &["LocalGPT.md"];
+
+/// All editable files (regular + security-sensitive).
+const ALL_EDITABLE_FILES: &[&str] = &["MEMORY.md", "SOUL.md", "HEARTBEAT.md", "LocalGPT.md"];
+
+/// Check if a filename is a security-sensitive file that requires confirmation.
+fn is_security_file(filename: &str) -> bool {
+    SECURITY_EDITABLE_FILES.contains(&filename)
+}
 
 // ---------------------------------------------------------------------------
 // The main entry point: LocalGPTClient
@@ -228,10 +243,11 @@ impl LocalGPTClient {
     ///
     /// Returns `WorkspaceFile` entries for MEMORY.md, SOUL.md,
     /// HEARTBEAT.md, and LocalGPT.md. Files that do not exist yet are
-    /// returned with an empty `content` string.
+    /// returned with an empty `content` string. Security-sensitive files
+    /// (like LocalGPT.md) are flagged with `is_security_sensitive = true`.
     pub fn list_workspace_files(&self) -> Vec<WorkspaceFile> {
         let workspace = self.config.workspace_path();
-        EDITABLE_FILES
+        ALL_EDITABLE_FILES
             .iter()
             .map(|name| {
                 let path = workspace.join(name);
@@ -246,6 +262,7 @@ impl LocalGPTClient {
                 WorkspaceFile {
                     name: name.to_string(),
                     content,
+                    is_security_sensitive: is_security_file(name),
                 }
             })
             .collect()
@@ -257,7 +274,7 @@ impl LocalGPTClient {
     /// LocalGPT.md) are allowed. Returns `MobileError::Memory` for
     /// unknown file names to prevent path-traversal.
     pub fn get_workspace_file(&self, filename: String) -> Result<String, MobileError> {
-        if !EDITABLE_FILES.contains(&filename.as_str()) {
+        if !ALL_EDITABLE_FILES.contains(&filename.as_str()) {
             return Err(MobileError::Memory(format!(
                 "File '{}' is not an editable workspace file",
                 filename
@@ -272,9 +289,10 @@ impl LocalGPTClient {
     ///
     /// Only the known editable files (MEMORY.md, SOUL.md, HEARTBEAT.md,
     /// LocalGPT.md) are allowed. For LocalGPT.md the policy is
-    /// automatically re-signed.
+    /// automatically re-signed. The caller (mobile UI) must confirm
+    /// security-sensitive file edits before calling this method.
     pub fn set_workspace_file(&self, filename: String, content: String) -> Result<(), MobileError> {
-        if !EDITABLE_FILES.contains(&filename.as_str()) {
+        if !ALL_EDITABLE_FILES.contains(&filename.as_str()) {
             return Err(MobileError::Memory(format!(
                 "File '{}' is not an editable workspace file",
                 filename
@@ -288,6 +306,16 @@ impl LocalGPTClient {
         let workspace = self.config.workspace_path();
         std::fs::write(workspace.join(&filename), content)
             .map_err(|e| MobileError::Memory(e.to_string()))
+    }
+
+    /// Check whether a workspace file is security-sensitive.
+    ///
+    /// Security-sensitive files (like LocalGPT.md) affect the agent's
+    /// security policy and require user confirmation before editing.
+    /// The mobile UI should display a warning dialog before allowing
+    /// edits to these files.
+    pub fn is_workspace_file_security_sensitive(&self, filename: String) -> bool {
+        is_security_file(&filename)
     }
 
     /// Get the current model name.

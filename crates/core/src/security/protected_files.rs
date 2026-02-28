@@ -189,4 +189,44 @@ mod tests {
             &state_dir
         ));
     }
+
+    /// Verify the agent write-deny boundary: LocalGPT.md and manifest
+    /// are always protected from agent writes, while user-editable files
+    /// (MEMORY.md, SOUL.md, HEARTBEAT.md) remain accessible.
+    ///
+    /// This test documents that the mobile-ffi's file editor API does NOT
+    /// weaken the agent protection — only the user (via mobile UI or CLI)
+    /// can write to security-critical files.
+    #[test]
+    fn agent_protection_boundary_enforced() {
+        // Security-critical files the agent must NEVER write to
+        let agent_blocked = &["LocalGPT.md", ".localgpt_manifest.json", "IDENTITY.md"];
+        for &file in agent_blocked {
+            assert!(
+                is_workspace_file_protected(file),
+                "Agent must be blocked from writing to {}",
+                file
+            );
+        }
+
+        // User-editable files the agent CAN write to via tools
+        let agent_allowed = &["MEMORY.md", "SOUL.md", "HEARTBEAT.md"];
+        for &file in agent_allowed {
+            assert!(
+                !is_workspace_file_protected(file),
+                "Agent should be allowed to write to {}",
+                file
+            );
+        }
+
+        // External security files must also be protected
+        let external_blocked = &["localgpt.device.key", "localgpt.audit.jsonl"];
+        for &file in external_blocked {
+            assert!(
+                PROTECTED_EXTERNAL_PATHS.contains(&file),
+                "External file {} must be protected",
+                file
+            );
+        }
+    }
 }

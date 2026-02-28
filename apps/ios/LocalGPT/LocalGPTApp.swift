@@ -13,7 +13,18 @@ struct LocalGPTApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ChatView()
+            TabView {
+                ChatView()
+                    .tabItem {
+                        Label("Chat", systemImage: "message.fill")
+                    }
+
+                WorkspaceEditorView()
+                    .tabItem {
+                        Label("Workspace", systemImage: "doc.text.fill")
+                    }
+            }
+            .tint(.teal)
         }
     }
 }
