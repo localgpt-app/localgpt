@@ -497,8 +497,8 @@ fn process_gen_commands(
                 // Clear existing scene before loading if requested.
                 if clear {
                     handle_clear_scene(
-                        true,  // keep camera
-                        true,  // keep lights
+                        true, // keep camera
+                        true, // keep lights
                         &mut commands,
                         &mut params.registry,
                         &params.gen_entities,
@@ -588,6 +588,8 @@ fn process_gen_commands(
                     &mut params.behavior_state,
                     &mut params.pending_world,
                 );
+                // Avatar and tours are world-level metadata (not individual entities),
+                // so they are always reset — a new world will provide its own.
                 params.avatar_config.active = None;
                 params.world_tours.tours.clear();
                 resp

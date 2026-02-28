@@ -1729,7 +1729,11 @@ impl Tool for GenLoadWorldTool {
             .to_string();
         let clear = args["clear"].as_bool().unwrap_or(true);
 
-        match self.bridge.send(GenCommand::LoadWorld { path, clear }).await? {
+        match self
+            .bridge
+            .send(GenCommand::LoadWorld { path, clear })
+            .await?
+        {
             GenResponse::WorldLoaded {
                 path,
                 entities,
