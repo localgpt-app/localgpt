@@ -6,6 +6,7 @@
 //! - `scene.glb`      — glTF geometry & materials
 //! - `behaviors.toml` — Declarative behavior definitions
 //! - `audio.toml`     — Ambience + spatial audio emitters
+//! - `tours.toml`     — Guided tours (optional)
 
 use std::path::{Path, PathBuf};
 
@@ -29,6 +30,8 @@ struct WorldManifest {
     environment: Option<EnvironmentDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     camera: Option<CameraDef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    avatar: Option<AvatarDef>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,6 +45,8 @@ struct WorldMeta {
     behaviors: String,
     #[serde(default = "default_audio_file")]
     audio: String,
+    #[serde(default = "default_tours_file")]
+    tours: String,
 }
 
 fn default_scene_file() -> String {
@@ -52,6 +57,9 @@ fn default_behaviors_file() -> String {
 }
 fn default_audio_file() -> String {
     "audio.toml".to_string()
+}
+fn default_tours_file() -> String {
+    "tours.toml".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -104,6 +112,12 @@ struct AmbienceDef {
     master_volume: Option<f32>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct ToursFile {
+    #[serde(default)]
+    tours: Vec<TourDef>,
+}
+
 // ---------------------------------------------------------------------------
 // Environment snapshot (passed from plugin.rs which has access to Bevy resources)
 // ---------------------------------------------------------------------------
@@ -133,6 +147,8 @@ pub fn handle_save_world(
     audio_engine: &AudioEngine,
     behaviors_query: &Query<&mut EntityBehaviors>,
     env_snapshot: &EnvironmentSnapshot,
+    avatar: Option<&AvatarDef>,
+    tours: &[TourDef],
 ) -> GenResponse {
     // Resolve output directory
     let skill_dir = if let Some(ref path) = cmd.path {
@@ -216,6 +232,7 @@ pub fn handle_save_world(
             scene: "scene.glb".to_string(),
             behaviors: "behaviors.toml".to_string(),
             audio: "audio.toml".to_string(),
+            tours: "tours.toml".to_string(),
         },
         environment: if env_snapshot.background_color.is_some()
             || env_snapshot.ambient_intensity.is_some()
@@ -229,6 +246,7 @@ pub fn handle_save_world(
             None
         },
         camera: camera_def,
+        avatar: avatar.cloned(),
     };
     let manifest_toml = toml::to_string_pretty(&manifest).unwrap_or_else(|_| String::new());
     if let Err(e) = std::fs::write(skill_dir.join("world.toml"), &manifest_toml) {
@@ -237,7 +255,20 @@ pub fn handle_save_world(
         };
     }
 
-    // 6. Write SKILL.md
+    // 6. Write tours.toml (only if tours exist)
+    if !tours.is_empty() {
+        let tours_file = ToursFile {
+            tours: tours.to_vec(),
+        };
+        let tours_toml = toml::to_string_pretty(&tours_file).unwrap_or_else(|_| String::new());
+        if let Err(e) = std::fs::write(skill_dir.join("tours.toml"), &tours_toml) {
+            return GenResponse::Error {
+                message: format!("Failed to write tours.toml: {}", e),
+            };
+        }
+    }
+
+    // 7. Write SKILL.md
     let description = cmd.description.as_deref().unwrap_or("A generated 3D world");
     let skill_md = format!(
         r#"---
@@ -254,7 +285,7 @@ useWhen:
 {description}
 
 This is a gen world skill. Load it with `gen_load_world` to restore the 3D scene,
-behaviors, and audio.
+behaviors, audio, avatar, and tours.
 "#,
         name = cmd.name,
         description = description,
@@ -284,6 +315,8 @@ pub struct WorldLoadResult {
     pub emitters: Vec<AudioEmitterCmd>,
     pub environment: Option<EnvironmentCmd>,
     pub camera: Option<CameraCmd>,
+    pub avatar: Option<AvatarDef>,
+    pub tours: Vec<TourDef>,
     pub entity_count: usize,
     pub behavior_count: usize,
 }
@@ -365,6 +398,20 @@ pub fn handle_load_world(
         fov_degrees: cam.fov_degrees,
     });
 
+    // Avatar
+    let avatar = manifest.avatar;
+
+    // Read tours.toml
+    let tours_path = world_dir.join(&manifest.world.tours);
+    let mut tours: Vec<TourDef> = Vec::new();
+    if tours_path.exists() {
+        let s = std::fs::read_to_string(&tours_path)
+            .map_err(|e| format!("Failed to read tours.toml: {}", e))?;
+        let tours_file: ToursFile =
+            toml::from_str(&s).map_err(|e| format!("Failed to parse tours.toml: {}", e))?;
+        tours = tours_file.tours;
+    }
+
     let behavior_count: usize = behaviors.iter().map(|(_, v)| v.len()).sum();
 
     Ok(WorldLoadResult {
@@ -377,6 +424,8 @@ pub fn handle_load_world(
         emitters,
         environment,
         camera,
+        avatar,
+        tours,
     })
 }
 
@@ -451,4 +500,149 @@ fn export_scene_glb(
         mesh_handles,
         mesh_assets,
     )
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn avatar_serialization_roundtrip() {
+        let avatar = AvatarDef {
+            spawn_position: [1.0, 1.8, 5.0],
+            spawn_look_at: [0.0, 1.5, 0.0],
+            pov: PointOfView::FirstPerson,
+            movement_speed: 3.0,
+            height: 1.8,
+            model_entity: Some("player".to_string()),
+        };
+
+        let manifest = WorldManifest {
+            world: WorldMeta {
+                name: "test".to_string(),
+                description: None,
+                scene: default_scene_file(),
+                behaviors: default_behaviors_file(),
+                audio: default_audio_file(),
+                tours: default_tours_file(),
+            },
+            environment: None,
+            camera: None,
+            avatar: Some(avatar),
+        };
+
+        let toml_str = toml::to_string_pretty(&manifest).unwrap();
+        let parsed: WorldManifest = toml::from_str(&toml_str).unwrap();
+        let a = parsed.avatar.unwrap();
+        assert_eq!(a.pov, PointOfView::FirstPerson);
+        assert_eq!(a.spawn_position, [1.0, 1.8, 5.0]);
+        assert_eq!(a.model_entity.as_deref(), Some("player"));
+    }
+
+    #[test]
+    fn tours_serialization_roundtrip() {
+        let tours = ToursFile {
+            tours: vec![TourDef {
+                name: "grand_tour".to_string(),
+                description: Some("A tour".to_string()),
+                waypoints: vec![
+                    TourWaypoint {
+                        position: [0.0, 1.0, 5.0],
+                        look_at: [0.0, 1.5, 0.0],
+                        description: Some("Start".to_string()),
+                        pause_duration: 3.0,
+                    },
+                    TourWaypoint {
+                        position: [10.0, 1.0, 0.0],
+                        look_at: [5.0, 2.0, -5.0],
+                        description: None,
+                        pause_duration: 0.0,
+                    },
+                ],
+                speed: 2.0,
+                mode: TourMode::Walk,
+                autostart: false,
+                loop_tour: true,
+                pov: Some(PointOfView::ThirdPerson),
+            }],
+        };
+
+        let toml_str = toml::to_string_pretty(&tours).unwrap();
+        let parsed: ToursFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.tours.len(), 1);
+        assert_eq!(parsed.tours[0].name, "grand_tour");
+        assert_eq!(parsed.tours[0].waypoints.len(), 2);
+        assert_eq!(parsed.tours[0].mode, TourMode::Walk);
+        assert!(parsed.tours[0].loop_tour);
+    }
+
+    #[test]
+    fn backward_compatible_manifest_without_avatar_or_tours() {
+        let toml_str = r#"
+[world]
+name = "legacy_world"
+scene = "scene.glb"
+behaviors = "behaviors.toml"
+audio = "audio.toml"
+
+[camera]
+position = [5.0, 5.0, 5.0]
+look_at = [0.0, 0.0, 0.0]
+fov_degrees = 45.0
+"#;
+        let parsed: WorldManifest = toml::from_str(toml_str).unwrap();
+        assert_eq!(parsed.world.name, "legacy_world");
+        assert!(parsed.avatar.is_none());
+        assert_eq!(parsed.world.tours, "tours.toml");
+    }
+
+    #[test]
+    fn default_avatar_values() {
+        let avatar = AvatarDef::default();
+        assert_eq!(avatar.pov, PointOfView::ThirdPerson);
+        assert_eq!(avatar.movement_speed, 5.0);
+        assert_eq!(avatar.height, 1.8);
+        assert!(avatar.model_entity.is_none());
+    }
+
+    #[test]
+    fn tour_modes_serialize_correctly() {
+        let walk_tour = TourDef {
+            name: "walk".to_string(),
+            description: None,
+            waypoints: vec![],
+            speed: 2.0,
+            mode: TourMode::Walk,
+            autostart: false,
+            loop_tour: false,
+            pov: None,
+        };
+        let fly_tour = TourDef {
+            mode: TourMode::Fly,
+            name: "fly".to_string(),
+            ..walk_tour.clone()
+        };
+        let tp_tour = TourDef {
+            mode: TourMode::Teleport,
+            name: "tp".to_string(),
+            ..walk_tour.clone()
+        };
+
+        let file = ToursFile {
+            tours: vec![walk_tour, fly_tour, tp_tour],
+        };
+        let toml_str = toml::to_string_pretty(&file).unwrap();
+        assert!(toml_str.contains("\"walk\""));
+        assert!(toml_str.contains("\"fly\""));
+        assert!(toml_str.contains("\"teleport\""));
+
+        let parsed: ToursFile = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.tours[0].mode, TourMode::Walk);
+        assert_eq!(parsed.tours[1].mode, TourMode::Fly);
+        assert_eq!(parsed.tours[2].mode, TourMode::Teleport);
+    }
 }

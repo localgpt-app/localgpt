@@ -88,6 +88,18 @@ struct WorldSetupData {
     frames_waited: u32,
 }
 
+/// Bevy resource storing the active avatar configuration for the current world.
+#[derive(Resource, Default)]
+pub struct AvatarConfig {
+    pub active: Option<AvatarDef>,
+}
+
+/// Bevy resource storing guided tour definitions for the current world.
+#[derive(Resource, Default)]
+pub struct WorldTours {
+    pub tours: Vec<TourDef>,
+}
+
 /// Marker component for the interactive fly camera.
 #[derive(Component)]
 struct FlyCam;
@@ -140,6 +152,8 @@ pub fn setup_gen_app(
         .init_resource::<PendingScreenshots>()
         .init_resource::<PendingGltfLoads>()
         .init_resource::<PendingWorldSetup>()
+        .init_resource::<AvatarConfig>()
+        .init_resource::<WorldTours>()
         .init_resource::<FlyCamConfig>()
         .init_resource::<BehaviorState>()
         .add_systems(
@@ -272,6 +286,8 @@ struct GenCommandParams<'w, 's> {
     clear_color: Option<Res<'w, ClearColor>>,
     ambient_light: Option<Res<'w, GlobalAmbientLight>>,
     pending_world: ResMut<'w, PendingWorldSetup>,
+    avatar_config: ResMut<'w, AvatarConfig>,
+    world_tours: ResMut<'w, WorldTours>,
 }
 
 fn process_gen_commands(
@@ -473,6 +489,8 @@ fn process_gen_commands(
                     &params.audio_engine,
                     &params.behaviors_query,
                     &env_data,
+                    params.avatar_config.active.as_ref(),
+                    &params.world_tours.tours,
                 )
             }
             GenCommand::LoadWorld { path, clear } => {
@@ -540,6 +558,10 @@ fn process_gen_commands(
                             handle_set_camera(cam, &mut commands, &params.registry);
                         }
 
+                        // Store avatar and tour configuration as resources.
+                        params.avatar_config.active = world_load.avatar;
+                        params.world_tours.tours = world_load.tours;
+
                         GenResponse::WorldLoaded {
                             path: world_load.world_path,
                             entities: world_load.entity_count,
@@ -555,16 +577,21 @@ fn process_gen_commands(
             GenCommand::ClearScene {
                 keep_camera,
                 keep_lights,
-            } => handle_clear_scene(
-                keep_camera,
-                keep_lights,
-                &mut commands,
-                &mut params.registry,
-                &params.gen_entities,
-                &mut params.audio_engine,
-                &mut params.behavior_state,
-                &mut params.pending_world,
-            ),
+            } => {
+                let resp = handle_clear_scene(
+                    keep_camera,
+                    keep_lights,
+                    &mut commands,
+                    &mut params.registry,
+                    &params.gen_entities,
+                    &mut params.audio_engine,
+                    &mut params.behavior_state,
+                    &mut params.pending_world,
+                );
+                params.avatar_config.active = None;
+                params.world_tours.tours.clear();
+                resp
+            }
         };
 
         let _ = channel_res.channels.resp_tx.send(response);

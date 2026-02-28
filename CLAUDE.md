@@ -192,10 +192,12 @@ See `docs/gen-audio.md` for detailed architecture and usage examples.
 
 **World Skills:**
 - **Save/load scenes as skills:** Complete worlds serialized to skill directories
-- **Format:** `SKILL.md` + `world.toml` + `scene.glb` + `behaviors.toml` + `audio.toml`
+- **Format:** `SKILL.md` + `world.toml` + `scene.glb` + `behaviors.toml` + `audio.toml` + `tours.toml`
 - **Tools:** `gen_save_world`, `gen_load_world` (auto-clears scene by default), `gen_clear_scene`
 - **Deferred loading:** glTF scenes load asynchronously; behaviors and audio emitters are applied after entities spawn via `PendingWorldSetup`
-- **Extensible:** World manifest (`world.toml`) supports environment, camera, future asset types
+- **Avatar:** `world.toml` `[avatar]` section defines user presence (spawn position, PoV mode, movement speed, height, optional 3D model entity)
+- **Tours:** `tours.toml` defines guided tours — named sequences of waypoints with camera positions, descriptions, pause durations, and movement modes (walk/fly/teleport)
+- **Extensible:** World manifest (`world.toml`) supports environment, camera, avatar, and future asset types
 
 ### Mobile
 

@@ -469,6 +469,129 @@ pub struct SaveWorldCmd {
 }
 
 // ---------------------------------------------------------------------------
+// Avatar & tour data structures
+// ---------------------------------------------------------------------------
+
+/// Point of view mode for the avatar / camera.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PointOfView {
+    /// Camera placed at avatar eye level; avatar model is not visible.
+    FirstPerson,
+    /// Camera orbits behind/above the avatar; avatar model is visible.
+    #[default]
+    ThirdPerson,
+}
+
+/// Avatar configuration describing the user/explorer presence in a world.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AvatarDef {
+    /// Where the avatar spawns in the world.
+    #[serde(default = "default_avatar_spawn")]
+    pub spawn_position: [f32; 3],
+    /// Initial look direction.
+    #[serde(default = "default_avatar_look_at")]
+    pub spawn_look_at: [f32; 3],
+    /// Camera point-of-view mode.
+    #[serde(default)]
+    pub pov: PointOfView,
+    /// Movement speed in units per second.
+    #[serde(default = "default_avatar_speed")]
+    pub movement_speed: f32,
+    /// Avatar eye-height above ground (used for first-person eye level).
+    #[serde(default = "default_avatar_height")]
+    pub height: f32,
+    /// Entity name of the 3D model representing the avatar (3rd-person).
+    /// When `None`, the world has no visible avatar model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_entity: Option<String>,
+}
+
+impl Default for AvatarDef {
+    fn default() -> Self {
+        Self {
+            spawn_position: default_avatar_spawn(),
+            spawn_look_at: default_avatar_look_at(),
+            pov: PointOfView::default(),
+            movement_speed: default_avatar_speed(),
+            height: default_avatar_height(),
+            model_entity: None,
+        }
+    }
+}
+
+fn default_avatar_spawn() -> [f32; 3] {
+    [0.0, 0.0, 5.0]
+}
+fn default_avatar_look_at() -> [f32; 3] {
+    [0.0, 0.0, 0.0]
+}
+fn default_avatar_speed() -> f32 {
+    5.0
+}
+fn default_avatar_height() -> f32 {
+    1.8
+}
+fn default_tour_speed() -> f32 {
+    3.0
+}
+
+/// How the camera/avatar moves between tour waypoints.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TourMode {
+    /// Ground-level movement respecting gravity / terrain.
+    #[default]
+    Walk,
+    /// Free-flying camera interpolation.
+    Fly,
+    /// Instant teleport between waypoints (cut, no interpolation).
+    Teleport,
+}
+
+/// A single stop along a guided tour.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TourWaypoint {
+    /// Camera / avatar position at this stop.
+    pub position: [f32; 3],
+    /// Where the camera looks at this stop.
+    pub look_at: [f32; 3],
+    /// Narrative text shown to the user at this stop.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// How long to pause at this waypoint (seconds) before moving on.
+    #[serde(default)]
+    pub pause_duration: f32,
+}
+
+/// A guided tour — a named, ordered sequence of waypoints through the world.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TourDef {
+    /// Human-readable tour name (e.g. "grand_tour", "scenic_overlook").
+    pub name: String,
+    /// Brief description of the tour.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Ordered stops along the tour.
+    pub waypoints: Vec<TourWaypoint>,
+    /// Movement speed between waypoints (units/sec).
+    #[serde(default = "default_tour_speed")]
+    pub speed: f32,
+    /// Movement mode between waypoints.
+    #[serde(default)]
+    pub mode: TourMode,
+    /// If true, this tour starts automatically when the world is loaded.
+    #[serde(default)]
+    pub autostart: bool,
+    /// If true, the tour loops back to the first waypoint after the last.
+    #[serde(default)]
+    pub loop_tour: bool,
+    /// Optional PoV override for this tour (falls back to avatar default).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pov: Option<PointOfView>,
+}
+
+// ---------------------------------------------------------------------------
 // Responses (Bevy → agent)
 // ---------------------------------------------------------------------------
 
