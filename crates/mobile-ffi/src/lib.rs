@@ -419,3 +419,62 @@ pub enum MobileError {
     #[error("Config error: {0}")]
     Config(String),
 }
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Verify ALL_EDITABLE_FILES is the union of REGULAR + SECURITY lists.
+    #[test]
+    fn editable_files_lists_consistent() {
+        for &f in REGULAR_EDITABLE_FILES {
+            assert!(
+                ALL_EDITABLE_FILES.contains(&f),
+                "ALL_EDITABLE_FILES missing regular file: {}",
+                f
+            );
+        }
+        for &f in SECURITY_EDITABLE_FILES {
+            assert!(
+                ALL_EDITABLE_FILES.contains(&f),
+                "ALL_EDITABLE_FILES missing security file: {}",
+                f
+            );
+        }
+        assert_eq!(
+            ALL_EDITABLE_FILES.len(),
+            REGULAR_EDITABLE_FILES.len() + SECURITY_EDITABLE_FILES.len(),
+            "ALL_EDITABLE_FILES has unexpected length"
+        );
+    }
+
+    /// Verify security-sensitive file detection.
+    #[test]
+    fn security_file_detection() {
+        assert!(is_security_file("LocalGPT.md"));
+        assert!(!is_security_file("MEMORY.md"));
+        assert!(!is_security_file("SOUL.md"));
+        assert!(!is_security_file("HEARTBEAT.md"));
+        assert!(!is_security_file("unknown.md"));
+    }
+
+    /// Verify LocalGPT.md is the only security-sensitive editable file.
+    #[test]
+    fn only_policy_file_is_security_sensitive() {
+        for &f in ALL_EDITABLE_FILES {
+            if f == security::POLICY_FILENAME {
+                assert!(is_security_file(f), "{} should be security-sensitive", f);
+            } else {
+                assert!(
+                    !is_security_file(f),
+                    "{} should not be security-sensitive",
+                    f
+                );
+            }
+        }
+    }
+}
