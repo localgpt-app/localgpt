@@ -90,6 +90,14 @@ impl RoutingCondition {
 
                 // Check regex match
                 if let Some(pattern) = &complex.matches {
+                    // Limit pattern length to prevent excessive compilation time
+                    if pattern.len() > 1024 {
+                        warn!(
+                            "Regex pattern too long in skill routing ({} chars), skipping",
+                            pattern.len()
+                        );
+                        return false;
+                    }
                     match Regex::new(pattern) {
                         Ok(re) => {
                             if !re.is_match(&ctx.message) {

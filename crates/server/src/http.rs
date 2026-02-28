@@ -248,6 +248,17 @@ impl IntoResponse for AppError {
     }
 }
 
+/// Constant-time byte comparison to prevent timing attacks on auth tokens.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
+}
+
 // Auth middleware for API routes
 async fn auth_middleware(
     State(state): State<Arc<AppState>>,
@@ -267,7 +278,8 @@ async fn auth_middleware(
     match auth_header {
         Some(h) if h.starts_with("Bearer ") => {
             let token = &h[7..];
-            if token == expected {
+            // Use constant-time comparison to prevent timing attacks
+            if constant_time_eq(token.as_bytes(), expected.as_bytes()) {
                 Ok(next.run(request).await)
             } else {
                 debug!("Auth failed: invalid token");
@@ -424,13 +436,7 @@ async fn get_or_create_session(
     }
 
     // Create new session
-    let new_id = session_id.unwrap_or_else(|| {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let ts = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
-        format!("{:x}-{:x}", ts.as_secs(), ts.subsec_nanos())
-    });
+    let new_id = session_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
     let agent_config = AgentConfig {
         model: state.config.agent.default_model.clone(),
@@ -988,6 +994,10 @@ async fn memory_search(
     State(state): State<Arc<AppState>>,
     Query(query): Query<SearchQuery>,
 ) -> Response {
+    // Reject excessively long queries to prevent DoS
+    if query.q.len() > 1000 {
+        return AppError(StatusCode::BAD_REQUEST, "Query too long".to_string()).into_response();
+    }
     match memory_search_inner(&state.memory, &query.q, query.limit) {
         Ok(response) => Json(response).into_response(),
         Err(e) => AppError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
@@ -999,7 +1009,7 @@ fn memory_search_inner(
     query: &str,
     limit: Option<usize>,
 ) -> Result<SearchResponse, anyhow::Error> {
-    let limit = limit.unwrap_or(10);
+    let limit = limit.unwrap_or(10).min(100);
     let results = memory.search(query, limit)?;
 
     let results: Vec<SearchResult> = results
@@ -1264,6 +1274,15 @@ async fn get_saved_session(Path(session_id): Path<String>) -> Response {
     use std::fs::File;
     use std::io::{BufRead, BufReader};
 
+    // Reject session IDs containing path traversal characters
+    if session_id.contains('/')
+        || session_id.contains('\\')
+        || session_id.contains("..")
+        || session_id.contains('\0')
+    {
+        return AppError(StatusCode::BAD_REQUEST, "Invalid session ID".to_string()).into_response();
+    }
+
     let sessions_dir = match get_sessions_dir_for_agent(HTTP_AGENT_ID) {
         Ok(dir) => dir,
         Err(e) => {
@@ -1440,7 +1459,9 @@ async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(|socket| handle_websocket(socket, state))
+    // Limit WebSocket message size to 1MB to prevent DoS
+    ws.max_message_size(1024 * 1024)
+        .on_upgrade(|socket| handle_websocket(socket, state))
 }
 
 /// WebSocket message types
