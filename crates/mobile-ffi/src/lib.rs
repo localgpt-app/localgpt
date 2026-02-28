@@ -235,7 +235,14 @@ impl LocalGPTClient {
             .iter()
             .map(|name| {
                 let path = workspace.join(name);
-                let content = std::fs::read_to_string(&path).unwrap_or_default();
+                let content = match std::fs::read_to_string(&path) {
+                    Ok(c) => c,
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+                    Err(e) => {
+                        tracing::warn!("Failed to read workspace file {}: {}", name, e);
+                        String::new()
+                    }
+                };
                 WorkspaceFile {
                     name: name.to_string(),
                     content,
