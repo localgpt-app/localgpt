@@ -347,3 +347,29 @@ Rust, Tokio, Axum, SQLite (FTS5 + sqlite-vec), fastembed, eframe
 ### Your contributions
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be licensed under the Apache-2.0 license, without any additional terms or conditions.
+
+
+## 使用示例
+
+### 基本用法
+```python
+import package_name
+
+# 初始化
+client = package_name.Client()
+
+# 调用功能
+result = client.process()
+print(f"结果: {result}")
+```
+
+### 高级用法
+```python
+# 配置参数
+config = {
+    'setting': 'value',
+    'timeout': 30
+}
+
+client = package_name.Client(**config)
+```
