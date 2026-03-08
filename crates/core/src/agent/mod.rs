@@ -1835,7 +1835,8 @@ impl Agent {
                             yield Ok(StreamEvent::Content(reasoning.clone()));
                         }
 
-                        // Notify about tool calls
+                        // Execute tool calls and collect results
+                        let mut tool_results = Vec::new();
                         for call in &calls {
                             yield Ok(StreamEvent::ToolCallStart {
                                 name: call.name.clone(),
@@ -1857,17 +1858,12 @@ impl Agent {
                                 warnings,
                             });
 
-                            // Add tool result to session
-                            self.session.add_message(Message {
-                                role: Role::Tool,
-                                content: output,
-                                tool_calls: None,
-                                tool_call_id: Some(call.id.clone()),
-                                images: Vec::new(),
-                            });
+                            tool_results.push((call.id.clone(), output));
                         }
 
-                        // Add tool call message to session (preserving any reasoning text)
+                        // Add assistant message first (with tool_calls), then tool results
+                        // This matches the ordering in handle_response() and satisfies
+                        // the Anthropic API requirement: assistant(tool_use) → user(tool_result)
                         self.session.add_message(Message {
                             role: Role::Assistant,
                             content: text.unwrap_or_default(),
@@ -1875,6 +1871,16 @@ impl Agent {
                             tool_call_id: None,
                             images: Vec::new(),
                         });
+
+                        for (call_id, output) in tool_results {
+                            self.session.add_message(Message {
+                                role: Role::Tool,
+                                content: output,
+                                tool_calls: None,
+                                tool_call_id: Some(call_id),
+                                images: Vec::new(),
+                            });
+                        }
 
                         // Continue loop to get next response
                             }
