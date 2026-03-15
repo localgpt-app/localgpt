@@ -5137,7 +5137,7 @@ fn handle_export_html(workspace: &GenWorkspace, current_world: &CurrentWorld) ->
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_dir()
-                    && path.join("world.ron").exists()
+                    && (path.join("world.ron").exists() || path.join("world.toml").exists())
                     && let Ok(modified) = entry.metadata().and_then(|m| m.modified())
                 {
                     worlds.push((modified, path));
@@ -5156,33 +5156,43 @@ fn handle_export_html(workspace: &GenWorkspace, current_world: &CurrentWorld) ->
         };
     };
 
-    // Read the world.ron manifest
+    // Read the world manifest — try RON format first, fall back to legacy TOML
     let ron_path = world_dir.join("world.ron");
-    if !ron_path.exists() {
+    let toml_path = world_dir.join("world.toml");
+
+    let manifest: localgpt_world_types::WorldManifest = if ron_path.exists() {
+        let ron_content = match std::fs::read_to_string(&ron_path) {
+            Ok(c) => c,
+            Err(e) => {
+                return GenResponse::Error {
+                    message: format!("Failed to read world.ron: {}", e),
+                };
+            }
+        };
+        match ron::from_str(&ron_content) {
+            Ok(m) => m,
+            Err(e) => {
+                return GenResponse::Error {
+                    message: format!("Failed to parse world.ron: {}", e),
+                };
+            }
+        }
+    } else if toml_path.exists() {
         return GenResponse::Error {
             message: format!(
-                "No world.ron found in {}. Save a world first with gen_save_world.",
+                "World at {} uses the legacy TOML format which stores geometry in glTF files. \
+                 HTML export requires the new RON format with parametric shapes. \
+                 Re-save the world with gen_save_world to convert it.",
                 world_dir.display()
             ),
         };
-    }
-
-    let ron_content = match std::fs::read_to_string(&ron_path) {
-        Ok(c) => c,
-        Err(e) => {
-            return GenResponse::Error {
-                message: format!("Failed to read world.ron: {}", e),
-            };
-        }
-    };
-
-    let manifest: localgpt_world_types::WorldManifest = match ron::from_str(&ron_content) {
-        Ok(m) => m,
-        Err(e) => {
-            return GenResponse::Error {
-                message: format!("Failed to parse world.ron: {}", e),
-            };
-        }
+    } else {
+        return GenResponse::Error {
+            message: format!(
+                "No world.ron or world.toml found in {}. Save a world first with gen_save_world.",
+                world_dir.display()
+            ),
+        };
     };
 
     // Generate HTML

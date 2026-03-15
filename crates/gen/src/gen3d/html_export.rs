@@ -88,8 +88,18 @@ pub fn generate_html(manifest: &wt::WorldManifest) -> String {
     )
     .unwrap();
 
-    // Camera
-    let cam = manifest.camera.as_ref().cloned().unwrap_or_default();
+    // Camera — prefer explicit camera, fall back to avatar spawn, then default
+    let cam = manifest.camera.as_ref().cloned().unwrap_or_else(|| {
+        if let Some(ref avatar) = manifest.avatar {
+            wt::CameraDef {
+                position: avatar.spawn_position,
+                look_at: avatar.spawn_look_at,
+                ..Default::default()
+            }
+        } else {
+            wt::CameraDef::default()
+        }
+    });
     writeln!(
         js,
         "const camera = new THREE.PerspectiveCamera({:.1}, window.innerWidth / window.innerHeight, 0.1, 1000);",
@@ -201,6 +211,16 @@ pub fn generate_html(manifest: &wt::WorldManifest) -> String {
     writeln!(js, "  behaviorTime.value += dt;").unwrap();
     writeln!(js, "  const t = behaviorTime.value;").unwrap();
     writeln!(js, "  for (const b of behaviors) b(dt, t);").unwrap();
+    writeln!(
+        js,
+        "  if (typeof updateMovement === 'function') updateMovement(dt);"
+    )
+    .unwrap();
+    writeln!(
+        js,
+        "  if (typeof updateTour === 'function') updateTour(dt);"
+    )
+    .unwrap();
     writeln!(js, "  controls.update();").unwrap();
     writeln!(js, "  renderer.render(scene, camera);").unwrap();
     writeln!(js, "}}").unwrap();
@@ -220,6 +240,12 @@ pub fn generate_html(manifest: &wt::WorldManifest) -> String {
     )
     .unwrap();
     writeln!(js, "}});").unwrap();
+
+    // ---- WASD keyboard navigation ----
+    emit_keyboard_controls(&mut js);
+
+    // ---- Guided tours ----
+    emit_tours(&mut js, manifest);
 
     // ---- Wrap in HTML ----
     let title = &manifest.meta.name;
@@ -253,13 +279,27 @@ body {{ overflow: hidden; background: #000; }}
   padding: 8px 16px; border-radius: 6px; cursor: pointer;
   font: 14px system-ui, sans-serif;
 }}
-#audio-btn:hover {{ background: rgba(0,0,0,0.8); }}
+#audio-btn:hover, #tour-btn:hover {{ background: rgba(0,0,0,0.8); }}
+#tour-btn {{
+  position: absolute; bottom: 20px; right: 140px;
+  background: rgba(0,0,0,0.6); color: #fff; border: 1px solid rgba(255,255,255,0.3);
+  padding: 8px 16px; border-radius: 6px; cursor: pointer;
+  font: 14px system-ui, sans-serif; display: none;
+}}
+#tour-desc {{
+  position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.7); color: #fff; padding: 10px 20px; border-radius: 8px;
+  font: 14px/1.5 system-ui, sans-serif; max-width: 500px; text-align: center;
+  display: none; pointer-events: none;
+}}
 </style>
 </head>
 <body>
 <div id="scene"></div>
-<div id="info">{title}<br><small>Drag to orbit &middot; Scroll to zoom</small></div>
+<div id="info">{title}<br><small>Drag to orbit &middot; Scroll to zoom &middot; WASD to move</small></div>
 <button id="audio-btn" style="display:none" onclick="toggleAudio()">Sound On</button>
+<button id="tour-btn">Start Tour</button>
+<div id="tour-desc"></div>
 <script type="importmap">
 {{
   "imports": {{
@@ -305,6 +345,21 @@ fn emit_entity(js: &mut String, entity: &wt::WorldEntity, idx: usize) {
         // Enable shadows on meshes
         writeln!(js, "{}.castShadow = true;", var).unwrap();
         writeln!(js, "{}.receiveShadow = true;", var).unwrap();
+    } else if entity.mesh_asset.is_some() {
+        // Imported glTF mesh — can't inline binary data; emit a wireframe placeholder
+        writeln!(
+            js,
+            "const {v}_geo = new THREE.BoxGeometry(1, 1, 1); \
+             const {v}_mat = new THREE.MeshBasicMaterial({{ color: 0x888888, wireframe: true }}); \
+             const {v} = new THREE.Mesh({v}_geo, {v}_mat); // placeholder for imported mesh: {}",
+            v = var,
+            entity
+                .mesh_asset
+                .as_ref()
+                .map(|a| a.path.as_str())
+                .unwrap_or("unknown")
+        )
+        .unwrap();
     } else if !has_light {
         // Group / empty entity
         writeln!(js, "const {} = new THREE.Group();", var).unwrap();
@@ -527,7 +582,12 @@ fn emit_material(js: &mut String, mat: Option<&wt::MaterialDef>, var: &str) {
     let transparent = opacity < 1.0
         || matches!(
             mat.alpha_mode,
-            Some(wt::AlphaModeDef::Blend | wt::AlphaModeDef::Add)
+            Some(
+                wt::AlphaModeDef::Blend
+                    | wt::AlphaModeDef::Add
+                    | wt::AlphaModeDef::Multiply
+                    | wt::AlphaModeDef::Mask(_)
+            )
         );
     let unlit = mat.unlit.unwrap_or(false);
 
@@ -562,6 +622,20 @@ fn emit_material(js: &mut String, mat: Option<&wt::MaterialDef>, var: &str) {
             t = transparent,
             side = if mat.double_sided.unwrap_or(false) { "THREE.DoubleSide" } else { "THREE.FrontSide" },
         ).unwrap();
+    }
+
+    // Alpha mode — set blending mode for Add/Multiply
+    match mat.alpha_mode {
+        Some(wt::AlphaModeDef::Add) => {
+            writeln!(js, "{v}_mat.blending = THREE.AdditiveBlending;", v = var).unwrap();
+        }
+        Some(wt::AlphaModeDef::Multiply) => {
+            writeln!(js, "{v}_mat.blending = THREE.MultiplyBlending;", v = var).unwrap();
+        }
+        Some(wt::AlphaModeDef::Mask(cutoff)) => {
+            writeln!(js, "{v}_mat.alphaTest = {c:.2};", v = var, c = cutoff).unwrap();
+        }
+        _ => {}
     }
 }
 
@@ -1186,4 +1260,142 @@ fn emit_audio_source(js: &mut String, audio: &wt::AudioDef, entity_idx: usize) {
 
     let _ = var; // suppress unused warning
     writeln!(js, "  }}").unwrap();
+}
+
+/// Emit WASD + Space/Shift keyboard navigation.
+fn emit_keyboard_controls(js: &mut String) {
+    writeln!(
+        js,
+        r#"// ---- WASD Keyboard Navigation ----
+const keysPressed = {{}};
+const MOVE_SPEED = 5.0;
+document.addEventListener('keydown', (e) => {{ keysPressed[e.code] = true; }});
+document.addEventListener('keyup', (e) => {{ keysPressed[e.code] = false; }});
+
+function updateMovement(dt) {{
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const right = new THREE.Vector3().crossVectors(dir, camera.up).normalize();
+  const move = new THREE.Vector3();
+  if (keysPressed['KeyW']) move.add(dir);
+  if (keysPressed['KeyS']) move.sub(dir);
+  if (keysPressed['KeyA']) move.sub(right);
+  if (keysPressed['KeyD']) move.add(right);
+  if (keysPressed['Space']) move.y += 1;
+  if (keysPressed['ShiftLeft'] || keysPressed['ShiftRight']) move.y -= 1;
+  if (move.length() > 0) {{
+    move.normalize().multiplyScalar(MOVE_SPEED * dt);
+    camera.position.add(move);
+    controls.target.add(move);
+  }}
+}}"#
+    )
+    .unwrap();
+}
+
+/// Emit guided tour system if tours are defined.
+fn emit_tours(js: &mut String, manifest: &wt::WorldManifest) {
+    if manifest.tours.is_empty() {
+        return;
+    }
+
+    // Build tour data
+    writeln!(js, "// ---- Guided Tours ----").unwrap();
+    writeln!(js, "const tours = [];").unwrap();
+
+    for tour in &manifest.tours {
+        if tour.waypoints.is_empty() {
+            continue;
+        }
+
+        let waypoints_json: Vec<String> = tour
+            .waypoints
+            .iter()
+            .map(|wp| {
+                format!(
+                    "{{pos:[{:.4},{:.4},{:.4}],look:[{:.4},{:.4},{:.4}],pause:{:.1},desc:{}}}",
+                    wp.position[0],
+                    wp.position[1],
+                    wp.position[2],
+                    wp.look_at[0],
+                    wp.look_at[1],
+                    wp.look_at[2],
+                    wp.pause_duration,
+                    wp.description
+                        .as_ref()
+                        .map(|d| format!("'{}'", d.replace('\'', "\\'")))
+                        .unwrap_or_else(|| "null".into())
+                )
+            })
+            .collect();
+
+        writeln!(
+            js,
+            "tours.push({{ name: '{}', speed: {:.1}, loop: {}, waypoints: [{}] }});",
+            tour.name.replace('\'', "\\'"),
+            tour.speed,
+            tour.loop_tour,
+            waypoints_json.join(",")
+        )
+        .unwrap();
+    }
+
+    writeln!(
+        js,
+        r#"let activeTour = null;
+let tourWpIdx = 0;
+let tourFrac = 0;
+let tourPaused = 0;
+const tourBtn = document.getElementById('tour-btn');
+if (tours.length > 0) tourBtn.style.display = 'block';
+
+function startTour(idx) {{
+  activeTour = tours[idx || 0];
+  tourWpIdx = 0; tourFrac = 0; tourPaused = 0;
+  controls.enabled = false;
+  tourBtn.textContent = 'Stop Tour';
+  const desc = document.getElementById('tour-desc');
+  if (activeTour.waypoints[0].desc) {{ desc.textContent = activeTour.waypoints[0].desc; desc.style.display = 'block'; }}
+}}
+function stopTour() {{
+  activeTour = null;
+  controls.enabled = true;
+  tourBtn.textContent = 'Start Tour';
+  document.getElementById('tour-desc').style.display = 'none';
+}}
+function toggleTour() {{ if (activeTour) stopTour(); else startTour(0); }}
+if (tourBtn) tourBtn.onclick = toggleTour;
+
+function updateTour(dt) {{
+  if (!activeTour) return;
+  const wp = activeTour.waypoints;
+  if (tourPaused > 0) {{ tourPaused -= dt; return; }}
+  const a = wp[tourWpIdx], b = wp[(tourWpIdx + 1) % wp.length];
+  const dx = b.pos[0]-a.pos[0], dy = b.pos[1]-a.pos[1], dz = b.pos[2]-a.pos[2];
+  const dist = Math.sqrt(dx*dx+dy*dy+dz*dz) || 1;
+  tourFrac += (activeTour.speed * dt) / dist;
+  if (tourFrac >= 1) {{
+    tourWpIdx++;
+    if (tourWpIdx >= wp.length - 1) {{
+      if (activeTour.loop) tourWpIdx = 0; else {{ stopTour(); return; }}
+    }}
+    tourFrac = 0;
+    tourPaused = wp[tourWpIdx].pause;
+    const desc = document.getElementById('tour-desc');
+    if (wp[tourWpIdx].desc) {{ desc.textContent = wp[tourWpIdx].desc; desc.style.display = 'block'; }}
+    else desc.style.display = 'none';
+  }}
+  const na = wp[tourWpIdx], nb = wp[(tourWpIdx+1) % wp.length];
+  const f = tourFrac;
+  camera.position.set(na.pos[0]+(nb.pos[0]-na.pos[0])*f, na.pos[1]+(nb.pos[1]-na.pos[1])*f, na.pos[2]+(nb.pos[2]-na.pos[2])*f);
+  const lx = na.look[0]+(nb.look[0]-na.look[0])*f, ly = na.look[1]+(nb.look[1]-na.look[1])*f, lz = na.look[2]+(nb.look[2]-na.look[2])*f;
+  camera.lookAt(lx, ly, lz);
+}}"#
+    )
+    .unwrap();
+
+    // Auto-start if first tour has autostart flag
+    if manifest.tours[0].autostart {
+        writeln!(js, "startTour(0);").unwrap();
+    }
 }
