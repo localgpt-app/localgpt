@@ -4,7 +4,7 @@ sidebar_position: 14.1
 
 # Gen Tools Reference
 
-The gen agent has access to 31 specialized tools organized by category.
+The gen agent has access to 32 specialized tools organized by category. When running as an [MCP server](/docs/gen/mcp-server), 25 additional tools are available for characters, interactions, terrain, UI, and physics.
 
 ## Scene Query
 
@@ -18,9 +18,9 @@ The gen agent has access to 31 specialized tools organized by category.
 
 | Tool | Description |
 |------|-------------|
-| `gen_spawn_primitive` | Spawn geometric primitives (sphere, cube, cylinder, torus, etc.) |
-| `gen_spawn_entities` | Spawn multiple entities in a single batch call |
-| `gen_spawn_mesh` | Spawn custom mesh geometry |
+| `gen_spawn_primitive` | Spawn geometric primitives (sphere, cube, cylinder, torus, pyramid, etc.) |
+| `gen_spawn_batch` | Spawn multiple primitives in a single batch call |
+| `gen_spawn_mesh` | Spawn custom mesh geometry from raw vertex data |
 | `gen_load_gltf` | Load entities from a glTF/GLB file |
 
 ## Entity Modification
@@ -28,9 +28,9 @@ The gen agent has access to 31 specialized tools organized by category.
 | Tool | Description |
 |------|-------------|
 | `gen_modify_entity` | Modify entity transform, material, or visibility |
-| `gen_modify_entities` | Modify multiple entities in a single batch call |
+| `gen_modify_batch` | Modify multiple entities in a single batch call |
 | `gen_delete_entity` | Remove an entity and its children |
-| `gen_delete_entities` | Delete multiple entities in a single batch call |
+| `gen_delete_batch` | Delete multiple entities in a single batch call |
 
 ## Camera & Environment
 
@@ -47,6 +47,7 @@ The gen agent has access to 31 specialized tools organized by category.
 | `gen_export_screenshot` | Export high-res image to file |
 | `gen_export_gltf` | Export scene as glTF/GLB file |
 | `gen_export_world` | Export world with localized mesh assets for portability |
+| `gen_export_html` | Export world as self-contained HTML with Three.js (includes procedural audio via Web Audio API) |
 
 ## Behaviors
 

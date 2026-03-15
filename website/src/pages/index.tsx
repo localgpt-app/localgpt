@@ -4,6 +4,7 @@ import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import HomepageFeatures from '@site/src/components/HomepageFeatures';
+import {templates} from '@site/src/data/templates';
 
 import styles from './index.module.css';
 
@@ -95,6 +96,53 @@ function HomepageHeader() {
   );
 }
 
+function TemplatesPreview() {
+  const categories = ['fantasy', 'sci-fi', 'horror', 'urban'] as const;
+  return (
+    <section style={{padding: '4rem 0', background: 'var(--ifm-background-surface-color)'}}>
+      <div className="container">
+        <h2 style={{textAlign: 'center', marginBottom: '0.5rem'}}>World Templates</h2>
+        <p style={{textAlign: 'center', opacity: 0.8, marginBottom: '2.5rem'}}>
+          Jumpstart your project with production-ready environments. Fully explorable, customizable, and free.
+        </p>
+        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem'}}>
+          {templates.slice(0, 8).map(t => (
+            <Link
+              key={t.id}
+              to={`/templates/${t.slug}`}
+              style={{
+                display: 'block',
+                padding: '1.25rem',
+                borderRadius: '8px',
+                background: 'var(--ifm-card-background-color)',
+                border: '1px solid var(--ifm-color-emphasis-200)',
+                textDecoration: 'none',
+                color: 'inherit',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+              }}>
+              <span style={{
+                display: 'inline-block',
+                fontSize: '0.7rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: 'var(--ifm-color-primary)',
+                marginBottom: '0.25rem',
+              }}>{t.category}</span>
+              <h4 style={{margin: '0 0 0.4rem', color: 'var(--ifm-color-primary)'}}>{t.title}</h4>
+              <p style={{fontSize: '0.85rem', opacity: 0.8, margin: 0, lineHeight: 1.4}}>{t.description.split('.')[0]}.</p>
+            </Link>
+          ))}
+        </div>
+        <div style={{textAlign: 'center', marginTop: '2rem'}}>
+          <Link className="button button--primary button--lg" to="/templates">
+            Browse All Templates
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function Home(): JSX.Element {
   const {siteConfig} = useDocusaurusContext();
   return (
@@ -104,6 +152,7 @@ export default function Home(): JSX.Element {
       <HomepageHeader />
       <main>
         <HomepageFeatures />
+        <TemplatesPreview />
       </main>
     </Layout>
   );

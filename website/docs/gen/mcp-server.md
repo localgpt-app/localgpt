@@ -25,19 +25,73 @@ Then configure your AI tool to connect to it (see sections below).
 
 The MCP server exposes gen tools plus core LocalGPT tools:
 
-### Gen Tools (28 tools)
+### Gen Tools (32 core tools)
 
 - **Scene query** — `gen_scene_info`, `gen_screenshot`, `gen_entity_info`
-- **Entity creation** — `gen_spawn_primitive`, `gen_spawn_entities`, `gen_spawn_mesh`, `gen_load_gltf`
-- **Entity modification** — `gen_modify_entity`, `gen_modify_entities`, `gen_delete_entity`, `gen_delete_entities`
+- **Entity creation** — `gen_spawn_primitive`, `gen_spawn_batch`, `gen_spawn_mesh`, `gen_load_gltf`
+- **Entity modification** — `gen_modify_entity`, `gen_modify_batch`, `gen_delete_entity`, `gen_delete_batch`
 - **Camera & environment** — `gen_set_camera`, `gen_set_light`, `gen_set_environment`
 - **Audio** — `gen_set_ambience`, `gen_audio_emitter`, `gen_modify_audio`, `gen_audio_info`
 - **Behaviors** — `gen_add_behavior`, `gen_remove_behavior`, `gen_list_behaviors`, `gen_pause_behaviors`
 - **World skills** — `gen_save_world`, `gen_load_world`, `gen_export_world`, `gen_clear_scene`
-- **Export** — `gen_export_screenshot`, `gen_export_gltf`
+- **Export** — `gen_export_screenshot`, `gen_export_gltf`, `gen_export_html`
 - **Undo/Redo** — `gen_undo`, `gen_redo`, `gen_undo_info`
 
 See [Gen Tools Reference](/docs/gen/tools) for full documentation on each tool.
+
+### MCP-Only Tools (25 tools)
+
+These additional tools are available exclusively through the MCP server, enabling richer game-like world building:
+
+#### Avatar & Characters (5 tools)
+
+| Tool | Description |
+|------|-------------|
+| `gen_spawn_player` | Spawn a controllable player character with movement, camera, and collision |
+| `gen_set_spawn_point` | Set spawn/respawn location for the player |
+| `gen_add_npc` | Create an NPC with idle, patrol, or wander behavior |
+| `gen_set_npc_dialogue` | Attach a branching conversation tree to an NPC |
+| `gen_set_camera_mode` | Switch camera mode (first_person, third_person, top_down, fixed) |
+
+#### Interactions & Triggers (5 tools)
+
+| Tool | Description |
+|------|-------------|
+| `gen_add_trigger` | Add trigger+action pairs (proximity, click, area, collision, timer) |
+| `gen_add_teleporter` | Create a portal that teleports the player to a destination |
+| `gen_add_collectible` | Make an entity collectible with score value and pickup effects |
+| `gen_add_door` | Add interactive door behavior with optional key requirements |
+| `gen_link_entities` | Wire one entity's event to trigger another entity's action |
+
+#### Terrain & Landscape (5 tools)
+
+| Tool | Description |
+|------|-------------|
+| `gen_add_terrain` | Generate procedural terrain from Perlin/Simplex noise |
+| `gen_add_water` | Create a transparent animated water plane |
+| `gen_add_path` | Create walkable paths between waypoints |
+| `gen_add_foliage` | Scatter vegetation (trees, bushes, grass, flowers, rocks) |
+| `gen_set_sky` | Configure sky, sun direction, ambient light, and fog |
+
+#### In-World UI (5 tools)
+
+| Tool | Description |
+|------|-------------|
+| `gen_add_sign` | Place readable billboard text in the 3D world |
+| `gen_add_hud` | Add persistent screen-space HUD elements (score, health, timer) |
+| `gen_add_label` | Attach a floating name label to an entity |
+| `gen_add_tooltip` | Add contextual tooltips on proximity or look-at |
+| `gen_add_notification` | Show transient notification messages (toast, banner, achievement) |
+
+#### Physics (5 tools)
+
+| Tool | Description |
+|------|-------------|
+| `gen_set_physics` | Enable physics on an entity (dynamic, static, or kinematic body) |
+| `gen_add_collider` | Add collision shapes (box, sphere, capsule, cylinder, mesh) |
+| `gen_add_joint` | Create physical constraints between entities (fixed, revolute, spring, etc.) |
+| `gen_add_force` | Create force fields or apply impulses |
+| `gen_set_gravity` | Control gravity globally or per-zone (presets: earth, moon, mars, zero) |
 
 ### Core Tools
 

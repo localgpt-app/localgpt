@@ -73,6 +73,27 @@ Add to your `.mcp.json`:
 
 Full docs: [`website/docs/gen/index.md`](website/docs/gen/index.md) | [MCP Server](website/docs/gen/mcp-server.md)
 
+### Templates
+
+Jumpstart your project with ready-to-customize world templates:
+
+| Template | Category |
+|----------|----------|
+| [Medieval Fantasy Village](https://localgpt.app/templates/fantasy/medieval-village) | Fantasy |
+| [Enchanted Forest](https://localgpt.app/templates/fantasy/enchanted-forest) | Fantasy |
+| [Japanese Temple & Gardens](https://localgpt.app/templates/fantasy/japanese-temple) | Fantasy |
+| [Cozy Farm Village](https://localgpt.app/templates/fantasy/cozy-farm) | Fantasy |
+| [Winter Wonderland](https://localgpt.app/templates/fantasy/winter-wonderland) | Fantasy |
+| [Cyberpunk Neon City](https://localgpt.app/templates/urban/cyberpunk-city) | Urban |
+| [Modern City](https://localgpt.app/templates/urban/modern-city) | Urban |
+| [Space Station](https://localgpt.app/templates/sci-fi/space-station) | Sci-Fi |
+| [Underwater Ocean World](https://localgpt.app/templates/sci-fi/underwater-world) | Sci-Fi |
+| [Alien Bioluminescent World](https://localgpt.app/templates/sci-fi/alien-world) | Sci-Fi |
+| [Haunted House](https://localgpt.app/templates/horror/haunted-house) | Horror |
+| [Liminal Spaces / Backrooms](https://localgpt.app/templates/horror/backrooms) | Horror |
+
+Browse all templates: [localgpt.app/templates](https://localgpt.app/templates)
+
 Built something cool? Share on [Discord](https://discord.gg/spKRr6mRyp) or [YouTube](https://www.youtube.com/@localgpt-gen)!
 
 ---
