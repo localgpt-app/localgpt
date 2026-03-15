@@ -1,6 +1,6 @@
 //! World skill save/load — serialize scenes as complete skill directories.
 //!
-//! ## New format (v1 — RON)
+//! ## Format (v1 — RON)
 //!
 //! ```text
 //! world-name/
@@ -14,26 +14,10 @@
 //!   export/            — Generated on demand via gen_export_world tool
 //!     scene.glb        — OR scene.gltf + scene.bin (format selectable)
 //! ```
-//!
-//! ## Legacy format (v0 — TOML + glTF)
-//!
-//! ```text
-//! world-name/
-//!   SKILL.md       — Skill metadata
-//!   world.toml     — Manifest referencing sidecar files
-//!   scene.glb      — Geometry & materials (parametric info lost)
-//!   behaviors.toml — Behavior definitions
-//!   audio.toml     — Ambience + emitters
-//!   tours.toml     — Guided tours
-//! ```
-//!
-//! The loader auto-detects format: `world.ron` → new, `world.toml` → legacy.
 
 use std::path::{Path, PathBuf};
 
 use bevy::prelude::*;
-use serde::{Deserialize, Serialize};
-
 use localgpt_world_types as wt;
 
 use super::audio::AudioEngine;
@@ -42,126 +26,6 @@ use super::commands::*;
 use super::compat;
 use super::plugin::GenWorkspace;
 use super::registry::*;
-
-// ---------------------------------------------------------------------------
-// Legacy TOML data structures (kept for backward-compatible loading)
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Serialize, Deserialize)]
-struct LegacyManifest {
-    world: LegacyMeta,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    environment: Option<LegacyEnvironment>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    camera: Option<LegacyCamera>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    avatar: Option<AvatarDef>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct LegacyMeta {
-    name: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
-    #[serde(default = "default_scene_file")]
-    scene: String,
-    #[serde(default = "default_behaviors_file")]
-    behaviors: String,
-    #[serde(default = "default_audio_file")]
-    audio: String,
-    #[serde(default = "default_tours_file")]
-    tours: String,
-}
-
-fn default_scene_file() -> String {
-    "scene.glb".to_string()
-}
-fn default_behaviors_file() -> String {
-    "behaviors.toml".to_string()
-}
-fn default_audio_file() -> String {
-    "audio.toml".to_string()
-}
-fn default_tours_file() -> String {
-    "tours.toml".to_string()
-}
-
-/// Resolve a glTF file path with fallback logic:
-/// 1. Expand `~` and try as-is
-/// 2. Try `{workspace}/{path}`
-/// 3. Return None if nothing found
-fn resolve_gltf_path(path: &str, workspace: &Path) -> Option<PathBuf> {
-    // 1. Expand ~ and try as-is
-    let expanded = shellexpand::tilde(path).into_owned();
-    let p = std::path::Path::new(&expanded);
-    if p.exists() {
-        return p.canonicalize().ok();
-    }
-
-    // 2. {workspace}/{path}
-    let wp = workspace.join(&expanded);
-    if wp.exists() {
-        return wp.canonicalize().ok();
-    }
-
-    None
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct LegacyEnvironment {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    background_color: Option<[f32; 4]>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    ambient_intensity: Option<f32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    ambient_color: Option<[f32; 4]>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct LegacyCamera {
-    position: [f32; 3],
-    look_at: [f32; 3],
-    #[serde(default = "default_fov")]
-    fov_degrees: f32,
-}
-
-fn default_fov() -> f32 {
-    45.0
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct LegacyBehaviorsFile {
-    #[serde(default)]
-    behaviors: Vec<LegacyBehaviorEntry>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct LegacyBehaviorEntry {
-    entity: String,
-    #[serde(flatten)]
-    behavior: BehaviorDef,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct LegacyAudioFile {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    ambience: Option<LegacyAmbienceDef>,
-    #[serde(default)]
-    emitters: Vec<AudioEmitterCmd>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct LegacyAmbienceDef {
-    layers: Vec<AmbienceLayerDef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    master_volume: Option<f32>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct LegacyToursFile {
-    #[serde(default)]
-    tours: Vec<TourDef>,
-}
 
 // ---------------------------------------------------------------------------
 // Environment snapshot (passed from plugin.rs which has access to Bevy resources)
@@ -586,18 +450,14 @@ To export for external viewers, use `gen_export_world` with format "glb" or "glt
 }
 
 // ---------------------------------------------------------------------------
-// Load world (auto-detects RON vs legacy TOML)
+// Load world (RON format)
 // ---------------------------------------------------------------------------
 
 /// Result of parsing a world skill directory (returned to plugin.rs for ECS application).
 pub struct WorldLoadResult {
     pub world_path: String,
-    /// glTF scene path (legacy format only).
-    pub scene_path: Option<String>,
-    /// Entities to spawn directly (RON format — no glTF needed).
+    /// Entities to spawn directly from WorldManifest.
     pub world_entities: Vec<wt::WorldEntity>,
-    /// Behaviors grouped by entity name (legacy format).
-    pub behaviors: Vec<(String, Vec<BehaviorDef>)>,
     pub ambience: Option<AmbienceCmd>,
     pub emitters: Vec<AudioEmitterCmd>,
     pub environment: Option<EnvironmentCmd>,
@@ -618,14 +478,14 @@ pub fn handle_load_world(
     let world_dir = resolve_world_path(path, &workspace.path)
         .ok_or_else(|| format!("World skill not found: {}", path))?;
 
-    // Try RON format first, fall back to legacy TOML
     let ron_path = world_dir.join("world.ron");
-    if ron_path.exists() {
-        load_ron_world(&world_dir, &ron_path)
-    } else {
-        let toml_path = world_dir.join("world.toml");
-        load_legacy_world(&world_dir, &toml_path)
+    if !ron_path.exists() {
+        return Err(format!(
+            "No world.ron found in {}. Save a world first with gen_save_world.",
+            world_dir.display()
+        ));
     }
+    load_ron_world(&world_dir, &ron_path)
 }
 
 /// Load a world from the new RON format.
@@ -718,9 +578,7 @@ fn load_ron_world(world_dir: &Path, ron_path: &Path) -> Result<WorldLoadResult, 
 
     Ok(WorldLoadResult {
         world_path: world_dir.to_string_lossy().into_owned(),
-        scene_path: None, // No glTF needed — spawn from WorldEntity
         world_entities: scene_entities,
-        behaviors: Vec::new(), // Behaviors are inline in world_entities
         ambience,
         emitters,
         environment,
@@ -730,104 +588,6 @@ fn load_ron_world(world_dir: &Path, ron_path: &Path) -> Result<WorldLoadResult, 
         entity_count,
         behavior_count,
         edit_history,
-    })
-}
-
-/// Load a world from the legacy TOML + glTF format.
-fn load_legacy_world(world_dir: &Path, toml_path: &Path) -> Result<WorldLoadResult, String> {
-    let manifest_str = std::fs::read_to_string(toml_path)
-        .map_err(|e| format!("Failed to read world.toml: {}", e))?;
-    let manifest: LegacyManifest =
-        toml::from_str(&manifest_str).map_err(|e| format!("Failed to parse world.toml: {}", e))?;
-
-    // Resolve scene.glb path
-    let scene_path = {
-        let p = world_dir.join(&manifest.world.scene);
-        if p.exists() {
-            Some(p.to_string_lossy().into_owned())
-        } else {
-            None
-        }
-    };
-
-    // Read behaviors.toml
-    let behaviors_path = world_dir.join(&manifest.world.behaviors);
-    let mut behaviors: Vec<(String, Vec<BehaviorDef>)> = Vec::new();
-    if behaviors_path.exists() {
-        let s = std::fs::read_to_string(&behaviors_path)
-            .map_err(|e| format!("Failed to read behaviors.toml: {}", e))?;
-        let file: LegacyBehaviorsFile =
-            toml::from_str(&s).map_err(|e| format!("Failed to parse behaviors.toml: {}", e))?;
-
-        let mut map: std::collections::HashMap<String, Vec<BehaviorDef>> =
-            std::collections::HashMap::new();
-        for entry in file.behaviors {
-            map.entry(entry.entity).or_default().push(entry.behavior);
-        }
-        behaviors = map.into_iter().collect();
-    }
-
-    // Read audio.toml
-    let audio_path = world_dir.join(&manifest.world.audio);
-    let mut ambience: Option<AmbienceCmd> = None;
-    let mut emitters: Vec<AudioEmitterCmd> = Vec::new();
-    if audio_path.exists() {
-        let s = std::fs::read_to_string(&audio_path)
-            .map_err(|e| format!("Failed to read audio.toml: {}", e))?;
-        let audio_file: LegacyAudioFile =
-            toml::from_str(&s).map_err(|e| format!("Failed to parse audio.toml: {}", e))?;
-
-        if let Some(amb) = audio_file.ambience {
-            ambience = Some(AmbienceCmd {
-                layers: amb.layers,
-                master_volume: amb.master_volume,
-                reverb: None,
-            });
-        }
-        emitters = audio_file.emitters;
-    }
-
-    let environment = manifest.environment.map(|env| EnvironmentCmd {
-        background_color: env.background_color,
-        ambient_light: env.ambient_intensity,
-        ambient_color: env.ambient_color,
-    });
-
-    let camera = manifest.camera.map(|cam| CameraCmd {
-        position: cam.position,
-        look_at: cam.look_at,
-        fov_degrees: cam.fov_degrees,
-    });
-
-    let avatar = manifest.avatar;
-
-    // Read tours.toml
-    let tours_path = world_dir.join(&manifest.world.tours);
-    let mut tours: Vec<TourDef> = Vec::new();
-    if tours_path.exists() {
-        let s = std::fs::read_to_string(&tours_path)
-            .map_err(|e| format!("Failed to read tours.toml: {}", e))?;
-        let tours_file: LegacyToursFile =
-            toml::from_str(&s).map_err(|e| format!("Failed to parse tours.toml: {}", e))?;
-        tours = tours_file.tours;
-    }
-
-    let behavior_count: usize = behaviors.iter().map(|(_, v)| v.len()).sum();
-
-    Ok(WorldLoadResult {
-        world_path: world_dir.to_string_lossy().into_owned(),
-        scene_path,
-        world_entities: Vec::new(), // Legacy — no inline entities
-        entity_count: 0,            // Will be counted after glTF loads
-        behavior_count,
-        behaviors,
-        ambience,
-        emitters,
-        environment,
-        camera,
-        avatar,
-        tours,
-        edit_history: None, // Legacy format has no history
     })
 }
 
@@ -868,21 +628,19 @@ fn load_edit_history(path: &std::path::Path) -> Option<wt::EditHistory> {
     Some(wt::EditHistory { edits, cursor })
 }
 
-/// Resolve a world skill path. Now checks for both world.ron and world.toml.
+/// Resolve a world skill path by looking for `world.ron`.
 fn resolve_world_path(path: &str, workspace: &Path) -> Option<PathBuf> {
     let expanded = shellexpand::tilde(path).into_owned();
 
     // 1. As-is
     let p = PathBuf::from(&expanded);
-    if p.is_dir() && (p.join("world.ron").exists() || p.join("world.toml").exists()) {
+    if p.is_dir() && p.join("world.ron").exists() {
         return Some(p);
     }
 
     // 2. {workspace}/skills/{name}
     let skill_path = workspace.join("skills").join(&expanded);
-    if skill_path.is_dir()
-        && (skill_path.join("world.ron").exists() || skill_path.join("world.toml").exists())
-    {
+    if skill_path.is_dir() && skill_path.join("world.ron").exists() {
         return Some(skill_path);
     }
 
@@ -896,27 +654,6 @@ fn resolve_world_path(path: &str, workspace: &Path) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // Legacy format backward compatibility test
-    #[test]
-    fn backward_compatible_manifest_without_avatar_or_tours() {
-        let toml_str = r#"
-[world]
-name = "legacy_world"
-scene = "scene.glb"
-behaviors = "behaviors.toml"
-audio = "audio.toml"
-
-[camera]
-position = [5.0, 5.0, 5.0]
-look_at = [0.0, 0.0, 0.0]
-fov_degrees = 45.0
-"#;
-        let parsed: LegacyManifest = toml::from_str(toml_str).unwrap();
-        assert_eq!(parsed.world.name, "legacy_world");
-        assert!(parsed.avatar.is_none());
-        assert_eq!(parsed.world.tours, "tours.toml");
-    }
 
     #[test]
     fn ron_manifest_roundtrip() {

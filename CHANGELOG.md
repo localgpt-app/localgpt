@@ -40,8 +40,8 @@ Thanks to **[@itripn](https://github.com/itripn)** (Ron Forrester) for fixing to
 - **Gen undo/redo system** — full undo/redo support with stable entity IDs, LLM tools (`gen_undo`, `gen_redo`), and persistence via `history.jsonl`. Covers entities, lights, behaviors, camera, and environment.
 - **Gen audio undo/redo** — audio emitter commands now support full undo/redo with `gen_audio_emitter` and `gen_modify_audio` operations reversible.
 - **Gen behavior system** — declarative entity animations: `orbit`, `spin`, `bob`, `look_at`, `pulse`, `path_follow`, `bounce`. Behaviors stack and persist through save/load.
-- **Gen world save/load** — complete worlds serialized as skills (`SKILL.md` + `world.toml` + `scene.glb` + `behaviors.toml` + `audio.toml` + `tours.toml`). Includes `gen_save_world`, `gen_load_world`, and `gen_clear_scene` tools.
-- **Gen avatar and tours** — `[avatar]` section in `world.toml` for user presence; `tours.toml` for guided waypoint sequences with descriptions and movement modes.
+- **Gen world save/load** — complete worlds serialized as skills (`SKILL.md` + `world.ron`). Includes `gen_save_world`, `gen_load_world`, and `gen_clear_scene` tools.
+- **Gen avatar and tours** — avatar and tours sections in `world.ron` for user presence and guided waypoint sequences with descriptions and movement modes.
 - **Gen parametric shapes** — unified world data model with `shape` field on entities. Supported: `box`, `sphere`, `cylinder`, `capsule`, `plane`, `torus`.
 - **Gen material properties** — full PBR material support: `alpha_mode`, `unlit`, `double_sided`, `reflectance`, `emissive`. Exposed in spawn and modify tools.
 - **Gen light properties** — `range`, `outer_angle`, `inner_angle` for spot lights; `direction` for directional/spot lights. All persisted and exposed in `entity_info`.

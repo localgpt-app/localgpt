@@ -2124,7 +2124,7 @@ impl Tool for GenSaveWorldTool {
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "gen_save_world".into(),
-            description: "Save the current scene as a world skill. Creates a skill directory with scene.glb, behaviors.toml, audio.toml, world.toml, and SKILL.md. The world can be loaded later with gen_load_world or invoked as a skill.".into(),
+            description: "Save the current scene as a world skill. Creates a skill directory with world.ron (RON format manifest with all entities, behaviors, audio, tours inline) and SKILL.md. The world can be loaded later with gen_load_world or invoked as a skill.".into(),
             parameters: json!({
                 "type": "object",
                 "properties": {

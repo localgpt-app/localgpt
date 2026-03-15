@@ -48,7 +48,6 @@ fundsp = "0.23"
 cpal = "0.17"
 
 # World skill serialization
-toml = "0.8"
 ron = "0.9"
 
 # Physics and character controller (P1, P5)

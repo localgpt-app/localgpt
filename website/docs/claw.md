@@ -625,7 +625,7 @@ This document tracks feature parity across fourteen implementations of the perso
 | Entity spawning (11 primitives) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Cuboid, sphere, cylinder, cone, capsule, torus, plane, pyramid, tetrahedron, icosahedron, wedge |
 | Batch entity operations | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | spawn/modify/delete batch |
 | PBR materials & lighting | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Metallic/roughness/emissive + directional/point/spot lights |
-| World skills (save/load/export) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | RON + TOML + GLB formats |
+| World skills (save/load/export) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | RON format with inline entities |
 | Behavior system (7 types) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Orbit, spin, bob, look_at, pulse, path_follow, bounce |
 | Guided tours | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Waypoints with walk/fly/teleport modes |
 | Avatar/player control | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | WASD + mouse, PoV switching; physics TBD |

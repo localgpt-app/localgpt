@@ -4,7 +4,7 @@ sidebar_position: 14.4
 
 # World Skills
 
-Save and load complete worlds as reusable skills. Worlds are stored as skill directories containing all scene data.
+Save and load complete worlds as reusable skills. Worlds are stored as skill directories containing all scene data in a single RON manifest.
 
 ## World Format
 
@@ -13,59 +13,56 @@ A saved world consists of:
 ```
 ~/.localgpt/workspace/skills/my-world/
 ├── SKILL.md          # Skill description for LLM context
-├── world.toml        # World manifest (environment, camera, avatar)
-├── scene.glb         # glTF binary with all entities
-├── behaviors.toml    # Behavior definitions
-├── audio.toml        # Audio emitter and ambience config
-└── tours.toml        # Guided tour definitions
+├── world.ron         # WorldManifest (entities, materials, behaviors, audio, tours, camera, avatar)
+├── history.jsonl     # Undo/redo edit history
+└── assets/
+    └── meshes/       # Copied mesh assets referenced by world.ron
+        ├── tree.glb
+        └── rock.glb
 ```
 
-### world.toml
+### world.ron
 
-The world manifest configures environment, camera, and avatar settings:
+The `world.ron` file is a RON (Rusty Object Notation) manifest containing everything about the world inline — entities with parametric shapes, PBR materials, behaviors, audio, environment, camera, avatar, and tours. This format preserves full parametric shape data (unlike glTF exports which bake geometry).
 
-```toml
-[environment]
-background_color = [0.1, 0.1, 0.2]
-ambient_light = [0.2, 0.2, 0.3]
+Example structure (simplified):
 
-[camera]
-position = [0, 5, 10]
-look_at = [0, 0, 0]
-fov = 60
-
-[avatar]
-# User presence in the world
-spawn_position = [0, 1, 5]
-pov_mode = "first_person"  # or "third_person"
-movement_speed = 5.0
-height = 1.8
-# Optional: 3D model for third-person view
-# model = "avatar.glb"
-```
-
-### tours.toml
-
-Define guided tours with waypoints:
-
-```toml
-[[tour]]
-name = "overview"
-description = "A quick tour of the main areas"
-
-[[tour.waypoint]]
-position = [0, 3, 10]
-look_at = [0, 0, 0]
-description = "Welcome to the scene overview"
-pause_seconds = 3
-movement = "fly"  # "walk", "fly", or "teleport"
-
-[[tour.waypoint]]
-position = [10, 2, 0]
-look_at = [0, 1, 0]
-description = "Here's the main structure"
-pause_seconds = 5
-movement = "fly"
+```ron
+(
+    version: 1,
+    meta: ( name: "forest-clearing", description: Some("A peaceful clearing") ),
+    environment: Some((
+        background_color: Some([0.53, 0.81, 0.92, 1.0]),
+        ambient_intensity: Some(0.3),
+    )),
+    camera: Some(( position: [0.0, 5.0, 10.0], look_at: [0.0, 0.0, 0.0], fov_degrees: 45.0 )),
+    avatar: Some((
+        spawn_position: [0.0, 1.8, 5.0],
+        spawn_look_at: [0.0, 0.0, 0.0],
+        pov: first_person,
+        movement_speed: 5.0,
+        height: 1.8,
+    )),
+    tours: [
+        (
+            name: "overview",
+            description: Some("A quick tour of the main areas"),
+            speed: 3.0,
+            mode: fly,
+            waypoints: [
+                ( position: [0.0, 3.0, 10.0], look_at: [0.0, 0.0, 0.0], description: Some("Welcome"), pause_duration: 3.0 ),
+                ( position: [10.0, 2.0, 0.0], look_at: [0.0, 1.0, 0.0], description: Some("Main structure"), pause_duration: 5.0 ),
+            ],
+        ),
+    ],
+    entities: [
+        (
+            id: (1), name: "ground",
+            shape: Some(plane( x: 50.0, z: 50.0 )),
+            material: Some(( color: [0.2, 0.5, 0.1, 1.0], roughness: 0.9 )),
+        ),
+    ],
+)
 ```
 
 ## Saving Worlds
@@ -115,15 +112,21 @@ gen_clear_scene({
 })
 ```
 
-## Deferred Loading
+## HTML Export
 
-glTF scenes load asynchronously. When loading a world:
+Export a world as a self-contained HTML file with Three.js rendering:
 
-1. The glTF file is parsed and entities spawn over several frames
-2. Behaviors and audio emitters are applied after entities spawn
-3. The response confirms when loading is complete
+```json
+gen_export_html()
+```
 
-This ensures smooth loading even for complex scenes.
+The exported HTML includes:
+- Full 3D scene with PBR materials and lighting
+- WASD keyboard navigation and orbit controls
+- Procedural audio synthesis (Web Audio API)
+- Guided tour playback
+- Embeddable via `<iframe>` with postMessage API for parent-frame control
+- SEO metadata (Open Graph, JSON-LD structured data)
 
 ## Showcase
 

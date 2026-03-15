@@ -380,9 +380,7 @@ async fn handle_gen_command(
                     let mut others = Vec::new();
                     for skill in skills {
                         let skill_dir = skill.path.parent().unwrap_or(&skill.path);
-                        if skill_dir.join("world.ron").exists()
-                            || skill_dir.join("world.toml").exists()
-                        {
+                        if skill_dir.join("world.ron").exists() {
                             worlds.push(skill);
                         } else {
                             others.push(skill);
