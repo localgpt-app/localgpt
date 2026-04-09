@@ -1,0 +1,61 @@
+# Dockerfile.gen — headless localgpt-gen MCP server for registry publishing.
+#
+# Build:
+#   docker build -t ghcr.io/localgpt-app/localgpt-gen:0.3.5 \
+#                -t ghcr.io/localgpt-app/localgpt-gen:latest \
+#                -f Dockerfile.gen .
+#
+# Run (stdio MCP):
+#   docker run --rm -i ghcr.io/localgpt-app/localgpt-gen:0.3.5 mcp-server --headless
+
+FROM ubuntu:24.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH=/usr/local/cargo/bin:${PATH}
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       ca-certificates curl build-essential pkg-config \
+       libssl-dev libasound2-dev libudev-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+
+WORKDIR /app
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY bridges ./bridges
+
+RUN cargo build --release -p localgpt-gen
+
+FROM ubuntu:24.04 AS runtime
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libasound2t64 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --system --gid 10001 localgpt \
+    && useradd --system --uid 10001 --gid localgpt --create-home --home-dir /home/localgpt localgpt \
+    && mkdir -p /home/localgpt/.local/share/localgpt/workspace \
+               /home/localgpt/.local/state/localgpt \
+               /home/localgpt/.cache/localgpt \
+    && chown -R localgpt:localgpt /home/localgpt
+
+COPY --from=builder /app/target/release/localgpt-gen /usr/local/bin/localgpt-gen
+
+# MCP Registry namespace verification labels
+LABEL org.opencontainers.image.source="https://github.com/localgpt-app/localgpt"
+LABEL org.opencontainers.image.description="LocalGPT Gen — AI-driven 3D world builder MCP server"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL io.modelcontextprotocol.name="io.github.localgpt-app/localgpt-gen"
+
+USER localgpt:localgpt
+WORKDIR /home/localgpt
+
+ENTRYPOINT ["localgpt-gen"]
+CMD ["mcp-server", "--headless"]

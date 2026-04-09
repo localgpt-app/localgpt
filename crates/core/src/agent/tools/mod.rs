@@ -32,6 +32,13 @@ pub trait Tool: Send + Sync {
     fn name(&self) -> &str;
     fn schema(&self) -> ToolSchema;
     async fn execute(&self, arguments: &str) -> Result<String>;
+
+    /// MCP tool annotations (readOnlyHint, destructiveHint, etc.).
+    ///
+    /// Returns `None` by default. Override to provide annotations per the MCP spec.
+    fn annotations(&self) -> Option<Value> {
+        None
+    }
 }
 
 /// Create the safe (mobile-compatible) tools: memory search, memory get, web fetch, web search.

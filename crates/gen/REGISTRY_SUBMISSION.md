@@ -32,7 +32,7 @@ Build and push:
 
 ```bash
 # From the repo root
-docker build -t ghcr.io/localgpt-app/localgpt-gen:0.3.4 \
+docker build -t ghcr.io/localgpt-app/localgpt-gen:0.3.5 \
              -t ghcr.io/localgpt-app/localgpt-gen:latest \
              -f Dockerfile .
 
@@ -40,7 +40,7 @@ docker build -t ghcr.io/localgpt-app/localgpt-gen:0.3.4 \
 echo $GITHUB_TOKEN | docker login ghcr.io -u localgpt-app --password-stdin
 
 # Push
-docker push ghcr.io/localgpt-app/localgpt-gen:0.3.4
+docker push ghcr.io/localgpt-app/localgpt-gen:0.3.5
 docker push ghcr.io/localgpt-app/localgpt-gen:latest
 ```
 
@@ -135,9 +135,9 @@ The `server.json` in the current directory is picked up automatically.
 **Name:** `io.github.localgpt-app/localgpt-gen`
 **Title:** LocalGPT Gen
 **Description:** AI-driven 3D world builder: Bevy visuals, procedural audio, and entity behaviors.
-**Version:** 0.3.4
+**Version:** 0.3.5
 **Transport:** stdio
-**Install:** `docker run --rm -i ghcr.io/localgpt-app/localgpt-gen:0.3.4 mcp-server`
+**Install:** `docker run --rm -i ghcr.io/localgpt-app/localgpt-gen:0.3.5 mcp-server`
 **Docs:** https://localgpt.app
 
 ---

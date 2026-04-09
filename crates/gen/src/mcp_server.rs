@@ -12,7 +12,10 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use async_trait::async_trait;
+use serde_json::{Value, json};
 
+use localgpt_core::agent::providers::ToolSchema;
 use localgpt_core::agent::tools::Tool;
 use localgpt_core::config::Config;
 use localgpt_core::mcp::server::ToolHandler;
@@ -100,5 +103,146 @@ pub fn create_mcp_tools(bridge: Arc<GenBridge>, config: &Config) -> Result<Vec<B
         tracker,
     ));
 
+    // Wrap all tools with MCP annotations (readOnlyHint, destructiveHint, etc.)
+    let tools = tools.into_iter().map(|t| annotate_tool(t)).collect();
+
     Ok(tools)
+}
+
+// ---------------------------------------------------------------------------
+// MCP tool annotations
+// ---------------------------------------------------------------------------
+
+/// Wraps an existing tool to add MCP annotations.
+struct AnnotatedTool {
+    inner: Box<dyn Tool>,
+    tool_annotations: Value,
+}
+
+#[async_trait]
+impl Tool for AnnotatedTool {
+    fn name(&self) -> &str {
+        self.inner.name()
+    }
+
+    fn schema(&self) -> ToolSchema {
+        self.inner.schema()
+    }
+
+    fn annotations(&self) -> Option<Value> {
+        Some(self.tool_annotations.clone())
+    }
+
+    async fn execute(&self, arguments: &str) -> Result<String> {
+        self.inner.execute(arguments).await
+    }
+}
+
+/// Wrap a tool with MCP annotations based on its name.
+fn annotate_tool(tool: Box<dyn Tool>) -> Box<dyn Tool> {
+    let annotations = tool_annotations(tool.name());
+    Box::new(AnnotatedTool {
+        inner: tool,
+        tool_annotations: annotations,
+    })
+}
+
+/// Return MCP annotations for a tool based on its name.
+///
+/// Categories:
+/// - **read-only**: query/export/status tools that don't mutate scene state
+/// - **destructive**: delete/clear tools that remove entities irreversibly
+/// - **idempotent**: setters that produce the same result when called repeatedly
+/// - **default**: mutating but non-destructive, non-idempotent (spawns, adds)
+fn tool_annotations(name: &str) -> Value {
+    // Read-only tools — inspect scene state, export files, query status
+    const READ_ONLY: &[&str] = &[
+        "gen_scene_info",
+        "gen_entity_info",
+        "gen_screenshot",
+        "gen_audio_info",
+        "gen_list_behaviors",
+        "gen_undo_info",
+        "gen_export_screenshot",
+        "gen_export_gltf",
+        "gen_export_html",
+        "gen_export_world",
+        "gen_list_experiments",
+        "gen_experiment_status",
+        "gen_validate_navigability",
+        "gen_render_depth",
+        "gen_preview_world",
+        "gen_check_drift",
+        "gen_query_terrain_height",
+        "gen_generation_status",
+        "gen_npc_observe",
+        "gen_list_assets",
+        "gen_asset_status",
+        "get_avatar_state",
+        "memory_search",
+        "memory_get",
+        "web_fetch",
+        "web_search",
+    ];
+
+    // Destructive tools — irreversibly remove entities or clear scene
+    const DESTRUCTIVE: &[&str] = &[
+        "gen_delete_entity",
+        "gen_delete_batch",
+        "gen_clear_scene",
+        "gen_unload_region",
+    ];
+
+    // Idempotent tools — setters that produce the same result on repeat calls
+    const IDEMPOTENT: &[&str] = &[
+        "gen_modify_entity",
+        "gen_modify_batch",
+        "gen_set_camera",
+        "gen_set_camera_mode",
+        "gen_set_light",
+        "gen_set_environment",
+        "gen_set_sky",
+        "gen_set_ambience",
+        "gen_modify_audio",
+        "gen_set_physics",
+        "gen_set_gravity",
+        "gen_set_spawn_point",
+        "gen_set_npc_dialogue",
+        "gen_set_npc_brain",
+        "gen_set_npc_memory",
+        "gen_set_tier",
+        "gen_set_role",
+        "gen_modify_blockout",
+        "gen_bulk_modify",
+        "gen_edit_navmesh",
+        "gen_match_style",
+        "gen_pause_behaviors",
+        "move_avatar",
+        "look_avatar",
+        "teleport_avatar",
+    ];
+
+    if READ_ONLY.contains(&name) {
+        json!({
+            "readOnlyHint": true,
+            "destructiveHint": false,
+        })
+    } else if DESTRUCTIVE.contains(&name) {
+        json!({
+            "readOnlyHint": false,
+            "destructiveHint": true,
+        })
+    } else if IDEMPOTENT.contains(&name) {
+        json!({
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": true,
+        })
+    } else {
+        // Default: mutating, non-destructive, non-idempotent (spawns, adds, etc.)
+        json!({
+            "readOnlyHint": false,
+            "destructiveHint": false,
+        })
+    }
 }

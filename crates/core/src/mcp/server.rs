@@ -136,11 +136,17 @@ impl McpHandler for ToolHandler {
             .iter()
             .map(|t| {
                 let schema = t.schema();
-                json!({
+                let mut def = json!({
                     "name": schema.name,
                     "description": schema.description,
                     "inputSchema": schema.parameters,
-                })
+                });
+                if let Some(annotations) = t.annotations() {
+                    def.as_object_mut()
+                        .unwrap()
+                        .insert("annotations".into(), annotations);
+                }
+                def
             })
             .collect();
 

@@ -1,0 +1,27 @@
+# Smithery.ai MCP server configuration
+# https://smithery.ai/docs/publishing
+#
+# Publish: smithery mcp publish
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      workspace:
+        type: string
+        description: "Path to LocalGPT workspace directory"
+        default: "~/.local/share/localgpt/workspace"
+    required: []
+  commandFunction: |-
+    (config) => ({
+      command: "localgpt-gen",
+      args: ["mcp-server", "--headless"],
+      env: {
+        LOCALGPT_WORKSPACE: config.workspace || "~/.local/share/localgpt/workspace"
+      }
+    })
+
+build:
+  dockerfile: ../../Dockerfile.gen
+  dockerBuildContext: ../..

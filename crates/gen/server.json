@@ -3,7 +3,8 @@
   "name": "io.github.localgpt-app/localgpt-gen",
   "title": "LocalGPT Gen",
   "description": "AI-driven 3D world builder: Bevy visuals, procedural audio, and entity behaviors.",
-  "version": "0.3.4",
+  "version": "0.3.5",
+  "privacyPolicyUrl": "https://github.com/localgpt-app/localgpt/blob/main/crates/gen/PRIVACY.md",
   "websiteUrl": "https://localgpt.app",
   "repository": {
     "url": "https://github.com/localgpt-app/localgpt",
@@ -14,7 +15,7 @@
     {
       "registryType": "oci",
       "identifier": "ghcr.io/localgpt-app/localgpt-gen",
-      "version": "0.3.4",
+      "version": "0.3.5",
       "runtimeHint": "docker",
       "transport": {
         "type": "stdio"
