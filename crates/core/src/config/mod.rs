@@ -827,6 +827,11 @@ pub struct TelegramConfig {
     pub enabled: bool,
 
     pub api_token: String,
+
+    /// Optional Telegram forum topic ID for heartbeat/cron results.
+    /// When set, heartbeat alerts are routed to this topic instead of the general thread.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub heartbeat_topic_id: Option<i32>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
