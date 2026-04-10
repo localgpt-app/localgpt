@@ -147,6 +147,15 @@ pub struct AgentConfig {
     /// Default: ["Session Startup", "Red Lines"]. Empty array disables injection.
     #[serde(default = "default_post_compaction_sections")]
     pub post_compaction_sections: Vec<String>,
+
+    /// Save checkpoint of session transcript before compaction (enables restore).
+    /// Default: true.
+    #[serde(default = "default_true")]
+    pub checkpoints_enabled: bool,
+
+    /// Maximum compaction checkpoints to keep per session. Default: 5.
+    #[serde(default = "default_max_checkpoints")]
+    pub max_checkpoints: usize,
 }
 
 fn default_max_tool_repeats() -> usize {
@@ -163,6 +172,10 @@ fn default_session_max_age() -> u64 {
 
 fn default_session_max_count() -> usize {
     500
+}
+
+fn default_max_checkpoints() -> usize {
+    5
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1087,6 +1100,8 @@ impl Default for AgentConfig {
             session_max_age: default_session_max_age(), // 30 days
             session_max_count: default_session_max_count(), // 500 sessions
             post_compaction_sections: default_post_compaction_sections(),
+            checkpoints_enabled: true,
+            max_checkpoints: default_max_checkpoints(),
         }
     }
 }

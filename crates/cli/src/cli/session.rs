@@ -3,6 +3,7 @@
 use anyhow::Result;
 use clap::{Args, Subcommand};
 
+use localgpt_core::agent::checkpoint::{CheckpointManager, format_checkpoint_time};
 use localgpt_core::agent::{Session, get_sessions_dir_for_agent, list_sessions_for_agent};
 
 const DEFAULT_AGENT_ID: &str = "main";
@@ -25,6 +26,37 @@ pub enum SessionCommands {
     Branch {
         /// Session ID to branch from
         from_id: String,
+        /// Agent ID (default: "main")
+        #[arg(long, default_value = DEFAULT_AGENT_ID)]
+        agent: String,
+    },
+    /// List compaction checkpoints for a session
+    Checkpoints {
+        /// Session ID (uses most recent if omitted)
+        #[arg(long)]
+        session: Option<String>,
+        /// Agent ID (default: "main")
+        #[arg(long, default_value = DEFAULT_AGENT_ID)]
+        agent: String,
+    },
+    /// Restore a session from a compaction checkpoint
+    Restore {
+        /// Checkpoint number to restore from
+        checkpoint: u32,
+        /// Session ID (uses most recent if omitted)
+        #[arg(long)]
+        session: Option<String>,
+        /// Agent ID (default: "main")
+        #[arg(long, default_value = DEFAULT_AGENT_ID)]
+        agent: String,
+    },
+    /// Branch a new session from a compaction checkpoint
+    BranchCheckpoint {
+        /// Checkpoint number to branch from
+        checkpoint: u32,
+        /// Session ID containing the checkpoint
+        #[arg(long)]
+        session: Option<String>,
         /// Agent ID (default: "main")
         #[arg(long, default_value = DEFAULT_AGENT_ID)]
         agent: String,
@@ -63,7 +95,79 @@ pub async fn run(args: SessionArgs) -> Result<()> {
             println!("  New:  {}", new_id);
             println!("  Messages inherited: {}", msg_count);
         }
+        SessionCommands::Checkpoints { session, agent } => {
+            let session_id = resolve_session_id(session, &agent)?;
+            let mgr = CheckpointManager::from_agent(&agent)?;
+            let checkpoints = mgr.list_checkpoints(&session_id)?;
+
+            if checkpoints.is_empty() {
+                println!("No checkpoints found for session {}.", session_id);
+            } else {
+                println!(
+                    "Checkpoints for session {} ({} total):",
+                    session_id,
+                    checkpoints.len()
+                );
+                for cp in &checkpoints {
+                    let time = format_checkpoint_time(cp.created_at);
+                    let tokens = if let Some(after) = cp.tokens_after {
+                        format!("{} -> {} tokens", cp.tokens_before, after)
+                    } else {
+                        format!("{} tokens", cp.tokens_before)
+                    };
+                    println!(
+                        "  #{}: {} ({}, {} msgs)",
+                        cp.checkpoint_number, time, tokens, cp.message_count
+                    );
+                }
+            }
+        }
+        SessionCommands::Restore {
+            checkpoint,
+            session,
+            agent,
+        } => {
+            let session_id = resolve_session_id(session, &agent)?;
+            let mgr = CheckpointManager::from_agent(&agent)?;
+            let sessions_dir = get_sessions_dir_for_agent(&agent)?;
+
+            mgr.restore_checkpoint(&session_id, checkpoint, &sessions_dir)?;
+            println!(
+                "Restored session {} from checkpoint #{}.",
+                session_id, checkpoint
+            );
+        }
+        SessionCommands::BranchCheckpoint {
+            checkpoint,
+            session,
+            agent,
+        } => {
+            let session_id = resolve_session_id(session, &agent)?;
+            let mgr = CheckpointManager::from_agent(&agent)?;
+
+            let new_id = mgr.branch_from_checkpoint(&session_id, checkpoint, &agent)?;
+            println!(
+                "Branched from checkpoint #{} of session {}:",
+                checkpoint, session_id
+            );
+            println!("  New session: {}", new_id);
+        }
     }
 
     Ok(())
+}
+
+/// Resolve session ID: use provided value or find the most recent session
+fn resolve_session_id(session: Option<String>, agent: &str) -> Result<String> {
+    if let Some(id) = session {
+        return Ok(id);
+    }
+
+    let sessions = list_sessions_for_agent(agent)?;
+    sessions.first().map(|s| s.id.clone()).ok_or_else(|| {
+        anyhow::anyhow!(
+            "No sessions found for agent '{}'. Specify --session.",
+            agent
+        )
+    })
 }

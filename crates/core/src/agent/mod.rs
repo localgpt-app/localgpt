@@ -1,3 +1,4 @@
+pub mod checkpoint;
 pub mod compaction;
 pub mod failover;
 pub mod hardcoded_filters;
@@ -44,7 +45,7 @@ use anyhow::Result;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::config::{Config, SearchProviderType};
 use crate::memory::{MemoryChunk, MemoryManager};
@@ -1144,7 +1145,7 @@ impl Agent {
 
         // Check if we need to compact (hard limit)
         if self.should_compact() {
-            self.compact_session().await?;
+            self.compact_session_for_agent(agent_id).await?;
             if let Err(e) = self.session.save_for_agent(agent_id) {
                 debug!("Incremental session save failed: {}", e);
             }
@@ -1477,8 +1478,39 @@ impl Agent {
     }
 
     pub async fn compact_session(&mut self) -> Result<(usize, usize)> {
+        self.compact_session_for_agent(session::DEFAULT_AGENT_ID)
+            .await
+    }
+
+    pub async fn compact_session_for_agent(&mut self, agent_id: &str) -> Result<(usize, usize)> {
         let tokens_before = self.session.token_count();
         let messages_before = self.session.message_count();
+
+        // Save compaction checkpoint (best-effort — don't fail the compaction)
+        if self.app_config.agent.checkpoints_enabled {
+            match checkpoint::CheckpointManager::from_agent(agent_id) {
+                Ok(mgr) => {
+                    let mgr = mgr.with_max_checkpoints(self.app_config.agent.max_checkpoints);
+                    let session_dir =
+                        session::get_sessions_dir_for_agent(agent_id).unwrap_or_default();
+                    let session_file = session_dir.join(format!("{}.jsonl", self.session.id()));
+                    if session_file.exists()
+                        && let Err(e) = mgr.save_checkpoint(
+                            self.session.id(),
+                            &session_file,
+                            tokens_before,
+                            messages_before,
+                            "auto-threshold",
+                        )
+                    {
+                        warn!("Failed to save compaction checkpoint: {}", e);
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to initialize checkpoint manager: {}", e);
+                }
+            }
+        }
 
         // Trigger memory flush before compacting (if not already done)
         if self.session.should_memory_flush() {
