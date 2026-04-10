@@ -15,7 +15,7 @@ This document tracks feature parity across fourteen implementations of the perso
 
 | Project | Language | License | Summary |
 |---------|----------|---------|---------|
-| **OpenClaw** | TypeScript | MIT | Reference implementation (v2026.3.22); full-featured desktop AI assistant with 20+ messaging channels, WebSocket control plane, advanced hybrid memory system (multimodal embeddings, MMR, temporal decay, query expansion), ClawHub plugin ecosystem, and MCP integration |
+| **OpenClaw** | TypeScript | MIT | Reference implementation (v2026.4.10); full-featured desktop AI assistant with 20+ messaging channels, WebSocket control plane, advanced hybrid memory system (multimodal embeddings, MMR, temporal decay, query expansion), ClawHub plugin ecosystem, MCP integration, usage/cost analytics dashboard, durable WhatsApp delivery queue, and hardened MS Teams Graph API integration |
 | **IronClaw** | Rust | MIT/Apache 2.0 | Security-focused (v0.24.0); WASM sandbox with capability-based permissions, Docker sandbox (orchestrator/worker), prompt injection defense, hybrid search memory (PostgreSQL + pgvector), self-repair with fault injection testing, dynamic tool building, webhook relay, NEAR AI integration, per-job MCP server filtering, unified config (DB > env > default) |
 | **LocalGPT** | Rust | Apache 2.0 | Local-first AI assistant (v0.3.5) with persistent markdown memory, Bevy 3D scene generation (Gen mode with physics, NPC brain, MCP server), Slack/Telegram/Discord/WhatsApp bridges, Docker/Podman + OS-level sandbox, browser automation, encryption at rest, SSRF protection, and optional autonomous heartbeat |
 | **Moltis** | Rust | MIT | Enterprise-ready 46-crate workspace (v20260409.04, 196K LoC, 2,300+ tests, zero unsafe); Docker + Apple Container sandbox, multi-channel (Telegram/Slack/HTTP/Teams/Discord), GraphQL API, TLS/WebAuthn auth, encryption-at-rest (XChaCha20-Poly1305), 18 LLM providers including Alibaba Coding |
@@ -117,7 +117,7 @@ This document tracks feature parity across fourteen implementations of the perso
 | HTTP webhook | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | 🚧 | ✅ | ✅ | - | ZClaw: web relay; Agent Zero: Flask API |
 | REPL (simple) | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | - | |
 | WASM channels | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | IronClaw innovation |
-| WhatsApp | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ❌ | P1 | TinyClaw: whatsapp-web.js |
+| WhatsApp | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ❌ | P1 | OpenClaw: durable delivery queue with reconnect drain; TinyClaw: whatsapp-web.js |
 | Telegram | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ❌ | - | ZClaw: long-polling |
 | Discord | ✅ | ❌ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ❌ | P2 | TinyClaw: discord.js |
 | Signal | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | P2 | CoPaw: v0.0.6 |
@@ -131,7 +131,7 @@ This document tracks feature parity across fourteen implementations of the perso
 | Matrix | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw: E2EE support; CoPaw: v0.0.6 |
 | Mattermost | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
 | Google Chat | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | |
-| MS Teams | ✅ | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | |
+| MS Teams | ✅ | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | OpenClaw: Graph chat ID resolution, OneDrive/SharePoint media, JWT hardened |
 | Twitch | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | |
 | Voice Call | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | CoPaw: Twilio voice |
 | Nostr | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | CoPaw: v0.0.6 |
@@ -384,7 +384,7 @@ This document tracks feature parity across fourteen implementations of the perso
 | `before_message_write` hook | ✅ | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: user_message_ui extensions |
 | `llm_input`/`llm_output` hooks | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | RosClaw: before_tool_call |
 | MCP support (stdio + HTTP/SSE) | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: MCP client + server |
-| Browser automation (CDP) | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | LocalGPT: Chrome DevTools Protocol; Agent Zero: Playwright |
+| Browser automation (CDP) | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | OpenClaw: /act route with stable error contracts; LocalGPT: Chrome DevTools Protocol; Agent Zero: Playwright |
 | Composio integration | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | NullClaw: composio tool |
 | WASM module tools | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: Extism WASM plugin system (WasmTool, WasmChannel) |
 
