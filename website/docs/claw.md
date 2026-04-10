@@ -446,10 +446,10 @@ This document tracks feature parity across fourteen implementations of the perso
 | Two-layer memory (facts + history) | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: Memory.Area.MAIN/FRAGMENTS/SOLUTIONS |
 | RAG system | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: knowledge_tool + document_query; ZeroClaw: rag crate |
 | Memory store/recall/forget tools | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ❌ | ✅ | Agent Zero: memory_save/load/delete/forget; RosClaw: via OpenClaw |
-| Active Memory (pre-reply recall) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: sub-agent injects relevant preferences/context before main reply; configurable modes (message/recent/full) |
-| Dreaming (background consolidation) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: grounded REM backfill, diary commit/reset, session corpus ingestion, narrative idempotency |
+| Active Memory (pre-reply recall) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: sub-agent; LocalGPT: direct MemoryManager::search() + RecallCache before LLM call |
+| Dreaming (background consolidation) | ✅ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: full 3-phase REM; LocalGPT: signal classifier + sweep (heartbeat wiring pending) |
 | Memory Wiki (knowledge management) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: claim/evidence fields, belief-layer digests, compiled digests for retrieval, claim health reports |
-| Compaction checkpoints | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: checkpoint/restore for compaction with pluggable provider registry |
+| Compaction checkpoints | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: pluggable provider registry; LocalGPT: CheckpointManager with CLI restore/branch |
 
 ---
 
