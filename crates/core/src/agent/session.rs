@@ -122,6 +122,7 @@ pub struct SessionStatus {
     pub compaction_count: u32,
     pub api_input_tokens: u64,
     pub api_output_tokens: u64,
+    pub api_cost_usd: f64,
     pub search_queries: u64,
     pub search_cached_hits: u64,
     pub search_cost_usd: f64,
@@ -761,6 +762,7 @@ impl Session {
             compaction_count: self.compaction_count,
             api_input_tokens: 0,
             api_output_tokens: 0,
+            api_cost_usd: 0.0,
             search_queries: 0,
             search_cached_hits: 0,
             search_cost_usd: 0.0,
@@ -771,6 +773,7 @@ impl Session {
         &self,
         input_tokens: u64,
         output_tokens: u64,
+        cost_usd: f64,
         search_queries: u64,
         search_cached_hits: u64,
         search_cost_usd: f64,
@@ -782,6 +785,7 @@ impl Session {
             compaction_count: self.compaction_count,
             api_input_tokens: input_tokens,
             api_output_tokens: output_tokens,
+            api_cost_usd: cost_usd,
             search_queries,
             search_cached_hits,
             search_cost_usd,
@@ -1087,6 +1091,7 @@ mod tests {
         let usage = Usage {
             input_tokens: 100,
             output_tokens: 50,
+            ..Default::default()
         };
         let msg_usage = MessageUsage::from(&usage);
         assert_eq!(msg_usage.input, 100);

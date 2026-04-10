@@ -48,6 +48,10 @@ pub struct SessionEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub memory_flush_compaction_count: Option<u32>,
 
+    /// Estimated cumulative cost in USD
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost_usd: Option<f64>,
+
     /// Last heartbeat text that was delivered (for deduplication)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_heartbeat_text: Option<String>,

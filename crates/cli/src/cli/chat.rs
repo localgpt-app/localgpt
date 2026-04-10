@@ -884,6 +884,9 @@ async fn handle_command(
                     "  Total tokens: {}",
                     status.api_input_tokens + status.api_output_tokens
                 );
+                if status.api_cost_usd > 0.0 {
+                    println!("  Estimated cost: ${:.4}", status.api_cost_usd);
+                }
             }
 
             if status.search_queries > 0 {

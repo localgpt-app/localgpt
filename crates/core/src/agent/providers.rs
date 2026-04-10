@@ -121,11 +121,121 @@ pub struct ToolSchema {
 pub struct Usage {
     pub input_tokens: u64,
     pub output_tokens: u64,
+    #[serde(default)]
+    pub cache_read_tokens: u64,
+    #[serde(default)]
+    pub cache_write_tokens: u64,
+    /// Estimated cost in USD for this usage chunk
+    #[serde(default)]
+    pub cost_usd: f64,
 }
 
 impl Usage {
     pub fn total(&self) -> u64 {
         self.input_tokens + self.output_tokens
+    }
+
+    pub fn total_with_cache(&self) -> u64 {
+        self.input_tokens + self.output_tokens + self.cache_read_tokens + self.cache_write_tokens
+    }
+}
+
+/// Estimate cost in USD for a single LLM call based on model name and token counts.
+///
+/// Pricing is approximate and based on public pricing as of April 2026.
+/// Cache read tokens are typically discounted (10% of input price).
+pub fn estimate_cost(model: &str, input: u64, output: u64, cache_read: u64) -> f64 {
+    let m = model.to_ascii_lowercase();
+
+    // (input_price_per_1m, output_price_per_1m)
+    // Check free/subscription models first (before model-name substring matches)
+    let (input_price, output_price) = if m.starts_with("ollama/")
+        || m.starts_with("local/")
+        || m.starts_with("claude-cli/")
+        || m.contains("gemini")
+    {
+        (0.0, 0.0)
+    } else if m.contains("opus") {
+        (15.0, 75.0)
+    } else if m.contains("sonnet") {
+        (3.0, 15.0)
+    } else if m.contains("haiku") {
+        (0.25, 1.25)
+    } else if m.contains("gpt-4o-mini") || m.contains("gpt-4.1-mini") {
+        (0.15, 0.60)
+    } else if m.contains("gpt-4o") || m.contains("gpt-4.1") || m.contains("gpt-5") {
+        (2.50, 10.0)
+    } else if m.contains("o3") || m.contains("o4-mini") {
+        (1.10, 4.40)
+    } else if m.contains("deepseek") {
+        (0.27, 1.10)
+    } else if m.contains("glm") {
+        (0.0, 0.0) // Z.AI free tier
+    } else {
+        // Conservative fallback for unknown models
+        (1.0, 3.0)
+    };
+
+    let cache_read_price = input_price * 0.1; // Cache reads typically 10% of input
+
+    (input as f64 * input_price
+        + output as f64 * output_price
+        + cache_read as f64 * cache_read_price)
+        / 1_000_000.0
+}
+
+#[cfg(test)]
+mod cost_tests {
+    use super::*;
+
+    #[test]
+    fn test_estimate_cost_claude_opus() {
+        let cost = estimate_cost("claude-opus-4", 1000, 500, 0);
+        // 1000 * 15/1M + 500 * 75/1M = 0.015 + 0.0375 = 0.0525
+        assert!((cost - 0.0525).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_estimate_cost_claude_sonnet() {
+        let cost = estimate_cost("claude-sonnet-4", 10000, 2000, 0);
+        // 10000 * 3/1M + 2000 * 15/1M = 0.03 + 0.03 = 0.06
+        assert!((cost - 0.06).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_estimate_cost_with_cache() {
+        let cost = estimate_cost("claude-sonnet-4", 1000, 500, 5000);
+        // input: 1000*3/1M=0.003, output: 500*15/1M=0.0075, cache: 5000*0.3/1M=0.0015
+        assert!((cost - 0.012).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_estimate_cost_local_model_free() {
+        assert_eq!(estimate_cost("ollama/llama3", 10000, 5000, 0), 0.0);
+    }
+
+    #[test]
+    fn test_estimate_cost_claude_cli_free() {
+        assert_eq!(estimate_cost("claude-cli/opus", 10000, 5000, 0), 0.0);
+    }
+
+    #[test]
+    fn test_estimate_cost_gemini_free() {
+        assert_eq!(estimate_cost("gemini-2.0-flash", 10000, 5000, 0), 0.0);
+    }
+
+    #[test]
+    fn test_estimate_cost_unknown_model() {
+        let cost = estimate_cost("some-unknown-model", 1000, 500, 0);
+        // 1000*1/1M + 500*3/1M = 0.001 + 0.0015 = 0.0025
+        assert!((cost - 0.0025).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_usage_default_zero_cost() {
+        let u = Usage::default();
+        assert_eq!(u.cost_usd, 0.0);
+        assert_eq!(u.cache_read_tokens, 0);
     }
 }
 
@@ -767,6 +877,7 @@ impl LLMProvider for OpenAIProvider {
         let usage = response_body.get("usage").map(|u| Usage {
             input_tokens: u["prompt_tokens"].as_u64().unwrap_or(0),
             output_tokens: u["completion_tokens"].as_u64().unwrap_or(0),
+            ..Default::default()
         });
 
         // Check for tool calls
@@ -1005,6 +1116,7 @@ impl LLMProvider for OpenAICompatibleProvider {
         let usage = response_body.get("usage").map(|u| Usage {
             input_tokens: u["prompt_tokens"].as_u64().unwrap_or(0),
             output_tokens: u["completion_tokens"].as_u64().unwrap_or(0),
+            ..Default::default()
         });
 
         // Check for tool calls
@@ -1308,6 +1420,7 @@ impl LLMProvider for XaiProvider {
         let usage = response_body.get("usage").map(|u| Usage {
             input_tokens: u["input_tokens"].as_u64().unwrap_or(0),
             output_tokens: u["output_tokens"].as_u64().unwrap_or(0),
+            ..Default::default()
         });
 
         let parsed_calls = Self::parse_tool_calls(&output);
@@ -1553,6 +1666,7 @@ impl LLMProvider for AnthropicProvider {
         let usage = response_body.get("usage").map(|u| Usage {
             input_tokens: u["input_tokens"].as_u64().unwrap_or(0),
             output_tokens: u["output_tokens"].as_u64().unwrap_or(0),
+            ..Default::default()
         });
 
         // Check for tool use
@@ -1909,6 +2023,7 @@ impl LLMProvider for OllamaProvider {
                 Some(Usage {
                     input_tokens: response_body["prompt_eval_count"].as_u64().unwrap_or(0),
                     output_tokens: response_body["eval_count"].as_u64().unwrap_or(0),
+                    ..Default::default()
                 })
             } else {
                 None
@@ -1930,6 +2045,7 @@ impl LLMProvider for OllamaProvider {
             Some(Usage {
                 input_tokens: response_body["prompt_eval_count"].as_u64().unwrap_or(0),
                 output_tokens: response_body["eval_count"].as_u64().unwrap_or(0),
+                ..Default::default()
             })
         } else {
             None
@@ -3792,6 +3908,7 @@ mod tests {
         let usage = Usage {
             input_tokens: 100,
             output_tokens: 50,
+            ..Default::default()
         };
         assert_eq!(usage.total(), 150);
     }
@@ -3815,6 +3932,7 @@ mod tests {
         let usage = Usage {
             input_tokens: 10,
             output_tokens: 5,
+            ..Default::default()
         };
         let resp = LLMResponse::text_with_usage("hello".to_string(), usage);
         assert!(matches!(resp.content, LLMResponseContent::Text(_)));
@@ -4435,6 +4553,7 @@ impl LLMProvider for VertexAiProvider {
             let usage = response_body.get("usage").map(|u| Usage {
                 input_tokens: u["input_tokens"].as_u64().unwrap_or(0),
                 output_tokens: u["output_tokens"].as_u64().unwrap_or(0),
+                ..Default::default()
             });
 
             let tool_calls: Vec<ToolCall> = content

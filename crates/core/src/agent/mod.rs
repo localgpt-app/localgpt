@@ -563,11 +563,20 @@ impl Agent {
         &self.cumulative_usage
     }
 
-    /// Add usage from an API response to cumulative totals
+    /// Add usage from an API response to cumulative totals with cost estimation
     fn add_usage(&mut self, usage: Option<Usage>) {
         if let Some(u) = usage {
+            let cost = providers::estimate_cost(
+                &self.config.model,
+                u.input_tokens,
+                u.output_tokens,
+                u.cache_read_tokens,
+            );
             self.cumulative_usage.input_tokens += u.input_tokens;
             self.cumulative_usage.output_tokens += u.output_tokens;
+            self.cumulative_usage.cache_read_tokens += u.cache_read_tokens;
+            self.cumulative_usage.cache_write_tokens += u.cache_write_tokens;
+            self.cumulative_usage.cost_usd += cost;
         }
     }
 
@@ -1824,6 +1833,7 @@ impl Agent {
         self.session.status_with_usage(
             self.cumulative_usage.input_tokens,
             self.cumulative_usage.output_tokens,
+            self.cumulative_usage.cost_usd,
             self.search_queries,
             self.search_cached_hits,
             self.search_cost_usd,
