@@ -662,6 +662,10 @@ pub struct HeartbeatConfig {
     /// Dreaming configuration — background memory consolidation
     #[serde(default)]
     pub dreaming: crate::memory::dreaming::DreamingConfig,
+
+    /// MCP server allowlist for heartbeat. Empty = all servers. Case-insensitive.
+    #[serde(default)]
+    pub mcp_servers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -851,6 +855,10 @@ pub struct CronJob {
     /// Timeout for the job (e.g., "5m", "1h"). Default: 10m
     #[serde(default = "default_cron_timeout")]
     pub timeout: String,
+
+    /// MCP server allowlist for this job. Empty = all servers. Case-insensitive.
+    #[serde(default)]
+    pub mcp_servers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -885,9 +893,29 @@ pub struct McpConfig {
     pub servers: Vec<McpServerConfig>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl McpConfig {
+    /// Filter servers by an allowlist. Empty allowlist returns all servers.
+    /// Matching is case-insensitive.
+    pub fn filter_servers(&self, allowlist: &[String]) -> Vec<McpServerConfig> {
+        if allowlist.is_empty() {
+            return self.servers.clone();
+        }
+        self.servers
+            .iter()
+            .filter(|s| {
+                allowlist
+                    .iter()
+                    .any(|name| name.eq_ignore_ascii_case(&s.name))
+            })
+            .cloned()
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct McpServerConfig {
     /// Unique name for this MCP server (used in tool namespacing)
+    #[serde(default)]
     pub name: String,
 
     /// Transport type: "stdio" or "sse"
@@ -1148,6 +1176,7 @@ impl Default for HeartbeatConfig {
             active_hours: None,
             timezone: None,
             dreaming: Default::default(),
+            mcp_servers: Vec::new(),
         }
     }
 }
@@ -1636,5 +1665,58 @@ mod tests {
         assert!(config.servers[0].enabled);
         assert!(!config.servers[1].enabled);
         assert!(config.servers[2].enabled); // default
+    }
+
+    #[test]
+    fn test_mcp_filter_servers_empty_allows_all() {
+        let config = McpConfig {
+            servers: vec![
+                McpServerConfig {
+                    name: "server-a".to_string(),
+                    ..Default::default()
+                },
+                McpServerConfig {
+                    name: "server-b".to_string(),
+                    ..Default::default()
+                },
+            ],
+        };
+        let filtered = config.filter_servers(&[]);
+        assert_eq!(filtered.len(), 2);
+    }
+
+    #[test]
+    fn test_mcp_filter_servers_allowlist() {
+        let config = McpConfig {
+            servers: vec![
+                McpServerConfig {
+                    name: "memory-server".to_string(),
+                    ..Default::default()
+                },
+                McpServerConfig {
+                    name: "bash-server".to_string(),
+                    ..Default::default()
+                },
+                McpServerConfig {
+                    name: "web-server".to_string(),
+                    ..Default::default()
+                },
+            ],
+        };
+        let filtered = config.filter_servers(&["memory-server".to_string()]);
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].name, "memory-server");
+    }
+
+    #[test]
+    fn test_mcp_filter_servers_case_insensitive() {
+        let config = McpConfig {
+            servers: vec![McpServerConfig {
+                name: "Memory-Server".to_string(),
+                ..Default::default()
+            }],
+        };
+        let filtered = config.filter_servers(&["memory-server".to_string()]);
+        assert_eq!(filtered.len(), 1);
     }
 }

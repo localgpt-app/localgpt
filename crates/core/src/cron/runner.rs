@@ -10,11 +10,14 @@ use crate::memory::MemoryManager;
 
 /// Execute a cron job by running the prompt in a fresh agent session.
 /// Returns the agent's text response.
+///
+/// `mcp_server_filter`: optional allowlist of MCP server names (empty = all).
 pub async fn run_job(
     config: &Config,
     job_name: &str,
     prompt: &str,
     extra_tools: Option<Vec<Box<dyn crate::agent::Tool>>>,
+    mcp_server_filter: &[String],
 ) -> Result<String> {
     let agent_id = format!("cron-{}", job_name);
     info!("Cron job '{}' starting (agent: {})", job_name, agent_id);
@@ -28,7 +31,22 @@ pub async fn run_job(
         reserve_tokens: config.agent.reserve_tokens,
     };
 
-    let mut agent = Agent::new(agent_config, config, memory).await?;
+    // Apply MCP server filter if specified
+    let config = if !mcp_server_filter.is_empty() {
+        let mut filtered = config.clone();
+        filtered.mcp.servers = config.mcp.filter_servers(mcp_server_filter);
+        info!(
+            "Cron job '{}': filtered MCP servers to {} of {}",
+            job_name,
+            filtered.mcp.servers.len(),
+            config.mcp.servers.len()
+        );
+        filtered
+    } else {
+        config.clone()
+    };
+
+    let mut agent = Agent::new(agent_config, &config, memory).await?;
 
     if let Some(tools) = extra_tools {
         agent.extend_tools(tools);

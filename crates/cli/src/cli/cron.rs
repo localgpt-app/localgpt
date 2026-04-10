@@ -154,6 +154,7 @@ fn add_job(args: AddArgs) -> Result<()> {
         channel: args.channel,
         enabled: true,
         timeout: args.timeout,
+        mcp_servers: Vec::new(),
     };
 
     config.cron.jobs.push(job);

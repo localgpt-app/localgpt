@@ -78,6 +78,7 @@ impl CronScheduler {
             let job_name = job.config.name.clone();
             let prompt = job.config.prompt.clone();
             let timeout_str = job.config.timeout.clone();
+            let mcp_filter = job.config.mcp_servers.clone();
             let config = config.clone();
             let extra_tools = tool_factory.map(|f| f(&config));
             let jobs_ref = self.jobs.clone();
@@ -93,7 +94,7 @@ impl CronScheduler {
 
                 let result = tokio::time::timeout(
                     timeout,
-                    runner::run_job(&config, &job_name, &prompt, extra_tools),
+                    runner::run_job(&config, &job_name, &prompt, extra_tools, &mcp_filter),
                 )
                 .await;
 
