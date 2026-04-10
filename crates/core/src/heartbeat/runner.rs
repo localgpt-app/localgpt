@@ -439,6 +439,35 @@ impl HeartbeatRunner {
             }
         }
 
+        // Pre-step: run dreaming sweep (background memory consolidation)
+        if self.config.heartbeat.dreaming.enabled {
+            let sessions_dir =
+                crate::agent::get_sessions_dir_for_agent(&self.agent_id).unwrap_or_default();
+            let log_path = self.config.paths.state_dir.join("dreaming-log.json");
+
+            match crate::memory::dreaming::run_sweep(
+                &self.config.heartbeat.dreaming,
+                &sessions_dir,
+                &self.workspace,
+                &log_path,
+            ) {
+                Ok(result) if result.sessions_processed > 0 => {
+                    info!(
+                        name: "Heartbeat",
+                        "dreaming: processed {} sessions, extracted {} signals",
+                        result.sessions_processed,
+                        result.signals_extracted
+                    );
+                }
+                Ok(_) => {
+                    debug!(name: "Heartbeat", "dreaming: no unprocessed sessions");
+                }
+                Err(e) => {
+                    warn!(name: "Heartbeat", "dreaming sweep failed: {}", e);
+                }
+            }
+        }
+
         // Create agent for heartbeat (clone the cached MemoryManager to share the embedding provider)
         let agent_config = AgentConfig {
             model: self.config.agent.default_model.clone(),
