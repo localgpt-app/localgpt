@@ -15,7 +15,7 @@ This document tracks feature parity across fourteen implementations of the perso
 
 | Project | Language | License | Summary |
 |---------|----------|---------|---------|
-| **OpenClaw** | TypeScript | MIT | Reference implementation (v2026.4.10); full-featured desktop AI assistant with 20+ messaging channels, WebSocket control plane, advanced hybrid memory system (multimodal embeddings, MMR, temporal decay, query expansion), ClawHub plugin ecosystem, MCP integration, usage/cost analytics dashboard, durable WhatsApp delivery queue, and hardened MS Teams Graph API integration |
+| **OpenClaw** | TypeScript | MIT | Reference implementation (v2026.4.10); full-featured desktop AI assistant with 20+ messaging channels, WebSocket control plane, advanced memory system (Active Memory pre-reply recall, dreaming with grounded REM backfill, memory-wiki belief-layer digests, LanceDB vector backend, pluggable compaction), usage/cost analytics dashboard, ClawHub plugin ecosystem, MCP integration, durable WhatsApp delivery queue, and hardened MS Teams Graph API integration |
 | **IronClaw** | Rust | MIT/Apache 2.0 | Security-focused (v0.24.0); WASM sandbox with capability-based permissions, Docker sandbox (orchestrator/worker), prompt injection defense, hybrid search memory (PostgreSQL + pgvector), self-repair with fault injection testing, dynamic tool building, webhook relay, NEAR AI integration, per-job MCP server filtering, unified config (DB > env > default) |
 | **LocalGPT** | Rust | Apache 2.0 | Local-first AI assistant (v0.3.5) with persistent markdown memory, Bevy 3D scene generation (Gen mode with physics, NPC brain, MCP server), Slack/Telegram/Discord/WhatsApp bridges, Docker/Podman + OS-level sandbox, browser automation, encryption at rest, SSRF protection, and optional autonomous heartbeat |
 | **Moltis** | Rust | MIT | Enterprise-ready 46-crate workspace (v20260409.04, 196K LoC, 2,300+ tests, zero unsafe); Docker + Apple Container sandbox, multi-channel (Telegram/Slack/HTTP/Teams/Discord), GraphQL API, TLS/WebAuthn auth, encryption-at-rest (XChaCha20-Poly1305), 18 LLM providers including Alibaba Coding |
@@ -433,7 +433,7 @@ This document tracks feature parity across fourteen implementations of the perso
 | Atomic reindexing | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | |
 | Embeddings batching | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | OpenClaw: batch-openai, batch-gemini, batch-voyage |
 | Citation support | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: on/off/auto modes per chat type |
-| Session memory indexing | 🚧 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: experimental; LocalGPT: session transcripts indexed for search |
+| Session memory indexing | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: dreaming session corpus ingestion with timestamp bucketing; LocalGPT: session transcripts indexed for search |
 | Post-compaction memory sync | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: forced sync after compaction |
 | memory_get tool (snippet read) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: path + from line + line count |
 | Memory CLI commands | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
@@ -446,6 +446,10 @@ This document tracks feature parity across fourteen implementations of the perso
 | Two-layer memory (facts + history) | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: Memory.Area.MAIN/FRAGMENTS/SOLUTIONS |
 | RAG system | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: knowledge_tool + document_query; ZeroClaw: rag crate |
 | Memory store/recall/forget tools | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ❌ | ✅ | Agent Zero: memory_save/load/delete/forget; RosClaw: via OpenClaw |
+| Active Memory (pre-reply recall) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: sub-agent injects relevant preferences/context before main reply; configurable modes (message/recent/full) |
+| Dreaming (background consolidation) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: grounded REM backfill, diary commit/reset, session corpus ingestion, narrative idempotency |
+| Memory Wiki (knowledge management) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: claim/evidence fields, belief-layer digests, compiled digests for retrieval, claim health reports |
+| Compaction checkpoints | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: checkpoint/restore for compaction with pluggable provider registry |
 
 ---
 
