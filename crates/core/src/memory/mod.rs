@@ -3,6 +3,7 @@ pub mod backend;
 mod backend_markdown;
 mod backend_none;
 mod backend_sqlite;
+pub mod dreaming;
 mod embeddings;
 mod index;
 pub mod query_expansion;

@@ -19,22 +19,23 @@ A comparison of AI systems that generate or interact with 3D explorable worlds.
 | [SceneCraft](https://www.scenecraft.org/) | Text | Interactive narratives | Cloud | AI storytelling for education |
 | [Unity AI Beta](https://discussions.unity.com/t/unity-ai-beta-2026-is-here/1703625) | Text | 3D Scenes | Cloud + Local | AI-assisted game development |
 | [Roblox AI](https://www.developer-tech.com/news/roblox-brings-ai-generated-game-objects-to-its-developer-tools/) | Text | Game Objects | Cloud | AI-generated game objects |
+| [Moonlake Reverie](https://moonlakeai.com/) | Text | Interactive 2D/3D | Cloud | Generative game engine |
 | **LocalGPT Gen** | Text | Interactive 3D (glTF) | Local | Open-source world building |
 
 ## Feature Comparison
 
-| Feature | Genie 3 | SIMA 2 | WorldGen | Marble | Artcraft | Intangible | SceneCraft | Unity AI | Roblox AI | LocalGPT Gen |
-|---------|---------|--------|----------|--------|----------|------------|------------|----------|-----------|--------------|
-| Text-to-3D | ✓ | — | ✓ | ✓ | — | ✓ | — | ✓ | ✓ | ✓ |
-| Image-to-3D | ✓ | — | — | ✓ | — | — | — | — | — | — |
-| Interactive playback | ✓ | ✓ | — | — | — | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Real-time simulation | ✓ | ✓ | — | — | — | — | — | ✓ | ✓ | ✓ |
-| Structured generation | — | — | ✓ | — | — | — | ✓ | ✓ | ✓ | ✓ |
-| Local execution | — | — | — | — | — | — | — | ✓ | — | ✓ |
-| Open source | — | — | — | — | — | — | — | — | — | ✓ |
-| Procedural audio | — | — | — | — | — | — | — | — | — | ✓ |
-| glTF/USD export | — | — | ✓ | ✓ | — | ✓ | — | ✓ | — | ✓ |
-| Agent control | — | ✓ | — | — | — | — | — | — | — | ✓ |
+| Feature | Genie 3 | SIMA 2 | WorldGen | Marble | Artcraft | Intangible | SceneCraft | Unity AI | Roblox AI | Moonlake | LocalGPT Gen |
+|---------|---------|--------|----------|--------|----------|------------|------------|----------|-----------|----------|--------------|
+| Text-to-3D | ✓ | — | ✓ | ✓ | — | ✓ | — | ✓ | ✓ | ✓ | ✓ |
+| Image-to-3D | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
+| Interactive playback | ✓ | ✓ | — | — | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Real-time simulation | ✓ | ✓ | — | — | — | — | — | ✓ | ✓ | ✓ | ✓ |
+| Structured generation | — | — | ✓ | — | — | — | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Local execution | — | — | — | — | — | — | — | ✓ | — | — | ✓ |
+| Open source | — | — | — | — | — | — | — | — | — | — | ✓ |
+| Procedural audio | — | — | — | — | — | — | — | — | — | — | ✓ |
+| glTF/USD export | — | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | ✓ |
+| Agent control | — | ✓ | — | — | — | — | — | — | — | ✓ | ✓ |
 
 ## System Highlights
 
@@ -81,6 +82,14 @@ Unity's 2026 AI Beta integrates AI-powered tools directly into the Unity Editor 
 Roblox brings AI-generated game objects to its developer tools, enabling creators to generate 3D objects, textures, and game assets from text descriptions directly within Roblox Studio.
 
 - [Roblox AI-generated game objects](https://www.developer-tech.com/news/roblox-brings-ai-generated-game-objects-to-its-developer-tools/)
+
+### Moonlake Reverie
+
+Generative Game Engine (GGE) from Moonlake AI that transforms text descriptions into playable 2D and 3D interactive worlds. Founded by Fan-Yun Sun and Sharon Lee (Stanford AI Lab), backed by $28M seed from AIX Ventures, Threshold, and NVIDIA Ventures. Combines multimodal reasoning with program synthesis and simulation layers — spatial layout, physics, and agent behaviors are generated structurally, then a real-time diffusion model conditioned on 3D signals provides visual reskinning. Unlike video-only generation, Reverie maintains world state across interactions, enabling consistent interactive sessions.
+
+- [moonlakeai.com](https://moonlakeai.com/)
+- [Moonlake blog](https://moonlakeai.com/blog)
+- [Latent Space podcast interview](https://www.latent.space/p/moonlake)
 
 ### LocalGPT Gen
 

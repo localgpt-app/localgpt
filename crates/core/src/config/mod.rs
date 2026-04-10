@@ -658,6 +658,10 @@ pub struct HeartbeatConfig {
 
     #[serde(default)]
     pub timezone: Option<String>,
+
+    /// Dreaming configuration — background memory consolidation
+    #[serde(default)]
+    pub dreaming: crate::memory::dreaming::DreamingConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1143,6 +1147,7 @@ impl Default for HeartbeatConfig {
             timeout: None,
             active_hours: None,
             timezone: None,
+            dreaming: Default::default(),
         }
     }
 }
