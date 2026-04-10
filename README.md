@@ -68,13 +68,13 @@ Full docs: [Headless Mode & Experiment Queue](https://localgpt.app/docs/gen/head
 
 ### MCP Server
 
-Use Gen from any MCP-compatible tool (Claude CLI, Codex CLI, Gemini CLI, VS Code, Zed, Cursor):
+Use Gen from Claude Desktop, Codex Desktop, or any MCP-compatible editor (VS Code, Zed, Cursor):
 
 ```bash
 localgpt-gen mcp-server
 ```
 
-Add to your `.mcp.json`:
+Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
@@ -87,7 +87,7 @@ Add to your `.mcp.json`:
 }
 ```
 
-When using Gen interactively with a CLI backend, use `--connect` to route tool calls to your existing window instead of spawning a new one. See [CLI Mode (MCP Relay)](https://localgpt.app/docs/gen/cli-mode).
+For CLI tools (Claude CLI, Gemini CLI, Codex CLI), use `--connect` to route tool calls to your existing window. See [CLI Mode (MCP Relay)](https://localgpt.app/docs/gen/cli-mode).
 
 Full docs: [LocalGPT Gen](https://localgpt.app/docs/gen) | [MCP Server](https://localgpt.app/docs/gen/mcp-server)
 

@@ -4,11 +4,11 @@ sidebar_position: 14.5
 
 # MCP Server
 
-LocalGPT Gen can run as an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server, exposing gen tools and core LocalGPT tools over stdio. This lets external AI coding assistants — Claude CLI, Gemini CLI, Codex CLI, and MCP-compatible editors like VS Code and Zed — drive the Bevy 3D window directly, with full access to LocalGPT's memory system.
+LocalGPT Gen can run as an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server, exposing gen tools and core LocalGPT tools over stdio. This lets desktop AI apps — Claude Desktop, Codex Desktop — and MCP-compatible editors like VS Code, Zed, and Cursor drive the Bevy 3D window directly, with full access to LocalGPT's memory system.
 
 ## Why MCP?
 
-When using LocalGPT Gen in its default interactive mode, the built-in LLM agent calls gen tools directly inside the same process. But if you want to use a different AI backend — Claude CLI, Gemini CLI, Codex, or an editor's built-in AI — those tools aren't accessible because they run in separate processes.
+When using LocalGPT Gen in its default interactive mode, the built-in LLM agent calls gen tools directly inside the same process. But if you want to use a different AI backend — Claude Desktop, Codex Desktop, or an editor's built-in AI — those tools aren't accessible because they run in separate processes.
 
 MCP solves this. It's a standard protocol that these tools already support. By running `localgpt-gen mcp-server`, the Bevy window opens and all gen tools become available to any MCP client over stdio. The AI backend becomes the orchestrator — it manages the conversation, calls tools, and drives the scene building.
 
@@ -146,9 +146,12 @@ These are the same core tools available via `localgpt mcp-server` (see [Memory-o
 
 CLI tools like `bash`, `read_file`, `write_file`, and `edit_file` are **not** exposed via MCP. External AI backends (Claude CLI, Gemini CLI, Codex) already have their own file and shell tools. Exposing duplicates would create confusion and security concerns.
 
-## Claude CLI
+## Claude Desktop
 
-Add to project-level `.mcp.json`:
+Add to your Claude Desktop MCP configuration:
+
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
@@ -161,22 +164,17 @@ Add to project-level `.mcp.json`:
 }
 ```
 
-Then start Claude CLI as usual. The gen tools appear alongside Claude's built-in tools. Ask it to build a scene:
+Restart Claude Desktop after saving. The gen tools appear in Claude's tool list — ask it to build a scene:
 
-```
-$ claude
 > Build a medieval castle with a moat, drawbridge, and warm torchlight
-```
 
 Claude will call `gen_spawn_primitive`, `gen_set_light`, `gen_set_camera`, etc. to construct the scene in the Bevy window.
 
-:::tip Using Gen interactively with Claude CLI as backend?
-If you're running `localgpt-gen` interactively with `claude-cli/*` as the model, use `--connect` instead so tool calls go to your existing window. See [CLI Mode (MCP Relay)](/docs/gen/cli-mode).
-:::
+## Codex Desktop
 
-## Gemini CLI
+Add to your Codex configuration:
 
-Add to `~/.gemini/settings.json` or your workspace `.gemini/settings.json`:
+- **Config file**: `~/.codex/config.json`
 
 ```json
 {
@@ -189,24 +187,9 @@ Add to `~/.gemini/settings.json` or your workspace `.gemini/settings.json`:
 }
 ```
 
-:::tip Using Gen interactively with Gemini CLI as backend?
-Use `["mcp-server", "--connect"]` instead. See [CLI Mode (MCP Relay)](/docs/gen/cli-mode).
-:::
+## CLI Tools
 
-## OpenAI Codex CLI
-
-Add to `~/.codex/config.json`:
-
-```json
-{
-  "mcpServers": {
-    "localgpt-gen": {
-      "command": "localgpt-gen",
-      "args": ["mcp-server"]
-    }
-  }
-}
-```
+If you're using a CLI-based AI tool (Claude CLI, Gemini CLI, Codex CLI) as the backend for LocalGPT Gen's interactive mode, see [CLI Mode (MCP Relay)](/docs/gen/cli-mode) for configuration details. CLI tools use `--connect` to relay tool calls to your existing Bevy window instead of spawning a new one.
 
 ## VS Code (Copilot)
 
@@ -283,9 +266,9 @@ Add to your Windsurf MCP configuration (`~/.codeium/windsurf/mcp_config.json`):
 ```
 ┌─────────────────────┐       MCP stdio (JSON-RPC)        ┌──────────────────┐
 │  AI Backend         │◄──────────────────────────────────►│  localgpt-gen    │
-│  (Claude, Gemini,   │        tools/list                  │                  │
-│   Codex, VS Code,   │        tools/call                  │  MCP Server      │
-│   Zed, Cursor)      │                                    │    │       │     │
+│  (Claude Desktop,   │        tools/list                  │                  │
+│   Codex Desktop,    │        tools/call                  │  MCP Server      │
+│   VS Code, Zed)     │                                    │    │       │     │
 └─────────────────────┘                                    │ GenBridge Memory │
         ▲                                                  │    ↓       ↓     │
         │ manages conversation,                            │  Bevy   SQLite   │

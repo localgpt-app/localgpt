@@ -94,11 +94,10 @@ localgpt-gen   # uses default model from config.toml
 
 If `config.toml` has `default_model = "claude-cli/opus"` (or any `gemini-cli/*` / `codex-cli/*` model), the relay activates automatically.
 
-### Manual: workspace MCP config
+### Claude CLI
 
-The LocalGPT workspace ships with MCP configs that use `--connect`:
+Add to project-level `.mcp.json`:
 
-**`.mcp.json`** (Claude CLI, Codex):
 ```json
 {
   "mcpServers": {
@@ -110,7 +109,10 @@ The LocalGPT workspace ships with MCP configs that use `--connect`:
 }
 ```
 
-**`.gemini/settings.json`** (Gemini CLI):
+### Gemini CLI
+
+Add to `~/.gemini/settings.json` or workspace `.gemini/settings.json`:
+
 ```json
 {
   "mcpServers": {
@@ -122,7 +124,22 @@ The LocalGPT workspace ships with MCP configs that use `--connect`:
 }
 ```
 
-These files live in your LocalGPT workspace (default: `~/.local/share/localgpt/workspace/`). They're created automatically on first run.
+### Codex CLI
+
+Add to `~/.codex/config.json`:
+
+```json
+{
+  "mcpServers": {
+    "localgpt-gen": {
+      "command": "localgpt-gen",
+      "args": ["mcp-server", "--connect"]
+    }
+  }
+}
+```
+
+These config files live in your LocalGPT workspace (default: `~/.local/share/localgpt/workspace/`). They're created automatically on first run.
 
 :::tip Migrating from standalone MCP
 If you previously configured `localgpt-gen mcp-server` **without** `--connect`, update your configs to add `"--connect"` to the args array. This prevents the duplicate window issue.
@@ -136,7 +153,7 @@ If you want to run gen as a **standalone MCP server** (no interactive mode, the 
 localgpt-gen mcp-server
 ```
 
-This is for editors (VS Code, Zed, Cursor) and scenarios where you don't need the interactive terminal. See [MCP Server](/docs/gen/mcp-server) for details.
+This is for desktop apps (Claude Desktop, Codex Desktop) and editors (VS Code, Zed, Cursor) where you don't need the interactive terminal. See [MCP Server](/docs/gen/mcp-server) for details.
 
 ## CLI Flags
 
