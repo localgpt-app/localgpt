@@ -43,7 +43,13 @@ pub struct HeartbeatRunner {
     /// When true, heartbeat checks HEARTBEAT.md for gen experiments before normal processing
     /// and dispatches them via `localgpt-gen headless` subprocess.
     gen_dispatch_enabled: bool,
+    /// Optional callback invoked when heartbeat produces an alert (non-OK, non-skipped response).
+    /// Used by the daemon to forward alerts to Telegram.
+    on_alert: Option<AlertCallback>,
 }
+
+/// Callback type for heartbeat alert notifications
+pub type AlertCallback = Box<dyn Fn(&str) + Send + Sync>;
 
 impl HeartbeatRunner {
     /// Create a new HeartbeatRunner with the default agent ID ("main")
@@ -129,6 +135,7 @@ impl HeartbeatRunner {
             workspace_lock,
             tool_factory,
             gen_dispatch_enabled: false,
+            on_alert: None,
         })
     }
 
@@ -139,6 +146,12 @@ impl HeartbeatRunner {
     /// If found, dispatches ONE experiment per tick by spawning `localgpt-gen headless`.
     pub fn enable_gen_dispatch(&mut self) {
         self.gen_dispatch_enabled = true;
+    }
+
+    /// Set a callback invoked when heartbeat produces an alert (non-OK, non-skipped).
+    /// Used by the daemon to forward alerts to Telegram with topic routing.
+    pub fn set_alert_callback(&mut self, callback: AlertCallback) {
+        self.on_alert = Some(callback);
     }
 
     async fn first_delay(&self) -> Duration {
@@ -267,6 +280,10 @@ impl HeartbeatRunner {
                         debug!(name: "Heartbeat", "OK");
                     } else {
                         warn!(name: "Heartbeat", "response not OK: {}", response);
+                        // Notify via alert callback (e.g., Telegram with topic routing)
+                        if let Some(ref callback) = self.on_alert {
+                            callback(&response);
+                        }
                     }
 
                     if status == HeartbeatStatus::SkippedMayTry {

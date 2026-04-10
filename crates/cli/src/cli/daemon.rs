@@ -275,6 +275,25 @@ async fn run_daemon_services(
                 runner.enable_gen_dispatch();
                 tracing::info!("Heartbeat gen dispatch enabled (localgpt-gen found)");
             }
+
+            // Wire Telegram alert callback if heartbeat_topic_id is configured
+            if let Some(ref tg) = heartbeat_config.telegram
+                && tg.enabled
+                && let Some(topic_id) = tg.heartbeat_topic_id
+                && !tg.api_token.is_empty()
+                && !tg.api_token.starts_with("${")
+                && let Some(callback) = localgpt_server::telegram::create_heartbeat_alert_callback(
+                    &tg.api_token,
+                    topic_id,
+                )
+            {
+                runner.set_alert_callback(callback);
+                tracing::info!(
+                    "Heartbeat Telegram alert callback enabled (topic_id: {})",
+                    topic_id
+                );
+            }
+
             tracing::info!("Heartbeat runner created");
             if let Err(e) = runner.run().await {
                 tracing::error!("Heartbeat runner error: {}", e);

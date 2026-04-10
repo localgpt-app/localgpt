@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 use teloxide::prelude::*;
-use teloxide::types::{MessageId, ParseMode};
+use teloxide::types::{ChatId, MessageId, ParseMode, ThreadId};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 
@@ -63,6 +63,38 @@ fn load_paired_user() -> Option<PairedUser> {
     let path = pairing_file_path().ok()?;
     let content = std::fs::read_to_string(path).ok()?;
     serde_json::from_str(&content).ok()
+}
+
+/// Load the paired user's chat ID for sending notifications.
+/// In Telegram, private chat ID equals user ID for DMs.
+pub fn load_paired_chat_id() -> Option<i64> {
+    load_paired_user().map(|u| u.user_id as i64)
+}
+
+/// Create a heartbeat alert callback that sends messages to a Telegram topic.
+/// Returns None if no paired user or missing config.
+pub fn create_heartbeat_alert_callback(
+    api_token: &str,
+    topic_id: i32,
+) -> Option<localgpt_core::heartbeat::AlertCallback> {
+    let chat_id = load_paired_chat_id()?;
+    let bot = Bot::new(api_token);
+
+    Some(Box::new(move |text: &str| {
+        let bot = bot.clone();
+        let msg = if text.len() > 4000 {
+            format!("{}...", &text[..text.floor_char_boundary(4000)])
+        } else {
+            text.to_string()
+        };
+        tokio::spawn(async move {
+            let mut req = bot.send_message(ChatId(chat_id), &msg);
+            req = req.message_thread_id(ThreadId(MessageId(topic_id)));
+            if let Err(e) = req.await {
+                tracing::warn!("Failed to send heartbeat alert to Telegram topic: {}", e);
+            }
+        });
+    }))
 }
 
 fn save_paired_user(user: &PairedUser) -> Result<()> {
