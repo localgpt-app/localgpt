@@ -156,6 +156,10 @@ pub struct AgentConfig {
     /// Maximum compaction checkpoints to keep per session. Default: 5.
     #[serde(default = "default_max_checkpoints")]
     pub max_checkpoints: usize,
+
+    /// Active memory recall configuration — automatically search memory before replies
+    #[serde(default)]
+    pub active_memory: crate::memory::active_recall::ActiveMemoryConfig,
 }
 
 fn default_max_tool_repeats() -> usize {
@@ -1102,6 +1106,7 @@ impl Default for AgentConfig {
             post_compaction_sections: default_post_compaction_sections(),
             checkpoints_enabled: true,
             max_checkpoints: default_max_checkpoints(),
+            active_memory: Default::default(),
         }
     }
 }

@@ -1,3 +1,4 @@
+pub mod active_recall;
 pub mod backend;
 mod backend_markdown;
 mod backend_none;

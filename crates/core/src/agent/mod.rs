@@ -113,6 +113,8 @@ pub struct Agent {
     loop_detector: LoopDetector,
     /// Track consecutive tool errors per tool name
     tool_error_tracker: ToolErrorTracker,
+    /// Cache for active memory recall results
+    recall_cache: crate::memory::active_recall::RecallCache,
 }
 
 /// Detects when the agent is stuck in a tool-call loop
@@ -390,6 +392,9 @@ impl Agent {
             verified_security_policy,
             loop_detector: LoopDetector::new(app_config.agent.max_tool_repeats),
             tool_error_tracker: ToolErrorTracker::new(app_config.agent.max_tool_errors),
+            recall_cache: crate::memory::active_recall::RecallCache::new(
+                app_config.agent.active_memory.cache_ttl_ms,
+            ),
         })
     }
 
@@ -464,6 +469,7 @@ impl Agent {
             verified_security_policy,
             loop_detector: LoopDetector::new(max_tool_repeats),
             tool_error_tracker: ToolErrorTracker::new(3),
+            recall_cache: crate::memory::active_recall::RecallCache::new(15_000),
         })
     }
 
@@ -774,6 +780,9 @@ impl Agent {
         if self.should_compact() {
             self.compact_session().await?;
         }
+
+        // Active memory recall: search memory before LLM call
+        self.maybe_inject_recalled_context(message);
 
         // Build messages for LLM (with per-turn security block)
         let messages = self.messages_for_api_call();
@@ -1466,6 +1475,80 @@ impl Agent {
     fn should_compact(&self) -> bool {
         self.session.token_count()
             > (self.config.context_window - self.config.reserve_tokens - SECURITY_BLOCK_RESERVE)
+    }
+
+    /// Search memory using the user's message and inject recalled context
+    /// as a system message before the LLM call.
+    fn maybe_inject_recalled_context(&mut self, user_message: &str) {
+        use crate::memory::active_recall;
+
+        let config = &self.app_config.agent.active_memory;
+        if !config.enabled {
+            return;
+        }
+
+        // Build the search query
+        let recent: Vec<(String, String)> = self
+            .session
+            .user_assistant_messages()
+            .iter()
+            .map(|m| (format!("{:?}", m.role), m.content.clone()))
+            .collect();
+        let query = active_recall::build_query(user_message, &recent, config);
+
+        // Check cache
+        let hash = active_recall::query_hash(&query);
+        if let Some(cached) = self.recall_cache.get(hash) {
+            if let Some(context) = cached {
+                debug!("Active memory: cache hit, injecting recalled context");
+                self.session.add_message(Message {
+                    role: Role::System,
+                    content: context.clone(),
+                    tool_calls: None,
+                    tool_call_id: None,
+                    images: Vec::new(),
+                });
+            }
+            return;
+        }
+
+        // Search memory
+        let results = match self.memory.search(&query, config.max_results) {
+            Ok(results) => results,
+            Err(e) => {
+                debug!("Active memory search failed: {}", e);
+                self.recall_cache.put(hash, None);
+                return;
+            }
+        };
+
+        // Filter by minimum score
+        let filtered: Vec<_> = results
+            .into_iter()
+            .filter(|c| c.score >= config.min_score)
+            .collect();
+
+        // Format and inject
+        match active_recall::format_recalled_context(&filtered, config.max_chars) {
+            Some(context) => {
+                info!(
+                    "Active memory: injecting {} recalled chunks",
+                    filtered.len()
+                );
+                self.recall_cache.put(hash, Some(context.clone()));
+                self.session.add_message(Message {
+                    role: Role::System,
+                    content: context,
+                    tool_calls: None,
+                    tool_call_id: None,
+                    images: Vec::new(),
+                });
+            }
+            None => {
+                debug!("Active memory: no relevant results found");
+                self.recall_cache.put(hash, None);
+            }
+        }
     }
 
     /// Check if we should run pre-compaction memory flush (soft threshold)
