@@ -10,6 +10,7 @@ pub mod query_expansion;
 mod search;
 pub mod session_index;
 mod watcher;
+pub mod wiki;
 mod workspace;
 
 pub use backend::{MemoryBackend, MemoryBackendKind};
@@ -301,6 +302,11 @@ impl MemoryManager {
 
     pub fn workspace(&self) -> &PathBuf {
         &self.workspace
+    }
+
+    /// Get the path to the SQLite database used by this memory manager.
+    pub fn db_path(&self) -> &PathBuf {
+        &self.db_path
     }
 
     /// Get a reference to the active memory backend.

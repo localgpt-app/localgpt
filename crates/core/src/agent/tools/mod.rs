@@ -97,6 +97,25 @@ pub fn create_safe_tools(
     // Document loader tool (always available — uses shell commands for extraction)
     tools.push(Box::new(DocumentLoadTool::new(workspace, &config.tools)));
 
+    // Wiki tools (structured knowledge management)
+    if config.memory.wiki_enabled
+        && let Some(ref mem) = memory
+    {
+        match crate::memory::wiki::WikiStore::new(
+            mem.db_path(),
+            config.memory.wiki_fresh_days,
+            config.memory.wiki_stale_days,
+        ) {
+            Ok(store) => {
+                let store = Arc::new(store);
+                tools.push(Box::new(WikiAddTool::new(Arc::clone(&store))));
+                tools.push(Box::new(WikiSearchTool::new(Arc::clone(&store))));
+                tools.push(Box::new(WikiStatusTool::new(store)));
+            }
+            Err(e) => tracing::warn!("Wiki store init failed: {e}"),
+        }
+    }
+
     // Audio transcription tool (only if STT providers are configured)
     if let Some(ref stt_config) = config.tools.stt {
         let env_vars: std::collections::HashMap<String, String> = std::env::vars().collect();
@@ -1141,6 +1160,267 @@ pub fn extract_tool_detail(tool_name: &str, arguments: &str) -> Option<String> {
         | "gen_clear_scene" => None,
 
         _ => None,
+    }
+}
+
+// ── Wiki Tools ──────────────────────────────────────────────────────────
+
+/// wiki_add — Add or update a structured knowledge claim with evidence.
+pub struct WikiAddTool {
+    store: Arc<crate::memory::wiki::WikiStore>,
+}
+
+impl WikiAddTool {
+    pub fn new(store: Arc<crate::memory::wiki::WikiStore>) -> Self {
+        Self { store }
+    }
+}
+
+#[async_trait]
+impl Tool for WikiAddTool {
+    fn name(&self) -> &str {
+        "wiki_add"
+    }
+
+    fn schema(&self) -> ToolSchema {
+        ToolSchema {
+            name: "wiki_add".to_string(),
+            description: "Add or update a structured knowledge claim with optional evidence. Deduplicates similar claims automatically.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "The claim text"
+                    },
+                    "category": {
+                        "type": "string",
+                        "enum": ["fact", "preference", "decision", "question"],
+                        "description": "Claim category (default: fact)"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "description": "Confidence score 0.0-1.0 (default: 0.8)"
+                    },
+                    "evidence_source": {
+                        "type": "string",
+                        "description": "Source of evidence (file path, URL, session ID)"
+                    },
+                    "evidence_excerpt": {
+                        "type": "string",
+                        "description": "Relevant text excerpt from the source"
+                    }
+                },
+                "required": ["text"]
+            }),
+        }
+    }
+
+    async fn execute(&self, arguments: &str) -> Result<String> {
+        let args: Value = serde_json::from_str(arguments)?;
+        let text = args["text"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Missing text"))?;
+
+        let category = args["category"]
+            .as_str()
+            .map(crate::memory::wiki::ClaimCategory::parse)
+            .transpose()?
+            .unwrap_or(crate::memory::wiki::ClaimCategory::Fact);
+
+        let confidence = args["confidence"].as_f64().unwrap_or(0.8) as f32;
+        let evidence_source = args["evidence_source"].as_str();
+        let evidence_excerpt = args["evidence_excerpt"].as_str();
+
+        let id = self.store.add_claim(
+            text,
+            category,
+            confidence,
+            evidence_source,
+            evidence_excerpt,
+        )?;
+
+        Ok(format!("Claim stored (id: {}, category: {})", id, category))
+    }
+}
+
+/// wiki_search — Search structured knowledge claims.
+pub struct WikiSearchTool {
+    store: Arc<crate::memory::wiki::WikiStore>,
+}
+
+impl WikiSearchTool {
+    pub fn new(store: Arc<crate::memory::wiki::WikiStore>) -> Self {
+        Self { store }
+    }
+}
+
+#[async_trait]
+impl Tool for WikiSearchTool {
+    fn name(&self) -> &str {
+        "wiki_search"
+    }
+
+    fn schema(&self) -> ToolSchema {
+        ToolSchema {
+            name: "wiki_search".to_string(),
+            description: "Search structured knowledge claims by text, category, or freshness."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query"
+                    },
+                    "category": {
+                        "type": "string",
+                        "enum": ["fact", "preference", "decision", "question"],
+                        "description": "Filter by category (optional)"
+                    },
+                    "include_stale": {
+                        "type": "boolean",
+                        "description": "Include stale claims (default: false)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum results (default: 10)"
+                    }
+                },
+                "required": ["query"]
+            }),
+        }
+    }
+
+    async fn execute(&self, arguments: &str) -> Result<String> {
+        let args: Value = serde_json::from_str(arguments)?;
+        let query = args["query"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Missing query"))?;
+
+        let category = args["category"]
+            .as_str()
+            .map(crate::memory::wiki::ClaimCategory::parse)
+            .transpose()?;
+
+        let include_stale = args["include_stale"].as_bool().unwrap_or(false);
+        let limit = args["limit"].as_u64().unwrap_or(10) as usize;
+
+        let claims = self.store.search(query, category, include_stale, limit)?;
+
+        if claims.is_empty() {
+            return Ok("No claims found".to_string());
+        }
+
+        let formatted: Vec<String> = claims
+            .iter()
+            .enumerate()
+            .map(|(i, c)| {
+                let freshness = self.store.freshness(c.updated_at);
+                let evidence_summary = if c.evidence.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        "\n   Evidence ({}):\n{}",
+                        c.evidence.len(),
+                        c.evidence
+                            .iter()
+                            .take(3)
+                            .map(|e| format!(
+                                "   - [{}] {}",
+                                e.source,
+                                e.excerpt.chars().take(80).collect::<String>()
+                            ))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    )
+                };
+                format!(
+                    "{}. [{}] ({}, {}, conf: {:.1}) {freshness}\n   {}{}",
+                    i + 1,
+                    c.id.chars().take(8).collect::<String>(),
+                    c.category,
+                    c.status,
+                    c.confidence,
+                    c.text,
+                    evidence_summary,
+                    freshness = freshness,
+                )
+            })
+            .collect();
+
+        Ok(formatted.join("\n\n"))
+    }
+}
+
+/// wiki_status — Knowledge base health overview.
+pub struct WikiStatusTool {
+    store: Arc<crate::memory::wiki::WikiStore>,
+}
+
+impl WikiStatusTool {
+    pub fn new(store: Arc<crate::memory::wiki::WikiStore>) -> Self {
+        Self { store }
+    }
+}
+
+#[async_trait]
+impl Tool for WikiStatusTool {
+    fn name(&self) -> &str {
+        "wiki_status"
+    }
+
+    fn schema(&self) -> ToolSchema {
+        ToolSchema {
+            name: "wiki_status".to_string(),
+            description: "Get knowledge base health overview: total claims, breakdown by category/status/freshness, top stale claims.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+        }
+    }
+
+    async fn execute(&self, _arguments: &str) -> Result<String> {
+        let status = self.store.status()?;
+
+        let mut out = format!(
+            "## Knowledge Base Status\n\nTotal claims: {}\n",
+            status.total_claims
+        );
+
+        if !status.by_category.is_empty() {
+            out.push_str("\n**By category:**\n");
+            for (cat, count) in &status.by_category {
+                out.push_str(&format!("- {}: {}\n", cat, count));
+            }
+        }
+
+        if !status.by_status.is_empty() {
+            out.push_str("\n**By status:**\n");
+            for (st, count) in &status.by_status {
+                out.push_str(&format!("- {}: {}\n", st, count));
+            }
+        }
+
+        out.push_str("\n**By freshness:**\n");
+        for (freshness, count) in &status.by_freshness {
+            out.push_str(&format!("- {}: {}\n", freshness, count));
+        }
+
+        if !status.top_stale.is_empty() {
+            out.push_str("\n**Top stale claims:**\n");
+            for c in &status.top_stale {
+                out.push_str(&format!(
+                    "- [{}] {}\n",
+                    c.id.chars().take(8).collect::<String>(),
+                    c.text
+                ));
+            }
+        }
+
+        Ok(out)
     }
 }
 

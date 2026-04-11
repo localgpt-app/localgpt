@@ -742,6 +742,21 @@ pub struct MemoryConfig {
     /// from conversational queries. Default: false.
     #[serde(default)]
     pub llm_query_expansion: bool,
+
+    /// Enable the Memory Wiki structured knowledge layer (claims, evidence, staleness).
+    /// Default: false.
+    #[serde(default)]
+    pub wiki_enabled: bool,
+
+    /// Days after last update before a wiki claim transitions from Fresh to Aging.
+    /// Default: 30.
+    #[serde(default = "default_wiki_fresh_days")]
+    pub wiki_fresh_days: u32,
+
+    /// Days after last update before a wiki claim transitions from Aging to Stale.
+    /// Default: 90.
+    #[serde(default = "default_wiki_stale_days")]
+    pub wiki_stale_days: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1073,6 +1088,12 @@ fn default_pattern() -> String {
 fn default_session_max_messages() -> usize {
     15 // Match OpenClaw's default
 }
+fn default_wiki_fresh_days() -> u32 {
+    30
+}
+fn default_wiki_stale_days() -> u32 {
+    90
+}
 fn default_port() -> u16 {
     31327
 }
@@ -1204,6 +1225,9 @@ impl Default for MemoryConfig {
             index_sessions: false,
             multimodal_embeddings: false,
             llm_query_expansion: false,
+            wiki_enabled: false,
+            wiki_fresh_days: default_wiki_fresh_days(),
+            wiki_stale_days: default_wiki_stale_days(),
         }
     }
 }
