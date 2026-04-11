@@ -221,7 +221,7 @@ Each heartbeat cycle follows this flow:
 ## Logging
 
 Heartbeat actions are logged to:
-- Application log (`~/.local/state/localgpt/logs/agent.log`)
+- Application log (`~/.local/state/localgpt/logs/localgpt-YYYY-MM-DD.log`)
 - Daily memory log (if memory_append is used)
 
 ## Best Practices

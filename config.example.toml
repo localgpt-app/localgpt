@@ -324,5 +324,5 @@ policy = "deny"
 # Log level: trace, debug, info, warn, error
 level = "info"
 
-# Log file path
-file = "~/.local/state/localgpt/logs/agent.log"
+# Log directory (logs are written as localgpt-YYYY-MM-DD.log)
+path = "~/.local/state/localgpt/logs"

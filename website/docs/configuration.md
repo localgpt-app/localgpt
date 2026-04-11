@@ -268,8 +268,8 @@ disable_suffix = false
 # Log level: trace, debug, info, warn, error
 level = "info"
 
-# Log file path
-file = "~/.local/state/localgpt/logs/agent.log"
+# Log directory (logs are written as localgpt-YYYY-MM-DD.log)
+path = "~/.local/state/localgpt/logs"
 
 #──────────────────────────────────────────────────────────────────────────────
 # Telegram Bot
@@ -535,14 +535,14 @@ LocalGPT supports multiple workspaces via environment variables (OpenClaw-compat
 export LOCALGPT_WORKSPACE=~/my-project/ai-workspace
 localgpt chat
 
-# Use profile-based workspaces
-export LOCALGPT_PROFILE=work    # uses ~/.local/share/localgpt/workspace-work
-export LOCALGPT_PROFILE=home    # uses ~/.local/share/localgpt/workspace-home
+# Use profile-based isolation (all directories get -profile suffix)
+export LOCALGPT_PROFILE=work    # uses ~/.local/share/localgpt-work/workspace
+export LOCALGPT_PROFILE=home    # uses ~/.local/share/localgpt-home/workspace
 ```
 
 Resolution order:
 1. `LOCALGPT_WORKSPACE` env var (absolute path override)
-2. `LOCALGPT_PROFILE` env var (creates `~/.local/share/localgpt/workspace-{profile}`)
+2. `LOCALGPT_PROFILE` env var (creates `~/.local/share/localgpt-{profile}/workspace`)
 3. `memory.workspace` from config file
 4. Default: `~/.local/share/localgpt/workspace`
 

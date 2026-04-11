@@ -41,7 +41,7 @@ LocalGPT follows the [XDG Base Directory Specification](https://specifications.f
 
 ~/.local/state/localgpt/
 ├── logs/
-│   └── agent.log                # Application logs
+│   └── localgpt-YYYY-MM-DD.log   # Daily application logs
 └── localgpt.audit.jsonl         # Append-only audit log
 
 ~/.cache/localgpt/

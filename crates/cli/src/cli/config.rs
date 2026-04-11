@@ -55,16 +55,39 @@ pub async fn run(args: ConfigArgs) -> Result<()> {
 }
 
 fn show_config(format: &str) -> Result<()> {
-    let config = Config::load()?;
+    let mut config = Config::load()?;
+
+    // Show resolved paths first (these account for LOCALGPT_PROFILE and env overrides)
+    println!("# Resolved paths");
+    println!("#   config:    {}", config.paths.config_dir.display());
+    println!("#   data:      {}", config.paths.data_dir.display());
+    println!("#   workspace: {}", config.paths.workspace.display());
+    println!("#   state:     {}", config.paths.state_dir.display());
+    println!("#   cache:     {}", config.paths.cache_dir.display());
+    println!("#   logs:      {}", config.paths.logs_dir().display());
+    if let Some(ref rt) = config.paths.runtime_dir {
+        println!("#   runtime:   {}", rt.display());
+    }
+    println!();
+
+    // Replace raw config values with resolved paths so output is accurate
+    config.memory.workspace = config.paths.workspace.display().to_string();
+    config.memory.embedding_cache_dir = config
+        .paths
+        .cache_dir
+        .join("embeddings")
+        .display()
+        .to_string();
+    config.logging.path = config.paths.logs_dir().display().to_string();
 
     match format {
         "json" => {
             let json = serde_json::to_string_pretty(&config)?;
-            println!("{}", json);
+            println!("{}", redact_secrets(&json));
         }
         _ => {
             let toml = toml::to_string_pretty(&config)?;
-            println!("{}", toml);
+            println!("{}", redact_secrets(&toml));
         }
     }
 
@@ -112,6 +135,44 @@ fn init_config(force: bool) -> Result<()> {
 
     println!("Created config file at {}", path.display());
     Ok(())
+}
+
+/// Redact secret values in serialized config output.
+/// Matches lines where the key contains "api_key", "api_token", "secret", or
+/// "service_account_key" and replaces the value with "***".
+fn redact_secrets(output: &str) -> String {
+    const SECRET_KEYS: &[&str] = &[
+        "api_key",
+        "api_token",
+        "secret",
+        "service_account_key",
+        "auth_token",
+    ];
+
+    output
+        .lines()
+        .map(|line| {
+            let trimmed = line.trim_start();
+            // TOML: key = "value" or JSON: "key": "value"
+            for key in SECRET_KEYS {
+                // TOML format: api_key = "..."
+                if trimmed.starts_with(key) && trimmed.contains("= \"") {
+                    if let Some(eq_pos) = line.find("= \"") {
+                        return format!("{}= \"***\"", &line[..eq_pos]);
+                    }
+                }
+                // JSON format: "api_key": "..."
+                let json_key = format!("\"{}\":", key);
+                if trimmed.starts_with(&json_key) && trimmed.contains('"') {
+                    if let Some(colon_pos) = line.find(':') {
+                        return format!("{}: \"***\"", &line[..colon_pos]);
+                    }
+                }
+            }
+            line.to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 const DEFAULT_CONFIG_TEMPLATE: &str = r#"# LocalGPT Configuration

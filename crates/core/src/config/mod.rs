@@ -813,8 +813,8 @@ pub struct LoggingConfig {
     #[serde(default = "default_log_level")]
     pub level: String,
 
-    #[serde(default = "default_log_file")]
-    pub file: String,
+    #[serde(default = "default_log_path", alias = "file")]
+    pub path: String,
 
     /// Days to keep log files (0 = keep forever, no auto-deletion)
     #[serde(default)]
@@ -1091,8 +1091,8 @@ fn default_bind() -> String {
 fn default_log_level() -> String {
     "info".to_string()
 }
-fn default_log_file() -> String {
-    format!("{}/logs/agent.log", DEFAULT_STATE_DIR_STR)
+fn default_log_path() -> String {
+    format!("{}/logs", DEFAULT_STATE_DIR_STR)
 }
 fn default_sandbox_level() -> String {
     "auto".to_string()
@@ -1237,7 +1237,7 @@ impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
             level: default_log_level(),
-            file: default_log_file(),
+            path: default_log_path(),
             retention_days: 0, // 0 = keep forever
         }
     }
