@@ -72,9 +72,7 @@ feature-depth = 1
 ignore = [
     { id = "RUSTSEC-2025-0069", reason = "daemonize: unmaintained but no alternative; transitive dep only" },
     { id = "RUSTSEC-2024-0436", reason = "paste: unmaintained, transitive dep of tokenizers/rav1e; no upgrade available" },
-    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error: unmaintained, transitive dep of rust-embed; no upgrade available" },
     { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: unmaintained but pulled in by readability->reqwest; only reads PEM files for TLS, no code execution risk" },
-    { id = "RUSTSEC-2025-0057", reason = "fxhash: unmaintained transitive dep via avian3d/bevy-tnua-avian3d; no upgrade available" },
     { id = "RUSTSEC-2026-0049", reason = "rustls-webpki 0.102.8: fix only in 0.103.10+; pinned by serenity 0.12 -> tokio-tungstenite 0.21 -> rustls 0.22; limited impact (requires CA compromise)" },
 ]
 # If this is true, then cargo deny will use the git executable to fetch advisory database.
