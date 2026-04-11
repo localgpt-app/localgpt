@@ -803,10 +803,29 @@ pub struct ServerConfig {
     /// Supports ${ENV_VAR} expansion.
     #[serde(default)]
     pub webhook_secret: Option<String>,
+
+    /// Enable durable outbound message queue with retry on send failure.
+    /// Default: false.
+    #[serde(default)]
+    pub outbox_enabled: bool,
+
+    /// Maximum retry attempts for outbox messages. Default: 5.
+    #[serde(default = "default_outbox_max_attempts")]
+    pub outbox_max_attempts: i64,
+
+    /// Days to retain delivered messages before cleanup. Default: 7.
+    #[serde(default = "default_outbox_retain_days")]
+    pub outbox_retain_days: u32,
 }
 
 fn default_max_request_body() -> usize {
     10 * 1024 * 1024 // 10MB
+}
+fn default_outbox_max_attempts() -> i64 {
+    5
+}
+fn default_outbox_retain_days() -> u32 {
+    7
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1243,6 +1262,9 @@ impl Default for ServerConfig {
             cors_origins: Vec::new(),
             max_request_body: default_max_request_body(),
             webhook_secret: None,
+            outbox_enabled: false,
+            outbox_max_attempts: default_outbox_max_attempts(),
+            outbox_retain_days: default_outbox_retain_days(),
         }
     }
 }

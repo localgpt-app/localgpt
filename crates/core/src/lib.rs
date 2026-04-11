@@ -15,6 +15,7 @@ pub mod hooks;
 pub mod mcp;
 pub mod media;
 pub mod memory;
+pub mod outbox;
 pub mod paths;
 pub mod security;
 
