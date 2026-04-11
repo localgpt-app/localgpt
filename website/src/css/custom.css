@@ -78,3 +78,29 @@
 .header-github-link:hover {
   opacity: 0.6;
 }
+
+/* Search bar: center in navbar and make wider */
+.navbar__inner {
+  flex-wrap: nowrap;
+}
+
+[class*='navbarSearchContainer'] {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+[class*='navbarSearchContainer'] .navbar__search-input {
+  width: 360px;
+}
+
+@media (max-width: 996px) {
+  [class*='navbarSearchContainer'] {
+    position: static;
+    transform: none;
+  }
+
+  [class*='navbarSearchContainer'] .navbar__search-input {
+    width: 180px;
+  }
+}
