@@ -6,7 +6,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Getting Started',
-      items: ['installation', 'quick-start', 'openclaw-migration', 'upgrade-v0.2'],
+      items: ['installation', 'quick-start', 'openclaw-compatibility', 'upgrade-v0.2'],
     },
     {
       type: 'category',

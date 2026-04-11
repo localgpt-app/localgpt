@@ -177,6 +177,30 @@ Primary user-facing binary with commands:
 - Procedural environmental audio (FunDSP)
 - glTF/GLB scene export
 
+## System Prompt
+
+All binaries share the same base system prompt, built by `build_system_prompt()` in `localgpt-core`. This function assembles identity, safety guidelines, tool descriptions, workspace info, and runtime metadata. On each new session, the agent loads workspace context (SOUL.md, MEMORY.md, daily logs, HEARTBEAT.md) and appends it to the system prompt.
+
+### What's shared
+
+Every binary — CLI, Gen, server, mobile, bridge daemons — gets the same core prompt through `Agent::new_session()`. This includes:
+
+- Identity and safety guidelines
+- Tool documentation (generated from the registered tool set)
+- Workspace directory and current time
+- Memory file conventions
+- Runtime info (model, hostname, OS)
+
+### What differs
+
+| | CLI | Gen | Server / Mobile |
+|---|---|---|---|
+| **Agent creation** | `Agent::new()` — async, connects MCP servers | `Agent::new_with_tools()` — sync, tools provided upfront | `Agent::new()` — safe tools only |
+| **Tools** | Safe tools + CLI tools (bash, file ops) + spawn_agent | Safe tools + gen3d tools (spawn_entity, etc.); interactive mode also adds CLI tools | Safe tools only (no file system access) |
+| **Extra prompts** | None | `GEN_MEMORY_PROMPT` (creative memory guidance) added as a user message; `HEADLESS_EXPERIMENT_PROMPT` for headless mode | None |
+
+Gen's additional prompts live in `crates/gen/src/gen3d/system_prompt.rs` and are injected as **user messages** in the chat history, not modifications to the system prompt itself. This keeps the core prompt identical while giving Gen domain-specific guidance for creative world-building and memory usage.
+
 ## Mobile
 
 ### `localgpt-mobile-ffi`

@@ -1,8 +1,6 @@
-# Migrating from OpenClaw
+# OpenClaw Compatibility
 
-LocalGPT is a spiritual successor to OpenClaw, built from scratch in Rust. It uses the same workspace file formats and conventions, so migrating your data is straightforward.
-
-LocalGPT does **not** auto-migrate your OpenClaw data. Follow the steps below to bring your existing workspace, config, and sessions into LocalGPT.
+LocalGPT started as a spiritual successor to OpenClaw, built from scratch in Rust. While the two projects have since diverged into fundamentally different tools, LocalGPT uses the same workspace file formats and conventions, so existing OpenClaw data can be reused.
 
 ## Config
 
@@ -80,13 +78,3 @@ LocalGPT takes a different approach from OpenClaw in several areas:
 - **No subagent spawning** &mdash; single "main" agent
 
 Everything else &mdash; memory, heartbeat, skills, session management &mdash; works the same way.
-
-## Cleanup
-
-Once you have verified that LocalGPT is working correctly with your migrated data, you can optionally remove the OpenClaw directory:
-
-```bash
-rm -rf ~/.openclaw
-```
-
-This will suppress the startup notice about detected OpenClaw data.
