@@ -81,6 +81,7 @@ const config: Config = {
           label: 'Docs',
         },
         {to: '/blog', label: 'Blog', position: 'left'},
+        {to: '/templates', label: 'Templates', position: 'left'},
         {
           href: 'https://www.youtube.com/@localgpt-app',
           position: 'right',
