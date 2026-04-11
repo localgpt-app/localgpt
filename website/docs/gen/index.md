@@ -84,7 +84,7 @@ api_key = "${ANTHROPIC_API_KEY}"
 
 ### Mode 2: Interactive with CLI Backend (no API key)
 
-Use Claude CLI, Gemini CLI, or Codex as the LLM — they handle auth through their own login. LocalGPT starts an [MCP relay](/docs/gen/cli-mode) so tool calls go to your existing Bevy window.
+Use Claude CLI, Gemini CLI, or Codex as the LLM — they handle auth through their own login. LocalGPT auto-starts an [MCP relay](/docs/gen/cli-mode) when it detects a CLI backend model, so tool calls go to your existing Bevy window.
 
 ```bash
 # Set model to a CLI backend in config.toml
@@ -93,7 +93,7 @@ localgpt-gen  # with default_model = "claude-cli/opus"
 
 You'll see:
 ```
-MCP relay active on port 9878 (CLI backends will use this window)
+MCP relay active on port 9878 (external MCP clients can connect to this window)
 CLI backend detected (claude-cli/opus). Gen tools will route to this window via MCP relay.
 ```
 

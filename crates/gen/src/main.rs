@@ -623,6 +623,11 @@ struct Cli {
     /// Load a glTF/GLB scene at startup
     #[arg(short = 's', long, global = true)]
     scene: Option<String>,
+
+    /// Enable MCP relay server for external MCP clients.
+    /// Auto-enabled when using claude-cli/* models.
+    #[arg(long, global = true)]
+    mcp_relay: bool,
 }
 
 #[derive(Subcommand)]
@@ -899,6 +904,14 @@ fn main() -> Result<()> {
             let bridge_for_relay = bridge.clone();
             let relay_config = config.clone();
 
+            // Enable MCP relay when explicitly requested or when using a CLI backend
+            // (claude-cli, gemini-cli, codex-cli spawn subprocesses that need MCP access)
+            let model = &config.agent.default_model;
+            let enable_relay = cli.mcp_relay
+                || model.starts_with("claude-cli/")
+                || model.starts_with("gemini-cli/")
+                || model.starts_with("codex-cli/");
+
             // Spawn tokio runtime + agent loop + MCP relay on a background thread
             // (Bevy must own the main thread for windowing/GPU on macOS)
             std::thread::spawn(move || {
@@ -908,22 +921,24 @@ fn main() -> Result<()> {
                     .expect("Failed to build tokio runtime for gen agent");
 
                 rt.block_on(async move {
-                    // Start the MCP relay server so CLI backends (claude, codex, gemini)
-                    // can connect to the existing Bevy window instead of spawning a new one.
-                    match gen3d::mcp_relay::start_mcp_relay(
-                        bridge_for_relay,
-                        &relay_config,
-                    )
-                    .await
-                    {
-                        Ok(port) => {
-                            eprintln!(
-                                "MCP relay active on port {} (CLI backends will use this window)",
-                                port
-                            );
-                        }
-                        Err(e) => {
-                            tracing::warn!("MCP relay failed to start: {} (CLI backends may spawn a separate window)", e);
+                    if enable_relay {
+                        // Start the MCP relay server so external CLI tools (claude, codex, gemini)
+                        // can connect to the existing Bevy window instead of spawning a new one.
+                        match gen3d::mcp_relay::start_mcp_relay(
+                            bridge_for_relay,
+                            &relay_config,
+                        )
+                        .await
+                        {
+                            Ok(port) => {
+                                eprintln!(
+                                    "MCP relay active on port {} (external MCP clients can connect to this window)",
+                                    port
+                                );
+                            }
+                            Err(e) => {
+                                tracing::warn!("MCP relay failed to start: {} (external MCP clients won't be able to connect)", e);
+                            }
                         }
                     }
 
@@ -940,7 +955,9 @@ fn main() -> Result<()> {
             let result = run_bevy_app(channels, workspace, initial_scene);
 
             // Clean up relay port file so stale ports aren't discovered
-            gen3d::mcp_relay::cleanup_relay_port();
+            if enable_relay {
+                gen3d::mcp_relay::cleanup_relay_port();
+            }
 
             result
         }

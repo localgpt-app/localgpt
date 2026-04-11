@@ -65,13 +65,13 @@ LocalGPT Gen starts a **TCP relay server** alongside the Bevy window. When a CLI
 
 ## How It Works
 
-When you run `localgpt-gen` interactively:
+When you run `localgpt-gen` interactively with a CLI backend model:
 
 1. **Bevy window opens** on the main thread
-2. **MCP relay starts** on port 9878 (background thread)
+2. **MCP relay starts** on port 9878 (auto-enabled for CLI backend models)
 3. **Agent loop starts** — you see:
    ```
-   MCP relay active on port 9878 (CLI backends will use this window)
+   MCP relay active on port 9878 (external MCP clients can connect to this window)
    CLI backend detected (claude-cli/opus). Gen tools will route to this window via MCP relay.
    ```
 4. When the agent sends a prompt to the CLI backend:
@@ -85,7 +85,7 @@ When you run `localgpt-gen` interactively:
 
 ### Automatic (recommended)
 
-If you run `localgpt-gen` interactively with a CLI backend model, it **automatically** configures the relay. No manual setup needed — just:
+The MCP relay starts automatically when your configured model uses a CLI backend (`claude-cli/*`, `gemini-cli/*`, or `codex-cli/*`). No manual setup needed — just:
 
 ```bash
 # Set your model to a CLI backend
@@ -93,6 +93,12 @@ localgpt-gen   # uses default model from config.toml
 ```
 
 If `config.toml` has `default_model = "claude-cli/opus"` (or any `gemini-cli/*` / `codex-cli/*` model), the relay activates automatically.
+
+When using an API-based model (e.g., `openai/gpt-4o`), the relay is **not** started — no port is opened and no relay message is shown. You can force-enable it with the `--mcp-relay` flag:
+
+```bash
+localgpt-gen --mcp-relay   # start relay even with a non-CLI model
+```
 
 ### Claude CLI
 
@@ -166,6 +172,7 @@ localgpt-gen mcp-server --connect [PORT]
 | `--connect` | Connect to an existing gen process's MCP relay |
 | `--connect 9878` | Connect to a specific port (default: auto-discover) |
 | `--headless` | Run without a window (for CI/batch generation) |
+| `--mcp-relay` | Force-enable MCP relay (auto-enabled for CLI backend models) |
 
 Port auto-discovery reads from `$XDG_RUNTIME_DIR/localgpt/gen-mcp-relay.port`, which the interactive gen process writes on startup.
 
@@ -208,7 +215,7 @@ Both should have `["mcp-server", "--connect"]` in the args. If they show `["mcp-
 If port 9878 is in use, the relay picks a random available port. Check the startup log for the actual port:
 
 ```
-MCP relay active on port 51234 (CLI backends will use this window)
+MCP relay active on port 51234 (external MCP clients can connect to this window)
 ```
 
 The `--connect` flag auto-discovers the port, so this usually isn't a problem.
