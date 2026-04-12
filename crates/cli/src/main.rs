@@ -38,7 +38,9 @@ fn main() -> Result<()> {
     #[cfg(unix)]
     if let Commands::Daemon(ref args) = cli.command {
         match args.command {
-            crate::cli::daemon::DaemonCommands::Start { foreground: false } => {
+            crate::cli::daemon::DaemonCommands::Start {
+                foreground: false, ..
+            } => {
                 // Do the fork synchronously, then start Tokio in the child
                 return crate::cli::daemon::daemonize_and_run(&cli.agent);
             }
@@ -101,5 +103,9 @@ async fn async_main(cli: Cli) -> Result<()> {
         Commands::McpServer(args) => crate::cli::mcp_server::run(args).await,
         Commands::Session(args) => crate::cli::session::run(args).await,
         Commands::Audit(args) => crate::cli::audit::run(args).await,
+        Commands::Cert(args) => {
+            let config = localgpt_core::Config::load()?;
+            crate::cli::cert::run(&args, &config)
+        }
     }
 }

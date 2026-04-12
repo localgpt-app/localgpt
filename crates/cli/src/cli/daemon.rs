@@ -413,6 +413,10 @@ pub enum DaemonCommands {
         /// Run in foreground (don't daemonize)
         #[arg(short, long)]
         foreground: bool,
+
+        /// Disable TLS even if server.tls_enabled is true in config
+        #[arg(long)]
+        no_tls: bool,
     },
 
     /// Stop the daemon
@@ -434,7 +438,9 @@ pub enum DaemonCommands {
 
 pub async fn run(args: DaemonArgs, agent_id: &str) -> Result<()> {
     match args.command {
-        DaemonCommands::Start { foreground } => start_daemon(foreground, agent_id).await,
+        DaemonCommands::Start { foreground, no_tls } => {
+            start_daemon(foreground, no_tls, agent_id).await
+        }
         DaemonCommands::Stop => stop_daemon().await,
         DaemonCommands::Restart { foreground } => restart_daemon(foreground, agent_id).await,
         DaemonCommands::Status => show_status().await,
@@ -442,8 +448,13 @@ pub async fn run(args: DaemonArgs, agent_id: &str) -> Result<()> {
     }
 }
 
-async fn start_daemon(foreground: bool, agent_id: &str) -> Result<()> {
-    let config = Config::load()?;
+async fn start_daemon(foreground: bool, no_tls: bool, agent_id: &str) -> Result<()> {
+    let mut config = Config::load()?;
+
+    // Override TLS if --no-tls flag is set
+    if no_tls {
+        config.server.tls_enabled = false;
+    }
 
     // Check if already running
     let pid_file = get_pid_file()?;
@@ -595,7 +606,7 @@ async fn restart_daemon(foreground: bool, agent_id: &str) -> Result<()> {
 
     // Start in foreground mode
     println!();
-    start_daemon(foreground, agent_id).await
+    start_daemon(foreground, false, agent_id).await
 }
 
 async fn show_status() -> Result<()> {

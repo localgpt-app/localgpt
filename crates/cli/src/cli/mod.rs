@@ -1,6 +1,7 @@
 pub mod ask;
 pub mod audit;
 pub mod bridge;
+pub mod cert;
 pub mod chat;
 pub mod completion;
 pub mod config;
@@ -130,4 +131,7 @@ pub enum Commands {
 
     /// Inspect compaction audit log (show, verify, stats)
     Audit(audit::AuditArgs),
+
+    /// Manage TLS certificates (info, regenerate)
+    Cert(cert::CertArgs),
 }

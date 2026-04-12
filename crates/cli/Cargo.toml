@@ -17,6 +17,8 @@ path = "src/main.rs"
 default = ["desktop"]
 # Desktop GUI (eframe/egui). Disable for headless/server/Docker builds.
 desktop = ["eframe"]
+# TLS support (self-signed cert generation + HTTPS server)
+tls = ["localgpt-server/tls"]
 
 [dependencies]
 localgpt-core = { workspace = true }

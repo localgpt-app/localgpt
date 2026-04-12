@@ -253,6 +253,64 @@ impl Server {
         let addr: SocketAddr =
             format!("{}:{}", self.config.server.bind, self.config.server.port).parse()?;
 
+        // TLS mode: generate/load certs and serve HTTPS
+        #[cfg(feature = "tls")]
+        if self.config.server.tls_enabled {
+            let cert_dir = std::path::Path::new(&self.config.server.tls_cert_dir);
+            let cert_paths = crate::tls::certs::ensure_certs(
+                cert_dir,
+                self.config.server.tls_renew_threshold_days,
+            )?;
+
+            info!("Starting HTTPS server on https://{}", addr);
+            info!(
+                "CA certificate: {} (share with clients for trust)",
+                cert_paths.ca_cert.display()
+            );
+
+            let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(
+                &cert_paths.server_cert,
+                &cert_paths.server_key,
+            )
+            .await?;
+
+            // Spawn companion HTTP server for CA cert download on port+1
+            let companion_port = self.config.server.port.saturating_add(1);
+            let companion_addr: SocketAddr =
+                format!("{}:{}", self.config.server.bind, companion_port).parse()?;
+            let ca_cert_path = cert_paths.ca_cert.clone();
+            tokio::spawn(async move {
+                let ca_app = axum::Router::new().route(
+                    "/ca.pem",
+                    get(move || async move {
+                        match tokio::fs::read(&ca_cert_path).await {
+                            Ok(data) => (
+                                StatusCode::OK,
+                                [(header::CONTENT_TYPE, "application/x-pem-file")],
+                                data,
+                            )
+                                .into_response(),
+                            Err(_) => StatusCode::NOT_FOUND.into_response(),
+                        }
+                    }),
+                );
+                info!(
+                    "CA cert download available at http://{}/ca.pem",
+                    companion_addr
+                );
+                if let Ok(listener) = tokio::net::TcpListener::bind(companion_addr).await {
+                    let _ = axum::serve(listener, ca_app).await;
+                }
+            });
+
+            axum_server::bind_rustls(addr, tls_config)
+                .serve(app.into_make_service())
+                .await?;
+
+            return Ok(());
+        }
+
+        // Plain HTTP mode (default)
         info!("Starting HTTP server on http://{}", addr);
 
         let listener = tokio::net::TcpListener::bind(addr).await?;
