@@ -11,6 +11,8 @@ mod websocket;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod security;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod tls;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use http::Server;

@@ -827,6 +827,19 @@ pub struct ServerConfig {
     /// Days to retain delivered messages before cleanup. Default: 7.
     #[serde(default = "default_outbox_retain_days")]
     pub outbox_retain_days: u32,
+
+    /// Enable auto-generated TLS certificates for HTTPS. Default: false.
+    /// Requires the `tls` feature on localgpt-server.
+    #[serde(default)]
+    pub tls_enabled: bool,
+
+    /// Directory for TLS certificate storage. Default: ~/.config/localgpt/certs
+    #[serde(default = "default_tls_cert_dir")]
+    pub tls_cert_dir: String,
+
+    /// Regenerate certificates when they expire within this many days. Default: 30.
+    #[serde(default = "default_tls_renew_threshold")]
+    pub tls_renew_threshold_days: u32,
 }
 
 fn default_max_request_body() -> usize {
@@ -837,6 +850,19 @@ fn default_outbox_max_attempts() -> i64 {
 }
 fn default_outbox_retain_days() -> u32 {
     7
+}
+fn default_tls_cert_dir() -> String {
+    if let Some(proj) = directories::ProjectDirs::from("app", "LocalGPT", "localgpt") {
+        proj.config_dir()
+            .join("certs")
+            .to_string_lossy()
+            .to_string()
+    } else {
+        "~/.config/localgpt/certs".to_string()
+    }
+}
+fn default_tls_renew_threshold() -> u32 {
+    30
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1277,6 +1303,9 @@ impl Default for ServerConfig {
             outbox_enabled: false,
             outbox_max_attempts: default_outbox_max_attempts(),
             outbox_retain_days: default_outbox_retain_days(),
+            tls_enabled: false,
+            tls_cert_dir: default_tls_cert_dir(),
+            tls_renew_threshold_days: default_tls_renew_threshold(),
         }
     }
 }

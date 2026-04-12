@@ -53,5 +53,18 @@ uuid = { workspace = true }
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# TLS (optional)
+rcgen = { version = "0.13", optional = true }
+rustls = { version = "0.23", optional = true, default-features = false, features = ["ring", "logging", "std", "tls12"] }
+tokio-rustls = { version = "0.26", optional = true }
+rustls-pemfile = { version = "2", optional = true }
+axum-server = { version = "0.7", features = ["tls-rustls"], optional = true }
+hostname = { version = "0.4", optional = true }
+local-ip-address = { version = "0.6", optional = true }
+
+[dev-dependencies]
+tempfile = "3.27"
+
 [features]
 default = []
+tls = ["rcgen", "rustls", "tokio-rustls", "rustls-pemfile", "axum-server", "hostname", "local-ip-address"]
