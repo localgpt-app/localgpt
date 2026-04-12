@@ -222,7 +222,7 @@ Config: `~/.config/localgpt/config.toml` (auto-created on first run, see `config
 
 Key settings:
 - `agent.default_model` — Determines provider. Default: `claude-cli/opus`
-- `providers.claude_cli.effort` — Claude CLI effort level: `min`, `low`, `medium`, `high`, `max`. Default: `max`
+- `providers.claude_cli.effort` — Claude CLI effort level: `low`, `medium`, `high`, `max`. Default: `max`
 - `memory.workspace` — Workspace directory. Default: `~/.local/share/localgpt/workspace`
 - `memory.embedding_provider` — `"local"` (default), `"openai"`, or `"none"`
 - `server.port` — HTTP server port (default: 31327)

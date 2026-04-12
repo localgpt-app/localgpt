@@ -518,6 +518,16 @@ impl Agent {
         &self.app_config.tools.require_approval
     }
 
+    /// Get the current effort level, if the provider supports it.
+    pub fn effort(&self) -> Option<String> {
+        self.provider.effort()
+    }
+
+    /// Set the effort level on the current provider.
+    pub fn set_effort(&self, effort: &str) -> Result<()> {
+        self.provider.set_effort(effort)
+    }
+
     /// Switch to a different model
     pub fn set_model(&mut self, model: &str) -> Result<()> {
         let provider = providers::create_provider(model, &self.app_config)?;

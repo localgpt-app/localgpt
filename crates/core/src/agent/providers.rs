@@ -362,6 +362,16 @@ pub trait LLMProvider: Send + Sync {
     /// Default: no-op (most providers are stateless).
     fn reset_session(&self) {}
 
+    /// Get the current effort level, if the provider supports it.
+    fn effort(&self) -> Option<String> {
+        None
+    }
+
+    /// Set the effort level. Returns an error if the provider does not support it.
+    fn set_effort(&self, _effort: &str) -> Result<()> {
+        anyhow::bail!("This provider does not support effort levels")
+    }
+
     /// Stream chat response (default: falls back to non-streaming)
     async fn chat_stream(
         &self,
@@ -530,7 +540,7 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
                 .unwrap_or_else(|| "max".to_string());
             let mcp_override = cli_config.and_then(|c| c.mcp_config_override.clone());
             let mut provider = ClaudeCliProvider::new(command, &model_id, workspace)?;
-            provider.set_effort(effort);
+            provider.set_effort_init(effort);
             if let Some(mcp_json) = mcp_override {
                 provider.set_mcp_config_override(mcp_json);
             }
@@ -2252,7 +2262,7 @@ pub struct ClaudeCliProvider {
     /// CLI session ID for multi-turn conversations (interior mutability for &self methods)
     cli_session_id: StdMutex<Option<String>>,
     /// Effort level for Claude CLI (low, medium, high, max)
-    effort: String,
+    effort: StdMutex<String>,
     /// Optional MCP config JSON to pass via --mcp-config + --strict-mcp-config.
     /// When set, prevents Claude CLI from using its own MCP server configuration,
     /// avoiding duplicate process spawning (e.g., a second localgpt-gen window).
@@ -2281,7 +2291,7 @@ impl ClaudeCliProvider {
             session_key,
             localgpt_session_id: uuid::Uuid::new_v4().to_string(),
             cli_session_id: StdMutex::new(existing_session),
-            effort: "max".to_string(),
+            effort: StdMutex::new("max".to_string()),
             mcp_config_override: None,
         })
     }
@@ -2292,8 +2302,8 @@ impl ClaudeCliProvider {
     /// This prevents Claude CLI from using its own MCP server configuration,
     /// which avoids spawning duplicate processes (e.g., a second Bevy window
     /// when `localgpt-gen mcp-server` is configured as an MCP server).
-    pub fn set_effort(&mut self, effort: String) {
-        self.effort = effort;
+    pub fn set_effort_init(&mut self, effort: String) {
+        *self.effort.lock().unwrap() = effort;
     }
 
     pub fn set_mcp_config_override(&mut self, config_json: String) {
@@ -2431,9 +2441,10 @@ impl ClaudeCliProvider {
         }
 
         // Effort level
-        if !self.effort.is_empty() {
+        let effort = self.effort.lock().unwrap().clone();
+        if !effort.is_empty() {
             args.push("--effort".to_string());
-            args.push(self.effort.clone());
+            args.push(effort);
         }
 
         // System prompt (new sessions only)
@@ -2577,6 +2588,24 @@ impl LLMProvider for ClaudeCliProvider {
             });
         }
         info!("Claude CLI session reset (next call will start fresh)");
+    }
+
+    fn effort(&self) -> Option<String> {
+        Some(self.effort.lock().unwrap().clone())
+    }
+
+    fn set_effort(&self, effort: &str) -> Result<()> {
+        match effort {
+            "low" | "medium" | "high" | "max" => {
+                *self.effort.lock().unwrap() = effort.to_string();
+                info!("Claude CLI effort set to: {}", effort);
+                Ok(())
+            }
+            _ => anyhow::bail!(
+                "Invalid effort level '{}'. Valid values: low, medium, high, max",
+                effort
+            ),
+        }
     }
 
     async fn chat(

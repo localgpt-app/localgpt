@@ -61,6 +61,21 @@ async fn handle_gen_command(
             CommandResult::Continue
         }
 
+        "/effort" => {
+            if parts.len() < 2 {
+                match agent.effort() {
+                    Some(level) => println!("\nCurrent effort: {}\n", level),
+                    None => println!("\nEffort levels not supported by current provider\n"),
+                }
+                return CommandResult::Continue;
+            }
+            match agent.set_effort(parts[1]) {
+                Ok(()) => println!("\nEffort set to: {}\n", parts[1]),
+                Err(e) => eprintln!("\nError: {}\n", e),
+            }
+            CommandResult::Continue
+        }
+
         "/models" => {
             println!("\nAvailable model prefixes:");
             println!("  claude-cli/*    - Use Claude CLI (e.g., claude-cli/opus)");

@@ -92,7 +92,7 @@ api_key = "${GLM_API_KEY}"
 [providers.claude_cli]
 command = "claude"
 model = "opus"
-effort = "max"  # min, low, medium, high, max
+effort = "max"  # low, medium, high, max
 
 [providers.gemini_cli]
 command = "gemini"
@@ -384,7 +384,7 @@ You can control the effort level (how much thinking the model does) via the prov
 
 ```toml
 [providers.claude_cli]
-effort = "max"  # min, low, medium, high, max (default: max)
+effort = "max"  # low, medium, high, max (default: max)
 ```
 
 ### Gemini CLI

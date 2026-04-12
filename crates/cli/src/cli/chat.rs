@@ -768,6 +768,23 @@ async fn handle_command(
             }
         }
 
+        "/effort" => {
+            if parts.len() < 2 {
+                match agent.effort() {
+                    Some(level) => println!("\nCurrent effort: {}\n", level),
+                    None => println!("\nEffort levels not supported by current provider\n"),
+                }
+                return CommandResult::Continue;
+            }
+            match agent.set_effort(parts[1]) {
+                Ok(()) => {
+                    println!("\nEffort set to: {}\n", parts[1]);
+                    CommandResult::Continue
+                }
+                Err(e) => CommandResult::Error(format!("{}", e)),
+            }
+        }
+
         "/compact" => match agent.compact_session().await {
             Ok((before, after)) => {
                 println!("\nSession compacted. Token count: {} → {}\n", before, after);

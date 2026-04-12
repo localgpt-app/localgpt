@@ -114,6 +114,13 @@ pub const COMMANDS: &[SlashCommand] = &[
         ],
     },
     SlashCommand {
+        name: "effort",
+        description: "Show or set effort level (claude-cli)",
+        aliases: &[],
+        usage: "[low|medium|high|max]",
+        interfaces: &[Interface::Cli, Interface::Gen],
+    },
+    SlashCommand {
         name: "models",
         description: "List model prefixes",
         aliases: &[],
