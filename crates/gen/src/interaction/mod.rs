@@ -571,7 +571,7 @@ pub struct RequiresItem {
 // ---------------------------------------------------------------------------
 
 /// System: check proximity triggers against the player each frame.
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn proximity_trigger_system(
     time: Res<Time>,
     mut player_query: Query<
@@ -613,10 +613,10 @@ pub fn proximity_trigger_system(
             continue;
         }
         // Check item requirement (Gap 2.3)
-        if let Some(req) = requires {
-            if !inventory.has_item(&req.item_id) {
-                continue;
-            }
+        if let Some(req) = requires
+            && !inventory.has_item(&req.item_id)
+        {
+            continue;
         }
         trigger.last_triggered = now;
 
@@ -665,7 +665,7 @@ pub fn proximity_trigger_system(
 }
 
 /// System: handle click triggers (E key press within max_distance).
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn click_trigger_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut player_query: Query<
@@ -707,10 +707,10 @@ pub fn click_trigger_system(
             continue;
         }
         // Check item requirement (Gap 2.3)
-        if let Some(req) = requires {
-            if !inventory.has_item(&req.item_id) {
-                continue;
-            }
+        if let Some(req) = requires
+            && !inventory.has_item(&req.item_id)
+        {
+            continue;
         }
         if closest.is_none() || distance < closest.unwrap().1 {
             closest = Some((entity, distance));
@@ -1428,10 +1428,10 @@ pub fn interaction_prompt_hud_system(
             continue;
         }
         // Check item requirement
-        if let Some(req) = requires {
-            if !inventory.has_item(&req.item_id) {
-                continue;
-            }
+        if let Some(req) = requires
+            && !inventory.has_item(&req.item_id)
+        {
+            continue;
         }
         if closest.is_none() || distance < closest.as_ref().unwrap().1 {
             let text = trigger
@@ -1499,7 +1499,7 @@ pub fn interaction_prompt_hud_system(
 /// rigid body and entities marked with `CollisionTrigger` + `Sensor`.
 /// Fires the same actions as proximity/click triggers.
 #[cfg(feature = "physics")]
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn collision_trigger_system(
     time: Res<Time>,
     collisions: avian3d::prelude::Collisions,
@@ -1542,10 +1542,10 @@ pub fn collision_trigger_system(
             }
 
             // Check item requirement
-            if let Some(req) = requires {
-                if !inventory.has_item(&req.item_id) {
-                    continue;
-                }
+            if let Some(req) = requires
+                && !inventory.has_item(&req.item_id)
+            {
+                continue;
             }
 
             trigger.last_triggered = now;

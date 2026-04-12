@@ -32,22 +32,27 @@ pub struct ToolResult {
 /// Tools default to `Safe`. CLI dangerous tools (bash, file write, etc.) override
 /// to `Elevated`. Admin tools (config edit, key rotation) override to `Admin`.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+    Default,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
 )]
 #[serde(rename_all = "lowercase")]
 pub enum PermissionLevel {
     /// Read-only tools: memory search, web fetch, etc.
+    #[default]
     Safe = 0,
     /// File write, shell exec, browser automation.
     Elevated = 1,
     /// Config changes, daemon control, encryption key rotation.
     Admin = 2,
-}
-
-impl Default for PermissionLevel {
-    fn default() -> Self {
-        Self::Safe
-    }
 }
 
 impl std::fmt::Display for PermissionLevel {

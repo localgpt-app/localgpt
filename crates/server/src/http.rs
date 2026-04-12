@@ -374,55 +374,6 @@ async fn auth_middleware(
     }
 }
 
-/// Verify a webhook signature (HMAC-SHA256).
-///
-/// Checks `X-Signature-256` header against HMAC-SHA256(secret, body).
-/// Returns Ok(()) if valid, Err(StatusCode) if invalid.
-/// If no webhook_secret is configured, always passes.
-#[allow(dead_code)]
-pub fn verify_webhook_signature(
-    secret: Option<&str>,
-    signature_header: Option<&str>,
-    body: &[u8],
-) -> Result<(), StatusCode> {
-    let Some(secret) = secret else {
-        return Ok(()); // No secret = no verification (backward compat)
-    };
-
-    let sig_header = signature_header.ok_or_else(|| {
-        debug!("Webhook rejected: missing X-Signature-256 header");
-        StatusCode::UNAUTHORIZED
-    })?;
-
-    // Expected format: sha256=<hex>
-    let expected_hex = sig_header.strip_prefix("sha256=").ok_or_else(|| {
-        debug!("Webhook rejected: X-Signature-256 must start with 'sha256='");
-        StatusCode::UNAUTHORIZED
-    })?;
-
-    use hmac::{Hmac, Mac};
-    use sha2::Sha256;
-    type HmacSha256 = Hmac<Sha256>;
-
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    mac.update(body);
-    let result = mac.finalize();
-
-    let computed_hex: String = result
-        .into_bytes()
-        .iter()
-        .map(|b| format!("{:02x}", b))
-        .collect();
-
-    if constant_time_eq(computed_hex.as_bytes(), expected_hex.as_bytes()) {
-        Ok(())
-    } else {
-        debug!("Webhook rejected: signature mismatch");
-        Err(StatusCode::UNAUTHORIZED)
-    }
-}
-
 // Rate limit middleware for API routes
 async fn rate_limit_middleware(
     State(state): State<Arc<AppState>>,

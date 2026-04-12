@@ -156,17 +156,19 @@ fn redact_secrets(output: &str) -> String {
             // TOML: key = "value" or JSON: "key": "value"
             for key in SECRET_KEYS {
                 // TOML format: api_key = "..."
-                if trimmed.starts_with(key) && trimmed.contains("= \"") {
-                    if let Some(eq_pos) = line.find("= \"") {
-                        return format!("{}= \"***\"", &line[..eq_pos]);
-                    }
+                if trimmed.starts_with(key)
+                    && trimmed.contains("= \"")
+                    && let Some(eq_pos) = line.find("= \"")
+                {
+                    return format!("{}= \"***\"", &line[..eq_pos]);
                 }
                 // JSON format: "api_key": "..."
                 let json_key = format!("\"{}\":", key);
-                if trimmed.starts_with(&json_key) && trimmed.contains('"') {
-                    if let Some(colon_pos) = line.find(':') {
-                        return format!("{}: \"***\"", &line[..colon_pos]);
-                    }
+                if trimmed.starts_with(&json_key)
+                    && trimmed.contains('"')
+                    && let Some(colon_pos) = line.find(':')
+                {
+                    return format!("{}: \"***\"", &line[..colon_pos]);
                 }
             }
             line.to_string()
