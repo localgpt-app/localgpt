@@ -7,19 +7,19 @@ slug: /claw
 
 > **⚠️ AI-Generated Documentation:** This document was generated and is maintained by AI assistants. While efforts are made to ensure accuracy, many details must be outdated or incorrect as those projects are moving very fast. Please verify with the source repositories for the most current information.
 >
-> **Last updated:** 2026-04-10
+> **Last updated:** 2026-04-12
 
-This document tracks feature parity across fourteen implementations of the personal AI assistant architecture. OpenClaw (TypeScript) is the reference implementation; IronClaw, LocalGPT, Moltis, and ZeroClaw are Rust implementations; Nanobot, CoPaw, and Agent Zero are Python implementations; PicoClaw is Go; NullClaw is Zig; MimiClaw and ZClaw are C (ESP32); RosClaw is a TypeScript OpenClaw plugin for ROS2 robotics; TinyClaw is a TypeScript multi-agent orchestrator.
+This document tracks feature parity across fifteen implementations of the personal AI assistant architecture. OpenClaw (TypeScript) is the reference implementation; IronClaw, LocalGPT, Moltis, and ZeroClaw are Rust implementations; Nanobot, CoPaw, Hermes Agent, and Agent Zero are Python implementations; PicoClaw is Go; NullClaw is Zig; MimiClaw and ZClaw are C (ESP32); RosClaw is a TypeScript OpenClaw plugin for ROS2 robotics; TinyClaw is a TypeScript multi-agent orchestrator.
 
 ### Project Summary
 
 | Project | Language | License | Summary |
 |---------|----------|---------|---------|
-| **OpenClaw** | TypeScript | MIT | Reference implementation (v2026.4.10); full-featured desktop AI assistant with 20+ messaging channels, WebSocket control plane, advanced memory system (Active Memory pre-reply recall, dreaming with grounded REM backfill, memory-wiki belief-layer digests, LanceDB vector backend, pluggable compaction), usage/cost analytics dashboard, ClawHub plugin ecosystem, MCP integration, durable WhatsApp delivery queue, and hardened MS Teams Graph API integration |
+| **OpenClaw** | TypeScript | MIT | Reference implementation (v2026.4.11); full-featured desktop AI assistant with 20+ messaging channels, WebSocket control plane, advanced memory system (Active Memory pre-reply recall with configurable modes, dreaming with grounded REM backfill, memory-wiki belief-layer digests, LanceDB vector backend, pluggable compaction), startup-context prelude, usage/cost analytics dashboard, ClawHub plugin ecosystem, MCP integration, durable WhatsApp delivery queue, and hardened MS Teams Graph API integration |
 | **IronClaw** | Rust | MIT/Apache 2.0 | Security-focused (v0.24.0); WASM sandbox with capability-based permissions, Docker sandbox (orchestrator/worker), prompt injection defense, hybrid search memory (PostgreSQL + pgvector), self-repair with fault injection testing, dynamic tool building, webhook relay, NEAR AI integration, per-job MCP server filtering, unified config (DB > env > default) |
-| **LocalGPT** | Rust | Apache 2.0 | Local-first AI assistant (v0.3.5) with persistent markdown memory, Bevy 3D scene generation (Gen mode with physics, NPC brain, MCP server), Slack/Telegram/Discord/WhatsApp bridges, Docker/Podman + OS-level sandbox, browser automation, encryption at rest, SSRF protection, and optional autonomous heartbeat |
+| **LocalGPT** | Rust | Apache 2.0 | Local-first AI assistant (v0.3.6) with persistent markdown memory, Bevy 3D scene generation (Gen mode with physics, NPC brain, MCP server), Slack/Telegram/Discord/WhatsApp bridges, Docker/Podman + OS-level sandbox, browser automation, encryption at rest, TLS auto-certs, elevated permission mode, durable outbound message queue, SSRF protection, and optional autonomous heartbeat with dreaming |
 | **Moltis** | Rust | MIT | Enterprise-ready 46-crate workspace (v20260409.04, 196K LoC, 2,300+ tests, zero unsafe); Docker + Apple Container sandbox, multi-channel (Telegram/Slack/HTTP/Teams/Discord), GraphQL API, TLS/WebAuthn auth, encryption-at-rest (XChaCha20-Poly1305), 18 LLM providers including Alibaba Coding |
-| **Nanobot** | Python | MIT | Lightweight (v0.1.5, ~4K LOC) with 12+ chat channels (including WebSocket server), unified cross-channel sessions, MCP integration; ideal for learning and rapid prototyping |
+| **Nanobot** | Python | MIT | Lightweight (v0.1.5, ~4K LOC) with 13+ chat channels (including WebSocket server, WeCom), unified cross-channel sessions, multi-MCP server support, Kagi web search, disabled_skills config; ideal for learning and rapid prototyping |
 | **CoPaw** | Python | Apache 2.0 | AgentScope/Alibaba-based (v1.0.2); native desktop installers (Win/Mac), console web UI with multimodal support, 10 channels (DingTalk/Feishu/QQ/Discord/iMessage/Telegram/Signal/Matrix/MQTT/Nostr), local models (llama.cpp/MLX/Ollama), ReMeLight memory, plugin system with manifest loading, /skills and /model commands, built-in glob/grep search tools, Twilio voice, daemon mode |
 | **PicoClaw** | Go | MIT | Minimal footprint (under 10MB RAM) with multi-arch support; WeCom enterprise messaging; targets resource-constrained environments |
 | **ZeroClaw** | Rust | MIT/Apache 2.0 | Ultra-lightweight (v0.6.9, &lt;5MB RAM, &lt;10ms startup); trait-driven architecture, Extism WASM plugin system, Configurable derive macro, ClaudeCodeTool delegation, Piper TTS/LocalWhisper STT, Gmail Pub/Sub, Live Canvas, Prometheus metrics, model cost tracking, Lark/Feishu channel, ARM cross-compilation, extensive IoT protocol support (MQTT, Nextcloud Talk) |
@@ -28,6 +28,7 @@ This document tracks feature parity across fourteen implementations of the perso
 | **RosClaw** | TypeScript + Python | Apache 2.0 | OpenClaw plugin for ROS2 robotics; rosbridge WebSocket, robot context injection, 3 transport modes |
 | **ZClaw** | C (ESP32) | MIT | 888KiB binary budget (v2.13.0), 27 tools, 4 LLM providers, ESP32/C3/S3/C6 support, DHT/I2C sensor tools, rate limiting, serial admin |
 | **TinyClaw** | TypeScript | MIT | Multi-agent team orchestrator (v0.0.20, rebranded to TinyAGI); TinyOffice dashboard (Next.js, 11 pages), Hono HTTP + REST API + WebSocket, SSE events with streaming execution progress, control plane with daemon restart/channel management, skills-manager for dynamic skill install, linear-style task/project management, WhatsApp/Discord/Telegram integration, curl-based installer |
+| **Hermes Agent** | Python | MIT | Nous Research's self-improving agent (v0.8.0); closed learning loop with autonomous skill creation, 17+ channels (Telegram/Discord/Slack/WhatsApp/Signal/Matrix/Email/SMS/iMessage/WeCom/DingTalk/Feishu/Mattermost/Home Assistant), 40+ tools, 26+ built-in skills, 20+ LLM providers, MCP with OAuth, 8 pluggable memory backends, Docker/Singularity/Modal/Daytona sandbox, cron scheduler, voice mode, browser automation, Skills Hub, and research-ready batch trajectory generation |
 | **Agent Zero** | Python | MIT | General-purpose agentic framework with hierarchical multi-agent cooperation, Docker sandbox, browser automation, SKILL.md skills, built-in skills selector plugin, MCP client/server, hardened FAISS memory, and real-time Web UI |
 
 ### GitHub Repositories
@@ -47,6 +48,7 @@ This document tracks feature parity across fourteen implementations of the perso
 | RosClaw | https://github.com/PlaiPin/rosclaw |
 | ZClaw | https://github.com/tnm/zclaw |
 | TinyClaw | https://github.com/TinyAGI/tinyclaw |
+| Hermes Agent | https://github.com/NousResearch/hermes-agent |
 | Agent Zero | https://github.com/agent0ai/agent-zero |
 
 **Legend:**
@@ -58,598 +60,598 @@ This document tracks feature parity across fourteen implementations of the perso
 
 ## 1. Architecture
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| Hub-and-spoke architecture | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ✅ | MimiClaw/ZClaw: embedded; RosClaw: OpenClaw plugin |
-| WebSocket control plane | ✅ | ✅ | 🚧 | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | RosClaw: rosbridge WebSocket; Agent Zero: Flask-SocketIO |
-| Single-user system | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | |
-| Multi-agent routing | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: hierarchical superior/subordinate; TinyClaw: multi-agent teams |
-| Session-based messaging | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | |
-| Loopback-first networking | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | |
-| Bridge daemon protocol (IPC) | ➖ | ➖ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: tarpc-based localgpt-bridge |
-| GraphQL API | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Moltis: HTTP + WebSocket GraphQL |
-| Trait-driven architecture | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Ultra-lightweight runtime | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | |
-| Embedded hardware support | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ZClaw: ESP32/C3/S3/C6 |
-| OTA updates | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | MimiClaw + ZClaw: over-the-air firmware |
-| No OS/runtime | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | Bare metal ESP-IDF/FreeRTOS |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| Hub-and-spoke architecture | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ✅ | ✅ | MimiClaw/ZClaw: embedded; RosClaw: OpenClaw plugin |
+| WebSocket control plane | ✅ | ✅ | 🚧 | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | RosClaw: rosbridge WebSocket; Agent Zero: Flask-SocketIO |
+| Single-user system | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | |
+| Multi-agent routing | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | Agent Zero: hierarchical superior/subordinate; TinyClaw: multi-agent teams |
+| Session-based messaging | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | |
+| Loopback-first networking | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | |
+| Bridge daemon protocol (IPC) | ➖ | ➖ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: tarpc-based localgpt-bridge |
+| GraphQL API | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Moltis: HTTP + WebSocket GraphQL |
+| Trait-driven architecture | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Ultra-lightweight runtime | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | |
+| Embedded hardware support | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ZClaw: ESP32/C3/S3/C6 |
+| OTA updates | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | MimiClaw + ZClaw: over-the-air firmware |
+| No OS/runtime | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | Bare metal ESP-IDF/FreeRTOS |
 
 ---
 
 ## 2. Gateway System
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| Gateway control plane | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | TinyClaw: Hono HTTP; Agent Zero: Flask |
-| HTTP endpoints for Control UI | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | TinyClaw: TinyOffice; Agent Zero: Web UI |
-| Channel connection lifecycle | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | |
-| Session management/routing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | |
-| Configuration hot-reload | ✅ | ❌ | ✅ | 🚧 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: env vars via A0_SET_ |
-| Network modes (loopback/LAN/remote) | ✅ | 🚧 | 🚧 | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | RosClaw: 3 transport modes |
-| OpenAI-compatible HTTP API | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Canvas hosting | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: Live Canvas |
-| Gateway lock (PID-based) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: daemonize PID file + duplicate check |
-| launchd/systemd integration | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | CoPaw: daemon mode; Agent Zero: Docker |
-| Bonjour/mDNS discovery | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Tailscale integration | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Health check endpoints | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ZClaw: get_health tool |
-| `doctor` diagnostics | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ZClaw: get_diagnostics |
-| Agent event broadcast | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | TinyClaw: SSE; Agent Zero: WebSocket stream |
-| Channel health monitor | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Presence system | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Trusted-proxy auth mode | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| APNs push pipeline | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Oversized payload guard | ✅ | 🚧 | ✅ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Pre-prompt context diagnostics | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | RosClaw: robot context injection; Agent Zero: system prompts |
-| TLS/HTTPS auto-certs | ❌ | ❌ | 🚧 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: rcgen cert generation + SAN detection + auto-renewal. Server listener wiring remaining |
-| WebAuthn/passkey auth | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Rate limiting (per-IP) | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ZClaw: 100/hr, 1000/day |
-| Prometheus metrics | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Serial CLI config | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | MimiClaw + ZClaw: serial admin |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| Gateway control plane | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | TinyClaw: Hono HTTP; Agent Zero: Flask |
+| HTTP endpoints for Control UI | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | TinyClaw: TinyOffice; Agent Zero: Web UI |
+| Channel connection lifecycle | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | |
+| Session management/routing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | |
+| Configuration hot-reload | ✅ | ❌ | ✅ | 🚧 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: env vars via A0_SET_ |
+| Network modes (loopback/LAN/remote) | ✅ | 🚧 | 🚧 | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ | RosClaw: 3 transport modes |
+| OpenAI-compatible HTTP API | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Canvas hosting | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: Live Canvas |
+| Gateway lock (PID-based) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: daemonize PID file + duplicate check |
+| launchd/systemd integration | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | CoPaw: daemon mode; Agent Zero: Docker |
+| Bonjour/mDNS discovery | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Tailscale integration | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Health check endpoints | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ZClaw: get_health tool |
+| `doctor` diagnostics | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ZClaw: get_diagnostics |
+| Agent event broadcast | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | TinyClaw: SSE; Agent Zero: WebSocket stream |
+| Channel health monitor | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Presence system | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Trusted-proxy auth mode | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| APNs push pipeline | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Oversized payload guard | ✅ | 🚧 | ✅ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Pre-prompt context diagnostics | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ | RosClaw: robot context injection; Agent Zero: system prompts |
+| TLS/HTTPS auto-certs | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: rcgen cert generation + SAN detection + auto-renewal + TLS server listener + cert CLI (generate/show/--no-tls) |
+| WebAuthn/passkey auth | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Rate limiting (per-IP) | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ZClaw: 100/hr, 1000/day |
+| Prometheus metrics | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Serial CLI config | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | MimiClaw + ZClaw: serial admin |
 
 ---
 
 ## 3. Messaging Channels
 
-| Channel | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Priority | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|----------|-------|
-| CLI/TUI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ✅ | ✅ | - | ZClaw: serial; TinyClaw: tinyclaw send; Agent Zero: run_ui.py |
-| HTTP webhook | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | 🚧 | ✅ | ✅ | - | ZClaw: web relay; Agent Zero: Flask API |
-| REPL (simple) | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | - | |
-| WASM channels | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | IronClaw innovation |
-| WhatsApp | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ❌ | P1 | OpenClaw: durable delivery queue with reconnect drain; TinyClaw: whatsapp-web.js |
-| Telegram | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ❌ | - | ZClaw: long-polling |
-| Discord | ✅ | ❌ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ❌ | P2 | TinyClaw: discord.js |
-| Signal | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | P2 | CoPaw: v0.0.6 |
-| Slack | ✅ | ✅ | ✅ | 🚧 | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | - | LocalGPT: bridge daemon, Socket Mode, slack-morphism v2, edit-in-place streaming, thread replies; IronClaw: thread response routing |
-| iMessage | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | |
-| Linq | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw only |
-| Feishu/Lark | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ❌ | ❌ | ❌ | P3 | Nanobot: streaming + tool hints; ZeroClaw: dual-platform Feishu/Lark |
-| WebSocket server | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | Nanobot: token auth, WSS, per-connection sessions |
-| LINE | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | |
-| WebChat | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ✅ | ✅ | - | TinyClaw: TinyOffice; Agent Zero: Web UI |
-| Matrix | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw: E2EE support; CoPaw: v0.0.6 |
-| Mattermost | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| Google Chat | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | |
-| MS Teams | ✅ | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | OpenClaw: Graph chat ID resolution, OneDrive/SharePoint media, JWT hardened |
-| Twitch | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | |
-| Voice Call | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | CoPaw: Twilio voice |
-| Nostr | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | CoPaw: v0.0.6 |
-| QQ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| DingTalk | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| Email (IMAP/SMTP) | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw: also Gmail Pub/Sub push |
-| IRC | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| WeCom (企业微信) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | PicoClaw only |
-| MaixCam | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | Embedded camera |
-| OneBot | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | QQ protocol |
-| MQTT | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw + CoPaw: IoT messaging |
-| Nextcloud Talk | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw only |
-| WATI (WhatsApp Business) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw only |
-| Serial/USB | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | - | Embedded device serial |
-| Web Relay | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | 🚧 | ❌ | ❌ | - | ZClaw: HTTP relay gateway |
+| Channel | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Priority | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|----------|-------|
+| CLI/TUI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ✅ | ✅ | ✅ | - | ZClaw: serial; TinyClaw: tinyclaw send; Agent Zero: run_ui.py |
+| HTTP webhook | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | 🚧 | ✅ | ✅ | ✅ | - | ZClaw: web relay; Agent Zero: Flask API |
+| REPL (simple) | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | - | |
+| WASM channels | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | IronClaw innovation |
+| WhatsApp | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ✅ | ❌ | P1 | OpenClaw: durable delivery queue with reconnect drain; TinyClaw: whatsapp-web.js |
+| Telegram | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | ❌ | - | ZClaw: long-polling |
+| Discord | ✅ | ❌ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ✅ | ❌ | P2 | TinyClaw: discord.js |
+| Signal | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ❌ | P2 | CoPaw: v0.0.6 |
+| Slack | ✅ | ✅ | ✅ | 🚧 | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ❌ | - | LocalGPT: bridge daemon, Socket Mode, slack-morphism v2, edit-in-place streaming, thread replies; IronClaw: thread response routing |
+| iMessage | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ❌ | P3 | |
+| Linq | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw only |
+| Feishu/Lark | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ❌ | ❌ | ✅ | ❌ | P3 | Nanobot: streaming + tool hints + Lark global domain config; ZeroClaw: dual-platform Feishu/Lark |
+| WebSocket server | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | Nanobot: token auth, WSS, per-connection sessions |
+| LINE | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| WebChat | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ✅ | ✅ | ✅ | - | TinyClaw: TinyOffice; Agent Zero: Web UI |
+| Matrix | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P3 | ZeroClaw: E2EE support; CoPaw: v0.0.6 |
+| Mattermost | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P3 | |
+| Google Chat | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| MS Teams | ✅ | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | P3 | OpenClaw: Graph chat ID resolution, OneDrive/SharePoint media, JWT hardened |
+| Twitch | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| Voice Call | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P3 | CoPaw: Twilio voice |
+| Nostr | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | CoPaw: v0.0.6 |
+| QQ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| DingTalk | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P3 | |
+| Email (IMAP/SMTP) | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P3 | ZeroClaw: also Gmail Pub/Sub push |
+| IRC | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| WeCom (企业微信) | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P3 | Nanobot: full media support; PicoClaw: enterprise messaging |
+| MaixCam | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | Embedded camera |
+| OneBot | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | QQ protocol |
+| MQTT | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw + CoPaw: IoT messaging |
+| Nextcloud Talk | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw only |
+| WATI (WhatsApp Business) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw only |
+| Serial/USB | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | - | Embedded device serial |
+| Web Relay | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | - | ZClaw: HTTP relay gateway |
 
 ### Telegram-Specific Features (since Feb 2025)
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| Forum topic creation | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: /topic command + thread routing |
-| channel_post support | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| User message reactions | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: ack reactions; Nanobot: done emoji lifecycle (Feishu) |
-| sendPoll | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Cron/heartbeat topic targeting | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Streaming message edits | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | PicoClaw: sendMessageDraft |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| Forum topic creation | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: /topic command + thread routing |
+| channel_post support | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| User message reactions | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: ack reactions; Nanobot: done emoji lifecycle (Feishu) |
+| sendPoll | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Cron/heartbeat topic targeting | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: heartbeat_topic_id config + AlertCallback wiring |
+| Streaming message edits | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | PicoClaw: sendMessageDraft |
 
 ### Discord-Specific Features (since Feb 2025)
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| Forwarded attachment downloads | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Faster reaction state machine | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Thread parent binding inheritance | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| Forwarded attachment downloads | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Faster reaction state machine | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Thread parent binding inheritance | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
 
 ### Slack-Specific Features (since Feb 2025)
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| Streaming draft replies | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Configurable stream modes | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Thread ownership | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| Streaming draft replies | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Configurable stream modes | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Thread ownership | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
 
 ### Channel Features
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| DM pairing codes | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Allowlist/blocklist | ✅ | 🚧 | 🚧 | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Self-message bypass | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Mention-based activation | ✅ | ✅ | ✅ | 🚧 | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Per-group tool policies | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Thread isolation | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: context per agent |
-| Per-channel media limits | ✅ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Typing indicators | ✅ | 🚧 | ✅ | 🚧 | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Per-channel ackReaction config | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Group session priming | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Sender_id in trusted metadata | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| DM pairing codes | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Allowlist/blocklist | ✅ | 🚧 | 🚧 | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Self-message bypass | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Mention-based activation | ✅ | ✅ | ✅ | 🚧 | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Per-group tool policies | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Thread isolation | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: context per agent |
+| Per-channel media limits | ✅ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Typing indicators | ✅ | 🚧 | ✅ | 🚧 | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Per-channel ackReaction config | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Group session priming | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Sender_id in trusted metadata | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
 
 ---
 
 ## 4. CLI Commands
 
-| Command | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Priority | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|----------|-------|
-| `run` (agent) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | - | MimiClaw: always-on embedded; ZClaw: always-on; Agent Zero: run_ui.py |
-| `tool install/list/remove` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | LocalGPT: `localgpt tool list/add/remove` for MCP servers |
-| `gateway start/stop` | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | P2 | Agent Zero: Docker run |
-| `onboard` (wizard) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: initialize.py |
-| `tui` | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | - | CoPaw: Console web UI; Agent Zero: Web UI |
-| `config` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | - | MimiClaw: serial CLI; Agent Zero: env vars A0_SET_ |
-| `channels` | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | LocalGPT: `bridge list/show/remove` |
-| `models` | ✅ | 🚧 | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | - | MimiClaw: switch provider at runtime; Agent Zero: settings UI |
-| `status` | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | - | |
-| `agents` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | P3 | Agent Zero: context management |
-| `sessions` | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | P3 | Agent Zero: chat load/save |
-| `memory` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | - | MimiClaw: local flash storage; Agent Zero: knowledge_tool |
-| `skills` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | - | TinyClaw: skills-manager for install/search; MimiClaw: on-device skills; Agent Zero: SKILL.md standard |
-| `pairing` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | - | |
-| `nodes` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| `plugins` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| `hooks` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | LocalGPT: `hooks list/add/remove/enable/disable/test` |
-| `cron` | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | P2 | LocalGPT: `cron list/add/remove/status`; MimiClaw: on-device cron; Agent Zero: scheduler tool |
-| `webhooks` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| `message send` | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | P2 | |
-| `browser` | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | P3 | Agent Zero: browser_agent tool |
-| `sandbox` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: Docker container |
-| `doctor` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | P2 | ZClaw: diagnostics |
-| `logs` | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | P3 | Agent Zero: logs/ folder |
-| `update` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | P3 | MimiClaw: OTA updates; ZClaw: OTA; Agent Zero: Docker pull |
-| `completion` | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | LocalGPT: bash/zsh/fish/powershell |
-| `/subagents spawn` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| `/export-session` | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P3 | Agent Zero: chat export |
-| `auth` (OAuth management) | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| `desktop` (GUI) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | - | LocalGPT: egui/eframe; Agent Zero: Web UI |
-| `db` (database management) | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| `tailscale` | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| `md sign/verify/policy` | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| `bridge list/show/remove` | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| `hardware` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | - | MimiClaw: ESP32 GPIO |
-| `goals` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: goals system |
-| `sop` (Standard Operating Procedures) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: sop_execute/list/approve/status |
-| `ota` (over-the-air update) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | - | MimiClaw + ZClaw |
+| Command | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Priority | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|----------|-------|
+| `run` (agent) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | - | MimiClaw: always-on embedded; ZClaw: always-on; Agent Zero: run_ui.py |
+| `tool install/list/remove` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | - | LocalGPT: `localgpt tool list/add/remove` for MCP servers |
+| `gateway start/stop` | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | P2 | Agent Zero: Docker run |
+| `onboard` (wizard) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | - | Agent Zero: initialize.py |
+| `tui` | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ➖ | - | CoPaw: Console web UI; Agent Zero: Web UI |
+| `config` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | - | MimiClaw: serial CLI; Agent Zero: env vars A0_SET_ |
+| `channels` | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P2 | LocalGPT: `bridge list/show/remove` |
+| `models` | ✅ | 🚧 | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | - | MimiClaw: switch provider at runtime; Agent Zero: settings UI |
+| `status` | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | - | |
+| `agents` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | P3 | Agent Zero: context management |
+| `sessions` | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | P3 | Agent Zero: chat load/save |
+| `memory` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | - | MimiClaw: local flash storage; Agent Zero: knowledge_tool |
+| `skills` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | - | TinyClaw: skills-manager for install/search; MimiClaw: on-device skills; Agent Zero: SKILL.md standard |
+| `pairing` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | - | |
+| `nodes` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| `plugins` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P3 | |
+| `hooks` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | LocalGPT: `hooks list/add/remove/enable/disable/test` |
+| `cron` | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | P2 | LocalGPT: `cron list/add/remove/status`; MimiClaw: on-device cron; Agent Zero: scheduler tool |
+| `webhooks` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P3 | |
+| `message send` | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | P2 | |
+| `browser` | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | P3 | Agent Zero: browser_agent tool |
+| `sandbox` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | - | Agent Zero: Docker container |
+| `doctor` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | P2 | ZClaw: diagnostics |
+| `logs` | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | P3 | Agent Zero: logs/ folder |
+| `update` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | P3 | MimiClaw: OTA updates; ZClaw: OTA; Agent Zero: Docker pull |
+| `completion` | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | LocalGPT: bash/zsh/fish/powershell |
+| `/subagents spawn` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P3 | |
+| `/export-session` | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P3 | Agent Zero: chat export |
+| `auth` (OAuth management) | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| `desktop` (GUI) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | - | LocalGPT: egui/eframe; Agent Zero: Web UI |
+| `db` (database management) | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| `tailscale` | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| `md sign/verify/policy` | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| `bridge list/show/remove` | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| `hardware` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | - | MimiClaw: ESP32 GPIO |
+| `goals` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: goals system |
+| `sop` (Standard Operating Procedures) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: sop_execute/list/approve/status |
+| `ota` (over-the-air update) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | - | MimiClaw + ZClaw |
 
 ---
 
 ## 5. Agent System
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| Pi agent runtime | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | All Rust/Go/Zig/C impls use custom runtimes; Agent Zero: Python |
-| RPC-based execution | ✅ | ✅ | 🚧 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: tarpc IPC for bridge daemons |
-| Multi-provider failover | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | MimiClaw: Anthropic + OpenAI switchable; Agent Zero: LiteLLM; RosClaw: via OpenClaw |
-| Per-sender sessions | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | RosClaw: via OpenClaw; Agent Zero: context per chat |
-| Global sessions | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Nanobot: unified_session shares one session across all channels |
-| Session pruning | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: context management |
-| Context compaction | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ❌ | ✅ | RosClaw: via OpenClaw; Agent Zero: history truncation |
-| Post-compaction read audit | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: Merkle hash-chain audit, CLI show/verify/stats |
-| Post-compaction context injection | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: AGENTS.md injection |
-| Custom system prompts | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | RosClaw: via OpenClaw; Agent Zero: prompts/ folder |
-| Skills (modular capabilities) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ➖ | ✅ | ✅ | ✅ | MimiClaw: on-device skills; Agent Zero: SKILL.md standard; RosClaw: via OpenClaw |
-| Skill routing blocks | ✅ | 🚧 | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Skill path compaction | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Thinking modes (low/med/high) | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | CoPaw: optional thinking display; Agent Zero: reasoning tags |
-| Per-model thinkingDefault override | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Block-level streaming | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: real-time Web UI stream |
-| Tool-level streaming | ✅ | ❌ | 🚧 | 🚧 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | CoPaw: optional tool call display; Agent Zero: tool output streaming |
-| Z.AI tool_stream | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Plugin tools | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | All: MCP tools; IronClaw: WASM; Agent Zero: python/tools/; RosClaw: ROS2 tools |
-| Tool policies (allow/deny) | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | RosClaw: safety policies |
-| Exec approvals (`/approve`) | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Elevated mode | ✅ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: PermissionLevel on Tool trait + ApprovalGate + session cache. HTTP approval endpoint remaining |
-| Subagent support | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: hierarchical superior/subordinate; TinyClaw: multi-agent teams |
-| `/subagents spawn` command | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Auth profiles | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: per-project secrets |
-| Generic API key rotation | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Stuck loop detection | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: intervention handling |
-| Self-repair / stuck recovery | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | IronClaw: iterative build; LocalGPT: tool error spiral + orphan recovery |
-| llms.txt discovery | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Multiple images per tool call | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: vision_load tool |
-| URL allowlist (web_search/fetch) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| suppressToolErrors config | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Intent-first tool display | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Transcript file size in status | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Session branching | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Moltis: `branch_session` tool; LocalGPT: CLI `session branch` |
-| Agent interruption API | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | CoPaw: v0.0.5; Agent Zero: pause/intervene |
-| Delegate tool | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: call_subordinate; Route to specialized subagents |
-| SOP execution | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: Standard Operating Procedures |
-| On-device agent loop | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | MimiClaw + ZClaw: ESP32 agent loop |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| Pi agent runtime | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | All Rust/Go/Zig/C impls use custom runtimes; Agent Zero: Python |
+| RPC-based execution | ✅ | ✅ | 🚧 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: tarpc IPC for bridge daemons |
+| Multi-provider failover | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | ✅ | MimiClaw: Anthropic + OpenAI switchable; Agent Zero: LiteLLM; RosClaw: via OpenClaw |
+| Per-sender sessions | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | ✅ | RosClaw: via OpenClaw; Agent Zero: context per chat |
+| Global sessions | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Nanobot: unified_session shares one session across all channels |
+| Session pruning | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | Agent Zero: context management |
+| Context compaction | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ❌ | ✅ | ✅ | RosClaw: via OpenClaw; Agent Zero: history truncation |
+| Post-compaction read audit | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: Merkle hash-chain audit, CLI show/verify/stats |
+| Post-compaction context injection | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: AGENTS.md injection |
+| Custom system prompts | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | ✅ | RosClaw: via OpenClaw; Agent Zero: prompts/ folder |
+| Skills (modular capabilities) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ➖ | ✅ | ✅ | ✅ | ✅ | MimiClaw: on-device skills; Agent Zero: SKILL.md standard; RosClaw: via OpenClaw |
+| Skill routing blocks | ✅ | 🚧 | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Skill path compaction | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Thinking modes (low/med/high) | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | CoPaw: optional thinking display; Agent Zero: reasoning tags |
+| Per-model thinkingDefault override | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Block-level streaming | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: real-time Web UI stream |
+| Tool-level streaming | ✅ | ❌ | ✅ | 🚧 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | LocalGPT: StreamEvent per tool; CoPaw: optional tool call display; Agent Zero: tool output streaming |
+| Z.AI tool_stream | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Plugin tools | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | All: MCP tools; IronClaw: WASM; Agent Zero: python/tools/; RosClaw: ROS2 tools |
+| Tool policies (allow/deny) | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | RosClaw: safety policies |
+| Exec approvals (`/approve`) | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Elevated mode | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: PermissionLevel on Tool trait + ApprovalGate + session cache + HTTP approve endpoint + auto_approve_loopback |
+| Subagent support | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | Agent Zero: hierarchical superior/subordinate; TinyClaw: multi-agent teams |
+| `/subagents spawn` command | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Auth profiles | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: per-project secrets |
+| Generic API key rotation | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Stuck loop detection | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: intervention handling |
+| Self-repair / stuck recovery | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | IronClaw: iterative build; LocalGPT: tool error spiral + orphan recovery |
+| llms.txt discovery | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Multiple images per tool call | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: vision_load tool |
+| URL allowlist (web_search/fetch) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| suppressToolErrors config | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Intent-first tool display | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Transcript file size in status | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Session branching | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Moltis: `branch_session` tool; LocalGPT: CLI `session branch` |
+| Agent interruption API | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | CoPaw: v0.0.5; Agent Zero: pause/intervene |
+| Delegate tool | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: call_subordinate; Route to specialized subagents |
+| SOP execution | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: Standard Operating Procedures |
+| On-device agent loop | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | MimiClaw + ZClaw: ESP32 agent loop |
 
 ---
 
 ## 6. Model & Provider Support
 
-| Provider | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Priority | Notes |
-|----------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|----------|-------|
-| NEAR AI | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | - | RosClaw: via OpenClaw |
-| Anthropic (Claude) | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | - | RosClaw: via OpenClaw; TinyClaw: Claude CLI; Agent Zero: LiteLLM |
-| OpenAI | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | - | RosClaw: via OpenClaw; TinyClaw: Codex CLI; Agent Zero: LiteLLM |
-| AWS Bedrock | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | |
-| GCP Vertex AI | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | OpenClaw: Claude via Vertex |
-| Google Gemini | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | P3 | Agent Zero: LiteLLM |
-| NVIDIA API | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | |
-| OpenRouter | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ❌ | ✅ | - | Agent Zero: LiteLLM |
-| Tinfoil | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | - | IronClaw-only |
-| OpenAI-compatible | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ✅ | - | TinyClaw: custom providers; Agent Zero: LiteLLM |
-| Ollama (local) | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ❌ | ✅ | - | Agent Zero: LiteLLM |
-| Perplexity | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | |
-| MiniMax | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | P3 | |
-| GLM-5 | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | P3 | Agent Zero: LiteLLM |
-| node-llama-cpp | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | - | N/A for Rust/Go/Zig/C |
-| llama.cpp (native) | ❌ | 🔮 | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| X.AI (Grok) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ✅ | - | Agent Zero: LiteLLM |
-| GitHub Copilot | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| CLI-based providers (subprocess) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | - | PicoClaw: claude-cli, codex-cli; TinyClaw: CLI-based |
-| Kimi/Moonshot | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | - | |
-| DeepSeek | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | - | CoPaw: DeepSeek Reasoner; Agent Zero: LiteLLM |
-| Groq | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | - | Agent Zero: LiteLLM |
-| DashScope/Qwen | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | - | Moltis: Alibaba Cloud Coding Plan (9 models) |
-| VolcEngine | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | - | |
-| SiliconFlow | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | - | CoPaw: China + International endpoints |
-| AiHubMix | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | - | |
-| OpenAI Codex (OAuth) | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| vLLM | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: LiteLLM |
-| Antigravity | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | PicoClaw only |
-| Telnyx | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: SMS/voice |
-| Novita AI | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | - | NullClaw + PicoClaw: OpenAI-compatible |
-| Xiaomi MiMo | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | - | NullClaw: Xiaomi MiMo V2 |
-| DeepMyst/Avian | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: new providers |
-| Bailian (Aliyun) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: Alibaba cloud |
+| Provider | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Priority | Notes |
+|----------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|----------|-------|
+| NEAR AI | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | - | RosClaw: via OpenClaw |
+| Anthropic (Claude) | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | ✅ | - | RosClaw: via OpenClaw; TinyClaw: Claude CLI; Agent Zero: LiteLLM |
+| OpenAI | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | ✅ | - | RosClaw: via OpenClaw; TinyClaw: Codex CLI; Agent Zero: LiteLLM |
+| AWS Bedrock | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| GCP Vertex AI | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | P3 | OpenClaw: Claude via Vertex |
+| Google Gemini | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ✅ | P3 | Agent Zero: LiteLLM |
+| NVIDIA API | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| OpenRouter | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ❌ | ✅ | ✅ | - | Agent Zero: LiteLLM |
+| Tinfoil | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | - | IronClaw-only |
+| OpenAI-compatible | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ✅ | ✅ | - | TinyClaw: custom providers; Agent Zero: LiteLLM |
+| Ollama (local) | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ❌ | ✅ | ✅ | - | Agent Zero: LiteLLM |
+| Perplexity | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| MiniMax | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ❌ | P3 | |
+| GLM-5 | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | ✅ | P3 | Agent Zero: LiteLLM |
+| node-llama-cpp | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | - | N/A for Rust/Go/Zig/C |
+| llama.cpp (native) | ❌ | 🔮 | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P3 | |
+| X.AI (Grok) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ✅ | ✅ | - | Agent Zero: LiteLLM |
+| GitHub Copilot | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | - | |
+| CLI-based providers (subprocess) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | - | PicoClaw: claude-cli, codex-cli; TinyClaw: CLI-based |
+| Kimi/Moonshot | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ❌ | - | |
+| DeepSeek | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ✅ | - | CoPaw: DeepSeek Reasoner; Agent Zero: LiteLLM |
+| Groq | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ✅ | - | Agent Zero: LiteLLM |
+| DashScope/Qwen | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ❌ | - | Moltis: Alibaba Cloud Coding Plan (9 models) |
+| VolcEngine | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | - | |
+| SiliconFlow | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | - | CoPaw: China + International endpoints |
+| AiHubMix | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | - | |
+| OpenAI Codex (OAuth) | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| vLLM | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | - | Agent Zero: LiteLLM |
+| Antigravity | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | PicoClaw only |
+| Telnyx | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: SMS/voice |
+| Novita AI | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | - | NullClaw + PicoClaw: OpenAI-compatible |
+| Xiaomi MiMo | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | - | NullClaw: Xiaomi MiMo V2 |
+| DeepMyst/Avian | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: new providers |
+| Bailian (Aliyun) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: Alibaba cloud |
 
 ### Model Features
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| Auto-discovery | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Failover chains | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | MimiClaw: Anthropic ↔ OpenAI; Agent Zero: rate limiter |
-| Cooldown management | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: RateLimiter class |
-| Per-session model override | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | MimiClaw: runtime switch; Agent Zero: settings UI |
-| Model selection UI | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: Web UI settings |
-| Per-model thinkingDefault | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| 1M context beta header | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Provider-native tool definitions | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Provider aliases | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: LiteLLM aliases |
-| Model routing config | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: model_routing_config tool |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| Auto-discovery | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Failover chains | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | MimiClaw: Anthropic ↔ OpenAI; Agent Zero: rate limiter |
+| Cooldown management | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: RateLimiter class |
+| Per-session model override | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | MimiClaw: runtime switch; Agent Zero: settings UI |
+| Model selection UI | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: Web UI settings |
+| Per-model thinkingDefault | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| 1M context beta header | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Provider-native tool definitions | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Provider aliases | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: LiteLLM aliases |
+| Model routing config | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ZeroClaw: model_routing_config tool |
 
 ---
 
 ## 7. Media Handling
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Priority | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|----------|-------|
-| Image processing (Sharp) | ✅ | ❌ | 🚧 | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | 🚧 | ❌ | 🚧 | ✅ | P2 | RosClaw: camera snapshot; Agent Zero: vision_load; TinyClaw: image processing |
-| Configurable image resize dims | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | Agent Zero: MAX_PIXELS config |
-| Multiple images per tool call | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | Agent Zero: vision_load paths list |
-| Audio transcription | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | LocalGPT: transcribe_audio tool; CoPaw: Twilio voice; Agent Zero: STT; ZeroClaw: LocalWhisper STT |
-| Video support | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| PDF parsing | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | ZeroClaw: pdf_read tool; Agent Zero: document_query |
-| MIME detection | ✅ | ❌ | 🚧 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | Agent Zero: mimetypes |
-| Media caching | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| Vision model integration | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | Agent Zero: vision-capable models via LiteLLM |
-| TTS (Edge TTS) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P3 | Agent Zero: built-in TTS |
-| TTS (OpenAI) | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P3 | Moltis: 5 providers; Agent Zero: multiple TTS |
-| Incremental TTS playback | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P3 | Agent Zero: streaming TTS |
-| Sticker-to-image | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| Procedural audio synthesis | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | LocalGPT: FunDSP in Gen mode |
-| STT (multiple providers) | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | - | ZeroClaw: LocalWhisper self-hosted; Agent Zero: speech-to-text |
-| Web content extraction | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: browser_agent + document_query |
-| Screenshot capture | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | - | ZeroClaw/NullClaw: screenshot tool; Agent Zero: browser screenshots |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Priority | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|----------|-------|
+| Image processing (Sharp) | ✅ | ❌ | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | 🚧 | ❌ | 🚧 | ✅ | ✅ | P2 | LocalGPT: Lanczos3 resize + PNG→JPEG + quality fallback; RosClaw: camera snapshot; Agent Zero: vision_load; TinyClaw: image processing |
+| Configurable image resize dims | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | LocalGPT: Lanczos3 resize, PNG→JPEG, quality fallback, default 1568px; Agent Zero: MAX_PIXELS config |
+| Multiple images per tool call | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | P2 | Agent Zero: vision_load paths list |
+| Audio transcription | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | P2 | LocalGPT: transcribe_audio tool; CoPaw: Twilio voice; Agent Zero: STT; ZeroClaw: LocalWhisper STT |
+| Video support | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| PDF parsing | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | LocalGPT: DocumentLoadTool with config for custom loaders + max size; ZeroClaw: pdf_read tool; Agent Zero: document_query |
+| MIME detection | ✅ | ❌ | 🚧 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | P2 | Agent Zero: mimetypes |
+| Media caching | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | LocalGPT: SHA-256 file cache with eviction |
+| Vision model integration | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | P2 | Agent Zero: vision-capable models via LiteLLM |
+| TTS (Edge TTS) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | P3 | LocalGPT: TtsTool with configurable providers; Agent Zero: built-in TTS |
+| TTS (OpenAI) | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | P3 | LocalGPT: TtsProvider; Moltis: 5 providers; Agent Zero: multiple TTS |
+| Incremental TTS playback | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P3 | Agent Zero: streaming TTS |
+| Sticker-to-image | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| Procedural audio synthesis | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | LocalGPT: FunDSP in Gen mode |
+| STT (multiple providers) | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | - | ZeroClaw: LocalWhisper self-hosted; Agent Zero: speech-to-text |
+| Web content extraction | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | - | Agent Zero: browser_agent + document_query |
+| Screenshot capture | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | - | ZeroClaw/NullClaw: screenshot tool; Agent Zero: browser screenshots |
 
 ---
 
 ## 8. Plugin & Extension System
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| Dynamic loading | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | CoPaw: plugin system; Agent Zero: python/tools/ |
-| Manifest validation | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | CoPaw: PluginManifest with id/version/deps |
-| HTTP path registration | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: Flask routes |
-| Workspace-relative install | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | Agent Zero: projects/ |
-| Channel plugins | ✅ | ✅ | 🚧 | 🚧 | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Auth plugins | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Memory plugins | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Tool plugins | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | Agent Zero: python/tools/*.py |
-| Hook plugins | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | Agent Zero: python/extensions/ |
-| Provider plugins | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: LiteLLM providers |
-| Plugin CLI (`install`, `list`) | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: `localgpt plugin list/add/remove/enable/disable` |
-| ClawHub registry | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| `before_agent_start` hook | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | Agent Zero: agent_init extensions |
-| `before_message_write` hook | ✅ | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: user_message_ui extensions |
-| `llm_input`/`llm_output` hooks | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | RosClaw: before_tool_call |
-| MCP support (stdio + HTTP/SSE) | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: MCP client + server |
-| Browser automation (CDP) | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | OpenClaw: /act route with stable error contracts; LocalGPT: Chrome DevTools Protocol; Agent Zero: Playwright |
-| Composio integration | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | NullClaw: composio tool |
-| WASM module tools | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: Extism WASM plugin system (WasmTool, WasmChannel) |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| Dynamic loading | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | CoPaw: plugin system; Agent Zero: python/tools/ |
+| Manifest validation | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | CoPaw: PluginManifest with id/version/deps |
+| HTTP path registration | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: Flask routes |
+| Workspace-relative install | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | Agent Zero: projects/ |
+| Channel plugins | ✅ | ✅ | 🚧 | 🚧 | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Auth plugins | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Memory plugins | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Tool plugins | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | Agent Zero: python/tools/*.py |
+| Hook plugins | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | Agent Zero: python/extensions/ |
+| Provider plugins | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: LiteLLM providers |
+| Plugin CLI (`install`, `list`) | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | LocalGPT: `localgpt plugin list/add/remove/enable/disable` |
+| ClawHub registry | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| `before_agent_start` hook | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ | Agent Zero: agent_init extensions |
+| `before_message_write` hook | ✅ | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: user_message_ui extensions |
+| `llm_input`/`llm_output` hooks | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | RosClaw: before_tool_call |
+| MCP support (stdio + HTTP/SSE) | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: MCP client + server |
+| Browser automation (CDP) | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | OpenClaw: /act route with stable error contracts; LocalGPT: Chrome DevTools Protocol; Agent Zero: Playwright |
+| Composio integration | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | NullClaw: composio tool |
+| WASM module tools | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: Extism WASM plugin system (WasmTool, WasmChannel) |
 
 ---
 
 ## 9. Configuration System
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| Primary config file | ✅ `openclaw.json` | ✅ `.env` | ✅ `config.toml` | ✅ `moltis.toml` | ✅ `config.json` | ✅ `config.yaml` | ✅ `config.yaml` | ✅ `config.toml` | ✅ `config.json` | ❌ | ❌ | ✅ NVS | ✅ `settings.json` | ✅ `.env` + UI | Agent Zero: dotenv + Web UI |
-| JSON5 support | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| YAML alternative | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Environment variable interpolation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | Agent Zero: A0_SET_ prefix |
-| Config validation/schema | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | Agent Zero: pydantic |
-| Hot-reload | ✅ | ❌ | ✅ | 🚧 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: env reload |
-| Legacy migration | ✅ | ➖ | ➖ | ➖ | ➖ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: migration.rs |
-| State directory | ✅ `~/.openclaw-state/` | ✅ `~/.ironclaw/` | ✅ XDG dirs | ✅ `~/.moltis/` | ✅ `~/.nanobot/` | ✅ `~/.copaw/` | ✅ `~/.picoclaw/` | ✅ `~/.zeroclaw/` | ✅ `~/.nullclaw/` | ❌ | ❌ | ✅ NVS flash | ✅ `~/.tinyclaw/` | ✅ `work_dir/` | Agent Zero: configurable work_dir |
-| Credentials directory | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ NVS | ✅ | ✅ | Agent Zero: secrets manager; ZeroClaw: encrypted with chacha20poly1305 |
-| Full model compat fields in schema | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Profile support | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: agent profiles |
-| JSON Schema export | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: schemars |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| Primary config file | ✅ `openclaw.json` | ✅ `.env` | ✅ `config.toml` | ✅ `moltis.toml` | ✅ `config.json` | ✅ `config.yaml` | ✅ `config.yaml` | ✅ `config.toml` | ✅ `config.json` | ❌ | ❌ | ✅ NVS | ✅ `settings.json` | ✅ `config.yaml` | ✅ `.env` + UI | Agent Zero: dotenv + Web UI |
+| JSON5 support | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| YAML alternative | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Environment variable interpolation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | Agent Zero: A0_SET_ prefix |
+| Config validation/schema | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | Agent Zero: pydantic |
+| Hot-reload | ✅ | ❌ | ✅ | 🚧 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: env reload |
+| Legacy migration | ✅ | ➖ | ➖ | ➖ | ➖ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: migration.rs |
+| State directory | ✅ `~/.openclaw-state/` | ✅ `~/.ironclaw/` | ✅ XDG dirs | ✅ `~/.moltis/` | ✅ `~/.nanobot/` | ✅ `~/.copaw/` | ✅ `~/.picoclaw/` | ✅ `~/.zeroclaw/` | ✅ `~/.nullclaw/` | ❌ | ❌ | ✅ NVS flash | ✅ `~/.tinyclaw/` | ✅ `~/.hermes/` | ✅ `work_dir/` | Agent Zero: configurable work_dir |
+| Credentials directory | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ NVS | ✅ | ✅ | ✅ | Agent Zero: secrets manager; ZeroClaw: encrypted with chacha20poly1305 |
+| Full model compat fields in schema | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Profile support | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: agent profiles |
+| JSON Schema export | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: schemars |
 
 ---
 
 ## 10. Memory & Knowledge System
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| Vector memory | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | Agent Zero: FAISS; RosClaw: via OpenClaw |
-| Session-based memory | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ✅ | ✅ | Agent Zero: memory_load/save; RosClaw: via OpenClaw |
-| Hybrid search (BM25 + vector) | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | Agent Zero: mem_search_enhanced |
-| Temporal decay (hybrid search) | ✅ | ❌ | ✅ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| MMR re-ranking | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| LLM-based query expansion | ✅ | ❌ | ✅ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: local + LLM expansion |
-| OpenAI embeddings | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | Agent Zero: sentence-transformers |
-| Gemini embeddings | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw + LocalGPT: Gemini embedding providers |
-| Gemini multimodal embeddings | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw + LocalGPT: image + audio indexing via Gemini |
-| Voyage AI embeddings | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Mistral embeddings | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Ollama embeddings | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Local embeddings | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: sentence-transformers local |
-| SQLite-vec backend | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | |
-| LanceDB backend | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| QMD backend | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Multiple memory engines | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: 3 backends (SQLite, Markdown, None); NullClaw: 10 engines |
-| Atomic reindexing | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | |
-| Embeddings batching | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | OpenClaw: batch-openai, batch-gemini, batch-voyage |
-| Citation support | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: on/off/auto modes per chat type |
-| Session memory indexing | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: dreaming session corpus ingestion with timestamp bucketing; LocalGPT: session transcripts indexed for search |
-| Post-compaction memory sync | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: forced sync after compaction |
-| memory_get tool (snippet read) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: path + from line + line count |
-| Memory CLI commands | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Flexible path structure | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | Agent Zero: memory_subdir per context |
-| Identity files (AGENTS.md, etc.) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ➖ | ❌ | ❌ | ✅ | Agent Zero: system prompts |
-| Daily logs | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Heartbeat checklist | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ✅ | ❌ | RosClaw: via OpenClaw |
-| File watcher (workspace changes) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Search result caching | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Two-layer memory (facts + history) | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: Memory.Area.MAIN/FRAGMENTS/SOLUTIONS |
-| RAG system | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: knowledge_tool + document_query; ZeroClaw: rag crate |
-| Memory store/recall/forget tools | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ❌ | ✅ | Agent Zero: memory_save/load/delete/forget; RosClaw: via OpenClaw |
-| Active Memory (pre-reply recall) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: sub-agent; LocalGPT: direct MemoryManager::search() + RecallCache before LLM call |
-| Dreaming (background consolidation) | ✅ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: full 3-phase REM; LocalGPT: signal classifier + sweep (heartbeat wiring pending) |
-| Memory Wiki (knowledge management) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: claim/evidence fields, belief-layer digests, compiled digests for retrieval, claim health reports. LocalGPT: WikiStore + FTS5 + 3 tools (wiki_add/search/status), configurable freshness thresholds |
-| Compaction checkpoints | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: pluggable provider registry; LocalGPT: CheckpointManager with CLI restore/branch |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| Vector memory | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ✅ | Agent Zero: FAISS; RosClaw: via OpenClaw |
+| Session-based memory | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ✅ | ✅ | ✅ | Agent Zero: memory_load/save; RosClaw: via OpenClaw |
+| Hybrid search (BM25 + vector) | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ✅ | Agent Zero: mem_search_enhanced |
+| Temporal decay (hybrid search) | ✅ | ❌ | ✅ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| MMR re-ranking | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: MMR diversity re-ranking in memory search |
+| LLM-based query expansion | ✅ | ❌ | ✅ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | LocalGPT: local + LLM expansion |
+| OpenAI embeddings | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | ✅ | Agent Zero: sentence-transformers |
+| Gemini embeddings | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw + LocalGPT: Gemini embedding providers |
+| Gemini multimodal embeddings | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw + LocalGPT: image + audio indexing via Gemini |
+| Voyage AI embeddings | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Mistral embeddings | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Ollama embeddings | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Local embeddings | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: sentence-transformers local |
+| SQLite-vec backend | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | |
+| LanceDB backend | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| QMD backend | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Multiple memory engines | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | LocalGPT: 3 backends (SQLite, Markdown, None); NullClaw: 10 engines |
+| Atomic reindexing | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | |
+| Embeddings batching | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | OpenClaw: batch-openai, batch-gemini, batch-voyage |
+| Citation support | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: on/off/auto modes per chat type; LocalGPT: [file:line-line] format |
+| Session memory indexing | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | OpenClaw: dreaming session corpus ingestion with timestamp bucketing; LocalGPT: session transcripts indexed for search |
+| Post-compaction memory sync | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: forced sync after compaction |
+| memory_get tool (snippet read) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: path + from line + line count; LocalGPT: MemoryGetTool with path traversal prevention + workspace bounds |
+| Memory CLI commands | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Flexible path structure | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ✅ | Agent Zero: memory_subdir per context |
+| Identity files (AGENTS.md, etc.) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ➖ | ❌ | ❌ | ✅ | ✅ | Agent Zero: system prompts |
+| Daily logs | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Heartbeat checklist | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ✅ | ❌ | ❌ | RosClaw: via OpenClaw |
+| File watcher (workspace changes) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Search result caching | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Two-layer memory (facts + history) | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: Memory.Area.MAIN/FRAGMENTS/SOLUTIONS |
+| RAG system | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: knowledge_tool + document_query; ZeroClaw: rag crate |
+| Memory store/recall/forget tools | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ❌ | ✅ | ✅ | Agent Zero: memory_save/load/delete/forget; RosClaw: via OpenClaw |
+| Active Memory (pre-reply recall) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: sub-agent; LocalGPT: direct MemoryManager::search() + RecallCache before LLM call |
+| Dreaming (background consolidation) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: full 3-phase REM; LocalGPT: SignalClassifier + ProcessedLog + run_sweep() wired into heartbeat runner |
+| Memory Wiki (knowledge management) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | OpenClaw: claim/evidence fields, belief-layer digests, compiled digests for retrieval, claim health reports. LocalGPT: WikiStore + FTS5 + 3 tools (wiki_add/search/status), configurable freshness thresholds |
+| Compaction checkpoints | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | OpenClaw: pluggable provider registry; LocalGPT: CheckpointManager with CLI restore/branch |
 
 ---
 
 ## 11. Mobile Apps
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Priority | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|----------|-------|
-| iOS app (SwiftUI) | ✅ | 🚫 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | LocalGPT: UniFFI + XCFramework |
-| Android app (Kotlin) | ✅ | 🚫 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | LocalGPT: UniFFI + cargo-ndk |
-| Apple Watch companion | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Gateway WebSocket client | ✅ | 🚫 | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: WebSocket in browser |
-| Camera/photo access | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: vision_load via browser |
-| Voice input | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: STT via browser |
-| Push-to-talk | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Location sharing | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Node pairing | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| APNs push notifications | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Share to OpenClaw (iOS) | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Background listening toggle | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| UniFFI mobile bindings | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| PWA (Progressive Web App) | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: Docker Web UI; CoPaw: Console web UI |
-| ESP32 firmware | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: zeroclaw-esp32 |
-| Nucleo firmware | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: zeroclaw-nucleo |
-| MaixCam support | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | - | Embedded camera platform |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Priority | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|----------|-------|
+| iOS app (SwiftUI) | ✅ | 🚫 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | LocalGPT: UniFFI + XCFramework |
+| Android app (Kotlin) | ✅ | 🚫 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | LocalGPT: UniFFI + cargo-ndk |
+| Apple Watch companion | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| Gateway WebSocket client | ✅ | 🚫 | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: WebSocket in browser |
+| Camera/photo access | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: vision_load via browser |
+| Voice input | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | - | Agent Zero: STT via browser |
+| Push-to-talk | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| Location sharing | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| Node pairing | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| APNs push notifications | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| Share to OpenClaw (iOS) | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| Background listening toggle | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| UniFFI mobile bindings | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| PWA (Progressive Web App) | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: Docker Web UI; CoPaw: Console web UI |
+| ESP32 firmware | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: zeroclaw-esp32 |
+| Nucleo firmware | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: zeroclaw-nucleo |
+| MaixCam support | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | Embedded camera platform |
 
 ---
 
 ## 12. macOS / Desktop App
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Priority | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|----------|-------|
-| SwiftUI native app | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Menu bar presence | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Bundled gateway | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: Docker bundled |
-| Canvas hosting | ✅ | 🚫 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Voice wake | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Voice wake overlay | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Push-to-talk hotkey | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Exec approval dialogs | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| iMessage integration | ✅ | 🚫 | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Instances tab | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: context management |
-| Agent events debug window | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: logs/ folder |
-| Sparkle auto-updates | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: Docker pull |
-| Cross-platform desktop GUI | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | LocalGPT: egui; CoPaw: Console web UI; Agent Zero: Web UI |
-| Robot kit | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: look/sense/drive/speak/listen/emote |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Priority | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|----------|-------|
+| SwiftUI native app | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| Menu bar presence | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| Bundled gateway | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: Docker bundled |
+| Canvas hosting | ✅ | 🚫 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| Voice wake | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| Voice wake overlay | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| Push-to-talk hotkey | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| Exec approval dialogs | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | - | |
+| iMessage integration | ✅ | 🚫 | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | - | |
+| Instances tab | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: context management |
+| Agent events debug window | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: logs/ folder |
+| Sparkle auto-updates | ✅ | 🚫 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: Docker pull |
+| Cross-platform desktop GUI | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | LocalGPT: egui; CoPaw: Console web UI; Agent Zero: Web UI |
+| Robot kit | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: look/sense/drive/speak/listen/emote |
 
 ---
 
 ## 13. Web Interface
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Priority | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|----------|-------|
-| Control UI Dashboard | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | - | Agent Zero: Flask Web UI; CoPaw: Console web UI; TinyClaw: TinyOffice |
-| Channel status view | ✅ | 🚧 | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | - | LocalGPT: /api/channels/status + web UI panel; Agent Zero: context list |
-| Agent management | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | P3 | Agent Zero: context management |
-| Model selection | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: settings UI |
-| Config editing | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | P3 | LocalGPT: POST /api/config + settings panel; Agent Zero: settings UI |
-| Debug/logs viewer | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | - | Agent Zero: logs/ folder |
-| WebChat interface | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | - | Agent Zero: main chat UI |
-| Canvas system (A2UI) | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw: Live Canvas |
-| Control UI i18n | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | CoPaw: i18n support |
-| WebChat theme sync | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P3 | Agent Zero: dark/light mode |
-| Partial output on abort | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | LocalGPT: streaming abort handling; Agent Zero: intervention handling |
-| GraphQL playground | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Session sharing via URL | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Version update notifications | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: update_check extension; CoPaw: v0.0.5 |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Priority | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|----------|-------|
+| Control UI Dashboard | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | - | Agent Zero: Flask Web UI; CoPaw: Console web UI; TinyClaw: TinyOffice |
+| Channel status view | ✅ | 🚧 | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | - | LocalGPT: /api/channels/status + web UI panel; Agent Zero: context list |
+| Agent management | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | P3 | Agent Zero: context management |
+| Model selection | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | - | Agent Zero: settings UI |
+| Config editing | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | P3 | LocalGPT: POST /api/config + settings panel; Agent Zero: settings UI |
+| Debug/logs viewer | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | - | Agent Zero: logs/ folder |
+| WebChat interface | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | - | Agent Zero: main chat UI |
+| Canvas system (A2UI) | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw: Live Canvas |
+| Control UI i18n | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | CoPaw: i18n support |
+| WebChat theme sync | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P3 | Agent Zero: dark/light mode |
+| Partial output on abort | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | LocalGPT: streaming abort handling; Agent Zero: intervention handling |
+| GraphQL playground | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| Session sharing via URL | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
+| Version update notifications | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | - | Agent Zero: update_check extension; CoPaw: v0.0.5 |
 
 ---
 
 ## 14. Automation
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Priority | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|----------|-------|
-| Cron jobs | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | - | Agent Zero: scheduler tool |
-| Cron stagger controls | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| Cron finished-run webhook | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| Timezone support | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | - | Agent Zero: parse_datetime |
-| One-shot/recurring jobs | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | - | Agent Zero: AdHocTask/PlannedTask |
-| Channel health monitor | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
-| `beforeInbound` hook | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
-| `beforeOutbound` hook | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
-| `beforeToolCall` hook | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | P2 | |
-| `before_agent_start` hook | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | P2 | Agent Zero: agent_init extensions |
-| `before_message_write` hook | ✅ | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | Agent Zero: user_message_ui extensions |
-| `onMessage` hook | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | - | |
-| `onSessionStart` hook | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
-| `onSessionEnd` hook | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
-| `transcribeAudio` hook | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P3 | Agent Zero: STT integration |
-| `transformResponse` hook | ✅ | ✅ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
-| `llm_input`/`llm_output` hooks | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| Bundled hooks | ✅ | ✅ | 🚧 | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | Agent Zero: python/extensions/ |
-| Plugin hooks | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| Workspace hooks | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
-| Outbound webhooks | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
-| Heartbeat system | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | - | |
-| Gmail pub/sub | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
-| Cron delivery routing | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| Pushover notifications | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw/NullClaw: pushover tool |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Priority | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|----------|-------|
+| Cron jobs | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | - | Agent Zero: scheduler tool |
+| Cron stagger controls | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| Cron finished-run webhook | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| Timezone support | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | - | Agent Zero: parse_datetime |
+| One-shot/recurring jobs | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | - | Agent Zero: AdHocTask/PlannedTask |
+| Channel health monitor | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P2 | |
+| `beforeInbound` hook | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
+| `beforeOutbound` hook | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
+| `beforeToolCall` hook | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | P2 | |
+| `before_agent_start` hook | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ | P2 | Agent Zero: agent_init extensions |
+| `before_message_write` hook | ✅ | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | Agent Zero: user_message_ui extensions |
+| `onMessage` hook | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | - | |
+| `onSessionStart` hook | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
+| `onSessionEnd` hook | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
+| `transcribeAudio` hook | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P3 | Agent Zero: STT integration |
+| `transformResponse` hook | ✅ | ✅ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
+| `llm_input`/`llm_output` hooks | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| Bundled hooks | ✅ | ✅ | 🚧 | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | P2 | Agent Zero: python/extensions/ |
+| Plugin hooks | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P3 | |
+| Workspace hooks | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P2 | |
+| Outbound webhooks | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | P2 | |
+| Heartbeat system | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | - | |
+| Gmail pub/sub | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | |
+| Cron delivery routing | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | - | |
+| Pushover notifications | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw/NullClaw: pushover tool |
 
 ---
 
 ## 15. Security Features
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| Gateway token auth | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | Agent Zero: no auth by default |
-| Device pairing | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Tailscale identity | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Trusted-proxy auth | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| OAuth flows | ✅ | 🚧 | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| DM pairing verification | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Allowlist/blocklist | ✅ | 🚧 | 🚧 | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | ZClaw: Telegram chat IDs; TinyClaw: pairing system |
-| Per-group tool policies | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Exec approvals | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | Agent Zero: intervention handling |
-| TLS 1.3 minimum | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | |
-| SSRF protection | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | |
-| SSRF IPv6 transition bypass block | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Cron webhook SSRF guard | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Loopback-first | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ✅ | ✅ | Agent Zero: localhost default |
-| Docker sandbox | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | LocalGPT: DockerSandbox backend (cap-drop ALL, network none, mem 512m); Agent Zero: recommended |
-| Podman support | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | LocalGPT: auto-detects docker/podman; Agent Zero: Podman compatible |
-| WASM sandbox | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: wasmi |
-| Sandbox env sanitization | ✅ | 🚧 | ✅ | 🚧 | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Tool policies | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | RosClaw: safety policies; ZClaw: GPIO safe range |
-| Elevated mode | ✅ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: PermissionLevel on Tool trait + ApprovalGate + session cache. HTTP approval endpoint remaining |
-| Safe bins allowlist | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| LD*/DYLD* validation | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Path traversal prevention | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | Agent Zero: path validation |
-| Credential theft via env injection | ✅ | 🚧 | ✅ | 🚧 | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: secrets manager |
-| Session file permissions (0o600) | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Skill download path restriction | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: skills/ folder |
-| Webhook signature verification | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: HMAC-SHA256 |
-| Media URL validation | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Prompt injection defense | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | Agent Zero: system prompt isolation |
-| Leak detection | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | Agent Zero: key redaction; ZClaw: key redaction |
-| Dangerous tool re-enable warning | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| OS-level sandbox (Landlock/Seatbelt) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | NullClaw: landlock, firejail, bubblewrap |
-| Policy signing (HMAC-SHA256) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| WebAuthn/passkey auth | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Apple Container sandbox | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Zero unsafe code | ❌ | ❌ | ❌ | ✅ | ➖ | ➖ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | N/A for Python |
-| WebSocket origin validation | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Encrypted secrets storage | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | LocalGPT: encryption at rest for sessions/config; ZeroClaw/NullClaw: chacha20poly1305 AEAD; ZClaw: NVS encryption; Agent Zero: secrets manager |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| Gateway token auth | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | Agent Zero: no auth by default |
+| Device pairing | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Tailscale identity | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Trusted-proxy auth | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| OAuth flows | ✅ | 🚧 | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| DM pairing verification | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Allowlist/blocklist | ✅ | 🚧 | 🚧 | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ZClaw: Telegram chat IDs; TinyClaw: pairing system |
+| Per-group tool policies | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Exec approvals | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | Agent Zero: intervention handling |
+| TLS 1.3 minimum | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | |
+| SSRF protection | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | |
+| SSRF IPv6 transition bypass block | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Cron webhook SSRF guard | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Loopback-first | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ✅ | ✅ | ✅ | ✅ | Agent Zero: localhost default |
+| Docker sandbox | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | LocalGPT: DockerSandbox backend (cap-drop ALL, network none, mem 512m); Agent Zero: recommended |
+| Podman support | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | LocalGPT: auto-detects docker/podman; Agent Zero: Podman compatible |
+| WASM sandbox | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: wasmi |
+| Sandbox env sanitization | ✅ | 🚧 | ✅ | 🚧 | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | |
+| Tool policies | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | RosClaw: safety policies; ZClaw: GPIO safe range |
+| Elevated mode | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: PermissionLevel on Tool trait + ApprovalGate + session cache + HTTP approve endpoint + auto_approve_loopback |
+| Safe bins allowlist | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| LD*/DYLD* validation | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Path traversal prevention | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ✅ | Agent Zero: path validation |
+| Credential theft via env injection | ✅ | 🚧 | ✅ | 🚧 | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: secrets manager |
+| Session file permissions (0o600) | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Skill download path restriction | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: skills/ folder |
+| Webhook signature verification | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: HMAC-SHA256 |
+| Media URL validation | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Prompt injection defense | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ✅ | Agent Zero: system prompt isolation |
+| Leak detection | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | Agent Zero: key redaction; ZClaw: key redaction |
+| Dangerous tool re-enable warning | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| OS-level sandbox (Landlock/Seatbelt) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | NullClaw: landlock, firejail, bubblewrap |
+| Policy signing (HMAC-SHA256) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| WebAuthn/passkey auth | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Apple Container sandbox | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Zero unsafe code | ❌ | ❌ | ❌ | ✅ | ➖ | ➖ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ➖ | N/A for Python |
+| WebSocket origin validation | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Encrypted secrets storage | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | LocalGPT: encryption at rest for sessions/config; ZeroClaw/NullClaw: chacha20poly1305 AEAD; ZClaw: NVS encryption; Agent Zero: secrets manager |
 
 ---
 
 ## 16. Development & Build System
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| Primary language | TypeScript | Rust | Rust | Rust | Python | Python | Go | Rust | Zig | C (ESP-IDF) | TypeScript | C (ESP-IDF) | TypeScript | Python | |
-| Build tool | tsdown | cargo | cargo | cargo | pip/uv | pip/uv | go build | cargo | zig build | idf.py | pnpm | idf.py | pnpm | pip/uv | |
-| Type checking | TypeScript/tsgo | rustc | rustc | rustc | ❌ | ❌ | ❌ | rustc | Zig | ❌ | TypeScript/tsgo | ❌ | TypeScript | ❌ | |
-| Linting | Oxlint | clippy | clippy | clippy | ❌ | black/ruff | ❌ | clippy | Zig | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Formatting | Oxfmt | rustfmt | rustfmt | rustfmt | ❌ | black | gofmt | rustfmt | zig fmt | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Package manager | pnpm | cargo | cargo | cargo | pip/uv | pip/uv | go mod | cargo | zig | ESP-IDF | pnpm | ESP-IDF | pnpm | pip/uv | |
-| Test framework | Vitest | built-in | built-in | built-in | ❌ | pytest | built-in | built-in | built-in | ❌ | Vitest | ❌ | ❌ | pytest | ZClaw: host tests only |
-| Coverage | V8 | tarpaulin/llvm-cov | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| CI/CD | GitHub Actions | GitHub Actions | GitHub Actions | GitHub Actions | ❌ | GitHub Actions | GitHub Actions | GitHub Actions | GitHub Actions | GitHub Actions | ❌ | ✅ | ❌ | ❌ | ZClaw: GitHub Actions |
-| Pre-commit hooks | prek | - | - | - | - | - | - | - | - | - | - | - | - | - | |
-| Docker: Chromium + Xvfb | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: browser agent |
-| Docker: init scripts | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | |
-| Browser: extraArgs config | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Workspace crate count | ➖ | 1 | 14 | 46 | ➖ | ➖ | ➖ | 2 | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | LocalGPT: 14 crates (added bridges/slack); Moltis: 46 modular crates |
-| Mobile build scripts | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: ESP32/Nucleo firmware |
-| Nix/direnv support | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| mdBook documentation | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Rust edition | ➖ | ➖ | 2024 | 2024 | ➖ | ➖ | ➖ | 2021 | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | |
-| Go version | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | 1.21+ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | |
-| Zig version | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | 0.15.2 | ➖ | ➖ | ➖ | ➖ | ➖ | |
-| ESP-IDF version | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | 5.5+ | ➖ | 5.5+ | ➖ | ➖ | MimiClaw + ZClaw |
-| Node.js version | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | 18+ | ➖ | TinyClaw only |
-| Docker multi-arch | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Lightweight profile | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | NullClaw: ReleaseSmall |
-| Docker support | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: recommended |
-| Systemd service docs | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Homebrew package | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Binary size (release) | ~28 MB | ~44 MB | ~15 MB | ~large | N/A | N/A | ~8 MB | ~3.4 MB | ~678 KB | ~firmware | ~28 MB | ~firmware | N/A | N/A | RosClaw: via OpenClaw |
-| RAM footprint | &gt;1 GB | ~large | ~moderate | ~large | &gt;100 MB | ~moderate | &lt;10 MB | &lt;5 MB | ~1 MB | ~512 KB | &gt;1 GB | ~512 KB | &gt;100 MB | ~moderate | RosClaw/ZClaw: via OpenClaw/ESP32 |
-| Startup time (0.8 GHz) | &gt;500 s | ~fast | ~fast | ~fast | &gt;30 s | ~fast | &lt;1 s | &lt;10 ms | &lt;8 ms | instant | &gt;500 s | instant | &gt;5 s | ~fast | RosClaw: via OpenClaw |
-| Power consumption | ~100 W | ~moderate | ~moderate | ~moderate | ~moderate | ~moderate | &lt;5 W | &lt;5 W | &lt;1 W | 0.5 W | ~100 W | 0.5 W | ~moderate | ~moderate | RosClaw: via OpenClaw |
-| Target hardware | Mac/PC | Mac/PC | Mac/PC | Mac/PC | Linux SBC | Mac/PC | $10 board | $10 board | $5 board | $5 ESP32-S3 | Mac/PC | $5 ESP32 | Mac/PC | Mac/PC | |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| Primary language | TypeScript | Rust | Rust | Rust | Python | Python | Go | Rust | Zig | C (ESP-IDF) | TypeScript | C (ESP-IDF) | TypeScript | Python | Python | |
+| Build tool | tsdown | cargo | cargo | cargo | pip/uv | pip/uv | go build | cargo | zig build | idf.py | pnpm | idf.py | pnpm | pip/uv | pip/uv | |
+| Type checking | TypeScript/tsgo | rustc | rustc | rustc | ❌ | ❌ | ❌ | rustc | Zig | ❌ | TypeScript/tsgo | ❌ | TypeScript | ❌ | ❌ | |
+| Linting | Oxlint | clippy | clippy | clippy | ❌ | black/ruff | ❌ | clippy | Zig | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Formatting | Oxfmt | rustfmt | rustfmt | rustfmt | ❌ | black | gofmt | rustfmt | zig fmt | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Package manager | pnpm | cargo | cargo | cargo | pip/uv | pip/uv | go mod | cargo | zig | ESP-IDF | pnpm | ESP-IDF | pnpm | pip/uv | pip/uv | |
+| Test framework | Vitest | built-in | built-in | built-in | ❌ | pytest | built-in | built-in | built-in | ❌ | Vitest | ❌ | ❌ | pytest | pytest | ZClaw: host tests only |
+| Coverage | V8 | tarpaulin/llvm-cov | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| CI/CD | GitHub Actions | GitHub Actions | GitHub Actions | GitHub Actions | ❌ | GitHub Actions | GitHub Actions | GitHub Actions | GitHub Actions | GitHub Actions | ❌ | ✅ | ❌ | ❌ | ❌ | ZClaw: GitHub Actions |
+| Pre-commit hooks | prek | - | - | - | - | - | - | - | - | - | - | - | - | - | - | |
+| Docker: Chromium + Xvfb | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: browser agent |
+| Docker: init scripts | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | |
+| Browser: extraArgs config | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Workspace crate count | ➖ | 1 | 14 | 46 | ➖ | ➖ | ➖ | 2 | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | LocalGPT: 14 crates (added bridges/slack); Moltis: 46 modular crates |
+| Mobile build scripts | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: ESP32/Nucleo firmware |
+| Nix/direnv support | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| mdBook documentation | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Rust edition | ➖ | ➖ | 2024 | 2024 | ➖ | ➖ | ➖ | 2021 | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | |
+| Go version | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | 1.21+ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | |
+| Zig version | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | 0.15.2 | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | |
+| ESP-IDF version | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | 5.5+ | ➖ | 5.5+ | ➖ | ➖ | ➖ | MimiClaw + ZClaw |
+| Node.js version | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | 18+ | ➖ | ➖ | TinyClaw only |
+| Docker multi-arch | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Lightweight profile | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | NullClaw: ReleaseSmall |
+| Docker support | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | Agent Zero: recommended |
+| Systemd service docs | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Homebrew package | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Binary size (release) | ~28 MB | ~44 MB | ~15 MB | ~large | N/A | N/A | ~8 MB | ~3.4 MB | ~678 KB | ~firmware | ~28 MB | ~firmware | N/A | N/A | N/A | RosClaw: via OpenClaw |
+| RAM footprint | &gt;1 GB | ~large | ~moderate | ~large | &gt;100 MB | ~moderate | &lt;10 MB | &lt;5 MB | ~1 MB | ~512 KB | &gt;1 GB | ~512 KB | &gt;100 MB | ~moderate | ~moderate | RosClaw/ZClaw: via OpenClaw/ESP32 |
+| Startup time (0.8 GHz) | &gt;500 s | ~fast | ~fast | ~fast | &gt;30 s | ~fast | &lt;1 s | &lt;10 ms | &lt;8 ms | instant | &gt;500 s | instant | &gt;5 s | ~fast | ~fast | RosClaw: via OpenClaw |
+| Power consumption | ~100 W | ~moderate | ~moderate | ~moderate | ~moderate | ~moderate | &lt;5 W | &lt;5 W | &lt;1 W | 0.5 W | ~100 W | 0.5 W | ~moderate | ~moderate | ~moderate | RosClaw: via OpenClaw |
+| Target hardware | Mac/PC | Mac/PC | Mac/PC | Mac/PC | Linux SBC | Mac/PC | $10 board | $10 board | $5 board | $5 ESP32-S3 | Mac/PC | $5 ESP32 | Mac/PC | Mac/PC | Mac/PC | |
 
 ---
 
 ## 17. Gen Mode / Explorable Worlds
 
-| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Agent Zero | Notes |
-|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|------------|-------|
-| 3D rendering engine | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: Bevy 0.18 |
-| glTF/GLB scene loading | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Entity spawning (11 primitives) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Cuboid, sphere, cylinder, cone, capsule, torus, plane, pyramid, tetrahedron, icosahedron, wedge |
-| Batch entity operations | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | spawn/modify/delete batch |
-| PBR materials & lighting | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Metallic/roughness/emissive + directional/point/spot lights |
-| World skills (save/load/export) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | RON format with inline entities |
-| Behavior system (7 types) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Orbit, spin, bob, look_at, pulse, path_follow, bounce |
-| Guided tours | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Waypoints with walk/fly/teleport modes |
-| Avatar/player control | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | WASD + mouse, PoV switching; physics TBD |
-| HTML/Three.js export | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Browser-playable worlds |
-| MCP server for gen tools | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | External clients drive scenes |
+| Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
+|---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
+| 3D rendering engine | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: Bevy 0.18 |
+| glTF/GLB scene loading | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Entity spawning (11 primitives) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Cuboid, sphere, cylinder, cone, capsule, torus, plane, pyramid, tetrahedron, icosahedron, wedge |
+| Batch entity operations | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | spawn/modify/delete batch |
+| PBR materials & lighting | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Metallic/roughness/emissive + directional/point/spot lights |
+| World skills (save/load/export) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | RON format with inline entities |
+| Behavior system (7 types) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Orbit, spin, bob, look_at, pulse, path_follow, bounce |
+| Guided tours | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Waypoints with walk/fly/teleport modes |
+| Avatar/player control | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | WASD + mouse, PoV switching; physics TBD |
+| HTML/Three.js export | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Browser-playable worlds |
+| MCP server for gen tools | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | External clients drive scenes |
 | Undo/redo | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
 | Procedural audio (FunDSP) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | 7 ambient + 5 emitter types |
 | Spatial audio & emitters | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Distance attenuation, auto-inference |
