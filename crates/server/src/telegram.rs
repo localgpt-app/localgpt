@@ -873,6 +873,7 @@ async fn handle_chat(
                         }
                     }
                     Ok(StreamEvent::Done) => break,
+                    Ok(StreamEvent::ApprovalRequired { .. }) => {}
                     Err(e) => {
                         error!("Stream error: {}", e);
                         full_response.push_str(&format!("\n\nError: {}", e));

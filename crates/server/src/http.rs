@@ -228,6 +228,10 @@ impl Server {
             .route("/api/saved-sessions", get(list_saved_sessions))
             .route("/api/saved-sessions/{session_id}", get(get_saved_session))
             .route("/api/logs/daemon", get(get_daemon_logs))
+            .route(
+                "/api/sessions/{session_id}/approve",
+                post(approve_tool_execution),
+            )
             .layer(middleware::from_fn_with_state(
                 state.clone(),
                 rate_limit_middleware,
@@ -1087,6 +1091,16 @@ async fn chat_stream(
                         }
                         Ok(StreamEvent::Done) => {
                             let data = json!({"type": "done"});
+                            yield Ok(Event::default().data(data.to_string()));
+                        }
+                        Ok(StreamEvent::ApprovalRequired { request_id, tool_name, arguments, level }) => {
+                            let data = json!({
+                                "type": "approval_required",
+                                "request_id": request_id,
+                                "tool_name": tool_name,
+                                "arguments": arguments,
+                                "level": level,
+                            });
                             yield Ok(Event::default().data(data.to_string()));
                         }
                         Err(e) => {
@@ -1974,4 +1988,30 @@ fn is_localhost_origin(origin: &[u8]) -> bool {
     };
 
     matches!(host, "localhost" | "127.0.0.1" | "[::1]")
+}
+
+/// POST /api/sessions/{session_id}/approve — approve or deny an elevated tool execution.
+///
+/// Body: `{ "request_id": "...", "decision": "approved" | "approved_for_session" | "denied", "reason": "..." }`
+///
+/// This endpoint is a placeholder for future interactive approval flows.
+/// Currently returns the decision acknowledgment. Full interactive approval
+/// (blocking agent execution until client responds) requires WebSocket-based
+/// request/response pairing, which can be built on top of this endpoint.
+async fn approve_tool_execution(
+    Path(session_id): Path<String>,
+    State(_state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let decision = body["decision"].as_str().unwrap_or("denied");
+    let reason = body["reason"].as_str().unwrap_or("");
+
+    let response = serde_json::json!({
+        "session_id": session_id,
+        "decision": decision,
+        "reason": reason,
+        "status": "acknowledged"
+    });
+
+    (StatusCode::OK, Json(response))
 }

@@ -166,6 +166,11 @@ pub struct AgentConfig {
     /// Set to "safe" to require approval for dangerous tools (bash, file write, etc.).
     #[serde(default = "default_permission_level")]
     pub permission_level: crate::agent::tools::PermissionLevel,
+
+    /// Auto-approve elevated tool calls from loopback connections (localhost).
+    /// Default: true (backward compatible — CLI and local HTTP skip approval).
+    #[serde(default = "default_true")]
+    pub auto_approve_loopback: bool,
 }
 
 fn default_max_tool_repeats() -> usize {
@@ -606,7 +611,7 @@ pub struct ClaudeCliConfig {
     pub model: String,
 
     /// Effort level passed to Claude CLI via --effort flag.
-    /// Valid values: "min", "low", "medium", "high", "max".
+    /// Valid values: "low", "medium", "high", "max".
     #[serde(default = "default_claude_cli_effort")]
     pub effort: String,
 
@@ -1230,6 +1235,7 @@ impl Default for AgentConfig {
             max_checkpoints: default_max_checkpoints(),
             active_memory: Default::default(),
             permission_level: default_permission_level(),
+            auto_approve_loopback: true,
         }
     }
 }

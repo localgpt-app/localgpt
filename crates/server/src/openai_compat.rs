@@ -467,6 +467,7 @@ fn create_sse_stream_owned(
                     yield Event::default().json_data(chunk).unwrap();
                     tool_call_index += 1;
                 }
+                Ok(StreamEvent::ApprovalRequired { .. }) => {}
                 Ok(StreamEvent::ToolCallEnd { .. }) => {
                     // Tool call finished - the output will be processed internally
                     // We don't need to send anything special for the end

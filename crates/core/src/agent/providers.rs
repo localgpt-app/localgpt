@@ -323,6 +323,15 @@ pub enum StreamEvent {
     },
     /// Stream completed
     Done,
+    /// Tool requires elevated permission — approval needed from client.
+    /// Emitted when a tool's permission_level exceeds the session level
+    /// and no approval gate is configured (HTTP/WS clients handle this).
+    ApprovalRequired {
+        request_id: String,
+        tool_name: String,
+        arguments: String,
+        level: String,
+    },
 }
 
 /// A boxed, pinned stream of [`StreamChunk`]s returned by streaming LLM calls.
@@ -2242,7 +2251,7 @@ pub struct ClaudeCliProvider {
     localgpt_session_id: String,
     /// CLI session ID for multi-turn conversations (interior mutability for &self methods)
     cli_session_id: StdMutex<Option<String>>,
-    /// Effort level for Claude CLI (min, low, medium, high, max)
+    /// Effort level for Claude CLI (low, medium, high, max)
     effort: String,
     /// Optional MCP config JSON to pass via --mcp-config + --strict-mcp-config.
     /// When set, prevents Claude CLI from using its own MCP server configuration,

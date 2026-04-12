@@ -174,6 +174,7 @@ async fn worker_loop(
                                             warnings,
                                         });
                                     }
+                                    StreamEvent::ApprovalRequired { .. } => {}
                                     StreamEvent::Done => {
                                         if !pending_tools.is_empty() {
                                             let _ = tx.send(WorkerMessage::ToolsPendingApproval(

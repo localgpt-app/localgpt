@@ -93,6 +93,7 @@ pub async fn run(args: AskArgs, agent_id: &str) -> Result<()> {
                 Ok(StreamEvent::Done) => {
                     // LLM text stream finished (this turn)
                 }
+                Ok(StreamEvent::ApprovalRequired { .. }) => {}
                 Err(e) => {
                     eprintln!("\nError: {}", e);
                     break;

@@ -587,6 +587,7 @@ impl Handler {
                             }
                         }
                         Ok(StreamEvent::Done) => break,
+                        Ok(StreamEvent::ApprovalRequired { .. }) => {}
                         Err(e) => {
                             error!("Stream error: {}", e);
                             full_response.push_str(&format!("\n\n❌ Error: {}", e));

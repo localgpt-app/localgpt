@@ -896,6 +896,7 @@ async fn run_app(
                                                     terminal.draw(|f| ui(f, &app))?;
                                                 }
                                                 Ok(localgpt_core::agent::StreamEvent::Done) => {}
+                                                Ok(localgpt_core::agent::StreamEvent::ApprovalRequired { .. }) => {}
                                                 Err(e) => {
                                                     app.messages.push(AppMessage::Text { role: "System".to_string(), content: format!("[Error: {}]", e) });
                                                     terminal.draw(|f| ui(f, &app))?;
