@@ -11,7 +11,7 @@ name = "localgpt-bridge-cli"
 path = "src/main.rs"
 
 [dependencies]
-localgpt-core = { path = "../../crates/core", version = "0.3.4", default-features = false, features = ["embeddings-none"] }
+localgpt-core = { path = "../../crates/core", version = "0.3.6", default-features = false, features = ["embeddings-none"] }
 localgpt-bridge = { workspace = true }
 
 tokio = { workspace = true }

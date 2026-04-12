@@ -19,7 +19,7 @@ default-members = ["crates/cli"]
 resolver = "3"
 
 [workspace.package]
-version = "0.3.5"
+version = "0.3.6"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/localgpt-app/localgpt"
@@ -63,12 +63,12 @@ rand = "0.10"
 base64 = "0.22"
 
 # Internal crates
-localgpt-core = { version = "0.3.5", path = "crates/core" }
-localgpt-server = { version = "0.3.5", path = "crates/server" }
-localgpt-sandbox = { version = "0.3.5", path = "crates/sandbox" }
-localgpt-bridge = { version = "0.3.5", path = "crates/bridge" }
-localgpt-world-types = { version = "0.3.5", path = "crates/world-types" }
-localgpt-cli-tools = { version = "0.3.5", path = "crates/cli-tools" }
+localgpt-core = { version = "0.3.6", path = "crates/core" }
+localgpt-server = { version = "0.3.6", path = "crates/server" }
+localgpt-sandbox = { version = "0.3.6", path = "crates/sandbox" }
+localgpt-bridge = { version = "0.3.6", path = "crates/bridge" }
+localgpt-world-types = { version = "0.3.6", path = "crates/world-types" }
+localgpt-cli-tools = { version = "0.3.6", path = "crates/cli-tools" }
 
 [profile.release]
 lto = true

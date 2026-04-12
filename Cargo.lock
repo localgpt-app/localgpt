@@ -6366,7 +6366,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6401,7 +6401,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-bridge"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "clap",
@@ -6423,7 +6423,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-bridge-cli"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "clap",
@@ -6440,7 +6440,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-bridge-discord"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "chrono",
@@ -6459,7 +6459,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-bridge-slack"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "chrono",
@@ -6479,7 +6479,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-bridge-telegram"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "chrono",
@@ -6498,7 +6498,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-bridge-whatsapp"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "axum",
@@ -6518,7 +6518,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-cli-tools"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6538,7 +6538,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-core"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -6591,7 +6591,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-gen"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6631,7 +6631,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-mobile-ffi"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "localgpt-core",
@@ -6644,7 +6644,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-sandbox"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "directories",
@@ -6661,7 +6661,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-server"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -6699,7 +6699,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-types"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "ron 0.9.0",
  "serde",
