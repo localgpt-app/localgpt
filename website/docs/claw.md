@@ -652,14 +652,14 @@ This document tracks feature parity across fifteen implementations of the person
 | Avatar/player control | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | WASD + mouse, PoV switching; physics TBD |
 | HTML/Three.js export | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Browser-playable worlds |
 | MCP server for gen tools | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | External clients drive scenes |
-| Undo/redo | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Procedural audio (FunDSP) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | 7 ambient + 5 emitter types |
-| Spatial audio & emitters | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Distance attenuation, auto-inference |
-| Character/NPC system | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Spawn, patrol, wander, dialogue |
-| Interaction triggers | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Proximity, click, area, timer |
-| Headless/remote control mode | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Hardware peripherals (I2C, SPI, GPIO) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | RosClaw: via ROS2 topics; ZClaw: GPIO + I2C |
-| ROS2 robot control | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | RosClaw: 8 ROS2 tools, 3 transport modes |
+| Undo/redo | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Procedural audio (FunDSP) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | 7 ambient + 5 emitter types |
+| Spatial audio & emitters | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Distance attenuation, auto-inference |
+| Character/NPC system | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Spawn, patrol, wander, dialogue |
+| Interaction triggers | ❌ | ❌ | 🚧 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Proximity, click, area, timer |
+| Headless/remote control mode | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Hardware peripherals (I2C, SPI, GPIO) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | RosClaw: via ROS2 topics; ZClaw: GPIO + I2C |
+| ROS2 robot control | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | RosClaw: 8 ROS2 tools, 3 transport modes |
 
 ---
 
@@ -825,6 +825,22 @@ This document tracks feature parity across fifteen implementations of the person
 - ✅ Pairing-based access control
 - ✅ CLI-based providers (Claude, Codex, OpenCode)
 - ✅ SSE real-time streaming of agent execution progress
+
+**Hermes Agent additionally (v0.8.0):**
+- ✅ Self-improving agent with closed learning loop (autonomous skill creation)
+- ✅ 17+ channels (Telegram, Discord, Slack, WhatsApp, Signal, Matrix, Email, SMS, iMessage, WeCom, DingTalk, Feishu, Mattermost, Home Assistant)
+- ✅ 40+ tools + 26+ built-in skills + Skills Hub marketplace
+- ✅ 20+ LLM providers + credential pools (round-robin API key distribution)
+- ✅ MCP support (stdio + HTTP + OAuth) with dynamic tool discovery
+- ✅ 8 pluggable memory backends (Honcho, Mem0, OpenViking, RetainDB, etc.)
+- ✅ Multi-sandbox: Docker, Singularity, Modal, Daytona, SSH
+- ✅ Voice mode (CLI + Discord voice channels)
+- ✅ Browser automation (Browserbase, Browser Use, Firecrawl)
+- ✅ TTS (5 providers: Edge, ElevenLabs, OpenAI, MiniMax, NeuTTS)
+- ✅ Cron scheduler with natural language + multi-skill support
+- ✅ OpenAI-compatible API server (Open WebUI, LobeChat, LibreChat)
+- ✅ Image generation (FAL.ai FLUX 2 Pro)
+- ✅ Research-ready batch trajectory generation for RL training
 
 **Agent Zero additionally:**
 - ✅ Hierarchical multi-agent with subagent spawning
