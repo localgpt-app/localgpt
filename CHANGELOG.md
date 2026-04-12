@@ -4,6 +4,34 @@ All notable changes to LocalGPT are documented in this file.
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-04-12
+
+### Added
+
+- **Memory Wiki** — structured knowledge management with claims, evidence chains, and staleness tracking.
+- **Active memory recall** — agent automatically recalls relevant memories before replying.
+- **Dreaming memory consolidation** — background process consolidates and deduplicates memories, wired into heartbeat runner.
+- **Compaction checkpoints** — session restore points created during context compaction.
+- **Model cost tracking** — per-session token usage and cost tracking.
+- **Elevated permission mode** — approval gate for dangerous tools with `StreamEvent::ApprovalRequired`, HTTP approve endpoint, and loopback auto-approval.
+- **TLS for HTTP server** — auto-certificate generation, `cert` CLI commands, and `--no-tls` flag.
+- **Durable outbound message queue** — SQLite-backed outbox with retry, wired into Telegram bridge send path.
+- **Claude CLI effort configuration** — configurable effort level (`low`/`medium`/`high`/`max`) with `/effort` slash command for runtime switching.
+- **Gen MCP multimodal input (AI3)** — image-guided world generation tools.
+- **Gen MCP HTTP transport** — compliance metadata, starter templates, and AGENTS.md.
+- **Gen MCP tool annotations** — Dockerfile, Smithery config, and privacy policy for distribution.
+- **MCP conformance tests** — test suite, case study docs, and composable agent guide.
+- **Heartbeat gen experiment dispatch (H2.5)** — localgpt-gen subprocess for automated scene generation.
+- **SSRF protection** — server-side request forgery guard, stricter CORS, NPC brain loop, gallery thumbnails.
+- **Per-job MCP server filtering** — cron jobs can specify which MCP servers to use.
+- **Telegram heartbeat alerts** — heartbeat alerts routed to Telegram forum topics.
+- **Gen conditional MCP relay** — relay only starts when using CLI backends.
+
+### Fixed
+
+- **Config show** — resolved paths displayed correctly, secrets redacted in output.
+- **Clippy and cargo-deny** — warnings and stale advisory ignores resolved.
+
 ## [0.3.5] - 2026-03-22
 
 ### Added
