@@ -605,6 +605,11 @@ pub struct ClaudeCliConfig {
     #[serde(default = "default_claude_cli_model")]
     pub model: String,
 
+    /// Effort level passed to Claude CLI via --effort flag.
+    /// Valid values: "min", "low", "medium", "high", "max".
+    #[serde(default = "default_claude_cli_effort")]
+    pub effort: String,
+
     /// Optional MCP config JSON passed to Claude CLI via --strict-mcp-config --mcp-config.
     /// When set, overrides Claude CLI's own MCP server configuration, preventing it from
     /// spawning processes that may conflict with the caller (e.g., a second Bevy window
@@ -1082,6 +1087,9 @@ fn default_claude_cli_command() -> String {
 }
 fn default_claude_cli_model() -> String {
     "opus".to_string()
+}
+fn default_claude_cli_effort() -> String {
+    "max".to_string()
 }
 fn default_gemini_cli_command() -> String {
     "gemini".to_string()

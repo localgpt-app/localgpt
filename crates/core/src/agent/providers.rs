@@ -516,8 +516,12 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
         "claude-cli" => {
             let cli_config = config.providers.claude_cli.as_ref();
             let command = cli_config.map(|c| c.command.as_str()).unwrap_or("claude");
+            let effort = cli_config
+                .map(|c| c.effort.clone())
+                .unwrap_or_else(|| "max".to_string());
             let mcp_override = cli_config.and_then(|c| c.mcp_config_override.clone());
             let mut provider = ClaudeCliProvider::new(command, &model_id, workspace)?;
+            provider.set_effort(effort);
             if let Some(mcp_json) = mcp_override {
                 provider.set_mcp_config_override(mcp_json);
             }
@@ -2238,6 +2242,8 @@ pub struct ClaudeCliProvider {
     localgpt_session_id: String,
     /// CLI session ID for multi-turn conversations (interior mutability for &self methods)
     cli_session_id: StdMutex<Option<String>>,
+    /// Effort level for Claude CLI (min, low, medium, high, max)
+    effort: String,
     /// Optional MCP config JSON to pass via --mcp-config + --strict-mcp-config.
     /// When set, prevents Claude CLI from using its own MCP server configuration,
     /// avoiding duplicate process spawning (e.g., a second localgpt-gen window).
@@ -2266,6 +2272,7 @@ impl ClaudeCliProvider {
             session_key,
             localgpt_session_id: uuid::Uuid::new_v4().to_string(),
             cli_session_id: StdMutex::new(existing_session),
+            effort: "max".to_string(),
             mcp_config_override: None,
         })
     }
@@ -2276,6 +2283,10 @@ impl ClaudeCliProvider {
     /// This prevents Claude CLI from using its own MCP server configuration,
     /// which avoids spawning duplicate processes (e.g., a second Bevy window
     /// when `localgpt-gen mcp-server` is configured as an MCP server).
+    pub fn set_effort(&mut self, effort: String) {
+        self.effort = effort;
+    }
+
     pub fn set_mcp_config_override(&mut self, config_json: String) {
         self.mcp_config_override = Some(config_json);
     }
@@ -2408,6 +2419,12 @@ impl ClaudeCliProvider {
         if is_new_session {
             args.push("--model".to_string());
             args.push(self.model.clone());
+        }
+
+        // Effort level
+        if !self.effort.is_empty() {
+            args.push("--effort".to_string());
+            args.push(self.effort.clone());
         }
 
         // System prompt (new sessions only)

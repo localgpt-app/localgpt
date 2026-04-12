@@ -1367,6 +1367,7 @@ async fn run_agent_loop(
             localgpt_core::config::ClaudeCliConfig {
                 command: "claude".to_string(),
                 model: config.agent.default_model.clone(),
+                effort: "max".to_string(),
                 mcp_config_override: None,
             }
         });

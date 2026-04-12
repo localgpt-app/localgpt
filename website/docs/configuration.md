@@ -92,6 +92,7 @@ api_key = "${GLM_API_KEY}"
 [providers.claude_cli]
 command = "claude"
 model = "opus"
+effort = "max"  # min, low, medium, high, max
 
 [providers.gemini_cli]
 command = "gemini"
@@ -378,6 +379,13 @@ default_model = "claude-cli/opus"  # or claude-cli/sonnet, claude-cli/haiku
 ```
 
 No API key configuration needed - uses your existing Claude CLI authentication.
+
+You can control the effort level (how much thinking the model does) via the provider config:
+
+```toml
+[providers.claude_cli]
+effort = "max"  # min, low, medium, high, max (default: max)
+```
 
 ### Gemini CLI
 
