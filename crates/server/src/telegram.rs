@@ -52,6 +52,7 @@ struct BotState {
     paired_user: Mutex<Option<PairedUser>>,
     pending_pairing_code: Mutex<Option<String>>,
     tool_factory: Option<ToolFactory>,
+    outbox: Option<localgpt_core::outbox::Outbox>,
 }
 
 fn pairing_file_path() -> Result<PathBuf> {
@@ -150,6 +151,27 @@ pub async fn run_telegram_bot(
         info!("Telegram bot: no paired user. Send any message to start pairing.");
     }
 
+    // Initialize outbox if enabled
+    let outbox = if config.server.outbox_enabled {
+        let paths = localgpt_core::paths::Paths::resolve()?;
+        let outbox_db = paths.state_dir.join("outbox.sqlite");
+        match localgpt_core::outbox::Outbox::new_with_max_attempts(
+            &outbox_db,
+            config.server.outbox_max_attempts,
+        ) {
+            Ok(ob) => {
+                info!("Outbox enabled (db: {})", outbox_db.display());
+                Some(ob)
+            }
+            Err(e) => {
+                warn!("Failed to initialize outbox: {}. Proceeding without.", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     let state = Arc::new(BotState {
         config: config.clone(),
         sessions: Mutex::new(HashMap::new()),
@@ -158,6 +180,7 @@ pub async fn run_telegram_bot(
         paired_user: Mutex::new(paired_user),
         pending_pairing_code: Mutex::new(None),
         tool_factory,
+        outbox,
     });
 
     // Register bot commands so Telegram clients show the "/" menu
@@ -168,6 +191,47 @@ pub async fn run_telegram_bot(
         .collect();
     if let Err(e) = bot.set_my_commands(commands).await {
         warn!("Failed to set bot commands: {}", e);
+    }
+
+    // Run outbox recovery sweep and start background retry task
+    if let Some(ref outbox) = state.outbox {
+        match outbox.recovery_sweep() {
+            Ok(pending) if !pending.is_empty() => {
+                info!(
+                    "Outbox recovery: {} pending messages to retry",
+                    pending.len()
+                );
+                let retry_bot = bot.clone();
+                let retry_outbox = outbox.clone();
+                tokio::spawn(async move {
+                    for entry in pending {
+                        outbox_retry_send(&retry_bot, &retry_outbox, &entry).await;
+                    }
+                });
+            }
+            Ok(_) => debug!("Outbox recovery: no pending messages"),
+            Err(e) => warn!("Outbox recovery sweep failed: {}", e),
+        }
+
+        // Background retry task — polls every 5 seconds for messages ready to retry
+        let retry_bot = bot.clone();
+        let retry_outbox = outbox.clone();
+        let retain_days = config.server.outbox_retain_days;
+        tokio::spawn(async move {
+            let mut cleanup_counter = 0u32;
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                if let Ok(Some(entry)) = retry_outbox.claim_next() {
+                    outbox_retry_send(&retry_bot, &retry_outbox, &entry).await;
+                }
+                // Periodic cleanup (every ~5 minutes = 60 iterations)
+                cleanup_counter += 1;
+                if cleanup_counter >= 60 {
+                    cleanup_counter = 0;
+                    let _ = retry_outbox.cleanup_delivered(retain_days);
+                }
+            }
+        });
     }
 
     info!("Starting Telegram bot...");
@@ -831,10 +895,11 @@ async fn handle_chat(
         debug!("Failed to save telegram session: {}", e);
     }
 
+    let outbox_ref = state.outbox.as_ref();
     drop(sessions);
 
-    // Final edit with complete response
-    send_long_message(bot, chat_id, Some(msg_id), &response).await;
+    // Final edit with complete response (durable if outbox enabled)
+    durable_send(bot, chat_id, Some(msg_id), &response, outbox_ref).await;
 
     Ok(())
 }
@@ -911,4 +976,107 @@ fn split_text_chunks(text: &str) -> Vec<&str> {
         start = end;
     }
     chunks
+}
+
+/// Send a message durably via the outbox: enqueue → send → mark delivered/failed.
+/// If outbox is not configured, falls back to direct send.
+async fn durable_send(
+    bot: &Bot,
+    chat_id: ChatId,
+    edit_msg_id: Option<MessageId>,
+    text: &str,
+    outbox: Option<&localgpt_core::outbox::Outbox>,
+) {
+    let outbox = match outbox {
+        Some(ob) => ob,
+        None => {
+            // No outbox — direct send (original behavior)
+            send_long_message(bot, chat_id, edit_msg_id, text).await;
+            return;
+        }
+    };
+
+    // Enqueue before sending
+    let entry_id = match outbox.enqueue("telegram", &chat_id.0.to_string(), text, None) {
+        Ok(id) => id,
+        Err(e) => {
+            warn!("Outbox enqueue failed: {}. Falling back to direct send.", e);
+            send_long_message(bot, chat_id, edit_msg_id, text).await;
+            return;
+        }
+    };
+
+    // Attempt send
+    let html = markdown_to_html(text);
+    let result = if text.len() <= MAX_MESSAGE_LENGTH {
+        if let Some(mid) = edit_msg_id {
+            bot.edit_message_text(chat_id, mid, &html)
+                .parse_mode(ParseMode::Html)
+                .await
+        } else {
+            bot.send_message(chat_id, &html)
+                .parse_mode(ParseMode::Html)
+                .await
+        }
+    } else {
+        // For long messages, send directly (chunking is complex to track per-chunk)
+        send_long_message(bot, chat_id, edit_msg_id, text).await;
+        let _ = outbox.mark_delivered(&entry_id);
+        return;
+    };
+
+    match result {
+        Ok(_) => {
+            let _ = outbox.mark_delivered(&entry_id);
+        }
+        Err(e) => {
+            let err_str = e.to_string();
+            if localgpt_core::outbox::is_permanent_telegram_error(&err_str) {
+                let _ = outbox.mark_permanent_failure(&entry_id, &err_str);
+            } else {
+                let _ = outbox.record_failure(&entry_id, &err_str);
+            }
+            // Try plain text fallback
+            if let Some(mid) = edit_msg_id {
+                let _ = bot.edit_message_text(chat_id, mid, text).await;
+            } else {
+                let _ = bot.send_message(chat_id, text).await;
+            }
+        }
+    }
+}
+
+/// Retry sending a pending outbox entry.
+async fn outbox_retry_send(
+    bot: &Bot,
+    outbox: &localgpt_core::outbox::Outbox,
+    entry: &localgpt_core::outbox::OutboxEntry,
+) {
+    let chat_id = match entry.target.parse::<i64>() {
+        Ok(id) => ChatId(id),
+        Err(_) => {
+            let _ = outbox.mark_permanent_failure(&entry.id, "invalid chat_id");
+            return;
+        }
+    };
+
+    let html = markdown_to_html(&entry.payload);
+    let result = bot
+        .send_message(chat_id, &html)
+        .parse_mode(ParseMode::Html)
+        .await;
+
+    match result {
+        Ok(_) => {
+            let _ = outbox.mark_delivered(&entry.id);
+        }
+        Err(e) => {
+            let err_str = e.to_string();
+            if localgpt_core::outbox::is_permanent_telegram_error(&err_str) {
+                let _ = outbox.mark_permanent_failure(&entry.id, &err_str);
+            } else {
+                let _ = outbox.record_failure(&entry.id, &err_str);
+            }
+        }
+    }
 }
