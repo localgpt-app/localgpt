@@ -1,3 +1,4 @@
+pub mod approval;
 pub mod checkpoint;
 pub mod compaction;
 pub mod failover;
@@ -115,6 +116,12 @@ pub struct Agent {
     tool_error_tracker: ToolErrorTracker,
     /// Cache for active memory recall results
     recall_cache: crate::memory::active_recall::RecallCache,
+    /// Approval gate for elevated tool execution (None = auto-approve all)
+    approval_gate: Option<Arc<dyn approval::ApprovalGate>>,
+    /// Session-scoped approval cache
+    approval_cache: approval::ApprovalCache,
+    /// Session permission level (tools above this level require approval)
+    permission_level: tools::PermissionLevel,
 }
 
 /// Detects when the agent is stuck in a tool-call loop
@@ -395,6 +402,9 @@ impl Agent {
             recall_cache: crate::memory::active_recall::RecallCache::new(
                 app_config.agent.active_memory.cache_ttl_ms,
             ),
+            approval_gate: None,
+            approval_cache: approval::ApprovalCache::new(),
+            permission_level: app_config.agent.permission_level,
         })
     }
 
@@ -470,12 +480,24 @@ impl Agent {
             loop_detector: LoopDetector::new(max_tool_repeats),
             tool_error_tracker: ToolErrorTracker::new(3),
             recall_cache: crate::memory::active_recall::RecallCache::new(15_000),
+            approval_gate: None,
+            approval_cache: approval::ApprovalCache::new(),
+            permission_level: tools::PermissionLevel::Safe,
         })
     }
 
     /// Add extra tools to an already-constructed agent (e.g., dangerous CLI tools).
     pub fn extend_tools(&mut self, extra: Vec<Box<dyn Tool>>) {
         self.tools.extend(extra);
+    }
+
+    /// Set the approval gate for elevated tool execution.
+    ///
+    /// When a tool requires a permission level above the agent's configured
+    /// level, the gate is consulted before execution. If `None`, elevated tools
+    /// execute without prompting (current behavior).
+    pub fn set_approval_gate(&mut self, gate: Arc<dyn approval::ApprovalGate>) {
+        self.approval_gate = Some(gate);
     }
 
     pub fn model(&self) -> &str {
@@ -1300,6 +1322,43 @@ impl Agent {
                 .iter()
                 .find(|tool| tool.name() == call.name)
                 .ok_or_else(|| anyhow::anyhow!("Unknown tool: {}", call.name))?;
+
+            // Permission check: if tool requires elevation, consult approval gate
+            let tool_level = tool.permission_level();
+            if tool_level > self.permission_level
+                && let Some(ref gate) = self.approval_gate
+            {
+                // Check session cache first
+                let cached = self.approval_cache.get(&call.name);
+                let decision = if let Some(approval::ApprovalDecision::ApprovedForSession) = cached
+                {
+                    approval::ApprovalDecision::ApprovedForSession
+                } else {
+                    let request = approval::ApprovalRequest {
+                        tool_name: call.name.clone(),
+                        arguments: call.arguments.clone(),
+                        level: tool_level,
+                    };
+                    gate.request_approval(&request).await?
+                };
+
+                match decision {
+                    approval::ApprovalDecision::Approved => { /* proceed */ }
+                    approval::ApprovalDecision::ApprovedForSession => {
+                        self.approval_cache.insert(&call.name, decision);
+                    }
+                    approval::ApprovalDecision::Denied { reason } => {
+                        anyhow::bail!(
+                            "Permission denied for tool '{}' (requires {}): {}",
+                            call.name,
+                            tool_level,
+                            reason
+                        );
+                    }
+                }
+            }
+            // If no gate is set, allow execution (backward compatible)
+
             tool.execute(&call.arguments).await?
         };
 

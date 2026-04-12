@@ -173,6 +173,10 @@ impl Tool for BashTool {
         "bash"
     }
 
+    fn permission_level(&self) -> localgpt_core::agent::tools::PermissionLevel {
+        localgpt_core::agent::tools::PermissionLevel::Elevated
+    }
+
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "bash".to_string(),
@@ -434,6 +438,10 @@ impl Tool for WriteFileTool {
         "write_file"
     }
 
+    fn permission_level(&self) -> localgpt_core::agent::tools::PermissionLevel {
+        localgpt_core::agent::tools::PermissionLevel::Elevated
+    }
+
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "write_file".to_string(),
@@ -560,6 +568,10 @@ impl EditFileTool {
 impl Tool for EditFileTool {
     fn name(&self) -> &str {
         "edit_file"
+    }
+
+    fn permission_level(&self) -> localgpt_core::agent::tools::PermissionLevel {
+        localgpt_core::agent::tools::PermissionLevel::Elevated
     }
 
     fn schema(&self) -> ToolSchema {

@@ -160,6 +160,12 @@ pub struct AgentConfig {
     /// Active memory recall configuration — automatically search memory before replies
     #[serde(default)]
     pub active_memory: crate::memory::active_recall::ActiveMemoryConfig,
+
+    /// Session permission level. Tools requiring a higher level need approval.
+    /// Default: "elevated" (all tools run without prompting, matching current behavior).
+    /// Set to "safe" to require approval for dangerous tools (bash, file write, etc.).
+    #[serde(default = "default_permission_level")]
+    pub permission_level: crate::agent::tools::PermissionLevel,
 }
 
 fn default_max_tool_repeats() -> usize {
@@ -180,6 +186,11 @@ fn default_session_max_count() -> usize {
 
 fn default_max_checkpoints() -> usize {
     5
+}
+
+fn default_permission_level() -> crate::agent::tools::PermissionLevel {
+    // Elevated = all tools run without prompting (backward compatible)
+    crate::agent::tools::PermissionLevel::Elevated
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1184,6 +1195,7 @@ impl Default for AgentConfig {
             checkpoints_enabled: true,
             max_checkpoints: default_max_checkpoints(),
             active_memory: Default::default(),
+            permission_level: default_permission_level(),
         }
     }
 }

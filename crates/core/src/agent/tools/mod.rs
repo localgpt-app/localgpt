@@ -27,11 +27,49 @@ pub struct ToolResult {
     pub output: String,
 }
 
+/// Permission level required to execute a tool.
+///
+/// Tools default to `Safe`. CLI dangerous tools (bash, file write, etc.) override
+/// to `Elevated`. Admin tools (config edit, key rotation) override to `Admin`.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum PermissionLevel {
+    /// Read-only tools: memory search, web fetch, etc.
+    Safe = 0,
+    /// File write, shell exec, browser automation.
+    Elevated = 1,
+    /// Config changes, daemon control, encryption key rotation.
+    Admin = 2,
+}
+
+impl Default for PermissionLevel {
+    fn default() -> Self {
+        Self::Safe
+    }
+}
+
+impl std::fmt::Display for PermissionLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Safe => f.write_str("safe"),
+            Self::Elevated => f.write_str("elevated"),
+            Self::Admin => f.write_str("admin"),
+        }
+    }
+}
+
 #[async_trait]
 pub trait Tool: Send + Sync {
     fn name(&self) -> &str;
     fn schema(&self) -> ToolSchema;
     async fn execute(&self, arguments: &str) -> Result<String>;
+
+    /// Permission level required to execute this tool. Default: Safe.
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::Safe
+    }
 
     /// MCP tool annotations (readOnlyHint, destructiveHint, etc.).
     ///

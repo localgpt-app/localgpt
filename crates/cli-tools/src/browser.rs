@@ -178,6 +178,10 @@ impl Tool for BrowserTool {
         "browser"
     }
 
+    fn permission_level(&self) -> localgpt_core::agent::tools::PermissionLevel {
+        localgpt_core::agent::tools::PermissionLevel::Elevated
+    }
+
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "browser".to_string(),
