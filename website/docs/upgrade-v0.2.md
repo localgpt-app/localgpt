@@ -82,7 +82,9 @@ The search index and embedding cache are rebuilt automatically — no need to co
 
 ## XDG Directory Layout
 
-After migration, your files are organized by purpose:
+After migration, your files are organized by purpose.
+
+### Linux / macOS
 
 ```
 ~/.config/localgpt/           # Configuration
@@ -108,21 +110,49 @@ After migration, your files are organized by purpose:
 └── embeddings/
 ```
 
+### Windows
+
+Windows has no Known Folder for "state," and its `FOLDERID_RoamingAppData` is shared by config and data. On Windows, config, data, and state all resolve to `%APPDATA%\localgpt`; only the cache lives separately under `%LOCALAPPDATA%\localgpt`.
+
+```
+%APPDATA%\localgpt\           # Config + persistent data + runtime state
+├── config.toml
+├── workspace\
+│   ├── MEMORY.md
+│   ├── HEARTBEAT.md
+│   ├── memory\
+│   ├── knowledge\
+│   └── skills\
+├── skills\                   # Managed skills
+├── localgpt.device.key
+├── agents\main\sessions\
+├── logs\
+└── localgpt.audit.jsonl
+
+%LOCALAPPDATA%\localgpt\      # Rebuildable cache
+├── memory\main.sqlite
+└── embeddings\
+
+%TEMP%\localgpt-<USERNAME>\   # Runtime: PID file, IPC locks
+```
+
 ## Environment Overrides
 
 Each directory can be overridden with environment variables. Resolution order:
 
 1. `LOCALGPT_*` variable (if set to an absolute path)
-2. `XDG_*_HOME` variable
+2. `XDG_*_HOME` variable (Linux/macOS only)
 3. Platform default
 
-| Override | XDG Fallback | Default |
-|----------|-------------|---------|
-| `LOCALGPT_CONFIG_DIR` | `XDG_CONFIG_HOME/localgpt` | `~/.config/localgpt` |
-| `LOCALGPT_DATA_DIR` | `XDG_DATA_HOME/localgpt` | `~/.local/share/localgpt` |
-| `LOCALGPT_STATE_DIR` | `XDG_STATE_HOME/localgpt` | `~/.local/state/localgpt` |
-| `LOCALGPT_CACHE_DIR` | `XDG_CACHE_HOME/localgpt` | `~/.cache/localgpt` |
-| `LOCALGPT_WORKSPACE` | — | `$DATA_DIR/workspace` |
+| Override | XDG Fallback (Linux/macOS) | Linux/macOS Default | Windows Default |
+|----------|---------------------------|---------------------|-----------------|
+| `LOCALGPT_CONFIG_DIR` | `XDG_CONFIG_HOME/localgpt` | `~/.config/localgpt` | `%APPDATA%\localgpt` |
+| `LOCALGPT_DATA_DIR` | `XDG_DATA_HOME/localgpt` | `~/.local/share/localgpt` | `%APPDATA%\localgpt` |
+| `LOCALGPT_STATE_DIR` | `XDG_STATE_HOME/localgpt` | `~/.local/state/localgpt` | `%APPDATA%\localgpt` |
+| `LOCALGPT_CACHE_DIR` | `XDG_CACHE_HOME/localgpt` | `~/.cache/localgpt` | `%LOCALAPPDATA%\localgpt` |
+| `LOCALGPT_WORKSPACE` | — | `$DATA_DIR/workspace` | `%APPDATA%\localgpt\workspace` |
+
+On Windows, config/data/state collapse to the same `%APPDATA%\localgpt` directory because Windows' Known Folder IDs don't distinguish between them. Set `LOCALGPT_STATE_DIR` or `LOCALGPT_CACHE_DIR` explicitly if you want them separated.
 
 Named workspace profiles are also supported via `LOCALGPT_PROFILE`:
 

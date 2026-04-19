@@ -24,7 +24,9 @@ LocalGPT is a **local AI assistant with persistent memory, semantic search, and 
 
 ## Architecture Overview
 
-LocalGPT follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/):
+LocalGPT follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/) on Linux and macOS, and uses the native Known Folder IDs on Windows:
+
+### Linux / macOS
 
 ```text
 ~/.config/localgpt/
@@ -46,6 +48,32 @@ LocalGPT follows the [XDG Base Directory Specification](https://specifications.f
 
 ~/.cache/localgpt/
 └── embeddings/                  # Downloaded embedding models
+```
+
+### Windows
+
+Windows has no separate config/state directories, so config, data, and state all share `%APPDATA%\localgpt` (Roaming AppData, `FOLDERID_RoamingAppData`). Cache uses `%LOCALAPPDATA%\localgpt` (`FOLDERID_LocalAppData`).
+
+```text
+%APPDATA%\localgpt\              # e.g. C:\Users\<you>\AppData\Roaming\localgpt
+├── config.toml                  # Configuration file
+├── workspace\
+│   ├── MEMORY.md                # Curated long-term knowledge
+│   ├── HEARTBEAT.md             # Pending autonomous tasks
+│   ├── LocalGPT.md              # Standing instructions
+│   └── memory\
+│       └── YYYY-MM-DD.md        # Conversation logs
+├── localgpt.device.key          # HMAC signing key
+├── agents\<id>\sessions\        # Session transcripts (JSONL)
+├── logs\
+│   └── localgpt-YYYY-MM-DD.log   # Daily application logs
+└── localgpt.audit.jsonl         # Append-only audit log
+
+%LOCALAPPDATA%\localgpt\          # e.g. C:\Users\<you>\AppData\Local\localgpt
+├── memory\<agent-id>.sqlite     # Search index (rebuildable)
+└── embeddings\                  # Downloaded embedding models
+
+%TEMP%\localgpt-<USERNAME>\       # Runtime: PID file, IPC locks
 ```
 
 ## How It Works

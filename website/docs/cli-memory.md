@@ -124,10 +124,10 @@ Recent Memory Entries
 
 ## Memory File Structure
 
-The memory system uses three types of files:
+The memory system uses three types of files. On Linux/macOS the workspace lives under `~/.local/share/localgpt/workspace/`; on Windows it lives under `%APPDATA%\localgpt\workspace\`.
 
 ```
-~/.local/share/localgpt/workspace/
+<workspace>/
 ├── MEMORY.md          # Curated long-term knowledge
 ├── HEARTBEAT.md       # Pending autonomous tasks
 └── memory/

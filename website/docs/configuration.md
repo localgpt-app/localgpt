@@ -4,7 +4,10 @@ sidebar_position: 14
 
 # Configuration
 
-LocalGPT is configured via a TOML file at `~/.config/localgpt/config.toml`.
+LocalGPT is configured via a TOML file at:
+
+- **Linux / macOS:** `~/.config/localgpt/config.toml`
+- **Windows:** `%APPDATA%\localgpt\config.toml`
 
 ## Quick Start
 
@@ -550,9 +553,9 @@ export LOCALGPT_PROFILE=home    # uses ~/.local/share/localgpt-home/workspace
 
 Resolution order:
 1. `LOCALGPT_WORKSPACE` env var (absolute path override)
-2. `LOCALGPT_PROFILE` env var (creates `~/.local/share/localgpt-{profile}/workspace`)
+2. `LOCALGPT_PROFILE` env var (creates `~/.local/share/localgpt-{profile}/workspace` on Linux/macOS, `%APPDATA%\localgpt-{profile}\workspace` on Windows)
 3. `memory.workspace` from config file
-4. Default: `~/.local/share/localgpt/workspace`
+4. Default: `~/.local/share/localgpt/workspace` (Linux/macOS) or `%APPDATA%\localgpt\workspace` (Windows)
 
 ## Configuration Precedence
 
