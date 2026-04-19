@@ -998,6 +998,16 @@ fn main() -> Result<()> {
                         tracing::error!("Gen agent loop error: {}", e);
                     }
                 });
+
+                // REPL exited (/quit, Ctrl+D, or error). The Bevy window is
+                // still blocking the main thread, so the process would hang
+                // here without an explicit exit. Clean up the relay port
+                // (duplicated from the main-thread cleanup below because we
+                // won't reach it) and terminate.
+                if enable_relay {
+                    gen3d::mcp_relay::cleanup_relay_port();
+                }
+                std::process::exit(0);
             });
 
             // Run Bevy on the main thread (blocks until window closes)
