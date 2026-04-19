@@ -718,16 +718,42 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // Initialize logging before handing off to Bevy
-    // Use "warn" by default for cleaner interactive TUI, "debug" with --verbose
+    // Initialize logging before handing off to Bevy.
+    // Use "warn" by default for cleaner interactive TUI, "debug" with --verbose.
+    //
+    // For the interactive Bevy+REPL mode (no subcommand), we grab a rustyline
+    // editor up front so its ExternalPrinter can route tracing output through
+    // the REPL — async warnings (Bevy render, Ollama, etc.) no longer clobber
+    // the `You:` prompt mid-typing. Other subcommands (headless, mcp-server,
+    // control) have no REPL to protect, so they log straight to stderr.
     let log_level = if cli.verbose { "debug" } else { "warn" };
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level)),
-        )
-        .with_writer(std::io::stderr)
-        .init();
+    let mut repl_editor: Option<rustyline::DefaultEditor> = None;
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level));
+
+    if cli.command.is_none() {
+        let wired = rustyline::DefaultEditor::new()
+            .ok()
+            .and_then(|mut ed| ed.create_external_printer().ok().map(|p| (ed, p)));
+        if let Some((ed, printer)) = wired {
+            tracing_subscriber::fmt()
+                .with_env_filter(env_filter)
+                .with_writer(localgpt_gen::tracing_printer::SharedPrinter::new(printer))
+                .init();
+            repl_editor = Some(ed);
+        } else {
+            // No tty / headless stdin — fall back to stderr.
+            tracing_subscriber::fmt()
+                .with_env_filter(env_filter)
+                .with_writer(std::io::stderr)
+                .init();
+        }
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .with_writer(std::io::stderr)
+            .init();
+    }
 
     // Load config early so both Bevy and agent threads can use it
     let config = localgpt_core::config::Config::load()?;
@@ -928,7 +954,10 @@ fn main() -> Result<()> {
                 || model.starts_with("codex-cli/");
 
             // Spawn tokio runtime + agent loop + MCP relay on a background thread
-            // (Bevy must own the main thread for windowing/GPU on macOS)
+            // (Bevy must own the main thread for windowing/GPU on macOS).
+            // Move the REPL editor into the agent thread — it was created up
+            // front so its ExternalPrinter could be wired into tracing.
+            let editor_for_agent = repl_editor.take();
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Builder::new_multi_thread()
                     .enable_all()
@@ -957,9 +986,14 @@ fn main() -> Result<()> {
                         }
                     }
 
-                    if let Err(e) =
-                        run_agent_loop(bridge_for_agent, &agent_id, initial_prompt, relay_config)
-                            .await
+                    if let Err(e) = run_agent_loop(
+                        bridge_for_agent,
+                        &agent_id,
+                        initial_prompt,
+                        relay_config,
+                        editor_for_agent,
+                    )
+                    .await
                     {
                         tracing::error!("Gen agent loop error: {}", e);
                     }
@@ -1312,6 +1346,7 @@ async fn run_agent_loop(
     agent_id: &str,
     initial_prompt: Option<String>,
     config: localgpt_core::config::Config,
+    editor: Option<rustyline::DefaultEditor>,
 ) -> Result<()> {
     use localgpt_core::agent::tools::create_safe_tools;
     use localgpt_core::agent::{Agent, create_spawn_agent_tool};
@@ -1435,8 +1470,13 @@ async fn run_agent_loop(
         println!();
     }
 
-    // Interactive loop
-    let mut rl = DefaultEditor::new()?;
+    // Interactive loop — reuse the editor created in main() so tracing's
+    // ExternalPrinter stays wired to its pipe. Fall back to a fresh editor
+    // if one wasn't provided (e.g., initial_prompt-only path).
+    let mut rl = match editor {
+        Some(ed) => ed,
+        None => DefaultEditor::new()?,
+    };
     loop {
         let readline = rl.readline("You: ");
 

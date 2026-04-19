@@ -15,5 +15,6 @@ pub mod mcp;
 pub mod mcp_server;
 pub mod physics;
 pub mod terrain;
+pub mod tracing_printer;
 pub mod ui;
 pub mod worldgen;
