@@ -12,7 +12,9 @@ sidebar_position: 2
   - Anthropic API key
   - Local Ollama installation
 
-## Install from crates.io
+## Install from crates.io (for users)
+
+If you just want to run LocalGPT — no source checkout, no Git clone. `cargo install` fetches the published crate, compiles it, and drops the binary in `~/.cargo/bin/` (already on your PATH if you installed Rust via rustup).
 
 ```bash
 # Full install (includes desktop GUI)
@@ -21,6 +23,8 @@ cargo install localgpt
 # Headless install (no desktop GUI — for servers, Docker, CI)
 cargo install localgpt --no-default-features
 ```
+
+After install, run `localgpt chat` from anywhere. Upgrade later with `cargo install localgpt --force`.
 
 ## Optional Features
 
@@ -52,13 +56,40 @@ cargo install localgpt-gen
 
 See the [Gen docs](/docs/gen) for usage details.
 
-## Building from Source
+## From source (for developers)
+
+If you've cloned the repository and want to hack on LocalGPT — iterate on code, try unreleased features, or debug a problem.
+
+### Clone
 
 ```bash
-# Clone the repository
 git clone https://github.com/localgpt-app/localgpt.git
 cd localgpt
+```
 
+### Run directly with `cargo run` (iterative development)
+
+`cargo run` rebuilds on change and launches the binary — no install step. Use this while editing code. Arguments after `--` are forwarded to the binary.
+
+```bash
+# AI Assistant (default workspace member is the CLI)
+cargo run -- chat
+cargo run -- daemon start
+cargo run -- ask "What is 2+2?"
+
+# World Building (separate crate)
+cargo run -p localgpt-gen
+cargo run -p localgpt-gen -- "Create a desert scene with pyramids"
+
+# Headless (no desktop GUI)
+cargo run --no-default-features -- chat
+```
+
+### Build a release binary (optimized)
+
+When you want an optimized binary to ship, test performance, or install onto another machine:
+
+```bash
 # Build release binary (includes desktop GUI)
 cargo build --release
 
@@ -66,6 +97,22 @@ cargo build --release
 cargo build --release --no-default-features
 
 # The binary will be at target/release/localgpt
+```
+
+### Install a source build onto your PATH
+
+After `cargo build --release`, copy the binary so you can run it from anywhere:
+
+```bash
+# Option 1: Install to /usr/local/bin
+sudo cp target/release/localgpt /usr/local/bin/
+
+# Option 2: Install to ~/.local/bin (no sudo required)
+mkdir -p ~/.local/bin
+cp target/release/localgpt ~/.local/bin/
+
+# Option 3: Let cargo handle it (installs to ~/.cargo/bin)
+cargo install --path crates/cli
 ```
 
 ## Docker / Headless Server
@@ -90,19 +137,6 @@ CMD ["localgpt", "daemon", "start", "--foreground"]
 ```
 
 The headless binary includes all features except the desktop GUI: CLI, web UI, HTTP API, WebSocket, daemon mode, and heartbeat.
-
-## Installation
-
-Copy the binary to your PATH:
-
-```bash
-# Option 1: Install to /usr/local/bin
-sudo cp target/release/localgpt /usr/local/bin/
-
-# Option 2: Install to ~/.local/bin (no sudo required)
-mkdir -p ~/.local/bin
-cp target/release/localgpt ~/.local/bin/
-```
 
 ## Initial Setup
 

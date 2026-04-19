@@ -16,11 +16,20 @@ sidebar_position: 14
 
 ## Installation
 
-```bash
-# Install the standalone Gen binary
-cargo install localgpt-gen
+**For users (from crates.io):** install the published binary onto your PATH. No source checkout needed.
 
-# Or from a source checkout
+```bash
+cargo install localgpt-gen
+```
+
+**For developers (from a source checkout):** use `cargo run` to iterate, or `cargo install --path` to install a local build.
+
+```bash
+# Iterate without installing
+cargo run -p localgpt-gen
+cargo run -p localgpt-gen -- "create a heart outline with spheres and cubes"
+
+# Install the current checkout as the localgpt-gen binary
 cargo install --path crates/gen
 ```
 

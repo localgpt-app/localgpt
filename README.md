@@ -14,6 +14,10 @@ Build explorable 3D worlds with natural language — geometry, materials, lighti
 
 ## Install
 
+### From crates.io (for users)
+
+If you just want to run LocalGPT — no source checkout needed:
+
 ```bash
 # World Building
 cargo install localgpt-gen
@@ -21,6 +25,24 @@ cargo install localgpt-gen
 # AI Assistant (chat, memory, daemon)
 cargo install localgpt
 ```
+
+### From source (for developers)
+
+If you've cloned the repository and want to hack on the code, use `cargo run` to iterate without installing:
+
+```bash
+git clone https://github.com/localgpt-app/localgpt.git
+cd localgpt
+
+# World Building
+cargo run -p localgpt-gen -- "Create a desert scene with pyramids"
+
+# AI Assistant
+cargo run -- chat
+cargo run -- daemon start
+```
+
+Full options (feature flags, headless builds, Docker): see [Installation](https://localgpt.app/docs/installation).
 
 ## <img src="https://localgpt.app/logo/localgpt-icon.svg" width="32" height="32" alt="LocalGPT" /> Gen Mode (World Building)
 
