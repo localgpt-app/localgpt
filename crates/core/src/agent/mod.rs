@@ -27,8 +27,8 @@ pub use sanitize::{
 pub use session::{
     DEFAULT_AGENT_ID, Session, SessionInfo, SessionMessage, SessionSearchResult, SessionStatus,
     get_last_session_id, get_last_session_id_for_agent, get_sessions_dir_for_agent, get_state_dir,
-    list_sessions, list_sessions_for_agent, recover_orphaned_sessions, search_sessions,
-    search_sessions_for_agent,
+    is_valid_session_id, list_sessions, list_sessions_for_agent, recover_orphaned_sessions,
+    search_sessions, search_sessions_for_agent,
 };
 pub use session_pruning::{PruneResult, preview_prune, prune_all_agents, prune_sessions};
 pub use session_store::{SessionEntry, SessionStore};
@@ -731,7 +731,16 @@ impl Agent {
     }
 
     pub async fn new_session(&mut self) -> Result<()> {
-        self.session = Session::new();
+        self.start_new_session(Session::new()).await
+    }
+
+    pub async fn new_session_with_id(&mut self, session_id: &str) -> Result<()> {
+        self.start_new_session(Session::new_with_id(session_id.to_string())?)
+            .await
+    }
+
+    async fn start_new_session(&mut self, session: Session) -> Result<()> {
+        self.session = session;
         self.search_queries = 0;
         self.search_cached_hits = 0;
         self.search_cost_usd = 0.0;
@@ -780,6 +789,16 @@ impl Agent {
     pub async fn resume_session(&mut self, session_id: &str) -> Result<()> {
         self.session = Session::load(session_id)?;
         info!("Resumed session: {}", session_id);
+        Ok(())
+    }
+
+    pub async fn resume_session_for_agent(
+        &mut self,
+        session_id: &str,
+        agent_id: &str,
+    ) -> Result<()> {
+        self.session = Session::load_for_agent(session_id, agent_id)?;
+        info!("Resumed session {} for agent {}", session_id, agent_id);
         Ok(())
     }
 

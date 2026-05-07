@@ -18,6 +18,29 @@ use super::providers::{LLMProvider, Message, Role, ToolCall, Usage};
 /// Current session format version (matches Pi)
 pub const CURRENT_SESSION_VERSION: u32 = 1;
 
+/// Maximum accepted length for externally supplied session IDs.
+pub const MAX_SESSION_ID_LEN: usize = 128;
+
+/// Validate a session ID before it is used as a filename.
+pub fn is_valid_session_id(session_id: &str) -> bool {
+    !session_id.is_empty()
+        && session_id.len() <= MAX_SESSION_ID_LEN
+        && session_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+fn validate_session_id(session_id: &str) -> Result<()> {
+    if is_valid_session_id(session_id) {
+        Ok(())
+    } else {
+        anyhow::bail!(
+            "Invalid session ID: use 1-{} ASCII letters, numbers, hyphens, or underscores",
+            MAX_SESSION_ID_LEN
+        )
+    }
+}
+
 /// Session state (internal representation)
 #[derive(Debug, Clone)]
 pub struct Session {
@@ -137,9 +160,25 @@ impl Session {
         )
     }
 
+    pub fn new_with_id(id: impl Into<String>) -> Result<Self> {
+        let id = id.into();
+        validate_session_id(&id)?;
+
+        Ok(Self::new_with_id_and_cwd(
+            id,
+            std::env::current_dir()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| ".".to_string()),
+        ))
+    }
+
     pub fn new_with_cwd(cwd: String) -> Self {
+        Self::new_with_id_and_cwd(Uuid::new_v4().to_string(), cwd)
+    }
+
+    fn new_with_id_and_cwd(id: String, cwd: String) -> Self {
         Self {
-            id: Uuid::new_v4().to_string(),
+            id,
             created_at: Utc::now(),
             cwd,
             messages: Vec::new(),
@@ -300,6 +339,7 @@ impl Session {
 
     /// Save session in Pi-compatible JSONL format
     pub fn save(&self) -> Result<PathBuf> {
+        validate_session_id(&self.id)?;
         let dir = get_sessions_dir()?;
         fs::create_dir_all(&dir)?;
 
@@ -309,6 +349,7 @@ impl Session {
     }
 
     pub fn save_for_agent(&self, agent_id: &str) -> Result<PathBuf> {
+        validate_session_id(&self.id)?;
         let dir = get_sessions_dir_for_agent(agent_id)?;
         fs::create_dir_all(&dir)?;
 
@@ -435,6 +476,7 @@ impl Session {
         session_id: &str,
         encryption_key: Option<&crate::security::encrypt::EncryptionKey>,
     ) -> Result<Self> {
+        validate_session_id(session_id)?;
         let enc_path = base_path.with_extension("jsonl.enc");
 
         // Try encrypted file first
@@ -465,6 +507,7 @@ impl Session {
 
     /// Load session from an in-memory JSONL string.
     fn load_from_string(content: &str, session_id: &str) -> Result<Self> {
+        validate_session_id(session_id)?;
         let mut session = Session {
             id: session_id.to_string(),
             created_at: Utc::now(),
@@ -574,6 +617,7 @@ impl Session {
 
     /// Load session (supports both old and Pi formats)
     pub fn load(session_id: &str) -> Result<Self> {
+        validate_session_id(session_id)?;
         let dir = get_sessions_dir()?;
         let path = dir.join(format!("{}.jsonl", session_id));
 
@@ -586,6 +630,7 @@ impl Session {
 
     /// Load a session for a specific agent ID.
     pub fn load_for_agent(session_id: &str, agent_id: &str) -> Result<Self> {
+        validate_session_id(session_id)?;
         let dir = get_sessions_dir_for_agent(agent_id)?;
         let path = dir.join(format!("{}.jsonl", session_id));
 
@@ -626,6 +671,7 @@ impl Session {
     }
 
     fn load_from_path(path: &PathBuf, session_id: &str) -> Result<Self> {
+        validate_session_id(session_id)?;
         let file = File::open(path)?;
         let reader = BufReader::new(file);
 
@@ -846,6 +892,10 @@ pub fn recover_orphaned_sessions(agent_id: &str) -> Result<usize> {
             None => continue,
         };
 
+        if !is_valid_session_id(&session_id) {
+            continue;
+        }
+
         if let Ok(mut session) = Session::load_from_path(&path, &session_id)
             && session.aborted_last_run
         {
@@ -897,7 +947,7 @@ pub fn list_sessions_for_agent(agent_id: &str) -> Result<Vec<SessionInfo>> {
 
         let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
 
-        if filename.len() < 32 {
+        if !is_valid_session_id(filename) {
             continue;
         }
 
@@ -1023,6 +1073,7 @@ pub fn search_sessions_for_agent(agent_id: &str, query: &str) -> Result<Vec<Sess
 
         if path.extension().map(|e| e == "jsonl").unwrap_or(false)
             && let Some(filename) = path.file_stem().and_then(|s| s.to_str())
+            && is_valid_session_id(filename)
             && let Ok(content) = fs::read_to_string(&path)
         {
             let content_lower = content.to_lowercase();
@@ -1084,6 +1135,32 @@ mod tests {
         assert!(!session.id().is_empty());
         assert_eq!(session.token_count(), 0);
         assert_eq!(session.compaction_count(), 0);
+    }
+
+    #[test]
+    fn test_session_new_with_id() {
+        let session = Session::new_with_id("http-session_123").unwrap();
+        assert_eq!(session.id(), "http-session_123");
+    }
+
+    #[test]
+    fn test_session_rejects_invalid_ids() {
+        assert!(Session::new_with_id("").is_err());
+        assert!(Session::new_with_id("../escape").is_err());
+        assert!(Session::new_with_id("has space").is_err());
+        assert!(Session::new_with_id("unicode-\u{2603}").is_err());
+    }
+
+    #[test]
+    fn test_session_save_load_preserves_custom_id() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let path = tmp.path().join("custom-session_1.jsonl");
+        let session = Session::new_with_id("custom-session_1").unwrap();
+
+        session.save_to_path(&path).unwrap();
+        let loaded = Session::load_from_path(&path, "custom-session_1").unwrap();
+
+        assert_eq!(loaded.id(), "custom-session_1");
     }
 
     #[test]

@@ -168,10 +168,7 @@ mod tests {
     #[test]
     fn test_cache_eviction_on_full() {
         let tmp = TempDir::new().unwrap();
-        // Very small cache: 1MB max but effectively tiny for test
         let cache_dir = tmp.path().join("cache");
-        let cache = MediaCache::new(cache_dir.clone(), 0); // 0 MB = no limit test
-        // Actually test with a real limit
         let cache = MediaCache::new(cache_dir, 1); // 1 MB
 
         let file = tmp.path().join("test.txt");

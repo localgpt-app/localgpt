@@ -32,7 +32,9 @@ use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tracing::{debug, info};
 
-use localgpt_core::agent::{Agent, AgentConfig, StreamEvent, extract_tool_detail};
+use localgpt_core::agent::{
+    Agent, AgentConfig, StreamEvent, extract_tool_detail, is_valid_session_id,
+};
 use localgpt_core::concurrency::{TurnGate, WorkspaceLock};
 use localgpt_core::config::Config;
 use localgpt_core::heartbeat::{HeartbeatStatus, get_last_heartbeat_event};
@@ -443,7 +445,11 @@ async fn load_persisted_sessions(state: &Arc<AppState>) -> Result<(), anyhow::Er
         let mut agent = Agent::new(agent_config, &state.config, memory).await?;
 
         // Try to resume the session
-        if agent.resume_session(&session_info.id).await.is_ok() {
+        if agent
+            .resume_session_for_agent(&session_info.id, HTTP_AGENT_ID)
+            .await
+            .is_ok()
+        {
             let mut sessions = state.sessions.lock().await;
             sessions.insert(
                 session_info.id.clone(),
@@ -490,17 +496,62 @@ async fn get_or_create_session(
     state: &Arc<AppState>,
     session_id: Option<String>,
 ) -> Result<String, AppError> {
-    let mut sessions = state.sessions.lock().await;
+    let requested_id = match session_id {
+        Some(id) => {
+            if !is_valid_session_id(&id) {
+                return Err(AppError(
+                    StatusCode::BAD_REQUEST,
+                    "Invalid session ID: use ASCII letters, numbers, hyphens, or underscores"
+                        .to_string(),
+                ));
+            }
+            Some(id)
+        }
+        None => None,
+    };
 
-    // If session_id provided, try to use existing session
-    if let Some(ref id) = session_id
-        && sessions.contains_key(id)
-    {
-        // Update last accessed time
+    if let Some(id) = requested_id.as_deref() {
+        let mut sessions = state.sessions.lock().await;
         if let Some(entry) = sessions.get_mut(id) {
             entry.last_accessed = Instant::now();
+            return Ok(id.to_string());
         }
-        return Ok(id.clone());
+    }
+
+    let should_try_resume = requested_id.is_some();
+    let new_id = requested_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let agent_config = AgentConfig {
+        model: state.config.agent.default_model.clone(),
+        context_window: state.config.agent.context_window,
+        reserve_tokens: state.config.agent.reserve_tokens,
+    };
+
+    let memory = std::sync::Arc::new(state.memory.clone());
+    let mut agent = Agent::new(agent_config, &state.config, memory)
+        .await
+        .map_err(|e| AppError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let dirty = if should_try_resume
+        && agent
+            .resume_session_for_agent(&new_id, HTTP_AGENT_ID)
+            .await
+            .is_ok()
+    {
+        false
+    } else {
+        agent
+            .new_session_with_id(&new_id)
+            .await
+            .map_err(|e| AppError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        true
+    };
+
+    let mut sessions = state.sessions.lock().await;
+
+    if let Some(entry) = sessions.get_mut(&new_id) {
+        entry.last_accessed = Instant::now();
+        return Ok(new_id);
     }
 
     // Check session limit
@@ -516,35 +567,20 @@ async fn get_or_create_session(
         }
     }
 
-    // Create new session
-    let new_id = session_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-
-    let agent_config = AgentConfig {
-        model: state.config.agent.default_model.clone(),
-        context_window: state.config.agent.context_window,
-        reserve_tokens: state.config.agent.reserve_tokens,
-    };
-
-    let memory = std::sync::Arc::new(state.memory.clone());
-    let mut agent = Agent::new(agent_config, &state.config, memory)
-        .await
-        .map_err(|e| AppError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    agent
-        .new_session()
-        .await
-        .map_err(|e| AppError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
     sessions.insert(
         new_id.clone(),
         SessionEntry {
             agent,
             last_accessed: Instant::now(),
-            dirty: true, // New sessions should be saved
+            dirty,
         },
     );
 
-    info!("Created new session: {}", new_id);
+    if dirty {
+        info!("Created new session: {}", new_id);
+    } else {
+        info!("Resumed persisted session: {}", new_id);
+    }
     Ok(new_id)
 }
 
@@ -876,12 +912,15 @@ async fn compact_session(
             entry.last_accessed = Instant::now();
 
             match entry.agent.compact_session().await {
-                Ok((before, after)) => Json(json!({
-                    "session_id": session_id,
-                    "token_count_before": before,
-                    "token_count_after": after,
-                }))
-                .into_response(),
+                Ok((before, after)) => {
+                    entry.dirty = true;
+                    Json(json!({
+                        "session_id": session_id,
+                        "token_count_before": before,
+                        "token_count_after": after,
+                    }))
+                    .into_response()
+                }
                 Err(e) => {
                     AppError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
                 }
@@ -902,6 +941,7 @@ async fn clear_session(
         Some(entry) => {
             entry.last_accessed = Instant::now();
             entry.agent.clear_session();
+            entry.dirty = true;
             Json(json!({"session_id": session_id, "cleared": true})).into_response()
         }
         None => AppError(StatusCode::NOT_FOUND, "Session not found".to_string()).into_response(),
@@ -1539,11 +1579,7 @@ async fn get_saved_session(Path(session_id): Path<String>) -> Response {
     use std::fs::File;
     use std::io::{BufRead, BufReader};
 
-    // Validate session_id uses only safe characters (alphanumeric, hyphens, underscores)
-    if !session_id
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    {
+    if !is_valid_session_id(&session_id) {
         return AppError(StatusCode::BAD_REQUEST, "Invalid session ID".to_string()).into_response();
     }
 
@@ -1890,6 +1926,8 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>) {
 
                         match entry.agent.chat(&message).await {
                             Ok(response) => {
+                                entry.dirty = true;
+
                                 // Send response as content
                                 let content = WsOutgoing::Content { delta: response };
                                 if let Ok(json) = serde_json::to_string(&content) {
