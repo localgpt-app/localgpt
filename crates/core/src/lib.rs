@@ -18,5 +18,6 @@ pub mod memory;
 pub mod outbox;
 pub mod paths;
 pub mod security;
+pub mod text;
 
 pub use config::Config;

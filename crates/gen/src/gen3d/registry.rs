@@ -291,8 +291,10 @@ mod tests {
 
     #[test]
     fn test_dirty_tracker_world_meta() {
-        let mut tracker = DirtyTracker::default();
-        tracker.world_meta_dirty = true;
+        let mut tracker = DirtyTracker {
+            world_meta_dirty: true,
+            ..Default::default()
+        };
         assert!(tracker.has_changes());
 
         tracker.clear();

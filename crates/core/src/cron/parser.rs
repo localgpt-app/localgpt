@@ -49,18 +49,37 @@ fn parse_interval(s: &str) -> Result<Duration> {
         bail!("Empty interval");
     }
 
-    let (num_str, suffix) = s.split_at(s.len() - 1);
+    let (suffix_start, suffix) = s
+        .char_indices()
+        .next_back()
+        .ok_or_else(|| anyhow::anyhow!("Empty interval"))?;
+    let num_str = &s[..suffix_start];
+    if num_str.is_empty() {
+        bail!("Missing interval number");
+    }
+
     let num: u64 = num_str
         .parse()
         .map_err(|_| anyhow::anyhow!("Invalid interval number: '{}'", num_str))?;
-
-    match suffix {
-        "s" => Ok(Duration::from_secs(num)),
-        "m" => Ok(Duration::from_secs(num * 60)),
-        "h" => Ok(Duration::from_secs(num * 3600)),
-        "d" => Ok(Duration::from_secs(num * 86400)),
-        _ => bail!("Unknown interval suffix '{}'. Use s, m, h, or d.", suffix),
+    if num == 0 {
+        bail!("Interval must be greater than zero");
     }
+
+    let multiplier = match suffix {
+        's' => 1,
+        'm' => 60,
+        'h' => 3600,
+        'd' => 86400,
+        _ => bail!("Unknown interval suffix '{}'. Use s, m, h, or d.", suffix),
+    };
+
+    let seconds = num
+        .checked_mul(multiplier)
+        .ok_or_else(|| anyhow::anyhow!("Interval is too large"))?;
+    let duration = Duration::from_secs(seconds);
+    chrono::Duration::from_std(duration).map_err(|_| anyhow::anyhow!("Interval is too large"))?;
+
+    Ok(duration)
 }
 
 #[cfg(test)]
@@ -74,6 +93,26 @@ mod tests {
         assert_eq!(parse_interval("1d").unwrap(), Duration::from_secs(86400));
         assert_eq!(parse_interval("90s").unwrap(), Duration::from_secs(90));
         assert!(parse_interval("abc").is_err());
+    }
+
+    #[test]
+    fn test_parse_interval_rejects_zero() {
+        let err = parse_interval("0s").unwrap_err().to_string();
+        assert!(err.contains("greater than zero"));
+    }
+
+    #[test]
+    fn test_parse_interval_rejects_too_large() {
+        let err = parse_interval("18446744073709551615d")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("too large"));
+    }
+
+    #[test]
+    fn test_parse_interval_rejects_malformed_unicode() {
+        assert!(parse_interval("é").is_err());
+        assert!(parse_interval("1日").is_err());
     }
 
     #[test]

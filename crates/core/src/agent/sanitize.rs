@@ -7,6 +7,8 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+use crate::text::prefix_chars;
+
 // XML-style delimiters for content boundaries
 pub const TOOL_OUTPUT_START: &str = "<tool_output>";
 pub const TOOL_OUTPUT_END: &str = "</tool_output>";
@@ -151,8 +153,13 @@ pub fn truncate_with_notice(content: &str, max_chars: usize) -> (String, bool) {
         return (content.to_string(), false);
     }
 
-    let truncated: String = content.chars().take(max_chars).collect();
-    let remaining = content.len() - truncated.len();
+    let total_chars = content.chars().count();
+    if total_chars <= max_chars {
+        return (content.to_string(), false);
+    }
+
+    let truncated = prefix_chars(content, max_chars);
+    let remaining = total_chars - max_chars;
     let result = format!(
         "{}\n\n[...truncated {} characters. Use read_file with offset to see more.]",
         truncated, remaining
@@ -339,6 +346,22 @@ mod tests {
         let (result, truncated) = truncate_with_notice("hello", 100);
         assert!(!truncated);
         assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn test_truncation_not_needed_for_multibyte_within_char_limit() {
+        let content = "✅✅✅";
+        let (result, truncated) = truncate_with_notice(content, 3);
+        assert!(!truncated);
+        assert_eq!(result, content);
+    }
+
+    #[test]
+    fn test_truncation_counts_multibyte_characters() {
+        let (result, truncated) = truncate_with_notice("✅✅✅✅", 3);
+        assert!(truncated);
+        assert!(result.starts_with("✅✅✅"));
+        assert!(result.contains("1 characters"));
     }
 
     #[test]

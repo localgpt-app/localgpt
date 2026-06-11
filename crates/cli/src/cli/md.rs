@@ -8,6 +8,7 @@ use clap::{Args, Subcommand};
 
 use localgpt_core::config::Config;
 use localgpt_core::security;
+use localgpt_core::text::prefix_chars;
 
 #[derive(Args)]
 pub struct MdArgs {
@@ -36,6 +37,10 @@ pub enum MdCommands {
 
     /// Show current security posture
     Status,
+}
+
+fn hash_preview(hash: &str) -> String {
+    prefix_chars(hash, 16)
 }
 
 pub async fn run(args: MdArgs) -> Result<()> {
@@ -80,8 +85,8 @@ async fn sign_policy() -> Result<()> {
     println!(
         "Signed {} (sha256: {} | hmac: {})",
         security::POLICY_FILENAME,
-        &manifest.content_sha256[..16],
-        &manifest.hmac_sha256[..16]
+        hash_preview(&manifest.content_sha256),
+        hash_preview(&manifest.hmac_sha256)
     );
 
     Ok(())
@@ -201,11 +206,7 @@ async fn show_audit(json_output: bool, filter: Option<String>) -> Result<()> {
                 entry.ts,
                 entry.action,
                 entry.source,
-                if entry.content_sha256.len() >= 16 {
-                    &entry.content_sha256[..16]
-                } else {
-                    &entry.content_sha256
-                },
+                hash_preview(&entry.content_sha256),
                 chain_status,
                 detail_str,
             );
@@ -285,4 +286,27 @@ async fn show_status() -> Result<()> {
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hash_preview_preserves_short_hash() {
+        assert_eq!(hash_preview("abc123"), "abc123");
+    }
+
+    #[test]
+    fn hash_preview_truncates_ascii_hash() {
+        assert_eq!(hash_preview("0123456789abcdefextra"), "0123456789abcdef");
+    }
+
+    #[test]
+    fn hash_preview_truncates_multibyte_without_panicking() {
+        assert_eq!(
+            hash_preview("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅"),
+            "✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅"
+        );
+    }
 }

@@ -10,13 +10,14 @@ use regex::Regex;
 use serde_json::{Value, json};
 use std::fs;
 use std::io::Cursor;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::debug;
 
 use super::providers::ToolSchema;
 use crate::config::{Config, SearchProviderType};
 use crate::memory::MemoryManager;
+use crate::text::{ellipsize_chars, prefix_chars, prefix_chars_with_ellipsis};
 
 use spawn_agent::{SpawnAgentTool, SpawnContext};
 use web_search::{SearchRouter, WebSearchTool};
@@ -226,6 +227,46 @@ pub fn create_spawn_agent_tool_at_depth(
     Some(Box::new(tool))
 }
 
+fn resolve_workspace_file_path(workspace: &Path, path_str: &str) -> Result<PathBuf> {
+    if path_str.contains('\0') {
+        anyhow::bail!("Invalid path: null bytes not allowed");
+    }
+
+    let expanded = shellexpand::tilde(path_str).to_string();
+    let resolved = if Path::new(&expanded).is_absolute() {
+        PathBuf::from(expanded)
+    } else {
+        workspace.join(expanded)
+    };
+
+    if resolved
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        anyhow::bail!("Invalid path: path traversal not allowed");
+    }
+
+    if !path_is_inside_workspace(workspace, &resolved) {
+        anyhow::bail!("Access denied: path is outside workspace");
+    }
+
+    Ok(resolved)
+}
+
+fn path_is_inside_workspace(workspace: &Path, resolved: &Path) -> bool {
+    let Ok(workspace_canonical) = workspace.canonicalize() else {
+        return false;
+    };
+
+    match resolved.canonicalize() {
+        Ok(canonical) => canonical.starts_with(&workspace_canonical),
+        Err(_) => resolved
+            .parent()
+            .and_then(|parent| parent.canonicalize().ok())
+            .is_some_and(|parent| parent.starts_with(&workspace_canonical)),
+    }
+}
+
 // Memory Search Tool
 pub struct MemorySearchTool {
     workspace: PathBuf,
@@ -269,20 +310,27 @@ impl Tool for MemorySearchTool {
         let query = args["query"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing query"))?;
-        let limit = args["limit"].as_u64().unwrap_or(5) as usize;
+        let limit = parse_result_limit(&args, 5);
+        let Some(query) = non_empty_query(query) else {
+            return Ok("No results found".to_string());
+        };
 
         debug!("Memory search: {} (limit: {})", query, limit);
+        if limit == 0 {
+            return Ok("No results found".to_string());
+        }
 
         // Simple grep-based search for now
         // TODO: Use proper memory index
         let mut results = Vec::new();
+        let query_lower = query.to_lowercase();
 
-        let memory_file = self.workspace.join("MEMORY.md");
-        if memory_file.exists()
-            && let Ok(content) = fs::read_to_string(&memory_file)
+        if let Ok(memory_file) = resolve_workspace_file_path(&self.workspace, "MEMORY.md")
+            && memory_file.exists()
+            && let Ok(content) = fs::read_to_string(memory_file)
         {
             for (i, line) in content.lines().enumerate() {
-                if line.to_lowercase().contains(&query.to_lowercase()) {
+                if line.to_lowercase().contains(&query_lower) {
                     results.push(format!("MEMORY.md:{}: {}", i + 1, line));
                     if results.len() >= limit {
                         break;
@@ -302,12 +350,19 @@ impl Tool for MemorySearchTool {
                 }
 
                 let path = entry.path();
-                if path.extension().map(|e| e == "md").unwrap_or(false)
-                    && let Ok(content) = fs::read_to_string(&path)
-                {
-                    let filename = path.file_name().unwrap().to_string_lossy();
+                if path.extension().map(|e| e == "md").unwrap_or(false) {
+                    if !path_is_inside_workspace(&self.workspace, &path) {
+                        continue;
+                    }
+                    let Ok(content) = fs::read_to_string(&path) else {
+                        continue;
+                    };
+                    let Some(filename) = path.file_name() else {
+                        continue;
+                    };
+                    let filename = filename.to_string_lossy();
                     for (i, line) in content.lines().enumerate() {
-                        if line.to_lowercase().contains(&query.to_lowercase()) {
+                        if line.to_lowercase().contains(&query_lower) {
                             results.push(format!("memory/{}:{}: {}", filename, i + 1, line));
                             if results.len() >= limit {
                                 break;
@@ -375,7 +430,10 @@ impl Tool for MemorySearchToolWithIndex {
         let query = args["query"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing query"))?;
-        let limit = args["limit"].as_u64().unwrap_or(5) as usize;
+        let limit = parse_result_limit(&args, 5);
+        let Some(query) = non_empty_query(query) else {
+            return Ok("No results found".to_string());
+        };
 
         let search_type = if self.memory.has_embeddings() {
             "hybrid"
@@ -398,17 +456,15 @@ impl Tool for MemorySearchToolWithIndex {
             .iter()
             .enumerate()
             .map(|(i, chunk)| {
-                let preview: String = chunk.content.chars().take(200).collect();
-                let preview = preview.replace('\n', " ");
+                let preview = prefix_chars_with_ellipsis(&chunk.content, 200).replace('\n', " ");
                 format!(
-                    "{}. [{}:{}-{}] (score: {:.3})\n   {}{}",
+                    "{}. [{}:{}-{}] (score: {:.3})\n   {}",
                     i + 1,
                     chunk.file,
                     chunk.line_start,
                     chunk.line_end,
                     chunk.score,
-                    preview,
-                    if chunk.content.len() > 200 { "..." } else { "" }
+                    preview
                 )
             })
             .collect();
@@ -427,33 +483,8 @@ impl MemoryGetTool {
         Self { workspace }
     }
 
-    fn resolve_path(&self, path: &str) -> PathBuf {
-        // Handle paths relative to workspace
-        if path.starts_with("memory/") || path == "MEMORY.md" || path == "HEARTBEAT.md" {
-            self.workspace.join(path)
-        } else {
-            PathBuf::from(shellexpand::tilde(path).to_string())
-        }
-    }
-
-    /// Validate that a resolved path stays within the workspace directory.
-    /// Checks the parent directory's canonical path if the file doesn't exist yet.
-    fn is_within_workspace(&self, resolved: &std::path::Path) -> bool {
-        let workspace_canonical = match self.workspace.canonicalize() {
-            Ok(p) => p,
-            Err(_) => return false,
-        };
-        // Try canonicalizing the file itself first
-        if let Ok(canonical) = resolved.canonicalize() {
-            return canonical.starts_with(&workspace_canonical);
-        }
-        // File doesn't exist — check the parent directory instead
-        if let Some(parent) = resolved.parent()
-            && let Ok(parent_canonical) = parent.canonicalize()
-        {
-            return parent_canonical.starts_with(&workspace_canonical);
-        }
-        false
+    fn validate_path(&self, path: &str) -> Result<PathBuf> {
+        resolve_workspace_file_path(&self.workspace, path)
     }
 }
 
@@ -494,28 +525,10 @@ impl Tool for MemoryGetTool {
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing path"))?;
 
-        // Reject null bytes in raw input
-        if path.contains('\0') {
-            anyhow::bail!("Invalid path: null bytes not allowed");
-        }
-
         let from = args["from"].as_u64().unwrap_or(1).max(1) as usize;
         let lines_count = (args["lines"].as_u64().unwrap_or(50) as usize).min(10_000);
 
-        let resolved_path = self.resolve_path(path);
-
-        // Check for path traversal on the resolved path (catches .. after tilde expansion)
-        if resolved_path
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir))
-        {
-            anyhow::bail!("Invalid path: path traversal not allowed");
-        }
-
-        // Verify resolved path stays within workspace
-        if !self.is_within_workspace(&resolved_path) {
-            anyhow::bail!("Access denied: path is outside workspace");
-        }
+        let resolved_path = self.validate_path(path)?;
 
         debug!(
             "Memory get: {} (from: {}, lines: {})",
@@ -593,22 +606,7 @@ impl DocumentLoadTool {
     }
 
     fn validate_path(&self, path_str: &str) -> Result<PathBuf> {
-        if path_str.contains('\0') {
-            anyhow::bail!("Invalid path: null bytes not allowed");
-        }
-        let expanded = shellexpand::tilde(path_str).to_string();
-        let resolved = if std::path::Path::new(&expanded).is_absolute() {
-            PathBuf::from(expanded)
-        } else {
-            self.workspace.join(expanded)
-        };
-        if resolved
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir))
-        {
-            anyhow::bail!("Invalid path: path traversal not allowed");
-        }
-        Ok(resolved)
+        resolve_workspace_file_path(&self.workspace, path_str)
     }
 }
 
@@ -627,7 +625,7 @@ impl Tool for DocumentLoadTool {
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the document file (relative to workspace or absolute)"
+                        "description": "Path to a document file inside the workspace (relative path or absolute workspace path)"
                     }
                 },
                 "required": ["path"]
@@ -677,12 +675,12 @@ impl Tool for DocumentLoadTool {
             let _ = cache.put(&resolved, &text);
         }
 
-        if self.output_max_chars > 0 && text.len() > self.output_max_chars {
-            let truncated = truncate_on_char_boundary(&text, self.output_max_chars);
+        let total_chars = text.chars().count();
+        if self.output_max_chars > 0 && total_chars > self.output_max_chars {
+            let truncated = prefix_chars(&text, self.output_max_chars);
             Ok(format!(
                 "{}\n\n[Truncated, {} chars total]",
-                truncated,
-                text.len()
+                truncated, total_chars
             ))
         } else {
             Ok(text)
@@ -711,22 +709,7 @@ impl AudioTranscribeTool {
     }
 
     fn validate_path(&self, path_str: &str) -> Result<PathBuf> {
-        if path_str.contains('\0') {
-            anyhow::bail!("Invalid path: null bytes not allowed");
-        }
-        let expanded = shellexpand::tilde(path_str).to_string();
-        let resolved = if std::path::Path::new(&expanded).is_absolute() {
-            PathBuf::from(expanded)
-        } else {
-            self.workspace.join(expanded)
-        };
-        if resolved
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir))
-        {
-            anyhow::bail!("Invalid path: path traversal not allowed");
-        }
-        Ok(resolved)
+        resolve_workspace_file_path(&self.workspace, path_str)
     }
 }
 
@@ -745,7 +728,7 @@ impl Tool for AudioTranscribeTool {
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the audio file"
+                        "description": "Path to an audio file inside the workspace"
                     },
                     "language": {
                         "type": "string",
@@ -814,6 +797,38 @@ async fn validate_web_fetch_url(url: &str) -> Result<reqwest::Url> {
 }
 
 const MAX_WEB_FETCH_REDIRECTS: usize = 10;
+const MAX_SEARCH_RESULTS: usize = 100;
+
+fn parse_result_limit(args: &Value, default: usize) -> usize {
+    let Some(raw) = args.get("limit").and_then(Value::as_u64) else {
+        return default;
+    };
+
+    usize::try_from(raw)
+        .unwrap_or(usize::MAX)
+        .min(MAX_SEARCH_RESULTS)
+}
+
+fn non_empty_query(query: &str) -> Option<&str> {
+    let query = query.trim();
+    if query.is_empty() { None } else { Some(query) }
+}
+
+fn parse_confidence(args: &Value, default: f32) -> Result<f32> {
+    let Some(value) = args.get("confidence") else {
+        return Ok(default);
+    };
+
+    let raw = value
+        .as_f64()
+        .ok_or_else(|| anyhow::anyhow!("confidence must be a number between 0.0 and 1.0"))?;
+
+    if !(0.0..=1.0).contains(&raw) {
+        anyhow::bail!("confidence must be between 0.0 and 1.0, got {raw}");
+    }
+
+    Ok(raw as f32)
+}
 
 fn should_follow_redirect(status: reqwest::StatusCode) -> bool {
     matches!(
@@ -1056,13 +1071,10 @@ pub fn extract_tool_detail(tool_name: &str, arguments: &str) -> Option<String> {
             .or_else(|| args.get("file_path"))
             .and_then(|v| v.as_str())
             .map(|s| s.to_string()),
-        "bash" | "run_shell_command" => args.get("command").and_then(|v| v.as_str()).map(|s| {
-            if s.len() > 60 {
-                format!("{}...", &s[..57])
-            } else {
-                s.to_string()
-            }
-        }),
+        "bash" | "run_shell_command" => args
+            .get("command")
+            .and_then(|v| v.as_str())
+            .map(|s| ellipsize_chars(s, 60)),
         "memory_search" => args
             .get("query")
             .and_then(|v| v.as_str())
@@ -1264,6 +1276,9 @@ impl Tool for WikiAddTool {
         let text = args["text"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing text"))?;
+        let Some(text) = non_empty_query(text) else {
+            anyhow::bail!("Claim text cannot be empty");
+        };
 
         let category = args["category"]
             .as_str()
@@ -1271,7 +1286,7 @@ impl Tool for WikiAddTool {
             .transpose()?
             .unwrap_or(crate::memory::wiki::ClaimCategory::Fact);
 
-        let confidence = args["confidence"].as_f64().unwrap_or(0.8) as f32;
+        let confidence = parse_confidence(&args, 0.8)?;
         let evidence_source = args["evidence_source"].as_str();
         let evidence_excerpt = args["evidence_excerpt"].as_str();
 
@@ -1340,6 +1355,9 @@ impl Tool for WikiSearchTool {
         let query = args["query"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing query"))?;
+        let Some(query) = non_empty_query(query) else {
+            return Ok("No claims found".to_string());
+        };
 
         let category = args["category"]
             .as_str()
@@ -1347,7 +1365,7 @@ impl Tool for WikiSearchTool {
             .transpose()?;
 
         let include_stale = args["include_stale"].as_bool().unwrap_or(false);
-        let limit = args["limit"].as_u64().unwrap_or(10) as usize;
+        let limit = parse_result_limit(&args, 10);
 
         let claims = self.store.search(query, category, include_stale, limit)?;
 
@@ -1372,7 +1390,7 @@ impl Tool for WikiSearchTool {
                             .map(|e| format!(
                                 "   - [{}] {}",
                                 e.source,
-                                e.excerpt.chars().take(80).collect::<String>()
+                                prefix_chars(&e.excerpt, 80)
                             ))
                             .collect::<Vec<_>>()
                             .join("\n")
@@ -1381,7 +1399,7 @@ impl Tool for WikiSearchTool {
                 format!(
                     "{}. [{}] ({}, {}, conf: {:.1}) {freshness}\n   {}{}",
                     i + 1,
-                    c.id.chars().take(8).collect::<String>(),
+                    prefix_chars(&c.id, 8),
                     c.category,
                     c.status,
                     c.confidence,
@@ -1455,11 +1473,7 @@ impl Tool for WikiStatusTool {
         if !status.top_stale.is_empty() {
             out.push_str("\n**Top stale claims:**\n");
             for c in &status.top_stale {
-                out.push_str(&format!(
-                    "- [{}] {}\n",
-                    c.id.chars().take(8).collect::<String>(),
-                    c.text
-                ));
+                out.push_str(&format!("- [{}] {}\n", prefix_chars(&c.id, 8), c.text));
             }
         }
 
@@ -1517,6 +1531,164 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_memory_search_zero_limit_returns_no_results() {
+        let workspace = tempfile::TempDir::new().unwrap();
+        std::fs::write(workspace.path().join("MEMORY.md"), "alpha\n").unwrap();
+        let tool = MemorySearchTool::new(workspace.path().to_path_buf());
+
+        let result = tool
+            .execute(r#"{"query": "alpha", "limit": 0}"#)
+            .await
+            .unwrap();
+
+        assert_eq!(result, "No results found");
+    }
+
+    #[tokio::test]
+    async fn test_memory_search_empty_query_returns_no_results() {
+        let workspace = tempfile::TempDir::new().unwrap();
+        std::fs::write(workspace.path().join("MEMORY.md"), "alpha\nbeta\n").unwrap();
+        let tool = MemorySearchTool::new(workspace.path().to_path_buf());
+
+        for args in [r#"{"query": ""}"#, r#"{"query": "   "}"#] {
+            let result = tool.execute(args).await.unwrap();
+            assert_eq!(result, "No results found");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_memory_search_caps_large_limit() {
+        let workspace = tempfile::TempDir::new().unwrap();
+        let content = (0..120)
+            .map(|i| format!("needle {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        std::fs::write(workspace.path().join("MEMORY.md"), content).unwrap();
+        let tool = MemorySearchTool::new(workspace.path().to_path_buf());
+
+        let result = tool
+            .execute(r#"{"query": "needle", "limit": 1000}"#)
+            .await
+            .unwrap();
+
+        assert_eq!(result.lines().count(), MAX_SEARCH_RESULTS);
+    }
+
+    #[tokio::test]
+    async fn test_wiki_add_rejects_empty_text() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let store = Arc::new(
+            crate::memory::wiki::WikiStore::new(&dir.path().join("wiki.sqlite"), 30, 90).unwrap(),
+        );
+        let tool = WikiAddTool::new(Arc::clone(&store));
+
+        for args in [r#"{"text": ""}"#, r#"{"text": "   "}"#] {
+            let err = tool.execute(args).await.unwrap_err().to_string();
+            assert!(
+                err.contains("Claim text cannot be empty"),
+                "unexpected error: {err}"
+            );
+        }
+
+        assert_eq!(store.status().unwrap().total_claims, 0);
+    }
+
+    #[tokio::test]
+    async fn test_wiki_add_rejects_invalid_confidence() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let store = Arc::new(
+            crate::memory::wiki::WikiStore::new(&dir.path().join("wiki.sqlite"), 30, 90).unwrap(),
+        );
+        let tool = WikiAddTool::new(Arc::clone(&store));
+
+        for args in [
+            r#"{"text": "Rust is useful", "confidence": -0.1}"#,
+            r#"{"text": "Rust is useful", "confidence": 1.1}"#,
+            r#"{"text": "Rust is useful", "confidence": "high"}"#,
+        ] {
+            let err = tool.execute(args).await.unwrap_err().to_string();
+            assert!(
+                err.contains("confidence must"),
+                "unexpected error for {args}: {err}"
+            );
+        }
+
+        assert_eq!(store.status().unwrap().total_claims, 0);
+    }
+
+    #[tokio::test]
+    async fn test_wiki_add_trims_claim_text() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let store = Arc::new(
+            crate::memory::wiki::WikiStore::new(&dir.path().join("wiki.sqlite"), 30, 90).unwrap(),
+        );
+        let tool = WikiAddTool::new(Arc::clone(&store));
+
+        tool.execute(r#"{"text": "  Rust is useful  "}"#)
+            .await
+            .unwrap();
+
+        let claims = store.search("Rust", None, true, 10).unwrap();
+        assert_eq!(claims.len(), 1);
+        assert_eq!(claims[0].text, "Rust is useful");
+    }
+
+    #[tokio::test]
+    async fn test_wiki_search_empty_query_returns_no_claims() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let store = Arc::new(
+            crate::memory::wiki::WikiStore::new(&dir.path().join("wiki.sqlite"), 30, 90).unwrap(),
+        );
+        store
+            .add_claim(
+                "Rust is a systems programming language",
+                crate::memory::wiki::ClaimCategory::Fact,
+                0.9,
+                None,
+                None,
+            )
+            .unwrap();
+        let tool = WikiSearchTool::new(store);
+
+        for args in [r#"{"query": ""}"#, r#"{"query": "   "}"#] {
+            let result = tool.execute(args).await.unwrap();
+            assert_eq!(result, "No claims found");
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_memory_search_skips_symlinked_memory_file_outside_workspace() {
+        let workspace = tempfile::TempDir::new().unwrap();
+        let outside = tempfile::TempDir::new().unwrap();
+        let outside_file = outside.path().join("secret.md");
+        std::fs::write(&outside_file, "hidden-needle\n").unwrap();
+        std::os::unix::fs::symlink(&outside_file, workspace.path().join("MEMORY.md")).unwrap();
+        let tool = MemorySearchTool::new(workspace.path().to_path_buf());
+
+        let result = tool.execute(r#"{"query": "hidden-needle"}"#).await.unwrap();
+
+        assert_eq!(result, "No results found");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_memory_search_skips_symlinked_daily_log_outside_workspace() {
+        let workspace = tempfile::TempDir::new().unwrap();
+        let outside = tempfile::TempDir::new().unwrap();
+        let outside_file = outside.path().join("2026-01-01.md");
+        std::fs::write(&outside_file, "hidden-needle\n").unwrap();
+        let memory_dir = workspace.path().join("memory");
+        std::fs::create_dir(&memory_dir).unwrap();
+        std::os::unix::fs::symlink(&outside_file, memory_dir.join("2026-01-01.md")).unwrap();
+        let tool = MemorySearchTool::new(workspace.path().to_path_buf());
+
+        let result = tool.execute(r#"{"query": "hidden-needle"}"#).await.unwrap();
+
+        assert_eq!(result, "No results found");
+    }
+
+    #[tokio::test]
     async fn test_memory_get_rejects_path_traversal() {
         let workspace = std::env::temp_dir().join("localgpt_test_workspace");
         let _ = std::fs::create_dir_all(&workspace);
@@ -1539,6 +1711,41 @@ mod tests {
         let args = r#"{"path": "memory/\u0000evil.md"}"#;
         let result = tool.execute(args).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_memory_get_reads_workspace_relative_file() {
+        let workspace = tempfile::TempDir::new().unwrap();
+        std::fs::write(workspace.path().join("notes.md"), "line1\nline2\n").unwrap();
+        let tool = MemoryGetTool::new(workspace.path().to_path_buf());
+
+        let args = r#"{"path": "notes.md", "from": 2, "lines": 1}"#;
+        let result = tool.execute(args).await.unwrap();
+
+        assert!(result.contains("lines 2-2"));
+        assert!(result.contains("line2"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_memory_get_rejects_symlink_outside_workspace() {
+        let workspace = tempfile::TempDir::new().unwrap();
+        let outside = tempfile::TempDir::new().unwrap();
+        let outside_file = outside.path().join("secret.md");
+        std::fs::write(&outside_file, "secret").unwrap();
+        std::fs::create_dir(workspace.path().join("memory")).unwrap();
+        std::os::unix::fs::symlink(&outside_file, workspace.path().join("memory/link.md")).unwrap();
+        let tool = MemoryGetTool::new(workspace.path().to_path_buf());
+
+        let result = tool.execute(r#"{"path": "memory/link.md"}"#).await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("outside workspace")
+        );
     }
 
     #[tokio::test]
@@ -1588,6 +1795,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_document_load_rejects_absolute_path_outside_workspace() {
+        let workspace = tempfile::TempDir::new().unwrap();
+        let outside = tempfile::TempDir::new().unwrap();
+        let outside_doc = outside.path().join("outside.pdf");
+        std::fs::write(&outside_doc, b"%PDF-1.4\n").unwrap();
+        let tool = DocumentLoadTool::new(workspace.path().to_path_buf(), &test_tools_config());
+
+        let args = serde_json::json!({ "path": outside_doc }).to_string();
+        let result = tool.execute(&args).await;
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("outside workspace")
+        );
+    }
+
+    #[tokio::test]
     async fn test_document_load_rejects_unsupported_format() {
         let workspace = std::env::temp_dir().join("localgpt_test_doc_format");
         let _ = std::fs::create_dir_all(&workspace);
@@ -1632,6 +1858,42 @@ mod tests {
         assert!(result.unwrap_err().to_string().contains("not found"));
     }
 
+    #[test]
+    fn test_prefix_chars_preserves_short_text() {
+        assert_eq!(prefix_chars("short", 10), "short");
+    }
+
+    #[test]
+    fn test_prefix_chars_limits_multibyte_text() {
+        assert_eq!(prefix_chars("✅✅✅", 2), "✅✅");
+    }
+
+    #[test]
+    fn test_prefix_chars_with_ellipsis_limits_multibyte_text() {
+        assert_eq!(prefix_chars_with_ellipsis("✅✅✅", 2), "✅✅...");
+    }
+
+    #[test]
+    fn test_prefix_chars_with_ellipsis_preserves_short_text() {
+        assert_eq!(prefix_chars_with_ellipsis("✅✅", 2), "✅✅");
+    }
+
+    #[test]
+    fn test_ellipsize_chars_keeps_total_char_limit() {
+        assert_eq!(ellipsize_chars("✅✅✅✅✅", 4), "✅...");
+    }
+
+    #[test]
+    fn test_extract_tool_detail_bash_truncates_multibyte_command() {
+        let command = "✅".repeat(70);
+        let args = serde_json::json!({ "command": command }).to_string();
+
+        let detail = extract_tool_detail("bash", &args).unwrap();
+
+        assert_eq!(detail.chars().count(), 60);
+        assert!(detail.ends_with("..."));
+    }
+
     // --- AudioTranscribeTool tests ---
 
     #[test]
@@ -1663,6 +1925,28 @@ mod tests {
         let result = tool.execute(args).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("path traversal"));
+    }
+
+    #[tokio::test]
+    async fn test_audio_transcribe_rejects_absolute_path_outside_workspace() {
+        let workspace = tempfile::TempDir::new().unwrap();
+        let outside = tempfile::TempDir::new().unwrap();
+        let outside_audio = outside.path().join("outside.mp3");
+        std::fs::write(&outside_audio, b"not really audio").unwrap();
+        let registry = Arc::new(crate::media::SttRegistry::new(
+            crate::media::SttConfig::default(),
+        ));
+        let tool = AudioTranscribeTool::new(registry, workspace.path().to_path_buf(), None);
+
+        let args = serde_json::json!({ "path": outside_audio }).to_string();
+        let result = tool.execute(&args).await;
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("outside workspace")
+        );
     }
 
     #[tokio::test]

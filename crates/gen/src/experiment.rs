@@ -4,6 +4,7 @@
 //! State is persisted as append-only JSONL in the XDG state directory.
 
 use chrono::{DateTime, Utc};
+use localgpt_core::text::prefix_chars_with_ellipsis;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -294,11 +295,18 @@ pub fn prompt_to_slug(prompt: &str) -> String {
 
     // Truncate to reasonable length
     let trimmed = result.trim_end_matches('-');
-    if trimmed.len() > 40 {
-        trimmed[..40].trim_end_matches('-').to_string()
+    let mut chars = trimmed.chars();
+    let truncated: String = chars.by_ref().take(40).collect();
+    if chars.next().is_some() {
+        truncated.trim_end_matches('-').to_string()
     } else {
         trimmed.to_string()
     }
+}
+
+/// Build a display preview for an experiment prompt.
+pub fn prompt_preview(prompt: &str, max_chars: usize) -> String {
+    prefix_chars_with_ellipsis(prompt, max_chars)
 }
 
 /// Detect if HEARTBEAT.md content contains gen experiment entries.
@@ -370,6 +378,28 @@ mod tests {
         assert_eq!(prompt_to_slug("Build a cozy cabin"), "build-a-cozy-cabin");
         assert_eq!(prompt_to_slug("Hello, world!"), "hello-world");
         assert_eq!(prompt_to_slug("  spaces  "), "spaces");
+    }
+
+    #[test]
+    fn test_prompt_to_slug_handles_multibyte_text() {
+        let slug = prompt_to_slug(&"中".repeat(20));
+
+        assert_eq!(slug, "中".repeat(20));
+    }
+
+    #[test]
+    fn test_prompt_to_slug_truncates_multibyte_by_characters() {
+        let slug = prompt_to_slug(&"中".repeat(45));
+
+        assert_eq!(slug, "中".repeat(40));
+    }
+
+    #[test]
+    fn test_prompt_preview_truncates_multibyte_by_characters() {
+        let preview = prompt_preview(&"✅".repeat(51), 50);
+
+        assert_eq!(preview.chars().filter(|&c| c == '✅').count(), 50);
+        assert!(preview.ends_with("..."));
     }
 
     #[test]

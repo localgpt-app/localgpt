@@ -10,6 +10,7 @@
 use anyhow::{Result, bail};
 use clap::Subcommand;
 use localgpt_core::config::Config;
+use localgpt_core::text::ellipsize_chars;
 use tracing::info;
 
 #[derive(clap::Args, Debug)]
@@ -272,9 +273,29 @@ fn run_job(args: RunArgs) -> Result<()> {
 }
 
 fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..s.floor_char_boundary(max_len - 3)])
+    ellipsize_chars(s, max_len)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncate_preserves_short_text() {
+        assert_eq!(truncate("short", 10), "short");
+    }
+
+    #[test]
+    fn truncate_preserves_exact_character_limit() {
+        assert_eq!(truncate(&"x".repeat(10), 10), "x".repeat(10));
+    }
+
+    #[test]
+    fn truncate_limits_multibyte_text_by_characters() {
+        let truncated = truncate(&"✅".repeat(11), 10);
+
+        assert_eq!(truncated.chars().count(), 10);
+        assert_eq!(truncated.chars().filter(|&c| c == '✅').count(), 7);
+        assert!(truncated.ends_with("..."));
     }
 }

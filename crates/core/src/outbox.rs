@@ -252,7 +252,7 @@ impl Outbox {
         let cutoff = Self::now_ms() - (retain_days as i64 * 86400 * 1000);
 
         let deleted = conn.execute(
-            "DELETE FROM outbox WHERE delivered_at IS NOT NULL AND delivered_at < ?1",
+            "DELETE FROM outbox WHERE delivered_at IS NOT NULL AND delivered_at <= ?1",
             params![cutoff],
         )? as i64;
 

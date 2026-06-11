@@ -221,8 +221,10 @@ mod tests {
 
     #[test]
     fn test_build_policy_disabled() {
-        let mut config = SandboxConfig::default();
-        config.enabled = false;
+        let config = SandboxConfig {
+            enabled: false,
+            ..Default::default()
+        };
         let workspace = PathBuf::from("/home/user/project");
         let policy = build_policy(&config, &workspace, SandboxLevel::None);
 

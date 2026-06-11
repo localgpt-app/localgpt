@@ -1,6 +1,7 @@
 //! Sessions view - list and manage sessions
 
 use eframe::egui::{Color32, RichText, ScrollArea, Ui};
+use localgpt_core::text::prefix_chars;
 
 use crate::desktop::state::{UiMessage, UiState};
 
@@ -30,11 +31,9 @@ impl SessionsView {
         // Current session info
         if let Some(ref current) = state.current_session {
             ui.group(|ui| {
+                let short_id = short_session_id(&current.id);
                 ui.label(RichText::new("Current Session").strong());
-                ui.label(format!(
-                    "ID: {}...",
-                    &current.id[..current.id.floor_char_boundary(8)]
-                ));
+                ui.label(format!("ID: {short_id}..."));
                 ui.label(format!("Messages: {}", current.message_count));
             });
             ui.add_space(10.0);
@@ -59,7 +58,7 @@ impl SessionsView {
                             .unwrap_or(false);
 
                         ui.horizontal(|ui| {
-                            let short_id = &session.id[..session.id.floor_char_boundary(8)];
+                            let short_id = short_session_id(&session.id);
                             let date = session.created_at.format("%Y-%m-%d %H:%M");
 
                             if is_current {
@@ -88,4 +87,8 @@ impl SessionsView {
 
         message_to_send
     }
+}
+
+fn short_session_id(id: &str) -> String {
+    prefix_chars(id, 8)
 }

@@ -9,6 +9,7 @@ use futures::StreamExt;
 use localgpt_core::agent::tools::extract_tool_detail;
 use localgpt_core::agent::{Agent, list_sessions_for_agent, search_sessions_for_agent};
 use localgpt_core::commands::Interface;
+use localgpt_core::text::{prefix_chars, prefix_chars_with_ellipsis};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -25,6 +26,10 @@ enum CommandResult {
     Quit,
     /// Send the message to the agent.
     SendMessage(String),
+}
+
+fn short_session_id(id: &str) -> String {
+    prefix_chars(id, 8)
 }
 
 /// Handle slash commands for Gen mode.
@@ -240,7 +245,7 @@ async fn handle_gen_command(
                             println!(
                                 "  {}. {} ({} messages, {})",
                                 i + 1,
-                                &session.id[..session.id.floor_char_boundary(8)],
+                                short_session_id(&session.id),
                                 session.message_count,
                                 session.created_at.format("%Y-%m-%d %H:%M")
                             );
@@ -286,7 +291,7 @@ async fn handle_gen_command(
                                     let status = agent.session_status();
                                     println!(
                                         "\nResumed session {} ({} messages)\n",
-                                        &full_id[..full_id.floor_char_boundary(8)],
+                                        short_session_id(&full_id),
                                         status.message_count
                                     );
 
@@ -368,7 +373,7 @@ async fn handle_gen_command(
                             println!(
                                 "  {}. {} ({} matches, {})",
                                 i + 1,
-                                &result.session_id[..result.session_id.floor_char_boundary(8)],
+                                short_session_id(&result.session_id),
                                 result.match_count,
                                 result.created_at.format("%Y-%m-%d")
                             );
@@ -477,11 +482,8 @@ async fn handle_gen_command(
                                         .entity_count
                                         .map(|n| format!("{} entities", n))
                                         .unwrap_or_default();
-                                    let prompt_preview = if exp.prompt.len() > 50 {
-                                        &exp.prompt[..50]
-                                    } else {
-                                        &exp.prompt
-                                    };
+                                    let prompt_preview =
+                                        localgpt_gen::experiment::prompt_preview(&exp.prompt, 50);
                                     println!(
                                         "  [{}] {} — {} {}",
                                         status, exp.id, prompt_preview, entities
@@ -511,25 +513,105 @@ async fn handle_gen_command(
 
 /// Extract a snippet from content around a query match.
 fn extract_snippet(content: &str, query: &str, max_len: usize) -> String {
-    let lower_content = content.to_lowercase();
+    let normalized = content.split_whitespace().collect::<Vec<_>>().join(" ");
+    if query.is_empty() {
+        return prefix_chars_with_ellipsis(&normalized, max_len);
+    }
+
+    let lower_content = normalized.to_lowercase();
     let lower_query = query.to_lowercase();
 
     if let Some(pos) = lower_content.find(&lower_query) {
-        let start = pos.saturating_sub(30);
-        let end = (pos + query.len() + 30).min(content.len());
-        let snippet = &content[start..end];
+        let match_start = lowercase_byte_to_original_byte(&normalized, pos);
+        let match_end = lowercase_byte_to_original_byte(&normalized, pos + lower_query.len());
+        let query_chars = query.chars().count();
+        let context_chars = max_len.saturating_sub(query_chars) / 2;
+        let start = retreat_chars(&normalized, match_start, context_chars);
+        let end = advance_chars(&normalized, match_end, context_chars);
+        let snippet = &normalized[start..end];
 
         let prefix = if start > 0 { "..." } else { "" };
-        let suffix = if end < content.len() { "..." } else { "" };
+        let suffix = if end < normalized.len() { "..." } else { "" };
 
         format!("{}{}{}", prefix, snippet.trim(), suffix)
     } else {
-        let truncated = if content.len() > max_len {
-            format!("{}...", &content[..max_len])
-        } else {
-            content.to_string()
+        prefix_chars_with_ellipsis(&normalized, max_len)
+    }
+}
+
+fn lowercase_byte_to_original_byte(value: &str, lowercase_byte: usize) -> usize {
+    let mut lowered_len = 0;
+    for (original_idx, ch) in value.char_indices() {
+        if lowered_len >= lowercase_byte {
+            return original_idx;
+        }
+        lowered_len += ch.to_lowercase().map(char::len_utf8).sum::<usize>();
+    }
+    value.len()
+}
+
+fn retreat_chars(value: &str, byte_index: usize, char_count: usize) -> usize {
+    let mut index = byte_index.min(value.len());
+    for _ in 0..char_count {
+        if index == 0 {
+            break;
+        }
+        index = value[..index]
+            .char_indices()
+            .next_back()
+            .map(|(idx, _)| idx)
+            .unwrap_or(0);
+    }
+    index
+}
+
+fn advance_chars(value: &str, byte_index: usize, char_count: usize) -> usize {
+    let mut index = byte_index.min(value.len());
+    for _ in 0..char_count {
+        let Some((offset, ch)) = value[index..].char_indices().next() else {
+            break;
         };
-        truncated.replace('\n', " ")
+        index += offset + ch.len_utf8();
+    }
+    index
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_snippet_handles_multibyte_context() {
+        let content = format!("{} marker {}", "✅".repeat(12), "界".repeat(12));
+
+        let snippet = extract_snippet(&content, "marker", 12);
+
+        assert!(snippet.contains("marker"));
+        assert!(snippet.starts_with("..."));
+        assert!(snippet.ends_with("..."));
+    }
+
+    #[test]
+    fn extract_snippet_maps_lowercase_offsets_back_to_original_text() {
+        let content = format!("{} marker", "İ".repeat(8));
+
+        let snippet = extract_snippet(&content, "marker", 12);
+
+        assert!(snippet.contains("marker"));
+    }
+
+    #[test]
+    fn extract_snippet_truncates_multibyte_fallback_by_characters() {
+        let snippet = extract_snippet(&"✅".repeat(4), "missing", 2);
+
+        assert_eq!(snippet, "✅✅...");
+    }
+
+    #[test]
+    fn extract_snippet_flattens_whitespace() {
+        let snippet = extract_snippet("first\nsecond\tthird", "missing", 50);
+
+        assert_eq!(snippet, "first second third");
     }
 }
 
@@ -1169,7 +1251,8 @@ async fn run_headless_agent(
     // Generate the world
     let response = agent.chat(&effective_prompt).await?;
 
-    tracing::info!("Agent response: {}", &response[..response.len().min(200)]);
+    let response_preview = localgpt_gen::experiment::prompt_preview(&response, 200);
+    tracing::info!("Agent response: {}", response_preview);
 
     // Save the world
     let world_name = headless_config

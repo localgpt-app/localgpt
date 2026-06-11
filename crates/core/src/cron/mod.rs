@@ -13,6 +13,7 @@ use tokio::sync::Mutex;
 use tracing::{error, info};
 
 use crate::config::{Config, CronJob};
+use crate::text::prefix_chars;
 use parser::Schedule;
 
 /// Runtime state for a single scheduled job.
@@ -104,7 +105,7 @@ impl CronScheduler {
                             info!(
                                 "Cron '{}' output: {}",
                                 job_name,
-                                &response[..response.len().min(200)]
+                                response_log_preview(&response)
                             );
                         }
                     }
@@ -130,5 +131,44 @@ impl CronScheduler {
         // This is called once at startup, safe to block briefly
         // Use try_lock to avoid async in a sync context
         self.jobs.try_lock().map(|j| !j.is_empty()).unwrap_or(false)
+    }
+}
+
+fn response_log_preview(response: &str) -> String {
+    const MAX_PREVIEW_CHARS: usize = 200;
+
+    prefix_chars(response, MAX_PREVIEW_CHARS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn response_log_preview_preserves_short_text() {
+        assert_eq!(response_log_preview("short output"), "short output");
+    }
+
+    #[test]
+    fn response_log_preview_limits_ascii_text() {
+        let response = "a".repeat(220);
+
+        assert_eq!(response_log_preview(&response).len(), 200);
+    }
+
+    #[test]
+    fn response_log_preview_does_not_split_multibyte_chars() {
+        let response = format!("{}{}", "a".repeat(199), "✅");
+
+        assert_eq!(response_log_preview(&response), response);
+    }
+
+    #[test]
+    fn response_log_preview_limits_multibyte_text_by_characters() {
+        let response = "✅".repeat(220);
+        let preview = response_log_preview(&response);
+
+        assert_eq!(preview.chars().count(), 200);
+        assert_eq!(preview, "✅".repeat(200));
     }
 }

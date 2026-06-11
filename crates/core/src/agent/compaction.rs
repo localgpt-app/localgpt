@@ -49,13 +49,7 @@ pub fn extract_sections(content: &str, section_names: &[String]) -> String {
         }
     }
 
-    // Truncate if needed
-    if result.len() > MAX_CONTEXT_CHARS {
-        let truncated = &result[..result.floor_char_boundary(MAX_CONTEXT_CHARS)];
-        format!("{}...\n[truncated]", truncated)
-    } else {
-        result
-    }
+    truncate_context(result)
 }
 
 /// Build the post-compaction context message from workspace files.
@@ -94,6 +88,16 @@ pub fn build_post_compaction_context(workspace: &Path, sections: &[String]) -> O
 
 fn try_read_file(path: &Path) -> Option<String> {
     std::fs::read_to_string(path).ok()
+}
+
+fn truncate_context(content: String) -> String {
+    let mut chars = content.chars();
+    let truncated: String = chars.by_ref().take(MAX_CONTEXT_CHARS).collect();
+    if chars.next().is_some() {
+        format!("{}...\n[truncated]", truncated)
+    } else {
+        content
+    }
 }
 
 #[cfg(test)]
@@ -183,8 +187,19 @@ Random notes.
             "## Session Startup\n\n".to_string() + &"x".repeat(4000) + "\n\n## Other\n";
         let sections = vec!["Session Startup".to_string()];
         let result = extract_sections(&long_content, &sections);
-        assert!(result.len() <= MAX_CONTEXT_CHARS + 20); // +20 for truncation marker
+        assert!(result.chars().count() <= MAX_CONTEXT_CHARS + 15); // +15 for truncation marker
         assert!(result.contains("[truncated]"));
+    }
+
+    #[test]
+    fn test_extract_truncation_counts_multibyte_chars() {
+        let long_content =
+            "## Session Startup\n\n".to_string() + &"✅".repeat(4000) + "\n\n## Other\n";
+        let sections = vec!["Session Startup".to_string()];
+        let result = extract_sections(&long_content, &sections);
+
+        assert!(result.contains("[truncated]"));
+        assert_eq!(result.chars().filter(|&c| c == '✅').count(), 2980);
     }
 
     #[test]

@@ -14,6 +14,7 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 use super::providers::{LLMProvider, Message, Role, ToolCall, Usage};
+use crate::text::ellipsize_chars;
 
 /// Current session format version (matches Pi)
 pub const CURRENT_SESSION_VERSION: u32 = 1;
@@ -293,11 +294,11 @@ impl Session {
     }
 
     pub async fn compact(&mut self, provider: &dyn LLMProvider) -> Result<()> {
-        if self.messages.len() < 4 {
+        let keep_count = 4;
+        if self.messages.len() <= keep_count {
             return Ok(());
         }
 
-        let keep_count = 4;
         let to_summarize = &self.messages[..self.messages.len() - keep_count];
 
         let text: String = to_summarize
@@ -1000,14 +1001,7 @@ pub fn list_sessions_for_agent(agent_id: &str) -> Result<Vec<SessionInfo>> {
 
                                 let clean_text = content.replace('\n', " ").trim().to_string();
                                 if !clean_text.is_empty() {
-                                    let formatted = if clean_text.chars().count() > 60 {
-                                        format!(
-                                            "{}...",
-                                            clean_text.chars().take(57).collect::<String>()
-                                        )
-                                    } else {
-                                        clean_text
-                                    };
+                                    let formatted = ellipsize_chars(&clean_text, 60);
 
                                     if preview.is_empty() {
                                         preview = formatted.clone();
@@ -1102,17 +1096,15 @@ pub fn search_sessions_for_agent(agent_id: &str, query: &str) -> Result<Vec<Sess
 }
 
 fn extract_match_preview(content: &str, query_lower: &str, max_len: usize) -> String {
-    let content_lower = content.to_lowercase();
-
-    if let Some(pos) = content_lower.find(query_lower) {
+    if let Some((match_start, match_end)) = find_case_insensitive_char_range(content, query_lower) {
+        let chars: Vec<char> = content.chars().collect();
         let half_len = max_len / 2;
-        let start = pos.saturating_sub(half_len);
-        let end = (pos + query_lower.len() + half_len).min(content.len());
+        let start = match_start.saturating_sub(half_len);
+        let end = (match_end + half_len).min(chars.len());
 
-        let slice = &content[start..end];
-        let cleaned: String = slice
-            .chars()
-            .map(|c| if c.is_whitespace() { ' ' } else { c })
+        let cleaned: String = chars[start..end]
+            .iter()
+            .map(|c| if c.is_whitespace() { ' ' } else { *c })
             .collect();
 
         let trimmed = cleaned.trim();
@@ -1125,9 +1117,63 @@ fn extract_match_preview(content: &str, query_lower: &str, max_len: usize) -> St
     }
 }
 
+fn find_case_insensitive_char_range(content: &str, query_lower: &str) -> Option<(usize, usize)> {
+    if query_lower.is_empty() {
+        return Some((0, 0));
+    }
+
+    let chars: Vec<char> = content.chars().collect();
+    for start in 0..chars.len() {
+        let mut folded = String::new();
+        for (offset, ch) in chars[start..].iter().enumerate() {
+            folded.extend(ch.to_lowercase());
+            if folded == query_lower {
+                return Some((start, start + offset + 1));
+            }
+            if !query_lower.starts_with(&folded) {
+                break;
+            }
+        }
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use async_trait::async_trait;
+
+    struct PanicSummarizer;
+
+    #[async_trait]
+    impl LLMProvider for PanicSummarizer {
+        fn name(&self) -> String {
+            "panic-summarizer".to_string()
+        }
+
+        async fn chat(
+            &self,
+            _messages: &[Message],
+            _tools: Option<&[super::super::providers::ToolSchema]>,
+        ) -> Result<super::super::providers::LLMResponse> {
+            unreachable!("session compaction test does not call chat")
+        }
+
+        async fn summarize(&self, _text: &str) -> Result<String> {
+            panic!("summarize should not be called when there is no history to compact")
+        }
+    }
+
+    fn user_message(content: &str) -> Message {
+        Message {
+            role: Role::User,
+            content: content.to_string(),
+            tool_calls: None,
+            tool_call_id: None,
+            images: Vec::new(),
+        }
+    }
 
     #[test]
     fn test_session_new() {
@@ -1174,5 +1220,28 @@ mod tests {
         assert_eq!(msg_usage.input, 100);
         assert_eq!(msg_usage.output, 50);
         assert_eq!(msg_usage.total_tokens, 150);
+    }
+
+    #[test]
+    fn test_extract_match_preview_handles_unicode_case_expansion() {
+        let content = format!("{}needle suffix", "İ".repeat(100));
+        let preview = extract_match_preview(&content, "needle", 20);
+
+        assert!(preview.contains("needle"));
+        assert!(preview.starts_with("..."));
+    }
+
+    #[tokio::test]
+    async fn compact_skips_when_only_keep_window_exists() {
+        let mut session = Session::new();
+        for i in 0..4 {
+            session.add_message(user_message(&format!("message {i}")));
+        }
+
+        session.compact(&PanicSummarizer).await.unwrap();
+
+        assert_eq!(session.message_count(), 4);
+        assert_eq!(session.compaction_count(), 0);
+        assert_eq!(session.messages()[0].content, "message 0");
     }
 }

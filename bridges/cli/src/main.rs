@@ -11,6 +11,7 @@
 use anyhow::Result;
 use clap::Parser;
 use localgpt_bridge::{BridgeServiceClient, connect};
+use localgpt_core::text::prefix_chars;
 use rustyline::DefaultEditor;
 use rustyline::error::ReadlineError;
 use std::io::{self, Write};
@@ -33,6 +34,10 @@ struct Args {
     /// Custom session ID (default: auto-generated)
     #[arg(short, long)]
     session: Option<String>,
+}
+
+fn short_session_id(session_id: &str) -> String {
+    prefix_chars(session_id, 8)
 }
 
 #[tokio::main]
@@ -131,7 +136,7 @@ async fn main() -> Result<()> {
 
     println!(
         "\nLocalGPT CLI Bridge | Session: {}\n",
-        &session_id[..session_id.len().min(8)]
+        short_session_id(&session_id)
     );
     println!("Type /help for commands, /quit to exit\n");
 
@@ -363,5 +368,25 @@ async fn handle_command(
             );
             CommandResult::Continue
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn short_session_id_preserves_short_id() {
+        assert_eq!(short_session_id("abc123"), "abc123");
+    }
+
+    #[test]
+    fn short_session_id_truncates_ascii_id() {
+        assert_eq!(short_session_id("1234567890"), "12345678");
+    }
+
+    #[test]
+    fn short_session_id_truncates_multibyte_id_by_characters() {
+        assert_eq!(short_session_id("✅✅✅✅✅✅✅✅✅"), "✅✅✅✅✅✅✅✅");
     }
 }

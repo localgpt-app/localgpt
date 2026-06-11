@@ -18,6 +18,7 @@ use localgpt_core::agent::{Agent, AgentConfig, StreamEvent, extract_tool_detail,
 use localgpt_core::concurrency::TurnGate;
 use localgpt_core::config::Config;
 use localgpt_core::memory::MemoryManager;
+use localgpt_core::text::{ellipsize_chars, prefix_chars, prefix_chars_with_ellipsis};
 
 /// Agent ID for Telegram sessions
 const TELEGRAM_AGENT_ID: &str = "telegram";
@@ -83,11 +84,7 @@ pub fn create_heartbeat_alert_callback(
 
     Some(Box::new(move |text: &str| {
         let bot = bot.clone();
-        let msg = if text.len() > 4000 {
-            format!("{}...", &text[..text.floor_char_boundary(4000)])
-        } else {
-            text.to_string()
-        };
+        let msg = prefix_chars_with_ellipsis(text, 4000);
         tokio::spawn(async move {
             let mut req = bot.send_message(ChatId(chat_id), &msg);
             req = req.message_thread_id(ThreadId(MessageId(topic_id)));
@@ -571,17 +568,8 @@ async fn handle_command(
     Ok(())
 }
 
-fn truncate_str(s: &str, max: usize) -> &str {
-    if s.len() <= max {
-        s
-    } else {
-        // Find a char boundary
-        let mut end = max;
-        while end > 0 && !s.is_char_boundary(end) {
-            end -= 1;
-        }
-        &s[..end]
-    }
+fn truncate_str(s: &str, max: usize) -> String {
+    prefix_chars(s, max)
 }
 
 /// Escape text for Telegram HTML parse mode.
@@ -589,6 +577,21 @@ fn escape_html(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
+fn safe_link_url(url: &str) -> Option<&str> {
+    let url = url.trim();
+    if url.chars().any(char::is_control) {
+        return None;
+    }
+    let lower = url.to_ascii_lowercase();
+    if lower.starts_with("http://") || lower.starts_with("https://") {
+        Some(url)
+    } else {
+        None
+    }
 }
 
 /// Convert markdown to Telegram-compatible HTML.
@@ -711,11 +714,15 @@ fn convert_inline_markdown(line: &str) -> String {
                 let url: String = chars[text_end + 2..text_end + 2 + close_paren]
                     .iter()
                     .collect();
-                result.push_str(&format!(
-                    "<a href=\"{}\">{}</a>",
-                    escape_html(&url),
-                    escape_html(&text)
-                ));
+                if let Some(url) = safe_link_url(&url) {
+                    result.push_str(&format!(
+                        "<a href=\"{}\">{}</a>",
+                        escape_html(url),
+                        escape_html(&text)
+                    ));
+                } else {
+                    result.push_str(&format!("{} ({})", escape_html(&text), escape_html(&url)));
+                }
                 i = text_end + 2 + close_paren + 1;
                 continue;
             }
@@ -913,13 +920,7 @@ fn format_display(response: &str, tool_info: &str) -> String {
     }
     display.push_str(response);
 
-    // Truncate for Telegram limit
-    if display.len() > MAX_MESSAGE_LENGTH {
-        display.truncate(MAX_MESSAGE_LENGTH - 3);
-        display.push_str("...");
-    }
-
-    display
+    ellipsize_chars(&display, MAX_MESSAGE_LENGTH)
 }
 
 /// Send/edit agent response as HTML-converted markdown.
@@ -946,7 +947,7 @@ async fn send_or_edit_html(bot: &Bot, chat_id: ChatId, msg_id: Option<MessageId>
 }
 
 async fn send_long_message(bot: &Bot, chat_id: ChatId, edit_msg_id: Option<MessageId>, text: &str) {
-    if text.len() <= MAX_MESSAGE_LENGTH {
+    if text.chars().count() <= MAX_MESSAGE_LENGTH {
         send_or_edit_html(bot, chat_id, edit_msg_id, text).await;
         return;
     }
@@ -969,9 +970,12 @@ fn split_text_chunks(text: &str) -> Vec<&str> {
     let mut chunks = Vec::new();
     let mut start = 0;
     while start < text.len() {
-        let mut end = (start + MAX_MESSAGE_LENGTH).min(text.len());
-        while end > start && !text.is_char_boundary(end) {
-            end -= 1;
+        let mut end = text.len();
+        for (char_count, (idx, _)) in text[start..].char_indices().enumerate() {
+            if char_count == MAX_MESSAGE_LENGTH {
+                end = start + idx;
+                break;
+            }
         }
         chunks.push(&text[start..end]);
         start = end;
@@ -1009,7 +1013,7 @@ async fn durable_send(
 
     // Attempt send
     let html = markdown_to_html(text);
-    let result = if text.len() <= MAX_MESSAGE_LENGTH {
+    let result = if text.chars().count() <= MAX_MESSAGE_LENGTH {
         if let Some(mid) = edit_msg_id {
             bot.edit_message_text(chat_id, mid, &html)
                 .parse_mode(ParseMode::Html)
@@ -1079,5 +1083,67 @@ async fn outbox_retry_send(
                 let _ = outbox.record_failure(&entry.id, &err_str);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prefix_chars_with_ellipsis_preserves_short_multibyte_text() {
+        assert_eq!(
+            prefix_chars_with_ellipsis(&"✅".repeat(10), 10),
+            "✅".repeat(10)
+        );
+    }
+
+    #[test]
+    fn prefix_chars_with_ellipsis_truncates_multibyte_text() {
+        let text = prefix_chars_with_ellipsis(&"✅".repeat(11), 10);
+
+        assert_eq!(text.chars().filter(|&c| c == '✅').count(), 10);
+        assert!(text.ends_with("..."));
+    }
+
+    #[test]
+    fn format_display_respects_telegram_character_limit() {
+        let display = format_display(&"✅".repeat(MAX_MESSAGE_LENGTH + 1), "");
+
+        assert_eq!(display.chars().count(), MAX_MESSAGE_LENGTH);
+        assert!(display.ends_with("..."));
+    }
+
+    #[test]
+    fn split_text_chunks_splits_by_characters() {
+        let text = "✅".repeat(MAX_MESSAGE_LENGTH + 1);
+        let chunks = split_text_chunks(&text);
+
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].chars().count(), MAX_MESSAGE_LENGTH);
+        assert_eq!(chunks[1], "✅");
+    }
+
+    #[test]
+    fn truncate_str_limits_multibyte_text_by_characters() {
+        assert_eq!(truncate_str(&"✅".repeat(301), 300), "✅".repeat(300));
+    }
+
+    #[test]
+    fn markdown_to_html_escapes_link_attribute_quotes() {
+        let html = markdown_to_html(r#"[docs](https://example.com/?q="bad"&x='tag')"#);
+
+        assert_eq!(
+            html,
+            "<a href=\"https://example.com/?q=&quot;bad&quot;&amp;x=&#39;tag&#39;\">docs</a>\n"
+        );
+    }
+
+    #[test]
+    fn markdown_to_html_does_not_link_unsafe_url_schemes() {
+        let html = markdown_to_html("[docs](javascript:alert(1))");
+
+        assert_eq!(html, "docs (javascript:alert(1))\n");
+        assert!(!html.contains("<a href="));
     }
 }

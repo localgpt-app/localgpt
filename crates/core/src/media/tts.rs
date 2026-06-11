@@ -351,10 +351,11 @@ impl TtsRegistry {
             bail!("TTS is disabled in configuration");
         }
 
-        if text.len() > self.config.max_text_length {
+        let text_chars = text.chars().count();
+        if text_chars > self.config.max_text_length {
             bail!(
                 "Text too long: {} chars (max: {})",
-                text.len(),
+                text_chars,
                 self.config.max_text_length
             );
         }
@@ -484,8 +485,10 @@ mod tests {
 
     #[test]
     fn test_registry_text_too_long() {
-        let mut config = TtsConfig::default();
-        config.max_text_length = 10;
+        let config = TtsConfig {
+            max_text_length: 10,
+            ..Default::default()
+        };
         let registry = TtsRegistry::new(config);
 
         let rt = tokio::runtime::Runtime::new().unwrap();
@@ -493,6 +496,38 @@ mod tests {
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("too long"));
+    }
+
+    #[test]
+    fn test_registry_text_limit_counts_multibyte_characters() {
+        let config = TtsConfig {
+            max_text_length: 2,
+            ..Default::default()
+        };
+        let registry = TtsRegistry::new(config);
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(registry.synthesize("✅✅"));
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No TTS providers"));
+    }
+
+    #[test]
+    fn test_registry_text_limit_rejects_multibyte_over_character_limit() {
+        let config = TtsConfig {
+            max_text_length: 2,
+            ..Default::default()
+        };
+        let registry = TtsRegistry::new(config);
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(registry.synthesize("✅✅✅"));
+
+        assert!(result.is_err());
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("too long"));
+        assert!(error.contains("3 chars (max: 2)"));
     }
 
     #[test]

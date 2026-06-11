@@ -111,7 +111,7 @@ impl NavMeshOverrides {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::worldgen::navmesh::{CellState, NavGrid, NavMeshSettings, build_navgrid};
+    use crate::worldgen::navmesh::{CellState, NavMeshSettings, build_navgrid};
 
     #[test]
     fn test_block_override() {

@@ -377,9 +377,11 @@ mod tests {
 
     #[test]
     fn test_dialogue_state_fields() {
-        let mut state = DialogueState::default();
-        state.is_typing = true;
-        state.typewriter_progress = 0.5;
+        let state = DialogueState {
+            is_typing: true,
+            typewriter_progress: 0.5,
+            ..Default::default()
+        };
         assert!(state.is_typing);
         assert_eq!(state.typewriter_progress, 0.5);
     }

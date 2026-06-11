@@ -181,21 +181,88 @@ async fn process_message(state: Arc<BridgeState>, chat_id: String, text: String)
     let entry = sessions.get_mut(&chat_id).unwrap();
     entry.last_accessed = Instant::now();
 
-    // Chat with Agent
-    // TODO: Support tools (pass in tools if needed)
-    let event_stream = entry
-        .agent
-        .chat_stream_with_tools(&text, Vec::new())
-        .await?;
+    let response = match entry.agent.chat_stream_with_tools(&text, Vec::new()).await {
+        Ok(event_stream) => match collect_response_text(event_stream).await {
+            Ok(response) => response,
+            Err(e) => {
+                warn!("WhatsApp stream failed for {}: {}", chat_id, e);
+                format!("Error: {}", e)
+            }
+        },
+        Err(e) => {
+            warn!("WhatsApp chat failed for {}: {}", chat_id, e);
+            format!("Error: {}", e)
+        }
+    };
 
+    if let Err(e) = entry.agent.save_session_for_agent(WHATSAPP_AGENT_ID).await {
+        warn!("Failed to save whatsapp session: {}", e);
+    }
+
+    Ok(normalize_reply(response))
+}
+
+async fn collect_response_text(
+    event_stream: impl futures::Stream<Item = Result<StreamEvent>>,
+) -> Result<String> {
     let mut full_response = String::new();
     let mut pinned_stream = std::pin::pin!(event_stream);
 
     while let Some(event) = pinned_stream.next().await {
-        if let Ok(StreamEvent::Content(delta)) = event {
-            full_response.push_str(&delta);
+        match event? {
+            StreamEvent::Content(delta) => full_response.push_str(&delta),
+            StreamEvent::Done => break,
+            StreamEvent::ToolCallStart { .. }
+            | StreamEvent::ToolCallEnd { .. }
+            | StreamEvent::ApprovalRequired { .. } => {}
         }
     }
 
     Ok(full_response)
+}
+
+fn normalize_reply(response: String) -> String {
+    if response.is_empty() {
+        "(no response)".to_string()
+    } else {
+        response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::stream;
+
+    #[tokio::test]
+    async fn collect_response_text_concatenates_content_until_done() {
+        let events = stream::iter([
+            Ok(StreamEvent::Content("hello ".to_string())),
+            Ok(StreamEvent::Content("world".to_string())),
+            Ok(StreamEvent::Done),
+            Ok(StreamEvent::Content(" ignored".to_string())),
+        ]);
+
+        let response = collect_response_text(events).await.unwrap();
+
+        assert_eq!(response, "hello world");
+    }
+
+    #[tokio::test]
+    async fn collect_response_text_returns_stream_errors() {
+        let events = stream::iter([
+            Ok(StreamEvent::Content("partial".to_string())),
+            Err(anyhow::anyhow!("stream failed")),
+        ]);
+
+        let err = collect_response_text(events).await.unwrap_err();
+
+        assert!(err.to_string().contains("stream failed"));
+    }
+
+    #[test]
+    fn normalize_reply_makes_empty_response_explicit() {
+        assert_eq!(normalize_reply(String::new()), "(no response)");
+        assert_eq!(normalize_reply("hi".to_string()), "hi");
+    }
 }

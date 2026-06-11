@@ -200,8 +200,10 @@ default_model = "claude-cli/opus"
         .unwrap();
 
         // Create a config that points to the temp directory
-        let mut config = Config::default();
-        config.paths = Paths::from_root(temp_dir.path());
+        let config = Config {
+            paths: Paths::from_root(temp_dir.path()),
+            ..Default::default()
+        };
 
         // This would require more setup to test properly
         // Just verify the types compile for now

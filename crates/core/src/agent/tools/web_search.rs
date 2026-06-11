@@ -253,12 +253,13 @@ impl BraveProvider {
         }
     }
 
-    pub fn parse_response(body: &Value, _max_results: u8) -> Vec<SearchResult> {
+    pub fn parse_response(body: &Value, max_results: u8) -> Vec<SearchResult> {
         let empty = vec![];
         body["web"]["results"]
             .as_array()
             .unwrap_or(&empty)
             .iter()
+            .take(max_results as usize)
             .filter_map(|r| {
                 Some(SearchResult {
                     title: r["title"].as_str()?.to_string(),
@@ -1137,6 +1138,28 @@ mod tests {
         assert_eq!(results[0].url, "https://tokio.rs");
         assert_eq!(results[0].published_date, Some("2 days ago".to_string()));
         assert!(results[0].score.is_none());
+    }
+
+    #[test]
+    fn test_brave_parse_response_max_results() {
+        let body: Value = serde_json::from_str(
+            r#"{
+                "web": {
+                    "results": [
+                        {"title": "A", "url": "https://a.com", "description": ""},
+                        {"title": "B", "url": "https://b.com", "description": ""},
+                        {"title": "C", "url": "https://c.com", "description": ""}
+                    ]
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let results = BraveProvider::parse_response(&body, 2);
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].title, "A");
+        assert_eq!(results[1].title, "B");
     }
 
     #[test]

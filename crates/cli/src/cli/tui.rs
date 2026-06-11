@@ -25,6 +25,11 @@ use localgpt_core::agent::{
 use localgpt_core::concurrency::WorkspaceLock;
 use localgpt_core::config::Config;
 use localgpt_core::memory::MemoryManager;
+use localgpt_core::text::prefix_chars;
+
+fn short_session_id(id: &str) -> String {
+    prefix_chars(id, 8)
+}
 
 #[derive(Args)]
 pub struct TuiArgs {
@@ -412,11 +417,12 @@ async fn run_app(
                                                         for (i, session) in
                                                             sessions.iter().take(10).enumerate()
                                                         {
-                                                            let limit = session.id.len().min(8);
+                                                            let short_id =
+                                                                short_session_id(&session.id);
                                                             out.push_str(&format!(
                                                                 "  {}. {} ({} messages, {})\n",
                                                                 i + 1,
-                                                                &session.id[..limit],
+                                                                short_id,
                                                                 session.message_count,
                                                                 session
                                                                     .created_at
@@ -479,8 +485,8 @@ async fn run_app(
                                                         } else {
                                                             let mut out = format!("Sessions matching '{}':\n", query);
                                                             for (i, result) in results.iter().take(10).enumerate() {
-                                                                let limit = result.session_id.len().min(8);
-                                                                out.push_str(&format!("  {}. {} ({} matches, {})\n", i + 1, &result.session_id[..limit], result.match_count, result.created_at.format("%Y-%m-%d")));
+                                                                let short_id = short_session_id(&result.session_id);
+                                                                out.push_str(&format!("  {}. {} ({} matches, {})\n", i + 1, short_id, result.match_count, result.created_at.format("%Y-%m-%d")));
                                                                 if !result.message_preview.is_empty() {
                                                                     out.push_str(&format!("     \"{}\"\n", result.message_preview));
                                                                 }
@@ -518,10 +524,10 @@ async fn run_app(
                                                                 match agent.resume_session(&full_id).await {
                                                                     Ok(()) => {
                                                                         let status = agent.session_status();
-                                                                        let limit = full_id.len().min(8);
+                                                                        let short_id = short_session_id(&full_id);
                                                                         app.messages.clear();
                                                                         load_agent_messages_into_app(&mut app, agent);
-                                                                        app.messages.push(AppMessage::Text { role: "System".to_string(), content: format!("Resumed session {} ({} messages)", &full_id[..limit], status.message_count) });
+                                                                        app.messages.push(AppMessage::Text { role: "System".to_string(), content: format!("Resumed session {} ({} messages)", short_id, status.message_count) });
                                                                     }
                                                                     Err(e) => app.messages.push(AppMessage::Text { role: "System".to_string(), content: format!("Failed to resume: {}", e) }),
                                                                 }

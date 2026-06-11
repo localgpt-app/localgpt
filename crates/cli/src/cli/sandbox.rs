@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Args, Subcommand};
 
 use localgpt_core::config::Config;
+use localgpt_core::text::prefix_chars_with_ellipsis;
 use localgpt_sandbox::{SandboxLevel, build_policy, detect_capabilities, run_sandboxed};
 
 #[derive(Args)]
@@ -96,7 +97,7 @@ async fn run_test() -> Result<()> {
             println!(
                 "FAIL (exit={}, output={})",
                 code,
-                &output[..output.floor_char_boundary(100)]
+                output_preview(&output, 100)
             );
             failed += 1;
         }
@@ -232,7 +233,7 @@ async fn run_test() -> Result<()> {
             println!(
                 "FAIL (exit={}, output={})",
                 code,
-                &output[..output.floor_char_boundary(100)]
+                output_preview(&output, 100)
             );
             failed += 1;
         }
@@ -258,5 +259,35 @@ fn format_level(level: SandboxLevel) -> &'static str {
         SandboxLevel::Standard => "Standard",
         SandboxLevel::Minimal => "Minimal",
         SandboxLevel::None => "None",
+    }
+}
+
+fn output_preview(output: &str, max_chars: usize) -> String {
+    prefix_chars_with_ellipsis(output, max_chars)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn output_preview_preserves_short_output() {
+        assert_eq!(output_preview("ok", 100), "ok");
+    }
+
+    #[test]
+    fn output_preview_truncates_ascii_output() {
+        assert_eq!(
+            output_preview(&"x".repeat(101), 100),
+            format!("{}...", "x".repeat(100))
+        );
+    }
+
+    #[test]
+    fn output_preview_truncates_multibyte_output_by_characters() {
+        let preview = output_preview(&"✅".repeat(101), 100);
+
+        assert_eq!(preview.chars().filter(|&c| c == '✅').count(), 100);
+        assert!(preview.ends_with("..."));
     }
 }

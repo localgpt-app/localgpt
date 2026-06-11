@@ -529,8 +529,10 @@ mod tests {
 
     #[test]
     fn test_registry_file_too_large() {
-        let mut config = SttConfig::default();
-        config.max_bytes = 10;
+        let config = SttConfig {
+            max_bytes: 10,
+            ..Default::default()
+        };
         let registry = SttRegistry::new(config);
 
         let rt = tokio::runtime::Runtime::new().unwrap();

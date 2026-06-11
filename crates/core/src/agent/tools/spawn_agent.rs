@@ -21,6 +21,7 @@ use crate::agent::providers::ToolSchema;
 use crate::agent::session::Session;
 use crate::config::Config;
 use crate::memory::MemoryManager;
+use crate::text::ellipsize_chars;
 
 /// Maximum depth for agent spawning (0 = root, 1 = first subagent level)
 const DEFAULT_MAX_SPAWN_DEPTH: u8 = 1;
@@ -372,10 +373,8 @@ impl SpawnAgentTool {
                 // Take first sentence or first 200 chars
                 let summary = if let Some(pos) = trimmed.find('.') {
                     trimmed[..pos + 1].to_string()
-                } else if trimmed.len() > 200 {
-                    format!("{}...", &trimmed[..197])
                 } else {
-                    trimmed.to_string()
+                    truncate_summary_line(trimmed)
                 };
                 return (summary, Some(text.to_string()));
             }
@@ -384,6 +383,12 @@ impl SpawnAgentTool {
         // Ultimate fallback
         ("Task completed".to_string(), Some(text.to_string()))
     }
+}
+
+fn truncate_summary_line(line: &str) -> String {
+    const MAX_SUMMARY_CHARS: usize = 200;
+
+    ellipsize_chars(line, MAX_SUMMARY_CHARS)
 }
 
 #[async_trait]
@@ -583,12 +588,12 @@ mod tests {
 
         // Second subagent (depth 2) should NOT allow spawning
         let depth_2: u8 = 2;
-        assert!(!(depth_2 < max_depth));
+        assert!(depth_2 >= max_depth);
 
         // Test with max_depth = 1 (Phase 1 default)
         let max_depth_1: u8 = 1;
         assert!(0 < max_depth_1); // depth 0 can spawn
-        assert!(!(1 < max_depth_1)); // depth 1 cannot spawn
+        assert!(1 >= max_depth_1); // depth 1 cannot spawn
     }
 
     #[test]
@@ -633,6 +638,28 @@ mod tests {
         });
 
         assert_eq!(summary, Some("This is the first line.".to_string()));
+    }
+
+    #[test]
+    fn test_truncate_summary_line_preserves_short_text() {
+        assert_eq!(truncate_summary_line("short summary"), "short summary");
+    }
+
+    #[test]
+    fn test_truncate_summary_line_limits_ascii_text() {
+        let summary = truncate_summary_line(&"a".repeat(220));
+
+        assert_eq!(summary.chars().count(), 200);
+        assert!(summary.ends_with("..."));
+    }
+
+    #[test]
+    fn test_truncate_summary_line_does_not_split_multibyte_chars() {
+        let summary = truncate_summary_line(&"✅".repeat(220));
+
+        assert_eq!(summary.chars().count(), 200);
+        assert_eq!(summary.matches('✅').count(), 197);
+        assert!(summary.ends_with("..."));
     }
 
     #[test]
@@ -703,7 +730,7 @@ mod tests {
         let max_depth_2: u8 = 2;
         assert!(0 < max_depth_2); // depth 0 can spawn
         assert!(1 < max_depth_2); // depth 1 can spawn
-        assert!(!(2 < max_depth_2)); // depth 2 cannot spawn
+        assert!(2 >= max_depth_2); // depth 2 cannot spawn
     }
 
     #[test]

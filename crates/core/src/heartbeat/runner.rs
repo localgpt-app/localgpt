@@ -17,6 +17,7 @@ use crate::agent::{
 use crate::concurrency::{TurnGate, WorkspaceLock};
 use crate::config::{Config, parse_duration, parse_time};
 use crate::memory::MemoryManager;
+use crate::text::prefix_chars_with_ellipsis;
 
 /// Factory function type for creating additional tools for the heartbeat agent.
 /// This allows the caller (e.g., CLI daemon) to inject dangerous tools like bash, file I/O.
@@ -267,14 +268,7 @@ impl HeartbeatRunner {
 
             let event = match res {
                 Ok((response, status)) => {
-                    let preview = if response.len() > 200 {
-                        Some(format!(
-                            "{}...",
-                            &response[..response.floor_char_boundary(200)]
-                        ))
-                    } else {
-                        Some(response.clone())
-                    };
+                    let preview = Some(heartbeat_preview(&response));
 
                     if is_heartbeat_ok(&response) {
                         debug!(name: "Heartbeat", "OK");
@@ -339,14 +333,7 @@ impl HeartbeatRunner {
         match self.run_once_internal().await {
             Ok((response, status)) => {
                 let duration_ms = start.elapsed().as_millis() as u64;
-                let preview = if response.len() > 200 {
-                    Some(format!(
-                        "{}...",
-                        &response[..response.floor_char_boundary(200)]
-                    ))
-                } else {
-                    Some(response.clone())
-                };
+                let preview = Some(heartbeat_preview(&response));
 
                 emit_heartbeat_event(HeartbeatEvent {
                     ts: now_ms(),
@@ -546,8 +533,7 @@ impl HeartbeatRunner {
             {
                 info!(name: "Heartbeat",
                     "skipping: duplicate (same text within 24h): {}",
-                    // TODO this byte-string slice is not safe, can panick like "byte index 200 is not a char boundary"
-                    &response[..response.len().min(100)]
+                    utf8_prefix(&response, 100)
                 );
                 return Ok((response, HeartbeatStatus::Skipped));
             }
@@ -579,6 +565,14 @@ impl HeartbeatRunner {
             now >= start || now <= end
         }
     }
+}
+
+fn utf8_prefix(value: &str, max_bytes: usize) -> &str {
+    &value[..value.floor_char_boundary(value.len().min(max_bytes))]
+}
+
+fn heartbeat_preview(response: &str) -> String {
+    prefix_chars_with_ellipsis(response, 200)
 }
 
 #[cfg(test)]
@@ -634,5 +628,37 @@ mod tests {
         };
         let timeout = parse_duration(cfg.timeout.as_ref().unwrap()).unwrap();
         assert_eq!(timeout, Duration::from_secs(5 * 60));
+    }
+
+    #[test]
+    fn test_utf8_prefix_preserves_ascii_boundaries() {
+        assert_eq!(utf8_prefix("abcdefghijklmnopqrstuvwxyz", 10), "abcdefghij");
+    }
+
+    #[test]
+    fn test_utf8_prefix_allows_exact_length() {
+        assert_eq!(utf8_prefix("heartbeat ok", 12), "heartbeat ok");
+    }
+
+    #[test]
+    fn test_utf8_prefix_does_not_split_multibyte_chars() {
+        let text = "alert: ✅ needs attention";
+
+        assert_eq!(utf8_prefix(text, 9), "alert: ");
+        assert_eq!(utf8_prefix(text, 10), "alert: ✅");
+        assert_eq!(utf8_prefix(text, 11), "alert: ✅ ");
+    }
+
+    #[test]
+    fn test_heartbeat_preview_preserves_short_text() {
+        assert_eq!(heartbeat_preview("heartbeat ok"), "heartbeat ok");
+    }
+
+    #[test]
+    fn test_heartbeat_preview_truncates_multibyte_by_characters() {
+        let preview = heartbeat_preview(&"✅".repeat(201));
+
+        assert_eq!(preview.chars().filter(|&c| c == '✅').count(), 200);
+        assert!(preview.ends_with("..."));
     }
 }

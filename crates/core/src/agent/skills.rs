@@ -13,6 +13,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tracing::{debug, warn};
 
+use crate::text::prefix_chars;
+
 /// Skill requirements for eligibility gating
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
@@ -91,10 +93,11 @@ impl RoutingCondition {
                 // Check regex match
                 if let Some(pattern) = &complex.matches {
                     // Limit pattern length to prevent excessive compilation time
-                    if pattern.len() > 1024 {
+                    let pattern_chars = pattern.chars().count();
+                    if pattern_chars > 1024 {
                         warn!(
                             "Regex pattern too long in skill routing ({} chars), skipping",
-                            pattern.len()
+                            pattern_chars
                         );
                         return false;
                     }
@@ -526,7 +529,7 @@ fn extract_description_from_body(body: &str) -> String {
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
-        return trimmed.chars().take(100).collect();
+        return prefix_chars(trimmed, 100);
     }
     String::new()
 }
@@ -1009,6 +1012,34 @@ dontUseWhen:
 
         let ctx_no_match = SkillRoutingContext::new("no numbers here", "cli");
         assert!(!condition.matches(&ctx_no_match));
+    }
+
+    #[test]
+    fn test_routing_condition_regex_limit_counts_multibyte_chars() {
+        let pattern = "é".repeat(1024);
+        let condition = RoutingCondition::Complex(ComplexCondition {
+            contains: None,
+            matches: Some(pattern.clone()),
+            channel: None,
+            has_tool: None,
+        });
+        let ctx_match = SkillRoutingContext::new(&pattern, "cli");
+
+        assert!(condition.matches(&ctx_match));
+    }
+
+    #[test]
+    fn test_routing_condition_regex_limit_rejects_over_char_limit() {
+        let pattern = "é".repeat(1025);
+        let condition = RoutingCondition::Complex(ComplexCondition {
+            contains: None,
+            matches: Some(pattern.clone()),
+            channel: None,
+            has_tool: None,
+        });
+        let ctx_match = SkillRoutingContext::new(&pattern, "cli");
+
+        assert!(!condition.matches(&ctx_match));
     }
 
     #[test]

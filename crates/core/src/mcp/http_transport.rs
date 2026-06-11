@@ -18,7 +18,7 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::sse::{Event, Sse};
 use axum::response::{IntoResponse, Json};
 use axum::routing::{delete, get, post};
@@ -117,12 +117,7 @@ async fn handle_post(
     let response = state.handler.dispatch(&body).await;
 
     let mut headers = HeaderMap::new();
-    headers.insert(
-        "Mcp-Session-Id",
-        session_id
-            .parse()
-            .unwrap_or_else(|_| "unknown".parse().unwrap()),
-    );
+    headers.insert("Mcp-Session-Id", session_header_value(&session_id));
 
     match response {
         Some(resp) => (StatusCode::OK, headers, Json(resp)).into_response(),
@@ -143,16 +138,10 @@ async fn handle_get(
 
     info!("MCP HTTP SSE stream opened for session={}", session_id);
 
-    let stream = sse_keepalive_stream(session_id);
-
     let mut resp_headers = HeaderMap::new();
-    resp_headers.insert(
-        "Mcp-Session-Id",
-        headers
-            .get("Mcp-Session-Id")
-            .cloned()
-            .unwrap_or_else(|| "unknown".parse().unwrap()),
-    );
+    resp_headers.insert("Mcp-Session-Id", session_header_value(&session_id));
+
+    let stream = sse_keepalive_stream(session_id);
 
     (resp_headers, Sse::new(stream)).into_response()
 }
@@ -200,6 +189,10 @@ async fn resolve_or_create_session(state: &McpHttpState, headers: &HeaderMap) ->
     session_id
 }
 
+fn session_header_value(session_id: &str) -> HeaderValue {
+    HeaderValue::from_str(session_id).unwrap_or_else(|_| HeaderValue::from_static("unknown"))
+}
+
 // ---------------------------------------------------------------------------
 // SSE stream
 // ---------------------------------------------------------------------------
@@ -220,5 +213,93 @@ fn sse_keepalive_stream(session_id: String) -> impl Stream<Item = Result<Event, 
             tokio::time::sleep(Duration::from_secs(30)).await;
             yield Ok(Event::default().comment("keepalive"));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use axum::response::IntoResponse;
+
+    struct TestHandler;
+
+    #[async_trait]
+    impl McpHandler for TestHandler {
+        fn server_name(&self) -> &str {
+            "test"
+        }
+
+        fn handle_tools_list(&self) -> Result<Value, Value> {
+            Ok(json!({ "tools": [] }))
+        }
+
+        async fn handle_tools_call(&self, _params: &Value) -> Result<Value, Value> {
+            Ok(json!({}))
+        }
+    }
+
+    fn test_state() -> Arc<McpHttpState> {
+        Arc::new(McpHttpState {
+            handler: Arc::new(TestHandler),
+            sessions: RwLock::new(HashMap::new()),
+        })
+    }
+
+    #[tokio::test]
+    async fn get_without_session_header_returns_created_session_id() {
+        let state = test_state();
+
+        let response = handle_get(State(state.clone()), HeaderMap::new())
+            .await
+            .into_response();
+
+        let session_id = response
+            .headers()
+            .get("Mcp-Session-Id")
+            .and_then(|h| h.to_str().ok())
+            .expect("response should include a session id");
+        assert_ne!(session_id, "unknown");
+        assert!(state.sessions.read().await.contains_key(session_id));
+    }
+
+    #[tokio::test]
+    async fn get_with_unknown_session_header_returns_created_session_id() {
+        let state = test_state();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "Mcp-Session-Id",
+            HeaderValue::from_static("missing-session"),
+        );
+
+        let response = handle_get(State(state.clone()), headers)
+            .await
+            .into_response();
+
+        let session_id = response
+            .headers()
+            .get("Mcp-Session-Id")
+            .and_then(|h| h.to_str().ok())
+            .expect("response should include a session id");
+        assert_ne!(session_id, "missing-session");
+        assert!(state.sessions.read().await.contains_key(session_id));
+    }
+
+    #[tokio::test]
+    async fn get_with_known_session_header_returns_existing_session_id() {
+        let state = test_state();
+        let created = resolve_or_create_session(&state, &HeaderMap::new()).await;
+        let mut headers = HeaderMap::new();
+        headers.insert("Mcp-Session-Id", session_header_value(&created));
+
+        let response = handle_get(State(state), headers).await.into_response();
+
+        assert_eq!(
+            response
+                .headers()
+                .get("Mcp-Session-Id")
+                .and_then(|h| h.to_str().ok()),
+            Some(created.as_str())
+        );
     }
 }

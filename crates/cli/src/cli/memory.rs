@@ -3,6 +3,7 @@ use clap::{Args, Subcommand};
 
 use localgpt_core::config::Config;
 use localgpt_core::memory::MemoryManager;
+use localgpt_core::text::single_line_prefix_with_ellipsis;
 
 #[derive(Args)]
 pub struct MemoryArgs {
@@ -72,21 +73,14 @@ async fn search_memory(memory: &MemoryManager, query: &str, limit: usize) -> Res
         );
         println!("   Score: {:.3}", result.score);
 
-        // Show preview (first 200 chars)
-        let preview: String = result.content.chars().take(200).collect();
-        let preview = preview.replace('\n', " ");
-        println!(
-            "   {}{}\n",
-            preview,
-            if result.content.len() > 200 {
-                "..."
-            } else {
-                ""
-            }
-        );
+        println!("   {}\n", memory_result_preview(&result.content));
     }
 
     Ok(())
+}
+
+fn memory_result_preview(content: &str) -> String {
+    single_line_prefix_with_ellipsis(content, 200)
 }
 
 async fn reindex_memory(memory: &MemoryManager, force: bool) -> Result<()> {
@@ -154,4 +148,27 @@ async fn show_recent(memory: &MemoryManager, count: usize) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memory_result_preview_preserves_short_multibyte_text() {
+        assert_eq!(memory_result_preview(&"✅".repeat(100)), "✅".repeat(100));
+    }
+
+    #[test]
+    fn memory_result_preview_truncates_by_characters() {
+        let preview = memory_result_preview(&"✅".repeat(201));
+
+        assert_eq!(preview.chars().filter(|&c| c == '✅').count(), 200);
+        assert!(preview.ends_with("..."));
+    }
+
+    #[test]
+    fn memory_result_preview_flattens_newlines() {
+        assert_eq!(memory_result_preview("one\ntwo"), "one two");
+    }
 }

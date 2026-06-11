@@ -1,5 +1,6 @@
 //! Memory search types and utilities
 
+use crate::text::prefix_chars_with_ellipsis;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -63,14 +64,7 @@ impl MemoryChunk {
 
     /// Get a preview of the content (first N characters)
     pub fn preview(&self, max_len: usize) -> String {
-        if self.content.len() <= max_len {
-            self.content.clone()
-        } else {
-            format!(
-                "{}...",
-                &self.content[..self.content.floor_char_boundary(max_len)]
-            )
-        }
+        prefix_chars_with_ellipsis(&self.content, max_len)
     }
 
     /// Get the location string (file:line)
@@ -207,7 +201,7 @@ fn tokenize(text: &str) -> HashSet<String> {
     text.to_lowercase()
         .split_whitespace()
         .map(|s| s.trim_matches(|c: char| !c.is_alphanumeric()))
-        .filter(|s| !s.is_empty() && s.len() > 1) // Skip single chars
+        .filter(|s| !s.is_empty() && s.chars().count() > 1) // Skip single chars
         .map(|s| s.to_string())
         .collect()
 }
@@ -285,11 +279,9 @@ mod tests {
             1.0,
         );
 
-        // max_len=8 lands inside the first emoji (bytes 6-9), should not panic
         let preview = chunk.preview(8);
         assert!(preview.ends_with("..."));
-        // Should truncate to "Hello " (6 bytes) since byte 8 is mid-emoji
-        assert_eq!(preview, "Hello ...");
+        assert_eq!(preview, "Hello 🌍🌎...");
     }
 
     #[test]
@@ -303,10 +295,9 @@ mod tests {
             1.0,
         );
 
-        // "one—" is 3 + 3 = 6 bytes; max_len=5 lands mid-emdash
         let preview = chunk.preview(5);
         assert!(preview.ends_with("..."));
-        assert_eq!(preview, "one...");
+        assert_eq!(preview, "one—t...");
     }
 
     #[test]
@@ -501,5 +492,10 @@ mod tests {
         assert!(tokens.contains("test"));
         // Single char 'a' should be filtered
         assert!(!tokens.contains("a"));
+        // Single multibyte chars should be filtered too.
+        let multibyte = tokenize("é 中 데이터");
+        assert!(!multibyte.contains("é"));
+        assert!(!multibyte.contains("中"));
+        assert!(multibyte.contains("데이터"));
     }
 }

@@ -1,6 +1,9 @@
 //! Application state shared between UI and worker
 
 use localgpt_core::agent::{SessionInfo, SessionStatus, ToolCall};
+use localgpt_core::text::prefix_chars_with_ellipsis;
+
+const TOOL_OUTPUT_PREVIEW_CHARS: usize = 100;
 
 /// Message from UI to worker
 #[derive(Debug, Clone)]
@@ -189,12 +192,7 @@ impl UiState {
             } => {
                 // Update tool status
                 if let Some(tool) = self.active_tools.iter_mut().find(|t| t.name == name) {
-                    let preview = if output.len() > 100 {
-                        format!("{}...", &output[..100])
-                    } else {
-                        output
-                    };
-                    tool.status = ToolStatus::Completed(preview);
+                    tool.status = ToolStatus::Completed(tool_output_preview(&output));
                 }
             }
             WorkerMessage::ToolsPendingApproval(calls) => {
@@ -262,5 +260,61 @@ impl UiState {
     /// Clear error
     pub fn clear_error(&mut self) {
         self.error = None;
+    }
+}
+
+fn tool_output_preview(output: &str) -> String {
+    prefix_chars_with_ellipsis(output, TOOL_OUTPUT_PREVIEW_CHARS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn start_tool(state: &mut UiState) {
+        state.handle_worker_message(WorkerMessage::ToolCallStart {
+            name: "demo".to_string(),
+            id: "call-1".to_string(),
+            detail: None,
+        });
+    }
+
+    #[test]
+    fn tool_output_preview_preserves_short_output() {
+        assert_eq!(tool_output_preview("done"), "done");
+    }
+
+    #[test]
+    fn tool_output_preview_limits_ascii_output() {
+        let preview = tool_output_preview(&"x".repeat(101));
+
+        assert_eq!(preview, format!("{}...", "x".repeat(100)));
+    }
+
+    #[test]
+    fn tool_output_preview_limits_multibyte_output() {
+        let preview = tool_output_preview(&"✅".repeat(101));
+
+        assert_eq!(preview.chars().filter(|&c| c == '✅').count(), 100);
+        assert!(preview.ends_with("..."));
+    }
+
+    #[test]
+    fn tool_call_end_stores_multibyte_preview() {
+        let mut state = UiState::new();
+        start_tool(&mut state);
+
+        state.handle_worker_message(WorkerMessage::ToolCallEnd {
+            name: "demo".to_string(),
+            id: "call-1".to_string(),
+            output: "✅".repeat(101),
+            warnings: Vec::new(),
+        });
+
+        assert_eq!(state.active_tools.len(), 1);
+        assert_eq!(
+            state.active_tools[0].status,
+            ToolStatus::Completed(format!("{}...", "✅".repeat(100)))
+        );
     }
 }

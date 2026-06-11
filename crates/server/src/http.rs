@@ -39,6 +39,7 @@ use localgpt_core::concurrency::{TurnGate, WorkspaceLock};
 use localgpt_core::config::Config;
 use localgpt_core::heartbeat::{HeartbeatStatus, get_last_heartbeat_event};
 use localgpt_core::memory::MemoryManager;
+use localgpt_core::text::prefix_chars;
 
 /// Embedded UI assets
 #[derive(RustEmbed)]
@@ -53,6 +54,9 @@ const MAX_SESSIONS: usize = 100;
 
 /// Agent ID for HTTP sessions
 const HTTP_AGENT_ID: &str = "http";
+
+/// Maximum memory search query length, counted in user-visible characters.
+const MAX_SEARCH_QUERY_CHARS: usize = 1000;
 
 pub struct Server {
     config: Config,
@@ -1133,7 +1137,7 @@ async fn chat_stream(
                                 "type": "tool_end",
                                 "name": name,
                                 "id": id,
-                                "output": output.chars().take(500).collect::<String>(),
+                                "output": prefix_chars(&output, 500),
                                 "warnings": warnings
                             });
                             yield Ok(Event::default().data(data.to_string()));
@@ -1197,7 +1201,7 @@ async fn memory_search(
     Query(query): Query<SearchQuery>,
 ) -> Response {
     // Reject excessively long queries to prevent DoS
-    if query.q.len() > 1000 {
+    if is_search_query_too_long(&query.q) {
         return AppError(StatusCode::BAD_REQUEST, "Query too long".to_string()).into_response();
     }
     match memory_search_inner(&state.memory, &query.q, query.limit) {
@@ -1229,6 +1233,10 @@ fn memory_search_inner(
         results,
         query: query.to_string(),
     })
+}
+
+fn is_search_query_too_long(query: &str) -> bool {
+    query.chars().count() > MAX_SEARCH_QUERY_CHARS
 }
 
 // Memory stats endpoint
@@ -1695,7 +1703,7 @@ struct DaemonLogsResponse {
 async fn get_daemon_logs(Query(query): Query<LogsQuery>) -> Response {
     use localgpt_core::agent::get_state_dir;
     use std::fs::File;
-    use std::io::{BufRead, BufReader};
+    use std::io::BufReader;
 
     let lines_requested = query.lines.unwrap_or(200).min(1000);
 
@@ -1736,15 +1744,7 @@ async fn get_daemon_logs(Query(query): Query<LogsQuery>) -> Response {
     };
 
     let reader = BufReader::new(file);
-    let all_lines: Vec<String> = reader.lines().map_while(Result::ok).collect();
-    let total_lines = all_lines.len();
-
-    // Get last N lines
-    let lines: Vec<String> = if total_lines > lines_requested {
-        all_lines[(total_lines - lines_requested)..].to_vec()
-    } else {
-        all_lines
-    };
+    let (lines, total_lines) = tail_reader_lines(reader, lines_requested);
 
     Json(DaemonLogsResponse {
         lines,
@@ -1752,6 +1752,28 @@ async fn get_daemon_logs(Query(query): Query<LogsQuery>) -> Response {
         file_size_bytes: metadata.len(),
     })
     .into_response()
+}
+
+fn tail_reader_lines<R: std::io::BufRead>(reader: R, limit: usize) -> (Vec<String>, usize) {
+    use std::collections::VecDeque;
+
+    let mut tail = VecDeque::with_capacity(limit);
+    let mut total = 0;
+
+    for line in reader.lines().map_while(std::result::Result::ok) {
+        total += 1;
+
+        if limit == 0 {
+            continue;
+        }
+
+        if tail.len() == limit {
+            tail.pop_front();
+        }
+        tail.push_back(line);
+    }
+
+    (tail.into_iter().collect(), total)
 }
 
 // WebSocket handler
@@ -2013,7 +2035,7 @@ fn is_localhost_origin(origin: &[u8]) -> bool {
                 if bracket_end + 1 < rest.len() {
                     // There's something after ']', should be ':port'
                     let after = &rest[bracket_end + 1..];
-                    if !after.starts_with(':') || !after[1..].chars().all(|c| c.is_ascii_digit()) {
+                    if !after.starts_with(':') || !is_ascii_port(&after[1..]) {
                         return false;
                     }
                 }
@@ -2024,7 +2046,7 @@ fn is_localhost_origin(origin: &[u8]) -> bool {
         } else {
             // Plain host:port — verify port part is digits
             let port_part = &rest[pos + 1..];
-            if port_part.chars().all(|c| c.is_ascii_digit()) {
+            if is_ascii_port(port_part) {
                 &rest[..pos]
             } else {
                 rest
@@ -2035,6 +2057,10 @@ fn is_localhost_origin(origin: &[u8]) -> bool {
     };
 
     matches!(host, "localhost" | "127.0.0.1" | "[::1]")
+}
+
+fn is_ascii_port(port: &str) -> bool {
+    !port.is_empty() && port.chars().all(|c| c.is_ascii_digit())
 }
 
 /// POST /api/sessions/{session_id}/approve — approve or deny an elevated tool execution.
@@ -2061,4 +2087,90 @@ async fn approve_tool_execution(
     });
 
     (StatusCode::OK, Json(response))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn search_query_limit_allows_exact_character_limit() {
+        assert!(!is_search_query_too_long(
+            &"x".repeat(MAX_SEARCH_QUERY_CHARS)
+        ));
+    }
+
+    #[test]
+    fn search_query_limit_rejects_over_character_limit() {
+        assert!(is_search_query_too_long(
+            &"x".repeat(MAX_SEARCH_QUERY_CHARS + 1)
+        ));
+    }
+
+    #[test]
+    fn search_query_limit_counts_multibyte_characters() {
+        assert!(!is_search_query_too_long(
+            &"✅".repeat(MAX_SEARCH_QUERY_CHARS)
+        ));
+        assert!(is_search_query_too_long(
+            &"✅".repeat(MAX_SEARCH_QUERY_CHARS + 1)
+        ));
+    }
+
+    #[test]
+    fn localhost_origin_allows_localhost_hosts_with_optional_ports() {
+        for origin in [
+            "http://localhost",
+            "https://localhost:3000",
+            "http://127.0.0.1",
+            "https://127.0.0.1:8787",
+            "http://[::1]",
+            "https://[::1]:5173",
+        ] {
+            assert!(is_localhost_origin(origin.as_bytes()), "{origin}");
+        }
+    }
+
+    #[test]
+    fn localhost_origin_rejects_empty_or_malformed_ports() {
+        for origin in [
+            "http://localhost:",
+            "https://127.0.0.1:",
+            "http://[::1]:",
+            "https://localhost:abc",
+            "http://[::1]:abc",
+        ] {
+            assert!(!is_localhost_origin(origin.as_bytes()), "{origin}");
+        }
+    }
+
+    #[test]
+    fn localhost_origin_rejects_non_local_hosts() {
+        for origin in [
+            "http://localhost.example.com",
+            "https://127.0.0.2:3000",
+            "http://[::2]:5173",
+            "ftp://localhost:3000",
+        ] {
+            assert!(!is_localhost_origin(origin.as_bytes()), "{origin}");
+        }
+    }
+
+    #[test]
+    fn tail_reader_lines_returns_last_lines_and_total() {
+        let input = "one\ntwo\nthree\nfour\n";
+        let (lines, total) = tail_reader_lines(std::io::Cursor::new(input), 2);
+
+        assert_eq!(total, 4);
+        assert_eq!(lines, vec!["three", "four"]);
+    }
+
+    #[test]
+    fn tail_reader_lines_zero_limit_counts_without_returning_lines() {
+        let input = "one\ntwo\nthree\n";
+        let (lines, total) = tail_reader_lines(std::io::Cursor::new(input), 0);
+
+        assert_eq!(total, 3);
+        assert!(lines.is_empty());
+    }
 }

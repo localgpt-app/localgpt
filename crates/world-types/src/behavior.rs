@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn all_behavior_kinds() {
-        let behaviors = vec![
+        let behaviors = [
             BehaviorDef::Orbit {
                 center: None,
                 center_point: Some([0.0, 0.0, 0.0]),

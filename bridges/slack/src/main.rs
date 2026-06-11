@@ -27,6 +27,7 @@ use localgpt_core::agent::{Agent, AgentConfig, StreamEvent, extract_tool_detail}
 use localgpt_core::concurrency::TurnGate;
 use localgpt_core::config::Config;
 use localgpt_core::memory::MemoryManager;
+use localgpt_core::text::ellipsize_chars;
 
 /// Agent ID for Slack sessions
 const SLACK_AGENT_ID: &str = "slack";
@@ -181,15 +182,7 @@ async fn edit_message(state: &BotState, channel: &str, ts: &SlackTs, text: &str)
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
-        s.to_string()
-    } else {
-        let mut end = max.saturating_sub(3);
-        while end > 0 && !s.is_char_boundary(end) {
-            end -= 1;
-        }
-        format!("{}...", &s[..end])
-    }
+    ellipsize_chars(s, max)
 }
 
 // ── Event handling ────────────────────────────────────────────────────────
@@ -648,6 +641,14 @@ mod tests {
     fn test_truncate() {
         assert_eq!(truncate("short", 100), "short");
         assert_eq!(truncate("hello world", 8), "hello...");
+    }
+
+    #[test]
+    fn test_truncate_limits_multibyte_by_characters() {
+        let truncated = truncate(&"✅".repeat(MAX_MESSAGE_LENGTH + 1), MAX_MESSAGE_LENGTH);
+
+        assert_eq!(truncated.chars().count(), MAX_MESSAGE_LENGTH);
+        assert!(truncated.ends_with("..."));
     }
 
     #[test]

@@ -17,6 +17,7 @@ use localgpt_core::agent::{
 };
 use localgpt_core::config::Config;
 use localgpt_core::memory::MemoryManager;
+use localgpt_core::text::{prefix_chars, single_line_prefix_with_ellipsis};
 
 use super::state::{UiMessage, WorkerMessage};
 
@@ -281,8 +282,7 @@ async fn worker_loop(
                             .iter()
                             .enumerate()
                             .map(|(i, chunk)| {
-                                let preview: String = chunk.content.chars().take(150).collect();
-                                let preview = preview.replace('\n', " ");
+                                let preview = memory_result_preview(&chunk.content);
                                 format!(
                                     "{}. {} (lines {}-{}, score: {:.3})\n   {}",
                                     i + 1,
@@ -335,9 +335,10 @@ Available commands:
             }
             UiMessage::ShowStatus => {
                 let status = agent.session_status();
+                let short_id = prefix_chars(&status.id, 8);
                 let text = format!(
                     "Session: {}\nMessages: {}\nTokens: {} context / {} API in / {} API out\nCompactions: {}",
-                    &status.id[..8.min(status.id.len())],
+                    short_id,
                     status.message_count,
                     status.token_count,
                     status.api_input_tokens,
@@ -356,4 +357,34 @@ Available commands:
     }
 
     Ok(())
+}
+
+fn memory_result_preview(content: &str) -> String {
+    single_line_prefix_with_ellipsis(content, 150)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memory_result_preview_preserves_short_multibyte_text() {
+        assert_eq!(memory_result_preview("hello ✅"), "hello ✅");
+    }
+
+    #[test]
+    fn memory_result_preview_truncates_by_characters() {
+        let preview = memory_result_preview(&"✅".repeat(151));
+
+        assert_eq!(preview.chars().filter(|&ch| ch == '✅').count(), 150);
+        assert!(preview.ends_with("..."));
+    }
+
+    #[test]
+    fn memory_result_preview_flattens_newlines() {
+        assert_eq!(
+            memory_result_preview("line one\nline two"),
+            "line one line two"
+        );
+    }
 }

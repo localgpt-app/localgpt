@@ -15,29 +15,10 @@ use localgpt_core::agent::{
 use localgpt_core::concurrency::WorkspaceLock;
 use localgpt_core::config::Config;
 use localgpt_core::memory::MemoryManager;
+use localgpt_core::text::prefix_chars;
 
-/// Adjust a byte index to the nearest valid UTF-8 char boundary (searching forward).
-fn floor_char_boundary(s: &str, index: usize) -> usize {
-    if index >= s.len() {
-        return s.len();
-    }
-    let mut i = index;
-    while i > 0 && !s.is_char_boundary(i) {
-        i -= 1;
-    }
-    i
-}
-
-/// Adjust a byte index to the nearest valid UTF-8 char boundary (searching forward).
-fn ceil_char_boundary(s: &str, index: usize) -> usize {
-    if index >= s.len() {
-        return s.len();
-    }
-    let mut i = index;
-    while i < s.len() && !s.is_char_boundary(i) {
-        i += 1;
-    }
-    i
+fn short_session_id(id: &str) -> String {
+    prefix_chars(id, 8)
 }
 
 /// Extract a snippet from content, centered around the query match
@@ -51,12 +32,12 @@ pub fn extract_snippet(content: &str, query: &str, max_len: usize) -> String {
 
     if let Some(pos) = lower_content.find(&lower_query) {
         // Center the snippet around the match
-        let half_len = max_len / 2;
-        let start = floor_char_boundary(&normalized, pos.saturating_sub(half_len));
-        let end = ceil_char_boundary(
-            &normalized,
-            (pos + query.len() + half_len).min(normalized.len()),
-        );
+        let match_start = lowercase_byte_to_original_byte(&normalized, pos);
+        let match_end = lowercase_byte_to_original_byte(&normalized, pos + lower_query.len());
+        let query_chars = query.chars().count();
+        let context_chars = max_len.saturating_sub(query_chars) / 2;
+        let start = retreat_chars(&normalized, match_start, context_chars);
+        let end = advance_chars(&normalized, match_end, context_chars);
 
         // Adjust to word boundaries
         let mut snippet_start = start;
@@ -65,6 +46,7 @@ pub fn extract_snippet(content: &str, query: &str, max_len: usize) -> String {
         // Find word boundary at start
         if start > 0
             && let Some(space_pos) = normalized[start..].find(' ')
+            && start + space_pos < match_start
         {
             snippet_start = start + space_pos + 1;
         }
@@ -72,6 +54,7 @@ pub fn extract_snippet(content: &str, query: &str, max_len: usize) -> String {
         // Find word boundary at end
         if end < normalized.len()
             && let Some(space_pos) = normalized[..end].rfind(' ')
+            && space_pos > match_end
         {
             snippet_end = space_pos;
         }
@@ -87,8 +70,8 @@ pub fn extract_snippet(content: &str, query: &str, max_len: usize) -> String {
         format!("{}{}{}", prefix, snippet, suffix)
     } else {
         // No match found, show beginning of content
-        let truncated: String = normalized.chars().take(max_len).collect();
-        if normalized.len() > max_len {
+        let truncated = prefix_chars(&normalized, max_len);
+        if normalized.chars().count() > max_len {
             // Find last word boundary
             if let Some(space_pos) = truncated.rfind(' ') {
                 format!("{}...", &truncated[..space_pos])
@@ -99,6 +82,47 @@ pub fn extract_snippet(content: &str, query: &str, max_len: usize) -> String {
             truncated
         }
     }
+}
+
+fn lowercase_byte_to_original_byte(value: &str, lowercase_byte: usize) -> usize {
+    let mut lowered_len = 0;
+    for (original_idx, ch) in value.char_indices() {
+        if lowered_len >= lowercase_byte {
+            return original_idx;
+        }
+        lowered_len += ch.to_lowercase().map(char::len_utf8).sum::<usize>();
+    }
+    value.len()
+}
+
+fn retreat_chars(value: &str, byte_index: usize, char_count: usize) -> usize {
+    let mut index = byte_index.min(value.len());
+    for _ in 0..char_count {
+        if index == 0 {
+            break;
+        }
+        index = value[..index]
+            .char_indices()
+            .next_back()
+            .map(|(idx, _)| idx)
+            .unwrap_or(0);
+    }
+    index
+}
+
+fn advance_chars(value: &str, byte_index: usize, char_count: usize) -> usize {
+    let mut index = byte_index.min(value.len());
+    for _ in 0..char_count {
+        if index >= value.len() {
+            break;
+        }
+        index = value[index..]
+            .char_indices()
+            .nth(1)
+            .map(|(offset, _)| index + offset)
+            .unwrap_or(value.len());
+    }
+    index
 }
 
 #[derive(Args)]
@@ -155,7 +179,7 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
                 let status = agent.session_status();
                 println!(
                     "Resumed session {} ({} messages)\n",
-                    &session_id[..session_id.floor_char_boundary(8)],
+                    short_session_id(&session_id),
                     status.message_count
                 );
             }
@@ -603,7 +627,7 @@ async fn handle_command(
                         println!(
                             "  {}. {} ({} messages, {})",
                             i + 1,
-                            &session.id[..session.id.floor_char_boundary(8)],
+                            short_session_id(&session.id),
                             session.message_count,
                             session.created_at.format("%Y-%m-%d %H:%M")
                         );
@@ -642,7 +666,7 @@ async fn handle_command(
                             println!(
                                 "  {}. {} ({} matches, {})",
                                 i + 1,
-                                &result.session_id[..result.session_id.floor_char_boundary(8)],
+                                short_session_id(&result.session_id),
                                 result.match_count,
                                 result.created_at.format("%Y-%m-%d")
                             );
@@ -687,7 +711,7 @@ async fn handle_command(
                                     let status = agent.session_status();
                                     println!(
                                         "\nResumed session {} ({} messages)\n",
-                                        &full_id[..full_id.floor_char_boundary(8)],
+                                        short_session_id(&full_id),
                                         status.message_count
                                     );
 
@@ -1001,5 +1025,42 @@ async fn handle_command(
                 cmd
             ))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_snippet_handles_multibyte_context() {
+        let content = format!("{} marker {}", "✅".repeat(8), "✅".repeat(8));
+        let snippet = extract_snippet(&content, "marker", 12);
+
+        assert!(snippet.contains("marker"));
+        assert!(snippet.starts_with("..."));
+        assert!(snippet.ends_with("..."));
+    }
+
+    #[test]
+    fn extract_snippet_maps_lowercase_offsets_back_to_original_text() {
+        let content = format!("{} marker suffix", "İ".repeat(8));
+        let snippet = extract_snippet(&content, "marker", 12);
+
+        assert!(snippet.contains("marker"));
+    }
+
+    #[test]
+    fn extract_snippet_preserves_match_when_context_is_zero() {
+        let snippet = extract_snippet("prefix marker suffix", "marker", 6);
+
+        assert_eq!(snippet, "...marker...");
+    }
+
+    #[test]
+    fn extract_snippet_preserves_multibyte_match_when_context_is_zero() {
+        let snippet = extract_snippet("prefix ✅✅ suffix", "✅✅", 2);
+
+        assert_eq!(snippet, "...✅✅...");
     }
 }

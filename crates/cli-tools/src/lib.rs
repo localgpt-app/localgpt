@@ -20,6 +20,7 @@ use localgpt_core::agent::tool_filters::CompiledToolFilter;
 use localgpt_core::agent::tools::Tool;
 use localgpt_core::config::Config;
 use localgpt_core::security;
+use localgpt_core::text::prefix_chars_with_ellipsis;
 use localgpt_sandbox::{self, SandboxPolicy};
 
 /// Compile a tool filter from config (if present), then merge hardcoded defaults.
@@ -149,6 +150,10 @@ pub struct BashTool {
     strict_policy: bool,
 }
 
+fn command_audit_preview(command: &str) -> String {
+    prefix_chars_with_ellipsis(command, 200)
+}
+
 impl BashTool {
     pub fn new(
         default_timeout_ms: u64,
@@ -217,7 +222,7 @@ impl Tool for BashTool {
             let detail = format!(
                 "Bash command references protected files: {:?} (cmd: {})",
                 suspicious,
-                &command[..command.floor_char_boundary(command.len().min(200))]
+                command_audit_preview(command)
             );
             let _ = security::append_audit_entry_with_detail(
                 &self.state_dir,
@@ -683,5 +688,23 @@ impl Tool for EditFileTool {
             count,
             real_path.display()
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_audit_preview_preserves_short_command() {
+        assert_eq!(command_audit_preview("echo hello"), "echo hello");
+    }
+
+    #[test]
+    fn command_audit_preview_truncates_multibyte_by_characters() {
+        let preview = command_audit_preview(&"✅".repeat(201));
+
+        assert_eq!(preview.chars().filter(|&c| c == '✅').count(), 200);
+        assert!(preview.ends_with("..."));
     }
 }

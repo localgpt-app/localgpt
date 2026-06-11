@@ -275,7 +275,7 @@ mod tests {
     fn test_invalid_key_file_wrong_size() {
         let tmp = TempDir::new().unwrap();
         let key_path = tmp.path().join("bad.key");
-        std::fs::write(&key_path, &[0u8; 16]).unwrap(); // Wrong size
+        std::fs::write(&key_path, [0u8; 16]).unwrap(); // Wrong size
 
         let result = EncryptionKey::load(&key_path);
         assert!(result.is_err());

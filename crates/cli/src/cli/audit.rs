@@ -8,6 +8,7 @@ use clap::{Args, Subcommand};
 
 use localgpt_core::config::Config;
 use localgpt_core::security;
+use localgpt_core::text::prefix_chars;
 
 #[derive(Args)]
 pub struct AuditArgs {
@@ -33,6 +34,10 @@ pub enum AuditCommands {
 
     /// Show compaction statistics
     Stats,
+}
+
+fn hash_preview(hash: &str) -> String {
+    prefix_chars(hash, 16)
 }
 
 pub async fn run(args: AuditArgs) -> Result<()> {
@@ -65,7 +70,7 @@ async fn show_compaction(limit: usize, json_output: bool) -> Result<()> {
                 serde_json::json!({
                     "ts": entry.ts,
                     "source": entry.source,
-                    "prev_entry_sha256": &entry.prev_entry_sha256[..entry.prev_entry_sha256.len().min(16)],
+                    "prev_entry_sha256": hash_preview(&entry.prev_entry_sha256),
                     "detail": detail,
                 })
             })
@@ -99,7 +104,7 @@ async fn show_compaction(limit: usize, json_output: bool) -> Result<()> {
                 }
                 println!(
                     "    chain:    {}...",
-                    &entry.prev_entry_sha256[..entry.prev_entry_sha256.len().min(16)]
+                    hash_preview(&entry.prev_entry_sha256)
                 );
             } else {
                 println!("    (detail not available)");
@@ -168,4 +173,27 @@ async fn show_stats() -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hash_preview_preserves_short_hash() {
+        assert_eq!(hash_preview("abc123"), "abc123");
+    }
+
+    #[test]
+    fn hash_preview_truncates_ascii_hash() {
+        assert_eq!(hash_preview("0123456789abcdefextra"), "0123456789abcdef");
+    }
+
+    #[test]
+    fn hash_preview_truncates_multibyte_without_panicking() {
+        assert_eq!(
+            hash_preview("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅"),
+            "✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅"
+        );
+    }
 }

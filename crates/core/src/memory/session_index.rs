@@ -15,6 +15,9 @@ use super::backend::MemoryBackend;
 /// Maximum exchanges per chunk (user + assistant = 1 exchange).
 const EXCHANGES_PER_CHUNK: usize = 3;
 
+/// Maximum characters from each user or assistant message in an indexed chunk.
+const MAX_INDEXED_MESSAGE_CHARS: usize = 500;
+
 /// State file tracking which sessions have been indexed.
 const STATE_FILE: &str = "indexed_sessions.json";
 
@@ -257,28 +260,23 @@ fn group_into_chunks(exchanges: &[Exchange], agent_id: &str, session_id: &str) -
 
             for exchange in group {
                 chunk.push_str("User: ");
-                // Truncate very long messages
-                if exchange.user.len() > 500 {
-                    chunk.push_str(&exchange.user[..exchange.user.floor_char_boundary(500)]);
-                    chunk.push_str("...");
-                } else {
-                    chunk.push_str(&exchange.user);
-                }
+                push_message_preview(&mut chunk, &exchange.user, MAX_INDEXED_MESSAGE_CHARS);
                 chunk.push_str("\n\nAssistant: ");
-                if exchange.assistant.len() > 500 {
-                    chunk.push_str(
-                        &exchange.assistant[..exchange.assistant.floor_char_boundary(500)],
-                    );
-                    chunk.push_str("...");
-                } else {
-                    chunk.push_str(&exchange.assistant);
-                }
+                push_message_preview(&mut chunk, &exchange.assistant, MAX_INDEXED_MESSAGE_CHARS);
                 chunk.push_str("\n\n");
             }
 
             chunk
         })
         .collect()
+}
+
+fn push_message_preview(chunk: &mut String, message: &str, max_chars: usize) {
+    let mut chars = message.chars();
+    chunk.extend(chars.by_ref().take(max_chars));
+    if chars.next().is_some() {
+        chunk.push_str("...");
+    }
 }
 
 #[cfg(test)]
@@ -404,6 +402,21 @@ mod tests {
         let chunks = group_into_chunks(&exchanges, "main", "test");
         assert!(chunks[0].contains("..."));
         assert!(chunks[0].len() < 1500); // Should be truncated
+    }
+
+    #[test]
+    fn test_long_multibyte_messages_truncated_in_chunks() {
+        let long_text = "✅".repeat(1000);
+        let exchanges = vec![Exchange {
+            user: long_text.clone(),
+            assistant: long_text,
+            timestamp: None,
+        }];
+
+        let chunks = group_into_chunks(&exchanges, "main", "test");
+
+        assert_eq!(chunks[0].matches("...").count(), 2);
+        assert_eq!(chunks[0].chars().filter(|&c| c == '✅').count(), 1000);
     }
 
     #[test]

@@ -6,6 +6,7 @@
 //! without requiring the agent to explicitly call memory_search.
 
 use super::MemoryChunk;
+use crate::text::prefix_chars_cow;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -128,11 +129,7 @@ pub fn build_query(
                 .saturating_sub(config.max_recent_turns);
             for (role, content) in &recent_messages[start..] {
                 // Truncate each turn to avoid excessive query length
-                let truncated = if content.len() > 200 {
-                    &content[..200]
-                } else {
-                    content.as_str()
-                };
+                let truncated = prefix_chars_cow(content, 200);
                 parts.push(format!("{}: {}", role, truncated));
             }
             parts.push(format!("user: {}", user_message));
@@ -156,17 +153,19 @@ pub fn format_recalled_context(chunks: &[MemoryChunk], max_chars: usize) -> Opti
             continue;
         }
 
-        if total_chars + entry.len() > max_chars {
+        let entry_chars = entry.chars().count();
+        if total_chars + entry_chars > max_chars {
             // Include partial last entry if we have room
             let remaining = max_chars.saturating_sub(total_chars);
             if remaining > 50 {
-                parts.push(format!("- {}...", &entry[..remaining.min(entry.len())]));
+                let prefix = prefix_chars_cow(entry, remaining);
+                parts.push(format!("- {prefix}..."));
             }
             break;
         }
 
         parts.push(format!("- {}", entry));
-        total_chars += entry.len();
+        total_chars += entry_chars;
     }
 
     if parts.is_empty() {
@@ -223,6 +222,21 @@ mod tests {
     }
 
     #[test]
+    fn test_build_query_recent_mode_truncates_multibyte_chars() {
+        let config = ActiveMemoryConfig {
+            query_mode: QueryMode::Recent,
+            max_recent_turns: 1,
+            ..Default::default()
+        };
+        let recent = vec![("user".to_string(), "✅".repeat(201))];
+
+        let query = build_query("current", &recent, &config);
+
+        assert_eq!(query.matches('✅').count(), 200);
+        assert!(query.contains("user: current"));
+    }
+
+    #[test]
     fn test_format_recalled_context_empty() {
         assert!(format_recalled_context(&[], 500).is_none());
     }
@@ -268,6 +282,24 @@ mod tests {
         let result = format_recalled_context(&chunks, 100).unwrap();
         // Should be truncated
         assert!(result.len() < 600);
+        assert!(result.contains("..."));
+    }
+
+    #[test]
+    fn test_format_recalled_context_truncates_multibyte_chars() {
+        let chunks = vec![MemoryChunk {
+            file: "test.md".to_string(),
+            line_start: 1,
+            line_end: 1,
+            content: "✅".repeat(200),
+            score: 0.9,
+            updated_at: 0,
+        }];
+
+        let result = format_recalled_context(&chunks, 100).unwrap();
+
+        assert_eq!(result.matches('✅').count(), 100);
+        assert!(result.contains("- ✅"));
         assert!(result.contains("..."));
     }
 

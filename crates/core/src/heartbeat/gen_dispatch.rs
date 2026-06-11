@@ -14,6 +14,8 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result};
 use tracing::{debug, info, warn};
 
+use crate::text::prefix_chars_with_ellipsis;
+
 /// Detect if HEARTBEAT.md content contains gen experiment entries.
 ///
 /// Mirrors the heuristic from `localgpt-gen::experiment::has_gen_experiments`
@@ -225,11 +227,7 @@ pub fn update_heartbeat_entry(
             .lines()
             .next()
             .unwrap_or("unknown error");
-        let truncated = if error_note.len() > 80 {
-            format!("{}...", &error_note[..error_note.floor_char_boundary(80)])
-        } else {
-            error_note.to_string()
-        };
+        let truncated = error_note_preview(error_note);
         lines[line_index] = original.replacen("- [ ]", "- [!]", 1);
         lines[line_index] = format!("{} (FAILED: {})", lines[line_index], truncated);
         warn!(
@@ -239,6 +237,10 @@ pub fn update_heartbeat_entry(
     }
 
     lines.join("\n")
+}
+
+fn error_note_preview(error_note: &str) -> String {
+    prefix_chars_with_ellipsis(error_note, 80)
 }
 
 /// Run gen experiment dispatch as a pre-step in the heartbeat tick.
@@ -371,6 +373,29 @@ mod tests {
         };
         let updated = update_heartbeat_entry(content, 0, &result);
         assert!(updated.starts_with("- [!] Build a castle (FAILED: LLM timeout)"));
+    }
+
+    #[test]
+    fn test_update_heartbeat_failure_truncates_multibyte_error_by_characters() {
+        let content = "- [ ] Build a castle";
+        let result = GenDispatchResult {
+            prompt: "Build a castle".to_string(),
+            success: false,
+            duration: Duration::from_secs(5),
+            error: Some("✅".repeat(81)),
+            output_path: None,
+        };
+
+        let updated = update_heartbeat_entry(content, 0, &result);
+
+        assert!(updated.starts_with("- [!] Build a castle (FAILED: "));
+        assert_eq!(updated.chars().filter(|&c| c == '✅').count(), 80);
+        assert!(updated.contains("...)"));
+    }
+
+    #[test]
+    fn test_error_note_preview_preserves_exact_limit() {
+        assert_eq!(error_note_preview(&"x".repeat(80)), "x".repeat(80));
     }
 
     #[test]

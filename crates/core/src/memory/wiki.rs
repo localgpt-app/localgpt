@@ -234,6 +234,9 @@ impl WikiStore {
         evidence_source: Option<&str>,
         evidence_excerpt: Option<&str>,
     ) -> Result<String> {
+        let text = validate_claim_text(text)?;
+        let confidence = validate_claim_confidence(confidence)?;
+        let evidence = normalize_evidence(evidence_source, evidence_excerpt);
         let conn = self.conn.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
 
         // Check for duplicate via FTS5 — exact or very similar text
@@ -259,7 +262,7 @@ impl WikiStore {
             )?;
 
             // Add new evidence if provided
-            if let (Some(source), Some(excerpt)) = (evidence_source, evidence_excerpt) {
+            if let Some((source, excerpt)) = evidence {
                 conn.execute(
                     "INSERT INTO wiki_evidence (claim_id, source, excerpt, weight, added_at) VALUES (?1, ?2, ?3, ?4, ?5)",
                     params![id, source, excerpt, 0.5f32, now],
@@ -284,7 +287,7 @@ impl WikiStore {
             )?;
 
             // Add evidence if provided
-            if let (Some(source), Some(excerpt)) = (evidence_source, evidence_excerpt) {
+            if let Some((source, excerpt)) = evidence {
                 conn.execute(
                     "INSERT INTO wiki_evidence (claim_id, source, excerpt, weight, added_at) VALUES (?1, ?2, ?3, ?4, ?5)",
                     params![id, source, excerpt, 0.5f32, now],
@@ -303,6 +306,11 @@ impl WikiStore {
         include_stale: bool,
         limit: usize,
     ) -> Result<Vec<Claim>> {
+        let query = query.trim();
+        if query.is_empty() || limit == 0 {
+            return Ok(Vec::new());
+        }
+
         let conn = self.conn.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
         let now = Self::now_secs();
 
@@ -317,7 +325,9 @@ impl WikiStore {
         let mut stmt =
             conn.prepare("SELECT id FROM wiki_claims_fts WHERE wiki_claims_fts MATCH ?1 LIMIT ?2")?;
         let ids: Vec<String> = stmt
-            .query_map(params![fts_query, (limit * 2) as i64], |row| row.get(0))?
+            .query_map(params![fts_query, search_candidate_limit(limit)], |row| {
+                row.get(0)
+            })?
             .filter_map(|r| r.ok())
             .collect();
 
@@ -432,8 +442,9 @@ impl WikiStore {
             .collect();
 
         // Breakdown by freshness
-        let fresh_cutoff = now - (self.fresh_days as i64 * 86400);
-        let stale_cutoff = now - (self.stale_days as i64 * 86400);
+        let effective_stale_days = self.stale_days.max(self.fresh_days);
+        let fresh_cutoff = freshness_cutoff(now, self.fresh_days);
+        let stale_cutoff = freshness_cutoff(now, effective_stale_days);
 
         let fresh_count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM wiki_claims WHERE updated_at >= ?1",
@@ -487,9 +498,50 @@ impl WikiStore {
     }
 }
 
+fn validate_claim_text(text: &str) -> Result<&str> {
+    let text = text.trim();
+    if text.is_empty() {
+        anyhow::bail!("Claim text cannot be empty");
+    }
+    Ok(text)
+}
+
+fn validate_claim_confidence(confidence: f32) -> Result<f32> {
+    if !confidence.is_finite() || !(0.0..=1.0).contains(&confidence) {
+        anyhow::bail!("confidence must be between 0.0 and 1.0, got {confidence}");
+    }
+    Ok(confidence)
+}
+
+fn search_candidate_limit(limit: usize) -> i64 {
+    i64::try_from(limit.saturating_mul(2)).unwrap_or(i64::MAX)
+}
+
+fn normalize_evidence<'a>(
+    source: Option<&'a str>,
+    excerpt: Option<&'a str>,
+) -> Option<(&'a str, &'a str)> {
+    let source = source?.trim();
+    let excerpt = excerpt?.trim();
+    if source.is_empty() || excerpt.is_empty() {
+        None
+    } else {
+        Some((source, excerpt))
+    }
+}
+
+fn freshness_cutoff(now: i64, days: u32) -> i64 {
+    now.saturating_sub(days as i64 * 86400)
+}
+
 /// Compute freshness from timestamps and thresholds (pure function for testing).
 pub fn freshness_at(updated_at: i64, now: i64, fresh_days: u32, stale_days: u32) -> Freshness {
-    let age_days = (now - updated_at) / 86400;
+    let age_secs = now.saturating_sub(updated_at);
+    if age_secs <= 0 {
+        return Freshness::Fresh;
+    }
+
+    let age_days = age_secs / 86400;
     if age_days < fresh_days as i64 {
         Freshness::Fresh
     } else if age_days < stale_days as i64 {
@@ -531,6 +583,148 @@ mod tests {
         assert_eq!(results[0].id, id);
         assert_eq!(results[0].evidence.len(), 1);
         assert_eq!(results[0].evidence[0].source, "docs");
+    }
+
+    #[test]
+    fn test_add_claim_rejects_empty_text() {
+        let (store, _dir) = test_store();
+
+        for text in ["", "   ", "\t\n"] {
+            let err = store
+                .add_claim(text, ClaimCategory::Fact, 0.8, None, None)
+                .unwrap_err()
+                .to_string();
+            assert!(
+                err.contains("Claim text cannot be empty"),
+                "unexpected error: {err}"
+            );
+        }
+
+        assert_eq!(store.claim_count().unwrap(), 0);
+    }
+
+    #[test]
+    fn test_add_claim_rejects_invalid_confidence() {
+        let (store, _dir) = test_store();
+
+        for confidence in [-0.1, 1.1, f32::NAN, f32::INFINITY] {
+            let err = store
+                .add_claim(
+                    "Rust is useful",
+                    ClaimCategory::Fact,
+                    confidence,
+                    None,
+                    None,
+                )
+                .unwrap_err()
+                .to_string();
+            assert!(
+                err.contains("confidence must be between 0.0 and 1.0"),
+                "unexpected error: {err}"
+            );
+        }
+
+        assert_eq!(store.claim_count().unwrap(), 0);
+    }
+
+    #[test]
+    fn test_add_claim_trims_text_before_storage() {
+        let (store, _dir) = test_store();
+
+        store
+            .add_claim("  Rust is useful  ", ClaimCategory::Fact, 0.8, None, None)
+            .unwrap();
+
+        let results = store.search("Rust useful", None, false, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].text, "Rust is useful");
+    }
+
+    #[test]
+    fn test_add_claim_trims_evidence_before_storage() {
+        let (store, _dir) = test_store();
+
+        store
+            .add_claim(
+                "Rust is useful",
+                ClaimCategory::Fact,
+                0.8,
+                Some(" docs "),
+                Some(" Chapter 3 "),
+            )
+            .unwrap();
+
+        let results = store.search("Rust useful", None, false, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].evidence.len(), 1);
+        assert_eq!(results[0].evidence[0].source, "docs");
+        assert_eq!(results[0].evidence[0].excerpt, "Chapter 3");
+    }
+
+    #[test]
+    fn test_add_claim_skips_blank_evidence() {
+        let (store, _dir) = test_store();
+
+        store
+            .add_claim(
+                "Rust is useful",
+                ClaimCategory::Fact,
+                0.8,
+                Some("   "),
+                Some("Chapter 3"),
+            )
+            .unwrap();
+        store
+            .add_claim(
+                "Rust is useful",
+                ClaimCategory::Fact,
+                0.9,
+                Some("docs"),
+                Some("   "),
+            )
+            .unwrap();
+
+        let results = store.search("Rust useful", None, false, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].evidence.is_empty());
+    }
+
+    #[test]
+    fn test_search_empty_query_returns_empty() {
+        let (store, _dir) = test_store();
+
+        store
+            .add_claim("Rust is useful", ClaimCategory::Fact, 0.8, None, None)
+            .unwrap();
+
+        for query in ["", "   ", "\t\n"] {
+            let results = store.search(query, None, false, 10).unwrap();
+            assert!(results.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_search_zero_limit_returns_empty() {
+        let (store, _dir) = test_store();
+
+        store
+            .add_claim("Rust is useful", ClaimCategory::Fact, 0.8, None, None)
+            .unwrap();
+
+        let results = store.search("Rust", None, false, 0).unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_search_huge_limit_does_not_overflow() {
+        let (store, _dir) = test_store();
+
+        store
+            .add_claim("Rust is useful", ClaimCategory::Fact, 0.8, None, None)
+            .unwrap();
+
+        let results = store.search("Rust", None, false, usize::MAX).unwrap();
+        assert_eq!(results.len(), 1);
     }
 
     #[test]
@@ -609,6 +803,18 @@ mod tests {
     }
 
     #[test]
+    fn test_freshness_treats_future_timestamp_as_fresh() {
+        let now = 1_000_000;
+
+        assert_eq!(freshness_at(now + 86400, now, 30, 90), Freshness::Fresh);
+    }
+
+    #[test]
+    fn test_freshness_handles_extreme_old_timestamp() {
+        assert_eq!(freshness_at(i64::MIN, 0, 30, 90), Freshness::Stale);
+    }
+
+    #[test]
     fn test_stale_filtering() {
         let (store, _dir) = test_store();
 
@@ -657,6 +863,51 @@ mod tests {
                 .iter()
                 .any(|(k, v)| k == "fresh" && *v == 3)
         );
+    }
+
+    #[test]
+    fn test_status_freshness_counts_do_not_overlap_when_thresholds_inverted() {
+        let dir = TempDir::new().unwrap();
+        let store = WikiStore::new(&dir.path().join("wiki_test.sqlite"), 90, 30).unwrap();
+
+        let fresh_id = store
+            .add_claim("Recent claim", ClaimCategory::Fact, 0.9, None, None)
+            .unwrap();
+        let still_fresh_id = store
+            .add_claim("Middle aged claim", ClaimCategory::Fact, 0.8, None, None)
+            .unwrap();
+        let stale_id = store
+            .add_claim("Old claim", ClaimCategory::Fact, 0.7, None, None)
+            .unwrap();
+
+        let now = WikiStore::now_secs();
+        {
+            let conn = store.conn.lock().unwrap();
+            for (id, age_days) in [
+                (fresh_id, 10_i64),
+                (still_fresh_id, 45_i64),
+                (stale_id, 100_i64),
+            ] {
+                conn.execute(
+                    "UPDATE wiki_claims SET updated_at = ?1 WHERE id = ?2",
+                    params![now - age_days * 86400, id],
+                )
+                .unwrap();
+            }
+        }
+
+        let status = store.status().unwrap();
+        let freshness_count = |name: &str| {
+            status
+                .by_freshness
+                .iter()
+                .find_map(|(key, count)| (key == name).then_some(*count))
+                .unwrap()
+        };
+
+        assert_eq!(freshness_count("fresh"), 2);
+        assert_eq!(freshness_count("aging"), 0);
+        assert_eq!(freshness_count("stale"), 1);
     }
 
     #[test]

@@ -1,6 +1,7 @@
 //! Status view - show model, memory, and session stats
 
 use eframe::egui::{Color32, ProgressBar, RichText, Ui};
+use localgpt_core::text::prefix_chars;
 
 use crate::desktop::state::{UiMessage, UiState};
 
@@ -47,8 +48,9 @@ impl StatusView {
         // Session info
         if let Some(ref status) = state.status {
             ui.group(|ui| {
+                let short_id = prefix_chars(&status.id, 8);
                 ui.label(RichText::new("Session").strong());
-                ui.label(format!("ID: {}...", &status.id[..8.min(status.id.len())]));
+                ui.label(format!("ID: {short_id}..."));
                 ui.label(format!("Messages: {}", status.message_count));
                 ui.label(format!("Compactions: {}", status.compaction_count));
 

@@ -9,6 +9,7 @@
 //! 2. Extract signals via regex patterns
 //! 3. Append to memory/dreaming/YYYY-MM-DD.md
 
+use crate::text::{ellipsize_chars, prefix_chars_cow};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use regex::Regex;
@@ -155,16 +156,13 @@ impl SignalClassifier {
 
         // Only classify user messages (they contain the user's intent/preferences)
         // Skip very short messages
-        if content.len() < 15 {
+        if content.chars().count() < 15 {
             return signals;
         }
 
         // Truncate very long messages to first 500 chars for pattern matching
-        let text = if content.len() > 500 {
-            &content[..500]
-        } else {
-            content
-        };
+        let text = prefix_chars_cow(content, 500);
+        let text = text.as_ref();
 
         for pattern in &self.preference_patterns {
             if pattern.is_match(text) {
@@ -222,12 +220,10 @@ impl Default for SignalClassifier {
 
 /// Truncate a signal content to a reasonable length
 fn truncate_signal(content: &str) -> String {
+    const MAX_SIGNAL_CHARS: usize = 200;
+
     let trimmed = content.trim();
-    if trimmed.len() <= 200 {
-        trimmed.to_string()
-    } else {
-        format!("{}...", &trimmed[..197])
-    }
+    ellipsize_chars(trimmed, MAX_SIGNAL_CHARS)
 }
 
 /// Run a single dreaming sweep: scan sessions, extract signals, write to memory
@@ -532,6 +528,15 @@ mod tests {
     }
 
     #[test]
+    fn test_signal_classifier_long_multibyte_message() {
+        let classifier = SignalClassifier::new();
+        let content = format!("{} I prefer dark mode", "✅".repeat(600));
+        let signals = classifier.classify(&content, "s1");
+
+        assert!(signals.is_empty());
+    }
+
+    #[test]
     fn test_signal_classifier_no_match() {
         let classifier = SignalClassifier::new();
         let signals = classifier.classify("Can you explain how async works in Rust?", "s1");
@@ -627,7 +632,17 @@ mod tests {
 
         let long = "a".repeat(300);
         let truncated = truncate_signal(&long);
-        assert!(truncated.len() <= 200 + 3); // 200 chars + "..."
+        assert_eq!(truncated.chars().count(), 200);
         assert!(truncated.ends_with("..."));
+    }
+
+    #[test]
+    fn test_truncate_signal_does_not_split_multibyte_chars() {
+        let long = "✅".repeat(300);
+        let truncated = truncate_signal(&long);
+
+        assert_eq!(truncated.chars().count(), 200);
+        assert!(truncated.ends_with("..."));
+        assert_eq!(truncated.chars().filter(|&ch| ch == '✅').count(), 197);
     }
 }

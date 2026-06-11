@@ -50,6 +50,7 @@ use tracing::{debug, info, warn};
 
 use crate::config::{Config, SearchProviderType};
 use crate::memory::{MemoryChunk, MemoryManager};
+use crate::text::prefix_chars;
 
 /// Soft threshold buffer before compaction (tokens)
 /// Memory flush runs when within this buffer of the hard limit
@@ -1570,8 +1571,14 @@ impl Agent {
     }
 
     fn should_compact(&self) -> bool {
-        self.session.token_count()
-            > (self.config.context_window - self.config.reserve_tokens - SECURITY_BLOCK_RESERVE)
+        self.session.token_count() > self.input_token_budget()
+    }
+
+    fn input_token_budget(&self) -> usize {
+        self.config
+            .context_window
+            .saturating_sub(self.config.reserve_tokens)
+            .saturating_sub(SECURITY_BLOCK_RESERVE)
     }
 
     /// Search memory using the user's message and inject recalled context
@@ -1650,8 +1657,7 @@ impl Agent {
 
     /// Check if we should run pre-compaction memory flush (soft threshold)
     fn should_memory_flush(&self) -> bool {
-        let hard_limit =
-            self.config.context_window - self.config.reserve_tokens - SECURITY_BLOCK_RESERVE;
+        let hard_limit = self.input_token_budget();
         let soft_limit = hard_limit.saturating_sub(MEMORY_FLUSH_SOFT_THRESHOLD);
 
         self.session.token_count() > soft_limit && self.session.should_memory_flush()
@@ -1859,10 +1865,7 @@ impl Agent {
             // Only truncate if max_chars > 0 (0 = unlimited, preserves full content)
             let (msg_content, truncated) =
                 if max_chars > 0 && msg.content.chars().count() > max_chars {
-                    (
-                        msg.content.chars().take(max_chars).collect::<String>(),
-                        "...",
-                    )
+                    (prefix_chars(&msg.content, max_chars), "...")
                 } else {
                     (msg.content.clone(), "")
                 };
@@ -2187,76 +2190,73 @@ impl Agent {
                                 // may output these literally instead of answering
                                 let text = filter_silent_reply(text);
 
-                                // No tool calls - yield the text and we're done
-                                yield Ok(StreamEvent::Content(text.clone()));
-                                yield Ok(StreamEvent::Done);
-
-                                // Add to session
+                                // Add to session before yielding Done. Some consumers stop polling
+                                // as soon as they see Done, so code after that yield may never run.
                                 self.session.add_message(Message {
                                     role: Role::Assistant,
-                                    content: text,
+                                    content: text.clone(),
                                     tool_calls: None,
                                     tool_call_id: None,
                                     images: Vec::new(),
                                 });
+
+                                // No tool calls - yield the text and we're done
+                                yield Ok(StreamEvent::Content(text.clone()));
+                                yield Ok(StreamEvent::Done);
                                 break;
                             }
                             LLMResponseContent::ToolCalls { calls, text } => {
-                        // If the model emitted reasoning text alongside tool calls, yield it
-                        if let Some(ref reasoning) = text
-                            && !reasoning.is_empty()
-                        {
-                            yield Ok(StreamEvent::Content(reasoning.clone()));
-                        }
+                                let reasoning = text.unwrap_or_default();
 
-                        // Execute tool calls and collect results
-                        let mut tool_results = Vec::new();
-                        for call in &calls {
-                            yield Ok(StreamEvent::ToolCallStart {
-                                name: call.name.clone(),
-                                id: call.id.clone(),
-                                arguments: call.arguments.clone(),
-                            });
+                                // Record the assistant tool-use intent before streaming any
+                                // related event. If the stream is dropped mid-turn, the session
+                                // still has the provider-required assistant(tool_use) entry.
+                                self.session.add_message(Message {
+                                    role: Role::Assistant,
+                                    content: reasoning.clone(),
+                                    tool_calls: Some(calls.clone()),
+                                    tool_call_id: None,
+                                    images: Vec::new(),
+                                });
 
-                            // Execute tool
-                            let result = self.execute_tool(call).await;
-                            let (output, warnings) = match result {
-                                Ok((content, warnings)) => (content, warnings),
-                                Err(e) => (format!("Error: {}", e), Vec::new()),
-                            };
+                                if !reasoning.is_empty() {
+                                    yield Ok(StreamEvent::Content(reasoning));
+                                }
 
-                            yield Ok(StreamEvent::ToolCallEnd {
-                                name: call.name.clone(),
-                                id: call.id.clone(),
-                                output: output.clone(),
-                                warnings,
-                            });
+                                for call in &calls {
+                                    yield Ok(StreamEvent::ToolCallStart {
+                                        name: call.name.clone(),
+                                        id: call.id.clone(),
+                                        arguments: call.arguments.clone(),
+                                    });
 
-                            tool_results.push((call.id.clone(), output));
-                        }
+                                    // Execute tool
+                                    let result = self.execute_tool(call).await;
+                                    let (output, warnings) = match result {
+                                        Ok((content, warnings)) => (content, warnings),
+                                        Err(e) => (format!("Error: {}", e), Vec::new()),
+                                    };
 
-                        // Add assistant message first (with tool_calls), then tool results
-                        // This matches the ordering in handle_response() and satisfies
-                        // the Anthropic API requirement: assistant(tool_use) → user(tool_result)
-                        self.session.add_message(Message {
-                            role: Role::Assistant,
-                            content: text.unwrap_or_default(),
-                            tool_calls: Some(calls),
-                            tool_call_id: None,
-                            images: Vec::new(),
-                        });
+                                    // Record each tool result before yielding ToolCallEnd so a
+                                    // consumer that stops after that event can still save a
+                                    // protocol-complete partial transcript.
+                                    self.session.add_message(Message {
+                                        role: Role::Tool,
+                                        content: output.clone(),
+                                        tool_calls: None,
+                                        tool_call_id: Some(call.id.clone()),
+                                        images: Vec::new(),
+                                    });
 
-                        for (call_id, output) in tool_results {
-                            self.session.add_message(Message {
-                                role: Role::Tool,
-                                content: output,
-                                tool_calls: None,
-                                tool_call_id: Some(call_id),
-                                images: Vec::new(),
-                            });
-                        }
+                                    yield Ok(StreamEvent::ToolCallEnd {
+                                        name: call.name.clone(),
+                                        id: call.id.clone(),
+                                        output,
+                                        warnings,
+                                    });
+                                }
 
-                        // Continue loop to get next response
+                                // Continue loop to get next response
                             }
                         }
                     }
@@ -2400,7 +2400,141 @@ I'll save what I learn to MEMORY.md so I remember it next time."#;
 
 #[cfg(test)]
 mod tests {
-    use super::{LoopDetector, ToolErrorTracker};
+    use super::*;
+    use async_trait::async_trait;
+    use futures::StreamExt;
+    use std::collections::VecDeque;
+    use std::sync::Arc;
+
+    struct SingleTextProvider {
+        text: std::sync::Mutex<Option<String>>,
+    }
+
+    impl SingleTextProvider {
+        fn new(text: &str) -> Self {
+            Self {
+                text: std::sync::Mutex::new(Some(text.to_string())),
+            }
+        }
+    }
+
+    struct SequenceProvider {
+        responses: std::sync::Mutex<VecDeque<LLMResponse>>,
+    }
+
+    impl SequenceProvider {
+        fn new(responses: Vec<LLMResponse>) -> Self {
+            Self {
+                responses: std::sync::Mutex::new(responses.into()),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for SequenceProvider {
+        fn name(&self) -> String {
+            "sequence".to_string()
+        }
+
+        async fn chat(
+            &self,
+            _messages: &[Message],
+            _tools: Option<&[ToolSchema]>,
+        ) -> anyhow::Result<LLMResponse> {
+            self.responses
+                .lock()
+                .expect("mock provider mutex should not be poisoned")
+                .pop_front()
+                .ok_or_else(|| anyhow::anyhow!("mock provider exhausted"))
+        }
+
+        async fn summarize(&self, _text: &str) -> anyhow::Result<String> {
+            Ok(String::new())
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for SingleTextProvider {
+        fn name(&self) -> String {
+            "single-text".to_string()
+        }
+
+        async fn chat(
+            &self,
+            _messages: &[Message],
+            _tools: Option<&[ToolSchema]>,
+        ) -> anyhow::Result<LLMResponse> {
+            let text = self
+                .text
+                .lock()
+                .expect("mock provider mutex should not be poisoned")
+                .take()
+                .ok_or_else(|| anyhow::anyhow!("mock provider exhausted"))?;
+            Ok(LLMResponse::text(text))
+        }
+
+        async fn summarize(&self, _text: &str) -> anyhow::Result<String> {
+            Ok(String::new())
+        }
+    }
+
+    fn test_paths(root: &std::path::Path) -> crate::paths::Paths {
+        crate::paths::Paths {
+            config_dir: root.join("config"),
+            data_dir: root.join("data"),
+            workspace: root.join("workspace"),
+            state_dir: root.join("state"),
+            cache_dir: root.join("cache"),
+            runtime_dir: Some(root.join("runtime")),
+        }
+    }
+
+    fn test_agent(provider: Box<dyn LLMProvider>) -> Agent {
+        let tmp = tempfile::tempdir().expect("tempdir should be created");
+        let mut app_config = crate::config::Config {
+            paths: test_paths(tmp.path()),
+            ..Default::default()
+        };
+        app_config.memory.backend = crate::config::MemoryBackendKind::None;
+        app_config.security.disable_policy = true;
+        app_config.agent.max_tool_repeats = 0;
+        app_config.agent.max_tool_errors = 0;
+
+        let memory = Arc::new(
+            crate::memory::MemoryManager::new_with_full_config(
+                &app_config.memory,
+                Some(&app_config),
+                "test",
+            )
+            .expect("test memory manager should initialize"),
+        );
+
+        let agent_config = AgentConfig {
+            model: "mock".to_string(),
+            context_window: 20_000,
+            reserve_tokens: 0,
+        };
+
+        Agent {
+            config: agent_config,
+            app_config,
+            provider,
+            session: Session::new(),
+            memory,
+            tools: Vec::new(),
+            cumulative_usage: Usage::default(),
+            search_queries: 0,
+            search_cached_hits: 0,
+            search_cost_usd: 0.0,
+            verified_security_policy: None,
+            loop_detector: LoopDetector::new(0),
+            tool_error_tracker: ToolErrorTracker::new(0),
+            recall_cache: crate::memory::active_recall::RecallCache::new(0),
+            approval_gate: None,
+            approval_cache: approval::ApprovalCache::new(),
+            permission_level: tools::PermissionLevel::Safe,
+        }
+    }
 
     #[test]
     fn loop_detector_triggers_at_threshold() {
@@ -2461,6 +2595,146 @@ mod tests {
         }
         ld.record("gen_scene_info", "{}");
         assert!(ld.is_stuck(), "should trigger at call 20");
+    }
+
+    #[tokio::test]
+    async fn chat_stream_with_tools_records_assistant_before_stream_completion_signal() {
+        let mut agent = test_agent(Box::new(SingleTextProvider::new("assistant reply")));
+
+        {
+            let stream = agent
+                .chat_stream_with_tools("hello", Vec::new())
+                .await
+                .expect("stream should start");
+            let mut stream = std::pin::pin!(stream);
+
+            match stream
+                .next()
+                .await
+                .expect("stream should yield content")
+                .expect("stream event should be ok")
+            {
+                StreamEvent::Content(text) => assert_eq!(text, "assistant reply"),
+                other => panic!("expected content event before completion, got {other:?}"),
+            }
+        }
+
+        let messages = agent.session.messages();
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].role, Role::User);
+        assert_eq!(messages[0].content, "hello");
+        assert_eq!(messages[1].role, Role::Assistant);
+        assert_eq!(messages[1].content, "assistant reply");
+    }
+
+    #[tokio::test]
+    async fn chat_stream_with_tools_records_tool_messages_before_tool_end_event() {
+        let call = ToolCall {
+            id: "call_1".to_string(),
+            name: "missing_tool".to_string(),
+            arguments: "{}".to_string(),
+        };
+        let response = LLMResponse {
+            content: LLMResponseContent::ToolCalls {
+                calls: vec![call.clone()],
+                text: Some("checking tools".to_string()),
+            },
+            usage: None,
+        };
+        let mut agent = test_agent(Box::new(SequenceProvider::new(vec![response])));
+
+        {
+            let stream = agent
+                .chat_stream_with_tools("hello", Vec::new())
+                .await
+                .expect("stream should start");
+            let mut stream = std::pin::pin!(stream);
+
+            match stream
+                .next()
+                .await
+                .expect("stream should yield reasoning")
+                .expect("stream event should be ok")
+            {
+                StreamEvent::Content(text) => assert_eq!(text, "checking tools"),
+                other => panic!("expected reasoning content, got {other:?}"),
+            }
+
+            match stream
+                .next()
+                .await
+                .expect("stream should yield tool start")
+                .expect("stream event should be ok")
+            {
+                StreamEvent::ToolCallStart {
+                    name,
+                    id,
+                    arguments,
+                } => {
+                    assert_eq!(name, "missing_tool");
+                    assert_eq!(id, "call_1");
+                    assert_eq!(arguments, "{}");
+                }
+                other => panic!("expected tool start, got {other:?}"),
+            }
+
+            match stream
+                .next()
+                .await
+                .expect("stream should yield tool end")
+                .expect("stream event should be ok")
+            {
+                StreamEvent::ToolCallEnd {
+                    name,
+                    id,
+                    output,
+                    warnings,
+                } => {
+                    assert_eq!(name, "missing_tool");
+                    assert_eq!(id, "call_1");
+                    assert!(output.contains("Unknown tool"));
+                    assert!(warnings.is_empty());
+                }
+                other => panic!("expected tool end, got {other:?}"),
+            }
+        }
+
+        let messages = agent.session.messages();
+        assert_eq!(messages.len(), 3);
+        assert_eq!(messages[0].role, Role::User);
+        assert_eq!(messages[1].role, Role::Assistant);
+        assert_eq!(messages[1].content, "checking tools");
+        let tool_calls = messages[1]
+            .tool_calls
+            .as_ref()
+            .expect("assistant message should preserve tool calls");
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(tool_calls[0].id, call.id);
+        assert_eq!(messages[2].role, Role::Tool);
+        assert_eq!(messages[2].tool_call_id.as_deref(), Some("call_1"));
+        assert!(messages[2].content.contains("Unknown tool"));
+    }
+
+    #[test]
+    fn compaction_thresholds_saturate_for_undersized_context_window() {
+        let mut agent = test_agent(Box::new(SingleTextProvider::new("unused")));
+        agent.config.context_window = 100;
+        agent.config.reserve_tokens = 200;
+
+        assert_eq!(agent.input_token_budget(), 0);
+        assert!(!agent.should_compact());
+        assert!(!agent.should_memory_flush());
+
+        agent.session.add_message(Message {
+            role: Role::User,
+            content: "hello".to_string(),
+            tool_calls: None,
+            tool_call_id: None,
+            images: Vec::new(),
+        });
+
+        assert!(agent.should_compact());
+        assert!(agent.should_memory_flush());
     }
 
     // ToolErrorTracker tests

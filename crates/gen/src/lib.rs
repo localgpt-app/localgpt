@@ -3,6 +3,8 @@
 //! This crate provides in-process 3D rendering and scene composition
 //! controlled by the LLM agent through intent-level tools.
 
+#![allow(clippy::items_after_test_module)]
+
 pub mod character;
 pub mod character_tools;
 pub mod experiment;

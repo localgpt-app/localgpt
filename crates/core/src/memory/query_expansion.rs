@@ -30,7 +30,7 @@ pub fn expand_query_local(query: &str) -> ExpandedQuery {
     let mut seen = HashSet::new();
     let keywords: Vec<String> = tokens
         .into_iter()
-        .filter(|t| t.len() >= 2 && !stop_words.contains(t.as_str()))
+        .filter(|t| t.chars().count() >= 2 && !stop_words.contains(t.as_str()))
         .filter(|t| seen.insert(t.clone()))
         .collect();
 
@@ -391,10 +391,15 @@ Keywords:"#;
 /// Parse an LLM response into an ExpandedQuery.
 /// Used by the agent layer to complete LLM-based expansion.
 pub fn parse_llm_keywords(query: &str, llm_response: &str) -> ExpandedQuery {
+    let lang = detect_language(query);
+    let stop_words = stop_words_for(lang);
+    let mut seen = HashSet::new();
     let keywords: Vec<String> = llm_response
         .split(',')
         .map(|s| s.trim().to_lowercase())
-        .filter(|s| !s.is_empty() && s.len() >= 2)
+        .filter(|s| !s.is_empty() && s.chars().count() >= 2)
+        .filter(|s| !stop_words.contains(s.as_str()))
+        .filter(|s| seen.insert(s.clone()))
         .collect();
 
     if keywords.is_empty() {
@@ -488,6 +493,13 @@ mod tests {
     }
 
     #[test]
+    fn test_single_multibyte_char_query_falls_back_to_original() {
+        let result = expand_query_local("é");
+        assert!(result.keywords.is_empty());
+        assert_eq!(result.fts_query, "é");
+    }
+
+    #[test]
     fn test_fts_query_format() {
         let result = expand_query_local("Rust async runtime error handling");
         // Should produce quoted OR-joined keywords
@@ -512,6 +524,38 @@ mod tests {
         assert_eq!(result.keywords.len(), 5);
         assert!(result.keywords.contains(&"api".to_string()));
         assert!(result.keywords.contains(&"credentials".to_string()));
+    }
+
+    #[test]
+    fn test_parse_llm_keywords_deduplicates_normalized_terms() {
+        let result = parse_llm_keywords("show me API errors", "API, api, Error, error");
+
+        assert_eq!(
+            result.keywords,
+            vec!["api".to_string(), "error".to_string()]
+        );
+        assert_eq!(result.fts_query, "\"api\" OR \"error\"");
+    }
+
+    #[test]
+    fn test_parse_llm_keywords_filters_query_language_stop_words() {
+        let result = parse_llm_keywords(
+            "show me the Rust error from yesterday",
+            "the, rust, from, error, show",
+        );
+
+        assert_eq!(
+            result.keywords,
+            vec!["rust".to_string(), "error".to_string()]
+        );
+        assert_eq!(result.fts_query, "\"rust\" OR \"error\"");
+    }
+
+    #[test]
+    fn test_parse_llm_keywords_filters_single_multibyte_chars() {
+        let result = parse_llm_keywords("show me authentication errors", "é, 中, api");
+
+        assert_eq!(result.keywords, vec!["api".to_string()]);
     }
 
     #[test]

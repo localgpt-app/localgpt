@@ -8,15 +8,22 @@ use serde_json::{Value, json};
 use std::pin::Pin;
 #[cfg(feature = "claude-cli")]
 use std::process::Stdio;
-#[cfg(feature = "claude-cli")]
+#[cfg(any(feature = "claude-cli", feature = "gemini-cli", feature = "codex-cli"))]
 use std::sync::Mutex as StdMutex;
 use std::sync::{Arc, RwLock};
 #[cfg(feature = "claude-cli")]
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tracing::{debug, info};
+use tracing::debug;
+#[cfg(any(feature = "claude-cli", feature = "gemini-cli", feature = "codex-cli"))]
+use tracing::info;
 
 use crate::config::Config;
 use crate::paths::DEFAULT_CONFIG_DIR_STR;
+#[cfg(any(feature = "claude-cli", feature = "gemini-cli"))]
+use crate::text::ellipsize_chars;
+
+#[cfg(any(feature = "claude-cli", feature = "gemini-cli"))]
+const TOOL_DETAIL_PREVIEW_CHARS: usize = 60;
 
 /// Image attachment for multimodal messages
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -416,6 +423,30 @@ fn resolve_model_alias(model: &str) -> String {
         "codex" => "codex-cli/o4-mini".to_string(),
         _ => model.to_string(),
     }
+}
+
+#[cfg(any(feature = "claude-cli", feature = "gemini-cli"))]
+fn tool_detail_preview(detail: &str) -> String {
+    ellipsize_chars(detail, TOOL_DETAIL_PREVIEW_CHARS)
+}
+
+#[cfg(feature = "claude-cli")]
+fn full_text_delta<'a>(current: &'a str, previous: &mut String) -> Option<&'a str> {
+    if current == previous {
+        return None;
+    }
+
+    let previous_len = previous.len();
+    let delta = if current.starts_with(previous.as_str()) {
+        &current[previous_len..]
+    } else {
+        current
+    };
+
+    previous.clear();
+    previous.push_str(current);
+
+    if delta.is_empty() { None } else { Some(delta) }
 }
 
 /// Map OpenClaw model ID to actual API model ID
@@ -2745,7 +2776,7 @@ impl LLMProvider for ClaudeCliProvider {
             let mut lines = reader.lines();
             let mut accumulated_text = String::new();
             let mut session_id_captured: Option<String> = None;
-            let mut last_text_len = 0;
+            let mut emitted_text = String::new();
             let mut shown_tool_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
             let mut pending_tools: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
@@ -2799,7 +2830,7 @@ impl LLMProvider for ClaudeCliProvider {
                                                 match tool_name {
                                                     "Bash" | "run_shell_command" => input.get("command")
                                                         .and_then(|v| v.as_str())
-                                                        .map(|s| if s.len() > 60 { format!("{}...", &s[..s.floor_char_boundary(57)]) } else { s.to_string() }),
+                                                        .map(tool_detail_preview),
                                                     "Read" | "Edit" | "Write" | "read_file" | "replace" | "write_file" => input.get("file_path")
                                                         .or_else(|| input.get("path"))
                                                         .and_then(|v| v.as_str())
@@ -2854,11 +2885,9 @@ impl LLMProvider for ClaudeCliProvider {
                             }
 
                             // Calculate delta (new text since last update)
-                            if accumulated_text.len() > last_text_len {
-                                let delta = accumulated_text[last_text_len..].to_string();
-                                last_text_len = accumulated_text.len();
+                            if let Some(delta) = full_text_delta(&accumulated_text, &mut emitted_text) {
                                 yield Ok(StreamChunk {
-                                    delta,
+                                    delta: delta.to_string(),
                                     done: false,
                                     tool_calls: None,
                                 });
@@ -2916,15 +2945,12 @@ impl LLMProvider for ClaudeCliProvider {
                             // Get final result text (may have more content than accumulated)
                             if let Some(result_text) = json.get("result").and_then(|v| v.as_str()) {
                                 // Emit any remaining text not yet sent
-                                if result_text.len() > last_text_len {
-                                    let delta = result_text[last_text_len..].to_string();
-                                    if !delta.is_empty() {
-                                        yield Ok(StreamChunk {
-                                            delta,
-                                            done: false,
-                                            tool_calls: None,
-                                        });
-                                    }
+                                if let Some(delta) = full_text_delta(result_text, &mut emitted_text) {
+                                    yield Ok(StreamChunk {
+                                        delta: delta.to_string(),
+                                        done: false,
+                                        tool_calls: None,
+                                    });
                                 }
                             }
 
@@ -3373,9 +3399,7 @@ impl LLMProvider for GeminiCliProvider {
 
                                 let params = json.get("parameters");
                                 let detail = match tool_name.as_str() {
-                                    "Bash" | "run_shell_command" => params.and_then(|p| p.get("command")).and_then(|v| v.as_str()).map(|s| {
-                                        if s.len() > 60 { format!("{}...", &s[..s.floor_char_boundary(57)]) } else { s.to_string() }
-                                    }),
+                                    "Bash" | "run_shell_command" => params.and_then(|p| p.get("command")).and_then(|v| v.as_str()).map(tool_detail_preview),
                                     "Read" | "Edit" | "Write" | "read_file" | "replace" | "write_file" => params.and_then(|p| p.get("file_path").or_else(|| p.get("path"))).and_then(|v| v.as_str()).map(|s| s.to_string()),
                                     "Grep" | "Glob" | "grep_search" | "glob" | "list_directory" => params.and_then(|p| p.get("pattern").or_else(|| p.get("dir_path"))).and_then(|v| v.as_str()).map(|s| format!("\"{}\"", s)),
                                     "WebFetch" | "web_fetch" => params.and_then(|p| p.get("url").or_else(|| p.get("prompt"))).and_then(|v| v.as_str()).map(|s| s.to_string()),
@@ -3458,30 +3482,83 @@ impl LLMProvider for GeminiCliProvider {
 }
 
 #[cfg(feature = "codex-cli")]
-/// Parse Codex CLI JSON output, returning (response_text, session_id)
+/// Return the event name and payload for either Codex JSONL event shape:
+/// `{"type":"thread.started", ...}` or `{"thread.started": {...}}`.
+fn codex_cli_event_payload(json: &Value) -> Option<(&str, &Value)> {
+    let obj = json.as_object()?;
+
+    if let Some(event_type) = json.get("type").and_then(|v| v.as_str()) {
+        return Some((event_type, json));
+    }
+
+    if obj.len() == 1 {
+        let (event_type, payload) = obj.iter().next()?;
+        return Some((event_type.as_str(), payload));
+    }
+
+    None
+}
+
+#[cfg(feature = "codex-cli")]
+fn codex_cli_extract_text(json: &Value) -> Option<String> {
+    json.get("response")
+        .and_then(|v| v.as_str())
+        .or_else(|| json.get("result").and_then(|v| v.as_str()))
+        .or_else(|| json.get("message").and_then(|v| v.as_str()))
+        .or_else(|| json.get("text").and_then(|v| v.as_str()))
+        .or_else(|| json.get("content").and_then(|v| v.as_str()))
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+}
+
+#[cfg(feature = "codex-cli")]
+fn codex_cli_extract_session_id(json: &Value) -> Option<String> {
+    json.get("session_id")
+        .or_else(|| json.get("sessionId"))
+        .or_else(|| json.get("conversation_id"))
+        .or_else(|| json.get("conversationId"))
+        .or_else(|| json.get("thread_id"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+}
+
+#[cfg(feature = "codex-cli")]
+fn codex_cli_extract_event_text(event_type: &str, payload: &Value) -> Option<String> {
+    if !matches!(event_type, "item.completed" | "item.updated") {
+        return None;
+    }
+
+    payload
+        .get("item")
+        .and_then(|item| item.get("details"))
+        .and_then(|details| details.get("AgentMessage"))
+        .and_then(|agent_message| agent_message.get("text"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+}
+
+#[cfg(feature = "codex-cli")]
 fn parse_codex_cli_output(
     stdout: &str,
     stderr: &str,
     last_message: Option<&str>,
 ) -> Result<(String, Option<String>)> {
-    fn extract_text(json: &Value) -> Option<String> {
-        json.get("response")
-            .and_then(|v| v.as_str())
-            .or_else(|| json.get("result").and_then(|v| v.as_str()))
-            .or_else(|| json.get("message").and_then(|v| v.as_str()))
-            .or_else(|| json.get("text").and_then(|v| v.as_str()))
-            .or_else(|| json.get("content").and_then(|v| v.as_str()))
-            .map(|s| s.to_string())
-    }
+    fn extract_event_values(json: &Value) -> (Option<String>, Option<String>) {
+        let mut text = codex_cli_extract_text(json);
+        let mut session_id = codex_cli_extract_session_id(json);
 
-    fn extract_session_id(json: &Value) -> Option<String> {
-        json.get("session_id")
-            .or_else(|| json.get("sessionId"))
-            .or_else(|| json.get("conversation_id"))
-            .or_else(|| json.get("conversationId"))
-            .or_else(|| json.get("thread_id"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
+        if let Some((event_type, payload)) = codex_cli_event_payload(json) {
+            if text.is_none() {
+                text = codex_cli_extract_event_text(event_type, payload);
+            }
+            if session_id.is_none() {
+                session_id = codex_cli_extract_session_id(payload);
+            }
+        }
+
+        (text, session_id)
     }
 
     let mut response = last_message
@@ -3498,11 +3575,12 @@ fn parse_codex_cli_output(
 
         // Legacy single-JSON output support.
         if let Ok(json) = serde_json::from_str::<Value>(trimmed) {
+            let (text, parsed_session_id) = extract_event_values(&json);
             if response.is_none() {
-                response = extract_text(&json);
+                response = text;
             }
             if session_id.is_none() {
-                session_id = extract_session_id(&json);
+                session_id = parsed_session_id;
             }
         }
 
@@ -3515,20 +3593,14 @@ fn parse_codex_cli_output(
             let Ok(json) = serde_json::from_str::<Value>(line) else {
                 continue;
             };
+            let (line_text, line_session_id) = extract_event_values(&json);
 
             if session_id.is_none() {
-                if json.get("type").and_then(|v| v.as_str()) == Some("thread.started") {
-                    session_id = json
-                        .get("thread_id")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string());
-                } else {
-                    session_id = extract_session_id(&json);
-                }
+                session_id = line_session_id;
             }
 
             if response.is_none() {
-                response = extract_text(&json);
+                response = line_text;
             }
         }
     }
@@ -3809,23 +3881,14 @@ impl LLMProvider for CodexCliProvider {
                 }
 
                 if let Ok(json) = serde_json::from_str::<Value>(&line) {
-                    // Extract event type based on the first key if it's an object wrapping the event
-                    // or if it has a type field (based on Codex CLI output format).
-                    // Looking at exec_events.rs, it uses #[serde(rename = "...")] on enum variants
-
-                    let event_type = if let Some(obj) = json.as_object() {
-                        if let Some(t) = obj.keys().next() {
-                            t.as_str()
-                        } else {
-                            ""
-                        }
-                    } else {
-                        ""
+                    let Some((event_type, event_payload)) = codex_cli_event_payload(&json) else {
+                        debug!("Ignoring Codex CLI stream event: {}", line);
+                        continue;
                     };
 
                     match event_type {
                         "thread.started" => {
-                            if let Some(thread_id) = json.get("thread.started").and_then(|v| v.get("thread_id")).and_then(|v| v.as_str()) {
+                            if let Some(thread_id) = event_payload.get("thread_id").and_then(|v| v.as_str()) {
                                 session_id_captured = Some(thread_id.to_string());
                                 if let Ok(mut guard) = cli_session_mutex.lock() {
                                     *guard = Some(thread_id.to_string());
@@ -3841,8 +3904,7 @@ impl LLMProvider for CodexCliProvider {
                             }
                         }
                         "item.started" | "item.completed" | "item.updated" => {
-                            let item_event = json.get(event_type).unwrap();
-                            if let Some(item) = item_event.get("item") {
+                            if let Some(item) = event_payload.get("item") {
                                 let id = item.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                 let details = item.get("details");
 
@@ -3914,7 +3976,11 @@ impl LLMProvider for CodexCliProvider {
                             });
                         }
                         "error" => {
-                            let msg = json.get("error").and_then(|v| v.get("message")).and_then(|v| v.as_str()).unwrap_or("Unknown error");
+                            let msg = event_payload
+                                .get("message")
+                                .or_else(|| event_payload.get("error").and_then(|v| v.get("message")))
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Unknown error");
                             yield Err(anyhow::anyhow!("Codex CLI error: {}", msg));
                         }
                         _ => {
@@ -4016,6 +4082,78 @@ mod tests {
             resolve_model_alias("custom-model"),
             "custom-model".to_string()
         );
+    }
+
+    #[cfg(any(feature = "claude-cli", feature = "gemini-cli"))]
+    #[test]
+    fn test_tool_detail_preview_preserves_short_text() {
+        assert_eq!(tool_detail_preview("echo hello"), "echo hello");
+    }
+
+    #[cfg(any(feature = "claude-cli", feature = "gemini-cli"))]
+    #[test]
+    fn test_tool_detail_preview_preserves_exact_limit() {
+        assert_eq!(
+            tool_detail_preview(&"x".repeat(TOOL_DETAIL_PREVIEW_CHARS)),
+            "x".repeat(TOOL_DETAIL_PREVIEW_CHARS)
+        );
+    }
+
+    #[cfg(any(feature = "claude-cli", feature = "gemini-cli"))]
+    #[test]
+    fn test_tool_detail_preview_truncates_multibyte_by_characters() {
+        let preview = tool_detail_preview(&"✅".repeat(TOOL_DETAIL_PREVIEW_CHARS + 1));
+
+        assert_eq!(preview.chars().count(), TOOL_DETAIL_PREVIEW_CHARS);
+        assert_eq!(
+            preview.chars().filter(|&c| c == '✅').count(),
+            TOOL_DETAIL_PREVIEW_CHARS - 3
+        );
+        assert!(preview.ends_with("..."));
+    }
+
+    #[cfg(feature = "claude-cli")]
+    #[test]
+    fn test_full_text_delta_emits_multibyte_suffixes() {
+        let mut previous = String::new();
+
+        assert_eq!(full_text_delta("✅", &mut previous), Some("✅"));
+        assert_eq!(full_text_delta("✅ done", &mut previous), Some(" done"));
+        assert_eq!(full_text_delta("✅ done", &mut previous), None);
+    }
+
+    #[cfg(feature = "claude-cli")]
+    #[test]
+    fn test_full_text_delta_restarts_when_snapshot_changes() {
+        let mut previous = "✅".to_string();
+
+        assert_eq!(full_text_delta("a✅", &mut previous), Some("a✅"));
+        assert_eq!(previous, "a✅");
+    }
+
+    #[cfg(feature = "codex-cli")]
+    #[test]
+    fn test_parse_codex_cli_output_captures_wrapped_thread_id() {
+        let stdout = r#"{"thread.started":{"thread_id":"thread-123"}}"#;
+
+        let (response, session_id) =
+            parse_codex_cli_output(stdout, "", Some("finished")).expect("parse should succeed");
+
+        assert_eq!(response, "finished");
+        assert_eq!(session_id.as_deref(), Some("thread-123"));
+    }
+
+    #[cfg(feature = "codex-cli")]
+    #[test]
+    fn test_parse_codex_cli_output_extracts_wrapped_agent_message() {
+        let stdout = r#"{"thread.started":{"thread_id":"thread-123"}}
+{"item.completed":{"item":{"id":"item-1","details":{"AgentMessage":{"text":"hello from codex"}}}}}"#;
+
+        let (response, session_id) =
+            parse_codex_cli_output(stdout, "", None).expect("parse should succeed");
+
+        assert_eq!(response, "hello from codex");
+        assert_eq!(session_id.as_deref(), Some("thread-123"));
     }
 
     #[test]

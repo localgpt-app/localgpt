@@ -39,6 +39,7 @@ use localgpt_core::agent::{Agent, AgentConfig, StreamEvent, extract_tool_detail}
 use localgpt_core::concurrency::TurnGate;
 use localgpt_core::config::Config;
 use localgpt_core::memory::MemoryManager;
+use localgpt_core::text::{ellipsize_chars, prefix_chars_cow};
 
 /// Agent ID for Discord sessions
 const DISCORD_AGENT_ID: &str = "discord";
@@ -625,16 +626,8 @@ fn format_display(response: &str, tool_info: &str) -> String {
         display.push('\n');
     }
     display.push_str(response);
-    // Truncate for Discord's limit during streaming previews
-    if display.len() > MAX_MESSAGE_LENGTH {
-        let mut end = MAX_MESSAGE_LENGTH - 3;
-        while end > 0 && !display.is_char_boundary(end) {
-            end -= 1;
-        }
-        display.truncate(end);
-        display.push_str("...");
-    }
-    display
+
+    ellipsize_chars(&display, MAX_MESSAGE_LENGTH)
 }
 
 /// Send (or edit) a potentially long response, splitting into chunks if needed.
@@ -669,9 +662,12 @@ fn split_text_chunks(text: &str) -> Vec<&str> {
     let mut chunks = Vec::new();
     let mut start = 0;
     while start < text.len() {
-        let mut end = (start + MAX_MESSAGE_LENGTH).min(text.len());
-        while end > start && !text.is_char_boundary(end) {
-            end -= 1;
+        let mut end = text.len();
+        for (char_count, (idx, _)) in text[start..].char_indices().enumerate() {
+            if char_count == MAX_MESSAGE_LENGTH {
+                end = start + idx;
+                break;
+            }
         }
         chunks.push(&text[start..end]);
         start = end;
@@ -679,16 +675,8 @@ fn split_text_chunks(text: &str) -> Vec<&str> {
     chunks
 }
 
-fn truncate_str(s: &str, max: usize) -> &str {
-    if s.len() <= max {
-        s
-    } else {
-        let mut end = max;
-        while end > 0 && !s.is_char_boundary(end) {
-            end -= 1;
-        }
-        &s[..end]
-    }
+fn truncate_str(s: &str, max: usize) -> std::borrow::Cow<'_, str> {
+    prefix_chars_cow(s, max)
 }
 
 // ── Entry point ────────────────────────────────────────────────────────────
@@ -784,4 +772,32 @@ async fn main() -> Result<()> {
         .map_err(|e| anyhow::anyhow!("Discord client error: {}", e))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_display_respects_discord_character_limit() {
+        let display = format_display(&"✅".repeat(MAX_MESSAGE_LENGTH + 1), "");
+
+        assert_eq!(display.chars().count(), MAX_MESSAGE_LENGTH);
+        assert!(display.ends_with("..."));
+    }
+
+    #[test]
+    fn split_text_chunks_splits_by_characters() {
+        let text = "✅".repeat(MAX_MESSAGE_LENGTH + 1);
+        let chunks = split_text_chunks(&text);
+
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].chars().count(), MAX_MESSAGE_LENGTH);
+        assert_eq!(chunks[1], "✅");
+    }
+
+    #[test]
+    fn truncate_str_limits_multibyte_text_by_characters() {
+        assert_eq!(truncate_str(&"✅".repeat(301), 300), "✅".repeat(300));
+    }
 }

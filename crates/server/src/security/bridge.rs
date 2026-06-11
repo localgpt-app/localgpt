@@ -23,6 +23,7 @@ use localgpt_core::config::Config;
 use localgpt_core::memory::MemoryManager;
 use localgpt_core::paths::Paths;
 use localgpt_core::security::read_device_key;
+use localgpt_core::text::single_line_prefix_with_ellipsis;
 
 /// Agent ID used for bridge CLI sessions.
 const BRIDGE_CLI_AGENT_ID: &str = "bridge-cli";
@@ -745,17 +746,7 @@ impl BridgeService for ConnectionHandler {
                 result.line_end
             ));
             output.push_str(&format!("   Score: {:.3}\n", result.score));
-            let preview: String = result.content.chars().take(200).collect();
-            let preview = preview.replace('\n', " ");
-            output.push_str(&format!(
-                "   {}{}\n",
-                preview,
-                if result.content.len() > 200 {
-                    "..."
-                } else {
-                    ""
-                }
-            ));
+            output.push_str(&format!("   {}\n", memory_result_preview(&result.content)));
         }
 
         Ok(output)
@@ -809,6 +800,10 @@ fn validate_bridge_id(id: &str) -> Result<()> {
     Ok(())
 }
 
+fn memory_result_preview(content: &str) -> String {
+    single_line_prefix_with_ellipsis(content, 200)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -832,6 +827,24 @@ mod tests {
         assert_eq!(config.degraded_threshold, Duration::from_secs(60));
         assert_eq!(config.unhealthy_threshold, Duration::from_secs(120));
         assert!(config.log_warnings);
+    }
+
+    #[test]
+    fn memory_result_preview_preserves_short_multibyte_text() {
+        assert_eq!(memory_result_preview(&"✅".repeat(100)), "✅".repeat(100));
+    }
+
+    #[test]
+    fn memory_result_preview_truncates_by_characters() {
+        let preview = memory_result_preview(&"✅".repeat(201));
+
+        assert_eq!(preview.chars().filter(|&c| c == '✅').count(), 200);
+        assert!(preview.ends_with("..."));
+    }
+
+    #[test]
+    fn memory_result_preview_flattens_newlines() {
+        assert_eq!(memory_result_preview("one\ntwo"), "one two");
     }
 
     #[tokio::test]

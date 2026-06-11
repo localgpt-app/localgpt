@@ -47,10 +47,10 @@ impl LLMProvider for MockProvider {
         _messages: &[Message],
         tools: Option<&[ToolSchema]>,
     ) -> Result<LLMResponse> {
-        if let Some(t) = tools {
-            if !t.is_empty() {
-                *self.received_tools.lock().unwrap() = true;
-            }
+        if let Some(t) = tools
+            && !t.is_empty()
+        {
+            *self.received_tools.lock().unwrap() = true;
         }
         self.response
             .lock()
