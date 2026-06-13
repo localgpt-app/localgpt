@@ -1026,7 +1026,7 @@ pub fn list_sessions_for_agent(agent_id: &str) -> Result<Vec<SessionInfo>> {
         }
     }
 
-    sessions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    sessions.sort_by_key(|s| std::cmp::Reverse(s.created_at));
     Ok(sessions)
 }
 
@@ -1091,7 +1091,7 @@ pub fn search_sessions_for_agent(agent_id: &str, query: &str) -> Result<Vec<Sess
         }
     }
 
-    results.sort_by(|a, b| b.match_count.cmp(&a.match_count));
+    results.sort_by_key(|r| std::cmp::Reverse(r.match_count));
     Ok(results)
 }
 
