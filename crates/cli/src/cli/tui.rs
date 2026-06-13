@@ -974,11 +974,11 @@ async fn run_app(
                                 app.cursor_position -= 1;
                             }
                         }
-                        KeyCode::Right => {
-                            if !app.is_generating && app.cursor_position < app.input.chars().count()
-                            {
-                                app.cursor_position += 1;
-                            }
+                        KeyCode::Right
+                            if !app.is_generating
+                                && app.cursor_position < app.input.chars().count() =>
+                        {
+                            app.cursor_position += 1;
                         }
                         _ => {}
                     }
