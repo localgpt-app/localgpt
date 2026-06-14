@@ -74,7 +74,10 @@ ignore = [
     { id = "RUSTSEC-2024-0436", reason = "paste: unmaintained, transitive dep of tokenizers/rav1e; no upgrade available" },
     { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: unmaintained but pulled in by readability->reqwest; only reads PEM files for TLS, no code execution risk" },
     { id = "RUSTSEC-2026-0049", reason = "rustls-webpki 0.102.8: fix only in 0.103.10+; pinned by serenity 0.12 -> tokio-tungstenite 0.21 -> rustls 0.22; limited impact (requires CA compromise)" },
-    { id = "RUSTSEC-2025-0119", reason = "number_prefix: unmaintained; transitive dep of indicatif -> hf-hub -> fastembed; no safe upgrade available" },
+    { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.102.8: URI name-constraint check; fix in 0.103.12+ but pinned by serenity 0.12 -> tokio-tungstenite 0.21 -> rustls 0.22 (no newer serenity); reachable only after signature verification and requires CA misissuance" },
+    { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.102.8: wildcard name-constraint check; fix in 0.103.12+ but pinned by serenity 0.12 -> tokio-tungstenite 0.21 -> rustls 0.22 (no newer serenity); reachable only after signature verification and requires CA misissuance" },
+    { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.102.8: panic parsing certificate revocation lists; fix in 0.103.13+ but pinned by serenity 0.12 -> tokio-tungstenite 0.21 -> rustls 0.22 (no newer serenity); serenity/Discord does not use CRLs so unreachable" },
+    { id = "RUSTSEC-2026-0173", reason = "proc-macro-error2: unmaintained with no safe upgrade; build-time proc-macro only (teloxide, avian3d, rust-embed); no runtime/shipped-code impact" },
 ]
 # If this is true, then cargo deny will use the git executable to fetch advisory database.
 # If this is false, then it uses a built-in git library.
