@@ -13,7 +13,7 @@ LocalGPT is a **local AI assistant with persistent memory, semantic search, and 
 - **Hybrid Memory Search** - Markdown-based knowledge store with pluggable backends (SQLite FTS5, Markdown grep, or disabled). SQLite backend supports full-text search with AND matching and rank-based scoring plus local vector embeddings (fastembed) for semantic search
 - **Desktop App** - Optional native desktop GUI built with egui — chat, sessions, memory browser, and status dashboard. Disable with `--no-default-features` for headless/Docker deployments.
 - **Embedded Web UI** - Browser-based chat interface served directly from the binary
-- **Multi-Provider Support** - Works with Claude CLI, Anthropic API, OpenAI, Ollama, and GLM (Z.AI) — all with full tool calling support
+- **Multi-Provider Support** - Works with Claude CLI, Anthropic API, OpenAI, Ollama, GLM (Z.AI), xAI (Grok), Google Vertex AI, Gemini CLI, and Codex CLI — all with full tool calling support
 - **Telegram, Discord & WhatsApp** - Access LocalGPT from Telegram, Discord, or WhatsApp via bridge binaries with full chat, tool use, and memory support — secured with one-time pairing auth
 - **Autonomous Heartbeat** - Daemon mode with scheduled background tasks that run automatically
 - **Skills System** - Extensible skills for specialized tasks
@@ -92,9 +92,13 @@ LocalGPT automatically detects the provider based on model name prefix:
 | `openai/*` | LM Studio / OpenAI | openai/qwen/qwen3.5-35b-a3b, openai/gpt-4o |
 | Other | Ollama (local) | llama3, mistral, codellama |
 | `claude-cli/*` | Claude CLI | claude-cli/opus, claude-cli/sonnet |
-| `anthropic/*` | Anthropic API | anthropic/claude-opus-4-5, anthropic/claude-sonnet-4-5 |
+| `gemini-cli/*` | Gemini CLI | gemini-cli/gemini-2.5-pro |
+| `codex-cli/*` | Codex CLI | codex-cli/o4-mini |
+| `anthropic/*` | Anthropic API | anthropic/claude-opus-4-6, anthropic/claude-sonnet-4-6 |
+| `xai/*` | xAI (Grok) | xai/grok-3-mini |
+| `vertex/*` | Google Vertex AI | vertex/gemini-2.5-pro |
 | `glm/*` or `glm` | GLM (Z.AI) | glm/glm-4.7, glm |
-| Aliases | Any | opus, sonnet, gpt, gpt-mini |
+| Aliases | Any | opus, sonnet, gpt, gpt-mini, glm, grok, codex |
 
 ## Next Steps
 

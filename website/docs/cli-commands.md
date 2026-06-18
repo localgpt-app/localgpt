@@ -18,19 +18,25 @@ Commands:
   gen         Launch world generation mode (Bevy renderer)
   daemon      Manage the background daemon
   memory      Memory management operations
-  search      Test web search provider
-  auth        Authenticate with providers
   config      Configuration management
   md          Manage LocalGPT.md standing instructions
-  sandbox     Shell sandbox diagnostics
   paths       Show resolved directory paths
-  desktop     Launch desktop GUI
+  sandbox     Shell sandbox diagnostics
+  search      Test and manage web search
+  init        Initialize configuration and keys
+  bridge      Manage bridges and credentials
+  doctor      Run diagnostics to validate setup
+  encrypt     Manage encryption at rest
+  tool        Manage MCP tool servers
+  plugin      Manage MCP tool servers (alias for 'tool')
   completion  Generate shell completion scripts
   cron        Manage cron jobs
   hooks       Manage lifecycle hooks
-  tool        Manage MCP tool servers
-  plugin      Manage MCP tool servers (alias for 'tool')
+  mcp-server  Run as MCP server (stdio) exposing memory tools
+  session     Manage sessions (list, branch, checkpoints)
   audit       View and verify compaction audit log
+  cert        Manage TLS certificates (info, regenerate)
+  desktop     Launch desktop GUI (feature-gated)
   help        Print help information
 ```
 
@@ -58,18 +64,24 @@ Options:
 | [`gen`](/docs/gen) | Launch world generation mode (Bevy renderer) |
 | [`daemon`](/docs/cli-daemon) | Start/stop/status of the background daemon |
 | [`memory`](/docs/cli-memory) | Search, reindex, and manage memory |
-| `search` | Test web search provider configuration |
-| `auth` | Authenticate with providers (Gemini, etc.) |
 | `config` | Init, show, get, and set configuration values |
 | [`md`](/docs/localgpt#quick-reference) | Sign, verify, and audit LocalGPT.md |
-| [`sandbox`](/docs/sandbox#cli-commands) | Inspect sandbox capabilities and run tests |
 | `paths` | Show resolved XDG directory paths |
+| [`sandbox`](/docs/sandbox#cli-commands) | Inspect sandbox capabilities and run tests |
+| `search` | Test and manage web search providers |
+| `init` | Initialize configuration and device keys |
+| `bridge` | Manage chat bridges and credentials |
+| `doctor` | Run diagnostics to validate setup (config, keys, providers) |
+| `encrypt` | Manage encryption at rest (sessions, config secrets) |
 | `desktop` | Launch the native desktop GUI (egui) |
 | `completion` | Generate shell completion scripts (bash, zsh, fish) |
 | `cron` | Manage cron jobs (list, add, remove) |
 | `hooks` | Manage lifecycle hooks |
 | `tool` / `plugin` | Manage MCP tool servers (list, add, remove, enable, disable) |
+| `mcp-server` | Run as an MCP server (stdio) exposing memory tools |
+| `session` | Manage sessions (list, branch, compaction checkpoints) |
 | `audit` | View and verify compaction audit log (show, verify, stats) |
+| `cert` | Manage TLS certificates (info, regenerate) |
 
 ## Examples
 
@@ -116,8 +128,11 @@ localgpt-gen "create a solar system with planets"
 # Test web search provider
 localgpt search test
 
-# Authenticate with Google Gemini
-localgpt auth gemini
+# Initialize config and device keys (first-time setup)
+localgpt init
+
+# Run setup diagnostics (config, keys, providers, MCP)
+localgpt doctor
 
 # Show resolved directory paths
 localgpt paths
@@ -149,6 +164,19 @@ localgpt audit show --limit 5     # Show last 5 events
 localgpt audit show --json        # JSON output
 localgpt audit verify             # Verify hash chain integrity
 localgpt audit stats              # Show compaction statistics
+
+# Session management and compaction checkpoints
+localgpt session list                          # List recent sessions
+localgpt session branch <session-id>           # Branch a session into a new one
+localgpt session checkpoints                   # List checkpoints for the latest session
+localgpt session restore 2                     # Restore latest session from checkpoint #2
+
+# Run as an MCP server (stdio) for external AI backends
+localgpt mcp-server
+
+# Manage TLS certificates for the HTTP server
+localgpt cert info                # Show certificate expiry, SANs, and paths
+localgpt cert regenerate          # Force certificate regeneration
 ```
 
 ## Built-in Chat Commands

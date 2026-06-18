@@ -52,7 +52,7 @@ EOF
 #   xai/*              → xAI (Grok)
 #   glm/* or glm       → GLM (Z.AI)
 #   ollama/*           → Ollama
-#   Aliases: opus, sonnet, gpt, gpt-mini
+#   Aliases: opus, sonnet, gpt, gpt-mini, glm, grok, codex
 default_model = "claude-cli/opus"
 
 # Context window size (in tokens)
@@ -103,7 +103,7 @@ model = "gemini-3.1-pro-preview"
 
 [providers.codex_cli]
 command = "codex"
-model = "gpt-4o"
+model = "o4-mini"
 
 [providers.openai_compatible]
 # Generic OpenAI-compatible endpoint (OpenRouter, DeepSeek, etc.)
