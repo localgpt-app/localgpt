@@ -72,9 +72,6 @@ json5 = "1.3"
 # File watching
 notify = "8.2"
 
-# Token counting
-tiktoken-rs = "0.9"
-
 # Path resolution
 directories = "6.0"
 etcetera = "0.11"
