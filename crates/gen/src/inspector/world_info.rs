@@ -7,6 +7,10 @@ use crate::gen3d::behaviors::BehaviorState;
 use crate::gen3d::plugin::CurrentWorld;
 use crate::gen3d::registry::NameRegistry;
 
+// egui 0.34 deprecates `Panel::show(ctx)` in favour of `show_inside(ui)`, but
+// bevy_egui only exposes a `Context` (not a root `Ui`), so the context-level
+// `show` is still the correct entry point here.
+#[allow(deprecated)]
 pub fn draw_world_info(
     ctx: &egui::Context,
     registry: &NameRegistry,
@@ -14,8 +18,8 @@ pub fn draw_world_info(
     audio_engine: Option<&AudioEngine>,
     current_world: &CurrentWorld,
 ) {
-    egui::TopBottomPanel::bottom("inspector_world_info")
-        .exact_height(28.0)
+    egui::Panel::bottom("inspector_world_info")
+        .exact_size(28.0)
         .show(ctx, |ui| {
             ui.horizontal_centered(|ui| {
                 // World name

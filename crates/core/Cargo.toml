@@ -64,7 +64,7 @@ axum = { version = "0.8", features = ["macros"], optional = true }
 tower-http = { version = "0.6", features = ["cors"], optional = true }
 
 # Cron expression parsing
-croner = "2"
+croner = "3"
 
 # Config
 json5 = "1.3"
@@ -90,13 +90,13 @@ readability = "0.3"
 tempfile = "3.27"
 
 # Security (HMAC signing, hashing, encryption)
-sha2 = "0.10"
-hmac = "0.12"
+sha2 = "0.11"
+hmac = "0.13"
 chacha20poly1305 = "0.10"
 zeroize = { version = "1", features = ["derive"] }
 
 # JWT signing (for Vertex AI service account auth)
-jsonwebtoken = "9"
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 
 [target.'cfg(target_os = "linux")'.build-dependencies]
 cc = "1"

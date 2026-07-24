@@ -112,8 +112,7 @@ impl ChatView {
             let input_response = ui.add_sized(
                 [ui.available_width() - 70.0, 35.0],
                 TextEdit::singleline(&mut state.input)
-                    .hint_text("Type a message or /help for commands...")
-                    .frame(true),
+                    .hint_text("Type a message or /help for commands..."),
             );
 
             let can_send = !state.input.trim().is_empty() && !state.is_loading;

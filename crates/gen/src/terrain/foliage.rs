@@ -4,7 +4,7 @@
 
 use bevy::mesh::{Mesh, PrimitiveTopology};
 use bevy::prelude::*;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use serde::{Deserialize, Serialize};
 
 /// Type of foliage to spawn.

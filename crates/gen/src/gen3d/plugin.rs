@@ -5,7 +5,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
-use bevy::scene::SceneRoot;
+use bevy::world_serialization::{WorldAsset, WorldAssetRoot};
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -120,7 +120,7 @@ pub struct UndoStack {
 
 /// A glTF scene that is currently being loaded.
 struct PendingGltfLoad {
-    handle: Handle<Scene>,
+    handle: Handle<WorldAsset>,
     name: String,
     path: String,
     send_response: bool,
@@ -295,16 +295,16 @@ pub fn setup_gen_app(
         // FreeFly systems (run when camera is detached and not hovering inspector)
         .add_systems(
             Update,
-            fly_cam_movement.run_if(avatar::in_freefly_mode.and(crate::inspector::not_ui_hovered)),
+            fly_cam_movement.run_if(avatar::in_freefly_mode.and_then(crate::inspector::not_ui_hovered)),
         )
         .add_systems(
             Update,
-            fly_cam_look.run_if(avatar::in_freefly_mode.and(crate::inspector::not_ui_hovered)),
+            fly_cam_look.run_if(avatar::in_freefly_mode.and_then(crate::inspector::not_ui_hovered)),
         )
         .add_systems(
             Update,
             fly_cam_scroll_speed
-                .run_if(avatar::in_freefly_mode.and(crate::inspector::not_ui_hovered)),
+                .run_if(avatar::in_freefly_mode.and_then(crate::inspector::not_ui_hovered)),
         )
         // Toggle system (Tab: Player ↔ FreeFly)
         .add_systems(Update, avatar::handle_camera_mode_toggle)
@@ -329,18 +329,19 @@ pub fn setup_gen_app(
         .add_plugins(crate::ui::LabelPlugin)
         .add_plugins(crate::ui::TooltipPlugin)
         .add_plugins(crate::ui::NotificationPlugin)
-        // P5: Physics engine (Avian3d + Tnua character controller)
+        // P5: Physics engine (Avian3d) + optional Tnua character controller
         ;
     #[cfg(feature = "physics")]
+    app.add_plugins(avian3d::PhysicsPlugins::default());
+    #[cfg(feature = "character-controller")]
     {
         use crate::character::player::PlayerScheme;
-        app.add_plugins(avian3d::PhysicsPlugins::default())
-            .add_plugins(bevy_tnua::TnuaControllerPlugin::<PlayerScheme>::new(
-                bevy::app::PostUpdate,
-            ))
-            .add_plugins(bevy_tnua_avian3d::TnuaAvian3dPlugin::new(
-                bevy::app::PostUpdate,
-            ));
+        app.add_plugins(bevy_tnua::TnuaControllerPlugin::<PlayerScheme>::new(
+            bevy::app::PostUpdate,
+        ))
+        .add_plugins(bevy_tnua_avian3d::TnuaAvian3dPlugin::new(
+            bevy::app::PostUpdate,
+        ));
     }
     // P5: Custom physics plugins
     app.add_plugins(crate::physics::PhysicsBodyPlugin)
@@ -409,7 +410,7 @@ fn setup_default_scene(
         .spawn((
             DirectionalLight {
                 illuminance: 10000.0,
-                shadows_enabled: true,
+                shadow_maps_enabled: true,
                 color: Color::srgba(1.0, 0.95, 0.9, 1.0),
                 ..default()
             },
@@ -440,7 +441,7 @@ fn load_initial_scene(
         .unwrap_or_else(|| "scene".to_string());
 
     let asset_path = path.to_string_lossy().trim_start_matches('/').to_string();
-    let handle = asset_server.load::<Scene>(format!("{}#Scene0", asset_path));
+    let handle = asset_server.load::<WorldAsset>(format!("{}#Scene0", asset_path));
 
     pending.queue.push(PendingGltfLoad {
         handle,
@@ -488,7 +489,7 @@ struct GenCommandParams<'w, 's> {
     world_tours: ResMut<'w, WorldTours>,
     current_world: ResMut<'w, CurrentWorld>,
     camera_mode: ResMut<'w, avatar::CameraMode>,
-    #[cfg(feature = "physics")]
+    #[cfg(feature = "character-controller")]
     player_scheme_configs: ResMut<'w, Assets<crate::character::player::PlayerSchemeConfig>>,
     player_camera_query: Query<'w, 's, &'static mut crate::character::PlayerCamera>,
     terrain_q: Query<'w, 's, (&'static crate::terrain::Terrain, &'static Transform)>,
@@ -1075,7 +1076,7 @@ fn process_gen_commands(
                         .to_string();
                     let handle = params
                         .asset_server
-                        .load::<Scene>(format!("{}#Scene0", asset_path));
+                        .load::<WorldAsset>(format!("{}#Scene0", asset_path));
 
                     params.pending_gltf.queue.push(PendingGltfLoad {
                         handle,
@@ -1636,11 +1637,19 @@ fn process_gen_commands(
             GenCommand::SpawnPlayer(p) => {
                 let name = "Player".to_string();
                 let wid = params.next_entity_id.alloc();
+                #[cfg(feature = "character-controller")]
                 let entity = crate::character::spawn_player(
                     &mut commands,
                     &mut params.meshes,
                     &mut params.materials,
                     &mut params.player_scheme_configs,
+                    &p,
+                );
+                #[cfg(not(feature = "character-controller"))]
+                let entity = crate::character::spawn_player(
+                    &mut commands,
+                    &mut params.meshes,
+                    &mut params.materials,
                     &p,
                 );
                 params.registry.insert_with_id(name.clone(), entity, wid);
@@ -2254,7 +2263,7 @@ fn process_gen_commands(
                     },
                     Text2d::new(p.text.clone()),
                     TextColor(text_color),
-                    TextLayout::new_with_justify(bevy::text::Justify::Center),
+                    TextLayout::justify(bevy::text::Justify::Center),
                     transform,
                     Visibility::default(),
                     crate::ui::Sign {
@@ -2327,7 +2336,7 @@ fn process_gen_commands(
                         Text::new(display_text),
                         TextColor(text_color),
                         TextFont {
-                            font_size: p.font_size,
+                            font_size: FontSize::Px(p.font_size),
                             ..default()
                         },
                     ))
@@ -2360,7 +2369,7 @@ fn process_gen_commands(
                         },
                         Text2d::new(p.text.clone()),
                         TextColor(text_color),
-                        TextLayout::new_with_justify(bevy::text::Justify::Center),
+                        TextLayout::justify(bevy::text::Justify::Center),
                         Transform::from_xyz(0.0, p.offset_y, 0.0)
                             .with_scale(Vec3::splat(p.font_size / 1600.0)),
                         Visibility::default(),
@@ -2446,7 +2455,7 @@ fn process_gen_commands(
                         Text::new(display_text),
                         TextColor(text_color),
                         TextFont {
-                            font_size: 16.0,
+                            font_size: FontSize::Px(16.0),
                             ..default()
                         },
                     ))
@@ -3163,7 +3172,7 @@ fn process_gen_commands(
                         }
                         BulkAction::Recolor { color } => {
                             if let Ok(handle) = params.material_handles.get(*entity)
-                                && let Some(mat) = params.materials.get_mut(&handle.0)
+                                && let Some(mut mat) = params.materials.get_mut(&handle.0)
                             {
                                 mat.base_color =
                                     Color::srgba(color[0], color[1], color[2], color[3]);
@@ -4642,7 +4651,7 @@ fn process_pending_screenshots(
         if let Some(ref entity_name) = screenshot_req.highlight_entity
             && let Some(entity) = registry.get_entity(entity_name)
             && let Ok(mat_handle) = material_handles.get(entity)
-            && let Some(mat) = materials.get_mut(&mat_handle.0)
+            && let Some(mut mat) = materials.get_mut(&mat_handle.0)
         {
             let orig = mat.emissive;
             let [r, g, b, _] = screenshot_req.highlight_color;
@@ -4763,7 +4772,7 @@ fn process_pending_screenshots(
         // --- WG4.1: Restore original emissive after screenshot is queued ---
         if let Some((entity, orig_emissive)) = original_emissive
             && let Ok(mat_handle) = material_handles.get(entity)
-            && let Some(mat) = materials.get_mut(&mat_handle.0)
+            && let Some(mut mat) = materials.get_mut(&mat_handle.0)
         {
             mat.emissive = orig_emissive;
         }
@@ -4870,7 +4879,7 @@ fn process_pending_gltf_loads(
         let _segment = load.segment;
         let entity = commands
             .spawn((
-                SceneRoot(load.handle.clone()),
+                WorldAssetRoot(load.handle.clone()),
                 GltfSource {
                     path: load.path.clone(),
                 },
@@ -5172,7 +5181,7 @@ fn handle_entity_info(
             light_type: "directional".to_string(),
             color: [c.red, c.green, c.blue, c.alpha],
             intensity: dl.illuminance,
-            shadows: dl.shadows_enabled,
+            shadows: dl.shadow_maps_enabled,
             direction: Some(dir),
             range: None,
             outer_angle: None,
@@ -5184,7 +5193,7 @@ fn handle_entity_info(
             light_type: "point".to_string(),
             color: [c.red, c.green, c.blue, c.alpha],
             intensity: pl.intensity,
-            shadows: pl.shadows_enabled,
+            shadows: pl.shadow_maps_enabled,
             direction: None,
             range: Some(pl.range),
             outer_angle: None,
@@ -5197,7 +5206,7 @@ fn handle_entity_info(
             light_type: "spot".to_string(),
             color: [c.red, c.green, c.blue, c.alpha],
             intensity: sl.intensity,
-            shadows: sl.shadows_enabled,
+            shadows: sl.shadow_maps_enabled,
             direction: Some(dir),
             range: Some(sl.range),
             outer_angle: Some(sl.outer_angle),
@@ -5593,7 +5602,7 @@ fn handle_set_light(
                 .spawn((
                     DirectionalLight {
                         illuminance: cmd.intensity,
-                        shadows_enabled: cmd.shadows,
+                        shadow_maps_enabled: cmd.shadows,
                         color,
                         ..default()
                     },
@@ -5610,7 +5619,7 @@ fn handle_set_light(
             let pos = cmd.position.unwrap_or([0.0, 5.0, 0.0]);
             let mut pl = PointLight {
                 intensity: cmd.intensity,
-                shadows_enabled: cmd.shadows,
+                shadow_maps_enabled: cmd.shadows,
                 color,
                 ..default()
             };
@@ -5636,7 +5645,7 @@ fn handle_set_light(
                 .looking_at(Vec3::from_array(pos) + Vec3::from_array(dir), Vec3::Y);
             let mut sl = SpotLight {
                 intensity: cmd.intensity,
-                shadows_enabled: cmd.shadows,
+                shadow_maps_enabled: cmd.shadows,
                 color,
                 ..default()
             };
@@ -5905,7 +5914,7 @@ fn spawn_world_entities(
             let p = std::path::Path::new(&mesh_path);
             if p.exists() {
                 let asset_path = p.to_string_lossy().trim_start_matches('/').to_string();
-                let handle = asset_server.load::<Scene>(format!("{}#Scene0", asset_path));
+                let handle = asset_server.load::<WorldAsset>(format!("{}#Scene0", asset_path));
                 pending_gltf.queue.push(PendingGltfLoad {
                     handle,
                     name: name.clone(),
@@ -6431,7 +6440,7 @@ fn insert_light_component(
         wt::LightType::Directional => {
             entity_cmd.insert(DirectionalLight {
                 illuminance: light.intensity,
-                shadows_enabled: light.shadows,
+                shadow_maps_enabled: light.shadows,
                 color,
                 ..default()
             });
@@ -6439,7 +6448,7 @@ fn insert_light_component(
         wt::LightType::Point => {
             let mut pl = PointLight {
                 intensity: light.intensity,
-                shadows_enabled: light.shadows,
+                shadow_maps_enabled: light.shadows,
                 color,
                 ..default()
             };
@@ -6451,7 +6460,7 @@ fn insert_light_component(
         wt::LightType::Spot => {
             let mut sl = SpotLight {
                 intensity: light.intensity,
-                shadows_enabled: light.shadows,
+                shadow_maps_enabled: light.shadows,
                 color,
                 ..default()
             };
@@ -6492,7 +6501,7 @@ fn spawn_light_entity(
                 .spawn((
                     DirectionalLight {
                         illuminance: light.intensity,
-                        shadows_enabled: light.shadows,
+                        shadow_maps_enabled: light.shadows,
                         color,
                         ..default()
                     },
@@ -6508,7 +6517,7 @@ fn spawn_light_entity(
         wt::LightType::Point => {
             let mut pl = PointLight {
                 intensity: light.intensity,
-                shadows_enabled: light.shadows,
+                shadow_maps_enabled: light.shadows,
                 color,
                 ..default()
             };
@@ -6533,7 +6542,7 @@ fn spawn_light_entity(
                 .looking_at(transform.translation + Vec3::from_array(dir), Vec3::Y);
             let mut sl = SpotLight {
                 intensity: light.intensity,
-                shadows_enabled: light.shadows,
+                shadow_maps_enabled: light.shadows,
                 color,
                 ..default()
             };
@@ -6666,7 +6675,7 @@ fn snapshot_entity(
             color: [c.red, c.green, c.blue, c.alpha],
             intensity: dl.illuminance,
             direction: dir,
-            shadows: dl.shadows_enabled,
+            shadows: dl.shadow_maps_enabled,
             range: None,
             outer_angle: None,
             inner_angle: None,
@@ -6678,7 +6687,7 @@ fn snapshot_entity(
             color: [c.red, c.green, c.blue, c.alpha],
             intensity: pl.intensity,
             direction: None,
-            shadows: pl.shadows_enabled,
+            shadows: pl.shadow_maps_enabled,
             range: Some(pl.range),
             outer_angle: None,
             inner_angle: None,
@@ -6695,7 +6704,7 @@ fn snapshot_entity(
             color: [c.red, c.green, c.blue, c.alpha],
             intensity: sl.intensity,
             direction: dir,
-            shadows: sl.shadows_enabled,
+            shadows: sl.shadow_maps_enabled,
             range: Some(sl.range),
             outer_angle: Some(sl.outer_angle),
             inner_angle: Some(sl.inner_angle),

@@ -1366,7 +1366,7 @@ pub fn click_prompt_system(
                     },
                     Text2d::new(prompt_text.clone()),
                     TextFont {
-                        font_size: 24.0,
+                        font_size: FontSize::Px(24.0),
                         ..default()
                     },
                     TextColor(Color::WHITE),
@@ -1457,11 +1457,11 @@ pub fn interaction_prompt_hud_system(
                     InteractionPromptHud,
                     Text::new(text),
                     TextFont {
-                        font_size: 20.0,
+                        font_size: FontSize::Px(20.0),
                         ..default()
                     },
                     TextColor(Color::srgba(1.0, 1.0, 1.0, 0.9)),
-                    TextLayout::new_with_justify(bevy::text::Justify::Center),
+                    TextLayout::justify(bevy::text::Justify::Center),
                     Node {
                         position_type: PositionType::Absolute,
                         bottom: Val::Px(60.0),

@@ -70,7 +70,7 @@ fn build_tree(
         .collect();
 
     // Sort by name for stable ordering
-    all.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+    all.sort_by_key(|a| a.1.to_lowercase());
 
     // Find root entities (no parent in registry, or parent has no GenEntity)
     let roots: Vec<(Entity, String, GenEntityType)> = all
@@ -112,7 +112,7 @@ fn build_tree(
             })
             .unwrap_or_default();
 
-        child_entries.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+        child_entries.sort_by_key(|a| a.1.to_lowercase());
 
         let visible = visibility_q
             .get(entity)
@@ -179,6 +179,10 @@ fn entity_type_icon(etype: GenEntityType) -> &'static str {
 // ---------------------------------------------------------------------------
 
 #[allow(clippy::too_many_arguments)]
+// egui 0.34 deprecates `Panel::show(ctx)` in favour of `show_inside(ui)`, but
+// bevy_egui only exposes a `Context` (not a root `Ui`), so the context-level
+// `show` is still the correct entry point here.
+#[allow(deprecated)]
 pub fn draw_outliner(
     ctx: &egui::Context,
     registry: &NameRegistry,
@@ -196,8 +200,8 @@ pub fn draw_outliner(
         cache.last_entity_count = current_count;
     }
 
-    egui::SidePanel::left("inspector_outliner")
-        .default_width(250.0)
+    egui::Panel::left("inspector_outliner")
+        .default_size(250.0)
         .resizable(true)
         .show(ctx, |ui| {
             ui.heading("Outliner");

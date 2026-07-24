@@ -405,7 +405,7 @@ where
 
     let stream = device
         .build_output_stream(
-            config,
+            *config,
             move |data: &mut [T], _: &cpal::OutputCallbackInfo| {
                 for frame in data.chunks_mut(channels) {
                     let (left, right) = next_value();

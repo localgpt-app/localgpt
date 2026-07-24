@@ -28,7 +28,7 @@ impl DesktopApp {
     }
 
     fn configure_style(ctx: &egui::Context) {
-        let mut style = (*ctx.style()).clone();
+        let mut style = (*ctx.global_style()).clone();
 
         // Use slightly larger text
         style.text_styles.insert(
@@ -51,7 +51,7 @@ impl DesktopApp {
         style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(4);
         style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(4);
 
-        ctx.set_style(style);
+        ctx.set_global_style(style);
     }
 
     /// Process all pending worker messages
@@ -63,22 +63,22 @@ impl DesktopApp {
 }
 
 impl eframe::App for DesktopApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // Process worker messages
         self.process_worker_messages();
 
         // Request repaint while loading or streaming
         if self.state.is_loading || !self.state.streaming_content.is_empty() {
-            ctx.request_repaint();
+            ui.ctx().request_repaint();
         }
 
         // Top panel with toolbar
-        egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
+        egui::Panel::top("toolbar").show_inside(ui, |ui| {
             show_toolbar(ui, &mut self.state);
         });
 
         // Main content
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             let msg = match self.state.active_panel {
                 Panel::Chat => ChatView::show(ui, &mut self.state),
                 Panel::Sessions => SessionsView::show(ui, &mut self.state),

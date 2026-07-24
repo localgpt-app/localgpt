@@ -73,7 +73,13 @@ impl MediaCache {
         let data = std::fs::read(path).ok()?;
         let mut hasher = Sha256::new();
         hasher.update(&data);
-        Some(format!("{:x}", hasher.finalize()))
+        Some(
+            hasher
+                .finalize()
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect(),
+        )
     }
 
     /// Calculate total cache size in bytes.

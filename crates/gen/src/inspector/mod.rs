@@ -246,7 +246,7 @@ fn inspector_ui(
     }
 
     // --- Update UiHovered resource ---
-    if ctx.is_pointer_over_area() {
+    if ctx.is_pointer_over_egui() {
         commands.insert_resource(UiHovered);
     } else {
         commands.remove_resource::<UiHovered>();
@@ -447,7 +447,7 @@ fn build_scene_tree(
         });
     }
 
-    entities.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    entities.sort_by_key(|a| a.name.to_lowercase());
     entities
 }
 
@@ -509,7 +509,7 @@ fn build_entity_detail(
             ],
             intensity: l.intensity,
             range: Some(l.range),
-            shadows_enabled: l.shadows_enabled,
+            shadows_enabled: l.shadow_maps_enabled,
             inner_angle: None,
             outer_angle: None,
         })
@@ -527,7 +527,7 @@ fn build_entity_detail(
                     ],
                     intensity: l.illuminance,
                     range: None,
-                    shadows_enabled: l.shadows_enabled,
+                    shadows_enabled: l.shadow_maps_enabled,
                     inner_angle: None,
                     outer_angle: None,
                 })
@@ -546,7 +546,7 @@ fn build_entity_detail(
                     ],
                     intensity: l.intensity,
                     range: Some(l.range),
-                    shadows_enabled: l.shadows_enabled,
+                    shadows_enabled: l.shadow_maps_enabled,
                     inner_angle: Some(l.inner_angle),
                     outer_angle: Some(l.outer_angle),
                 })

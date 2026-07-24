@@ -99,7 +99,7 @@ pub fn scan_world_gallery(workspace: &Path) -> Vec<WorldGalleryEntry> {
     }
 
     // Sort by creation date, newest first
-    entries.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    entries.sort_by_key(|b| std::cmp::Reverse(b.created_at));
     entries
 }
 

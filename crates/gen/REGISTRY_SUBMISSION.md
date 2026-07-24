@@ -148,7 +148,7 @@ When an MCP client connects, the server advertises **83 tools** across three cap
 
 ### Visual — Bevy 3D Engine
 
-Real-time 3D scene rendering via Bevy 0.18 with an interactive viewport.
+Real-time 3D scene rendering via Bevy 0.19 with an interactive viewport.
 
 | Category | Tools |
 |---|---|

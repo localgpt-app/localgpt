@@ -1162,13 +1162,13 @@ fn run_headless_bevy_app(
                 ..default()
             })
             .set(bevy::render::RenderPlugin {
-                render_creation: bevy::render::settings::RenderCreation::Automatic(
+                render_creation: bevy::render::settings::RenderCreation::Automatic(Box::new(
                     bevy::render::settings::WgpuSettings {
                         // Allow software rendering on headless servers
                         backends: Some(bevy::render::settings::Backends::all()),
                         ..default()
                     },
-                ),
+                )),
                 ..default()
             })
             .set(bevy::asset::AssetPlugin {

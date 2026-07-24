@@ -148,7 +148,7 @@ pub fn spawn_npc(
         Name::new("Nameplate"),
         Text2d::new(params.name.clone()),
         TextColor(Color::WHITE),
-        TextLayout::new_with_justify(Justify::Center),
+        TextLayout::justify(Justify::Center),
         Transform::from_xyz(0.0, 1.1, 0.0).with_scale(Vec3::splat(0.01)), // Scale down text
         NpcNameplate,
         ChildOf(npc_entity),
@@ -266,7 +266,7 @@ pub fn npc_wander_system(
                 }
             } else {
                 // Pick new random target within radius
-                use rand::Rng;
+                use rand::RngExt;
                 let mut rng = rand::rng();
                 let angle = rng.random_range(0.0..std::f32::consts::TAU);
                 let dist = rng.random_range(2.0..*radius);

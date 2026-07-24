@@ -279,7 +279,7 @@ pub fn sky_apply_system(
             SunLight,
             DirectionalLight {
                 illuminance: sky.sun_intensity * 10000.0,
-                shadows_enabled: true,
+                shadow_maps_enabled: true,
                 color: Color::WHITE,
                 ..default()
             },

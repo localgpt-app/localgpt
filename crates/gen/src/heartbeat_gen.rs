@@ -40,12 +40,12 @@ fn boot_headless_and_create_tools(config: &Config) -> anyhow::Result<Vec<Box<dyn
                     ..default()
                 })
                 .set(bevy::render::RenderPlugin {
-                    render_creation: bevy::render::settings::RenderCreation::Automatic(
+                    render_creation: bevy::render::settings::RenderCreation::Automatic(Box::new(
                         bevy::render::settings::WgpuSettings {
                             backends: Some(bevy::render::settings::Backends::all()),
                             ..default()
                         },
-                    ),
+                    )),
                     ..default()
                 })
                 .set(bevy::asset::AssetPlugin {

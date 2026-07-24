@@ -465,8 +465,8 @@ impl Default for BridgeManager {
 
 fn derive_bridge_key(master_key: &[u8; 32], bridge_id: &str) -> Result<Key> {
     type HmacSha256 = Hmac<Sha256>;
-    // Disambiguate Mac vs KeyInit
-    let mut mac = <HmacSha256 as Mac>::new_from_slice(master_key)
+    // Disambiguate hmac's KeyInit from the aead KeyInit imported above
+    let mut mac = <HmacSha256 as hmac::KeyInit>::new_from_slice(master_key)
         .map_err(|e| anyhow::anyhow!("HMAC init failed: {}", e))?;
 
     mac.update(b"bridge-key:");

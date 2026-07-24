@@ -18,7 +18,7 @@ tracing = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 shellexpand = { workspace = true }
-tokio-tungstenite = "0.26"
+tokio-tungstenite = "0.29"
 futures-util = "0.3"
 base64 = { workspace = true }
 which = "8"

@@ -693,7 +693,7 @@ fn check_cron_expressions(config: Option<&localgpt_core::config::Config>) -> Che
             continue;
         }
         // Try to parse the cron expression
-        if croner::Cron::new(&job.schedule).parse().is_err() {
+        if job.schedule.parse::<croner::Cron>().is_err() {
             invalid.push(format!("{}: {}", job.name, job.schedule));
         }
     }

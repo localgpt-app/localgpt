@@ -162,7 +162,7 @@ pub fn notification_spawn_system(
                 Text::new(display_text),
                 TextColor(Color::WHITE),
                 TextFont {
-                    font_size: 16.0,
+                    font_size: FontSize::Px(16.0),
                     ..default()
                 },
                 Name::new("Notification"),

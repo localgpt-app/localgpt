@@ -743,7 +743,7 @@ pub fn brain_apply_results_system(
             }
             NpcAction::Wander => {
                 // Add a small random offset to position
-                use rand::Rng;
+                use rand::RngExt;
                 let mut rng = rand::rng();
                 let dx: f32 = rng.random_range(-3.0..3.0);
                 let dz: f32 = rng.random_range(-3.0..3.0);

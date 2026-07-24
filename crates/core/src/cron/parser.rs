@@ -3,6 +3,7 @@
 use anyhow::{Result, bail};
 use chrono::{DateTime, Local};
 use croner::Cron;
+use std::str::FromStr;
 use std::time::Duration;
 
 /// A parsed schedule that can determine the next run time.
@@ -25,8 +26,7 @@ impl Schedule {
             return Ok(Schedule::Interval(duration));
         }
 
-        let cron = Cron::new(trimmed)
-            .parse()
+        let cron = Cron::from_str(trimmed)
             .map_err(|e| anyhow::anyhow!("Invalid cron expression '{}': {}", trimmed, e))?;
         Ok(Schedule::Cron(Box::new(cron)))
     }

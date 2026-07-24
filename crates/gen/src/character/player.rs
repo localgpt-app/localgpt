@@ -5,21 +5,21 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "physics")]
+#[cfg(feature = "character-controller")]
 use avian3d::prelude::*;
-#[cfg(feature = "physics")]
+#[cfg(feature = "character-controller")]
 use bevy_tnua::TnuaScheme;
-#[cfg(feature = "physics")]
+#[cfg(feature = "character-controller")]
 use bevy_tnua::builtins::{TnuaBuiltinJumpConfig, TnuaBuiltinWalkConfig};
-#[cfg(feature = "physics")]
+#[cfg(feature = "character-controller")]
 use bevy_tnua::prelude::*;
-#[cfg(feature = "physics")]
+#[cfg(feature = "character-controller")]
 use bevy_tnua_avian3d::*;
 
 /// Player character control scheme for bevy-tnua.
 ///
 /// Defines Walk as the basis and Jump as the single action.
-#[cfg(feature = "physics")]
+#[cfg(feature = "character-controller")]
 #[derive(TnuaScheme)]
 #[scheme(basis = TnuaBuiltinWalk)]
 pub enum PlayerScheme {
@@ -184,7 +184,7 @@ impl SpawnPlayerParams {
 }
 
 /// Spawn the player entity (with physics — avian3d + bevy-tnua).
-#[cfg(feature = "physics")]
+#[cfg(feature = "character-controller")]
 pub fn spawn_player(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -248,7 +248,7 @@ pub fn spawn_player(
 }
 
 /// Spawn the player entity (without physics — simple transform-based movement).
-#[cfg(not(feature = "physics"))]
+#[cfg(not(feature = "character-controller"))]
 pub fn spawn_player(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -341,7 +341,7 @@ pub fn player_input_system(
 /// System to apply player movement via Tnua (physics mode).
 ///
 /// Skipped when noclip is active (no Tnua controller on entity).
-#[cfg(feature = "physics")]
+#[cfg(feature = "character-controller")]
 pub fn player_movement_system(
     noclip: Res<NoclipState>,
     mut query: Query<
@@ -391,7 +391,7 @@ pub fn player_movement_system(
 }
 
 /// System to apply player movement directly via Transform (no physics).
-#[cfg(not(feature = "physics"))]
+#[cfg(not(feature = "character-controller"))]
 pub fn player_movement_system(
     time: Res<Time>,
     noclip: Res<NoclipState>,
@@ -524,7 +524,7 @@ mod tests {
 ///
 /// Noclip ON: removes `Collider` and `RigidBody`, enabling free flight through geometry.
 /// Noclip OFF: re-inserts physics components so the player falls with gravity.
-#[cfg(feature = "physics")]
+#[cfg(feature = "character-controller")]
 pub fn noclip_toggle_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut noclip: ResMut<NoclipState>,
@@ -581,7 +581,7 @@ pub fn noclip_toggle_system(
 }
 
 /// Noclip toggle stub (no-op without physics feature).
-#[cfg(not(feature = "physics"))]
+#[cfg(not(feature = "character-controller"))]
 pub fn noclip_toggle_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut noclip: ResMut<NoclipState>,

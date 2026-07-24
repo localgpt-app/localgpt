@@ -641,7 +641,7 @@ This document tracks feature parity across fifteen implementations of the person
 
 | Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
 |---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
-| 3D rendering engine | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: Bevy 0.18 |
+| 3D rendering engine | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: Bevy 0.19 |
 | glTF/GLB scene loading | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
 | Entity spawning (11 primitives) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Cuboid, sphere, cylinder, cone, capsule, torus, plane, pyramid, tetrahedron, icosahedron, wedge |
 | Batch entity operations | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | spawn/modify/delete batch |

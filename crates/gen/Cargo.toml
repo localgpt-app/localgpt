@@ -31,8 +31,8 @@ futures = { workspace = true }
 clap = { version = "4.6", features = ["derive"] }
 
 # 3D generation via Bevy
-bevy = "0.18"
-bevy_egui = "0.39"
+bevy = "0.19"
+bevy_egui = "0.40"
 image = "0.25"
 
 # glTF/GLB export
@@ -42,17 +42,17 @@ gltf-json = { version = "1", features = ["names"] }
 shellexpand = { workspace = true }
 
 # CLI line editor
-rustyline = "17.0.2"
+rustyline = "18"
 
 # Procedural audio (environmental soundscapes)
 fundsp = "0.23"
-cpal = "0.17"
+cpal = "0.18"
 
 # World skill serialization
-ron = "0.9"
+ron = "0.12.1"
 
 # Content hashing for sync/drift detection
-sha2 = "0.10"
+sha2 = "0.11"
 hex = "0.4"
 
 # Timestamps for experiment tracking
@@ -64,20 +64,26 @@ libc = "0.2"
 # WebSocket inspector protocol (Spec 0.6)
 axum = { version = "0.8", features = ["ws"] }
 
-# Physics and character controller (P1, P5)
-# avian3d 0.6 + bevy-tnua 0.30 + bevy-tnua-avian3d 0.11 — all target Bevy 0.18
-avian3d = { version = "0.6", optional = true }
-bevy-tnua = { version = "0.30", optional = true }
+# Physics (P5): avian3d 0.7 targets Bevy 0.19.
+avian3d = { version = "0.7", optional = true }
+
+# Floating character controller (P1): bevy-tnua + bevy-tnua-avian3d.
+# BLOCKED on Bevy 0.19 — the latest releases (bevy-tnua 0.31 / bevy-tnua-avian3d
+# 0.11) still target Bevy 0.18, and two Bevy versions cannot link into one
+# binary. Gated behind the off-by-default `character-controller` feature; the
+# player falls back to a transform-based controller until upstream ships 0.19.
+# Re-enable the `character-controller` feature once those crates support 0.19.
+bevy-tnua = { version = "0.31", optional = true }
 bevy-tnua-avian3d = { version = "0.11", optional = true }
 
 # Noise for procedural terrain (P3)
 noise = "0.9"
 
 # Interpolation for animations
-splines = "4.4"
+splines = "5.0"
 
 # Random number generation (for NPC wander, foliage scattering)
-rand = "0.9"
+rand = { workspace = true }
 
 # File locking for GPU exclusivity (Windows)
 [target.'cfg(windows)'.dependencies]
@@ -85,4 +91,11 @@ windows-sys = { version = "0.59", features = ["Win32_Storage_FileSystem"] }
 
 [features]
 default = ["physics"]
-physics = ["dep:avian3d", "dep:bevy-tnua", "dep:bevy-tnua-avian3d"]
+# Avian3d rigid-body physics, colliders, joints, forces, gravity, spatial
+# queries (camera spring-arm). Works on Bevy 0.19.
+physics = ["dep:avian3d"]
+# bevy-tnua floating character controller for the player. Requires `physics`.
+# OFF by default: no Bevy 0.19-compatible bevy-tnua release exists yet, so
+# enabling this currently fails to build. When enabled the player uses the
+# Tnua walk/jump controller; otherwise a transform-based controller is used.
+character-controller = ["physics", "dep:bevy-tnua", "dep:bevy-tnua-avian3d"]

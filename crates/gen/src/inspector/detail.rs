@@ -27,14 +27,18 @@ fn behavior_type_name(def: &BehaviorDef) -> &'static str {
 // Main draw function
 // ---------------------------------------------------------------------------
 
+// egui 0.34 deprecates `Panel::show(ctx)` in favour of `show_inside(ui)`, but
+// bevy_egui only exposes a `Context` (not a root `Ui`), so the context-level
+// `show` is still the correct entry point here.
+#[allow(deprecated)]
 pub fn draw_detail(
     ctx: &egui::Context,
     selection: &InspectorSelection,
     registry: &NameRegistry,
     q: &InspectorQueries,
 ) {
-    egui::SidePanel::right("inspector_detail")
-        .default_width(320.0)
+    egui::Panel::right("inspector_detail")
+        .default_size(320.0)
         .resizable(true)
         .show(ctx, |ui| {
             let Some(entity) = selection.entity else {
@@ -312,7 +316,7 @@ fn draw_light_section(
                         ui.end_row();
 
                         ui.label("Shadows");
-                        ui.label(format!("{}", light.shadows_enabled));
+                        ui.label(format!("{}", light.shadow_maps_enabled));
                         ui.end_row();
                     });
             });
@@ -339,7 +343,7 @@ fn draw_light_section(
                         ui.end_row();
 
                         ui.label("Shadows");
-                        ui.label(format!("{}", light.shadows_enabled));
+                        ui.label(format!("{}", light.shadow_maps_enabled));
                         ui.end_row();
                     });
             });
@@ -378,7 +382,7 @@ fn draw_light_section(
                         ui.end_row();
 
                         ui.label("Shadows");
-                        ui.label(format!("{}", light.shadows_enabled));
+                        ui.label(format!("{}", light.shadow_maps_enabled));
                         ui.end_row();
                     });
             });

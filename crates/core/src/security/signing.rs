@@ -23,7 +23,7 @@
 //! 4. Write manifest to `.localgpt_manifest.json` in the workspace.
 
 use anyhow::{Context, Result};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

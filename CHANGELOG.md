@@ -4,6 +4,11 @@ All notable changes to LocalGPT are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Gen upgraded to Bevy 0.19** — `bevy` 0.18→0.19, `bevy_egui` 0.39→0.40 (egui 0.34), and `avian3d` 0.6→0.7. The `physics` feature now provides avian3d rigid-body physics only; the bevy-tnua floating character controller moved to a new off-by-default `character-controller` feature, pending a Bevy 0.19-compatible `bevy-tnua` release (the player falls back to a transform-based controller until then).
+- **Workspace dependency upgrades** — major-version bumps across the workspace: `rusqlite` 0.38→0.40, `ron` 0.9→0.12, `jsonwebtoken` 9→10 (now on the `rust_crypto` backend), `hmac` 0.12→0.13 with `sha2` 0.10→0.11, `tiktoken-rs` 0.9→0.12, `croner` 2→3, `cpal` 0.17→0.18, `rustyline` 17→18, `splines` 4.4→5.0, `eframe` 0.33→0.34, `interprocess` 1→2, and `tokio-tungstenite` 0.26→0.29, plus all semver-compatible updates via `cargo update`. The bridge IPC layer migrated to the `interprocess` 2.x `Name`/`ListenerOptions` API with built-in cross-platform peer-credential lookup.
+
 ## [0.3.6] - 2026-04-12
 
 ### Added

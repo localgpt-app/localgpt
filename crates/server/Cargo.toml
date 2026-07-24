@@ -41,8 +41,8 @@ tarpc = { version = "0.37.0", features = ["tokio1", "serde-transport"] }
 
 # Encryption for bridge credentials
 chacha20poly1305 = "0.10.1"
-sha2 = "0.10"
-hmac = "0.12"
+sha2 = "0.11"
+hmac = "0.13"
 rand = { workspace = true }
 
 # Utilities

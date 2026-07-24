@@ -100,7 +100,7 @@ localgpt-gen mcp-server --mcp-http 8080
 
 ## Features
 
-- **Bevy 0.18** — real-time 3D rendering with PBR materials, dynamic lighting, and an interactive viewport
+- **Bevy 0.19** — real-time 3D rendering with PBR materials, dynamic lighting, and an interactive viewport
 - **Procedural Audio** — algorithmic soundscapes (wind, rain, forest, ocean, cave) and spatial emitters via FunDSP
 - **Entity Behaviors** — composable animations (orbit, spin, bob, bounce, path_follow) with no scripting required
 - **NPCs** — characters with patrol AI, branching dialogue trees, and memory

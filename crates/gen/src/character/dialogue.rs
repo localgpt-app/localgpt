@@ -463,7 +463,7 @@ pub fn dialogue_ui_system(
                         DialogueSpeakerText,
                         Text::new(speaker.to_string()),
                         TextFont {
-                            font_size: 20.0,
+                            font_size: FontSize::Px(20.0),
                             ..default()
                         },
                         TextColor(Color::srgb(1.0, 0.85, 0.3)),
@@ -477,7 +477,7 @@ pub fn dialogue_ui_system(
                         DialogueBodyText,
                         Text::new(String::new()),
                         TextFont {
-                            font_size: 16.0,
+                            font_size: FontSize::Px(16.0),
                             ..default()
                         },
                         TextColor(Color::WHITE),
@@ -492,7 +492,7 @@ pub fn dialogue_ui_system(
                             DialogueChoiceButton { index: i },
                             Text::new(format!("[{}] {}", i + 1, choice.text)),
                             TextFont {
-                                font_size: 14.0,
+                                font_size: FontSize::Px(14.0),
                                 ..default()
                             },
                             TextColor(Color::srgb(0.7, 0.9, 1.0)),
@@ -508,7 +508,7 @@ pub fn dialogue_ui_system(
                             DialogueChoiceButton { index: 0 },
                             Text::new("[E] Continue".to_string()),
                             TextFont {
-                                font_size: 14.0,
+                                font_size: FontSize::Px(14.0),
                                 ..default()
                             },
                             TextColor(Color::srgb(0.7, 0.9, 1.0)),

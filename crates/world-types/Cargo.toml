@@ -12,4 +12,4 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]
-ron = "0.9"
+ron = "0.12.1"

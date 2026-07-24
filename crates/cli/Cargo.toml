@@ -44,14 +44,14 @@ reqwest = { workspace = true }
 # CLI
 clap = { version = "4.6", features = ["derive", "env"] }
 clap_complete = "4.6"
-which = "7"
-croner = "2"
+which = "8"
+croner = "3"
 
 # CLI line editor
-rustyline = "17.0.2"
+rustyline = "18"
 
 # Desktop GUI (optional)
-eframe = { version = "0.33", optional = true, default-features = false, features = [
+eframe = { version = "0.34", optional = true, default-features = false, features = [
     "default_fonts",
     "glow",
     "persistence",

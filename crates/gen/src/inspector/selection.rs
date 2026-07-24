@@ -67,7 +67,7 @@ pub fn highlight_selected(
         }
 
         if let Ok(mat_handle) = material_handles.get(selected)
-            && let Some(material) = materials.get_mut(&mat_handle.0)
+            && let Some(mut material) = materials.get_mut(&mat_handle.0)
         {
             // Store original emissive
             let original_color = material.emissive;
@@ -89,7 +89,7 @@ fn restore_emissive(
     material_handles: &Query<&MeshMaterial3d<StandardMaterial>>,
 ) {
     if let Ok(mat_handle) = material_handles.get(entity)
-        && let Some(material) = materials.get_mut(&mat_handle.0)
+        && let Some(mut material) = materials.get_mut(&mat_handle.0)
     {
         material.emissive = original.color;
     }

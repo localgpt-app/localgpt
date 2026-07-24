@@ -38,7 +38,7 @@ tokio = { version = "1.50", features = ["full"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "multipart", "form", "native-tls-vendored"] }
 
 # Database
-rusqlite = { version = "0.38", features = ["bundled", "functions", "vtab", "load_extension"] }
+rusqlite = { version = "0.40", features = ["bundled", "functions", "vtab", "load_extension"] }
 sqlite-vec = "0.1.7-alpha.10"
 
 # Serialization

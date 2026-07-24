@@ -1,3 +1,7 @@
+use crate::LocalSocketStream;
+use interprocess::local_socket::traits::StreamCommon;
+use std::io;
+
 /// Identity of a peer connected via a local (Unix-domain / named-pipe) socket.
 ///
 /// On Linux/Android all three fields are available via `SO_PEERCRED`.
@@ -5,96 +9,24 @@
 /// On Windows only `pid` is available (`GetNamedPipeClientProcessId`).
 #[derive(Debug, Clone, Copy)]
 pub struct PeerIdentity {
-    /// User ID of the connected process (Unix only).
+    /// Effective user ID of the connected process (Unix only).
     pub uid: Option<u32>,
-    /// Group ID of the connected process (Unix only).
+    /// Effective group ID of the connected process (Unix only).
     pub gid: Option<u32>,
     /// Process ID of the connected process.
     pub pid: Option<i32>,
 }
 
-#[cfg(unix)]
-pub use self::unix::get_peer_identity;
-
-#[cfg(windows)]
-pub use self::windows::get_peer_identity;
-
-#[cfg(unix)]
-mod unix {
-    use super::PeerIdentity;
-    use std::io;
-    use std::os::unix::io::AsRawFd;
-
-    #[cfg(any(target_os = "linux", target_os = "android"))]
-    pub fn get_peer_identity<T: AsRawFd>(stream: &T) -> io::Result<PeerIdentity> {
-        use nix::sys::socket::{getsockopt, sockopt::PeerCredentials};
-        use std::os::fd::BorrowedFd;
-
-        let raw_fd = stream.as_raw_fd();
-        // SAFETY: `raw_fd` is valid for the lifetime of this call because `stream` is borrowed.
-        let borrowed = unsafe { BorrowedFd::borrow_raw(raw_fd) };
-        let cred =
-            getsockopt(&borrowed, PeerCredentials).map_err(|e| io::Error::other(e.to_string()))?;
-
-        Ok(PeerIdentity {
-            uid: Some(cred.uid()),
-            gid: Some(cred.gid()),
-            pid: Some(cred.pid()),
-        })
-    }
-
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "tvos",
-        target_os = "watchos"
-    ))]
-    pub fn get_peer_identity<T: AsRawFd>(stream: &T) -> io::Result<PeerIdentity> {
-        let fd = stream.as_raw_fd();
-        let mut uid: libc::uid_t = 0;
-        let mut gid: libc::gid_t = 0;
-
-        // SAFETY: `fd` is a valid file descriptor from `stream` (borrowed for this call).
-        // `uid` and `gid` are valid mutable references to initialized locals.
-        // getpeereid() writes the peer credentials and returns 0 on success.
-        let ret = unsafe { libc::getpeereid(fd, &mut uid, &mut gid) };
-        if ret != 0 {
-            return Err(io::Error::last_os_error());
-        }
-
-        Ok(PeerIdentity {
-            uid: Some(uid as u32),
-            gid: Some(gid as u32),
-            pid: None,
-        })
-    }
-}
-
-#[cfg(windows)]
-mod windows {
-    use super::PeerIdentity;
-    use std::io;
-    use std::os::windows::io::AsRawHandle;
-    use windows::Win32::Foundation::HANDLE;
-    use windows::Win32::System::Pipes::GetNamedPipeClientProcessId;
-
-    pub fn get_peer_identity<T: AsRawHandle>(stream: &T) -> io::Result<PeerIdentity> {
-        let handle = stream.as_raw_handle();
-        let mut client_pid = 0;
-
-        // SAFETY: `handle` is a valid raw handle from `stream` (borrowed for this call).
-        // `client_pid` is a valid mutable reference. The Win32 API writes the client
-        // process ID and returns an error code on failure, which we check below.
-        let res = unsafe { GetNamedPipeClientProcessId(HANDLE(handle), &mut client_pid) };
-
-        if res.is_ok() {
-            Ok(PeerIdentity {
-                uid: None,
-                gid: None,
-                pid: Some(client_pid as i32),
-            })
-        } else {
-            Err(io::Error::last_os_error())
-        }
-    }
+/// Look up the credentials of the process on the other end of `stream`.
+///
+/// Delegates to `interprocess`' cross-platform peer-credentials API, which uses
+/// `SO_PEERCRED` / `getpeereid` on Unix and `GetNamedPipeClientProcessId` on
+/// Windows under the hood.
+pub fn get_peer_identity(stream: &LocalSocketStream) -> io::Result<PeerIdentity> {
+    let creds = stream.peer_creds()?;
+    Ok(PeerIdentity {
+        uid: creds.euid(),
+        gid: creds.egid(),
+        pid: creds.pid(),
+    })
 }

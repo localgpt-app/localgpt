@@ -152,7 +152,11 @@ pub fn normalize_embedding(mut vec: Vec<f32>) -> Vec<f32> {
 pub fn hash_text(text: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(text.as_bytes());
-    format!("{:x}", hasher.finalize())
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect()
 }
 
 // ============================================================================
