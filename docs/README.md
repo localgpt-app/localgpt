@@ -12,6 +12,7 @@ docs/
 │   ├── agent/               # Multi-agent architecture, notifications
 │   └── gen/                 # Gen mode vision and technical foundations
 ├── architecture/            # Current system architecture docs
+│   └── plugin/              # Plugin lifecycle reviews (apply/unapply without restart)
 ├── gen/                     # Gen mode reference (audio, MCP tools, UX)
 ├── mobile/                  # Mobile platform research
 ├── security/                # Security specs and roadmap
