@@ -1,0 +1,7 @@
+{
+  "name": "hol-guard-bash",
+  "event": "before_tool_call",
+  "command": "python3 hooks/hol_guard_hook.py",
+  "timeout_ms": 10000,
+  "enabled": true
+}
