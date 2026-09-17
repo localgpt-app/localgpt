@@ -62,6 +62,17 @@ class HolGuardHookTests(unittest.TestCase):
         self.assertEqual(MODULE.evaluate_event(event()), 2)
 
     @patch.object(MODULE.subprocess, "run")
+    def test_hol_guard_error_blocks(self, run):
+        run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="guard error"
+        )
+        self.assertEqual(MODULE.evaluate_event(event()), 2)
+
+    @patch.object(MODULE.subprocess, "run", side_effect=FileNotFoundError("hol-guard"))
+    def test_missing_hol_guard_executable_blocks(self, _run):
+        self.assertEqual(MODULE.evaluate_event(event()), 2)
+
+    @patch.object(MODULE.subprocess, "run")
     def test_malformed_output_blocks(self, run):
         run.return_value = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="not-json", stderr=""
