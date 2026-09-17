@@ -5,7 +5,7 @@ LocalGPT can run modifying `before_tool_call` hooks before a tool executes. This
 Install HOL Guard so the `hol-guard` command is available, then copy the example into a LocalGPT workspace:
 
 ```bash
-pip install --pre hol-guard
+pipx install hol-guard
 mkdir -p hooks
 cp examples/hol-guard-hook/hol_guard_hook.py hooks/
 cp examples/hol-guard-hook/hol-guard.hook.json hooks/
