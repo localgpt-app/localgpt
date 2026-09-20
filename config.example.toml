@@ -284,9 +284,9 @@ policy = "deny"
 # LocalGPT injects a security block at the end of every LLM context window.
 # The block has two independent layers:
 #
-#   1. User policy (LocalGPT.md) — your custom instructions, cryptographically
-#      signed and verified. Injected as "## Workspace Security Policy" header
-#      followed by your content. Requires `localgpt md sign` after editing.
+#   1. User policy (LocalGPT.md) — your custom instructions, sanitized
+#      before injection. Injected as "## Workspace Security Policy" header
+#      followed by your content. Changes take effect on the next session.
 #
 #   2. Hardcoded suffix — a compiled-in security reminder that tells the model
 #      to treat tool outputs and retrieved content as data, not instructions.
@@ -296,12 +296,6 @@ policy = "deny"
 # They are NOT saved to session logs or included in compaction.
 #
 # You can disable each layer independently:
-
-# Abort on tamper or suspicious content in LocalGPT.md (default: false)
-# When true, TamperDetected and SuspiciousContent are fatal errors that
-# prevent the agent from starting. When false, the agent warns and falls
-# back to hardcoded suffix only.
-# strict_policy = false
 
 # Skip loading the LocalGPT.md workspace security policy (default: false)
 # The hardcoded suffix still applies unless also disabled.

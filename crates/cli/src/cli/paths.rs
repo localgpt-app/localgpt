@@ -21,7 +21,6 @@ pub fn run() -> Result<()> {
     println!("  skills:         {}", paths.managed_skills_dir().display());
     println!();
     println!("State:      {}", paths.state_dir.display());
-    println!("  audit log:      {}", paths.audit_log().display());
     println!("  sessions:       {}", paths.sessions_dir("main").display());
     println!("  logs:           {}", paths.logs_dir().display());
     println!();

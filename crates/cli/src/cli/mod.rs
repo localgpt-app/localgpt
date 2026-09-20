@@ -1,5 +1,4 @@
 pub mod ask;
-pub mod audit;
 pub mod bridge;
 pub mod cert;
 pub mod chat;
@@ -10,7 +9,6 @@ pub mod daemon;
 #[cfg(feature = "desktop")]
 pub mod desktop;
 pub mod doctor;
-pub mod encrypt;
 pub mod gen3d;
 pub mod hooks;
 pub mod init;
@@ -105,9 +103,6 @@ pub enum Commands {
     /// Run diagnostics to validate setup
     Doctor(doctor::DoctorArgs),
 
-    /// Manage encryption at rest
-    Encrypt(encrypt::EncryptArgs),
-
     /// Manage MCP tool servers
     Tool(tool::ToolArgs),
 
@@ -128,9 +123,6 @@ pub enum Commands {
 
     /// Manage sessions (list, branch)
     Session(session::SessionArgs),
-
-    /// Inspect compaction audit log (show, verify, stats)
-    Audit(audit::AuditArgs),
 
     /// Manage TLS certificates (info, regenerate)
     Cert(cert::CertArgs),

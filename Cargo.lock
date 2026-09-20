@@ -7427,7 +7427,6 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "cc",
- "chacha20poly1305",
  "chrono",
  "croner",
  "directories",
@@ -7437,7 +7436,6 @@ dependencies = [
  "fs2",
  "futures",
  "glob",
- "hmac 0.13.0",
  "image",
  "json5",
  "jsonwebtoken",
@@ -7466,7 +7464,6 @@ dependencies = [
  "tracing",
  "uuid",
  "which",
- "zeroize",
 ]
 
 [[package]]

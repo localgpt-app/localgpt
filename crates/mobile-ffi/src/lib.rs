@@ -50,7 +50,7 @@ pub struct WorkspaceFile {
 const REGULAR_EDITABLE_FILES: &[&str] = &["MEMORY.md", "SOUL.md", "HEARTBEAT.md"];
 
 /// Security-sensitive files that require user confirmation before editing.
-/// These files affect the agent's security policy and are HMAC-signed.
+/// These files affect the agent's security policy.
 /// Editing is only allowed through explicit user action (never by the agent).
 const SECURITY_EDITABLE_FILES: &[&str] = &["LocalGPT.md"];
 
@@ -218,27 +218,15 @@ impl LocalGPTClient {
             .map_err(|e| MobileError::Memory(e.to_string()))
     }
 
-    /// Write new LocalGPT.md content and re-sign the policy.
+    /// Write new LocalGPT.md content (security policy / standing instructions).
     ///
-    /// The policy file is HMAC-signed with a device-local key so that the
-    /// agent cannot tamper with it. After writing, this method automatically
-    /// re-signs the file and updates `.localgpt_manifest.json`.
+    /// This is a plain file write — the policy is loaded and sanitized at
+    /// the next session start. Editing is only allowed through explicit
+    /// user action (never by the agent).
     pub fn set_localgpt_md(&self, content: String) -> Result<(), MobileError> {
         let workspace = self.config.workspace_path();
-        let state_dir = &self.config.paths.data_dir;
-
-        // Ensure the device signing key exists.
-        security::ensure_device_key(state_dir).map_err(|e| MobileError::Memory(e.to_string()))?;
-
-        // Write the policy file.
         std::fs::write(workspace.join(security::POLICY_FILENAME), &content)
-            .map_err(|e| MobileError::Memory(e.to_string()))?;
-
-        // Re-sign the policy so the agent recognises it.
-        security::sign_policy(state_dir, &workspace, "mobile")
-            .map_err(|e| MobileError::Memory(e.to_string()))?;
-
-        Ok(())
+            .map_err(|e| MobileError::Memory(e.to_string()))
     }
 
     /// List the editable workspace files with their current content.
@@ -291,8 +279,7 @@ impl LocalGPTClient {
     /// Write an arbitrary workspace file by name.
     ///
     /// Only the known editable files (MEMORY.md, SOUL.md, HEARTBEAT.md,
-    /// LocalGPT.md) are allowed. For LocalGPT.md the policy is
-    /// automatically re-signed. The caller (mobile UI) must confirm
+    /// LocalGPT.md) are allowed. The caller (mobile UI) must confirm
     /// security-sensitive file edits before calling this method.
     pub fn set_workspace_file(&self, filename: String, content: String) -> Result<(), MobileError> {
         if !is_editable_file(&filename) {

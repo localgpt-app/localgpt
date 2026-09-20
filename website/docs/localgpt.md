@@ -76,22 +76,16 @@ You can combine any of these. The file is yours. Write it however makes sense fo
 
 ## How it stays trustworthy
 
-Because `LocalGPT.md` directly shapes AI behavior, it is protected by a cryptographic integrity system:
+Because `LocalGPT.md` directly shapes AI behavior, the agent must not be able to rewrite its own instructions. That protection comes from two system-level mechanisms, not from anything in the prompt:
 
-1. **You write or edit `LocalGPT.md`** in your editor of choice — it's a plain Markdown file
-2. **You sign it** by running `localgpt md sign`, which creates a cryptographic fingerprint using a key stored on your device
-3. **At every session start**, LocalGPT verifies the signature before injecting the file's content. If the file was modified without re-signing — by the AI, by a script, by anything other than you deliberately editing and re-signing — the content is silently excluded and a warning is shown
+1. **Protected files** — `LocalGPT.md` is on a hardcoded deny list. The agent's `write_file` and `edit_file` tools refuse to modify it (alongside `IDENTITY.md` and other protected paths), no matter what the model decides to do.
+2. **The sandbox** — shell commands run in a kernel-enforced sandbox that cannot write outside the allowed paths, so the agent can't bypass the file tools to edit it either.
 
-This means the AI **cannot modify its own instructions**. Your standing instructions remain yours.
+You edit `LocalGPT.md` yourself, in your editor of choice — it's a plain Markdown file. Changes take effect on the next turn; there is no signing step, no manifest, and nothing to re-verify.
 
-The signing step is simple and takes less than a second:
+Before injection, the file's content is also **sanitized** against common prompt-injection patterns (the same filter applied to tool output), capped at 4,096 characters, and wrapped so the model treats it as your instructions rather than as a message from itself.
 
-```
-$ localgpt md sign
-✓ Signed LocalGPT.md (sha256: a1b2c3...)
-```
-
-If `LocalGPT.md` is not signed, LocalGPT still works — it simply runs without your custom instructions, using only its built-in defaults.
+If `LocalGPT.md` does not exist, LocalGPT simply runs without your custom instructions, using only its built-in defaults.
 
 ## Important: guidance, not guarantees
 
@@ -109,7 +103,7 @@ The security block has two independent layers:
 
 | Layer | Source | Configurable | Position |
 |-------|--------|-------------|----------|
-| **User policy** | `LocalGPT.md` (signed) | `security.disable_policy` | Before suffix |
+| **User policy** | `LocalGPT.md` | `security.disable_policy` | Before suffix |
 | **Hardcoded suffix** | Compiled into binary | `security.disable_suffix` | Always last |
 
 The resulting text is appended to the last message with a `\n\n` separator. It is **not saved** to session logs, **not included** in compaction/summarization, and **not visible** in session transcripts — it exists only in the API call payload.
@@ -140,15 +134,6 @@ disable_suffix = false
 Setting both to `true` removes all end-of-context security reinforcement. The system prompt safety section still exists, but may lose effectiveness in long sessions due to the "lost in the middle" attention decay effect.
 :::
 
-You can also control how strictly tamper detection is handled:
-
-```toml
-[security]
-# Abort agent startup on tamper or suspicious content (default: false)
-# When false (default), the agent warns and falls back to hardcoded suffix only.
-strict_policy = false
-```
-
 ## Quick reference
 
 | | |
@@ -157,11 +142,9 @@ strict_policy = false
 | **Format** | Plain Markdown (UTF-8) |
 | **Size limit** | 4,096 characters (~1,000 tokens) |
 | **Injected** | Near end of every turn (before security suffix) |
-| **Editable by AI** | No — write-protected and signature-verified |
+| **Sanitized** | Yes — filtered for prompt-injection patterns before injection |
+| **Editable by AI** | No — protected-files deny list blocks `write_file`/`edit_file`; sandbox blocks shell edits |
 | **Required** | No — LocalGPT works without it, using built-in defaults |
-| **Sign after editing** | `localgpt md sign` |
-| **Check status** | `localgpt md status` |
-| **View audit log** | `localgpt md audit` |
 
 ## Getting started
 
@@ -171,11 +154,4 @@ Create or edit the file:
 $ nano ~/.local/share/localgpt/workspace/LocalGPT.md
 ```
 
-Write your instructions, then sign:
-
-```
-$ localgpt md sign
-✓ Signed LocalGPT.md
-```
-
-That's it. Your instructions are now active for every conversation, every session, every turn — until you change them.
+Write your instructions and save. That's it — your instructions are active from the next turn onward, for every conversation and every session, until you change them.

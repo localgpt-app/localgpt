@@ -17,7 +17,7 @@ This document tracks feature parity across fifteen implementations of the person
 |---------|----------|---------|---------|
 | **OpenClaw** | TypeScript | MIT | Reference implementation (v2026.4.11); full-featured desktop AI assistant with 20+ messaging channels, WebSocket control plane, advanced memory system (Active Memory pre-reply recall with configurable modes, dreaming with grounded REM backfill, memory-wiki belief-layer digests, LanceDB vector backend, pluggable compaction), startup-context prelude, usage/cost analytics dashboard, ClawHub plugin ecosystem, MCP integration, durable WhatsApp delivery queue, and hardened MS Teams Graph API integration |
 | **IronClaw** | Rust | MIT/Apache 2.0 | Security-focused (v0.24.0); WASM sandbox with capability-based permissions, Docker sandbox (orchestrator/worker), prompt injection defense, hybrid search memory (PostgreSQL + pgvector), self-repair with fault injection testing, dynamic tool building, webhook relay, NEAR AI integration, per-job MCP server filtering, unified config (DB > env > default) |
-| **LocalGPT** | Rust | Apache 2.0 | Local-first AI assistant (v0.3.6) with persistent markdown memory, Bevy 3D scene generation (Gen mode with physics, NPC brain, MCP server), CLI bridge over local IPC, Docker/Podman + OS-level sandbox, browser automation, encryption at rest, TLS auto-certs, elevated permission mode, durable outbound message queue, SSRF protection, and optional autonomous heartbeat with dreaming |
+| **LocalGPT** | Rust | Apache 2.0 | Local-first AI assistant (v0.3.6) with persistent markdown memory, Bevy 3D scene generation (Gen mode with physics, NPC brain, MCP server), CLI bridge over local IPC, Docker/Podman + OS-level sandbox, browser automation, TLS auto-certs, elevated permission mode, durable outbound message queue, SSRF protection, and optional autonomous heartbeat with dreaming |
 | **Moltis** | Rust | MIT | Enterprise-ready 46-crate workspace (v20260409.04, 196K LoC, 2,300+ tests, zero unsafe); Docker + Apple Container sandbox, multi-channel (Telegram/Slack/HTTP/Teams/Discord), GraphQL API, TLS/WebAuthn auth, encryption-at-rest (XChaCha20-Poly1305), 18 LLM providers including Alibaba Coding |
 | **Nanobot** | Python | MIT | Lightweight (v0.1.5, ~4K LOC) with 13+ chat channels (including WebSocket server, WeCom), unified cross-channel sessions, multi-MCP server support, Kagi web search, disabled_skills config; ideal for learning and rapid prototyping |
 | **CoPaw** | Python | Apache 2.0 | AgentScope/Alibaba-based (v1.0.2); native desktop installers (Win/Mac), console web UI with multimodal support, 10 channels (DingTalk/Feishu/QQ/Discord/iMessage/Telegram/Signal/Matrix/MQTT/Nostr), local models (llama.cpp/MLX/Ollama), ReMeLight memory, plugin system with manifest loading, /skills and /model commands, built-in glob/grep search tools, Twilio voice, daemon mode |
@@ -231,7 +231,6 @@ This document tracks feature parity across fifteen implementations of the person
 | `desktop` (GUI) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | - | LocalGPT: egui/eframe; Agent Zero: Web UI |
 | `db` (database management) | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
 | `tailscale` | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
-| `md sign/verify/policy` | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
 | `bridge list/show/remove` | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | |
 | `hardware` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | - | MimiClaw: ESP32 GPIO |
 | `goals` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | ZeroClaw: goals system |
@@ -251,7 +250,7 @@ This document tracks feature parity across fifteen implementations of the person
 | Global sessions | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Nanobot: unified_session shares one session across all channels |
 | Session pruning | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | Agent Zero: context management |
 | Context compaction | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ❌ | ✅ | ✅ | RosClaw: via OpenClaw; Agent Zero: history truncation |
-| Post-compaction read audit | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: Merkle hash-chain audit, CLI show/verify/stats |
+| Post-compaction read audit | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
 | Post-compaction context injection | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: AGENTS.md injection |
 | Custom system prompts | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | ✅ | RosClaw: via OpenClaw; Agent Zero: prompts/ folder |
 | Skills (modular capabilities) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ➖ | ✅ | ✅ | ✅ | ✅ | MimiClaw: on-device skills; Agent Zero: SKILL.md standard; RosClaw: via OpenClaw |
@@ -589,12 +588,11 @@ This document tracks feature parity across fifteen implementations of the person
 | Leak detection | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | Agent Zero: key redaction; ZClaw: key redaction |
 | Dangerous tool re-enable warning | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
 | OS-level sandbox (Landlock/Seatbelt) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | NullClaw: landlock, firejail, bubblewrap |
-| Policy signing (HMAC-SHA256) | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
 | WebAuthn/passkey auth | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
 | Apple Container sandbox | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
 | Zero unsafe code | ❌ | ❌ | ❌ | ✅ | ➖ | ➖ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ➖ | ➖ | N/A for Python |
 | WebSocket origin validation | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Encrypted secrets storage | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | LocalGPT: encryption at rest for sessions/config; ZeroClaw/NullClaw: chacha20poly1305 AEAD; ZClaw: NVS encryption; Agent Zero: secrets manager |
+| Encrypted secrets storage | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | LocalGPT: encrypted bridge credential storage (ChaCha20-Poly1305); ZeroClaw/NullClaw: chacha20poly1305 AEAD; ZClaw: NVS encryption; Agent Zero: secrets manager |
 
 ---
 
@@ -688,7 +686,7 @@ This document tracks feature parity across fifteen implementations of the person
 - ✅ iOS/Android via UniFFI
 - ✅ Gen mode (Bevy 3D + FunDSP audio + avian3d physics + world forking)
 - ✅ Multi-layer sandbox: OS-level (Landlock/Seatbelt) + Docker/Podman containers
-- ✅ Encryption at rest (sessions + config secrets)
+- ✅ Encrypted bridge credential storage
 - ✅ Browser automation (Chrome DevTools Protocol)
 - ✅ Session transcript indexing + post-compaction context injection
 - ✅ Gemini multimodal embeddings + LLM query expansion
@@ -985,14 +983,12 @@ Git repository activity metrics as of 2026-03-22.
 2. **Bridge daemon architecture** — tarpc-based IPC for client isolation (CLI bridge)
 3. **UniFFI mobile bindings** — Native iOS (Swift) + Android (Kotlin) from shared Rust core
 4. **Multi-layer sandboxing** — OS-level (Landlock/Seatbelt) + Docker/Podman containers (cap-drop ALL, network isolation)
-5. **Encryption at rest** — Session and config secret encryption with `localgpt encrypt` CLI
-6. **Browser automation** — Chrome DevTools Protocol tool for web interaction
-7. **Session transcript indexing** — Session transcripts indexed for memory search alongside workspace files
-8. **Post-compaction context injection** — AGENTS.md context injected after session compaction
-9. **Gemini multimodal embeddings** — Image + audio indexing via Gemini embedding provider
-10. **Policy signing** — HMAC-SHA256 signed LocalGPT.md workspace security policies
-11. **MCP server management** — `localgpt tool list/add/remove` CLI for managing MCP server configurations
-12. **Profile isolation** — `--profile` flag for completely isolated config/data directories
+5. **Browser automation** — Chrome DevTools Protocol tool for web interaction
+6. **Session transcript indexing** — Session transcripts indexed for memory search alongside workspace files
+7. **Post-compaction context injection** — AGENTS.md context injected after session compaction
+8. **Gemini multimodal embeddings** — Image + audio indexing via Gemini embedding provider
+9. **MCP server management** — `localgpt tool list/add/remove` CLI for managing MCP server configurations
+10. **Profile isolation** — `--profile` flag for completely isolated config/data directories
 
 ### Moltis
 1. **46-crate workspace** — 196K lines of core code, 2,300+ tests, highly modular

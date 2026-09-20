@@ -152,16 +152,13 @@ Model prefix determines LLM provider:
 ### Protected Files
 The agent is blocked from writing to:
 - `LocalGPT.md`
-- `.localgpt_manifest.json`
 - `IDENTITY.md`
 - `localgpt.device.key`
-- `localgpt.audit.jsonl`
 
 ### Prompt Injection Defenses
 - Strip known LLM control tokens from tool outputs
 - Detect injection phrases with regex scanning
 - Wrap external content in XML delimiters
-- All security events logged to append-only, hash-chained audit file
 
 ## Configuration
 

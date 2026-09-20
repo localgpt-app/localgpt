@@ -95,14 +95,12 @@ async fn async_main(cli: Cli) -> Result<()> {
         Commands::Init(args) => crate::cli::init::run(args),
         Commands::Bridge(args) => crate::cli::bridge::run(args).await,
         Commands::Doctor(args) => crate::cli::doctor::run(args).await,
-        Commands::Encrypt(args) => crate::cli::encrypt::run(args).await,
         Commands::Tool(args) | Commands::Plugin(args) => crate::cli::tool::run(args).await,
         Commands::Completion(args) => crate::cli::completion::run(args),
         Commands::Cron(args) => crate::cli::cron::run(args),
         Commands::Hooks(args) => crate::cli::hooks::run(args),
         Commands::McpServer(args) => crate::cli::mcp_server::run(args).await,
         Commands::Session(args) => crate::cli::session::run(args).await,
-        Commands::Audit(args) => crate::cli::audit::run(args).await,
         Commands::Cert(args) => {
             let config = localgpt_core::Config::load()?;
             crate::cli::cert::run(&args, &config)

@@ -3,12 +3,10 @@
 //! See [`localgpt`] for the module overview, architecture diagram,
 //! and public API documentation.
 
-mod audit;
-pub mod encrypt;
+mod device_key;
 mod localgpt;
 mod policy;
 mod protected_files;
-mod signing;
 mod suffix;
 
 // The localgpt.rs facade controls the entire public API surface.

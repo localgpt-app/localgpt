@@ -89,11 +89,8 @@ fs2 = "0.4"
 readability = "0.3"
 tempfile = "3.27"
 
-# Security (HMAC signing, hashing, encryption)
+# Security (hashing for memory index & media cache)
 sha2 = "0.11"
-hmac = "0.13"
-chacha20poly1305 = "0.10"
-zeroize = { version = "1", features = ["derive"] }
 
 # JWT signing (for Vertex AI service account auth)
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }

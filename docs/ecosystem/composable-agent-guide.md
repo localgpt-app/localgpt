@@ -511,10 +511,6 @@ The rationale: external agent runtimes (Claude Code, Codex, goose) already provi
 - No authentication token on the HTTP transport. If you need network exposure, put it behind a reverse proxy with auth.
 - CORS is permissive (any origin) to support browser-based MCP clients.
 
-### Policy signing
-
-LocalGPT.md policy files can be cryptographically signed and verified with device keys stored at `~/.local/share/localgpt/localgpt.device.key`. This is orthogonal to MCP -- it governs what the LocalGPT agent itself is allowed to do, not what external agents can call via MCP.
-
 ---
 
 ## Limitations

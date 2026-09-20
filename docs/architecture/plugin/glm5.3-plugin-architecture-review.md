@@ -141,7 +141,7 @@ Everything in this section was verified against the current tree.
 **Constraints any design must respect:**
 
 - Core portability: `localgpt-core` must compile for iOS/Android; no platform-specific deps in core (`CLAUDE.md:130-134`).
-- Security model: signed policy verification and an audit chain happen at agent start (`mod.rs:299-387`, `crates/core/src/security/`). Plugin apply/unapply events should be audited the same way.
+- Security model: policy-file loading and prompt-injection sanitization live in `crates/core/src/security/`; tool execution is gated by `PermissionLevel`/`ApprovalGate`. Plugin apply/unapply should be gated the same way.
 - `Agent` is not `Sync` (SQLite); sharing goes through `AgentHandle = Arc<tokio::sync::Mutex<Agent>>` (`mod.rs:2290-2380`).
 
 ### 2.3 What this means
@@ -190,7 +190,6 @@ Named bundles — a plugin = a set of tools (later: hooks, prompt sections, slas
 - **Pros:**
   - Best long-term shape: matches how the product already talks about plugins; per-session scoping (spawned subagents mounting scoped bundles that unwind with the session) maps directly to Cordis's `Scope` (§1.4).
   - Unapply is a first-class product feature, not a refactor byproduct: `plugin remove` actually removes tools from running sessions.
-  - Audit story composes cleanly: apply/unapply as `AuditAction`s in the existing chain.
 - **Cons:**
   - Largest change; hard to land incrementally without B (registry) and most valuable with A (trigger).
   - Risk of overbuilding: deepseek-harness needs full Cordis because *everything* is a plugin in one long-lived process; LocalGPT's fresh-agent-per-task pattern already delivers most of "plugins without restart" for free to new agents. The remaining pain (long-lived sessions) is narrower than a full plugin manager.
@@ -222,7 +221,7 @@ A general service registry: `provide(name, Arc<dyn Any>)` behind `RwLock`, `inje
 2. **Containment, not propagation.** Mirror `fiber.ts:675-696`: each disposer runs in its own error boundary (`futures::future::catch_unwind`-style or `Result` + log), so one failing cleanup cannot starve the rest, and a failed apply never leaves a half-mounted state.
 3. **Mid-turn safety.** `TurnGate` serializes turns; swap registries/config snapshots at turn boundaries, never mid-turn. Long-lived agents re-snapshot `Arc<RwLock<...>>` reads at turn start (cheap clone of an `Arc` list).
 4. **Core portability.** The registry lives in `localgpt-core` → pure Rust only; MCP transport specifics stay where they are; mobile-ffi (`AgentHandle`) keeps working unchanged.
-5. **Audit.** Apply/unapply are security-relevant state changes → `append_audit_entry` actions, consistent with policy verification at `mod.rs:299-387`.
+5. **Visibility.** Apply/unapply are security-relevant state changes → log them (structured `tracing` events) so plugin lifecycle actions are traceable.
 
 ### Comparison
 

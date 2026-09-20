@@ -3,9 +3,7 @@
 
 /// Bash deny substrings — case-insensitive substring match.
 pub const BASH_DENY_SUBSTRINGS: &[&str] = &[
-    ".device_key",
-    ".security_audit.jsonl",
-    ".localgpt_manifest.json",
+    "localgpt.device.key",
     "rm -rf /",
     "mkfs",
     ":(){ :|:& };:",

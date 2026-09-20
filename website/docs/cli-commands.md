@@ -26,7 +26,6 @@ Commands:
   init        Initialize configuration and keys
   bridge      Manage bridges and credentials
   doctor      Run diagnostics to validate setup
-  encrypt     Manage encryption at rest
   tool        Manage MCP tool servers
   plugin      Manage MCP tool servers (alias for 'tool')
   completion  Generate shell completion scripts
@@ -34,7 +33,6 @@ Commands:
   hooks       Manage lifecycle hooks
   mcp-server  Run as MCP server (stdio) exposing memory tools
   session     Manage sessions (list, branch, checkpoints)
-  audit       View and verify compaction audit log
   cert        Manage TLS certificates (info, regenerate)
   desktop     Launch desktop GUI (feature-gated)
   help        Print help information
@@ -65,14 +63,13 @@ Options:
 | [`daemon`](/docs/cli-daemon) | Start/stop/status of the background daemon |
 | [`memory`](/docs/cli-memory) | Search, reindex, and manage memory |
 | `config` | Init, show, get, and set configuration values |
-| [`md`](/docs/localgpt#quick-reference) | Sign, verify, and audit LocalGPT.md |
+| [`md`](/docs/localgpt#quick-reference) | Manage LocalGPT.md standing instructions |
 | `paths` | Show resolved XDG directory paths |
 | [`sandbox`](/docs/sandbox#cli-commands) | Inspect sandbox capabilities and run tests |
 | `search` | Test and manage web search providers |
 | `init` | Initialize configuration and device keys |
 | `bridge` | Manage chat bridges and credentials |
 | `doctor` | Run diagnostics to validate setup (config, keys, providers) |
-| `encrypt` | Manage encryption at rest (sessions, config secrets) |
 | `desktop` | Launch the native desktop GUI (egui) |
 | `completion` | Generate shell completion scripts (bash, zsh, fish) |
 | `cron` | Manage cron jobs (list, add, remove) |
@@ -80,7 +77,6 @@ Options:
 | `tool` / `plugin` | Manage MCP tool servers (list, add, remove, enable, disable) |
 | `mcp-server` | Run as an MCP server (stdio) exposing memory tools |
 | `session` | Manage sessions (list, branch, compaction checkpoints) |
-| `audit` | View and verify compaction audit log (show, verify, stats) |
 | `cert` | Manage TLS certificates (info, regenerate) |
 
 ## Examples
@@ -115,12 +111,6 @@ localgpt config set agent.default_model "claude-cli/opus"
 
 # Check sandbox capabilities
 localgpt sandbox status
-
-# Sign LocalGPT.md after editing
-localgpt md sign
-
-# View security audit log
-localgpt md audit
 
 # Launch world generation (separate binary)
 localgpt-gen "create a solar system with planets"
@@ -157,13 +147,6 @@ localgpt tool add myserver --command "npx" -- "@anthropic/mcp-searxng"
 localgpt tool enable myserver     # Enable a disabled server
 localgpt tool disable myserver    # Disable without removing
 localgpt tool remove myserver     # Remove from config
-
-# Compaction audit log
-localgpt audit show               # Show recent compaction events
-localgpt audit show --limit 5     # Show last 5 events
-localgpt audit show --json        # JSON output
-localgpt audit verify             # Verify hash chain integrity
-localgpt audit stats              # Show compaction statistics
 
 # Session management and compaction checkpoints
 localgpt session list                          # List recent sessions

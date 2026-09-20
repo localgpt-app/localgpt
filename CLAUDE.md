@@ -176,7 +176,7 @@ mode spawns tokio on a background thread.
 
 **Session compaction:** Approaching context limits triggers a memory flush first
 (the LLM saves important context to MEMORY.md before older messages are
-truncated). See `agent/compaction.rs`; audited in `localgpt.audit.jsonl`.
+truncated). See `agent/compaction.rs`.
 
 **Provider failover:** `agent/failover.rs` can fall back across configured
 providers when a primary errors out.
@@ -249,8 +249,8 @@ Aliases resolve first (e.g. `opus` → `anthropic/claude-opus-4-6`, `sonnet`,
   (mobile). **env.rs** centralizes all `LOCALGPT_*` env var names.
 - **commands.rs** — shared slash command definitions (CLI + bridges).
 - **concurrency/** — TurnGate (one agent turn at a time) + WorkspaceLock.
-- **security/** — LocalGPT.md policy signing/verification, audit log, at-rest
-  encryption, protected files.
+- **security/** — LocalGPT.md policy loading and injection sanitization, the
+  protected-files deny list, and the hardcoded security suffix.
 
 ### Server (`crates/server/src/`)
 
@@ -266,9 +266,9 @@ Aliases resolve first (e.g. `opus` → `anthropic/claude-opus-4-6`, `sonnet`,
 
 `chat`, `tui`, `ask`, `desktop` (feature-gated), `gen`, `daemon`, `memory`,
 `config`, `md` (LocalGPT.md policy), `paths`, `sandbox`, `search`, `init`,
-`bridge`, `doctor`, `encrypt`, `tool`/`plugin` (MCP servers), `completion`,
+`bridge`, `doctor`, `tool`/`plugin` (MCP servers), `completion`,
 `cron`, `hooks`, `mcp-server` (run as stdio MCP server exposing memory),
-`session`, `audit` (inspect compaction audit log), `cert`.
+`session`, `cert`.
 
 ### Gen (3D Scene Generation with Audio + Multiplayer)
 
@@ -352,11 +352,10 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
 │   ├── memory/YYYY-MM-DD.md             # Daily logs
 │   ├── knowledge/                       # Knowledge repository
 │   └── skills/*/SKILL.md                # Custom skills
-├── localgpt.device.key                  # Device key for policy signing
+├── localgpt.device.key                  # Device key (master key for bridge credential encryption)
 └── skills/                              # Managed skills
 ~/.local/state/localgpt/                 # XDG_STATE_HOME
 ├── agents/{agent_id}/sessions/          # Session transcripts (JSONL)
-├── localgpt.audit.jsonl                 # Security/compaction audit log
 └── logs/                                # Application logs
 ~/.cache/localgpt/                       # XDG_CACHE_HOME
 ├── memory/{agent_id}.sqlite             # Search index (regenerable)

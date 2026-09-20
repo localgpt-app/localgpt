@@ -247,15 +247,12 @@ policy = "deny"   # "deny" or "proxy" (future)
 #──────────────────────────────────────────────────────────────────────────────
 # LocalGPT injects a security block at the end of every LLM context window.
 # It has two independent layers:
-#   1. User policy (LocalGPT.md) — your signed custom instructions
+#   1. User policy (LocalGPT.md) — your custom standing instructions
 #   2. Hardcoded suffix — compiled-in security reminder (always last)
 # Both are concatenated into the last user message on every API call.
 # They are NOT saved to session logs or included in compaction.
 
 [security]
-# Abort session if LocalGPT.md tamper detected? (default: warn only)
-strict_policy = false
-
 # Skip loading the LocalGPT.md workspace security policy
 # The hardcoded suffix still applies unless also disabled.
 disable_policy = false

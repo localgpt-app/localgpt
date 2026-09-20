@@ -51,7 +51,7 @@ pub struct Paths {
     /// May be overridden independently via LOCALGPT_WORKSPACE.
     pub workspace: PathBuf,
 
-    /// State directory: sessions, audit log, logs
+    /// State directory: sessions, logs
     pub state_dir: PathBuf,
 
     /// Cache directory: search index, embedding models
@@ -126,11 +126,6 @@ impl Paths {
     /// Device key: data_dir/localgpt.device.key
     pub fn device_key(&self) -> PathBuf {
         self.data_dir.join("localgpt.device.key")
-    }
-
-    /// Audit log: state_dir/localgpt.audit.jsonl
-    pub fn audit_log(&self) -> PathBuf {
-        self.state_dir.join("localgpt.audit.jsonl")
     }
 
     pub fn last_heartbeat(&self) -> PathBuf {
@@ -519,7 +514,6 @@ mod tests {
 
         assert!(paths.config_file().ends_with("config.toml"));
         assert!(paths.device_key().ends_with("localgpt.device.key"));
-        assert!(paths.audit_log().ends_with("localgpt.audit.jsonl"));
         assert!(paths.search_index("main").ends_with("memory/main.sqlite"));
         assert!(paths.sessions_dir("main").ends_with("agents/main/sessions"));
         assert!(paths.logs_dir().ends_with("logs"));

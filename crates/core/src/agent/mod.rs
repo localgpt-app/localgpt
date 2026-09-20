@@ -291,99 +291,16 @@ impl Agent {
             }
         }
 
-        // Load and verify security policy
+        // Load the security policy (sanitized + truncated). If it is missing
+        // or rejected by sanitization, the agent runs with the hardcoded
+        // security suffix only.
         let workspace = app_config.workspace_path();
-        let data_dir = &app_config.paths.data_dir;
-        let state_dir = &app_config.paths.state_dir;
 
         let verified_security_policy = if app_config.security.disable_policy {
             debug!("Security policy loading disabled by config");
             None
         } else {
-            match crate::security::load_and_verify_policy(&workspace, data_dir) {
-                crate::security::PolicyVerification::Valid(content) => {
-                    let sha = crate::security::content_sha256(&content);
-                    let _ = crate::security::append_audit_entry(
-                        state_dir,
-                        crate::security::AuditAction::Verified,
-                        &sha,
-                        "session_start",
-                    );
-                    info!("Security policy verified and loaded");
-                    Some(content)
-                }
-                crate::security::PolicyVerification::TamperDetected => {
-                    let _ = crate::security::append_audit_entry(
-                        state_dir,
-                        crate::security::AuditAction::TamperDetected,
-                        "",
-                        "session_start",
-                    );
-                    if app_config.security.strict_policy {
-                        tracing::error!(
-                            "LocalGPT.md tamper detected — file was modified after signing"
-                        );
-                        anyhow::bail!(
-                            "Security policy tamper detected. \
-                             Re-sign with `localgpt md sign` or remove LocalGPT.md to continue."
-                        );
-                    }
-                    tracing::warn!("LocalGPT.md tamper detected. Using hardcoded security only.");
-                    None
-                }
-                crate::security::PolicyVerification::Unsigned => {
-                    let _ = crate::security::append_audit_entry(
-                        state_dir,
-                        crate::security::AuditAction::Unsigned,
-                        "",
-                        "session_start",
-                    );
-                    info!("LocalGPT.md not signed. Run `localgpt md sign` to activate.");
-                    None
-                }
-                crate::security::PolicyVerification::SuspiciousContent(warnings) => {
-                    let _ = crate::security::append_audit_entry_with_detail(
-                        state_dir,
-                        crate::security::AuditAction::SuspiciousContent,
-                        "",
-                        "session_start",
-                        Some(&warnings.join(", ")),
-                    );
-                    if app_config.security.strict_policy {
-                        tracing::error!("LocalGPT.md contains suspicious patterns: {:?}", warnings);
-                        anyhow::bail!(
-                            "Security policy rejected — suspicious content detected: {}. \
-                             Fix LocalGPT.md and re-sign with `localgpt md sign`.",
-                            warnings.join(", ")
-                        );
-                    }
-                    tracing::warn!(
-                        "LocalGPT.md contains suspicious patterns: {:?}. Skipping.",
-                        warnings
-                    );
-                    None
-                }
-                crate::security::PolicyVerification::Missing => {
-                    let _ = crate::security::append_audit_entry(
-                        state_dir,
-                        crate::security::AuditAction::Missing,
-                        "",
-                        "session_start",
-                    );
-                    debug!("No LocalGPT.md found, using hardcoded security only.");
-                    None
-                }
-                crate::security::PolicyVerification::ManifestCorrupted => {
-                    let _ = crate::security::append_audit_entry(
-                        state_dir,
-                        crate::security::AuditAction::ManifestCorrupted,
-                        "",
-                        "session_start",
-                    );
-                    tracing::warn!("Security manifest corrupted. Using hardcoded security only.");
-                    None
-                }
-            }
+            crate::security::load_policy(&workspace)
         };
 
         Ok(Self {
@@ -452,16 +369,12 @@ impl Agent {
             }
         };
 
-        // Load security policy
+        // Load security policy (plain load + sanitize; see Agent::new)
         let workspace = app_config.workspace_path();
-        let data_dir = &app_config.paths.data_dir;
         let verified_security_policy = if app_config.security.disable_policy {
             None
         } else {
-            match crate::security::load_and_verify_policy(&workspace, data_dir) {
-                crate::security::PolicyVerification::Valid(content) => Some(content),
-                _ => None,
-            }
+            crate::security::load_policy(&workspace)
         };
 
         let max_tool_repeats = app_config.agent.max_tool_repeats;
@@ -1706,9 +1619,6 @@ impl Agent {
         // Compact the session
         self.session.compact(&*self.provider).await?;
 
-        // Track which sections get injected for audit detail
-        let mut injected_sections = Vec::new();
-
         // Inject post-compaction context from workspace files
         if !self.app_config.agent.post_compaction_sections.is_empty()
             && let Some(context) = compaction::build_post_compaction_context(
@@ -1720,7 +1630,6 @@ impl Agent {
                 "Injecting post-compaction context ({} chars)",
                 context.len()
             );
-            injected_sections.clone_from(&self.app_config.agent.post_compaction_sections);
             self.session.add_message(Message {
                 role: Role::System,
                 content: context,
@@ -1731,28 +1640,10 @@ impl Agent {
         }
 
         let tokens_after = self.session.token_count();
-        let messages_after = self.session.message_count();
         info!(
             "Session compacted: {} -> {} tokens",
             tokens_before, tokens_after
         );
-
-        // Log compaction to the audit trail (best-effort, don't fail the compaction)
-        let detail = crate::security::CompactionDetail {
-            session_id: self.session.id().to_string(),
-            messages_before,
-            messages_after,
-            tokens_before,
-            tokens_after,
-            strategy: "summarize_and_truncate".to_string(),
-            injected_sections,
-            summary_preview: String::new(),
-        };
-        if let Err(e) =
-            crate::security::append_compaction_entry(&self.app_config.paths.state_dir, &detail)
-        {
-            tracing::warn!("Failed to write compaction audit entry: {}", e);
-        }
 
         Ok((tokens_before, tokens_after))
     }

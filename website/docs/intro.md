@@ -18,7 +18,7 @@ LocalGPT is a **local AI assistant with persistent memory, semantic search, and 
 - **Autonomous Heartbeat** - Daemon mode with scheduled background tasks that run automatically
 - **Skills System** - Extensible skills for specialized tasks
 - **Shell Sandbox** - Kernel-level isolation (Landlock + seccomp + Seatbelt) on every shell command. Zero configuration, enabled by default, graceful degradation. [Not a guarantee](/docs/sandbox#limitations) — defense in depth.
-- **Standing Instructions** - Cryptographically signed `LocalGPT.md` for persistent, end-of-context directives — coding conventions, security boundaries, workflow preferences — with HMAC-SHA256 tamper detection
+- **Standing Instructions** - Plain `LocalGPT.md` of persistent, end-of-context directives — coding conventions, security boundaries, workflow preferences — sanitized before injection and protected from agent self-modification
 - **Session Management** - Multi-session support with automatic context compaction
 - **HTTP API & WebSocket** - RESTful API and real-time WebSocket for integrations
 
@@ -39,12 +39,12 @@ LocalGPT follows the [XDG Base Directory Specification](https://specifications.f
 │   ├── LocalGPT.md              # Standing instructions
 │   └── memory/
 │       └── YYYY-MM-DD.md        # Conversation logs
-└── localgpt.device.key          # HMAC signing key (0600)
+└── localgpt.device.key          # Device key for bridge credential encryption (0600)
 
 ~/.local/state/localgpt/
 ├── logs/
 │   └── localgpt-YYYY-MM-DD.log   # Daily application logs
-└── localgpt.audit.jsonl         # Append-only audit log
+└── agents/<id>/sessions/        # Session transcripts (JSONL)
 
 ~/.cache/localgpt/
 └── embeddings/                  # Downloaded embedding models
@@ -63,11 +63,10 @@ Windows has no separate config/state directories, so config, data, and state all
 │   ├── LocalGPT.md              # Standing instructions
 │   └── memory\
 │       └── YYYY-MM-DD.md        # Conversation logs
-├── localgpt.device.key          # HMAC signing key
+├── localgpt.device.key          # Device key for bridge credential encryption
 ├── agents\<id>\sessions\        # Session transcripts (JSONL)
-├── logs\
-│   └── localgpt-YYYY-MM-DD.log   # Daily application logs
-└── localgpt.audit.jsonl         # Append-only audit log
+└── logs\
+    └── localgpt-YYYY-MM-DD.log   # Daily application logs
 
 %LOCALAPPDATA%\localgpt\          # e.g. C:\Users\<you>\AppData\Local\localgpt
 ├── memory\<agent-id>.sqlite     # Search index (rebuildable)

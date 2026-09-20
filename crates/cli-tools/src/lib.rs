@@ -20,7 +20,6 @@ use localgpt_core::agent::tool_filters::CompiledToolFilter;
 use localgpt_core::agent::tools::Tool;
 use localgpt_core::config::Config;
 use localgpt_core::security;
-use localgpt_core::text::prefix_chars_with_ellipsis;
 use localgpt_sandbox::{self, SandboxPolicy};
 
 /// Compile a tool filter from config (if present), then merge hardcoded defaults.
@@ -99,21 +98,17 @@ pub fn create_cli_tools(config: &Config) -> Result<Vec<Box<dyn Tool>>> {
     // File tools get no hardcoded filters (path scoping handles security)
     let file_filter = compile_filter_for(config, "file", &[], &[])?;
     let allowed_dirs = resolve_allowed_directories(config);
-    let strict_policy = config.security.strict_policy;
 
     let mut tools: Vec<Box<dyn Tool>> = vec![
         Box::new(BashTool::new(
             config.tools.bash_timeout_ms,
-            state_dir.clone(),
             sandbox_policy.clone(),
             bash_filter,
-            strict_policy,
         )),
         Box::new(ReadFileTool::new(
             sandbox_policy.clone(),
             file_filter.clone(),
             allowed_dirs.clone(),
-            state_dir.clone(),
         )),
         Box::new(WriteFileTool::new(
             workspace.clone(),
@@ -144,30 +139,20 @@ pub fn create_cli_tools(config: &Config) -> Result<Vec<Box<dyn Tool>>> {
 // Bash Tool
 pub struct BashTool {
     default_timeout_ms: u64,
-    state_dir: PathBuf,
     sandbox_policy: Option<SandboxPolicy>,
     filter: CompiledToolFilter,
-    strict_policy: bool,
-}
-
-fn command_audit_preview(command: &str) -> String {
-    prefix_chars_with_ellipsis(command, 200)
 }
 
 impl BashTool {
     pub fn new(
         default_timeout_ms: u64,
-        state_dir: PathBuf,
         sandbox_policy: Option<SandboxPolicy>,
         filter: CompiledToolFilter,
-        strict_policy: bool,
     ) -> Self {
         Self {
             default_timeout_ms,
-            state_dir,
             sandbox_policy,
             filter,
-            strict_policy,
         }
     }
 }
@@ -219,24 +204,6 @@ impl Tool for BashTool {
         // Best-effort protected file check for bash commands
         let suspicious = security::check_bash_command(command);
         if !suspicious.is_empty() {
-            let detail = format!(
-                "Bash command references protected files: {:?} (cmd: {})",
-                suspicious,
-                command_audit_preview(command)
-            );
-            let _ = security::append_audit_entry_with_detail(
-                &self.state_dir,
-                security::AuditAction::WriteBlocked,
-                "",
-                "tool:bash",
-                Some(&detail),
-            );
-            if self.strict_policy {
-                anyhow::bail!(
-                    "Blocked: command references protected files: {:?}",
-                    suspicious
-                );
-            }
             tracing::warn!("Bash command may modify protected files: {:?}", suspicious);
         }
 
@@ -301,7 +268,6 @@ pub struct ReadFileTool {
     sandbox_policy: Option<SandboxPolicy>,
     filter: CompiledToolFilter,
     allowed_directories: Vec<PathBuf>,
-    state_dir: PathBuf,
 }
 
 impl ReadFileTool {
@@ -309,13 +275,11 @@ impl ReadFileTool {
         sandbox_policy: Option<SandboxPolicy>,
         filter: CompiledToolFilter,
         allowed_directories: Vec<PathBuf>,
-        state_dir: PathBuf,
     ) -> Self {
         Self {
             sandbox_policy,
             filter,
             allowed_directories,
-            state_dir,
         }
     }
 }
@@ -361,17 +325,7 @@ impl Tool for ReadFileTool {
         let real_path = resolve_real_path(path)?;
         let real_path_str = real_path.to_string_lossy();
         self.filter.check(&real_path_str, "read_file", "path")?;
-        if let Err(e) = check_path_allowed(&real_path, &self.allowed_directories) {
-            let detail = format!("read_file denied: {}", real_path.display());
-            let _ = security::append_audit_entry_with_detail(
-                &self.state_dir,
-                security::AuditAction::PathDenied,
-                "",
-                "tool:read_file",
-                Some(&detail),
-            );
-            return Err(e);
-        }
+        check_path_allowed(&real_path, &self.allowed_directories)?;
 
         // Check credential directory access
         if let Some(ref policy) = self.sandbox_policy
@@ -481,17 +435,7 @@ impl Tool for WriteFileTool {
         let real_path = resolve_real_path(path)?;
         let real_path_str = real_path.to_string_lossy();
         self.filter.check(&real_path_str, "write_file", "path")?;
-        if let Err(e) = check_path_allowed(&real_path, &self.allowed_directories) {
-            let detail = format!("write_file denied: {}", real_path.display());
-            let _ = security::append_audit_entry_with_detail(
-                &self.state_dir,
-                security::AuditAction::PathDenied,
-                "",
-                "tool:write_file",
-                Some(&detail),
-            );
-            return Err(e);
-        }
+        check_path_allowed(&real_path, &self.allowed_directories)?;
 
         // Check credential directory access
         if let Some(ref policy) = self.sandbox_policy
@@ -510,17 +454,8 @@ impl Tool for WriteFileTool {
             &self.workspace,
             &self.state_dir,
         ) {
-            let detail = format!("Agent attempted write to {}", real_path.display());
-            let _ = security::append_audit_entry_with_detail(
-                &self.state_dir,
-                security::AuditAction::WriteBlocked,
-                "",
-                "tool:write_file",
-                Some(&detail),
-            );
             anyhow::bail!(
-                "Cannot write to protected file: {}. This file is managed by the security system. \
-                     Use `localgpt md sign` to update the security policy.",
+                "Cannot write to protected file: {}. This file is protected and can only be edited by the user directly.",
                 real_path.display()
             );
         }
@@ -625,17 +560,7 @@ impl Tool for EditFileTool {
         let real_path = resolve_real_path(path)?;
         let real_path_str = real_path.to_string_lossy();
         self.filter.check(&real_path_str, "edit_file", "path")?;
-        if let Err(e) = check_path_allowed(&real_path, &self.allowed_directories) {
-            let detail = format!("edit_file denied: {}", real_path.display());
-            let _ = security::append_audit_entry_with_detail(
-                &self.state_dir,
-                security::AuditAction::PathDenied,
-                "",
-                "tool:edit_file",
-                Some(&detail),
-            );
-            return Err(e);
-        }
+        check_path_allowed(&real_path, &self.allowed_directories)?;
 
         // Check credential directory access
         if let Some(ref policy) = self.sandbox_policy
@@ -654,16 +579,8 @@ impl Tool for EditFileTool {
             &self.workspace,
             &self.state_dir,
         ) {
-            let detail = format!("Agent attempted edit to {}", real_path.display());
-            let _ = security::append_audit_entry_with_detail(
-                &self.state_dir,
-                security::AuditAction::WriteBlocked,
-                "",
-                "tool:edit_file",
-                Some(&detail),
-            );
             anyhow::bail!(
-                "Cannot edit protected file: {}. This file is managed by the security system.",
+                "Cannot edit protected file: {}. This file is protected and can only be edited by the user directly.",
                 real_path.display()
             );
         }
@@ -688,23 +605,5 @@ impl Tool for EditFileTool {
             count,
             real_path.display()
         ))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_audit_preview_preserves_short_command() {
-        assert_eq!(command_audit_preview("echo hello"), "echo hello");
-    }
-
-    #[test]
-    fn command_audit_preview_truncates_multibyte_by_characters() {
-        let preview = command_audit_preview(&"✅".repeat(201));
-
-        assert_eq!(preview.chars().filter(|&c| c == '✅').count(), 200);
-        assert!(preview.ends_with("..."));
     }
 }

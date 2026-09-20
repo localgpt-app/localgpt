@@ -11,7 +11,6 @@ v0.2.0 moves from a monolithic `~/.localgpt/` directory to the [XDG Base Directo
 | Device key | `~/.localgpt/.device_key` | `~/.local/share/localgpt/localgpt.device.key` |
 | Managed skills | `~/.localgpt/skills/` | `~/.local/share/localgpt/skills/` |
 | Sessions | `~/.localgpt/agents/` | `~/.local/state/localgpt/agents/` |
-| Audit log | `~/.localgpt/.security_audit.jsonl` | `~/.local/state/localgpt/localgpt.audit.jsonl` |
 | Logs | `~/.localgpt/logs/` | `~/.local/state/localgpt/logs/` |
 | Search index | `~/.localgpt/` | `~/.cache/localgpt/memory/` |
 | Embedding cache | `~/.localgpt/` | `~/.cache/localgpt/embeddings/` |
@@ -48,14 +47,11 @@ mkdir -p ~/.local/state/localgpt
 cp -r ~/.localgpt/agents ~/.local/state/localgpt/agents
 ```
 
-### 5. Copy device key and audit log
+### 5. Copy device key
 
 ```bash
-# Device key (used for HMAC signing)
+# Device key (master key for bridge credential encryption)
 cp ~/.localgpt/.device_key ~/.local/share/localgpt/localgpt.device.key
-
-# Audit log
-cp ~/.localgpt/.security_audit.jsonl ~/.local/state/localgpt/localgpt.audit.jsonl
 ```
 
 ### 6. Copy logs and managed skills (optional)
@@ -102,8 +98,7 @@ After migration, your files are organized by purpose.
 
 ~/.local/state/localgpt/      # Runtime state
 ├── agents/main/sessions/
-├── logs/
-└── localgpt.audit.jsonl
+└── logs/
 
 ~/.cache/localgpt/            # Rebuildable cache
 ├── memory/main.sqlite
@@ -126,8 +121,7 @@ Windows has no Known Folder for "state," and its `FOLDERID_RoamingAppData` is sh
 ├── skills\                   # Managed skills
 ├── localgpt.device.key
 ├── agents\main\sessions\
-├── logs\
-└── localgpt.audit.jsonl
+└── logs\
 
 %LOCALAPPDATA%\localgpt\      # Rebuildable cache
 ├── memory\main.sqlite

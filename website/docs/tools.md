@@ -100,7 +100,7 @@ Create a new file or overwrite an existing one.
 - Overwrites existing files completely
 - Use `edit_file` for partial changes
 - Writes are restricted to the workspace directory
-- [Protected files](/docs/localgpt#how-it-stays-trustworthy) (`LocalGPT.md`, `.localgpt_manifest.json`, `IDENTITY.md`) cannot be written
+- [Protected files](/docs/localgpt#how-it-stays-trustworthy) (`LocalGPT.md`, `IDENTITY.md`) cannot be written
 
 ## edit_file
 
@@ -271,7 +271,7 @@ These measures reduce risk but do not eliminate it. LLMs are probabilistic syste
 
 - **Shell commands** run inside a [kernel-enforced sandbox](/docs/sandbox) — write access limited to workspace, network denied, credentials blocked
 - **File tools** (`write_file`, `edit_file`, `read_file`) are path-validated and restricted to the workspace
-- **Protected files** — the agent cannot write to `LocalGPT.md`, `.localgpt_manifest.json`, or `IDENTITY.md` (see [LocalGPT.md](/docs/localgpt))
+- **Protected files** — the agent cannot write to `LocalGPT.md` or `IDENTITY.md` (see [LocalGPT.md](/docs/localgpt))
 - **No sudo** escalation is performed automatically
 - **Web requests** are outbound only with SSRF protection
 - **Memory** stays entirely local

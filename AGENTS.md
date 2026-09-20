@@ -281,7 +281,6 @@ Add to your AI tool's MCP config (e.g., Claude Desktop, VS Code, Zed):
 - **Tool safety split.** The MCP server exposes only safe tools (memory read/write, web fetch, web search) plus gen tools. Dangerous tools (bash, read_file, write_file, edit_file) are excluded because external backends provide their own.
 - **SSRF protection.** `web_fetch` validates URLs against deny lists and DNS/IP checks to prevent server-side request forgery.
 - **Workspace sandbox.** `memory_get` and `memory_save` are restricted to the configured workspace directory. Path traversal is rejected.
-- **Policy signing.** LocalGPT.md policy files can be cryptographically signed and verified with device keys stored at `~/.local/share/localgpt/localgpt.device.key`.
 
 ## Capabilities
 

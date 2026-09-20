@@ -93,9 +93,9 @@ tree.
   in 0.15; this repo is on Bevy 0.19 (`crates/gen/Cargo.toml:34`). The
   recommendation is not actionable.
 - **The Wasm-tool-upload endpoint ignores the security model.** §3A proposes that
-  the API server accept an uploaded Wasm module as a new tool. LocalGPT has
-  signed-policy verification, a `PermissionLevel`/`ApprovalGate` model, and an
-  audit chain; a remote code-upload path would have to engage all three. The
+  the API server accept an uploaded Wasm module as a new tool. LocalGPT has a
+  `PermissionLevel`/`ApprovalGate` model and a protected-files deny list; a
+  remote code-upload path would have to engage both. The
   document does not mention them.
 - **§3A's premise is a non sequitur** — it moves from "LocalGPT uses
   Landlock/Seatbelt sandboxing for tools" to "adding new internal tools likely

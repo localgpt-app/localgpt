@@ -1,8 +1,7 @@
 //! Agent write deny list for security-critical files.
 //!
-//! Blocks the agent from modifying policy files, the integrity manifest,
-//! the device key, and the audit log via `write_file`, `edit_file`, or
-//! `bash` tools.
+//! Blocks the agent from modifying the policy file or reading the device
+//! key via `write_file`, `edit_file`, or `bash` tools.
 //!
 //! The `bash` tool check is heuristic and bypassable — full enforcement
 //! requires OS-level sandboxing (Landlock/seccomp, separate RFC). The
@@ -14,17 +13,17 @@ use std::path::Path;
 /// Files in the workspace that the agent must not write to.
 ///
 /// These are security-critical files whose integrity must be maintained
-/// by the user (via CLI) or the security system itself — never by the
-/// agent's tool calls.
-pub const PROTECTED_FILES: &[&str] = &["LocalGPT.md", ".localgpt_manifest.json", "IDENTITY.md"];
+/// by the user — never by the agent's tool calls.
+pub const PROTECTED_FILES: &[&str] = &["LocalGPT.md", "IDENTITY.md"];
 
-/// Files outside the workspace (in the state directory) that the agent
+/// Files outside the workspace (in the data directory) that the agent
 /// must not access.
 ///
-/// The device key and audit log live in `~/.local/state/localgpt/` (the state
-/// directory), which is outside the workspace and not indexed by memory.
-/// These paths are checked as filename suffixes for defense in depth.
-pub const PROTECTED_EXTERNAL_PATHS: &[&str] = &["localgpt.device.key", "localgpt.audit.jsonl"];
+/// The device key lives in `~/.local/share/localgpt/` (the data directory),
+/// outside the workspace and not indexed by memory. It encrypts bridge
+/// credentials, so the agent must never read it. These paths are checked
+/// as filename suffixes for defense in depth.
+pub const PROTECTED_EXTERNAL_PATHS: &[&str] = &["localgpt.device.key"];
 
 /// Check if a workspace-relative filename is protected from agent writes.
 ///
@@ -37,7 +36,7 @@ pub const PROTECTED_EXTERNAL_PATHS: &[&str] = &["localgpt.device.key", "localgpt
 /// use localgpt_core::security::is_workspace_file_protected;
 ///
 /// assert!(is_workspace_file_protected("LocalGPT.md"));
-/// assert!(is_workspace_file_protected(".localgpt_manifest.json"));
+/// assert!(is_workspace_file_protected("IDENTITY.md"));
 /// assert!(!is_workspace_file_protected("MEMORY.md"));
 /// ```
 pub fn is_workspace_file_protected(filename: &str) -> bool {
@@ -129,7 +128,6 @@ mod tests {
     #[test]
     fn workspace_files_protected() {
         assert!(is_workspace_file_protected("LocalGPT.md"));
-        assert!(is_workspace_file_protected(".localgpt_manifest.json"));
         assert!(is_workspace_file_protected("IDENTITY.md"));
     }
 
@@ -190,8 +188,8 @@ mod tests {
         ));
     }
 
-    /// Verify the agent write-deny boundary: LocalGPT.md and manifest
-    /// are always protected from agent writes, while user-editable files
+    /// Verify the agent write-deny boundary: LocalGPT.md is always
+    /// protected from agent writes, while user-editable files
     /// (MEMORY.md, SOUL.md, HEARTBEAT.md) remain accessible.
     ///
     /// This test documents that the mobile-ffi's file editor API does NOT
@@ -200,7 +198,7 @@ mod tests {
     #[test]
     fn agent_protection_boundary_enforced() {
         // Security-critical files the agent must NEVER write to
-        let agent_blocked = &["LocalGPT.md", ".localgpt_manifest.json", "IDENTITY.md"];
+        let agent_blocked = &["LocalGPT.md", "IDENTITY.md"];
         for &file in agent_blocked {
             assert!(
                 is_workspace_file_protected(file),
@@ -219,8 +217,8 @@ mod tests {
             );
         }
 
-        // External security files must also be protected
-        let external_blocked = &["localgpt.device.key", "localgpt.audit.jsonl"];
+        // The device key (encrypts bridge credentials) must also be protected
+        let external_blocked = &["localgpt.device.key"];
         for &file in external_blocked {
             assert!(
                 PROTECTED_EXTERNAL_PATHS.contains(&file),

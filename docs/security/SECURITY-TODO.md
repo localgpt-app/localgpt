@@ -11,13 +11,12 @@ Security considerations for enterprise deployment of LocalGPT.
 | Prompt Injection | 12 markers, 10 patterns | 10+ patterns | **PARITY** |
 | Content Delimiters | 3 types | Similar | **PARITY** |
 | Shell Sandbox | Landlock + seccomp (Linux), Seatbelt (macOS) | Docker-ready | **AHEAD** |
-| Encryption at Rest | XChaCha20-Poly1305 + Argon2id | Mentioned in TODO | **AHEAD** |
 | Rate Limiting | Per-IP rate limiting | Message throttler | **PARITY** |
 | Input Validation | JSON only | Zod schemas | **BEHIND** |
 | Tool Policies | require_approval only | Full allowlist/denylist | **BEHIND** |
 | SSRF Protection | Full (private IP, DNS pinning, redirect validation) | Full (DNS pinning, redirect validation) | **PARITY** |
 | Authentication | API key/token auth | Device identity, OAuth, webhook sigs | **PARTIAL** |
-| Audit System | Policy signing + audit chain | 50+ security checks | **PARTIAL** |
+| Audit System | None (open TODO, see §6) | 50+ security checks | **BEHIND** |
 | Secret Detection | Env var expansion | detect-secrets CI | **BEHIND** |
 
 **Legend**: AHEAD / PARITY / PARTIAL / BEHIND
@@ -38,7 +37,7 @@ Security considerations for enterprise deployment of LocalGPT.
   - seccomp or AppArmor profiles
 
 ### 3. Secrets Management
-- [x] Encrypt credentials and sessions at rest — XChaCha20-Poly1305 with Argon2id key derivation, CLI commands `encrypt enable/disable/status/rotate` — `15-encrypt-at-rest` ✅
+- [x] Encrypt bridge credentials at rest — per-bridge keys derived from the device key, ChaCha20-Poly1305 (`localgpt bridge register`) ✅
 - [ ] Integrate with enterprise secret stores (HashiCorp Vault, AWS Secrets Manager, etc.)
 
 ### 4. Network Security
@@ -81,7 +80,6 @@ Security considerations for enterprise deployment of LocalGPT.
 - [ ] User attribution on all actions
 
 ### 7. Data Encryption
-- [x] Encrypt session transcripts — `15-encrypt-at-rest` ✅
 - [x] Session file permissions 0o600 — `15-session-perms` ✅
 - [ ] Encrypt SQLite database (sqlcipher)
 - [ ] Key management infrastructure
@@ -123,7 +121,6 @@ Security considerations for enterprise deployment of LocalGPT.
 | Enhancement | Effort | Impact | Status |
 |-------------|--------|--------|--------|
 | Add API key auth to endpoints | Low | High | ✅ Done |
-| Encrypt config file | Low | High | ✅ Done |
 | Implement rate limiting | Low | Medium | ✅ Done |
 | Restrict CORS origins | Low | Medium | Open |
 | Add audit logging | Medium | High | Open |
@@ -132,3 +129,4 @@ Security considerations for enterprise deployment of LocalGPT.
 ---
 *Created: 2026-02-04*
 *Updated: 2026-03-19 — Marked completed items from GAPS.md (gateway auth, encryption at rest, rate limiting, session perms, path traversal prevention)*
+*Updated: 2026-09-20 — Removed encryption-at-rest (`encrypt` commands, `enc:` config values) and LocalGPT.md policy signing/audit chain: the feature never worked reliably and was dropped from the product. The only encryption at rest that remains is bridge credential storage.*

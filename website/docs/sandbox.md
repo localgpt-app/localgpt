@@ -109,7 +109,7 @@ Sandboxing significantly reduces the attack surface, but it is not a silver bull
 - **LLMs are probabilistic** — an AI agent may find unexpected ways to accomplish tasks that weren't anticipated by sandbox rules. Prompt injection and jailbreaks are active areas of research with no complete solutions yet.
 - **Kernel features vary** — older kernels may lack Landlock or seccomp support, reducing the effective protection level. LocalGPT warns you, but degraded mode provides weaker isolation.
 - **Allowed paths are still writable** — the sandbox restricts *where* the agent can write, but within the workspace it has full access. A compromised agent could still modify your project files.
-- **No sandbox is escape-proof** — kernel vulnerabilities, while rare, can exist. Defense in depth (sandboxing + audit logs + protected files + human review) is the strategy, not reliance on any single layer.
+- **No sandbox is escape-proof** — kernel vulnerabilities, while rare, can exist. Defense in depth (sandboxing + protected files + human review) is the strategy, not reliance on any single layer.
 
 ## Resource Limits
 

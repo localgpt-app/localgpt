@@ -503,7 +503,11 @@ fileprivate struct FfiConverterString: FfiConverter {
             return String()
         }
         let bytes = UnsafeBufferPointer<UInt8>(start: value.data!, count: Int(value.len))
-        return String(bytes: bytes, encoding: String.Encoding.utf8)!
+        // Use Swift's native UTF-8 decoder; `String(bytes:encoding:.utf8)` goes
+        // through Foundation's NSString and silently strips a leading U+FEFF BOM.
+        // Invalid UTF-8 substitutes U+FFFD instead of trapping (unreachable
+        // given Rust's `String` invariant).
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     public static func lower(_ value: String) -> RustBuffer {
@@ -519,7 +523,8 @@ fileprivate struct FfiConverterString: FfiConverter {
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> String {
         let len: Int32 = try readInt(&buf)
-        return String(bytes: try readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
+        // See `lift` above for why we avoid Foundation's NSString-backed decoder here.
+        return String(decoding: try readBytes(&buf, count: Int(len)), as: UTF8.self)
     }
 
     public static func write(_ value: String, into buf: inout [UInt8]) {
@@ -652,11 +657,11 @@ public protocol LocalGptClientProtocol: AnyObject, Sendable {
     func setHeartbeat(content: String) throws 
     
     /**
-     * Write new LocalGPT.md content and re-sign the policy.
+     * Write new LocalGPT.md content (security policy / standing instructions).
      *
-     * The policy file is HMAC-signed with a device-local key so that the
-     * agent cannot tamper with it. After writing, this method automatically
-     * re-signs the file and updates `.localgpt_manifest.json`.
+     * This is a plain file write — the policy is loaded and sanitized at
+     * the next session start. Editing is only allowed through explicit
+     * user action (never by the agent).
      */
     func setLocalgptMd(content: String) throws 
     
@@ -679,8 +684,7 @@ public protocol LocalGptClientProtocol: AnyObject, Sendable {
      * Write an arbitrary workspace file by name.
      *
      * Only the known editable files (MEMORY.md, SOUL.md, HEARTBEAT.md,
-     * LocalGPT.md) are allowed. For LocalGPT.md the policy is
-     * automatically re-signed. The caller (mobile UI) must confirm
+     * LocalGPT.md) are allowed. The caller (mobile UI) must confirm
      * security-sensitive file edits before calling this method.
      */
     func setWorkspaceFile(filename: String, content: String) throws 
@@ -989,11 +993,11 @@ open func setHeartbeat(content: String)throws   {try rustCallWithError(FfiConver
 }
     
     /**
-     * Write new LocalGPT.md content and re-sign the policy.
+     * Write new LocalGPT.md content (security policy / standing instructions).
      *
-     * The policy file is HMAC-signed with a device-local key so that the
-     * agent cannot tamper with it. After writing, this method automatically
-     * re-signs the file and updates `.localgpt_manifest.json`.
+     * This is a plain file write — the policy is loaded and sanitized at
+     * the next session start. Editing is only allowed through explicit
+     * user action (never by the agent).
      */
 open func setLocalgptMd(content: String)throws   {try rustCallWithError(FfiConverterTypeMobileError_lift) {
     uniffi_localgpt_mobile_fn_method_localgptclient_set_localgpt_md(
@@ -1040,8 +1044,7 @@ open func setSoul(content: String)throws   {try rustCallWithError(FfiConverterTy
      * Write an arbitrary workspace file by name.
      *
      * Only the known editable files (MEMORY.md, SOUL.md, HEARTBEAT.md,
-     * LocalGPT.md) are allowed. For LocalGPT.md the policy is
-     * automatically re-signed. The caller (mobile UI) must confirm
+     * LocalGPT.md) are allowed. The caller (mobile UI) must confirm
      * security-sensitive file edits before calling this method.
      */
 open func setWorkspaceFile(filename: String, content: String)throws   {try rustCallWithError(FfiConverterTypeMobileError_lift) {
@@ -1565,7 +1568,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_heartbeat() != 47503) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_localgpt_md() != 52483) {
+    if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_localgpt_md() != 29577) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_memory() != 23855) {
@@ -1577,7 +1580,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_soul() != 13659) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_workspace_file() != 6608) {
+    if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_workspace_file() != 57850) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_localgpt_mobile_checksum_constructor_localgptclient_new() != 46122) {

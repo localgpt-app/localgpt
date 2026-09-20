@@ -355,18 +355,10 @@ pub struct PerplexityConfig {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SecurityConfig {
-    /// Abort agent startup on tamper or suspicious content (default: false).
-    ///
-    /// When true, `TamperDetected` and `SuspiciousContent` are fatal errors
-    /// that prevent the agent from starting. When false (default), the agent
-    /// warns and falls back to hardcoded-only security.
-    #[serde(default)]
-    pub strict_policy: bool,
-
     /// Skip loading and injecting the `LocalGPT.md` workspace security policy
     /// (default: false).
     ///
-    /// When true, the user's signed `LocalGPT.md` content is not loaded or
+    /// When true, the user's `LocalGPT.md` content is not loaded or
     /// injected into the context window. The hardcoded security suffix still
     /// applies unless [`disable_suffix`] is also set.
     #[serde(default)]
@@ -389,15 +381,6 @@ pub struct SecurityConfig {
     /// Paths are canonicalized at startup. Symlinks are resolved before checking.
     #[serde(default)]
     pub allowed_directories: Vec<String>,
-
-    /// Enable encryption at rest for sessions and config secrets (default: false).
-    #[serde(default)]
-    pub encryption: bool,
-
-    /// Path to the encryption key file.
-    /// Default: data_dir/encryption.key (~/.local/share/localgpt/encryption.key)
-    #[serde(default)]
-    pub encryption_key_path: Option<String>,
 
     /// Container sandbox backend: "disabled" (default), "auto", "docker", "podman"
     /// "auto" tries Docker then Podman, falls back to kernel sandbox.

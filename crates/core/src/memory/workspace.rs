@@ -151,7 +151,7 @@ Whatever you write here is injected near the end of every conversation turn,
 just before a hardcoded security suffix. Use it for conventions, boundaries,
 preferences, and reminders you want the AI to always follow.
 
-Edit this file, then run `localgpt md sign` to activate changes.
+Edit this file; changes take effect on the next session start.
 
 ## Conventions
 
@@ -176,9 +176,6 @@ const GITIGNORE_TEMPLATE: &str = r#"# LocalGPT workspace .gitignore
 # - LocalGPT.md (security policy)
 # - memory/*.md (daily logs)
 # - skills/ (custom skills)
-
-# Security manifest (managed by localgpt md sign)
-.localgpt_manifest.json
 
 # Temporary files
 *.tmp
@@ -218,7 +215,7 @@ pub fn init_state_dir(paths: &crate::paths::Paths) -> Result<()> {
     fs::create_dir_all(&paths.data_dir)?;
     fs::create_dir_all(&paths.cache_dir)?;
 
-    // Ensure device key exists for security policy signing (lives in data_dir)
+    // Ensure device key exists for bridge credential encryption (lives in data_dir)
     crate::security::ensure_device_key(&paths.data_dir)?;
 
     Ok(())
