@@ -511,7 +511,7 @@ mod tests {
 api_key = "sk-test123"
 base_url = "https://api.openai.com/v1"
 
-[telegram]
+[custom_service]
 api_token = "bot123456:ABC"
 "#;
         let (transformed, count) = transform_config_secrets(config, |value| {

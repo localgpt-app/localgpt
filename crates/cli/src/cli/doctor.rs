@@ -93,9 +93,6 @@ pub async fn run(args: DoctorArgs) -> Result<()> {
     // Check #6: API keys configured
     results.push(check_api_keys(config.as_ref()));
 
-    // Check #7: Telegram token valid (if enabled)
-    results.push(check_telegram_token(config.as_ref()).await);
-
     // Check #8: MCP servers connectable (if configured)
     results.push(check_mcp_servers(config.as_ref()).await);
 
@@ -490,53 +487,6 @@ fn check_api_keys(config: Option<&localgpt_core::config::Config>) -> CheckResult
             format!("Missing API keys: {}", missing_keys.join(", ")),
             "Set the required environment variables",
         )
-    }
-}
-
-/// Check #7: Telegram token valid (if enabled)
-async fn check_telegram_token(config: Option<&localgpt_core::config::Config>) -> CheckResult {
-    let config = match config {
-        Some(c) => c,
-        None => return CheckResult::pass("Telegram token", "Telegram not configured"),
-    };
-
-    let telegram = match &config.telegram {
-        Some(t) if t.enabled => t,
-        _ => return CheckResult::pass("Telegram token", "Telegram not enabled"),
-    };
-
-    // Check if token is set
-    if telegram.api_token.is_empty() {
-        return CheckResult::fail(
-            "Telegram token",
-            "Telegram enabled but api_token not set",
-            "Set telegram.api_token in config.toml",
-        );
-    }
-
-    // Try to validate token by calling getMe
-    let token = &telegram.api_token;
-    let url = format!("https://api.telegram.org/bot{}/getMe", token);
-
-    match reqwest::Client::new()
-        .get(&url)
-        .timeout(Duration::from_secs(5))
-        .send()
-        .await
-    {
-        Ok(resp) if resp.status().is_success() => {
-            CheckResult::pass("Telegram token", "Telegram token valid")
-        }
-        Ok(resp) => CheckResult::fail(
-            "Telegram token",
-            format!("Telegram API returned: {}", resp.status()),
-            "Check that the bot token is correct",
-        ),
-        Err(e) => CheckResult::warn(
-            "Telegram token",
-            format!("Cannot verify token: {}", e),
-            "Check network connectivity",
-        ),
     }
 }
 

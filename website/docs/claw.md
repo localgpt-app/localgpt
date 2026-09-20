@@ -17,7 +17,7 @@ This document tracks feature parity across fifteen implementations of the person
 |---------|----------|---------|---------|
 | **OpenClaw** | TypeScript | MIT | Reference implementation (v2026.4.11); full-featured desktop AI assistant with 20+ messaging channels, WebSocket control plane, advanced memory system (Active Memory pre-reply recall with configurable modes, dreaming with grounded REM backfill, memory-wiki belief-layer digests, LanceDB vector backend, pluggable compaction), startup-context prelude, usage/cost analytics dashboard, ClawHub plugin ecosystem, MCP integration, durable WhatsApp delivery queue, and hardened MS Teams Graph API integration |
 | **IronClaw** | Rust | MIT/Apache 2.0 | Security-focused (v0.24.0); WASM sandbox with capability-based permissions, Docker sandbox (orchestrator/worker), prompt injection defense, hybrid search memory (PostgreSQL + pgvector), self-repair with fault injection testing, dynamic tool building, webhook relay, NEAR AI integration, per-job MCP server filtering, unified config (DB > env > default) |
-| **LocalGPT** | Rust | Apache 2.0 | Local-first AI assistant (v0.3.6) with persistent markdown memory, Bevy 3D scene generation (Gen mode with physics, NPC brain, MCP server), Slack/Telegram/Discord/WhatsApp bridges, Docker/Podman + OS-level sandbox, browser automation, encryption at rest, TLS auto-certs, elevated permission mode, durable outbound message queue, SSRF protection, and optional autonomous heartbeat with dreaming |
+| **LocalGPT** | Rust | Apache 2.0 | Local-first AI assistant (v0.3.6) with persistent markdown memory, Bevy 3D scene generation (Gen mode with physics, NPC brain, MCP server), CLI bridge over local IPC, Docker/Podman + OS-level sandbox, browser automation, encryption at rest, TLS auto-certs, elevated permission mode, durable outbound message queue, SSRF protection, and optional autonomous heartbeat with dreaming |
 | **Moltis** | Rust | MIT | Enterprise-ready 46-crate workspace (v20260409.04, 196K LoC, 2,300+ tests, zero unsafe); Docker + Apple Container sandbox, multi-channel (Telegram/Slack/HTTP/Teams/Discord), GraphQL API, TLS/WebAuthn auth, encryption-at-rest (XChaCha20-Poly1305), 18 LLM providers including Alibaba Coding |
 | **Nanobot** | Python | MIT | Lightweight (v0.1.5, ~4K LOC) with 13+ chat channels (including WebSocket server, WeCom), unified cross-channel sessions, multi-MCP server support, Kagi web search, disabled_skills config; ideal for learning and rapid prototyping |
 | **CoPaw** | Python | Apache 2.0 | AgentScope/Alibaba-based (v1.0.2); native desktop installers (Win/Mac), console web UI with multimodal support, 10 channels (DingTalk/Feishu/QQ/Discord/iMessage/Telegram/Signal/Matrix/MQTT/Nostr), local models (llama.cpp/MLX/Ollama), ReMeLight memory, plugin system with manifest loading, /skills and /model commands, built-in glob/grep search tools, Twilio voice, daemon mode |
@@ -119,11 +119,11 @@ This document tracks feature parity across fifteen implementations of the person
 | HTTP webhook | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | 🚧 | ✅ | ✅ | ✅ | - | ZClaw: web relay; Agent Zero: Flask API |
 | REPL (simple) | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ❌ | ❌ | - | |
 | WASM channels | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | - | IronClaw innovation |
-| WhatsApp | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ✅ | ❌ | P1 | OpenClaw: durable delivery queue with reconnect drain; TinyClaw: whatsapp-web.js |
-| Telegram | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | ❌ | - | ZClaw: long-polling |
-| Discord | ✅ | ❌ | ✅ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ✅ | ❌ | P2 | TinyClaw: discord.js |
+| WhatsApp | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ✅ | ❌ | P1 | OpenClaw: durable delivery queue with reconnect drain; TinyClaw: whatsapp-web.js |
+| Telegram | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | ❌ | - | ZClaw: long-polling |
+| Discord | ✅ | ❌ | ❌ | 🚧 | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ✅ | ✅ | ❌ | P2 | TinyClaw: discord.js |
 | Signal | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ❌ | P2 | CoPaw: v0.0.6 |
-| Slack | ✅ | ✅ | ✅ | 🚧 | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ❌ | - | LocalGPT: bridge daemon, Socket Mode, slack-morphism v2, edit-in-place streaming, thread replies; IronClaw: thread response routing |
+| Slack | ✅ | ✅ | ❌ | 🚧 | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ❌ | - | IronClaw: thread response routing |
 | iMessage | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ➖ | ❌ | ❌ | ✅ | ❌ | P3 | |
 | Linq | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | P3 | ZeroClaw only |
 | Feishu/Lark | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ❌ | ❌ | ✅ | ❌ | P3 | Nanobot: streaming + tool hints + Lark global domain config; ZeroClaw: dual-platform Feishu/Lark |
@@ -154,12 +154,12 @@ This document tracks feature parity across fifteen implementations of the person
 
 | Feature | OpenClaw | IronClaw | LocalGPT | Moltis | Nanobot | CoPaw | PicoClaw | ZeroClaw | NullClaw | MimiClaw | RosClaw | ZClaw | TinyClaw | Hermes | Agent Zero | Notes |
 |---------|----------|----------|----------|--------|---------|-------|----------|----------|----------|----------|---------|-------|----------|--------|------------|-------|
-| Forum topic creation | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: /topic command + thread routing |
+| Forum topic creation | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
 | channel_post support | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| User message reactions | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: ack reactions; Nanobot: done emoji lifecycle (Feishu) |
+| User message reactions | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Nanobot: done emoji lifecycle (Feishu) |
 | sendPoll | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Cron/heartbeat topic targeting | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | LocalGPT: heartbeat_topic_id config + AlertCallback wiring |
-| Streaming message edits | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | PicoClaw: sendMessageDraft |
+| Cron/heartbeat topic targeting | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
+| Streaming message edits | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | PicoClaw: sendMessageDraft |
 
 ### Discord-Specific Features (since Feb 2025)
 
@@ -615,7 +615,7 @@ This document tracks feature parity across fifteen implementations of the person
 | Docker: Chromium + Xvfb | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | Agent Zero: browser agent |
 | Docker: init scripts | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | |
 | Browser: extraArgs config | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
-| Workspace crate count | ➖ | 1 | 14 | 46 | ➖ | ➖ | ➖ | 2 | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | LocalGPT: 14 crates (added bridges/slack); Moltis: 46 modular crates |
+| Workspace crate count | ➖ | 1 | 14 | 46 | ➖ | ➖ | ➖ | 2 | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | LocalGPT: 14 crates; Moltis: 46 modular crates |
 | Mobile build scripts | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ZeroClaw: ESP32/Nucleo firmware |
 | Nix/direnv support | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
 | mdBook documentation | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | |
@@ -684,7 +684,7 @@ This document tracks feature parity across fifteen implementations of the person
 
 **LocalGPT additionally:**
 - ✅ CLI chat + HTTP server + web UI (config editing + channel status panels)
-- ✅ Telegram/Discord/WhatsApp/Slack bridges (tarpc IPC)
+- ✅ CLI bridge over secure IPC (tarpc)
 - ✅ iOS/Android via UniFFI
 - ✅ Gen mode (Bevy 3D + FunDSP audio + avian3d physics + world forking)
 - ✅ Multi-layer sandbox: OS-level (Landlock/Seatbelt) + Docker/Podman containers
@@ -982,7 +982,7 @@ Git repository activity metrics as of 2026-03-22.
 
 ### LocalGPT
 1. **Gen mode** — Bevy 3D scene generation + FunDSP procedural audio + avian3d physics + world forking with attribution
-2. **Bridge daemon architecture** — tarpc-based IPC for channel isolation (Telegram, Discord, WhatsApp, Slack)
+2. **Bridge daemon architecture** — tarpc-based IPC for client isolation (CLI bridge)
 3. **UniFFI mobile bindings** — Native iOS (Swift) + Android (Kotlin) from shared Rust core
 4. **Multi-layer sandboxing** — OS-level (Landlock/Seatbelt) + Docker/Podman containers (cap-drop ALL, network isolation)
 5. **Encryption at rest** — Session and config secret encryption with `localgpt encrypt` CLI

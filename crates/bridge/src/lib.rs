@@ -10,8 +10,8 @@ use futures::StreamExt;
 use interprocess::local_socket::tokio::Listener as TokioListener;
 use tarpc::server::{BaseChannel, Channel};
 
-/// Manages the local-socket server that bridge daemons (Telegram, Discord,
-/// WhatsApp) connect to for secure IPC with the core agent.
+/// Manages the local-socket server that local client bridges (such as the
+/// CLI bridge) connect to for secure IPC with the core agent.
 pub struct BridgeServer;
 
 /// A bound local-socket listener that accepts incoming bridge connections.

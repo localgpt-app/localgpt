@@ -104,8 +104,8 @@ validates that bet and shows how to manage their lifecycle.
   currently use the config passed at startup"* (`crates/cli/src/cli/daemon.rs:194-196`) —
   nothing reconciles deltas.
 - No `CancellationToken` anywhere; daemon shutdown is `JoinSet` abort-all; no SIGTERM
-  handler in background mode; two bridge architectures (in-process Telegram task vs. tarpc
-  bridge daemons) with no shared lifecycle trait; LLM provider selection is one monolithic
+  handler in background mode; the tarpc bridge daemon model has no shared lifecycle
+  trait; LLM provider selection is one monolithic
   `match` (`crates/core/src/agent/providers.rs:475`).
 
 ## 5. Adoption proposal: MCP hot-plugin slice
@@ -180,7 +180,7 @@ serialized reconcile task holding `HashMap<String, (McpServerConfig, Scope)>`:
   replace `JoinSet` abort-all with quiescence-reaching disposal.
 - **Provider registry** — name → factory map replacing the monolithic `match` at
   `providers.rs:475`; decouples core from per-provider feature gates.
-- **Common bridge lifecycle trait** — unify the in-process Telegram task and the tarpc
-  bridge daemons under `start`/`stop`.
+- **Bridge lifecycle trait** — bring the tarpc bridge daemon under a shared
+  `start`/`stop` lifecycle managed by the scope tree.
 - **Gen/Bevy** — Bevy plugins are static; runtime extensions would go through scripting or
   `bevy_dynamic_plugin` in dev, with the same scope/disposer discipline for cleanup.

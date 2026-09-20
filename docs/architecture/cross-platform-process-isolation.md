@@ -9,10 +9,10 @@
 macOS fully supports creating low-privilege "role" accounts analogous to Linux system users. Apple itself creates **~80+ underscore-prefixed service accounts** (`_www`, `_postgres`, `_mysql`, etc.) with UIDs below 500, which are automatically hidden from the login screen. You can create your own via `dscl`:
 
 ```bash
-sudo dscl . -create /Users/_bridge_telegram UserShell /usr/bin/false
-sudo dscl . -create /Users/_bridge_telegram UniqueID 450
-sudo dscl . -create /Users/_bridge_telegram NFSHomeDirectory /var/empty
-sudo dscl . -create /Users/_bridge_telegram IsHidden 1
+sudo dscl . -create /Users/_bridge_cli UserShell /usr/bin/false
+sudo dscl . -create /Users/_bridge_cli UniqueID 450
+sudo dscl . -create /Users/_bridge_cli NFSHomeDirectory /var/empty
+sudo dscl . -create /Users/_bridge_cli IsHidden 1
 ```
 
 Apple's `sysadminctl -roleAccount` flag is the "official" path, but its `-UID` parameter is **broken in Ventura and later** — it silently assigns UIDs in the 500+ range. Use `dscl` for reliable UID control.
@@ -21,7 +21,7 @@ Apple's `sysadminctl -roleAccount` flag is the "official" path, but its `-UID` p
 
 Unix domain sockets on macOS work almost identically to Linux for access control purposes. File permissions on socket files are enforced, and directory permissions provide an additional layer. The critical differences: macOS **does not support the abstract socket namespace** (all sockets must be filesystem paths), and the path length limit is **104 bytes** versus Linux's 108. For peer identity verification, macOS provides `getpeereid()` (returning effective UID/GID) and the macOS-specific `LOCAL_PEERPID` socket option for PID — but **not** Linux's `SO_PEERCRED`. The `getpeereid()` function is the portable BSD alternative.
 
-For credential isolation, each macOS user has their own keychain file, and daemon users can create **dedicated custom keychains** in protected directories. The recommended pattern: create `/var/bridge-telegram/credentials.keychain` owned by `_bridge_telegram` with `0700` directory permissions, and use the `security-framework` Rust crate (146M+ downloads) for programmatic access. Keychain item ACLs can further restrict access to specific code-signed binaries.
+For credential isolation, each macOS user has their own keychain file, and daemon users can create **dedicated custom keychains** in protected directories. The recommended pattern: create `/var/bridge-cli/credentials.keychain` owned by `_bridge_cli` with `0700` directory permissions, and use the `security-framework` Rust crate (146M+ downloads) for programmatic access. Keychain item ACLs can further restrict access to specific code-signed binaries.
 
 The macOS sandbox (`sandbox-exec` with Seatbelt profiles) provides kernel-level restriction of filesystem, network, IPC, and process capabilities. While **officially deprecated**, it remains functional and is used by Apple's own system daemons, Google's Gemini CLI, and Deno. App Sandbox and Hardened Runtime are **not required** for non-App-Store daemons, though Hardened Runtime is needed for notarization.
 
@@ -31,13 +31,13 @@ The macOS sandbox (`sandbox-exec` with Seatbelt profiles) provides kernel-level 
 
 ## Windows Virtual Accounts solve the identity problem elegantly
 
-Windows offers a mechanism that is, in some ways, **cleaner than Linux's approach**: Virtual Accounts. Introduced in Windows 7, these per-service accounts (`NT SERVICE\ServiceName`) are automatically created when a service is configured to use them. Each gets a **deterministic SID** derived from the service name via SHA-1, requires no password management, creates no user profile clutter, and can be used directly in ACLs. A bridge service running as `NT SERVICE\BridgeTelegram` automatically has a distinct security identity from `NT SERVICE\BridgeDiscord`.
+Windows offers a mechanism that is, in some ways, **cleaner than Linux's approach**: Virtual Accounts. Introduced in Windows 7, these per-service accounts (`NT SERVICE\ServiceName`) are automatically created when a service is configured to use them. Each gets a **deterministic SID** derived from the service name via SHA-1, requires no password management, creates no user profile clutter, and can be used directly in ACLs. A bridge service running as `NT SERVICE\BridgeCli` automatically has a distinct security identity from any other bridge service (e.g., `NT SERVICE\BridgeCustom`).
 
 To install services from Rust, the **`windows-service` crate** (maintained by Mullvad VPN, 2.8M+ downloads) provides the full lifecycle: service registration, event handling, and status reporting. Each service can specify its own account via `ServiceInfo.account_name`. Service installation requires **one-time admin elevation** — there is no equivalent of systemd user units that can be created without privileges.
 
 For IPC, **named pipes are the correct choice on Windows**, not AF_UNIX sockets. While Windows 10+ supports AF_UNIX, it **lacks credential passing and peer identity verification** — it's a compatibility shim, not a security feature. Named pipes offer DACL-based access control (restrict which SIDs can connect), `GetNamedPipeClientProcessId()` for peer identification, and native integration with the Windows security model. The default DACL gives Everyone read access, so custom security descriptors are essential — use the `windows-rs` crate to build DACLs that reference specific service SIDs.
 
-**DPAPI provides automatic per-account encryption**: data encrypted with `CryptProtectData` under `NT SERVICE\BridgeTelegram` cannot be decrypted by `NT SERVICE\BridgeDiscord` because they have different SIDs and therefore different master keys. The `windows-dpapi` Rust crate wraps this cleanly. This means credential files encrypted at rest get per-bridge isolation "for free" when using Virtual Accounts.
+**DPAPI provides automatic per-account encryption**: data encrypted with `CryptProtectData` under `NT SERVICE\BridgeCli` cannot be decrypted by another bridge's Virtual Account because they have different SIDs and therefore different master keys. The `windows-dpapi` Rust crate wraps this cleanly. This means credential files encrypted at rest get per-bridge isolation "for free" when using Virtual Accounts.
 
 For additional containment, **Job Objects** provide cgroup-like resource limits (CPU rate, memory cap, process count, network bandwidth, disk I/O) and can prevent child process creation. **AppContainers** add mandatory access control — Chrome and Adobe Acrobat use AppContainers for sandboxing non-UWP Win32 processes. A service can act as a broker, launching bridge workers inside AppContainers for defense-in-depth.
 
@@ -83,13 +83,13 @@ The most instructive real-world precedent is **1Password's architecture**: a cor
 Based on all the evidence, here is the recommended architecture:
 
 **Tier 1 — Linux (strongest, full multi-user):**
-Separate system users per bridge (`_bridge_telegram`, `_bridge_discord`, etc.), systemd units with `User=` and full hardening (`NoNewPrivileges`, `ProtectHome`, `PrivateTmp`, `SystemCallFilter`), Unix domain sockets with `0660` permissions in per-user directories, `SO_PEERCRED` for identity verification, and credentials in per-user-owned files with `0600` permissions. This is the proven mautrix model.
+Separate system users per bridge (`_bridge_cli`, etc.), systemd units with `User=` and full hardening (`NoNewPrivileges`, `ProtectHome`, `PrivateTmp`, `SystemCallFilter`), Unix domain sockets with `0660` permissions in per-user directories, `SO_PEERCRED` for identity verification, and credentials in per-user-owned files with `0600` permissions. This is the proven mautrix model.
 
 **Tier 2 — macOS (strong, sandbox-based):**
 Run bridge processes as the **current user** (not separate OS users), each in its own Seatbelt sandbox profile restricting filesystem access to its own data directory and network to specific endpoints. Use Unix domain sockets in `~/Library/Application Support/LocalGPT/sockets/` with per-bridge subdirectories. Use the macOS Keychain for credential storage with per-application ACLs (the `security-framework` crate). Verify peer identity via `getpeereid()`. Optionally support the full multi-user model for advanced users, but default to single-user sandboxed.
 
 **Tier 3 — Windows (strong, Virtual Account or single-user):**
-For the service deployment path: use **Virtual Accounts** (`NT SERVICE\BridgeTelegram`) with per-service SIDs, named pipes with custom DACLs, DPAPI `Scope::User` for per-bridge credential encryption, and Job Objects for resource limits. For the personal desktop path (non-service): run as the current user with encrypted per-bridge credential files (DPAPI), named pipes with process identity verification via `GetNamedPipeClientProcessId()`, and optional AppContainer sandboxing for untrusted bridges.
+For the service deployment path: use **Virtual Accounts** (`NT SERVICE\BridgeCli`) with per-service SIDs, named pipes with custom DACLs, DPAPI `Scope::User` for per-bridge credential encryption, and Job Objects for resource limits. For the personal desktop path (non-service): run as the current user with encrypted per-bridge credential files (DPAPI), named pipes with process identity verification via `GetNamedPipeClientProcessId()`, and optional AppContainer sandboxing for untrusted bridges.
 
 **Cross-platform minimum viable security model:**
 

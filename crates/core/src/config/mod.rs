@@ -74,9 +74,6 @@ pub struct Config {
     pub sandbox: SandboxConfig,
 
     #[serde(default)]
-    pub telegram: Option<TelegramConfig>,
-
-    #[serde(default)]
     pub cron: CronConfig,
 
     #[serde(default)]
@@ -902,19 +899,6 @@ pub struct LoggingConfig {
     pub retention_days: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TelegramConfig {
-    #[serde(default)]
-    pub enabled: bool,
-
-    pub api_token: String,
-
-    /// Optional Telegram forum topic ID for heartbeat/cron results.
-    /// When set, heartbeat alerts are routed to this topic instead of the general thread.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub heartbeat_topic_id: Option<i32>,
-}
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CronConfig {
     #[serde(default)]
@@ -931,7 +915,7 @@ pub struct CronJob {
     /// Prompt to send to a fresh agent session
     pub prompt: String,
 
-    /// Optional Telegram channel/chat to route output to
+    /// Optional channel/chat to route output to
     #[serde(default)]
     pub channel: Option<String>,
 
@@ -1449,9 +1433,6 @@ impl Config {
         if let Some(ref mut anthropic) = self.providers.anthropic {
             anthropic.api_key = expand_env(&anthropic.api_key);
         }
-        if let Some(ref mut telegram) = self.telegram {
-            telegram.api_token = expand_env(&telegram.api_token);
-        }
         if let Some(ref mut ws) = self.tools.web_search
             && let Some(ref mut brave) = ws.brave
         {
@@ -1678,11 +1659,6 @@ level = "info"
 # [tools.web_search.perplexity]
 # api_key = "${PERPLEXITY_API_KEY}"
 # model = "sonar"
-
-# Telegram bot (optional)
-# [telegram]
-# enabled = true
-# api_token = "${TELEGRAM_BOT_TOKEN}"
 "#;
 
 #[cfg(test)]

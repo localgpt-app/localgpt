@@ -71,7 +71,7 @@ crates/
 ├── core/         # localgpt-core — shared library (agent, memory, config, security, mcp, cron, hooks)
 ├── cli/          # localgpt — main binary: clap CLI, TUI, desktop GUI, daemon
 ├── cli-tools/    # localgpt-cli-tools — dangerous tools (bash, read/write/edit_file, browser)
-├── server/       # localgpt-server — HTTP/WS API, OpenAI-compat API, Telegram bot, TLS, BridgeManager
+├── server/       # localgpt-server — HTTP/WS API, OpenAI-compat API, TLS, BridgeManager
 ├── sandbox/      # localgpt-sandbox — Landlock/Seatbelt kernel-enforced shell isolation
 ├── mobile-ffi/   # localgpt-mobile-ffi — UniFFI bindings for iOS/Android
 ├── gen/          # localgpt-gen — Bevy 3D scene generation binary
@@ -79,11 +79,7 @@ crates/
 ├── bridge/       # localgpt-bridge — secure IPC protocol for bridge daemons
 └── spacetime/    # localgpt-spacetime — SpacetimeDB multiplayer world server (standalone)
 
-bridges/          # Standalone bridge binaries (all depend on core + bridge)
-├── telegram/     # localgpt-bridge-telegram
-├── discord/      # localgpt-bridge-discord
-├── whatsapp/     # localgpt-bridge-whatsapp
-├── slack/        # localgpt-bridge-slack (Socket Mode)
+bridges/          # Standalone bridge binaries (depend on core + bridge)
 └── cli/          # localgpt-bridge-cli — connects to a running daemon over the IPC socket
 
 apps/             # Native client projects
@@ -123,7 +119,7 @@ apps/             # Native client projects
       │ + cli-tools + gen        │
       └──────────────────────────┘
 
-Bridge daemons (core + bridge): telegram, discord, whatsapp, slack, cli
+Bridge daemons (core + bridge): cli
 Mobile: mobile-ffi → core (default-features=false, embeddings-local + sqlite-vec)
 ```
 
@@ -263,8 +259,6 @@ Aliases resolve first (e.g. `opus` → `anthropic/claude-opus-4-6`, `sonnet`,
   `/api/memory/stats`, plus the tool-approval endpoint.
 - **openai_compat.rs** — OpenAI-compatible API surface so external clients can
   talk to LocalGPT as if it were the OpenAI API.
-- **telegram.rs** — Telegram bot with 6-digit pairing auth, streaming edits,
-  agent ID `"telegram"`.
 - **tls.rs** — TLS termination (see `localgpt cert` and `--no-tls`).
 - **rate_limiter.rs**, **security/** — request rate limiting and bridge auth.
 
@@ -338,7 +332,6 @@ Key settings:
   `~/.local/share/localgpt/workspace`.
 - `memory.embedding_provider` — `"local"` (default), `"openai"`, or `"none"`.
 - `server.port` — HTTP port (default 31327); TLS via `cert` / `--no-tls`.
-- `telegram.enabled` / `telegram.api_token` — Telegram bot.
 - `cron` / `hooks` / bridge sections — autonomous jobs, lifecycle hooks, chat
   bridge credentials.
 

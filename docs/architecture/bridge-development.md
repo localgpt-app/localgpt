@@ -12,7 +12,7 @@ The bridge architecture consists of two parts:
 
 To ensure stability and decouple development cycles, adhere to the following versioning strategy:
 
-1.  **Independent Versioning:** Each bridge binary (e.g., `localgpt-bridge-telegram`) should have its own semantic version (starting at `0.1.0`). Updates to a bridge do not require a version bump of the core system.
+1.  **Independent Versioning:** Each bridge binary (e.g., `localgpt-bridge-cli`) should have its own semantic version (starting at `0.1.0`). Updates to a bridge do not require a version bump of the core system.
 2.  **Protocol Compatibility:** All bridges must depend on a compatible version of the `localgpt-bridge` library (the IPC layer). This library defines the wire protocol.
 3.  **Distribution:** The `localgpt-bridge` library will eventually be published to crates.io to allow the community to build third-party bridges without forking the main repository.
 
@@ -91,13 +91,13 @@ INFO Accepted connection from: PeerIdentity { uid: Some(501), ... }
 
 ## Developing a New Bridge
 
-To create a new bridge (e.g., `localgpt-bridge-telegram`):
+To create a new bridge (e.g., a local client like `localgpt-bridge-cli`):
 
 1.  **New Binary**: Create a new crate or binary target in `crates/bridge/src/bin/` or a separate repository.
 2.  **Dependencies**: Depend on `localgpt-bridge` and `tarpc`.
 3.  **Connect**: Use `localgpt_bridge::connect(socket_path)` to establish the secure channel.
 4.  **Authenticate**: Call `client.get_credentials(context, "my-bridge-id")`.
-5.  **Run**: Initialize your service (e.g., Telegram bot) using the retrieved secret.
+5.  **Run**: Initialize your service (e.g., terminal chat UI) using the retrieved secret.
 
 ### Example Code
 
@@ -112,11 +112,11 @@ async fn main() -> anyhow::Result<()> {
     let client = connect(socket).await?;
 
     // 2. Fetch Secret
-    let secret_bytes = client.get_credentials(context::current(), "telegram".to_string()).await??;
+    let secret_bytes = client.get_credentials(context::current(), "cli".to_string()).await??;
     let token = String::from_utf8(secret_bytes)?;
 
     // 3. Start Bot
-    start_telegram_bot(&token).await?;
+    start_chat_client(&token).await?;
     
     Ok(())
 }

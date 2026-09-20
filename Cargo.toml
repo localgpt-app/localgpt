@@ -9,10 +9,6 @@ members = [
     "crates/gen",
     "crates/world-types",
     "crates/bridge",
-    "bridges/telegram",
-    "bridges/discord",
-    "bridges/whatsapp",
-    "bridges/slack",
     "bridges/cli",
 ]
 default-members = ["crates/cli"]

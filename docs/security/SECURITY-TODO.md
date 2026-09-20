@@ -12,7 +12,7 @@ Security considerations for enterprise deployment of LocalGPT.
 | Content Delimiters | 3 types | Similar | **PARITY** |
 | Shell Sandbox | Landlock + seccomp (Linux), Seatbelt (macOS) | Docker-ready | **AHEAD** |
 | Encryption at Rest | XChaCha20-Poly1305 + Argon2id | Mentioned in TODO | **AHEAD** |
-| Rate Limiting | Per-IP rate limiting | Telegram throttler | **PARITY** |
+| Rate Limiting | Per-IP rate limiting | Message throttler | **PARITY** |
 | Input Validation | JSON only | Zod schemas | **BEHIND** |
 | Tool Policies | require_approval only | Full allowlist/denylist | **BEHIND** |
 | SSRF Protection | Full (private IP, DNS pinning, redirect validation) | Full (DNS pinning, redirect validation) | **PARITY** |

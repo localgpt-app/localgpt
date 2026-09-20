@@ -28,7 +28,7 @@ cargo fmt --check
 # Run
 cargo run -- chat               # Interactive chat
 cargo run -- ask "question"     # Single question
-cargo run -- daemon start       # HTTP server + Telegram bot + heartbeat
+cargo run -- daemon start       # HTTP server + bridge socket + heartbeat
 ```
 
 ### Cross-platform Validation
@@ -47,13 +47,13 @@ cargo check -p localgpt-mobile-ffi --target aarch64-apple-ios-sim
 crates/
 ├── core/        # localgpt-core — shared library (agent, memory, config, security)
 ├── cli/         # localgpt — binary with clap CLI, desktop GUI, dangerous tools
-├── server/      # localgpt-server — HTTP/WS API, Telegram bot, optional WASM web UI
+├── server/      # localgpt-server — HTTP/WS API, optional WASM web UI
 ├── sandbox/     # localgpt-sandbox — Landlock/Seatbelt process sandboxing
 ├── mobile-ffi/  # localgpt-mobile-ffi — UniFFI bindings for iOS/Android
 ├── gen/         # localgpt-gen — Bevy 3D scene generation binary
 └── bridge/      # localgpt-bridge — secure IPC protocol for bridge daemons
 
-bridges/         # Standalone bridge binaries (Telegram, Discord, WhatsApp)
+bridges/         # Standalone bridge binary (CLI)
 apps/            # Native mobile app projects (iOS, Android)
 ```
 

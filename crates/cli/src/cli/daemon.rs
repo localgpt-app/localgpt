@@ -276,24 +276,6 @@ async fn run_daemon_services(
                 tracing::info!("Heartbeat gen dispatch enabled (localgpt-gen found)");
             }
 
-            // Wire Telegram alert callback if heartbeat_topic_id is configured
-            if let Some(ref tg) = heartbeat_config.telegram
-                && tg.enabled
-                && let Some(topic_id) = tg.heartbeat_topic_id
-                && !tg.api_token.is_empty()
-                && !tg.api_token.starts_with("${")
-                && let Some(callback) = localgpt_server::telegram::create_heartbeat_alert_callback(
-                    &tg.api_token,
-                    topic_id,
-                )
-            {
-                runner.set_alert_callback(callback);
-                tracing::info!(
-                    "Heartbeat Telegram alert callback enabled (topic_id: {})",
-                    topic_id
-                );
-            }
-
             tracing::info!("Heartbeat runner created");
             if let Err(e) = runner.run().await {
                 tracing::error!("Heartbeat runner error: {}", e);
@@ -301,32 +283,6 @@ async fn run_daemon_services(
         });
     } else {
         println!("  Heartbeat: disabled");
-    }
-
-    // Spawn Telegram bot in background if configured
-    if config.telegram.as_ref().is_some_and(|t| t.enabled) {
-        let tg_config = config.clone();
-        let tg_gate = turn_gate.clone();
-        println!("  Telegram: enabled");
-        handles.spawn(async move {
-            // Create tool factory that provides CLI tools to Telegram
-            let tool_factory: localgpt_server::telegram::ToolFactory =
-                Box::new(|config: &localgpt_core::config::Config| {
-                    localgpt_cli_tools::create_cli_tools(config)
-                });
-
-            let bot = localgpt_server::telegram::run_telegram_bot(
-                &tg_config,
-                tg_gate,
-                Some(tool_factory),
-            );
-            tracing::info!("Telegram bot created");
-            if let Err(e) = bot.await {
-                tracing::error!("Telegram bot error: {}", e);
-            }
-        });
-    } else {
-        println!("  Telegram: disabled");
     }
 
     // Spawn cron scheduler if any jobs are configured
@@ -645,8 +601,6 @@ async fn show_status() -> Result<()> {
     if !config.cron.jobs.is_empty() {
         println!("  Cron jobs: {}", config.cron.jobs.len());
     }
-    let telegram_enabled = config.telegram.as_ref().is_some_and(|t| t.enabled);
-    println!("  Telegram enabled: {}", telegram_enabled);
     println!("  HTTP Server enabled: {}", config.server.enabled);
     if config.server.enabled {
         println!(

@@ -136,19 +136,19 @@ dontUseWhen:
 |------|---------|-------------|
 | Shorthand string | `"debug"` | Contains check (case-insensitive) |
 | `contains` | `contains: "error"` | Message contains text |
-| `channel` | `channel: telegram` | Matches specific channel |
+| `channel` | `channel: cli` | Matches specific channel |
 | `hasTool` | `hasTool: bash` | Tool is available |
 
 ### Combined Example
 
 ```yaml
 ---
-name: telegram-weather
-description: "Weather for Telegram"
+name: cli-weather
+description: "Weather for CLI users"
 user-invocable: true
 useWhen:
   - contains: "weather"
-  - channel: telegram
+  - channel: cli
 dontUseWhen:
   - contains: "joke"
   - hasTool: weather_api
@@ -156,7 +156,7 @@ dontUseWhen:
 
 # Weather Skill
 
-Provides weather information for Telegram users...
+Provides weather information for CLI users...
 ```
 
 **Evaluation logic:**

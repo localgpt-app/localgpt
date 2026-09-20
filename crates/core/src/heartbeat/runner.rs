@@ -45,7 +45,7 @@ pub struct HeartbeatRunner {
     /// and dispatches them via `localgpt-gen headless` subprocess.
     gen_dispatch_enabled: bool,
     /// Optional callback invoked when heartbeat produces an alert (non-OK, non-skipped response).
-    /// Used by the daemon to forward alerts to Telegram.
+    /// Used by the daemon to forward alerts to a notification channel.
     on_alert: Option<AlertCallback>,
 }
 
@@ -150,7 +150,7 @@ impl HeartbeatRunner {
     }
 
     /// Set a callback invoked when heartbeat produces an alert (non-OK, non-skipped).
-    /// Used by the daemon to forward alerts to Telegram with topic routing.
+    /// Used by the daemon to forward alerts to a notification channel.
     pub fn set_alert_callback(&mut self, callback: AlertCallback) {
         self.on_alert = Some(callback);
     }
@@ -274,7 +274,7 @@ impl HeartbeatRunner {
                         debug!(name: "Heartbeat", "OK");
                     } else {
                         warn!(name: "Heartbeat", "response not OK: {}", response);
-                        // Notify via alert callback (e.g., Telegram with topic routing)
+                        // Notify via alert callback (if configured)
                         if let Some(ref callback) = self.on_alert {
                             callback(&response);
                         }

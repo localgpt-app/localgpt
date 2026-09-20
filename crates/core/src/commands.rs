@@ -1,11 +1,9 @@
-//! Unified slash command definitions shared across CLI and Telegram interfaces.
+//! Unified slash command definitions shared across CLI and Gen interfaces.
 
 /// Which interfaces support a command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Interface {
     Cli,
-    Telegram,
-    Discord,
     Gen,
 }
 
@@ -42,12 +40,7 @@ pub const COMMANDS: &[SlashCommand] = &[
         description: "Show available commands",
         aliases: &["h", "?"],
         usage: "",
-        interfaces: &[
-            Interface::Cli,
-            Interface::Telegram,
-            Interface::Discord,
-            Interface::Gen,
-        ],
+        interfaces: &[Interface::Cli, Interface::Gen],
     },
     SlashCommand {
         name: "quit",
@@ -61,24 +54,14 @@ pub const COMMANDS: &[SlashCommand] = &[
         description: "Start a fresh session",
         aliases: &[],
         usage: "",
-        interfaces: &[
-            Interface::Cli,
-            Interface::Telegram,
-            Interface::Discord,
-            Interface::Gen,
-        ],
+        interfaces: &[Interface::Cli, Interface::Gen],
     },
     SlashCommand {
         name: "skills",
         description: "List available skills",
         aliases: &[],
         usage: "",
-        interfaces: &[
-            Interface::Cli,
-            Interface::Telegram,
-            Interface::Discord,
-            Interface::Gen,
-        ],
+        interfaces: &[Interface::Cli, Interface::Gen],
     },
     SlashCommand {
         name: "sessions",
@@ -106,12 +89,7 @@ pub const COMMANDS: &[SlashCommand] = &[
         description: "Show or switch model",
         aliases: &[],
         usage: "[name]",
-        interfaces: &[
-            Interface::Cli,
-            Interface::Telegram,
-            Interface::Discord,
-            Interface::Gen,
-        ],
+        interfaces: &[Interface::Cli, Interface::Gen],
     },
     SlashCommand {
         name: "effort",
@@ -160,36 +138,21 @@ pub const COMMANDS: &[SlashCommand] = &[
         description: "Compact session history",
         aliases: &[],
         usage: "",
-        interfaces: &[
-            Interface::Cli,
-            Interface::Telegram,
-            Interface::Discord,
-            Interface::Gen,
-        ],
+        interfaces: &[Interface::Cli, Interface::Gen],
     },
     SlashCommand {
         name: "clear",
         description: "Clear session history",
         aliases: &[],
         usage: "",
-        interfaces: &[
-            Interface::Cli,
-            Interface::Telegram,
-            Interface::Discord,
-            Interface::Gen,
-        ],
+        interfaces: &[Interface::Cli, Interface::Gen],
     },
     SlashCommand {
         name: "memory",
         description: "Search memory files",
         aliases: &[],
         usage: "<query>",
-        interfaces: &[
-            Interface::Cli,
-            Interface::Telegram,
-            Interface::Discord,
-            Interface::Gen,
-        ],
+        interfaces: &[Interface::Cli, Interface::Gen],
     },
     SlashCommand {
         name: "reindex",
@@ -210,12 +173,7 @@ pub const COMMANDS: &[SlashCommand] = &[
         description: "Show session info",
         aliases: &[],
         usage: "",
-        interfaces: &[
-            Interface::Cli,
-            Interface::Telegram,
-            Interface::Discord,
-            Interface::Gen,
-        ],
+        interfaces: &[Interface::Cli, Interface::Gen],
     },
     SlashCommand {
         name: "gallery",
@@ -231,13 +189,6 @@ pub const COMMANDS: &[SlashCommand] = &[
         usage: "[list]",
         interfaces: &[Interface::Gen],
     },
-    SlashCommand {
-        name: "unpair",
-        description: "Unpair this bot account",
-        aliases: &[],
-        usage: "",
-        interfaces: &[Interface::Telegram, Interface::Discord],
-    },
 ];
 
 /// Format help text for a given interface.
@@ -250,6 +201,3 @@ pub fn format_help_text(iface: Interface) -> String {
     }
     lines.join("\n")
 }
-
-// NOTE: The `telegram_bot_commands()` function that builds `teloxide::types::BotCommand`
-// has been moved to the `localgpt-server` crate where the teloxide dependency lives.

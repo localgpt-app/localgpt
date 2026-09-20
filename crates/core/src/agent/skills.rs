@@ -67,7 +67,7 @@ pub struct ComplexCondition {
     /// Message matches regex pattern
     #[serde(rename = "matches")]
     pub matches: Option<String>,
-    /// Specific channel type (telegram, discord, cli, http)
+    /// Specific channel type (cli, http)
     #[serde(rename = "channel")]
     pub channel: Option<String>,
     /// Tool is available
@@ -139,7 +139,7 @@ impl RoutingCondition {
 pub struct SkillRoutingContext {
     /// The user's message content
     pub message: String,
-    /// The channel type (telegram, discord, cli, http)
+    /// The channel type (cli, http)
     pub channel: String,
     /// Set of available tool names
     pub available_tools: HashSet<String>,
@@ -935,10 +935,10 @@ useWhen:
     #[test]
     fn test_parse_routing_conditions_complex() {
         let content = r#"---
-name: telegram-skill
+name: cli-skill
 useWhen:
   - contains: "weather"
-  - channel: telegram
+  - channel: cli
 dontUseWhen:
   - contains: "joke"
   - hasTool: weather_api
@@ -957,7 +957,7 @@ dontUseWhen:
         }
         match &fm.use_when[1] {
             RoutingCondition::Complex(c) => {
-                assert_eq!(c.channel, Some("telegram".to_string()));
+                assert_eq!(c.channel, Some("cli".to_string()));
             }
             _ => panic!("Expected Complex variant"),
         }
@@ -983,18 +983,18 @@ dontUseWhen:
         let condition = RoutingCondition::Complex(ComplexCondition {
             contains: None,
             matches: None,
-            channel: Some("telegram".to_string()),
+            channel: Some("http".to_string()),
             has_tool: None,
         });
 
-        let ctx_telegram = SkillRoutingContext::new("hello", "telegram");
-        assert!(condition.matches(&ctx_telegram));
+        let ctx_http = SkillRoutingContext::new("hello", "http");
+        assert!(condition.matches(&ctx_http));
 
         let ctx_cli = SkillRoutingContext::new("hello", "cli");
         assert!(!condition.matches(&ctx_cli));
 
         // Case insensitive
-        let ctx_upper = SkillRoutingContext::new("hello", "TELEGRAM");
+        let ctx_upper = SkillRoutingContext::new("hello", "HTTP");
         assert!(condition.matches(&ctx_upper));
     }
 

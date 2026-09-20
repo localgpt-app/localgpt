@@ -274,17 +274,6 @@ level = "info"
 
 # Log directory (logs are written as localgpt-YYYY-MM-DD.log)
 path = "~/.local/state/localgpt/logs"
-
-#──────────────────────────────────────────────────────────────────────────────
-# Telegram Bot
-#──────────────────────────────────────────────────────────────────────────────
-
-[telegram]
-# Enable Telegram bot (runs inside daemon)
-enabled = false
-
-# Bot API token from @BotFather
-api_token = "${TELEGRAM_BOT_TOKEN}"
 ```
 
 ## Environment Variables
@@ -509,22 +498,6 @@ base_url = "http://127.0.0.1:8080/v1"
 ```
 
 3. Run `localgpt chat` and requests will go to your local server.
-
-### Telegram Bot
-
-Access LocalGPT from Telegram with full chat, tool use, and memory support:
-
-1. Create a bot via [@BotFather](https://t.me/BotFather) and get the API token.
-2. Configure:
-
-```toml
-[telegram]
-enabled = true
-api_token = "${TELEGRAM_BOT_TOKEN}"
-```
-
-3. Start the daemon: `localgpt daemon start`
-4. Message your bot — enter the 6-digit pairing code shown in the daemon logs.
 
 ## Managing Configuration
 

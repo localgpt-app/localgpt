@@ -24,7 +24,6 @@ pub fn run() -> Result<()> {
     println!("  audit log:      {}", paths.audit_log().display());
     println!("  sessions:       {}", paths.sessions_dir("main").display());
     println!("  logs:           {}", paths.logs_dir().display());
-    println!("  pairing file:   {}", paths.pairing_file().display());
     println!();
     println!("Cache:      {}", paths.cache_dir.display());
     println!("  search index:   {}", paths.search_index("main").display());

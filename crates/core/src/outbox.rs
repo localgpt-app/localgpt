@@ -282,18 +282,6 @@ pub fn backoff_ms(attempt: u32) -> u64 {
         .unwrap_or(*BACKOFF_MS.last().unwrap_or(&600_000))
 }
 
-/// Check if an error is permanent (unrecoverable) for Telegram.
-pub fn is_permanent_telegram_error(error: &str) -> bool {
-    let lower = error.to_lowercase();
-    lower.contains("chat not found")
-        || lower.contains("bot was blocked")
-        || lower.contains("bot was kicked")
-        || lower.contains("user is deactivated")
-        || lower.contains("group chat was deactivated")
-        || lower.contains("chat_write_forbidden")
-        || lower.contains("have no rights to send")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,13 +299,13 @@ mod tests {
         let (outbox, _dir) = test_outbox();
 
         let id = outbox
-            .enqueue("telegram", "12345", "Hello world", Some("session-1"))
+            .enqueue("cli", "12345", "Hello world", Some("session-1"))
             .unwrap();
         assert!(!id.is_empty());
 
         let entry = outbox.claim_next().unwrap().unwrap();
         assert_eq!(entry.id, id);
-        assert_eq!(entry.channel, "telegram");
+        assert_eq!(entry.channel, "cli");
         assert_eq!(entry.target, "12345");
         assert_eq!(entry.payload, "Hello world");
         assert_eq!(entry.session_id.as_deref(), Some("session-1"));
@@ -328,7 +316,7 @@ mod tests {
     fn test_mark_delivered() {
         let (outbox, _dir) = test_outbox();
 
-        let id = outbox.enqueue("telegram", "12345", "Hello", None).unwrap();
+        let id = outbox.enqueue("cli", "12345", "Hello", None).unwrap();
         outbox.mark_delivered(&id).unwrap();
 
         // Should no longer be claimable
@@ -340,7 +328,7 @@ mod tests {
     fn test_retry_with_backoff() {
         let (outbox, _dir) = test_outbox();
 
-        let id = outbox.enqueue("telegram", "12345", "Hello", None).unwrap();
+        let id = outbox.enqueue("cli", "12345", "Hello", None).unwrap();
 
         // Record failure — next retry should be in the future
         outbox.record_failure(&id, "network timeout").unwrap();
@@ -356,7 +344,7 @@ mod tests {
     fn test_permanent_failure() {
         let (outbox, _dir) = test_outbox();
 
-        let id = outbox.enqueue("telegram", "12345", "Hello", None).unwrap();
+        let id = outbox.enqueue("cli", "12345", "Hello", None).unwrap();
         outbox
             .mark_permanent_failure(&id, "chat not found")
             .unwrap();
@@ -371,7 +359,7 @@ mod tests {
         let (outbox, _dir) = test_outbox();
 
         // Enqueue and simulate a failed message with future retry
-        let id = outbox.enqueue("telegram", "12345", "Hello", None).unwrap();
+        let id = outbox.enqueue("cli", "12345", "Hello", None).unwrap();
         outbox.record_failure(&id, "timeout").unwrap();
 
         // Before recovery, can't claim (retry is in the future)
@@ -390,7 +378,7 @@ mod tests {
     fn test_cleanup_delivered() {
         let (outbox, _dir) = test_outbox();
 
-        let id = outbox.enqueue("telegram", "12345", "Hello", None).unwrap();
+        let id = outbox.enqueue("cli", "12345", "Hello", None).unwrap();
         outbox.mark_delivered(&id).unwrap();
 
         // Cleanup with 0 days retention removes everything
@@ -409,27 +397,11 @@ mod tests {
     }
 
     #[test]
-    fn test_permanent_error_detection() {
-        assert!(is_permanent_telegram_error(
-            "Forbidden: bot was blocked by the user"
-        ));
-        assert!(is_permanent_telegram_error("Bad Request: chat not found"));
-        assert!(is_permanent_telegram_error(
-            "Forbidden: bot was kicked from the group chat"
-        ));
-        assert!(is_permanent_telegram_error(
-            "Forbidden: user is deactivated"
-        ));
-        assert!(!is_permanent_telegram_error("Request timeout"));
-        assert!(!is_permanent_telegram_error("Internal server error"));
-    }
-
-    #[test]
     fn test_multiple_messages_ordering() {
         let (outbox, _dir) = test_outbox();
 
-        let id1 = outbox.enqueue("telegram", "111", "First", None).unwrap();
-        let id2 = outbox.enqueue("telegram", "222", "Second", None).unwrap();
+        let id1 = outbox.enqueue("cli", "111", "First", None).unwrap();
+        let id2 = outbox.enqueue("cli", "222", "Second", None).unwrap();
 
         // Claims should come in enqueue order (next_retry_at = 0 for both)
         let entry1 = outbox.claim_next().unwrap().unwrap();

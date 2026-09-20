@@ -13,16 +13,14 @@ LocalGPT is built as a Cargo workspace with modular crates, designed for local-f
 crates/
 ├── core/        # localgpt-core — shared library (agent, memory, config, security)
 ├── cli/         # localgpt — binary with clap CLI, desktop GUI, dangerous tools
-├── server/      # localgpt-server — HTTP/WS API, Telegram bot, BridgeManager
+├── server/      # localgpt-server — HTTP/WS API, BridgeManager
 ├── sandbox/     # localgpt-sandbox — Landlock/Seatbelt process sandboxing
 ├── mobile-ffi/  # localgpt-mobile-ffi — UniFFI bindings for iOS/Android
 ├── gen/         # localgpt-gen — Bevy 3D scene generation binary
 └── bridge/      # localgpt-bridge — secure IPC protocol for bridge daemons
 
 bridges/         # Standalone bridge binaries
-├── telegram/    # localgpt-bridge-telegram — Telegram bot daemon
-├── discord/     # localgpt-bridge-discord — Discord bot daemon
-└── whatsapp/    # localgpt-bridge-whatsapp — WhatsApp bridge daemon
+└── cli/         # localgpt-bridge-cli — terminal chat client (connects to the daemon over IPC)
 
 apps/            # Native mobile app projects
 ├── ios/         # Swift iOS app with UniFFI bindings
@@ -57,15 +55,13 @@ apps/            # Native mobile app projects
 └─────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                          BRIDGE DAEMONS                                  │
-│  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐   │
-│  │ bridge-telegram   │  │ bridge-discord    │  │ bridge-whatsapp   │   │
-│  │ (teloxide)        │  │ (serenity)        │  │ (baileys/Node)    │   │
-│  └─────────┬─────────┘  └─────────┬─────────┘  └─────────┬─────────┘   │
-│            │                      │                      │              │
-│            └──────────────────────┼──────────────────────┘              │
-│                                   │                                     │
-│                                   ▼                                     │
+│                          BRIDGE DAEMON                                   │
+│                        ┌───────────────────┐                            │
+│                        │    bridge-cli     │                            │
+│                        │    (rustyline)    │                            │
+│                        └─────────┬─────────┘                            │
+│                                  │                                       │
+│                                  ▼                                       │
 │                        ┌─────────────────┐                              │
 │                        │ localgpt-bridge │  ← Unix socket IPC           │
 │                        └─────────────────┘                              │
@@ -100,13 +96,11 @@ apps/            # Native mobile app projects
 | `localgpt-core` | lib | None | Agent, memory, config, security |
 | `localgpt-bridge` | lib | None | IPC protocol for bridge daemons |
 | `localgpt-sandbox` | lib | core | Landlock/Seatbelt process isolation |
-| `localgpt-server` | lib | core, bridge | HTTP server, Telegram bot, BridgeManager |
+| `localgpt-server` | lib | core, bridge | HTTP server, BridgeManager |
 | `localgpt` | bin | core, server, sandbox | CLI binary with all features |
 | `localgpt-gen` | bin | core | 3D scene generation with Bevy |
 | `localgpt-mobile-ffi` | lib+bin | core (minimal) | UniFFI bindings for iOS/Android |
-| `localgpt-bridge-telegram` | bin | core, bridge | Telegram bot daemon |
-| `localgpt-bridge-discord` | bin | core, bridge | Discord bot daemon |
-| `localgpt-bridge-whatsapp` | bin | core, bridge | WhatsApp bridge daemon |
+| `localgpt-bridge-cli` | bin | core, bridge | Terminal chat client (daemon IPC) |
 
 ## Core Libraries
 
@@ -137,7 +131,6 @@ IPC protocol for daemon-to-bridge communication:
 HTTP/WebSocket server and daemon services:
 
 - **Axum HTTP**: REST API + embedded Web UI (RustEmbed)
-- **Telegram bot**: Streaming responses via teloxide
 - **BridgeManager**: Unix socket server for bridge daemons
 - **WebSocket**: Real-time chat streaming
 
@@ -220,17 +213,15 @@ Build outputs:
 
 Uses `embeddings-local` + `sqlite-vec` features (local embeddings work on mobile).
 
-## Bridge Daemons
+## Bridge Daemon
 
-Standalone binaries that connect to the main LocalGPT daemon:
+A standalone binary that connects to the main LocalGPT daemon:
 
 | Bridge | Library | Notes |
 |--------|---------|-------|
-| Telegram | teloxide | Streaming with edit updates |
-| Discord | serenity | Gateway client |
-| WhatsApp | baileys (Node.js) | Embedded process + webhooks |
+| CLI | rustyline | Interactive terminal chat |
 
-All bridges use the same IPC protocol defined in `localgpt-bridge`.
+The bridge uses the IPC protocol defined in `localgpt-bridge`.
 
 ## Design Principles
 

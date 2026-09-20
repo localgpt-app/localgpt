@@ -139,7 +139,7 @@ localgpt daemon start
 - **Persistent memory** — markdown-based knowledge store with full-text and semantic search
 - **Hybrid web search** — native provider search passthrough plus client-side fallback
 - **Autonomous heartbeat** — delegate tasks and let it work in the background
-- **Multiple interfaces** — CLI, web UI, desktop GUI, Telegram bot
+- **Multiple interfaces** — CLI, web UI, desktop GUI, mobile apps
 - **Defense-in-depth security** — signed policy files, kernel-enforced sandbox, prompt injection defenses
 - **Multiple LLM providers** — LM Studio, Ollama, Anthropic, OpenAI, xAI, GLM, Vertex AI, CLI providers
 

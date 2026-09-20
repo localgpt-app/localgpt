@@ -7,7 +7,7 @@
 
 This document covers architectural decisions for:
 1. Server-side 3D rendering for mobile clients
-2. Integration with multiple messaging platforms (Telegram, Discord, Slack, etc.)
+2. Local client connectivity via the bridge IPC socket (CLI bridge)
 3. IPC vs HTTP/WebSocket protocol choices
 
 ---
@@ -49,7 +49,7 @@ Moltis (reference implementation) runs everything in a single process with tokio
 
 ### Recommended: Hybrid Architecture
 
-For LocalGPT with Gen mode and multiple bridges:
+For LocalGPT with Gen mode and the CLI bridge:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -61,16 +61,13 @@ For LocalGPT with Gen mode and multiple bridges:
 │  │ HTTP/WS Server ─┼───────────────────┼─► Bevy Renderer │    │
 │  │ Agent           │   SceneRequest    │   (main thread) │    │
 │  │ Memory          │◄──────────────────┼─ SceneResult    │    │
-│  │ Telegram Bot    │   RenderedImage   │                 │    │
-│  └─────────────────┘                    └─────────────────┘    │
+│  └─────────────────┘   RenderedImage   └─────────────────┘    │
 │         │                                                      │
-│         │ IPC / HTTP                                           │
+│         │ IPC                                                  │
 │         ▼                                                      │
 │  ┌─────────────────┐                                          │
-│  │ Bridge Daemons  │                                          │
-│  │ - telegram      │                                          │
-│  │ - discord       │                                          │
-│  │ - slack         │                                          │
+│  │ Bridge Daemon   │                                          │
+│  │ - cli           │                                          │
 │  └─────────────────┘                                          │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -153,39 +150,32 @@ app.add_plugins(DefaultPlugins.set(WindowPlugin {
 
 ### Integration Patterns
 
-#### Pattern 1: Cloud Messaging Services
+#### Pattern 1: Local CLI Bridge
 
 ```
-┌──────────┐    HTTPS     ┌──────────┐    HTTPS    ┌───────┐
-│Telegram  │◄────────────►│ LocalGPT │◄───────────►│Discord│
-│  API     │   Webhook    │  Server  │   Webhook   │  API  │
-└──────────┘              └──────────┘             └───────┘
+┌──────────┐    IPC        ┌──────────┐
+│   CLI    │◄─────────────►│ LocalGPT │
+│  Bridge  │  Unix Socket  │  Daemon  │
+└──────────┘               └──────────┘
 
-❌ IPC doesn't work here - services are on different machines
-✅ HTTP/WS is REQUIRED
+✅ IPC works - same machine
+✅ Peer identity verified via socket credentials
 ```
 
-#### Pattern 2: Bridge Daemons (Same Machine)
+#### Pattern 2: Bridge Daemon (Same Machine)
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                      Your Machine                         │
 │                                                          │
-│  ┌──────────┐    IPC/HTTP     ┌──────────┐              │
-│  │ LocalGPT │◄───────────────►│ Telegram │──► Telegram  │
-│  │  Server  │   Unix Socket   │  Bridge  │     API      │
-│  │          │                 │          │              │
-│  │          │    IPC/HTTP     ├──────────┼──► Discord   │
-│  │          │◄───────────────►│ Discord  │     API      │
-│  │          │                 │  Bridge  │              │
-│  │          │    IPC/HTTP     ├──────────┼──► Slack     │
-│  │          │◄───────────────►│  Slack   │     API      │
-│  └──────────┘                 │  Bridge  │              │
-│                               └──────────┘              │
+│  ┌──────────┐    IPC          ┌──────────┐              │
+│  │ LocalGPT │◄───────────────►│   CLI    │──► Terminal  │
+│  │  Daemon  │   Unix Socket   │  Bridge  │     Chat     │
+│  └──────────┘                 └──────────┘              │
 └──────────────────────────────────────────────────────────┘
 
 ✅ IPC works (same machine)
-✅ HTTP works (more universal)
+✅ Peer identity verified via socket credentials
 ```
 
 #### Pattern 3: Distributed Setup
@@ -193,16 +183,15 @@ app.add_plugins(DefaultPlugins.set(WindowPlugin {
 ```
 ┌─────────────┐              ┌─────────────┐
 │  Mac Studio │   HTTP/WS    │  VPS/Cloud  │
-│  (Gen +     │◄────────────►│  (Gateway   │
-│   Storage)  │   Network    │   + Bridges)│
+│  (Gen +     │◄────────────►│  (Daemon +  │
+│   Storage)  │   Network    │  HTTP/WS)   │
 └─────────────┘              └─────────────┘
       │                              │
       ▼                              ▼
 ┌─────────────┐              ┌─────────────┐
-│ Bevy Gen    │              │ Telegram    │
-│ (main thread)│             │ Discord     │
-└─────────────┘              │ Slack       │
-                             └─────────────┘
+│ Bevy Gen    │              │ Web UI /    │
+│ (main thread)│             │ Mobile Apps │
+└─────────────┘              └─────────────┘
 
 ✅ HTTP/WS required for cross-machine
 ❌ IPC only works on same machine
@@ -234,7 +223,6 @@ app.add_plugins(DefaultPlugins.set(WindowPlugin {
 | Server → Gen Process | IPC | Same machine, low latency |
 | Server → Bridge (local) | IPC or HTTP | Flexible |
 | Server → Bridge (remote) | HTTP/WS | Network required |
-| Telegram/Discord API | HTTPS | Their API requirement |
 
 ### Bridge Protocol Design
 
@@ -413,11 +401,11 @@ impl IpcConfig {
 2. Define `GenRequest`/`GenResponse` protocol
 3. Gateway connects via Unix socket
 
-### Phase 3: Bridge Daemons
+### Phase 3: Bridge Daemon
 
 1. Create bridge protocol (same messages, multiple transports)
-2. Implement Telegram bridge with both IPC and HTTP
-3. Add Discord, Slack bridges
+2. Implement the CLI bridge over IPC
+3. Add further local clients as needed
 
 ### Phase 4: Distributed Deployment
 

@@ -175,11 +175,6 @@ impl Paths {
         self.locks_dir().join("workspace.lock")
     }
 
-    /// Telegram pairing file
-    pub fn pairing_file(&self) -> PathBuf {
-        self.state_dir.join("telegram_paired_user.json")
-    }
-
     /// Bridge socket name (Full path on Unix, pipe name on Windows)
     pub fn bridge_socket_name(&self) -> String {
         #[cfg(unix)]
@@ -530,7 +525,6 @@ mod tests {
         assert!(paths.logs_dir().ends_with("logs"));
         assert!(paths.managed_skills_dir().ends_with("skills"));
         assert!(paths.embedding_cache_dir().ends_with("embeddings"));
-        assert!(paths.pairing_file().ends_with("telegram_paired_user.json"));
     }
 
     #[test]

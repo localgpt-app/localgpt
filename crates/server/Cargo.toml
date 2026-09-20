@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "LocalGPT HTTP server and Telegram bot"
+description = "LocalGPT HTTP server"
 readme = "README.md"
 
 [lib]
@@ -32,9 +32,6 @@ tower-http = { version = "0.6", features = ["cors", "trace", "limit"] }
 # Static file embedding for Web UI
 rust-embed = { version = "8", features = ["compression", "interpolate-folder-path"] }
 mime_guess = "2.0"
-
-# Telegram bot
-teloxide = { version = "0.17", features = ["macros"] }
 
 # Bridge IPC
 tarpc = { version = "0.37.0", features = ["tokio1", "serde-transport"] }

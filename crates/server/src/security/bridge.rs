@@ -885,13 +885,13 @@ mod tests {
 
         // Update active should reset health
         manager
-            .update_active("test-conn", Some("telegram".to_string()))
+            .update_active("test-conn", Some("cli".to_string()))
             .await;
 
         let bridges = manager.get_active_bridges().await;
         assert_eq!(bridges[0].health, HealthStatus::Healthy);
         assert_eq!(bridges[0].consecutive_failures, 0);
-        assert_eq!(bridges[0].bridge_id, Some("telegram".to_string()));
+        assert_eq!(bridges[0].bridge_id, Some("cli".to_string()));
     }
 
     #[tokio::test]
@@ -1045,9 +1045,9 @@ mod tests {
 
     #[test]
     fn test_validate_bridge_id() {
-        assert!(validate_bridge_id("telegram").is_ok());
-        assert!(validate_bridge_id("discord-bot").is_ok());
-        assert!(validate_bridge_id("whatsapp_2").is_ok());
+        assert!(validate_bridge_id("cli").is_ok());
+        assert!(validate_bridge_id("cli-bridge").is_ok());
+        assert!(validate_bridge_id("web_ui_2").is_ok());
         assert!(validate_bridge_id("bridge123").is_ok());
 
         assert!(validate_bridge_id("").is_err());

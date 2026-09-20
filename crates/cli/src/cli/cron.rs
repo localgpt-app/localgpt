@@ -52,7 +52,7 @@ pub struct AddArgs {
     #[arg(short, long)]
     pub name: Option<String>,
 
-    /// Optional Telegram channel to send output to
+    /// Optional channel to send output to
     #[arg(short, long)]
     pub channel: Option<String>,
 

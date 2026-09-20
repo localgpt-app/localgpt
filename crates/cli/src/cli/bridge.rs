@@ -1,11 +1,11 @@
 //! Bridge management CLI
 //!
-//! Register, list, and manage bridge connections (Telegram, Discord, etc.)
+//! Register, list, and manage local client bridge connections
 //!
 //! Usage:
-//!   localgpt bridge register --id telegram --secret <token>
+//!   localgpt bridge register --id cli --secret <token>
 //!   localgpt bridge list
-//!   localgpt bridge status telegram
+//!   localgpt bridge status cli
 
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -24,7 +24,7 @@ pub struct BridgeArgs {
 pub enum BridgeCommands {
     /// Register a new bridge with credentials
     Register {
-        /// Unique ID for the bridge (e.g., "telegram")
+        /// Unique ID for the bridge (e.g., "cli")
         #[arg(long)]
         id: String,
 

@@ -49,9 +49,9 @@ Introduce a `ToolRegistry` in `localgpt/crates/core` acting as the Context.
 Allow the API server (`localgpt/crates/server`) to upload a Wasm module representing a new tool. The server instantiates the Wasm module, yielding a `RegistrationGuard`. When the tool is uninstalled via API, the guard drops, instantly unregistering the tool from the `ToolRegistry` without restarting the daemon.
 
 ### B. Reversible Capabilities (Server Crate)
-If `localgpt` needs to toggle capabilities at runtime (e.g., switching the LLM backend from local Llama.cpp to OpenAI API, or turning on/off the Telegram bot), it can use the Reversible Effects pattern. 
+If `localgpt` needs to toggle capabilities at runtime (e.g., switching the LLM backend from local Llama.cpp to OpenAI API, or turning on/off the bridge IPC socket), it can use the Reversible Effects pattern. 
 
-Instead of checking configuration flags (`if config.use_telegram { ... }`), the Telegram bot is written as a "Plugin" that registers a listener on a `MessageReceived` event bus. Disabling the bot just drops its context, unwinding the listener and cleanly severing the behavior.
+Instead of checking configuration flags (`if config.enable_bridge_socket { ... }`), the bridge socket listener is written as a "Plugin" that registers a listener on a `MessageReceived` event bus. Disabling the listener just drops its context, unwinding the registration and cleanly severing the behavior.
 
 ### C. Hot-Reloading in Bevy (`gen` Crate)
 `localgpt/crates/gen` already relies on Bevy's `Plugin` trait. Bevy plugins are generally static. To get Cordis-level "apply/unapply without restart" in the 3D engine:

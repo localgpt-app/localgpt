@@ -17,10 +17,8 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY bridges ./bridges
 
-# Build the CLI without desktop GUI (headless) and all bridge binaries
+# Build the CLI without desktop GUI (headless) and the CLI bridge binary
 RUN cargo build --release -p localgpt --no-default-features \
-    && cargo build --release -p localgpt-bridge-telegram \
-    && cargo build --release -p localgpt-bridge-discord \
     && cargo build --release -p localgpt-bridge-cli
 
 FROM ubuntu:24.04 AS runtime
@@ -40,8 +38,6 @@ RUN groupadd --system --gid 10001 localgpt \
     && chown -R localgpt:localgpt /home/localgpt
 
 COPY --from=builder /app/target/release/localgpt /usr/local/bin/localgpt
-COPY --from=builder /app/target/release/localgpt-bridge-telegram /usr/local/bin/localgpt-bridge-telegram
-COPY --from=builder /app/target/release/localgpt-bridge-discord /usr/local/bin/localgpt-bridge-discord
 COPY --from=builder /app/target/release/localgpt-bridge-cli /usr/local/bin/localgpt-bridge-cli
 
 USER localgpt:localgpt
