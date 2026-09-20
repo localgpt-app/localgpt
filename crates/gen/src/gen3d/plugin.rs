@@ -511,6 +511,11 @@ struct GenCommandParams<'w, 's> {
 }
 
 /// Build a `SnapshotQueries` from `GenCommandParams`. Used in many dispatch arms.
+///
+/// `behaviors_query` is stored by value as a read-only view (read-only
+/// queries are `Copy`) — snapshotting never mutates behaviors, and an owned
+/// view avoids borrow-checker conflicts in systems that also filter on
+/// `Changed<EntityBehaviors>`.
 macro_rules! snap_queries {
     ($params:expr) => {
         SnapshotQueries {
@@ -522,7 +527,7 @@ macro_rules! snap_queries {
             directional_lights: &$params.directional_lights,
             point_lights: &$params.point_lights,
             spot_lights: &$params.spot_lights,
-            behaviors_query: &$params.behaviors_query,
+            behaviors_query: $params.behaviors_query.as_readonly(),
             audio_emitters: &$params.audio_emitters,
             parent_query: &$params.parent_query,
             gltf_sources: &$params.gltf_sources,
@@ -6002,7 +6007,7 @@ fn spawn_world_entities(
 }
 
 /// Convert a `wt::Shape` to a Bevy `Mesh` handle.
-fn shape_to_mesh(shape: &wt::Shape, meshes: &mut ResMut<Assets<Mesh>>) -> Handle<Mesh> {
+pub(crate) fn shape_to_mesh(shape: &wt::Shape, meshes: &mut ResMut<Assets<Mesh>>) -> Handle<Mesh> {
     match shape {
         wt::Shape::Cuboid { x, y, z } => meshes.add(Cuboid::new(*x, *y, *z)),
         wt::Shape::Sphere { radius } => meshes.add(Sphere::new(*radius).mesh().uv(32, 18)),
@@ -6391,7 +6396,7 @@ fn parse_alpha_mode(s: &str) -> AlphaMode {
 }
 
 /// Convert a `MaterialDef` to a Bevy `StandardMaterial`.
-fn material_def_to_standard(mat: &wt::MaterialDef) -> StandardMaterial {
+pub(crate) fn material_def_to_standard(mat: &wt::MaterialDef) -> StandardMaterial {
     let mut std_mat = StandardMaterial {
         base_color: Color::srgba(mat.color[0], mat.color[1], mat.color[2], mat.color[3]),
         metallic: mat.metallic,
@@ -6426,7 +6431,7 @@ fn material_def_to_standard(mat: &wt::MaterialDef) -> StandardMaterial {
 }
 
 /// Insert a light component onto an existing entity command builder.
-fn insert_light_component(
+pub(crate) fn insert_light_component(
     entity_cmd: &mut bevy::ecs::system::EntityCommands,
     light: &wt::LightDef,
 ) {
@@ -6576,26 +6581,28 @@ fn spawn_light_entity(
 
 /// Borrows all the queries needed to snapshot entity state.
 /// Avoids passing 12+ individual query parameters to `snapshot_entity`.
-struct SnapshotQueries<'a, 'w, 's> {
-    transforms: &'a Query<'w, 's, &'static Transform>,
-    parametric_shapes: &'a Query<'w, 's, &'static ParametricShape>,
-    material_handles: &'a Query<'w, 's, &'static MeshMaterial3d<StandardMaterial>>,
-    materials: &'a Assets<StandardMaterial>,
-    visibility_query: &'a Query<'w, 's, &'static Visibility>,
-    directional_lights: &'a Query<'w, 's, &'static DirectionalLight>,
-    point_lights: &'a Query<'w, 's, &'static PointLight>,
-    spot_lights: &'a Query<'w, 's, &'static SpotLight>,
-    behaviors_query: &'a Query<'w, 's, &'static mut EntityBehaviors>,
-    audio_emitters: &'a Query<'w, 's, &'static audio::AudioEmitter>,
-    parent_query: &'a Query<'w, 's, &'static ChildOf>,
-    gltf_sources: &'a Query<'w, 's, &'static GltfSource>,
-    registry: &'a NameRegistry,
+/// Read-only query bundle used to snapshot live entities into `wt::WorldEntity`.
+pub(crate) struct SnapshotQueries<'a, 'w, 's> {
+    pub(crate) transforms: &'a Query<'w, 's, &'static Transform>,
+    pub(crate) parametric_shapes: &'a Query<'w, 's, &'static ParametricShape>,
+    pub(crate) material_handles: &'a Query<'w, 's, &'static MeshMaterial3d<StandardMaterial>>,
+    pub(crate) materials: &'a Assets<StandardMaterial>,
+    pub(crate) visibility_query: &'a Query<'w, 's, &'static Visibility>,
+    pub(crate) directional_lights: &'a Query<'w, 's, &'static DirectionalLight>,
+    pub(crate) point_lights: &'a Query<'w, 's, &'static PointLight>,
+    pub(crate) spot_lights: &'a Query<'w, 's, &'static SpotLight>,
+    pub(crate) behaviors_query: Query<'w, 's, &'static EntityBehaviors>,
+    pub(crate) audio_emitters: &'a Query<'w, 's, &'static audio::AudioEmitter>,
+    pub(crate) parent_query: &'a Query<'w, 's, &'static ChildOf>,
+    pub(crate) gltf_sources: &'a Query<'w, 's, &'static GltfSource>,
+    pub(crate) registry: &'a NameRegistry,
 }
 
 /// Capture the current ECS state of an entity as a `wt::WorldEntity`.
 ///
-/// Used to record the entity state before/after modifications for undo history.
-fn snapshot_entity(
+/// Used to record the entity state before/after modifications for undo history,
+/// and by the multiplayer host to derive replicated net components.
+pub(crate) fn snapshot_entity(
     name: &str,
     entity: bevy::ecs::entity::Entity,
     id: wt::EntityId,

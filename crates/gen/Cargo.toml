@@ -84,16 +84,39 @@ splines = "5.0"
 
 # Random number generation (for NPC wander, foliage scattering)
 rand = { workspace = true }
+lightyear = { version = "0.30.1", optional = true, default-features = false, features = [
+    "std",
+    "client",
+    "server",
+    "replication",
+    "interpolation",
+    "netcode",
+    "udp",
+] }
+# Replication rule customization (JSON rule fns for world-types payloads).
+# Versions unify with lightyear's dependency graph.
+bevy_replicon = { version = "0.44", optional = true }
+bytes = { version = "1", optional = true }
+mdns-sd = { version = "0.21.3", optional = true }
 
 # File locking for GPU exclusivity (Windows)
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Storage_FileSystem"] }
+windows-sys = { version = "0.59", features = ["Win32_Storage_FileSystem", "Win32_System_IO"] }
 
 [features]
-default = ["physics"]
+default = ["physics", "multiplayer"]
 # Avian3d rigid-body physics, colliders, joints, forces, gravity, spatial
 # queries (camera spring-arm). Works on Bevy 0.19.
 physics = ["dep:avian3d"]
+# Phase-1 collaborative listen server: lightyear netcode + mDNS discovery
+# (§1 of docs/rfcs/multiplayer/collaborative-world-engine-architecture.md).
+# `--host` / `--join` require this feature.
+multiplayer = [
+    "dep:lightyear",
+    "dep:bevy_replicon",
+    "dep:bytes",
+    "dep:mdns-sd",
+]
 # bevy-tnua floating character controller for the player. Requires `physics`.
 # OFF by default: no Bevy 0.19-compatible bevy-tnua release exists yet, so
 # enabling this currently fails to build. When enabled the player uses the

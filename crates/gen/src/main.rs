@@ -18,6 +18,13 @@ use localgpt_gen::character_tools;
 use localgpt_gen::gen3d;
 use localgpt_gen::mcp_server;
 
+/// Host-side net hooks passed into the agent loop.
+/// Degrades to a unit option when the `multiplayer` feature is off.
+#[cfg(feature = "multiplayer")]
+type AgentNetHooksOpt = Option<localgpt_gen::net::host::AgentNetHooks>;
+#[cfg(not(feature = "multiplayer"))]
+type AgentNetHooksOpt = Option<()>;
+
 /// Result of handling a slash command.
 enum CommandResult {
     /// Continue the interactive loop.
@@ -621,13 +628,17 @@ mod tests {
 /// - Streams response chunks in real-time
 /// - Shows tool calls with detail extraction
 /// - Displays execution status for each tool
-async fn streaming_chat(agent: &mut Agent, input: &str) -> Result<()> {
+///
+/// Returns the accumulated assistant response text (possibly partial on
+/// stream errors) so collaborative clients can receive the reply.
+async fn streaming_chat(agent: &mut Agent, input: &str) -> Result<String> {
     print!("\nLocalGPT: ");
     std::io::stdout().flush().ok();
 
+    let mut full_response = String::new();
+
     match agent.chat_stream_with_images(input, vec![]).await {
         Ok(mut stream) => {
-            let mut full_response = String::new();
             let mut pending_tool_calls = None;
 
             // Stream response chunks
@@ -696,7 +707,7 @@ async fn streaming_chat(agent: &mut Agent, input: &str) -> Result<()> {
         }
     }
 
-    Ok(())
+    Ok(full_response)
 }
 
 #[derive(Parser)]
@@ -725,6 +736,29 @@ struct Cli {
     /// Auto-enabled when using claude-cli/* models.
     #[arg(long, global = true)]
     mcp_relay: bool,
+
+    /// Host a collaborative session on the LAN (listen server + mDNS
+    /// announcement). Others join as read-only viewers with --join.
+    #[cfg(feature = "multiplayer")]
+    #[arg(long, group = "net_mode")]
+    host: bool,
+
+    /// Session name shown in mDNS discovery (with --host).
+    #[cfg(feature = "multiplayer")]
+    #[arg(long, requires = "host")]
+    session_name: Option<String>,
+
+    /// Join a collaborative session. Pass the host address (host:port or
+    /// bare host — default port 9879), or omit the value to discover
+    /// sessions on the LAN via mDNS.
+    #[cfg(feature = "multiplayer")]
+    #[arg(long, num_args = 0..=1, default_missing_value = None, group = "net_mode")]
+    join: Option<Option<String>>,
+
+    /// UDP port for hosted sessions (with --host).
+    #[cfg(feature = "multiplayer")]
+    #[arg(long, requires = "host", default_value_t = 9879)]
+    port: u16,
 }
 
 #[derive(Subcommand)]
@@ -840,6 +874,19 @@ fn main() -> Result<()> {
     // Load config early so both Bevy and agent threads can use it
     let config = localgpt_core::config::Config::load()?;
     let workspace = config.workspace_path();
+
+    // Multiplayer client mode (--join): slim viewer app, no gen subsystems.
+    #[cfg(feature = "multiplayer")]
+    if cli.join.is_some() {
+        if cli.command.is_some() {
+            anyhow::bail!("--join cannot be combined with a subcommand");
+        }
+        return run_join_mode(&cli);
+    }
+    #[cfg(feature = "multiplayer")]
+    if cli.host && cli.command.is_some() {
+        anyhow::bail!("--host cannot be combined with a subcommand");
+    }
 
     // Dispatch based on subcommand
     match cli.command {
@@ -1027,6 +1074,25 @@ fn main() -> Result<()> {
             let bridge_for_relay = bridge.clone();
             let relay_config = config.clone();
 
+            // Host mode: set up the prompt/chat bridge to the net systems.
+            #[cfg(feature = "multiplayer")]
+            let mut host_options: Option<localgpt_gen::net::host::NetHostOptions> = None;
+            #[cfg(feature = "multiplayer")]
+            let agent_net: AgentNetHooksOpt = if cli.host {
+                let (mut opts, hooks) = localgpt_gen::net::host::create_host_channels();
+                opts.session_name = cli
+                    .session_name
+                    .clone()
+                    .unwrap_or_else(default_session_name);
+                opts.port = cli.port;
+                host_options = Some(opts);
+                Some(hooks)
+            } else {
+                None
+            };
+            #[cfg(not(feature = "multiplayer"))]
+            let agent_net: AgentNetHooksOpt = None;
+
             // Enable MCP relay when explicitly requested or when using a CLI backend
             // (claude-cli, gemini-cli, codex-cli spawn subprocesses that need MCP access)
             let model = &config.agent.default_model;
@@ -1074,6 +1140,7 @@ fn main() -> Result<()> {
                         initial_prompt,
                         relay_config,
                         editor_for_agent,
+                        agent_net,
                     )
                     .await
                     {
@@ -1093,6 +1160,13 @@ fn main() -> Result<()> {
             });
 
             // Run Bevy on the main thread (blocks until window closes)
+            #[cfg(feature = "multiplayer")]
+            let result = if let Some(options) = host_options {
+                run_host_bevy_app(channels, workspace, initial_scene, options)
+            } else {
+                run_bevy_app(channels, workspace, initial_scene)
+            };
+            #[cfg(not(feature = "multiplayer"))]
             let result = run_bevy_app(channels, workspace, initial_scene);
 
             // Clean up relay port file so stale ports aren't discovered
@@ -1139,6 +1213,170 @@ fn run_bevy_app(
     app.run();
 
     Ok(())
+}
+
+/// Set up and run the host Bevy application: the full gen app plus the
+/// listen-server plugin (authoritative ECS + replication + mDNS).
+#[cfg(feature = "multiplayer")]
+fn run_host_bevy_app(
+    channels: gen3d::GenChannels,
+    workspace: std::path::PathBuf,
+    initial_scene: Option<PathBuf>,
+    options: localgpt_gen::net::host::NetHostOptions,
+) -> Result<()> {
+    use bevy::prelude::*;
+
+    let mut app = App::new();
+
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "LocalGPT Gen — Host".into(),
+                    resolution: bevy::window::WindowResolution::new(1280, 720),
+                    present_mode: bevy::window::PresentMode::AutoVsync,
+                    composite_alpha_mode: bevy::window::CompositeAlphaMode::Auto,
+                    ..default()
+                }),
+                ..default()
+            })
+            .set(bevy::asset::AssetPlugin {
+                file_path: "/".to_string(),
+                ..default()
+            })
+            .disable::<bevy::log::LogPlugin>(),
+    );
+
+    gen3d::plugin::setup_gen_app(&mut app, channels, workspace, initial_scene);
+    app.add_plugins(localgpt_gen::net::host::NetHostPlugin {
+        options: std::sync::Mutex::new(Some(options)),
+    });
+
+    app.run();
+
+    Ok(())
+}
+
+/// Run the collaborative client app: a slim viewer with its own camera that
+/// renders replicated state and forwards prompts to the host.
+#[cfg(feature = "multiplayer")]
+fn run_client_app(
+    server_addr: std::net::SocketAddr,
+    prompt_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
+) -> Result<()> {
+    use bevy::prelude::*;
+
+    let mut app = App::new();
+
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "LocalGPT Gen — Client".into(),
+                    resolution: bevy::window::WindowResolution::new(1280, 720),
+                    present_mode: bevy::window::PresentMode::AutoVsync,
+                    composite_alpha_mode: bevy::window::CompositeAlphaMode::Auto,
+                    ..default()
+                }),
+                ..default()
+            })
+            .set(bevy::asset::AssetPlugin {
+                file_path: "/".to_string(),
+                ..default()
+            })
+            .disable::<bevy::log::LogPlugin>(),
+    );
+
+    app.add_plugins(localgpt_gen::net::client::NetClientPlugin {
+        options: std::sync::Mutex::new(Some(localgpt_gen::net::client::NetClientOptions {
+            server_addr,
+            prompt_rx,
+        })),
+    });
+
+    app.run();
+
+    Ok(())
+}
+
+/// `--join` mode: resolve the host address (mDNS browse when unspecified),
+/// start the prompt REPL, and run the client app.
+#[cfg(feature = "multiplayer")]
+fn run_join_mode(cli: &Cli) -> Result<()> {
+    use std::net::SocketAddr;
+
+    let addr: SocketAddr = match cli.join.clone().flatten() {
+        Some(spec) => parse_peer_addr(&spec)?,
+        None => {
+            eprintln!("Browsing the LAN for collaborative sessions…");
+            let sessions = localgpt_gen::net::mdns::browse_sessions(
+                std::time::Duration::from_secs(3),
+                localgpt_gen::net::PROTOCOL_ID,
+            )?;
+            if sessions.is_empty() {
+                anyhow::bail!(
+                    "No sessions found. Host one with `localgpt-gen --host`, then join it,\n\
+                     or connect directly: localgpt-gen --join 192.168.1.5:9879"
+                );
+            }
+            for session in &sessions {
+                eprintln!("  found: {} — {}", session.session_name, session.addr);
+            }
+            let chosen = &sessions[0];
+            eprintln!("Joining '{}' at {}", chosen.session_name, chosen.addr);
+            chosen.addr
+        }
+    };
+
+    // Prompt REPL on a background thread — lines flow to the net systems.
+    let (prompt_tx, prompt_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    std::thread::spawn(move || {
+        let Ok(mut rl) = rustyline::DefaultEditor::new() else {
+            eprintln!("Failed to open input editor — prompts unavailable");
+            return;
+        };
+        loop {
+            match rl.readline("You: ") {
+                Ok(line) => {
+                    let text = line.trim().to_string();
+                    if !text.is_empty() {
+                        let _ = prompt_tx.send(text);
+                    }
+                }
+                Err(_) => {
+                    // Ctrl+D or editor error — the Bevy window keeps running;
+                    // exiting the process is the only way out of the REPL.
+                    std::process::exit(0);
+                }
+            }
+        }
+    });
+
+    run_client_app(addr, prompt_rx)
+}
+
+/// Parse a peer address: `host:port`, `ip:port`, or a bare host (port
+/// defaults to the session port).
+#[cfg(feature = "multiplayer")]
+fn parse_peer_addr(spec: &str) -> Result<std::net::SocketAddr> {
+    use anyhow::Context as _;
+
+    if let Ok(addr) = spec.parse() {
+        return Ok(addr);
+    }
+    let with_port = format!("{spec}:{}", localgpt_gen::net::DEFAULT_PORT);
+    with_port
+        .parse()
+        .with_context(|| format!("invalid host address '{spec}' (expected host:port)"))
+}
+
+/// Default hosted-session name: "{user}'s world".
+#[cfg(feature = "multiplayer")]
+fn default_session_name() -> String {
+    let user = std::env::var("USERNAME")
+        .or_else(|_| std::env::var("USER"))
+        .unwrap_or_else(|_| "gen".to_string());
+    format!("{user}'s world")
 }
 
 /// Set up and run headless Bevy (no window) on the main thread.
@@ -1433,20 +1671,40 @@ Use `get_avatar_state` frequently to understand your position.
     Ok(())
 }
 
+/// Input sources merged into the agent loop.
+enum AgentInput {
+    /// Line typed at the local REPL.
+    Local(String),
+    /// REPL closed (Ctrl+D or error).
+    Eof,
+    /// Prompt received from a connected collaborative client.
+    #[cfg(feature = "multiplayer")]
+    Remote(localgpt_gen::net::protocol::ClientPrompt),
+}
+
 /// Run the interactive agent loop with Gen tools available.
+///
+/// The REPL runs on a dedicated blocking thread (rustyline reads are
+/// synchronous) and feeds a merged event channel, so remote prompts from
+/// connected clients can be interleaved with local input. When hosting,
+/// every turn (local or remote) is echoed to connected clients as
+/// [`localgpt_gen::net::protocol::HostChat`] messages.
 async fn run_agent_loop(
     bridge: std::sync::Arc<gen3d::GenBridge>,
     agent_id: &str,
     initial_prompt: Option<String>,
     config: localgpt_core::config::Config,
     editor: Option<rustyline::DefaultEditor>,
+    net_hooks: AgentNetHooksOpt,
 ) -> Result<()> {
     use localgpt_core::agent::tools::create_safe_tools;
     use localgpt_core::agent::{Agent, create_spawn_agent_tool};
     use localgpt_core::memory::MemoryManager;
-    use rustyline::DefaultEditor;
     use rustyline::error::ReadlineError;
     use std::sync::Arc;
+
+    #[cfg(not(feature = "multiplayer"))]
+    let _ = &net_hooks;
 
     // Set up memory
     let memory = MemoryManager::new_with_agent(&config.memory, agent_id)?;
@@ -1563,51 +1821,133 @@ async fn run_agent_loop(
         println!();
     }
 
-    // Interactive loop — reuse the editor created in main() so tracing's
-    // ExternalPrinter stays wired to its pipe. Fall back to a fresh editor
-    // if one wasn't provided (e.g., initial_prompt-only path).
-    let mut rl = match editor {
-        Some(ed) => ed,
-        None => DefaultEditor::new()?,
-    };
-    loop {
-        let readline = rl.readline("You: ");
+    // Set up the merged input stream: REPL lines on a blocking thread,
+    // plus remote client prompts when hosting.
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel::<AgentInput>();
+    let repl_event_tx = event_tx.clone();
+    std::thread::spawn(move || {
+        // Reuse the editor created in main() so tracing's ExternalPrinter
+        // stays wired to its pipe. Fall back to a fresh editor if one
+        // wasn't provided.
+        let mut rl = match editor {
+            Some(ed) => ed,
+            None => match rustyline::DefaultEditor::new() {
+                Ok(ed) => ed,
+                Err(e) => {
+                    eprintln!("Failed to open input editor: {e}");
+                    let _ = repl_event_tx.send(AgentInput::Eof);
+                    return;
+                }
+            },
+        };
+        loop {
+            match rl.readline("You: ") {
+                Ok(line) => {
+                    let _ = rl.add_history_entry(&line);
+                    if repl_event_tx.send(AgentInput::Local(line)).is_err() {
+                        return;
+                    }
+                }
+                Err(ReadlineError::Interrupted) => {
+                    println!("^C");
+                }
+                Err(ReadlineError::Eof) => {
+                    let _ = repl_event_tx.send(AgentInput::Eof);
+                    return;
+                }
+                Err(err) => {
+                    eprintln!("Error: {:?}", err);
+                    let _ = repl_event_tx.send(AgentInput::Eof);
+                    return;
+                }
+            }
+        }
+    });
 
-        let input = match readline {
-            Ok(line) => line,
-            Err(ReadlineError::Interrupted) => {
-                println!("^C");
-                continue;
+    #[cfg(feature = "multiplayer")]
+    let chat_tx = net_hooks.map(|hooks| {
+        // Forward remote client prompts into the merged input stream.
+        let mut prompt_rx = hooks.prompt_rx;
+        let remote_tx = event_tx.clone();
+        tokio::spawn(async move {
+            while let Some(prompt) = prompt_rx.recv().await {
+                if remote_tx.send(AgentInput::Remote(prompt)).is_err() {
+                    break;
+                }
             }
-            Err(ReadlineError::Eof) => {
-                break; // Ctrl+D
-            }
-            Err(err) => {
-                eprintln!("Error: {:?}", err);
-                break;
+        });
+        hooks.chat_tx
+    });
+
+    // Interactive loop over the merged event stream.
+    loop {
+        let Some(event) = event_rx.recv().await else {
+            break;
+        };
+        let (input, from_client) = match event {
+            AgentInput::Local(line) => (line, false),
+            AgentInput::Eof => break, // Ctrl+D
+            #[cfg(feature = "multiplayer")]
+            AgentInput::Remote(prompt) => {
+                println!("\n[client] {}", prompt.text);
+                (prompt.text, true)
             }
         };
+        #[cfg(not(feature = "multiplayer"))]
+        let _ = from_client;
 
         let input = input.trim();
         if input.is_empty() {
             continue;
         }
 
-        // Add to history
-        let _ = rl.add_history_entry(input);
-
-        // Handle slash commands
+        // Handle slash commands (local REPL only — clients can't run them)
         if input.starts_with('/') {
+            if from_client {
+                continue;
+            }
             match handle_gen_command(input, &mut agent, agent_id, &workspace).await {
                 CommandResult::Continue => continue,
                 CommandResult::Quit => break,
                 CommandResult::SendMessage(msg) => {
-                    streaming_chat(&mut agent, &msg).await?;
+                    let reply = streaming_chat(&mut agent, &msg).await?;
+                    #[cfg(feature = "multiplayer")]
+                    if let Some(chat_tx) = &chat_tx {
+                        let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
+                            speaker: "host-user".to_string(),
+                            text: msg.clone(),
+                        });
+                        if !reply.is_empty() {
+                            let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
+                                speaker: "host".to_string(),
+                                text: reply,
+                            });
+                        }
+                    }
+                    #[cfg(not(feature = "multiplayer"))]
+                    let _ = &reply;
                     println!();
                 }
             }
         } else {
-            streaming_chat(&mut agent, input).await?;
+            let reply = streaming_chat(&mut agent, input).await?;
+            #[cfg(feature = "multiplayer")]
+            if let Some(chat_tx) = &chat_tx {
+                if !from_client {
+                    let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
+                        speaker: "host-user".to_string(),
+                        text: input.to_string(),
+                    });
+                }
+                if !reply.is_empty() {
+                    let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
+                        speaker: "host".to_string(),
+                        text: reply,
+                    });
+                }
+            }
+            #[cfg(not(feature = "multiplayer"))]
+            let _ = &reply;
             println!();
         }
     }

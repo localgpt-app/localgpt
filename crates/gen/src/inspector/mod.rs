@@ -219,10 +219,7 @@ fn inspector_ui(
     }
 
     // --- Process pending visibility toggles from outliner ---
-    let pending: Vec<Entity> = outliner_cache
-        .pending_visibility_toggles
-        .drain(..)
-        .collect();
+    let pending: Vec<Entity> = std::mem::take(&mut outliner_cache.pending_visibility_toggles);
     for entity in &pending {
         if let Ok(vis) = params.visibility_q.get(*entity) {
             let new_vis = if *vis == Visibility::Hidden {

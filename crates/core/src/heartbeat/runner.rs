@@ -243,8 +243,7 @@ impl HeartbeatRunner {
                         preview: None,
                         reason: Some(format!(
                             "exceeded deadline of {}",
-                            &self
-                                .config
+                            self.config
                                 .heartbeat
                                 .timeout
                                 .as_deref()

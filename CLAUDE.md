@@ -35,6 +35,8 @@ cargo run -p localgpt-gen                          # Interactive mode
 cargo run -p localgpt-gen -- "build a castle"      # With initial prompt
 cargo run -p localgpt-gen -- -s model.glb          # Load existing scene
 cargo run -p localgpt-gen -- -v                    # Verbose logging
+cargo run -p localgpt-gen -- --host                # Host a collaborative session (mDNS, UDP 9879)
+cargo run -p localgpt-gen -- --join 192.168.1.5    # Join a session (or --join to browse)
 
 # Headless build (no desktop GUI)
 cargo build -p localgpt --no-default-features
@@ -276,6 +278,14 @@ Aliases resolve first (e.g. `opus` → `anthropic/claude-opus-4-6`, `sonnet`,
 environmental audio. World data uses **`localgpt-world-types`** (serde-only,
 zero Bevy/SpacetimeDB deps) so the same types serialize to RON for local saves
 and map to SpacetimeDB rows for multiplayer via `crates/spacetime`.
+
+**Multiplayer (Phase 1, `multiplayer` feature, default on):** listen-server
+collaboration — `localgpt-gen --host` runs the authoritative ECS + render
+client with mDNS announcement (`_localgpt-world._udp.local.`, UDP 9879);
+`localgpt-gen --join [addr]` connects as a read-only viewer that can send
+prompts to the host's agent. Replication is lightyear 0.30 over the
+world-types wire model; see `docs/gen/multiplayer.md` and
+`crates/gen/src/net/`.
 
 **Audio System:** FunDSP v0.20 synthesis + cpal output, 3-thread model
 (Bevy main → audio mgmt thread → cpal callback) with lock-free `Shared<f32>`

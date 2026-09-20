@@ -21,12 +21,20 @@ pub struct PeerIdentity {
 ///
 /// Delegates to `interprocess`' cross-platform peer-credentials API, which uses
 /// `SO_PEERCRED` / `getpeereid` on Unix and `GetNamedPipeClientProcessId` on
-/// Windows under the hood.
+/// Windows under the hood. Only Unix exposes uid/gid; Windows reports just
+/// the pid (as `u32`, widened here).
 pub fn get_peer_identity(stream: &LocalSocketStream) -> io::Result<PeerIdentity> {
     let creds = stream.peer_creds()?;
-    Ok(PeerIdentity {
-        uid: creds.euid(),
-        gid: creds.egid(),
-        pid: creds.pid(),
-    })
+
+    #[cfg(unix)]
+    let (uid, gid) = (creds.euid(), creds.egid());
+    #[cfg(not(unix))]
+    let (uid, gid) = (None, None);
+
+    #[cfg(unix)]
+    let pid = creds.pid();
+    #[cfg(not(unix))]
+    let pid = creds.pid().map(|p| p as i32);
+
+    Ok(PeerIdentity { uid, gid, pid })
 }

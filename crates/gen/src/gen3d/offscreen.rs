@@ -84,7 +84,7 @@ pub fn save_pixels_as_png(
 ) -> Result<(), String> {
     // BGRA → RGBA swizzle
     let mut rgba_data = raw_bgra.to_vec();
-    for pixel in rgba_data.chunks_exact_mut(4) {
+    for pixel in rgba_data.as_chunks_mut::<4>().0 {
         pixel.swap(0, 2); // swap B and R
     }
 

@@ -412,7 +412,7 @@ fn draw_behaviors_section(
             for beh in &behaviors.behaviors {
                 egui::CollapsingHeader::new(format!(
                     "{}: {}",
-                    &beh.id,
+                    beh.id,
                     behavior_type_name(&beh.def)
                 ))
                 .default_open(false)

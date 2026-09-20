@@ -28,7 +28,8 @@ pub struct BrowserTool {
 enum BrowserState {
     NotStarted,
     Running {
-        _process: tokio::process::Child, // kept alive for kill_on_drop
+        /// Kept alive for kill_on_drop; boxed to keep the enum small.
+        _process: Box<tokio::process::Child>,
         ws_url: String,
     },
 }
@@ -74,7 +75,7 @@ impl BrowserTool {
                 debug!("Chrome ready at {}", ws_url);
 
                 *state = BrowserState::Running {
-                    _process: process,
+                    _process: Box::new(process),
                     ws_url: ws_url.clone(),
                 };
                 Ok(ws_url)

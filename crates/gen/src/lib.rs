@@ -15,6 +15,8 @@ pub mod inspector;
 pub mod interaction;
 pub mod mcp;
 pub mod mcp_server;
+#[cfg(feature = "multiplayer")]
+pub mod net;
 pub mod physics;
 pub mod terrain;
 pub mod tracing_printer;

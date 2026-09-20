@@ -381,6 +381,7 @@ async fn auth_middleware(
 }
 
 // Rate limit middleware for API routes
+#[allow(clippy::result_large_err)] // axum middleware convention: Response as error
 async fn rate_limit_middleware(
     State(state): State<Arc<AppState>>,
     request: Request,

@@ -159,7 +159,7 @@ impl BridgeManager {
         let config = &self.health_config;
         let mut bridges = self.active_bridges.write().await;
 
-        for (_id, status) in bridges.iter_mut() {
+        for status in bridges.values_mut() {
             let elapsed = (now - status.last_active)
                 .to_std()
                 .unwrap_or(Duration::ZERO);
