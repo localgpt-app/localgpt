@@ -1,5 +1,7 @@
 # Architecture for a massively multiplayer AI-driven persistent world platform
 
+> **Parent spec:** [3D Collaborative World Engine: Architecture Specification](collaborative-world-engine-architecture.md) — this document is the deep-dive on MMO-tier schema, spatial ownership, and governance (§2).
+
 **SpacetimeDB can serve as the backbone of a multiplayer AI-driven world co-creation platform, but the existing schema covers only about 30% of what a persistent, governed, scalable world requires.** The gaps are concrete: no spatial ownership model, no content quality scoring, no permission tiers, no content versioning, no decay mechanics, and no asset distribution pipeline. This document synthesizes research from BitCraft (the flagship SpacetimeDB MMO), Second Life, Minecraft claim systems, Wikipedia governance, Figma collaboration, and dozens of other production systems into a buildable architecture. SpacetimeDB 2.0's new View Functions and Row-Level Security (experimental) unlock patterns that were impossible at 1.0, particularly identity-parameterized data visibility—the foundation for a permission system. BitCraft's proven pattern of 9 spatial regions on separate SpacetimeDB instances, each handling several hundred concurrent users, provides the scaling blueprint.
 
 ---

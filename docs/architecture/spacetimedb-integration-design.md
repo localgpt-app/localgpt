@@ -1,5 +1,7 @@
 # SpacetimeDB Integration Design for LocalGPT Gen
 
+> **Parent spec:** [3D Collaborative World Engine: Architecture Specification](../rfcs/multiplayer/collaborative-world-engine-architecture.md) — this document is the deep-dive on the Distributed State Engine (§2).
+
 ## Executive Summary
 
 Integrate [SpacetimeDB](https://spacetimedb.com/) into `localgpt-gen` to enable **real-time collaborative 3D world building** — multiple users (each with their own AI agent) can co-create, modify, and explore the same 3D scene simultaneously. SpacetimeDB replaces the local-only `world.ron` save format with a persistent, synchronized, server-authoritative world database while preserving the existing single-player experience as the default.

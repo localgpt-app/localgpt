@@ -1,5 +1,7 @@
 # Multi-scale 3D universe architecture for Bevy + SpacetimeDB
 
+> **Parent spec:** [3D Collaborative World Engine: Architecture Specification](collaborative-world-engine-architecture.md) — this document is the deep-dive on coordinate systems and spatial partitioning at planetary scale (§2).
+
 **A continuous universe spanning millimeters to light-years is achievable with today's tools.** The core architecture combines `big_space`'s hierarchical integer grids for precision, cube-sphere CDLOD quadtrees for planetary terrain, composite BTree keys in SpacetimeDB for spatial persistence, and a deterministic seed-plus-delta content pipeline where LLMs enrich procedural foundations. Every shipping game that solves this problem — No Man's Sky, Star Citizen, Elite Dangerous, Space Engineers — converges on the same fundamental pattern: **64-bit positions on the CPU, 32-bit camera-relative rendering on the GPU, and hierarchical coordinate frames that keep local math small**. Bevy's ecosystem now has the pieces to implement this, most critically the `big_space` crate (0.12.0, Bevy 0.18) which eliminates the need for custom floating-origin infrastructure.
 
 ---
