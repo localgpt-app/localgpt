@@ -102,6 +102,9 @@ pub struct BridgeManager {
     agent_support: Option<Arc<AgentSupport>>,
     // Health check configuration
     health_config: HealthCheckConfig,
+    // PTY sessions, injected by the daemon. `None` in builds without a host —
+    // the RPCs then answer NotSupported rather than pretending to have one.
+    pty_host: Option<Arc<dyn localgpt_core::pty::PtyHost>>,
 }
 
 impl BridgeManager {
@@ -111,6 +114,7 @@ impl BridgeManager {
             active_bridges: Arc::new(RwLock::new(HashMap::new())),
             agent_support: None,
             health_config: HealthCheckConfig::default(),
+            pty_host: None,
         }
     }
 
@@ -126,7 +130,18 @@ impl BridgeManager {
                 sessions: tokio::sync::Mutex::new(HashMap::new()),
             })),
             health_config: HealthCheckConfig::default(),
+            pty_host: None,
         }
+    }
+
+    /// Attach a PTY host so bridge clients can drive terminal sessions.
+    ///
+    /// Injected by the CLI daemon, mirroring how it injects the dangerous tool
+    /// set: the host needs platform APIs that must not reach `localgpt-core`.
+    /// Sessions then belong to the daemon and outlive any client connection.
+    pub fn with_pty_host(mut self, host: Arc<dyn localgpt_core::pty::PtyHost>) -> Self {
+        self.pty_host = Some(host);
+        self
     }
 
     /// Create with custom health check configuration
@@ -136,6 +151,7 @@ impl BridgeManager {
             active_bridges: Arc::new(RwLock::new(HashMap::new())),
             agent_support: None,
             health_config: config,
+            pty_host: None,
         }
     }
 
@@ -384,11 +400,15 @@ impl BridgeManager {
     }
 
     /// Start the bridge server listening on the given socket path.
+    ///
+    /// Declines rather than displacing an incumbent: if another daemon already
+    /// serves this endpoint — or if its liveness cannot be established — the
+    /// error is returned instead of deleting whatever sits at the path.
     pub async fn serve(self, socket_path: &str) -> anyhow::Result<()> {
-        let listener = BridgeServer::bind(socket_path)?;
+        let (listener, outcome) = BridgeServer::publish(socket_path).await?;
         let manager = self.clone();
 
-        info!("BridgeManager listening on {}", socket_path);
+        info!("BridgeManager listening on {} ({:?})", socket_path, outcome);
 
         loop {
             let conn = match listener.accept().await {
@@ -483,6 +503,19 @@ struct ConnectionHandler {
     manager: BridgeManager,
     identity: PeerIdentity,
     connection_id: String,
+}
+
+impl ConnectionHandler {
+    /// The injected PTY host, or `NotSupported` when this daemon has none.
+    ///
+    /// Saying so plainly matters: a client that cannot tell "no PTY support" from
+    /// "your session died" will discard a pane it should have kept.
+    fn pty_host(&self) -> Result<Arc<dyn localgpt_core::pty::PtyHost>, BridgeError> {
+        self.manager
+            .pty_host
+            .clone()
+            .ok_or_else(|| BridgeError::NotSupported("PTY sessions not available".into()))
+    }
 }
 
 impl BridgeService for ConnectionHandler {
@@ -750,6 +783,83 @@ impl BridgeService for ConnectionHandler {
         }
 
         Ok(output)
+    }
+
+    // -- PTY session RPCs --
+
+    async fn pty_spawn(self, _: context::Context, spec: String) -> Result<String, BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        let host = self.pty_host()?;
+        let spec: localgpt_core::pty::PtySpawnSpec = serde_json::from_str(&spec)
+            .map_err(|e| BridgeError::Internal(format!("Invalid PTY spec: {e}")))?;
+        let info = host
+            .spawn(spec)
+            .await
+            .map_err(|e| BridgeError::Internal(format!("PTY spawn failed: {e}")))?;
+        serde_json::to_string(&info)
+            .map_err(|e| BridgeError::Internal(format!("Failed to encode session: {e}")))
+    }
+
+    async fn pty_list(self, _: context::Context) -> Result<String, BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        let sessions = self
+            .pty_host()?
+            .list()
+            .await
+            .map_err(|e| BridgeError::Internal(format!("PTY list failed: {e}")))?;
+        serde_json::to_string(&sessions)
+            .map_err(|e| BridgeError::Internal(format!("Failed to encode sessions: {e}")))
+    }
+
+    async fn pty_read(
+        self,
+        _: context::Context,
+        id: String,
+        offset: u64,
+    ) -> Result<String, BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        let slice = self
+            .pty_host()?
+            .read_from(&id, offset)
+            .await
+            .map_err(|e| BridgeError::Internal(format!("PTY read failed: {e}")))?;
+        serde_json::to_string(&slice)
+            .map_err(|e| BridgeError::Internal(format!("Failed to encode output: {e}")))
+    }
+
+    async fn pty_write(
+        self,
+        _: context::Context,
+        id: String,
+        data: Vec<u8>,
+    ) -> Result<(), BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        self.pty_host()?
+            .write(&id, &data)
+            .await
+            .map_err(|e| BridgeError::Internal(format!("PTY write failed: {e}")))
+    }
+
+    async fn pty_resize(
+        self,
+        _: context::Context,
+        id: String,
+        rows: u16,
+        cols: u16,
+    ) -> Result<(), BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        self.pty_host()?
+            .resize(&id, rows, cols)
+            .await
+            .map_err(|e| BridgeError::Internal(format!("PTY resize failed: {e}")))
+    }
+
+    async fn pty_kill(self, _: context::Context, id: String) -> Result<(), BridgeError> {
+        self.manager.update_active(&self.connection_id, None).await;
+        self.pty_host()?
+            .kill(&id)
+            .await
+            .map_err(|e| BridgeError::Internal(format!("PTY kill failed: {e}")))
     }
 
     async fn memory_stats(self, _: context::Context) -> Result<String, BridgeError> {

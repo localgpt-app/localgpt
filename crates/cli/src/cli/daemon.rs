@@ -311,8 +311,33 @@ async fn run_daemon_services(
     if config.server.enabled {
         let bridge_memory =
             MemoryManager::new_with_full_config(&config.memory, Some(config), BRIDGE_CLI_AGENT_ID)?;
+        // PTY sessions live for as long as the daemon, not for as long as the
+        // client watching them: a bridge client may disconnect and reattach, and
+        // `pty_read`'s cursor lets it resume where it stopped. The registry is
+        // built here because it needs platform APIs that must not reach core.
+        let pty_host: std::sync::Arc<dyn localgpt_core::pty::PtyHost> =
+            std::sync::Arc::new(localgpt_cli_tools::pty::PtyRegistry::default());
+
         let bridge_manager =
-            localgpt_server::BridgeManager::new_with_agent_support(config.clone(), bridge_memory);
+            localgpt_server::BridgeManager::new_with_agent_support(config.clone(), bridge_memory)
+                .with_pty_host(std::sync::Arc::clone(&pty_host));
+
+        // Exited sessions would otherwise accumulate for the daemon's lifetime.
+        // Only definite exits are dropped; a session we cannot ask about stays.
+        let reaper_host = std::sync::Arc::clone(&pty_host);
+        handles.spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
+            loop {
+                interval.tick().await;
+                match reaper_host.reap().await {
+                    Ok(reaped) if !reaped.is_empty() => {
+                        tracing::debug!(?reaped, "reaped exited PTY sessions");
+                    }
+                    Err(e) => tracing::warn!("PTY reap failed: {}", e),
+                    _ => {}
+                }
+            }
+        });
 
         // Spawn Server
         let server_config = config.clone();

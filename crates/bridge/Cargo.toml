@@ -20,3 +20,6 @@ tokio-serde = { version = "0.9", features = ["json"] }
 futures = "0.3"
 clap = { version = "4.6.0", features = ["derive"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+[dev-dependencies]
+tempfile = "3.27"

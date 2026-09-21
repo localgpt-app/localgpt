@@ -17,6 +17,7 @@ pub mod media;
 pub mod memory;
 pub mod outbox;
 pub mod paths;
+pub mod pty;
 pub mod security;
 pub mod text;
 

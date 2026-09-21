@@ -22,3 +22,5 @@ tokio-tungstenite = "0.29"
 futures-util = "0.3"
 base64 = { workspace = true }
 which = "8"
+portable-pty = "0.9.0"
+chrono.workspace = true

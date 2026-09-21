@@ -5,6 +5,7 @@
 //! that make them unsuitable for mobile.
 
 pub mod browser;
+pub mod pty;
 
 use anyhow::Result;
 use async_trait::async_trait;

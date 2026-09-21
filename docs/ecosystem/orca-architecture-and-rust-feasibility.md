@@ -9,7 +9,7 @@
 | Author | Yi / LocalGPT |
 | Status | Research — no commitment |
 | Subject | `stablyai/orca` @ `b5b727bd` (2026-09-19), MIT |
-| Related | [rust-ecosystem-integration-spec.md](./rust-ecosystem-integration-spec.md), [../architecture/bridge-development.md](../architecture/bridge-development.md) |
+| Related | [rust-ecosystem-integration-spec.md](./rust-ecosystem-integration-spec.md), [../architecture/bridge-development.md](../architecture/bridge-development.md), [../architecture/pairing-auth-plane.md](../architecture/pairing-auth-plane.md) |
 
 ---
 
@@ -347,6 +347,78 @@ Ranges, not estimates — anchored to a small team.
 5. **Treat `login.onorca.dev` as the real moat.** The relay being open is not the same as the
    product being self-hostable. If LocalGPT ever ships a companion app, the auth plane is the
    part to design first, because Orca demonstrates it is the part everyone keeps private.
+   Design follow-up: [../architecture/pairing-auth-plane.md](../architecture/pairing-auth-plane.md),
+   which argues the plane can be built with no identity provider at all.
+
+---
+
+## 7A. Could It Be Rust All The Way Down? The Zed Evidence
+
+§6.4 claims a pure-Rust rewrite loses on editors, previews and design-system velocity. There
+is a standing counterexample: **Zed is a complete, shipping code editor written end-to-end in
+Rust**, so the honest answer to "is it possible" is yes, demonstrably. The useful question is
+what that yes cost and which parts of it transfer.
+
+*Zed facts below are from public knowledge, not from a local checkout. Verify licences and
+crate boundaries against the repository before depending on any of it.*
+
+### What Zed proves, item by item
+
+| Tier C concern | Zed's answer | Transferable to LocalGPT? |
+|----------------|--------------|---------------------------|
+| Monaco-class editor | Built one: rope text, tree-sitter parsing, LSP client, custom GPU rendering | **No.** The editor crates are GPL-3.0 and reimplementing is the multi-year cost itself |
+| UI framework | GPUI, their own GPU-accelerated framework (Apache-2.0) | **Partly.** Usable standalone, but documentation and ecosystem outside Zed are thin, and you inherit their idioms and churn |
+| Terminal | Did **not** build one — uses `alacritty_terminal` | **Yes.** Permissive, and already the Tier B recommendation |
+| Syntax | Did **not** build one — uses tree-sitter | **Yes** |
+| Language intelligence | Did **not** build one — speaks LSP | **Yes** |
+| Collaboration backend | Rust service over Postgres | **Yes**, as a pattern |
+| Mermaid / rich diagrams | No native Rust renderer | **No.** Still unsolved in Rust |
+
+### The iceberg under "just render text"
+
+Owning the rendering stack means owning everything Chromium otherwise hands you free: text
+shaping, font fallback across scripts, bidirectional text, emoji clustering, **input method
+editors**, and accessibility. These are not polish items. Orca — which does *not* own its
+renderer — still runs a dedicated `terminal-ime-e2e` workflow and an ibus/hangul test rig, and
+patched xterm.js seven times for ligature, image and width behaviour. A pure-Rust UI inherits
+all of that and has no upstream to patch.
+
+This is the cost that does not appear in any feasibility table and is the usual reason
+"rewrite it in Rust" projects stall at eighty percent.
+
+### Licensing: a constraint specific to LocalGPT
+
+LocalGPT is Apache-2.0. Zed's editor crates are **GPL-3.0**; GPUI is published under
+Apache-2.0. The rule is the one this repository already applies to `bevy_debugger_mcp`:
+
+> Study the approach, never copy the code. Verify the licence file of any Zed crate before
+> taking a dependency, per crate, not per repository.
+
+### The lesson Zed actually teaches
+
+Read the middle column again: Zed **did not build** a terminal emulator, a parser, or a
+language-intelligence protocol. A company that chose to write its own GPU UI framework — the
+most aggressive build decision available — still bought everything that was not its
+differentiator.
+
+That is the transferable principle, and it is the opposite of "Rust can do everything":
+
+> Build in Rust only the thing you must own. For LocalGPT that is local-first agent
+> orchestration and kernel-enforced sandboxing. Everything else should be a permissive crate
+> or a web view.
+
+### Verdict
+
+| Question | Answer |
+|----------|--------|
+| Is end-to-end Rust possible? | Yes — Zed is the existence proof |
+| At what cost? | A funded team, years, and ownership of the entire text-rendering stack |
+| Is it possible for this team? | The orchestrator, yes. The editor, no |
+| Does it change §6.5's recommendation? | No. It sharpens it: the hybrid split is what Zed itself did, drawn at a different line |
+
+The recommendation in §6.5 stands unchanged. Zed moves the boundary of the possible; it does
+not move the boundary of the advisable for a project whose differentiator is agent
+orchestration rather than text editing.
 
 ---
 

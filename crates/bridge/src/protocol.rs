@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 /// Current bridge protocol version.
 /// Increment the minor version for backward-compatible additions,
 /// and the major version for breaking changes.
-pub const BRIDGE_PROTOCOL_VERSION: &str = "1.1";
+pub const BRIDGE_PROTOCOL_VERSION: &str = "1.2";
 
 #[derive(Debug, thiserror::Error, Serialize, Deserialize)]
 pub enum BridgeError {
@@ -57,4 +57,30 @@ pub trait BridgeService {
 
     /// Get memory statistics.
     async fn memory_stats() -> Result<String, BridgeError>;
+
+    // -- PTY session RPCs (added in 1.2) --
+    //
+    // Sessions belong to the daemon, not to the client that started them: a
+    // client may disconnect and reconnect, and `pty_read` resumes from a cursor
+    // so the terminal it repaints matches the one it left. A daemon built
+    // without a PTY host answers `NotSupported` rather than pretending.
+
+    /// Spawn a PTY session. `spec` is a JSON-encoded `PtySpawnSpec`.
+    /// Returns a JSON-encoded `PtySessionInfo`.
+    async fn pty_spawn(spec: String) -> Result<String, BridgeError>;
+
+    /// List sessions as a JSON array of `PtySessionInfo`.
+    async fn pty_list() -> Result<String, BridgeError>;
+
+    /// Read output from `offset` onward. Returns a JSON-encoded `PtyReadSlice`.
+    async fn pty_read(id: String, offset: u64) -> Result<String, BridgeError>;
+
+    /// Write input bytes to a session.
+    async fn pty_write(id: String, data: Vec<u8>) -> Result<(), BridgeError>;
+
+    /// Resize a session's terminal.
+    async fn pty_resize(id: String, rows: u16, cols: u16) -> Result<(), BridgeError>;
+
+    /// Terminate a session's child process.
+    async fn pty_kill(id: String) -> Result<(), BridgeError>;
 }
