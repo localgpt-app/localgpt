@@ -83,6 +83,16 @@ const config: Config = {
         {to: '/blog', label: 'Blog', position: 'left'},
         {to: '/templates', label: 'Templates', position: 'left'},
         {
+          type: 'dropdown',
+          label: 'Apps',
+          position: 'left',
+          items: [
+            {label: 'LocalGPT Gen', to: '/docs/gen'},
+            {label: 'LocalGPT Verse', href: 'https://verse.localgpt.app/'},
+            {label: 'LocalGPT MD', href: 'https://md.localgpt.app/'},
+          ],
+        },
+        {
           href: 'https://www.youtube.com/@localgpt-app',
           position: 'right',
           className: 'header-localgpt-app-link',
@@ -139,11 +149,28 @@ const config: Config = {
           ],
         },
         {
+          title: 'Apps',
+          items: [
+            {
+              label: 'LocalGPT Gen',
+              to: '/docs/gen',
+            },
+            {
+              label: 'LocalGPT Verse',
+              href: 'https://verse.localgpt.app/',
+            },
+            {
+              label: 'LocalGPT MD',
+              href: 'https://md.localgpt.app/',
+            },
+          ],
+        },
+        {
           title: 'Features',
           items: [
             {
-              label: 'Gen',
-              to: '/docs/gen',
+              label: 'Collaborative Sessions',
+              to: '/docs/gen/multiplayer',
             },
             {
               label: 'Memory System',

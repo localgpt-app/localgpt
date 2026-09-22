@@ -1,9 +1,11 @@
+import type {JSX} from "react";
 import {useState} from 'react';
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import HomepageFeatures from '@site/src/components/HomepageFeatures';
+import HomepageApps from '@site/src/components/HomepageApps';
 import {templates} from '@site/src/data/templates';
 import styles from './index.module.css';
 
@@ -153,6 +155,7 @@ export default function Home(): JSX.Element {
       <HomepageHeader />
       <main>
         <HomepageFeatures />
+        <HomepageApps />
         <TemplatesPreview />
       </main>
     </Layout>

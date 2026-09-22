@@ -27,7 +27,8 @@ Docusaurus 3 site for the [LocalGPT](https://github.com/localgpt-app/localgpt) p
 
 - `src/pages/index.tsx` — homepage with hero (left/right split: branding + Gen card) and feature grid
 - `src/pages/index.module.css` — homepage styles (hero layout, Gen card, install command)
-- `src/components/HomepageFeatures/index.tsx` — feature grid below the hero (6 cards in 3-column layout)
+- `src/components/HomepageFeatures/index.tsx` — feature grid below the hero (3-column layout)
+- `src/components/HomepageApps/index.tsx` — "LocalGPT family" app cards (Gen, Verse, MD)
 - `src/css/custom.css` — global styles, Infima overrides, navbar icon SVGs (YouTube, X, GitHub)
 
 ### Key Config
@@ -39,6 +40,7 @@ Docusaurus 3 site for the [LocalGPT](https://github.com/localgpt-app/localgpt) p
 ## Conventions
 
 - The primary color is `#25c2a0` (teal green), used in Infima vars and component styles.
-- LocalGPT Gen vision: immersive explorable worlds (geometry + materials + lighting + camera). Don't describe Gen as only "3D scene generation." Don't mention audio/music until those features launch.
+- LocalGPT Gen vision: immersive explorable worlds (geometry + materials + lighting + camera). Don't describe Gen as only "3D scene generation." Gen's procedural audio is launched; music-driven worlds belong to LocalGPT Verse, not Gen.
+- The LocalGPT family lives under localgpt.app: LocalGPT (assistant), Gen (this site's `/docs/gen`), [Verse](https://verse.localgpt.app/) (a 3D world for every song) and [MD](https://md.localgpt.app/) (walk through a Markdown file as a 3D world). Verse and MD have their own sites — link out, don't duplicate their docs here. They're listed in the navbar "Apps" dropdown, the footer "Apps" column, the homepage family section (`src/components/HomepageApps`), and `docs/ecosystem.md`.
 - Doc pages that reference LocalGPT CLI commands should link to the corresponding docs page when one exists (e.g., `[`gen`](/docs/gen)`).
 - When documenting CLI features, verify against the Rust source at `../localgpt/` — the docs have historically lagged behind the code.

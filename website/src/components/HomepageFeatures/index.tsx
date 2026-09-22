@@ -1,3 +1,4 @@
+import type {JSX} from "react";
 import clsx from "clsx";
 import Heading from "@theme/Heading";
 import Link from "@docusaurus/Link";
@@ -36,6 +37,17 @@ const FeatureList: FeatureItem[] = [
         Animate entities without scripting: orbit, spin, bob, look_at, pulse,
         path_follow, and bounce. Stack multiple behaviors on a single entity for
         complex motion.
+      </>
+    ),
+  },
+  {
+    title: "Build Together",
+    description: (
+      <>
+        Host a world on your network and let friends join with a PIN. Everyone
+        explores in their own window and asks your AI to build where they're
+        looking — joiners can only edit the scene, never your machine.{" "}
+        <Link to="/docs/gen/multiplayer">Learn more</Link>
       </>
     ),
   },

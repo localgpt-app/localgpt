@@ -28,6 +28,7 @@ const sidebars: SidebarsConfig = {
         'gen/behaviors',
         'gen/audio',
         'gen/world-skills',
+        'gen/multiplayer',
         'gen/export',
         'gen/mcp-server',
         'gen/cli-mode',

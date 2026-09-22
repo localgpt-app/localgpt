@@ -1,0 +1,65 @@
+.apps {
+  padding: 3.5rem 0 4rem;
+}
+
+.title {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  text-align: center;
+  opacity: 0.8;
+  max-width: 40rem;
+  margin: 0 auto 2.5rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.25rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  border-radius: 10px;
+  background: var(--ifm-card-background-color);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.card:hover {
+  color: inherit;
+  text-decoration: none;
+  transform: translateY(-2px);
+  border-color: var(--ifm-color-primary);
+}
+
+.tagline {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ifm-color-primary);
+  margin-bottom: 0.3rem;
+}
+
+.name {
+  margin: 0 0 0.6rem;
+}
+
+.description {
+  flex: 1;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  opacity: 0.85;
+  margin: 0 0 1rem;
+}
+
+.cta {
+  font-weight: 600;
+  color: var(--ifm-color-primary);
+}

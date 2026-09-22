@@ -176,6 +176,7 @@ See [Headless Mode & Experiment Queue](/docs/gen/headless) for full details.
 - **[Behaviors](/docs/gen/behaviors)** — Data-driven animations (orbit, spin, bounce, etc.)
 - **[Audio](/docs/gen/audio)** — Procedural environmental audio with spatial emitters
 - **[World Skills](/docs/gen/world-skills)** — Save and load complete worlds as reusable skills
+- **[Collaborative Sessions](/docs/gen/multiplayer)** — Host a world on your network; friends join with a PIN and build with your AI
 - **[Export](/docs/gen/export)** — glTF/GLB (Blender, Unity, Unreal), HTML (browser-viewable with audio + behaviors), screenshots
 - **[MCP Server](/docs/gen/mcp-server)** — Use gen tools from Claude Desktop, VS Code, Zed, Cursor, and other MCP clients
 - **[CLI Mode](/docs/gen/cli-mode)** — MCP relay for Claude CLI, Gemini CLI, and Codex (no API key needed)
@@ -199,6 +200,11 @@ Jumpstart your project with ready-to-customize world templates:
 
 - Visual output depends on the LLM's spatial reasoning ability
 - Requires a GPU-capable display for rendering
+
+## More LocalGPT Apps
+
+- **[LocalGPT Verse](https://verse.localgpt.app/)** — listens to your music and imagines a living 3D world for every song, on your machine
+- **[LocalGPT MD](https://md.localgpt.app/)** — open a Markdown file and walk through it as a 3D world; every section becomes a place
 
 ## Showcase
 
