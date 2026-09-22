@@ -21,7 +21,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use bevy::camera::primitives::Aabb;
@@ -35,12 +35,13 @@ use localgpt_world_types as wt;
 use localgpt_world_types::ChunkCoord;
 use tokio::sync::mpsc;
 
-use super::assets::{AssetStore, MAX_BLOB_BYTES, encode_mesh, spawn_asset_server};
+use super::assets::{AssetStore, MAX_BLOB_BYTES, asset_router, encode_mesh, spawn_session_http};
 use super::interest::{
     ChunkSummaryBuilder, Relevance, ViewWindow, VisibilityCache, VisibilityChange, summaries_differ,
 };
 use super::jobs::{JobId, JobQueue, JobState};
 use super::mdns::SessionAnnouncer;
+use super::pairing::{PairingHost, format_pin, generate_pin, generate_private_key, pairing_router};
 use super::protocol::{
     ChatChannel, ClientPrompt, ClientView, HostChat, JobStatus, NetChunkSummary, NetKind,
     NetMeshAsset, NetProtocolPlugin, NetScaffold, NetTransform, NetWorldMeta, apply_net_components,
@@ -92,6 +93,9 @@ pub struct NetHostOptions {
     pub chat_rx: mpsc::UnboundedReceiver<HostChat>,
     /// Receiver half of worker progress events.
     pub job_events_rx: mpsc::UnboundedReceiver<JobEvent>,
+    /// Skip PIN pairing and use the public open-session key (trusted LAN /
+    /// development only).
+    pub open: bool,
 }
 
 /// Agent-loop side of the job/chat bridge.
@@ -102,6 +106,10 @@ pub struct AgentNetHooks {
     pub chat_tx: mpsc::UnboundedSender<HostChat>,
     /// Progress reports for dispatched jobs.
     pub job_events_tx: mpsc::UnboundedSender<JobEvent>,
+    /// Run remote prompts on the host's own agent with all of its tools
+    /// (`--remote-tools full`). Default: a scene-only agent
+    /// (see [`super::remote_scope`]).
+    pub remote_full_access: bool,
 }
 
 /// Create a matched (options, hooks) pair for the host.
@@ -116,11 +124,13 @@ pub fn create_host_channels() -> (NetHostOptions, AgentNetHooks) {
             job_tx,
             chat_rx,
             job_events_rx,
+            open: false,
         },
         AgentNetHooks {
             job_rx,
             chat_tx,
             job_events_tx,
+            remote_full_access: false,
         },
     )
 }
@@ -129,6 +139,8 @@ pub fn create_host_channels() -> (NetHostOptions, AgentNetHooks) {
 #[derive(Resource)]
 struct NetHostState {
     port: u16,
+    /// Netcode private key (random per session unless `--open`).
+    private_key: [u8; 32],
 }
 
 /// Resource: the §2 prompt queue plus the channels to/from its worker.
@@ -199,6 +211,7 @@ impl Plugin for NetHostPlugin {
             job_tx,
             chat_rx,
             job_events_rx,
+            open,
         } = self
             .options
             .lock()
@@ -211,26 +224,69 @@ impl Plugin for NetHostPlugin {
         });
         app.add_plugins(NetProtocolPlugin);
 
-        // Asset server: TCP on the same port number as the UDP session.
+        // Session secrets: a random netcode key that never leaves this
+        // process, and a PIN joiners must know to be issued a connect token.
+        let private_key = if open {
+            super::OPEN_SESSION_KEY
+        } else {
+            generate_private_key()
+        };
+        let pairing = (!open).then(|| {
+            let pin = generate_pin();
+            Arc::new(PairingHost::new(
+                private_key,
+                super::PROTOCOL_ID,
+                pin,
+                |new_pin| {
+                    eprintln!(
+                        "\n[net] Too many wrong PINs — new session PIN: {}\n",
+                        format_pin(new_pin)
+                    );
+                },
+            ))
+        });
+
+        // Session HTTP (TCP, same port number as the UDP session): pairing
+        // + content-addressed assets.
         let store = AssetStore::default();
-        let asset_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port);
-        let asset_port = match spawn_asset_server(store.clone(), asset_addr) {
+        let http_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port);
+        let router =
+            asset_router(store.clone()).merge(pairing_router(pairing.clone(), super::PROTOCOL_ID));
+        let asset_port = match spawn_session_http(router, http_addr) {
             Ok(()) => {
-                eprintln!("Asset server (content-addressed meshes) on tcp://{asset_addr}");
+                eprintln!("Session HTTP (pairing + assets) on tcp://{http_addr}");
                 Some(port)
             }
             Err(e) => {
-                eprintln!("Asset server failed to start ({e}) — clients will show placeholders");
+                if open {
+                    eprintln!(
+                        "Session HTTP failed to start ({e}) — clients will show mesh placeholders"
+                    );
+                } else {
+                    eprintln!(
+                        "Session HTTP failed to start ({e}) — clients cannot pair; \
+                         free TCP port {port} or pass --port"
+                    );
+                }
                 None
             }
         };
+        match &pairing {
+            Some(pairing) => eprintln!(
+                "\n  Session PIN: {}   (joiners: localgpt-gen --join <this-host> --pin <PIN>)\n",
+                format_pin(&pairing.pin())
+            ),
+            None => eprintln!(
+                "\n  OPEN session: no PIN — anyone on the LAN with localgpt-gen can join\n"
+            ),
+        }
 
         app.insert_resource(ReplicationMetadata::new(REPLICATION_SEND_INTERVAL))
             .insert_resource(HostAssets {
                 store,
                 port: asset_port,
             })
-            .insert_resource(NetHostState { port })
+            .insert_resource(NetHostState { port, private_key })
             .insert_resource(HostJobs {
                 queue: JobQueue::default(),
                 scaffolds: HashMap::new(),
@@ -303,12 +359,12 @@ fn start_listen_server(mut commands: Commands, state: Res<NetHostState>) {
 
     let server_config = lightyear::netcode::server_plugin::NetcodeConfig {
         protocol_id: super::PROTOCOL_ID,
-        private_key: super::PRIVATE_KEY,
+        private_key: state.private_key,
         max_clients: MAX_CLIENTS,
         // We bind 0.0.0.0 while clients connect via any of the host's LAN
         // addresses, so token-address validation would always mismatch.
-        // Safe to skip under the Phase-1 trust model (see mod.rs): the
-        // private key is a compile-time constant anyway.
+        // Tokens are still bound to this session's private key, which only
+        // the pairing endpoint uses.
         server_addr_check: false,
         ..default()
     };

@@ -570,11 +570,13 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
                 .map(|c| c.effort.clone())
                 .unwrap_or_else(|| "max".to_string());
             let mcp_override = cli_config.and_then(|c| c.mcp_config_override.clone());
+            let builtin_tools = cli_config.and_then(|c| c.builtin_tools.clone());
             let mut provider = ClaudeCliProvider::new(command, &model_id, workspace)?;
             provider.set_effort_init(effort);
             if let Some(mcp_json) = mcp_override {
                 provider.set_mcp_config_override(mcp_json);
             }
+            provider.set_builtin_tools(builtin_tools);
             Ok(Box::new(provider))
         }
         #[cfg(not(feature = "claude-cli"))]
@@ -2298,6 +2300,8 @@ pub struct ClaudeCliProvider {
     /// When set, prevents Claude CLI from using its own MCP server configuration,
     /// avoiding duplicate process spawning (e.g., a second localgpt-gen window).
     mcp_config_override: Option<String>,
+    /// Value for `--tools` (`None` = CLI default, `Some("")` = no built-ins).
+    builtin_tools: Option<String>,
 }
 
 #[cfg(feature = "claude-cli")]
@@ -2324,6 +2328,7 @@ impl ClaudeCliProvider {
             cli_session_id: StdMutex::new(existing_session),
             effort: StdMutex::new("max".to_string()),
             mcp_config_override: None,
+            builtin_tools: None,
         })
     }
 
@@ -2335,6 +2340,11 @@ impl ClaudeCliProvider {
     /// when `localgpt-gen mcp-server` is configured as an MCP server).
     pub fn set_effort_init(&mut self, effort: String) {
         *self.effort.lock().unwrap() = effort;
+    }
+
+    /// Restrict the CLI's built-in tools (see `ClaudeCliConfig::builtin_tools`).
+    pub fn set_builtin_tools(&mut self, tools: Option<String>) {
+        self.builtin_tools = tools;
     }
 
     pub fn set_mcp_config_override(&mut self, config_json: String) {
@@ -2491,6 +2501,12 @@ impl ClaudeCliProvider {
             args.push("--strict-mcp-config".to_string());
             args.push("--mcp-config".to_string());
             args.push(mcp_config.clone());
+        }
+
+        // Built-in tool restriction
+        if let Some(ref tools) = self.builtin_tools {
+            args.push("--tools".to_string());
+            args.push(tools.clone());
         }
 
         // CLI session handling
@@ -4022,6 +4038,30 @@ mod providers_test;
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "claude-cli")]
+    #[test]
+    fn claude_cli_builtin_tools_flag() {
+        let dir = std::env::temp_dir();
+        let mut provider = ClaudeCliProvider::new("claude", "sonnet", dir).unwrap();
+        let args = provider.build_cli_args("hi", None, None, true);
+        assert!(
+            !args.iter().any(|a| a == "--tools"),
+            "default keeps CLI tools"
+        );
+
+        provider.set_builtin_tools(Some(String::new()));
+        let args = provider.build_cli_args("hi", None, None, true);
+        let idx = args
+            .iter()
+            .position(|a| a == "--tools")
+            .expect("--tools passed");
+        assert_eq!(
+            args[idx + 1],
+            "",
+            "empty value disables every built-in tool"
+        );
+    }
+
     use super::*;
 
     #[test]

@@ -282,8 +282,10 @@ and map to SpacetimeDB rows for multiplayer via `crates/spacetime`.
 **Multiplayer (`multiplayer` feature, default on):** listen-server
 collaboration — `localgpt-gen --host` runs the authoritative ECS + render
 client with mDNS announcement (`_localgpt-world._udp.local.`, UDP 9879);
-`localgpt-gen --join [addr]` connects as a read-only viewer that can send
-prompts to the host's agent. Replication is lightyear 0.30 over the
+`localgpt-gen --join [addr] [--pin PIN]` connects as a read-only viewer
+that can send prompts to the host. Sessions use a random per-session key
+and SPAKE2 PIN pairing (`--open` skips it); remote prompts run on a
+scene-only agent unless `--remote-tools full`. Replication is lightyear 0.30 over the
 world-types wire model, narrowed per client by chunk-based interest
 management; prompts run through a job queue with replicated scaffolds;
 clients get HLOD chunk impostors, static mesh baking, and content-addressed

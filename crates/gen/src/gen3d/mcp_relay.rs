@@ -93,8 +93,6 @@ impl RelayTools {
 pub async fn start_mcp_relay(bridge: Arc<GenBridge>, config: &Config) -> anyhow::Result<u16> {
     let tools = crate::mcp_server::create_mcp_tools(bridge, config)?;
 
-    let relay = Arc::new(RelayTools { tools });
-
     // Try the default port, then fall back to any available port
     let listener = match TcpListener::bind(("127.0.0.1", MCP_RELAY_PORT)).await {
         Ok(l) => l,
@@ -104,6 +102,22 @@ pub async fn start_mcp_relay(bridge: Arc<GenBridge>, config: &Config) -> anyhow:
     let port = listener.local_addr()?.port();
     write_relay_port(port);
     tracing::info!("MCP relay listening on 127.0.0.1:{}", port);
+    serve_relay(listener, tools);
+    Ok(port)
+}
+
+/// Serve a caller-chosen tool set on an ephemeral localhost port without
+/// advertising it in the relay port file — used to give a restricted agent
+/// (e.g. one acting for remote collaborators) only the tools it may use.
+pub async fn start_scoped_relay(tools: Vec<Box<dyn Tool>>) -> anyhow::Result<u16> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let port = listener.local_addr()?.port();
+    serve_relay(listener, tools);
+    Ok(port)
+}
+
+fn serve_relay(listener: TcpListener, tools: Vec<Box<dyn Tool>>) {
+    let relay = Arc::new(RelayTools { tools });
 
     tokio::spawn(async move {
         loop {
@@ -119,8 +133,6 @@ pub async fn start_mcp_relay(bridge: Arc<GenBridge>, config: &Config) -> anyhow:
             }
         }
     });
-
-    Ok(port)
 }
 
 /// Handle a single relay client: read JSON-RPC requests, dispatch to tools, write responses.

@@ -98,6 +98,11 @@ lightyear = { version = "0.30.1", optional = true, default-features = false, fea
 bevy_replicon = { version = "0.44", optional = true }
 bytes = { version = "1", optional = true }
 mdns-sd = { version = "0.21.3", optional = true }
+# PIN pairing for collaborative sessions: SPAKE2 PAKE + AEAD for the
+# host-minted connect token (see src/net/pairing.rs).
+spake2 = { version = "0.4", optional = true, features = ["std"] }
+chacha20poly1305 = { version = "0.10", optional = true }
+base64 = { version = "0.22", optional = true }
 
 # File locking for GPU exclusivity (Windows)
 [target.'cfg(windows)'.dependencies]
@@ -116,6 +121,9 @@ multiplayer = [
     "dep:bevy_replicon",
     "dep:bytes",
     "dep:mdns-sd",
+    "dep:spake2",
+    "dep:chacha20poly1305",
+    "dep:base64",
 ]
 # bevy-tnua floating character controller for the player. Requires `physics`.
 # OFF by default: no Bevy 0.19-compatible bevy-tnua release exists yet, so

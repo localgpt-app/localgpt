@@ -251,12 +251,11 @@ impl AssetStore {
     }
 }
 
-/// Serve `GET /assets/{digest}` on `addr` from a background thread.
+/// Routes serving `GET /assets/{digest}`.
 ///
 /// Only published blobs are reachable — there is no path mapping onto the
 /// host filesystem.
-pub fn spawn_asset_server(store: AssetStore, addr: SocketAddr) -> std::io::Result<()> {
-    use axum::Router;
+pub fn asset_router(store: AssetStore) -> axum::Router {
     use axum::extract::{Path as AxPath, State};
     use axum::http::{StatusCode, header};
     use axum::response::IntoResponse;
@@ -282,11 +281,19 @@ pub fn spawn_asset_server(store: AssetStore, addr: SocketAddr) -> std::io::Resul
         }
     }
 
-    // Bind synchronously so the caller learns about port conflicts.
+    axum::Router::new()
+        .route("/assets/{digest}", get(serve_blob))
+        .with_state(store)
+}
+
+/// Serve the session's HTTP routes (assets, pairing) on `addr` from a
+/// background thread. Binds synchronously so the caller learns about port
+/// conflicts.
+pub fn spawn_session_http(router: axum::Router, addr: SocketAddr) -> std::io::Result<()> {
     let listener = std::net::TcpListener::bind(addr)?;
     listener.set_nonblocking(true)?;
     std::thread::Builder::new()
-        .name("gen-asset-server".into())
+        .name("gen-session-http".into())
         .spawn(move || {
             let rt = match tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -294,7 +301,7 @@ pub fn spawn_asset_server(store: AssetStore, addr: SocketAddr) -> std::io::Resul
             {
                 Ok(rt) => rt,
                 Err(e) => {
-                    eprintln!("Asset server runtime failed: {e}");
+                    eprintln!("Session HTTP runtime failed: {e}");
                     return;
                 }
             };
@@ -302,11 +309,8 @@ pub fn spawn_asset_server(store: AssetStore, addr: SocketAddr) -> std::io::Resul
                 let Ok(listener) = tokio::net::TcpListener::from_std(listener) else {
                     return;
                 };
-                let app = Router::new()
-                    .route("/assets/{digest}", get(serve_blob))
-                    .with_state(store);
-                if let Err(e) = axum::serve(listener, app).await {
-                    eprintln!("Asset server stopped: {e}");
+                if let Err(e) = axum::serve(listener, router).await {
+                    eprintln!("Session HTTP server stopped: {e}");
                 }
             });
         })?;

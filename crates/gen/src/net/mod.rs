@@ -29,7 +29,9 @@ pub mod host;
 pub mod interest;
 pub mod jobs;
 pub mod mdns;
+pub mod pairing;
 pub mod protocol;
+pub mod remote_scope;
 
 /// Default UDP port for hosted sessions.
 ///
@@ -39,12 +41,13 @@ pub const DEFAULT_PORT: u16 = 9879;
 /// Lightyear netcode protocol id — hosts and clients must match.
 ///
 /// 2: §2 additions (view reports, prompt jobs/scaffolds, chunk summaries).
-pub const PROTOCOL_ID: u64 = 2;
+/// 3: per-session keys + PIN pairing (host-minted connect tokens).
+pub const PROTOCOL_ID: u64 = 3;
 
-/// Shared netcode private key.
+/// Netcode private key for `--open` sessions only.
 ///
-/// Phase-1 trust model: LAN-only sessions with no per-session key exchange.
-/// Both sides derive connect tokens from this constant. Not a security
-/// boundary — anyone on the LAN with the binary can connect. Per-session
-/// keys and a pin/pairing step land with the auth work in a later phase.
-pub const PRIVATE_KEY: [u8; 32] = [0u8; 32];
+/// Open sessions skip pairing: both sides derive connect tokens from this
+/// public constant, so anyone on the LAN with the binary can connect. Normal
+/// sessions use a random per-session key that never leaves the host and
+/// hand out tokens only after PIN pairing (see [`pairing`]).
+pub const OPEN_SESSION_KEY: [u8; 32] = [0u8; 32];

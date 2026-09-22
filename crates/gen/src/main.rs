@@ -785,6 +785,34 @@ struct Cli {
     #[cfg(feature = "multiplayer")]
     #[arg(long, requires = "join")]
     no_bake: bool,
+
+    /// Session PIN shown on the host's console (with --join). Prompted for
+    /// if the host requires pairing and this is omitted.
+    #[cfg(feature = "multiplayer")]
+    #[arg(long, requires = "join")]
+    pin: Option<String>,
+
+    /// Host an OPEN session: no PIN, public netcode key — anyone on the LAN
+    /// with localgpt-gen can join (with --host). Trusted networks only.
+    #[cfg(feature = "multiplayer")]
+    #[arg(long, requires = "host")]
+    open: bool,
+
+    /// What connected clients' prompts may do (with --host). `safe`
+    /// (default): a separate agent with scene-editing tools only — no
+    /// shell, files, memory, web, or disk writes. `full`: the host's own
+    /// agent with all of its tools, including shell access.
+    #[cfg(feature = "multiplayer")]
+    #[arg(long, requires = "host", value_enum, default_value_t = RemoteTools::Safe)]
+    remote_tools: RemoteTools,
+}
+
+/// Tool access for prompts from collaborative clients (`--remote-tools`).
+#[cfg(feature = "multiplayer")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+enum RemoteTools {
+    Safe,
+    Full,
 }
 
 #[derive(Subcommand)]
@@ -1111,6 +1139,15 @@ fn main() -> Result<()> {
                     .clone()
                     .unwrap_or_else(default_session_name);
                 opts.port = cli.port;
+                opts.open = cli.open;
+                let mut hooks = hooks;
+                hooks.remote_full_access = cli.remote_tools == RemoteTools::Full;
+                if hooks.remote_full_access {
+                    eprintln!(
+                        "WARNING: --remote-tools full — connected clients' prompts run with this \
+                         agent's full tool access, including shell commands on this machine."
+                    );
+                }
                 host_options = Some(opts);
                 Some(hooks)
             } else {
@@ -1291,6 +1328,7 @@ fn run_client_app(
     prompt_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
     view_radius: u8,
     bake: bool,
+    connect_token: Option<Vec<u8>>,
 ) -> Result<()> {
     use bevy::prelude::*;
 
@@ -1321,6 +1359,7 @@ fn run_client_app(
             prompt_rx,
             view_radius,
             bake,
+            connect_token,
         })),
     });
 
@@ -1358,6 +1397,8 @@ fn run_join_mode(cli: &Cli) -> Result<()> {
         }
     };
 
+    let connect_token = pair_for_join(addr, cli.pin.as_deref())?;
+
     // Prompt REPL on a background thread — lines flow to the net systems.
     let (prompt_tx, prompt_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     std::thread::spawn(move || {
@@ -1382,7 +1423,69 @@ fn run_join_mode(cli: &Cli) -> Result<()> {
         }
     });
 
-    run_client_app(addr, prompt_rx, cli.view_radius, !cli.no_bake)
+    run_client_app(
+        addr,
+        prompt_rx,
+        cli.view_radius,
+        !cli.no_bake,
+        connect_token,
+    )
+}
+
+/// Obtain a connect token from the host's pairing endpoint (TCP, same port
+/// number as the session). Returns `None` for `--open` sessions.
+#[cfg(feature = "multiplayer")]
+fn pair_for_join(addr: std::net::SocketAddr, pin_arg: Option<&str>) -> Result<Option<Vec<u8>>> {
+    use localgpt_gen::net::pairing::{PairError, fetch_info, pair_with_host};
+
+    let http_base = format!("http://{addr}");
+    let info = fetch_info(&http_base).map_err(|e| {
+        anyhow::anyhow!(
+            "Couldn't reach the host's session endpoint at tcp://{addr} ({e}).\n\
+             Is the host running the same localgpt-gen version, and is TCP port {} open?",
+            addr.port()
+        )
+    })?;
+    if info.protocol_id != localgpt_gen::net::PROTOCOL_ID {
+        anyhow::bail!(
+            "Host speaks protocol {} but this client speaks {} — use matching localgpt-gen versions",
+            info.protocol_id,
+            localgpt_gen::net::PROTOCOL_ID
+        );
+    }
+    if !info.pairing_required {
+        eprintln!("Joining an OPEN session (no PIN).");
+        return Ok(None);
+    }
+
+    let interactive = pin_arg.is_none();
+    let mut editor = None;
+    for attempt in 1..=3 {
+        let pin = match pin_arg {
+            Some(pin) => pin.to_string(),
+            None => {
+                let rl = match &mut editor {
+                    Some(rl) => rl,
+                    None => editor.insert(rustyline::DefaultEditor::new()?),
+                };
+                rl.readline("Session PIN (shown on the host's console): ")?
+            }
+        };
+        match pair_with_host(&http_base, addr, &pin) {
+            Ok(token) => {
+                eprintln!("Paired with host.");
+                let bytes = token
+                    .try_into_bytes()
+                    .map_err(|e| anyhow::anyhow!("connect token: {e}"))?;
+                return Ok(Some(bytes.to_vec()));
+            }
+            Err(PairError::WrongPin) if interactive && attempt < 3 => {
+                eprintln!("Wrong PIN — try again.");
+            }
+            Err(e) => anyhow::bail!("Pairing failed: {e}"),
+        }
+    }
+    anyhow::bail!("Pairing failed: wrong PIN")
 }
 
 /// Parse a peer address: `host:port`, `ip:port`, or a bare host (port
@@ -1701,6 +1804,94 @@ Use `get_avatar_state` frequently to understand your position.
     Ok(())
 }
 
+/// Which agent runs prompts from collaborative clients.
+#[cfg(feature = "multiplayer")]
+enum RemoteWorker {
+    /// `--remote-tools full`: the host's own agent.
+    Host,
+    /// Default: a separate scene-only agent.
+    Scoped(Box<Agent>),
+    /// Remote prompts are refused with this reason.
+    Disabled(String),
+}
+
+/// Briefing for the scene-only agent that serves remote collaborators.
+#[cfg(feature = "multiplayer")]
+const REMOTE_AGENT_PROMPT: &str = "You are building inside a shared 3D world on behalf of \
+collaborators connected over the network. You can only use scene-editing tools; you cannot \
+run commands, read or write files, browse the web, or access anyone's memory or notes. \
+Politely decline requests that need those abilities.";
+
+/// Build the scene-only agent for remote prompts (`--remote-tools safe`).
+///
+/// Isolation: scene tools only, each path-scoped (see
+/// `localgpt_gen::net::remote_scope`); a separate memory workspace so the
+/// host's MEMORY.md / daily logs never enter a conversation remote users
+/// steer; a fresh LLM session. For Claude CLI the built-in tools are
+/// disabled and MCP points at a dedicated relay serving the same scoped
+/// tools. Subprocess backends whose built-in tools can't be restricted
+/// (Gemini CLI, Codex CLI) are refused.
+#[cfg(feature = "multiplayer")]
+async fn build_scoped_remote_agent(
+    bridge: std::sync::Arc<gen3d::GenBridge>,
+    config: &localgpt_core::config::Config,
+) -> Result<Agent> {
+    use localgpt_core::memory::MemoryManager;
+    use localgpt_gen::net::remote_scope::create_remote_scene_tools;
+
+    let model = config.agent.default_model.clone();
+    if model.starts_with("gemini-cli") || model.starts_with("codex") {
+        anyhow::bail!(
+            "the {model} backend has built-in shell/file tools that can't be restricted. \
+             Use an API provider or claude-cli, or host with --remote-tools full \
+             (gives remote users full tool access)"
+        );
+    }
+
+    let mut remote_config = config.clone();
+    remote_config.paths.workspace = remote_config.paths.data_dir.join("gen-remote-workspace");
+    remote_config.memory.embedding_provider = "none".to_string();
+
+    if model.starts_with("claude-cli") {
+        let port =
+            gen3d::mcp_relay::start_scoped_relay(create_remote_scene_tools(bridge.clone())).await?;
+        let gen_binary =
+            std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("localgpt-gen"));
+        let mcp_config = serde_json::json!({
+            "mcpServers": {
+                "localgpt-gen": {
+                    "command": gen_binary.to_string_lossy(),
+                    "args": ["mcp-server", "--connect", port.to_string()]
+                }
+            }
+        });
+        let cli = remote_config.providers.claude_cli.get_or_insert_with(|| {
+            localgpt_core::config::ClaudeCliConfig {
+                command: "claude".to_string(),
+                model: model.clone(),
+                effort: "max".to_string(),
+                mcp_config_override: None,
+                builtin_tools: None,
+            }
+        });
+        cli.mcp_config_override = Some(mcp_config.to_string());
+        // No Bash/Read/Write/…: only the scoped MCP tools remain.
+        cli.builtin_tools = Some(String::new());
+    }
+
+    let memory = std::sync::Arc::new(MemoryManager::new_with_full_config(
+        &remote_config.memory,
+        Some(&remote_config),
+        "gen-remote",
+    )?);
+    let tools = create_remote_scene_tools(bridge);
+    let mut agent = Agent::new_with_tools(remote_config, "gen-remote", memory, tools)?;
+    // Also resets any CLI session the provider resumed at construction.
+    agent.new_session().await?;
+    agent.add_user_message(REMOTE_AGENT_PROMPT);
+    Ok(agent)
+}
+
 /// Input sources merged into the agent loop.
 enum AgentInput {
     /// Line typed at the local REPL.
@@ -1735,6 +1926,9 @@ async fn run_agent_loop(
 
     #[cfg(not(feature = "multiplayer"))]
     let _ = &net_hooks;
+
+    #[cfg(feature = "multiplayer")]
+    let remote_bridge = bridge.clone();
 
     // Set up memory
     let memory = MemoryManager::new_with_agent(&config.memory, agent_id)?;
@@ -1800,6 +1994,7 @@ async fn run_agent_loop(
                 model: config.agent.default_model.clone(),
                 effort: "max".to_string(),
                 mcp_config_override: None,
+                builtin_tools: None,
             }
         });
         cli_config.mcp_config_override = Some(mcp_config.to_string());
@@ -1813,6 +2008,25 @@ async fn run_agent_loop(
 
     // Inject gen-specific memory guidance so the LLM learns creative preferences
     agent.add_user_message(gen3d::system_prompt::GEN_MEMORY_PROMPT);
+
+    // Worker for prompts from collaborative clients (scene-only by default).
+    #[cfg(feature = "multiplayer")]
+    let mut remote_worker = match &net_hooks {
+        Some(hooks) if hooks.remote_full_access => RemoteWorker::Host,
+        Some(_) => match build_scoped_remote_agent(remote_bridge, &config).await {
+            Ok(remote) => {
+                eprintln!(
+                    "Remote prompts: scene-editing tools only (--remote-tools full to change)"
+                );
+                RemoteWorker::Scoped(Box::new(remote))
+            }
+            Err(e) => {
+                eprintln!("Remote prompts disabled: {e}");
+                RemoteWorker::Disabled(e.to_string())
+            }
+        },
+        None => RemoteWorker::Disabled("not hosting".into()),
+    };
 
     // Display model info (matching CLI format)
     let embedding_status = if agent.has_embeddings() {
@@ -1930,7 +2144,15 @@ async fn run_agent_loop(
                     let _ = tx.send(JobEvent::Started(job.job_id));
                 }
                 // A failed remote job must not take the host's REPL down.
-                let result = streaming_chat_reporting(&mut agent, &job.agent_prompt).await;
+                let result = match &mut remote_worker {
+                    RemoteWorker::Host => {
+                        streaming_chat_reporting(&mut agent, &job.agent_prompt).await
+                    }
+                    RemoteWorker::Scoped(remote) => {
+                        streaming_chat_reporting(remote, &job.agent_prompt).await
+                    }
+                    RemoteWorker::Disabled(reason) => Ok((String::new(), Some(reason.clone()))),
+                };
                 let error = match result {
                     Ok((_, Some(model_error))) => Some(model_error),
                     Ok((reply, None)) => {

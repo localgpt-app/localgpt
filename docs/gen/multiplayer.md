@@ -18,20 +18,23 @@ Implementation of the
 
 ```bash
 # On the host machine (authoritative + rendering):
-localgpt-gen --host                        # session named "<user>'s world"
+localgpt-gen --host                        # session named "<user>'s world"; prints a 6-digit PIN
 localgpt-gen --host --session-name "Castle Build" --port 9879
+localgpt-gen --host --remote-tools full    # let clients' prompts use ALL host tools (shell!)
+localgpt-gen --host --open                 # no PIN — trusted networks only
 
-# On client machines:
+# On client machines (you'll be asked for the host's PIN):
 localgpt-gen --join                        # browse mDNS, join the first session found
 localgpt-gen --join 192.168.1.5            # bare host, default port 9879
-localgpt-gen --join 192.168.1.5:9879       # explicit address
+localgpt-gen --join 192.168.1.5:9879 --pin 482913   # explicit address + PIN
 localgpt-gen --join --view-radius 4        # stream 4 chunks around the camera (default 2, max 8)
 localgpt-gen --join --no-bake              # disable client-side static mesh baking
 ```
 
 - Host: the normal interactive gen REPL + window, plus a lightyear UDP
-  server on port **9879** and an mDNS announcement
-  (`_localgpt-world._udp.local.`).
+  server on port **9879**, a session HTTP server on TCP **9879** (pairing +
+  assets), and an mDNS announcement (`_localgpt-world._udp.local.`). The
+  console shows the session PIN joiners need.
 - Client: a slim Bevy viewer window with a free-fly camera (WASD/QE, hold
   right-click to look, scroll to change speed) and a REPL. Anything typed at
   the client REPL is sent to the host's agent as a queued job; a translucent
@@ -43,7 +46,7 @@ localgpt-gen --join --no-bake              # disable client-side static mesh bak
   chunk streaming).
 
 Both sides must use the same netcode `protocol_id`
-(`crates/gen/src/net/mod.rs`, currently `2`). Bump it on any wire-format
+(`crates/gen/src/net/mod.rs`, currently `3`). Bump it on any wire-format
 change; mDNS browsing filters mismatches via the `proto` TXT key.
 
 ## Architecture
@@ -132,22 +135,74 @@ event stream, so local and remote prompts interleave). The agent's reply
 text is broadcast as `HostChat { speaker: "host" }`, as are host-operator
 prompts (`"host-user"`) and join/leave notices.
 
-## Trust model (prototype)
+## Trust model
 
-- **LAN-only by design.** The netcode private key is a compile-time
-  constant shared by all binaries; anyone on the LAN with the binary can
-  connect. mDNS announcements are unauthenticated.
-- No authorization on prompts: any connected client drives the host's
-  agent (which has the host user's full tool access, including CLI tools).
-  The job queue only rate-limits (4 queued prompts per client, 32 total).
-- The asset server listens on all interfaces (TCP, same port number as the
-  session) and serves any *published* mesh blob to anyone who knows its
-  digest — the same data every connected client already receives. It
-  never maps requests onto the filesystem.
+### Joining: per-session keys + PIN pairing
+
+- Every hosted session generates a **random netcode private key** that
+  never leaves the host process, and a **6-digit PIN** printed on the host
+  console. Connect tokens are minted by the host only after pairing, and
+  expire after 60 s (clients pair once per connection).
+- Pairing (`crates/gen/src/net/pairing.rs`) runs **SPAKE2** keyed by the
+  PIN over the session HTTP port: a passive LAN observer learns nothing
+  about the PIN or the token; an active attacker gets one online guess per
+  attempt. Both sides confirm the shared key, so a rogue host that doesn't
+  know the PIN can't impersonate the session, and the token travels sealed
+  (ChaCha20-Poly1305).
+- Rate limits: 20 pairing starts per minute; **5 wrong PINs rotate the PIN**
+  (the new one is printed on the host console).
+- `--open` restores the old behaviour (public constant key, no PIN) for
+  trusted networks and development; the host prints a warning.
+- mDNS announcements are unauthenticated — discovery is a convenience;
+  the PIN is what authenticates the host to the client.
+
+### Remote prompts: scene-only by default
+
+With the default `--remote-tools safe`, prompts from clients never reach the
+host operator's agent. They run on a separate agent
+(`build_scoped_remote_agent` in `main.rs`, tools from
+`crates/gen/src/net/remote_scope.rs`):
+
+- **Scene tools only** — gen/world, character, interaction, terrain, UI,
+  physics, worldgen. No shell/file tools, no memory read/write, no web, no
+  multimodal inputs (they read host files), no experiment queue.
+- **No writes to the host's disk** — saving/forking worlds and exports are
+  host-only, so remote users can't overwrite the host's saved worlds.
+  Scene edits are allowed (and undoable).
+- **No caller-chosen paths** — arguments like `path`/`output_path` are
+  refused and stripped from schemas; world/asset names must be plain
+  identifiers (no `/`, `..`, absolute paths, URLs).
+- **Separate memory workspace** (`<data>/gen-remote-workspace`) and a fresh
+  LLM session, so the host's MEMORY.md, daily logs, and conversation never
+  enter a conversation remote users steer.
+- **Claude CLI backend:** its built-in tools (Bash, Read, Write, …) are
+  disabled with `--tools ""` (`providers.claude_cli.builtin_tools`), and its
+  MCP config points at a dedicated localhost relay serving only the scoped
+  tools. **Gemini CLI / Codex CLI:** their built-in tools can't be
+  restricted, so remote prompts are refused unless the host opts into
+  `--remote-tools full`.
+
+Verified end-to-end with Claude CLI: a remote prompt asking to `touch` a
+marker file via Bash, reveal a secret planted in the host's MEMORY.md, and
+spawn a cube produced no file, no secret (the agent only saw the isolated
+workspace), and the cube.
+
+`--remote-tools full` runs remote prompts on the host's own agent with all
+of its tools — including shell access on the host. Only use it with people
+you'd hand your terminal to.
+
+### Other notes
+
+- The job queue rate-limits prompts (4 queued per client, 32 total).
+- The session HTTP server listens on all interfaces and serves any
+  *published* mesh blob to anyone who knows its digest — the same data
+  every connected client already receives. It never maps requests onto the
+  filesystem.
 - Interest management is a bandwidth optimisation, not access control: a
   client may report any camera position.
-- Per-session keys, a pairing/pin step, and prompt-level authorization are
-  prerequisites for anything beyond trusted-LAN use.
+- Scene edits by remote prompts are visible to and undoable by the host,
+  but there is no per-user permission model yet (any paired client may
+  edit anything).
 
 ## Limitations
 

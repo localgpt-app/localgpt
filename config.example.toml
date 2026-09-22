@@ -100,6 +100,7 @@ base_url = "https://api.anthropic.com"
 # command = "claude"
 # model = "opus"  # opus, sonnet, or haiku
 # effort = "max"  # low, medium, high, max (default: max)
+# builtin_tools = ""  # restrict Claude CLI's built-in tools (--tools); "" = none, MCP only
 
 # Gemini CLI configuration (uses local gemini CLI command)
 # Requires gemini CLI to be installed: https://github.com/google/gemini-cli

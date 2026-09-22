@@ -601,6 +601,13 @@ pub struct ClaudeCliConfig {
     /// when localgpt-gen is already running).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_config_override: Option<String>,
+
+    /// Built-in Claude CLI tools to expose, passed via `--tools`. `None`
+    /// keeps the CLI default; `Some("")` disables every built-in tool
+    /// (Bash, Read, Write, …) so only MCP tools remain — used for agents
+    /// that act on behalf of untrusted users.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub builtin_tools: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

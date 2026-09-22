@@ -25,8 +25,8 @@ use std::sync::Mutex;
 use bevy::input::mouse::{AccumulatedMouseMotion, MouseWheel};
 use bevy::prelude::*;
 use lightyear::connection::client::Connected;
-use lightyear::netcode::NetcodeClient;
 use lightyear::netcode::auth::Authentication;
+use lightyear::netcode::{ConnectToken, NetcodeClient};
 use lightyear::prelude::client::*;
 use lightyear::prelude::*;
 use tokio::sync::mpsc;
@@ -52,6 +52,9 @@ pub struct NetClientOptions {
     pub view_radius: u8,
     /// Merge static primitives into per-material meshes (§2 mesh baking).
     pub bake: bool,
+    /// Connect token issued by the host's pairing endpoint (serialized).
+    /// `None` joins an `--open` session with the public key.
+    pub connect_token: Option<Vec<u8>>,
 }
 
 /// How often the camera position is reported to the host.
@@ -142,6 +145,7 @@ impl Plugin for NetClientPlugin {
             prompt_rx,
             view_radius,
             bake,
+            connect_token,
         } = self
             .options
             .lock()
@@ -155,43 +159,46 @@ impl Plugin for NetClientPlugin {
         app.add_plugins(NetProtocolPlugin);
         app.add_plugins(ClientLodPlugin { bake });
 
-        app.insert_resource(ClientSession { server_addr })
-            .insert_resource(ClientViewState {
+        app.insert_resource(ClientSession {
+            server_addr,
+            connect_token,
+        })
+        .insert_resource(ClientViewState {
+            radius: view_radius,
+            window: ViewWindow {
                 radius: view_radius,
-                window: ViewWindow {
-                    radius: view_radius,
-                    ..default()
-                },
-            })
-            .insert_resource(PromptOutbox {
-                rx: Mutex::new(prompt_rx),
-            })
-            .init_resource::<ClientEntityMap>()
-            .init_resource::<LocalCommands>()
-            .init_resource::<ClientAssets>()
-            .init_resource::<ClientStreamStats>()
-            .add_systems(Startup, (connect_to_host, spawn_client_camera))
-            .add_observer(on_connected)
-            .add_observer(on_replicated_despawn)
-            .add_systems(Update, client_apply_transforms)
-            .add_systems(Update, client_spawn_visuals)
-            .add_systems(Update, client_update_visuals)
-            .add_systems(Update, client_resolve_parents)
-            .add_systems(Update, client_apply_meta)
-            .add_systems(Update, (client_send_prompts, client_receive_chat))
-            .add_systems(
-                Update,
-                (
-                    client_report_view,
-                    client_local_commands.after(client_send_prompts),
-                    client_request_mesh_assets.after(client_spawn_visuals),
-                    client_receive_mesh_assets.after(client_request_mesh_assets),
-                    client_receive_job_status,
-                    client_spawn_scaffolds,
-                    client_animate_scaffolds,
-                ),
-            )
-            .add_systems(Update, (client_fly_move, client_fly_look, client_fly_speed));
+                ..default()
+            },
+        })
+        .insert_resource(PromptOutbox {
+            rx: Mutex::new(prompt_rx),
+        })
+        .init_resource::<ClientEntityMap>()
+        .init_resource::<LocalCommands>()
+        .init_resource::<ClientAssets>()
+        .init_resource::<ClientStreamStats>()
+        .add_systems(Startup, (connect_to_host, spawn_client_camera))
+        .add_observer(on_connected)
+        .add_observer(on_replicated_despawn)
+        .add_systems(Update, client_apply_transforms)
+        .add_systems(Update, client_spawn_visuals)
+        .add_systems(Update, client_update_visuals)
+        .add_systems(Update, client_resolve_parents)
+        .add_systems(Update, client_apply_meta)
+        .add_systems(Update, (client_send_prompts, client_receive_chat))
+        .add_systems(
+            Update,
+            (
+                client_report_view,
+                client_local_commands.after(client_send_prompts),
+                client_request_mesh_assets.after(client_spawn_visuals),
+                client_receive_mesh_assets.after(client_request_mesh_assets),
+                client_receive_job_status,
+                client_spawn_scaffolds,
+                client_animate_scaffolds,
+            ),
+        )
+        .add_systems(Update, (client_fly_move, client_fly_look, client_fly_speed));
     }
 }
 
@@ -199,15 +206,25 @@ impl Plugin for NetClientPlugin {
 #[derive(Resource)]
 struct ClientSession {
     server_addr: SocketAddr,
+    connect_token: Option<Vec<u8>>,
 }
 
 /// Spawn the client link entity and initiate the connection.
 fn connect_to_host(mut commands: Commands, session: Res<ClientSession>) {
-    let auth = Authentication::Manual {
-        server_addr: session.server_addr,
-        client_id: rand::random::<u64>(),
-        private_key: super::PRIVATE_KEY,
-        protocol_id: super::PROTOCOL_ID,
+    let auth = match &session.connect_token {
+        Some(bytes) => match ConnectToken::try_from_bytes(bytes) {
+            Ok(token) => Authentication::Token(token),
+            Err(e) => {
+                error!("Invalid connect token from pairing: {e:?}");
+                return;
+            }
+        },
+        None => Authentication::Manual {
+            server_addr: session.server_addr,
+            client_id: rand::random::<u64>(),
+            private_key: super::OPEN_SESSION_KEY,
+            protocol_id: super::PROTOCOL_ID,
+        },
     };
     let netcode = match NetcodeClient::new(
         auth,
