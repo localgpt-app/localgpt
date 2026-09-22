@@ -55,7 +55,33 @@ localgpt-gen -v -s ./scene.glb "add warm lighting"
 localgpt-gen --agent my-gen-agent
 ```
 
-The agent receives your prompt and iteratively builds a world — spawning shapes, adjusting materials, positioning the camera, and taking screenshots to course-correct. Type `/quit` or `/exit` in the terminal to close.
+The agent receives your prompt and iteratively builds a world — spawning shapes, adjusting materials, positioning the camera, and taking screenshots to course-correct. Type `/quit` or `/exit` to close, or close the window.
+
+## Prompt Panel & Desktop Mode
+
+You don't need to keep a terminal beside the window. Press **F2** in the Gen window to open the **prompt panel**: type a prompt, press **Enter**, and watch the reply stream in, with each tool call shown as it runs. Prompts you send while Gen is busy wait in a queue.
+
+```bash
+# Desktop mode: the panel opens at startup and replaces the terminal prompt
+localgpt-gen --desktop
+```
+
+Gen switches to desktop mode on its own when it isn't started from a terminal, for example as a macOS app built with `apps/gen-desktop/macos/build-app.sh` from the repository.
+
+| Key | What it does |
+|-----|--------------|
+| **F2** | Show or hide the panel |
+| **Enter** | Send the prompt (in the prompt box), or jump to the prompt box (in the 3D view) |
+| **Shift+Enter** | Start a new line |
+| **Esc** | Leave the prompt box so WASD moves you again |
+
+- **Model menu:** lists the models this machine can use right now, meaning installed CLI backends (Claude CLI, Gemini CLI, Codex) and models pulled into a local Ollama. A switch lasts for the session; set `agent.default_model` in `config.toml` to change the default. A CLI backend only appears if Gen started on that backend, because its tool connection is set up at startup.
+- **Slash commands:** `/model <name>`, `/new`, `/clear`, and `/quit` work in the panel. The other commands print their results in the terminal.
+- **First run:** if your model is a CLI backend that isn't installed, the panel says so instead of failing silently. Opened from Finder, Gen reads your login shell's `PATH`, so `claude`, `gemini`, and `codex` installed with Homebrew, npm, or into `~/.local/bin` are found.
+- **Logs:** desktop mode has no terminal, so it logs to `~/.local/state/localgpt/logs/gen-desktop.log`.
+- **Hosting:** with `--host`, the panel shows the session name and the current PIN, and friends' prompts appear in it as they run.
+
+With a CLI backend, tools run through the [MCP relay](/docs/gen/cli-mode), so the panel shows the model's text but not each tool call.
 
 ## Three Ways to Use Gen (with Bevy Window)
 
