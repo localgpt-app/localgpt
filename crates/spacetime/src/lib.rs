@@ -5,6 +5,8 @@
 
 use spacetimedb::{reducer, table, Identity, ReducerContext, Timestamp, Table};
 
+pub mod jobs;
+
 // Re-export world types for clients
 pub use localgpt_world_types::{
     EntityId, EntityName, WorldEntity, WorldTransform,
@@ -158,6 +160,9 @@ pub fn __identity_disconnected(ctx: &ReducerContext) {
         player.last_seen = ctx.timestamp;
         ctx.db.player().identity().update(player);
     }
+
+    // Cancel queued prompts / requeue a disconnected worker's claim.
+    jobs::on_disconnect(ctx);
 
     // Clean up chunk subscriptions
     let sender = ctx.sender();
