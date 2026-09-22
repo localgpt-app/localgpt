@@ -53,6 +53,29 @@ A single host ECS is replaced by a geo-partitioned headless server mesh or a dat
 
 ---
 
+## Implementation Status
+
+Tracked against `localgpt-gen` (`crates/gen/src/net/`, see
+[docs/gen/multiplayer.md](../../gen/multiplayer.md)) and the SpacetimeDB module
+(`crates/spacetime`).
+
+| Spec item | Status | Where |
+|-----------|--------|-------|
+| §1 Listen server + mDNS discovery | Done | `net/host.rs`, `net/mdns.rs` (`--host` / `--join`) |
+| §1 Flat broadcast replication (lightyear) | Done, superseded by AoI | `net/protocol.rs`, `net/host.rs` |
+| §1 Desktop host inference | Via configured providers (incl. local Ollama); no embedded llama.cpp/candle | `main.rs` agent loop |
+| §1 Standalone mobile SLM inference | Not started | — |
+| §1 Desktop rendering (Bevy wgpu) | Done | `net/client.rs` |
+| §1 Mobile rendering (UniFFI + Filament/Metal) | Not started | — |
+| §2 Spatial interest management | Done (64-unit chunk windows, per-link visibility) | `net/interest.rs`, `net/host.rs`; `chunk_subscription` in `crates/spacetime` |
+| §2 Async inference queue + scaffolds | Done in-process (host queue, replicated scaffolds, client prediction + hand-off); cloud queue in SpacetimeDB (worker registry, claim/heartbeat/complete, stale requeue) | `net/jobs.rs`, `net/host.rs`, `net/client.rs`; `crates/spacetime/src/jobs.rs` |
+| §2 Distributed state engine | SpacetimeDB module holds world state + queue; no geo-partitioned authority transfer | `crates/spacetime` |
+| §2 Mesh baking | Done client-side (per chunk × material, quiet-period, auto un-bake) | `net/bake.rs`, `net/client_lod.rs` |
+| §2 HLOD impostors | Done (per-chunk summary boxes outside the view window) | `net/interest.rs`, `net/client_lod.rs` |
+| §2 On-demand asset streaming | Done for custom meshes (content-addressed HTTP + digest-verified disk cache); glTF/KTX2 not yet | `net/assets.rs` |
+
+---
+
 ## Related Documents
 
 This is the **umbrella architecture spec** for the collaborative world engine, covering the full scaling path from listen-server prototype to cloud MMO. The documents below are subsystem deep-dives that expand on individual sections:

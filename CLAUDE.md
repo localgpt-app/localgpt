@@ -279,13 +279,18 @@ environmental audio. World data uses **`localgpt-world-types`** (serde-only,
 zero Bevy/SpacetimeDB deps) so the same types serialize to RON for local saves
 and map to SpacetimeDB rows for multiplayer via `crates/spacetime`.
 
-**Multiplayer (Phase 1, `multiplayer` feature, default on):** listen-server
+**Multiplayer (`multiplayer` feature, default on):** listen-server
 collaboration — `localgpt-gen --host` runs the authoritative ECS + render
 client with mDNS announcement (`_localgpt-world._udp.local.`, UDP 9879);
 `localgpt-gen --join [addr]` connects as a read-only viewer that can send
 prompts to the host's agent. Replication is lightyear 0.30 over the
-world-types wire model; see `docs/gen/multiplayer.md` and
-`crates/gen/src/net/`.
+world-types wire model, narrowed per client by chunk-based interest
+management; prompts run through a job queue with replicated scaffolds;
+clients get HLOD chunk impostors, static mesh baking, and content-addressed
+mesh streaming (HTTP on TCP 9879). Client REPL `/stats` and `/goto x y z`
+help debug streaming. See `docs/gen/multiplayer.md` and
+`crates/gen/src/net/`; the SpacetimeDB module carries the cloud-tier
+inference queue (`crates/spacetime/src/jobs.rs`).
 
 **Audio System:** FunDSP v0.20 synthesis + cpal output, 3-thread model
 (Bevy main → audio mgmt thread → cpal callback) with lock-free `Shared<f32>`

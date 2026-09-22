@@ -632,10 +632,22 @@ mod tests {
 /// Returns the accumulated assistant response text (possibly partial on
 /// stream errors) so collaborative clients can receive the reply.
 async fn streaming_chat(agent: &mut Agent, input: &str) -> Result<String> {
+    let (response, _model_error) = streaming_chat_reporting(agent, input).await?;
+    Ok(response)
+}
+
+/// Like [`streaming_chat`], but also reports a model/stream error (which
+/// `streaming_chat` only prints) so callers can mark the turn as failed —
+/// used for collaborative jobs, whose scaffolds show success or failure.
+async fn streaming_chat_reporting(
+    agent: &mut Agent,
+    input: &str,
+) -> Result<(String, Option<String>)> {
     print!("\nLocalGPT: ");
     std::io::stdout().flush().ok();
 
     let mut full_response = String::new();
+    let mut model_error = None;
 
     match agent.chat_stream_with_images(input, vec![]).await {
         Ok(mut stream) => {
@@ -655,6 +667,7 @@ async fn streaming_chat(agent: &mut Agent, input: &str) -> Result<String> {
                     }
                     Err(e) => {
                         eprintln!("\nStream error: {}", e);
+                        model_error = Some(e.to_string());
                         break;
                     }
                 }
@@ -704,10 +717,11 @@ async fn streaming_chat(agent: &mut Agent, input: &str) -> Result<String> {
         }
         Err(e) => {
             eprintln!("\nError: {}", e);
+            model_error = Some(e.to_string());
         }
     }
 
-    Ok(full_response)
+    Ok((full_response, model_error))
 }
 
 #[derive(Parser)]
@@ -759,6 +773,18 @@ struct Cli {
     #[cfg(feature = "multiplayer")]
     #[arg(long, requires = "host", default_value_t = 9879)]
     port: u16,
+
+    /// Area-of-interest radius in 64-unit chunks (with --join): the host
+    /// streams full detail within this many chunks of your camera; farther
+    /// chunks show as low-poly impostors.
+    #[cfg(feature = "multiplayer")]
+    #[arg(long, requires = "join", default_value_t = 2, value_parser = clap::value_parser!(u8).range(0..=8))]
+    view_radius: u8,
+
+    /// Disable static mesh baking on the client (with --join).
+    #[cfg(feature = "multiplayer")]
+    #[arg(long, requires = "join")]
+    no_bake: bool,
 }
 
 #[derive(Subcommand)]
@@ -1263,6 +1289,8 @@ fn run_host_bevy_app(
 fn run_client_app(
     server_addr: std::net::SocketAddr,
     prompt_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
+    view_radius: u8,
+    bake: bool,
 ) -> Result<()> {
     use bevy::prelude::*;
 
@@ -1291,6 +1319,8 @@ fn run_client_app(
         options: std::sync::Mutex::new(Some(localgpt_gen::net::client::NetClientOptions {
             server_addr,
             prompt_rx,
+            view_radius,
+            bake,
         })),
     });
 
@@ -1352,7 +1382,7 @@ fn run_join_mode(cli: &Cli) -> Result<()> {
         }
     });
 
-    run_client_app(addr, prompt_rx)
+    run_client_app(addr, prompt_rx, cli.view_radius, !cli.no_bake)
 }
 
 /// Parse a peer address: `host:port`, `ip:port`, or a bare host (port
@@ -1677,9 +1707,9 @@ enum AgentInput {
     Local(String),
     /// REPL closed (Ctrl+D or error).
     Eof,
-    /// Prompt received from a connected collaborative client.
+    /// Queued prompt job dispatched from a connected collaborative client.
     #[cfg(feature = "multiplayer")]
-    Remote(localgpt_gen::net::protocol::ClientPrompt),
+    Remote(localgpt_gen::net::host::RemoteJob),
 }
 
 /// Run the interactive agent loop with Gen tools available.
@@ -1865,19 +1895,24 @@ async fn run_agent_loop(
     });
 
     #[cfg(feature = "multiplayer")]
-    let chat_tx = net_hooks.map(|hooks| {
-        // Forward remote client prompts into the merged input stream.
-        let mut prompt_rx = hooks.prompt_rx;
-        let remote_tx = event_tx.clone();
-        tokio::spawn(async move {
-            while let Some(prompt) = prompt_rx.recv().await {
-                if remote_tx.send(AgentInput::Remote(prompt)).is_err() {
-                    break;
+    let (chat_tx, job_events_tx) = match net_hooks {
+        Some(hooks) => {
+            // Forward dispatched remote jobs into the merged input stream.
+            // The host's queue hands out one job at a time, so this loop is
+            // the (single) worker of the §2 inference queue.
+            let mut job_rx = hooks.job_rx;
+            let remote_tx = event_tx.clone();
+            tokio::spawn(async move {
+                while let Some(job) = job_rx.recv().await {
+                    if remote_tx.send(AgentInput::Remote(job)).is_err() {
+                        break;
+                    }
                 }
-            }
-        });
-        hooks.chat_tx
-    });
+            });
+            (Some(hooks.chat_tx), Some(hooks.job_events_tx))
+        }
+        None => (None, None),
+    };
 
     // Interactive loop over the merged event stream.
     loop {
@@ -1888,9 +1923,40 @@ async fn run_agent_loop(
             AgentInput::Local(line) => (line, false),
             AgentInput::Eof => break, // Ctrl+D
             #[cfg(feature = "multiplayer")]
-            AgentInput::Remote(prompt) => {
-                println!("\n[client] {}", prompt.text);
-                (prompt.text, true)
+            AgentInput::Remote(job) => {
+                use localgpt_gen::net::host::JobEvent;
+                println!("\n[client job #{}] {}", job.job_id, job.display);
+                if let Some(tx) = &job_events_tx {
+                    let _ = tx.send(JobEvent::Started(job.job_id));
+                }
+                // A failed remote job must not take the host's REPL down.
+                let result = streaming_chat_reporting(&mut agent, &job.agent_prompt).await;
+                let error = match result {
+                    Ok((_, Some(model_error))) => Some(model_error),
+                    Ok((reply, None)) => {
+                        if let Some(chat_tx) = &chat_tx
+                            && !reply.is_empty()
+                        {
+                            let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
+                                speaker: "host".to_string(),
+                                text: reply,
+                            });
+                        }
+                        None
+                    }
+                    Err(e) => {
+                        eprintln!("Remote job #{} failed: {e}", job.job_id);
+                        Some(e.to_string())
+                    }
+                };
+                if let Some(tx) = &job_events_tx {
+                    let _ = tx.send(JobEvent::Finished {
+                        job_id: job.job_id,
+                        error,
+                    });
+                }
+                println!();
+                continue;
             }
         };
         #[cfg(not(feature = "multiplayer"))]

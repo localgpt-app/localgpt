@@ -1,21 +1,33 @@
-//! Phase-1 collaborative multiplayer (listen server prototype).
+//! Collaborative multiplayer for gen.
 //!
-//! Implements §1 of
-//! `docs/rfcs/multiplayer/collaborative-world-engine-architecture.md`:
-//! one desktop `localgpt-gen` instance acts as authoritative host and
-//! rendering client (`--host`), secondary clients discover the session over
-//! mDNS and join as read-only viewers (`--join`), and connected clients can
-//! send natural-language prompts to the host's agent.
+//! Implements `docs/rfcs/multiplayer/collaborative-world-engine-architecture.md`:
 //!
-//! §2 compatibility: the wire vocabulary is `localgpt-world-types` (the same
-//! model the SpacetimeDB tier uses), entities are identified by stable
-//! host-assigned ids, and replication targets are expressed as
-//! `NetworkTarget`s — flat broadcast today, interest-managed scopes later.
+//! - **§1 listen server:** one desktop `localgpt-gen` instance acts as
+//!   authoritative host and rendering client (`--host`); secondary clients
+//!   discover the session over mDNS and join as viewers (`--join`) that can
+//!   send natural-language prompts to the host's agent.
+//! - **§2 scaling mechanisms**, applied to the same session:
+//!   - spatial interest management — per-client chunk windows
+//!     ([`interest`], host-side lightyear visibility);
+//!   - an asynchronous inference queue with scaffold-then-replace
+//!     ([`jobs`], replicated `NetScaffold`s);
+//!   - HLOD chunk impostors and static mesh baking ([`client_lod`],
+//!     [`bake`]);
+//!   - content-addressed on-demand asset streaming ([`assets`]).
+//!
+//! The wire vocabulary is `localgpt-world-types` (the same model the
+//! SpacetimeDB tier uses) and entities are identified by stable
+//! host-assigned ids, so the cloud tier can reuse the protocol.
 //!
 //! See `docs/gen/multiplayer.md` for the full design and limitations.
 
+pub mod assets;
+pub mod bake;
 pub mod client;
+pub mod client_lod;
 pub mod host;
+pub mod interest;
+pub mod jobs;
 pub mod mdns;
 pub mod protocol;
 
@@ -25,7 +37,9 @@ pub mod protocol;
 pub const DEFAULT_PORT: u16 = 9879;
 
 /// Lightyear netcode protocol id — hosts and clients must match.
-pub const PROTOCOL_ID: u64 = 1;
+///
+/// 2: §2 additions (view reports, prompt jobs/scaffolds, chunk summaries).
+pub const PROTOCOL_ID: u64 = 2;
 
 /// Shared netcode private key.
 ///

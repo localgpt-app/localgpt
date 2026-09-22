@@ -18,6 +18,9 @@ use serde::{Deserialize, Serialize};
 
 use localgpt_world_types as wt;
 
+use super::interest::ChunkSummary;
+use super::jobs::{JobId, JobState};
+
 /// Stable host-assigned entity id (mirrors `wt::EntityId`).
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NetWorldId(pub u64);
@@ -94,11 +97,41 @@ pub struct NetMeshRef(pub wt::MeshAssetRef);
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NetParentId(pub u64);
 
+/// Authoritative placeholder for a prompt that is queued or being built
+/// (§2 scaffold-then-replace). Rides its own replicated entity together with
+/// a [`NetTransform`] at the prompt's anchor; despawned when the job ends.
+#[derive(Component, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct NetScaffold {
+    pub job_id: JobId,
+    pub request_id: u64,
+    pub prompt: String,
+    /// `false` while queued, `true` once a worker picked it up.
+    pub running: bool,
+}
+
+/// Coarse per-chunk summary (HLOD impostor), replicated to every client so
+/// chunks outside a client's view window still read as mass on the horizon.
+#[derive(Component, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct NetChunkSummary(pub ChunkSummary);
+
+/// Content address of a custom mesh's geometry (§2 asset streaming): the
+/// client fetches the blob from the host's asset server on demand.
+#[derive(Component, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NetMeshAsset {
+    /// Hex SHA-256 of the `LGM1` blob.
+    pub digest: String,
+    /// Blob size in bytes (for progress / budgeting).
+    pub bytes: u32,
+}
+
 /// Session-level metadata carried by a dedicated singleton entity.
 #[derive(Component, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NetWorldMeta {
     pub name: String,
     pub environment: wt::EnvironmentDef,
+    /// TCP port of the host's content-addressed asset server, if running.
+    #[serde(default)]
+    pub asset_port: Option<u16>,
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +144,31 @@ pub struct NetWorldMeta {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientPrompt {
     pub text: String,
+    /// Client-chosen correlation id, echoed in [`JobStatus`] and
+    /// [`NetScaffold`] so the requester can hand its local scaffold over to
+    /// the replicated one.
+    pub request_id: u64,
+    /// World-space point the client was looking at when it prompted.
+    pub anchor: Option<[f32; 3]>,
+}
+
+/// Client → host: where the client's camera is (drives spatial interest
+/// management, §2 AoI). Sent periodically on a sequenced channel — only the
+/// newest view matters.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct ClientView {
+    pub position: [f32; 3],
+    /// Requested view radius in chunks (host clamps it).
+    pub radius: u8,
+}
+
+/// Host → requester: lifecycle updates for a queued prompt (§2 async
+/// inference queue).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobStatus {
+    pub request_id: u64,
+    pub job_id: JobId,
+    pub state: JobState,
 }
 
 /// Chat transcript entry broadcast by the host: user prompts, agent replies,
@@ -123,6 +181,9 @@ pub struct HostChat {
 
 /// Reliable ordered channel for client → host prompts.
 pub struct PromptChannel;
+
+/// Sequenced unreliable channel for client → host view updates.
+pub struct ViewChannel;
 
 /// Reliable ordered channel for host → client chat.
 pub struct ChatChannel;
@@ -158,12 +219,24 @@ impl Plugin for NetProtocolPlugin {
         app.component::<NetParentId>().replicate();
         app.component::<NetWorldMeta>()
             .replicate_with(json_rule_fns::<NetWorldMeta>());
+        app.component::<NetScaffold>().replicate();
+        app.component::<NetMeshAsset>().replicate();
+        app.component::<NetChunkSummary>().replicate();
 
         // Messages + channels
         app.register_message::<ClientPrompt>()
             .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<HostChat>()
             .add_direction(NetworkDirection::ServerToClient);
+        app.register_message::<ClientView>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<JobStatus>()
+            .add_direction(NetworkDirection::ServerToClient);
+        app.add_channel::<ViewChannel>(ChannelSettings {
+            mode: ChannelMode::SequencedUnreliable,
+            ..default()
+        })
+        .add_direction(NetworkDirection::ClientToServer);
         app.add_channel::<PromptChannel>(ChannelSettings {
             mode: ChannelMode::OrderedReliable(ReliableSettings::default()),
             ..default()
@@ -373,10 +446,14 @@ mod tests {
     fn client_prompt_serde_roundtrip() {
         let msg = ClientPrompt {
             text: "build a castle".into(),
+            request_id: 42,
+            anchor: Some([1.0, 0.0, -2.0]),
         };
         let json = serde_json::to_string(&msg).unwrap();
         let back: ClientPrompt = serde_json::from_str(&json).unwrap();
         assert_eq!(back.text, msg.text);
+        assert_eq!(back.request_id, 42);
+        assert_eq!(back.anchor, Some([1.0, 0.0, -2.0]));
     }
 
     #[test]
