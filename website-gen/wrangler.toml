@@ -1,0 +1,7 @@
+# Cloudflare Worker for gen.localgpt.app: static assets only, no Worker
+# script, nothing to build. Deploy with ./deploy.sh from this directory.
+name = "localgpt-gen"
+compatibility_date = "2026-09-22"
+
+[assets]
+directory = "."

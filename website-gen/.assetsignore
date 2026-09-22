@@ -1,0 +1,6 @@
+README.md
+wrangler.toml
+deploy.sh
+.assetsignore
+.gitignore
+.wrangler

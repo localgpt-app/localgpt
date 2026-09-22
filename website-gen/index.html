@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>LocalGPT Gen: describe a place, walk into it</title>
+<meta name="description" content="LocalGPT Gen turns what you type into an explorable 3D world, with geometry, materials, lighting, behaviors, and sound. Build alone or with friends on your network. Open source, and it runs on your machine.">
+<link rel="canonical" href="https://gen.localgpt.app/">
+<link rel="icon" href="localgpt-icon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="LocalGPT Gen">
+<meta property="og:title" content="LocalGPT Gen: describe a place, walk into it">
+<meta property="og:description" content="Type a description and walk into the 3D world it becomes. Build alone or with friends on your network. Open source, and it runs on your machine.">
+<meta property="og:url" content="https://gen.localgpt.app/">
+<meta property="og:image" content="https://gen.localgpt.app/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A desert world built by LocalGPT Gen: three pyramids on a sandy plaza under a night sky.">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --bg: #f5f7f6;
+    --surface: #ffffff;
+    --band: #edf2ef;
+    --ink: #13201b;
+    --muted: #53625c;
+    --line: #dae3df;
+    --accent: #0e7c65;
+    --accent-bg: #0e7c65;
+    --on-accent: #ffffff;
+    --glow: rgba(37, 194, 160, 0.18);
+    --code-bg: #0d1513;
+    --code-ink: #d6e6df;
+    --code-muted: #82998f;
+    --code-accent: #45dcb8;
+    --shadow: 0 18px 50px -24px rgba(8, 40, 30, 0.45);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0a0f0d;
+      --surface: #111a17;
+      --band: #0d1512;
+      --ink: #e5eeea;
+      --muted: #9bada5;
+      --line: #1f2d28;
+      --accent: #2fd0ac;
+      --accent-bg: #25c2a0;
+      --on-accent: #03261d;
+      --glow: rgba(37, 194, 160, 0.15);
+      --code-bg: #060a09;
+      --shadow: 0 18px 60px -20px rgba(0, 0, 0, 0.8);
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 17px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-wrap: break-word;
+  }
+  a { color: var(--accent); text-underline-offset: 0.16em; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+  code, pre { font-family: var(--mono); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+  @media (min-width: 720px) { .wrap { padding: 0 28px; } }
+  .skip { position: absolute; left: -9999px; top: 12px; }
+  .skip:focus { left: 16px; z-index: 10; padding: 8px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* Header */
+  header.top { border-bottom: 1px solid var(--line); }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 24px; padding-top: 16px; padding-bottom: 16px; }
+  .wordmark { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
+  .wordmark img { display: block; width: 28px; height: 28px; }
+  .wordmark b { color: var(--accent); font-weight: 700; }
+  nav.site { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 15px; }
+  nav.site a { color: var(--muted); text-decoration: none; }
+  nav.site a:hover { color: var(--ink); }
+
+  /* Hero */
+  .hero { padding: 56px 0 72px; background: radial-gradient(60% 60% at 78% 35%, var(--glow), transparent 70%); }
+  .hero-grid { display: grid; gap: 40px; align-items: center; }
+  .hero-grid > *, .split > * { min-width: 0; }
+  @media (min-width: 960px) { .hero-grid { grid-template-columns: 1fr 1.08fr; gap: 56px; } .hero { padding: 80px 0 96px; } }
+  .eyebrow { margin: 0 0 12px; color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+  h1 { margin: 0 0 18px; font-size: clamp(40px, 6.4vw, 66px); line-height: 1.02; letter-spacing: -0.035em; text-wrap: balance; }
+  .lede { margin: 0 0 28px; max-width: 34em; color: var(--muted); font-size: clamp(18px, 2vw, 20px); line-height: 1.55; }
+  .install {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    max-width: 440px; margin: 0 0 16px; padding: 7px 7px 7px 16px;
+    background: var(--code-bg); border-radius: 12px; box-shadow: var(--shadow);
+  }
+  .install code { min-width: 0; padding: 0; background: none; color: var(--code-ink); font-size: 15px; white-space: nowrap; overflow-x: auto; }
+  .install code::before { content: "$ "; color: var(--code-muted); }
+  .copy {
+    flex: none; padding: 7px 12px; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06); color: var(--code-ink); font: 600 13px/1 ui-sans-serif, system-ui, sans-serif; cursor: pointer;
+  }
+  .copy:hover { background: rgba(255, 255, 255, 0.12); }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 18px; }
+  .button {
+    display: inline-block; padding: 11px 18px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); font-weight: 600; font-size: 16px; text-decoration: none;
+  }
+  .button:hover { border-color: var(--muted); }
+  .button.primary { background: var(--accent-bg); border-color: var(--accent-bg); color: var(--on-accent); }
+  .button.primary:hover { filter: brightness(1.06); }
+  .fine { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .demo { margin: 0; }
+  .video, .video-frame {
+    position: relative; display: block; width: 100%; aspect-ratio: 16 / 9;
+    border: 0; border-radius: 16px; overflow: hidden; background: #05070d; box-shadow: var(--shadow);
+  }
+  .video img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
+  .video:hover img { transform: scale(1.02); }
+  .play {
+    position: absolute; left: 50%; top: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px;
+    border-radius: 50%; background: rgba(6, 12, 10, 0.72); border: 1px solid rgba(255, 255, 255, 0.28);
+    backdrop-filter: blur(4px);
+  }
+  .play::after {
+    content: ""; position: absolute; left: 30px; top: 24px;
+    border-style: solid; border-width: 14px 0 14px 22px; border-color: transparent transparent transparent #fff;
+  }
+  .video:hover .play { background: var(--accent-bg); border-color: transparent; }
+  .demo figcaption { margin-top: 12px; color: var(--muted); font-size: 14px; }
+
+  /* Sections */
+  .section { padding: 72px 0; }
+  .band { background: var(--band); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  h2 { margin: 0 0 12px; font-size: clamp(28px, 3.8vw, 40px); line-height: 1.12; letter-spacing: -0.025em; text-wrap: balance; }
+  .section-lede { margin: 0 0 36px; max-width: 42em; color: var(--muted); font-size: 18px; }
+  .grid { display: grid; gap: 16px; }
+  @media (min-width: 640px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 960px) { .grid.three { grid-template-columns: repeat(3, 1fr); } }
+  .card { padding: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; min-width: 0; }
+  .card h3 { margin: 0 0 8px; font-size: 18.5px; letter-spacing: -0.01em; }
+  .card p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.55; }
+  .card .glyph { display: block; width: 26px; height: 26px; margin-bottom: 14px; color: var(--accent); }
+  .card pre { margin: 16px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  pre {
+    margin: 0; padding: 16px 18px; overflow-x: auto;
+    background: var(--code-bg); color: var(--code-ink); border-radius: 12px;
+    font-size: 14px; line-height: 1.65;
+  }
+  pre .c { color: var(--code-muted); }
+  pre .p { color: var(--code-muted); user-select: none; }
+  pre .hl { color: var(--code-accent); }
+  :not(pre) > code { padding: 0.1em 0.35em; border-radius: 5px; background: var(--band); font-size: 0.9em; }
+  .band :not(pre) > code { background: var(--surface); }
+
+  .split { display: grid; gap: 36px; align-items: center; }
+  @media (min-width: 960px) { .split { grid-template-columns: 1fr 1fr; gap: 56px; } }
+  .split p { margin: 0 0 16px; color: var(--muted); font-size: 18px; }
+  .points { margin: 0 0 20px; padding: 0; list-style: none; }
+  .points li { position: relative; margin: 0 0 12px; padding-left: 26px; font-size: 16.5px; }
+  .points li::before { content: ""; position: absolute; left: 4px; top: 0.62em; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .terminal { box-shadow: var(--shadow); border-radius: 14px; }
+  .terminal .dots { display: flex; gap: 7px; padding: 12px 16px 0; background: var(--code-bg); border-radius: 14px 14px 0 0; }
+  .terminal .dots span { width: 11px; height: 11px; border-radius: 50%; background: #2a3632; }
+  .terminal pre { border-radius: 0 0 14px 14px; padding: 16px 20px 22px; font-size: 14.5px; }
+
+  .steps { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+  @media (min-width: 960px) { .steps { grid-template-columns: repeat(3, 1fr); } }
+  .steps li { counter-increment: step; }
+  .steps .card::before {
+    content: counter(step); display: grid; place-items: center; width: 30px; height: 30px; margin-bottom: 14px;
+    border-radius: 50%; background: var(--accent-bg); color: var(--on-accent); font-weight: 700; font-size: 15px;
+  }
+  .note { margin: 20px 0 0; color: var(--muted); font-size: 15px; }
+
+  .family { display: grid; gap: 12px; }
+  @media (min-width: 640px) { .family { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 960px) { .family { grid-template-columns: repeat(4, 1fr); } }
+  .family a { display: block; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; color: var(--ink); text-decoration: none; }
+  .family a:hover { border-color: var(--accent); }
+  .family b { display: block; margin-bottom: 4px; font-size: 16.5px; }
+  .family span { color: var(--muted); font-size: 15px; }
+
+  footer { padding: 24px 0 44px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+  footer a { color: var(--muted); }
+
+  @media (prefers-reduced-motion: reduce) { .video img { transition: none; } .video:hover img { transform: none; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap bar">
+    <a class="wordmark" href="/"><img src="localgpt-icon.svg" alt="" width="28" height="28"><span>LocalGPT <b>Gen</b></span></a>
+    <nav class="site" aria-label="Site">
+      <a href="#features">Features</a>
+      <a href="#together">Build together</a>
+      <a href="https://localgpt.app/docs/gen">Docs</a>
+      <a href="https://github.com/localgpt-app/localgpt">GitHub</a>
+      <a href="https://localgpt.app">localgpt.app&nbsp;&rarr;</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow">Worlds from words</p>
+        <h1>Describe a place. Walk into&nbsp;it.</h1>
+        <p class="lede">LocalGPT Gen turns what you type into an explorable 3D world, with geometry, materials, lighting, behaviors, and sound. Build alone, or host a session and build with friends on your network.</p>
+        <div class="install">
+          <code>cargo install localgpt-gen</code>
+          <button type="button" class="copy" data-copy="cargo install localgpt-gen">Copy</button>
+        </div>
+        <div class="actions">
+          <a class="button primary" href="https://localgpt.app/docs/gen">Read the docs</a>
+          <a class="button" href="https://github.com/localgpt-app/localgpt">Source on GitHub</a>
+        </div>
+        <p class="fine">Open source under Apache-2.0. Built with Bevy. Runs on your machine.</p>
+      </div>
+      <figure class="demo">
+        <a class="video" href="https://www.youtube.com/watch?v=R__tg7YY0T8" data-video="R__tg7YY0T8" aria-label="Play the demo video, Pyramids (YouTube)">
+          <img src="poster.jpg" width="1280" height="720" alt="">
+          <span class="play" aria-hidden="true"></span>
+        </a>
+        <figcaption>Demo: Pyramids, built with Claude Opus 4.6.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="wrap">
+      <h2>More than shapes on a plane</h2>
+      <p class="section-lede">Gen's AI builds with more than 40 tools for geometry, lighting, sound, and physics. It takes screenshots of its own work and keeps adjusting, and you can keep asking for changes.</p>
+      <div class="grid three">
+        <article class="card">
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19 9 10l4 6 3-4 5 7Z"/><circle cx="17" cy="6" r="2"/></svg>
+          <h3>Whole places</h3>
+          <p>Terrain, water, paths, and foliage. PBR materials and real lights. A spawn point for visitors, and guided tours through what you built.</p>
+        </article>
+        <article class="card">
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3a9 9 0 0 1 9 9"/><path d="M12 21a9 9 0 0 1-9-9"/></svg>
+          <h3>Motion without code</h3>
+          <p>Orbit, spin, bob, look-at, pulse, path-follow, and bounce. Stack several on one object. No scripting.</p>
+        </article>
+        <article class="card">
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v4"/><path d="M8 7v10"/><path d="M12 4v16"/><path d="M16 8v8"/><path d="M20 11v2"/></svg>
+          <h3>Sound that fits</h3>
+          <p>Wind, rain, forest, ocean, cave, and stream ambience, synthesized live. Name something a campfire or a waterfall and you'll hear it, louder as you walk closer.</p>
+        </article>
+        <article class="card">
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="14" cy="12" r="4"/><path d="M3 20h18"/><path d="M6 4v4"/><path d="M9.5 3v3"/></svg>
+          <h3>Real physics</h3>
+          <p>Rigid bodies, colliders, joints, and gravity, so things can fall, roll, and collide instead of just standing there.</p>
+        </article>
+        <article class="card">
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18"/><path d="M12 3v18"/></svg>
+          <h3>A plan before it builds</h3>
+          <p>For bigger worlds, Gen blocks out regions, paths, and terrain first, then places landmarks before details, each one snapped to the ground.</p>
+        </article>
+        <article class="card">
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+          <h3>Keep it, share it</h3>
+          <p>Save a world and load it back later. Export to glTF for Blender, Unity, or Unreal, or to one HTML file that plays in any browser with its motion and sound.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section band" id="together">
+    <div class="wrap split">
+      <div>
+        <h2>Build together</h2>
+        <p>Host a session and friends on the same network join from their own machines. Everyone walks the same world in their own window, and anyone can ask your AI to build where they're looking.</p>
+        <ul class="points">
+          <li>A 6-digit PIN pairs each friend. No accounts and no cloud server.</li>
+          <li>Prompts queue on the host and run in order, and a placeholder marks where each build will land.</li>
+          <li>Friends' prompts can only edit the world. They get no shell or file access unless you allow it.</li>
+        </ul>
+        <p><a href="https://localgpt.app/docs/gen/multiplayer">How collaborative sessions work&nbsp;&rarr;</a></p>
+      </div>
+      <div class="terminal">
+        <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
+<pre><code><span class="c"># your machine</span>
+<span class="p">$ </span>localgpt-gen --host
+  Session PIN: <span class="hl">482 913</span>
+
+<span class="c"># a friend's machine, same network</span>
+<span class="p">$ </span>localgpt-gen --join
+Session PIN (shown on the host's console): <span class="hl">482913</span>
+
+<span class="c"># then, in the friend's terminal</span>
+You: put a lighthouse on that hill</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <h2>Bring your own AI</h2>
+      <p class="section-lede">Gen works with the model you already use. World quality depends on the model's spatial reasoning, so stronger models build better worlds.</p>
+      <div class="grid three">
+        <article class="card">
+          <h3>Your CLI login</h3>
+          <p>Let Claude CLI, Gemini CLI, or Codex drive. No API key: Gen relays their tool calls to your window. Claude CLI is the default.</p>
+<pre><code>localgpt-gen</code></pre>
+        </article>
+        <article class="card">
+          <h3>An API key or a local model</h3>
+          <p>Use a key for Anthropic, OpenAI, Gemini, xAI, and others, or a local model through Ollama.</p>
+<pre><code><span class="c"># ~/.config/localgpt/config.toml</span>
+[agent]
+default_model = "ollama/llama3"</code></pre>
+        </article>
+        <article class="card">
+          <h3>Your editor or desktop app</h3>
+          <p>Run Gen as an MCP server and build from Claude Desktop, Codex Desktop, VS Code, Zed, or Cursor.</p>
+<pre><code>localgpt-gen mcp-server</code></pre>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section band" id="start">
+    <div class="wrap">
+      <h2>Get started</h2>
+      <p class="section-lede">Gen installs with Cargo, Rust's package manager, as a single binary.</p>
+      <ol class="steps">
+        <li class="card">
+          <h3>Install</h3>
+<pre><code>cargo install localgpt-gen</code></pre>
+        </li>
+        <li class="card">
+          <h3>Pick a model</h3>
+          <p>With the Claude CLI installed and signed in, there's nothing to set up. Otherwise, add an API key or an Ollama model to <code>~/.config/localgpt/config.toml</code>.</p>
+        </li>
+        <li class="card">
+          <h3>Describe a place</h3>
+<pre><code>localgpt-gen "build a castle on a hill"</code></pre>
+          <p style="margin-top: 12px">Watch it build, walk around, and keep typing to change it.</p>
+        </li>
+      </ol>
+      <p class="note">Gen opens a 3D window, so it needs a GPU-capable display. It runs on macOS, Linux, and Windows.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <h2>The LocalGPT family</h2>
+      <p class="section-lede">Open source apps that turn what you type, write, and listen to into places you can explore, all running locally.</p>
+      <div class="family">
+        <a href="https://localgpt.app"><b>LocalGPT</b><span>A local AI assistant with persistent memory.</span></a>
+        <a href="https://verse.localgpt.app"><b>LocalGPT Verse</b><span>A 3D world for every song.</span></a>
+        <a href="https://md.localgpt.app"><b>LocalGPT MD</b><span>Walk through your notes as a world.</span></a>
+        <a href="https://localgpt.rs"><b>localgpt.rs</b><span>The devlog: building it all in Rust.</span></a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>LocalGPT Gen is part of <a href="https://localgpt.app">LocalGPT</a>.</span>
+    <a href="https://localgpt.app/docs/gen">Docs</a>
+    <a href="https://github.com/localgpt-app/localgpt">Source on GitHub</a>
+    <span>Apache-2.0</span>
+  </div>
+</footer>
+
+<div class="visually-hidden" aria-live="polite" id="status"></div>
+<script>
+  // Copy the install command.
+  document.querySelectorAll("[data-copy]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      if (!navigator.clipboard) return;
+      navigator.clipboard.writeText(button.getAttribute("data-copy")).then(function () {
+        button.textContent = "Copied";
+        document.getElementById("status").textContent = "Install command copied";
+        setTimeout(function () { button.textContent = "Copy"; }, 1600);
+      }, function () {});
+    });
+  });
+
+  // Swap the poster for the YouTube player only when someone asks to play it.
+  document.querySelectorAll("[data-video]").forEach(function (link) {
+    link.addEventListener("click", function (event) {
+      event.preventDefault();
+      var frame = document.createElement("iframe");
+      frame.className = "video-frame";
+      frame.src = "https://www.youtube-nocookie.com/embed/" + link.getAttribute("data-video") + "?autoplay=1&rel=0";
+      frame.title = "LocalGPT Gen demo: Pyramids";
+      frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+      frame.allowFullscreen = true;
+      link.replaceWith(frame);
+    });
+  });
+</script>
+</body>
+</html>
