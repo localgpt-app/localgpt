@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=LocalGPT Gen
+GenericName=3D World Builder
+Comment=Describe a place and walk into it
+# --desktop: launchers may still hand the app a terminal-like stdin, so ask
+# for desktop mode (the in-window prompt panel) explicitly.
+Exec=localgpt-gen --desktop
+Icon=localgpt-gen
+Terminal=false
+Categories=Graphics;3DGraphics;
+Keywords=3D;world;AI;Bevy;

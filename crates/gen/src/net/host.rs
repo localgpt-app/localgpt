@@ -98,6 +98,34 @@ pub struct NetHostOptions {
     pub open: bool,
 }
 
+/// What joiners need to know about the running session, for in-window
+/// display (the desktop prompt panel). The PIN is read live because it
+/// rotates after too many wrong guesses.
+#[derive(Resource, Clone)]
+pub struct HostSessionInfo {
+    pub session_name: String,
+    pub port: u16,
+    pairing: Option<Arc<PairingHost>>,
+}
+
+impl HostSessionInfo {
+    /// The current session PIN, formatted like the console shows it, or
+    /// `None` for an open session.
+    pub fn pin(&self) -> Option<String> {
+        self.pairing
+            .as_ref()
+            .map(|pairing| format_pin(&pairing.pin()))
+    }
+
+    /// One line for a status display.
+    pub fn summary(&self) -> String {
+        match self.pin() {
+            Some(pin) => format!("Hosting '{}' · PIN {pin}", self.session_name),
+            None => format!("Hosting '{}' · open session (no PIN)", self.session_name),
+        }
+    }
+}
+
 /// Agent-loop side of the job/chat bridge.
 pub struct AgentNetHooks {
     /// Jobs dispatched from the host's prompt queue (one at a time).
@@ -281,55 +309,60 @@ impl Plugin for NetHostPlugin {
             ),
         }
 
-        app.insert_resource(ReplicationMetadata::new(REPLICATION_SEND_INTERVAL))
-            .insert_resource(HostAssets {
-                store,
-                port: asset_port,
-            })
-            .insert_resource(NetHostState { port, private_key })
-            .insert_resource(HostJobs {
-                queue: JobQueue::default(),
-                scaffolds: HashMap::new(),
-                requester_links: HashMap::new(),
-                dispatched: None,
-                job_tx,
-                events_rx: Mutex::new(job_events_rx),
-            })
-            .insert_resource(HostChatOutbox {
-                rx: Mutex::new(chat_rx),
-            })
-            .init_resource::<InterestState>()
-            .init_resource::<ChunkSummaryEntities>()
-            .add_systems(Startup, start_listen_server)
-            .add_systems(Startup, spawn_world_meta_entity.after(start_listen_server))
-            .add_observer(on_client_link_connected)
-            .add_systems(PreUpdate, net_attach_new_entities)
-            .add_systems(
-                PostUpdate,
-                (
-                    net_sync_changes,
-                    net_sync_meta,
-                    net_update_chunk_summaries,
-                    net_update_interest
-                        .after(TransformSystems::Propagate)
-                        .after(net_update_chunk_summaries)
-                        .before(ReplicationSystems::Send),
-                ),
-            )
-            .add_systems(
-                Update,
-                (
-                    net_prompt_intake,
-                    net_publish_mesh_assets,
-                    net_job_events,
-                    net_job_dispatch
-                        .after(net_prompt_intake)
-                        .after(net_job_events),
-                    net_view_intake,
-                    net_chat_broadcast,
-                    net_client_lifecycle,
-                ),
-            );
+        app.insert_resource(HostSessionInfo {
+            session_name: session_name.clone(),
+            port,
+            pairing: pairing.clone(),
+        })
+        .insert_resource(ReplicationMetadata::new(REPLICATION_SEND_INTERVAL))
+        .insert_resource(HostAssets {
+            store,
+            port: asset_port,
+        })
+        .insert_resource(NetHostState { port, private_key })
+        .insert_resource(HostJobs {
+            queue: JobQueue::default(),
+            scaffolds: HashMap::new(),
+            requester_links: HashMap::new(),
+            dispatched: None,
+            job_tx,
+            events_rx: Mutex::new(job_events_rx),
+        })
+        .insert_resource(HostChatOutbox {
+            rx: Mutex::new(chat_rx),
+        })
+        .init_resource::<InterestState>()
+        .init_resource::<ChunkSummaryEntities>()
+        .add_systems(Startup, start_listen_server)
+        .add_systems(Startup, spawn_world_meta_entity.after(start_listen_server))
+        .add_observer(on_client_link_connected)
+        .add_systems(PreUpdate, net_attach_new_entities)
+        .add_systems(
+            PostUpdate,
+            (
+                net_sync_changes,
+                net_sync_meta,
+                net_update_chunk_summaries,
+                net_update_interest
+                    .after(TransformSystems::Propagate)
+                    .after(net_update_chunk_summaries)
+                    .before(ReplicationSystems::Send),
+            ),
+        )
+        .add_systems(
+            Update,
+            (
+                net_prompt_intake,
+                net_publish_mesh_assets,
+                net_job_events,
+                net_job_dispatch
+                    .after(net_prompt_intake)
+                    .after(net_job_events),
+                net_view_intake,
+                net_chat_broadcast,
+                net_client_lifecycle,
+            ),
+        );
 
         match SessionAnnouncer::start(&session_name, port, super::PROTOCOL_ID) {
             Ok(announcer) => {

@@ -10,11 +10,12 @@ use localgpt_core::agent::tools::extract_tool_detail;
 use localgpt_core::agent::{Agent, list_sessions_for_agent, search_sessions_for_agent};
 use localgpt_core::commands::Interface;
 use localgpt_core::text::{prefix_chars, prefix_chars_with_ellipsis};
-use std::io::Write as _;
+use std::io::{IsTerminal as _, Write as _};
 use std::path::{Path, PathBuf};
 
 // Use library modules
 use localgpt_gen::character_tools;
+use localgpt_gen::desktop::{AgentChannels, ChatEvent, ChatSink, PanelChannels, PanelSettings};
 use localgpt_gen::gen3d;
 use localgpt_gen::mcp_server;
 
@@ -631,8 +632,10 @@ mod tests {
 ///
 /// Returns the accumulated assistant response text (possibly partial on
 /// stream errors) so collaborative clients can receive the reply.
-async fn streaming_chat(agent: &mut Agent, input: &str) -> Result<String> {
-    let (response, _model_error) = streaming_chat_reporting(agent, input).await?;
+///
+/// With a `sink`, the turn is also reported to the in-window prompt panel.
+async fn streaming_chat(agent: &mut Agent, input: &str, sink: Option<&ChatSink>) -> Result<String> {
+    let (response, _model_error) = streaming_chat_reporting(agent, input, sink).await?;
     Ok(response)
 }
 
@@ -642,6 +645,23 @@ async fn streaming_chat(agent: &mut Agent, input: &str) -> Result<String> {
 async fn streaming_chat_reporting(
     agent: &mut Agent,
     input: &str,
+    sink: Option<&ChatSink>,
+) -> Result<(String, Option<String>)> {
+    let result = run_streaming_turn(agent, input, sink).await;
+    if let Some(sink) = sink {
+        let error = match &result {
+            Ok((_, model_error)) => model_error.clone(),
+            Err(e) => Some(e.to_string()),
+        };
+        sink.send(ChatEvent::TurnFinished { error });
+    }
+    result
+}
+
+async fn run_streaming_turn(
+    agent: &mut Agent,
+    input: &str,
+    sink: Option<&ChatSink>,
 ) -> Result<(String, Option<String>)> {
     print!("\nLocalGPT: ");
     std::io::stdout().flush().ok();
@@ -660,6 +680,11 @@ async fn streaming_chat_reporting(
                         print!("{}", chunk.delta);
                         std::io::stdout().flush().ok();
                         full_response.push_str(&chunk.delta);
+                        if let Some(sink) = sink
+                            && !chunk.delta.is_empty()
+                        {
+                            sink.send(ChatEvent::Delta(chunk.delta.clone()));
+                        }
 
                         if chunk.done && chunk.tool_calls.is_some() {
                             pending_tool_calls = chunk.tool_calls;
@@ -685,11 +710,13 @@ async fn streaming_chat_reporting(
                 }
 
                 // Execute with feedback
-                agent
+                let start_sink = sink.cloned();
+                let end_sink = sink.cloned();
+                let (follow_up, _warnings) = agent
                     .execute_streaming_tool_calls(
                         &full_response,
                         tool_calls,
-                        |name, args| {
+                        move |name, args| {
                             let detail = extract_tool_detail(name, args);
                             if let Some(ref d) = detail {
                                 print!("\n> Running: {} ({}) ... ", name, d);
@@ -697,13 +724,39 @@ async fn streaming_chat_reporting(
                                 print!("\n> Running: {} ... ", name);
                             }
                             std::io::stdout().flush().ok();
+                            if let Some(sink) = &start_sink {
+                                sink.send(ChatEvent::ToolStarted {
+                                    name: name.to_string(),
+                                    detail,
+                                });
+                            }
                         },
-                        |_name, result| match result {
-                            Ok(()) => print!("Done."),
-                            Err(e) => print!("Failed: {}", e),
+                        move |name, result| {
+                            match result {
+                                Ok(()) => print!("Done."),
+                                Err(e) => print!("Failed: {}", e),
+                            }
+                            if let Some(sink) = &end_sink {
+                                sink.send(ChatEvent::ToolFinished {
+                                    name: name.to_string(),
+                                    error: result.err().map(str::to_string),
+                                });
+                            }
                         },
                     )
                     .await?;
+
+                // The model's reply after its tool calls.
+                if !follow_up.trim().is_empty() {
+                    print!("\nLocalGPT: {}", follow_up);
+                    if let Some(sink) = sink {
+                        sink.send(ChatEvent::Delta(follow_up.clone()));
+                    }
+                    if !full_response.is_empty() {
+                        full_response.push_str("\n\n");
+                    }
+                    full_response.push_str(&follow_up);
+                }
 
                 println!();
             } else {
@@ -750,6 +803,12 @@ struct Cli {
     /// Auto-enabled when using claude-cli/* models.
     #[arg(long, global = true)]
     mcp_relay: bool,
+
+    /// Run as a desktop app: type prompts in a panel inside the window
+    /// instead of the terminal. Automatic when Gen isn't started from a
+    /// terminal (for example, from the macOS app bundle).
+    #[arg(long)]
+    desktop: bool,
 
     /// Host a collaborative session on the LAN (listen server + mDNS
     /// announcement). Others join as read-only viewers with --join.
@@ -888,6 +947,39 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
+    // Desktop mode: the interactive app without a terminal to type in, so
+    // prompts come from the panel in the window. Automatic when stdin isn't a
+    // terminal (a double-click, or the macOS app bundle); --desktop forces it.
+    #[cfg(feature = "multiplayer")]
+    let joining = cli.join.is_some();
+    #[cfg(not(feature = "multiplayer"))]
+    let joining = false;
+    let launched_from_terminal = std::io::stdin().is_terminal();
+    let desktop = cli.command.is_none() && !joining && (cli.desktop || !launched_from_terminal);
+    if cli.desktop && (cli.command.is_some() || joining) {
+        anyhow::bail!("--desktop only applies to interactive mode (no subcommand, no --join)");
+    }
+
+    // Apps opened from Finder inherit launchd's minimal PATH, which hides CLI
+    // backends (claude, gemini, codex) installed with Homebrew, npm, or into
+    // ~/.local/bin. Adopt the login shell's PATH before anything spawns them.
+    // A failure is logged once logging is set up, below.
+    #[cfg(unix)]
+    let login_path_failed = desktop
+        && !launched_from_terminal
+        && match localgpt_gen::desktop::shell_env::login_shell_path() {
+            Some(login_path) => {
+                let current = std::env::var("PATH").unwrap_or_default();
+                let merged = localgpt_gen::desktop::shell_env::merge_paths(&current, &login_path);
+                // SAFETY: called at program start before any threads are spawned.
+                unsafe { std::env::set_var("PATH", merged) };
+                false
+            }
+            None => true,
+        };
+    #[cfg(not(unix))]
+    let login_path_failed = false;
+
     // Initialize logging before handing off to Bevy.
     // Use "warn" by default for cleaner interactive TUI, "debug" with --verbose.
     //
@@ -896,12 +988,25 @@ fn main() -> Result<()> {
     // the REPL — async warnings (Bevy render, Ollama, etc.) no longer clobber
     // the `You:` prompt mid-typing. Other subcommands (headless, mcp-server,
     // control) have no REPL to protect, so they log straight to stderr.
+    // Desktop mode has no terminal at all, so it logs to a file.
     let log_level = if cli.verbose { "debug" } else { "warn" };
     let mut repl_editor: Option<rustyline::DefaultEditor> = None;
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level));
 
-    if cli.command.is_none() {
+    if desktop {
+        match open_desktop_log() {
+            Some(file) => tracing_subscriber::fmt()
+                .with_env_filter(env_filter)
+                .with_ansi(false)
+                .with_writer(std::sync::Mutex::new(file))
+                .init(),
+            None => tracing_subscriber::fmt()
+                .with_env_filter(env_filter)
+                .with_writer(std::io::stderr)
+                .init(),
+        }
+    } else if cli.command.is_none() {
         let wired = rustyline::DefaultEditor::new()
             .ok()
             .and_then(|mut ed| ed.create_external_printer().ok().map(|p| (ed, p)));
@@ -923,6 +1028,13 @@ fn main() -> Result<()> {
             .with_env_filter(env_filter)
             .with_writer(std::io::stderr)
             .init();
+    }
+
+    if login_path_failed {
+        tracing::warn!(
+            "Couldn't read your login shell's PATH; CLI backends installed outside the \
+             system PATH may not be found"
+        );
     }
 
     // Load config early so both Bevy and agent threads can use it
@@ -1110,7 +1222,7 @@ fn main() -> Result<()> {
                 let completion_flag = gen3d::headless::HeadlessCompletionFlag::default();
                 run_headless_bevy_app(channels, workspace, completion_flag)
             } else {
-                run_bevy_app(channels, workspace, initial_scene)
+                run_bevy_app(channels, workspace, initial_scene, None)
             }
         }
 
@@ -1127,6 +1239,18 @@ fn main() -> Result<()> {
             let bridge_for_agent = bridge.clone();
             let bridge_for_relay = bridge.clone();
             let relay_config = config.clone();
+
+            // The in-window prompt panel: open at startup in desktop mode,
+            // one F2 away otherwise.
+            let (panel_channels, agent_channels) = localgpt_gen::desktop::create_chat_channels();
+            let panel = Some((
+                panel_channels,
+                PanelSettings {
+                    open: desktop,
+                    focus_input: desktop,
+                    config_file: Some(config.paths.config_file()),
+                },
+            ));
 
             // Host mode: set up the prompt/chat bridge to the net systems.
             #[cfg(feature = "multiplayer")]
@@ -1169,13 +1293,14 @@ fn main() -> Result<()> {
             // Move the REPL editor into the agent thread — it was created up
             // front so its ExternalPrinter could be wired into tracing.
             let editor_for_agent = repl_editor.take();
+            let failure_sink = agent_channels.sink.clone();
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Builder::new_multi_thread()
                     .enable_all()
                     .build()
                     .expect("Failed to build tokio runtime for gen agent");
 
-                rt.block_on(async move {
+                let outcome = rt.block_on(async move {
                     if enable_relay {
                         // Start the MCP relay server so external CLI tools (claude, codex, gemini)
                         // can connect to the existing Bevy window instead of spawning a new one.
@@ -1197,19 +1322,29 @@ fn main() -> Result<()> {
                         }
                     }
 
-                    if let Err(e) = run_agent_loop(
+                    run_agent_loop(
                         bridge_for_agent,
                         &agent_id,
                         initial_prompt,
                         relay_config,
                         editor_for_agent,
                         agent_net,
+                        agent_channels,
+                        desktop,
                     )
                     .await
-                    {
-                        tracing::error!("Gen agent loop error: {}", e);
-                    }
                 });
+
+                if let Err(e) = outcome {
+                    tracing::error!("Gen agent loop error: {}", e);
+                    if desktop {
+                        // No terminal to print to: say what went wrong in the
+                        // panel and leave the window open to read it.
+                        eprintln!("Gen agent loop error: {e}");
+                        failure_sink.send(ChatEvent::Failed(format!("{e:#}")));
+                        return;
+                    }
+                }
 
                 // REPL exited (/quit, Ctrl+D, or error). The Bevy window is
                 // still blocking the main thread, so the process would hang
@@ -1225,12 +1360,12 @@ fn main() -> Result<()> {
             // Run Bevy on the main thread (blocks until window closes)
             #[cfg(feature = "multiplayer")]
             let result = if let Some(options) = host_options {
-                run_host_bevy_app(channels, workspace, initial_scene, options)
+                run_host_bevy_app(channels, workspace, initial_scene, options, panel)
             } else {
-                run_bevy_app(channels, workspace, initial_scene)
+                run_bevy_app(channels, workspace, initial_scene, panel)
             };
             #[cfg(not(feature = "multiplayer"))]
-            let result = run_bevy_app(channels, workspace, initial_scene);
+            let result = run_bevy_app(channels, workspace, initial_scene, panel);
 
             // Clean up relay port file so stale ports aren't discovered
             if enable_relay {
@@ -1242,11 +1377,23 @@ fn main() -> Result<()> {
     }
 }
 
+/// The prompt panel's channels and startup settings, when the app has one.
+type PanelSetup = Option<(PanelChannels, PanelSettings)>;
+
+fn add_prompt_panel(app: &mut bevy::prelude::App, panel: PanelSetup) {
+    if let Some((channels, settings)) = panel {
+        app.add_plugins(localgpt_gen::desktop::PromptPanelPlugin::new(
+            channels, settings,
+        ));
+    }
+}
+
 /// Set up and run the Bevy application on the main thread.
 fn run_bevy_app(
     channels: gen3d::GenChannels,
     workspace: std::path::PathBuf,
     initial_scene: Option<PathBuf>,
+    panel: PanelSetup,
 ) -> Result<()> {
     use bevy::prelude::*;
 
@@ -1272,6 +1419,7 @@ fn run_bevy_app(
     );
 
     gen3d::plugin::setup_gen_app(&mut app, channels, workspace, initial_scene);
+    add_prompt_panel(&mut app, panel);
 
     app.run();
 
@@ -1286,6 +1434,7 @@ fn run_host_bevy_app(
     workspace: std::path::PathBuf,
     initial_scene: Option<PathBuf>,
     options: localgpt_gen::net::host::NetHostOptions,
+    panel: PanelSetup,
 ) -> Result<()> {
     use bevy::prelude::*;
 
@@ -1314,6 +1463,7 @@ fn run_host_bevy_app(
     app.add_plugins(localgpt_gen::net::host::NetHostPlugin {
         options: std::sync::Mutex::new(Some(options)),
     });
+    add_prompt_panel(&mut app, panel);
 
     app.run();
 
@@ -1510,6 +1660,18 @@ fn default_session_name() -> String {
         .or_else(|_| std::env::var("USER"))
         .unwrap_or_else(|_| "gen".to_string());
     format!("{user}'s world")
+}
+
+/// The desktop-mode log (`<state dir>/logs/gen-desktop.log`, appended to),
+/// since there's no terminal to log to. `None` if it can't be opened.
+fn open_desktop_log() -> Option<std::fs::File> {
+    let dir = localgpt_core::paths::Paths::resolve().ok()?.logs_dir();
+    std::fs::create_dir_all(&dir).ok()?;
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("gen-desktop.log"))
+        .ok()
 }
 
 /// Set up and run headless Bevy (no window) on the main thread.
@@ -1762,7 +1924,7 @@ Use `get_avatar_state` frequently to understand your position.
     // If initial prompt given, send it
     if let Some(prompt) = initial_prompt {
         println!("\n> {}", prompt);
-        streaming_chat(&mut agent, &prompt).await?;
+        streaming_chat(&mut agent, &prompt, None).await?;
         println!();
     }
 
@@ -1797,7 +1959,7 @@ Use `get_avatar_state` frequently to understand your position.
             break;
         }
 
-        streaming_chat(&mut agent, input).await?;
+        streaming_chat(&mut agent, input, None).await?;
         println!();
     }
 
@@ -1896,11 +2058,126 @@ async fn build_scoped_remote_agent(
 enum AgentInput {
     /// Line typed at the local REPL.
     Local(String),
+    /// Prompt typed in the in-window panel.
+    Panel(String),
     /// REPL closed (Ctrl+D or error).
     Eof,
     /// Queued prompt job dispatched from a connected collaborative client.
     #[cfg(feature = "multiplayer")]
     Remote(localgpt_gen::net::host::RemoteJob),
+}
+
+/// What the agent loop should do with a slash command typed in the panel.
+enum PanelCommand {
+    /// Handled (or explained) in the panel.
+    Handled,
+    /// Quit Gen.
+    Quit,
+}
+
+/// Slash commands typed in the prompt panel. [`handle_gen_command`] prints
+/// its results, which nobody sees without a terminal, so the commands that
+/// make sense in the window are handled here and the rest are explained.
+async fn panel_command(input: &str, agent: &mut Agent, sink: &ChatSink) -> PanelCommand {
+    let mut words = input.split_whitespace();
+    let command = words.next().unwrap_or_default();
+    let argument = words.collect::<Vec<_>>().join(" ");
+    match command {
+        "/quit" | "/exit" | "/q" => PanelCommand::Quit,
+        "/model" if argument.is_empty() => {
+            sink.send(ChatEvent::Notice(format!(
+                "Current model: {}",
+                agent.model()
+            )));
+            PanelCommand::Handled
+        }
+        "/model" => {
+            match agent.set_model(&argument) {
+                Ok(()) => {
+                    sink.send(ChatEvent::Ready {
+                        model: agent.model().to_string(),
+                    });
+                    sink.send(ChatEvent::Notice(format!("Now using {}.", agent.model())));
+                }
+                Err(e) => sink.send(ChatEvent::Warning(format!(
+                    "Couldn't switch to {argument}: {e}"
+                ))),
+            }
+            PanelCommand::Handled
+        }
+        "/new" => {
+            if let Err(e) = agent.save_session_to_memory().await {
+                tracing::warn!("Failed to save session to memory: {e}");
+            }
+            match agent.new_session().await {
+                Ok(()) => sink.send(ChatEvent::Notice(
+                    "Started a new conversation. The world stays as it is.".into(),
+                )),
+                Err(e) => sink.send(ChatEvent::Warning(format!(
+                    "Couldn't start a new conversation: {e}"
+                ))),
+            }
+            PanelCommand::Handled
+        }
+        "/clear" => {
+            agent.clear_session();
+            sink.send(ChatEvent::Notice(
+                "Cleared the conversation. The world stays as it is.".into(),
+            ));
+            PanelCommand::Handled
+        }
+        _ => {
+            sink.send(ChatEvent::Notice(format!(
+                "{command} prints its results in a terminal. Here you can use /model <name>, \
+                 /new, /clear, and /quit, and press G for the world gallery. Run localgpt-gen \
+                 from a terminal for the rest."
+            )));
+            PanelCommand::Handled
+        }
+    }
+}
+
+/// Which CLI backend a model string selects, if any (matching the checks
+/// that set up the MCP relay in [`run_agent_loop`]).
+fn cli_family(model: &str) -> Option<&'static str> {
+    if model.starts_with("claude-cli") {
+        Some("claude-cli")
+    } else if model.starts_with("gemini-cli") {
+        Some("gemini-cli")
+    } else if model.starts_with("codex") {
+        Some("codex")
+    } else {
+        None
+    }
+}
+
+/// A first-run hint when the configured model is a CLI backend whose
+/// program can't be found, so desktop users learn why nothing happens
+/// before they type.
+fn missing_cli_backend_hint(config: &localgpt_core::config::Config) -> Option<String> {
+    use localgpt_gen::desktop::models::find_on_path;
+
+    let model = config.agent.default_model.as_str();
+    let providers = &config.providers;
+    let (label, program) = if model.starts_with("claude-cli") {
+        let command = providers.claude_cli.as_ref().map(|c| c.command.clone());
+        ("Claude CLI", command.unwrap_or_else(|| "claude".into()))
+    } else if model.starts_with("gemini-cli") {
+        let command = providers.gemini_cli.as_ref().map(|c| c.command.clone());
+        ("Gemini CLI", command.unwrap_or_else(|| "gemini".into()))
+    } else if model.starts_with("codex-cli") || model == "codex" {
+        let command = providers.codex_cli.as_ref().map(|c| c.command.clone());
+        ("Codex CLI", command.unwrap_or_else(|| "codex".into()))
+    } else {
+        return None;
+    };
+    let found = Path::new(&program).is_file() || find_on_path(&program).is_some();
+    (!found).then(|| {
+        format!(
+            "Your model is {model}, but Gen can't find the {label} (`{program}`). Install it \
+             and sign in, then restart Gen, or pick another model from the menu above."
+        )
+    })
 }
 
 /// Run the interactive agent loop with Gen tools available.
@@ -1910,6 +2187,11 @@ enum AgentInput {
 /// connected clients can be interleaved with local input. When hosting,
 /// every turn (local or remote) is echoed to connected clients as
 /// [`localgpt_gen::net::protocol::HostChat`] messages.
+///
+/// Prompts from the in-window panel join the same stream, and every turn is
+/// reported back to it. In `desktop` mode there's no terminal, so the REPL
+/// isn't started and the panel is the only local input.
+#[allow(clippy::too_many_arguments)]
 async fn run_agent_loop(
     bridge: std::sync::Arc<gen3d::GenBridge>,
     agent_id: &str,
@@ -1917,6 +2199,8 @@ async fn run_agent_loop(
     config: localgpt_core::config::Config,
     editor: Option<rustyline::DefaultEditor>,
     net_hooks: AgentNetHooksOpt,
+    panel: AgentChannels,
+    desktop: bool,
 ) -> Result<()> {
     use localgpt_core::agent::tools::create_safe_tools;
     use localgpt_core::agent::{Agent, create_spawn_agent_tool};
@@ -2056,20 +2340,78 @@ async fn run_agent_loop(
     println!("  E             Interact with NPC / object");
     println!("  1-5           Select dialogue choice");
     println!("  Escape        Deselect entity (inspector)");
+    println!("  F2            Toggle the prompt panel");
     println!();
+
+    // Tell the prompt panel what's running and what it could switch to.
+    let sink = panel.sink.clone();
+    sink.send(ChatEvent::Ready {
+        model: agent.model().to_string(),
+    });
+    if let Some(hint) = missing_cli_backend_hint(&config) {
+        if desktop {
+            tracing::warn!("{hint}");
+        } else {
+            eprintln!("{hint}");
+        }
+        sink.send(ChatEvent::Warning(hint));
+    }
+    {
+        let sink = sink.clone();
+        let current = agent.model().to_string();
+        let ollama_endpoint = config
+            .providers
+            .ollama
+            .as_ref()
+            .map(|ollama| ollama.endpoint.clone())
+            .unwrap_or_else(|| localgpt_gen::desktop::models::DEFAULT_OLLAMA_ENDPOINT.to_string());
+        // A CLI backend only works in a session that started with one of its
+        // family: the MCP relay and its tool config are set up at startup.
+        let startup_family = cli_family(&current);
+        tokio::spawn(async move {
+            let mut options =
+                localgpt_gen::desktop::models::detect_model_options(&current, &ollama_endpoint)
+                    .await;
+            options.retain(|model| {
+                let family = cli_family(model);
+                family.is_none() || family == startup_family
+            });
+            sink.send(ChatEvent::ModelOptions(options));
+        });
+    }
 
     // If initial prompt given, send it
     if let Some(prompt) = initial_prompt {
         println!("\nYou: {}", prompt);
-        streaming_chat(&mut agent, &prompt).await?;
+        sink.send(ChatEvent::Prompt {
+            text: prompt.clone(),
+            from: None,
+        });
+        streaming_chat(&mut agent, &prompt, Some(&sink)).await?;
         println!();
     }
 
-    // Set up the merged input stream: REPL lines on a blocking thread,
-    // plus remote client prompts when hosting.
+    // Set up the merged input stream: REPL lines on a blocking thread
+    // (terminal mode only), prompts from the window's panel, plus remote
+    // client prompts when hosting.
     let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel::<AgentInput>();
+    {
+        let mut prompt_rx = panel.prompt_rx;
+        let panel_tx = event_tx.clone();
+        tokio::spawn(async move {
+            while let Some(prompt) = prompt_rx.recv().await {
+                if panel_tx.send(AgentInput::Panel(prompt)).is_err() {
+                    break;
+                }
+            }
+        });
+    }
     let repl_event_tx = event_tx.clone();
+    let start_repl = !desktop;
     std::thread::spawn(move || {
+        if !start_repl {
+            return;
+        }
         // Reuse the editor created in main() so tracing's ExternalPrinter
         // stays wired to its pipe. Fall back to a fresh editor if one
         // wasn't provided.
@@ -2133,8 +2475,9 @@ async fn run_agent_loop(
         let Some(event) = event_rx.recv().await else {
             break;
         };
-        let (input, from_client) = match event {
+        let (input, from_panel) = match event {
             AgentInput::Local(line) => (line, false),
+            AgentInput::Panel(line) => (line, true),
             AgentInput::Eof => break, // Ctrl+D
             #[cfg(feature = "multiplayer")]
             AgentInput::Remote(job) => {
@@ -2143,15 +2486,24 @@ async fn run_agent_loop(
                 if let Some(tx) = &job_events_tx {
                     let _ = tx.send(JobEvent::Started(job.job_id));
                 }
+                sink.send(ChatEvent::Prompt {
+                    text: job.display.clone(),
+                    from: Some(format!("Guest · job #{}", job.job_id)),
+                });
                 // A failed remote job must not take the host's REPL down.
                 let result = match &mut remote_worker {
                     RemoteWorker::Host => {
-                        streaming_chat_reporting(&mut agent, &job.agent_prompt).await
+                        streaming_chat_reporting(&mut agent, &job.agent_prompt, Some(&sink)).await
                     }
                     RemoteWorker::Scoped(remote) => {
-                        streaming_chat_reporting(remote, &job.agent_prompt).await
+                        streaming_chat_reporting(remote, &job.agent_prompt, Some(&sink)).await
                     }
-                    RemoteWorker::Disabled(reason) => Ok((String::new(), Some(reason.clone()))),
+                    RemoteWorker::Disabled(reason) => {
+                        sink.send(ChatEvent::TurnFinished {
+                            error: Some(reason.clone()),
+                        });
+                        Ok((String::new(), Some(reason.clone())))
+                    }
                 };
                 let error = match result {
                     Ok((_, Some(model_error))) => Some(model_error),
@@ -2181,24 +2533,42 @@ async fn run_agent_loop(
                 continue;
             }
         };
-        #[cfg(not(feature = "multiplayer"))]
-        let _ = from_client;
-
         let input = input.trim();
         if input.is_empty() {
             continue;
         }
+        // Who the panel should say sent this prompt (None = the panel itself).
+        let sender = (!from_panel).then(|| "Terminal".to_string());
 
-        // Handle slash commands (local REPL only — clients can't run them)
+        // Handle slash commands (local only — collaborative clients can't
+        // run them). Their output is printed, so the panel handles the few
+        // that make sense without a terminal and explains the rest.
         if input.starts_with('/') {
-            if from_client {
-                continue;
+            if from_panel {
+                match panel_command(input, &mut agent, &sink).await {
+                    PanelCommand::Handled => continue,
+                    PanelCommand::Quit => break,
+                }
             }
-            match handle_gen_command(input, &mut agent, agent_id, &workspace).await {
+            let result = handle_gen_command(input, &mut agent, agent_id, &workspace).await;
+            // Keep the panel's model label right after /model and friends.
+            sink.send(ChatEvent::Ready {
+                model: agent.model().to_string(),
+            });
+            match result {
                 CommandResult::Continue => continue,
                 CommandResult::Quit => break,
                 CommandResult::SendMessage(msg) => {
-                    let reply = streaming_chat(&mut agent, &msg).await?;
+                    sink.send(ChatEvent::Prompt {
+                        text: msg.clone(),
+                        from: sender,
+                    });
+                    let reply = streaming_chat(&mut agent, &msg, Some(&sink))
+                        .await
+                        .unwrap_or_else(|e| {
+                            eprintln!("\nError: {e}");
+                            String::new()
+                        });
                     #[cfg(feature = "multiplayer")]
                     if let Some(chat_tx) = &chat_tx {
                         let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
@@ -2218,15 +2588,24 @@ async fn run_agent_loop(
                 }
             }
         } else {
-            let reply = streaming_chat(&mut agent, input).await?;
+            sink.send(ChatEvent::Prompt {
+                text: input.to_string(),
+                from: sender,
+            });
+            // A failed turn is reported (terminal and panel) but doesn't end
+            // the session.
+            let reply = streaming_chat(&mut agent, input, Some(&sink))
+                .await
+                .unwrap_or_else(|e| {
+                    eprintln!("\nError: {e}");
+                    String::new()
+                });
             #[cfg(feature = "multiplayer")]
             if let Some(chat_tx) = &chat_tx {
-                if !from_client {
-                    let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
-                        speaker: "host-user".to_string(),
-                        text: input.to_string(),
-                    });
-                }
+                let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
+                    speaker: "host-user".to_string(),
+                    text: input.to_string(),
+                });
                 if !reply.is_empty() {
                     let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
                         speaker: "host".to_string(),

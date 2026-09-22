@@ -7,6 +7,7 @@
 
 pub mod character;
 pub mod character_tools;
+pub mod desktop;
 pub mod experiment;
 pub mod gen3d;
 pub mod gpu_lock;

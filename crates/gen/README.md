@@ -14,6 +14,19 @@ Or via Docker:
 docker pull ghcr.io/localgpt-app/localgpt-gen:latest
 ```
 
+## Prompt panel and desktop mode
+
+Run `localgpt-gen` and type prompts in the terminal, or press **F2** to type
+them in a panel inside the window. The panel shows replies and tool calls as
+they happen, and has a menu of the models this machine can use (installed
+Claude CLI, Gemini CLI, or Codex, and local Ollama models).
+
+Started without a terminal (for example as a macOS app) or with `--desktop`,
+Gen runs in **desktop mode**: the panel opens at startup and replaces the
+terminal. **Enter** jumps from the 3D view to the prompt box and **Esc**
+leaves it. To build a macOS app bundle, see `apps/gen-desktop/` in the
+repository.
+
 ## MCP Server Setup
 
 LocalGPT Gen runs as an MCP server over stdio. Connect it to any MCP-compatible client:
