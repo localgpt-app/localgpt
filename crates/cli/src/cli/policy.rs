@@ -1,6 +1,6 @@
-//! CLI subcommand: `localgpt md`
+//! CLI subcommand: `localgpt policy` (alias: `localgpt md`)
 //!
-//! Reports on the workspace security policy (LocalGPT.md): whether it
+//! Reports on the workspace security policy (POLICY.md): whether it
 //! exists, whether it passes sanitization, and device key presence.
 
 use anyhow::Result;
@@ -10,20 +10,20 @@ use localgpt_core::config::Config;
 use localgpt_core::security;
 
 #[derive(Args)]
-pub struct MdArgs {
+pub struct PolicyArgs {
     #[command(subcommand)]
-    pub command: MdCommands,
+    pub command: PolicyCommands,
 }
 
 #[derive(Subcommand)]
-pub enum MdCommands {
+pub enum PolicyCommands {
     /// Show current security posture
     Status,
 }
 
-pub async fn run(args: MdArgs) -> Result<()> {
+pub async fn run(args: PolicyArgs) -> Result<()> {
     match args.command {
-        MdCommands::Status => show_status().await,
+        PolicyCommands::Status => show_status().await,
     }
 }
 
@@ -33,10 +33,9 @@ async fn show_status() -> Result<()> {
 
     println!("Security Status:");
 
-    // Policy file
-    let policy_path = workspace.join(security::POLICY_FILENAME);
-    if policy_path.exists() {
-        match security::load_policy(&workspace) {
+    // Policy file (POLICY.md, or legacy LocalGPT.md before the rename)
+    match security::find_policy_file(&workspace) {
+        Some(policy_path) => match security::load_policy(&workspace) {
             Some(content) => {
                 println!(
                     "  Policy:     {} (active, {} chars after sanitization)",
@@ -50,9 +49,13 @@ async fn show_status() -> Result<()> {
                     policy_path.display()
                 );
             }
+        },
+        None => {
+            println!(
+                "  Policy:     Not created ({})",
+                workspace.join(security::POLICY_FILENAME).display()
+            );
         }
-    } else {
-        println!("  Policy:     Not created ({})", policy_path.display());
     }
 
     // Device key (used to encrypt bridge credentials)

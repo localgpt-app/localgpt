@@ -151,7 +151,7 @@ Model prefix determines LLM provider:
 
 ### Protected Files
 The agent is blocked from writing to:
-- `LocalGPT.md`
+- `POLICY.md` (and the legacy `LocalGPT.md`)
 - `IDENTITY.md`
 - `localgpt.device.key`
 

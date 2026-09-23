@@ -13,9 +13,9 @@ pub mod gen3d;
 pub mod hooks;
 pub mod init;
 pub mod mcp_server;
-pub mod md;
 pub mod memory;
 pub mod paths;
+pub mod policy;
 pub mod sandbox;
 pub mod search;
 pub mod session;
@@ -82,8 +82,9 @@ pub enum Commands {
     /// Configuration management
     Config(config::ConfigArgs),
 
-    /// LocalGPT.md policy management
-    Md(md::MdArgs),
+    /// POLICY.md policy management
+    #[command(alias = "md")]
+    Policy(policy::PolicyArgs),
 
     /// Show resolved XDG directory paths
     Paths,

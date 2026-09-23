@@ -18,7 +18,7 @@ LocalGPT is a **local AI assistant with persistent memory, semantic search, and 
 - **Autonomous Heartbeat** - Daemon mode with scheduled background tasks that run automatically
 - **Skills System** - Extensible skills for specialized tasks
 - **Shell Sandbox** - Kernel-level isolation (Landlock + seccomp + Seatbelt) on every shell command. Zero configuration, enabled by default, graceful degradation. [Not a guarantee](/docs/sandbox#limitations) — defense in depth.
-- **Standing Instructions** - Plain `LocalGPT.md` of persistent, end-of-context directives — coding conventions, security boundaries, workflow preferences — sanitized before injection and protected from agent self-modification
+- **Standing Instructions** - Plain `POLICY.md` of persistent, end-of-context directives — coding conventions, security boundaries, workflow preferences — sanitized before injection and protected from agent self-modification
 - **Session Management** - Multi-session support with automatic context compaction
 - **HTTP API & WebSocket** - RESTful API and real-time WebSocket for integrations
 
@@ -36,7 +36,7 @@ LocalGPT follows the [XDG Base Directory Specification](https://specifications.f
 ├── workspace/
 │   ├── MEMORY.md                # Curated long-term knowledge
 │   ├── HEARTBEAT.md             # Pending autonomous tasks
-│   ├── LocalGPT.md              # Standing instructions
+│   ├── POLICY.md                # Standing instructions
 │   └── memory/
 │       └── YYYY-MM-DD.md        # Conversation logs
 └── localgpt.device.key          # Device key for bridge credential encryption (0600)
@@ -60,7 +60,7 @@ Windows has no separate config/state directories, so config, data, and state all
 ├── workspace\
 │   ├── MEMORY.md                # Curated long-term knowledge
 │   ├── HEARTBEAT.md             # Pending autonomous tasks
-│   ├── LocalGPT.md              # Standing instructions
+│   ├── POLICY.md                # Standing instructions
 │   └── memory\
 │       └── YYYY-MM-DD.md        # Conversation logs
 ├── localgpt.device.key          # Device key for bridge credential encryption
@@ -106,4 +106,4 @@ LocalGPT automatically detects the provider based on model name prefix:
 - [Architecture](/docs/architecture) - Understand the crate structure and dependencies
 - [CLI Commands](/docs/cli-commands) - Learn the available commands
 - [Shell Sandbox](/docs/sandbox) - Understand the security sandbox
-- [LocalGPT.md](/docs/localgpt) - Your standing instructions to the AI
+- [POLICY.md](/docs/policy) - Your standing instructions to the AI

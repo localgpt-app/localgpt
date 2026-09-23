@@ -47,10 +47,15 @@ pub fn init_workspace(workspace: &Path, paths: &crate::paths::Paths) -> Result<b
         info!("Created {}", soul_path.display());
     }
 
-    // Create LocalGPT.md security policy template if it doesn't exist
+    // Create POLICY.md security policy template if neither the current
+    // nor the legacy policy file exists (a legacy LocalGPT.md still loads)
     let policy_path = workspace.join(crate::security::POLICY_FILENAME);
-    if !policy_path.exists() {
-        fs::write(&policy_path, LOCALGPT_POLICY_TEMPLATE)?;
+    if !policy_path.exists()
+        && !workspace
+            .join(crate::security::LEGACY_POLICY_FILENAME)
+            .exists()
+    {
+        fs::write(&policy_path, POLICY_TEMPLATE)?;
         info!("Created {}", policy_path.display());
     }
 
@@ -143,7 +148,7 @@ If you change this file, tell the user — it's your soul, and they should know.
 _This file is yours to evolve. As you learn who you are, update it._
 "#;
 
-const LOCALGPT_POLICY_TEMPLATE: &str = r#"# LocalGPT.md
+const POLICY_TEMPLATE: &str = r#"# POLICY.md
 
 Your standing instructions to the AI — always present, near the end.
 
@@ -173,7 +178,7 @@ const GITIGNORE_TEMPLATE: &str = r#"# LocalGPT workspace .gitignore
 # - MEMORY.md (curated knowledge)
 # - HEARTBEAT.md (pending tasks)
 # - SOUL.md (persona)
-# - LocalGPT.md (security policy)
+# - POLICY.md (security policy)
 # - memory/*.md (daily logs)
 # - skills/ (custom skills)
 

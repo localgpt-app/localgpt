@@ -572,11 +572,6 @@ public protocol LocalGptClientProtocol: AnyObject, Sendable {
     func getHeartbeat() throws  -> String
     
     /**
-     * Get the LocalGPT.md content (security policy / standing instructions).
-     */
-    func getLocalgptMd() throws  -> String
-    
-    /**
      * Get the MEMORY.md content.
      */
     func getMemory() throws  -> String
@@ -587,6 +582,14 @@ public protocol LocalGptClientProtocol: AnyObject, Sendable {
     func getModel()  -> String
     
     /**
+     * Get the POLICY.md content (security policy / standing instructions).
+     *
+     * Falls back to the legacy `LocalGPT.md` when `POLICY.md` does not
+     * exist yet, so workspaces created before the rename keep working.
+     */
+    func getPolicy() throws  -> String
+    
+    /**
      * Get the SOUL.md content (persona/tone guidance).
      */
     func getSoul() throws  -> String
@@ -595,8 +598,9 @@ public protocol LocalGptClientProtocol: AnyObject, Sendable {
      * Read an arbitrary workspace file by name.
      *
      * Only the known editable files (MEMORY.md, SOUL.md, HEARTBEAT.md,
-     * LocalGPT.md) are allowed. Returns `MobileError::Memory` for
-     * unknown file names to prevent path-traversal.
+     * POLICY.md — plus the legacy LocalGPT.md) are allowed. Returns
+     * `MobileError::Memory` for unknown file names to prevent
+     * path-traversal.
      */
     func getWorkspaceFile(filename: String) throws  -> String
     
@@ -609,7 +613,7 @@ public protocol LocalGptClientProtocol: AnyObject, Sendable {
     /**
      * Check whether a workspace file is security-sensitive.
      *
-     * Security-sensitive files (like LocalGPT.md) affect the agent's
+     * Security-sensitive files (like POLICY.md) affect the agent's
      * security policy and require user confirmation before editing.
      * The mobile UI should display a warning dialog before allowing
      * edits to these files.
@@ -625,9 +629,11 @@ public protocol LocalGptClientProtocol: AnyObject, Sendable {
      * List the editable workspace files with their current content.
      *
      * Returns `WorkspaceFile` entries for MEMORY.md, SOUL.md,
-     * HEARTBEAT.md, and LocalGPT.md. Files that do not exist yet are
+     * HEARTBEAT.md, and POLICY.md. Files that do not exist yet are
      * returned with an empty `content` string. Security-sensitive files
-     * (like LocalGPT.md) are flagged with `is_security_sensitive = true`.
+     * (like POLICY.md) are flagged with `is_security_sensitive = true`.
+     * For POLICY.md, the content falls back to the legacy `LocalGPT.md`
+     * when the renamed file does not exist yet.
      */
     func listWorkspaceFiles()  -> [WorkspaceFile]
     
@@ -657,15 +663,6 @@ public protocol LocalGptClientProtocol: AnyObject, Sendable {
     func setHeartbeat(content: String) throws 
     
     /**
-     * Write new LocalGPT.md content (security policy / standing instructions).
-     *
-     * This is a plain file write — the policy is loaded and sanitized at
-     * the next session start. Editing is only allowed through explicit
-     * user action (never by the agent).
-     */
-    func setLocalgptMd(content: String) throws 
-    
-    /**
      * Write new MEMORY.md content.
      */
     func setMemory(content: String) throws 
@@ -676,6 +673,15 @@ public protocol LocalGptClientProtocol: AnyObject, Sendable {
     func setModel(model: String) throws 
     
     /**
+     * Write new POLICY.md content (security policy / standing instructions).
+     *
+     * This is a plain file write — the policy is loaded and sanitized at
+     * the next session start. Editing is only allowed through explicit
+     * user action (never by the agent).
+     */
+    func setPolicy(content: String) throws 
+    
+    /**
      * Write new SOUL.md content.
      */
     func setSoul(content: String) throws 
@@ -684,8 +690,10 @@ public protocol LocalGptClientProtocol: AnyObject, Sendable {
      * Write an arbitrary workspace file by name.
      *
      * Only the known editable files (MEMORY.md, SOUL.md, HEARTBEAT.md,
-     * LocalGPT.md) are allowed. The caller (mobile UI) must confirm
-     * security-sensitive file edits before calling this method.
+     * POLICY.md — plus the legacy LocalGPT.md) are allowed. The caller
+     * (mobile UI) must confirm security-sensitive file edits before
+     * calling this method. Writing via the legacy name stores to
+     * POLICY.md.
      */
     func setWorkspaceFile(filename: String, content: String) throws 
     
@@ -820,17 +828,6 @@ open func getHeartbeat()throws  -> String  {
 }
     
     /**
-     * Get the LocalGPT.md content (security policy / standing instructions).
-     */
-open func getLocalgptMd()throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeMobileError_lift) {
-    uniffi_localgpt_mobile_fn_method_localgptclient_get_localgpt_md(
-            self.uniffiCloneHandle(),$0
-    )
-})
-}
-    
-    /**
      * Get the MEMORY.md content.
      */
 open func getMemory()throws  -> String  {
@@ -853,6 +850,20 @@ open func getModel() -> String  {
 }
     
     /**
+     * Get the POLICY.md content (security policy / standing instructions).
+     *
+     * Falls back to the legacy `LocalGPT.md` when `POLICY.md` does not
+     * exist yet, so workspaces created before the rename keep working.
+     */
+open func getPolicy()throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeMobileError_lift) {
+    uniffi_localgpt_mobile_fn_method_localgptclient_get_policy(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
      * Get the SOUL.md content (persona/tone guidance).
      */
 open func getSoul()throws  -> String  {
@@ -867,8 +878,9 @@ open func getSoul()throws  -> String  {
      * Read an arbitrary workspace file by name.
      *
      * Only the known editable files (MEMORY.md, SOUL.md, HEARTBEAT.md,
-     * LocalGPT.md) are allowed. Returns `MobileError::Memory` for
-     * unknown file names to prevent path-traversal.
+     * POLICY.md — plus the legacy LocalGPT.md) are allowed. Returns
+     * `MobileError::Memory` for unknown file names to prevent
+     * path-traversal.
      */
 open func getWorkspaceFile(filename: String)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeMobileError_lift) {
@@ -894,7 +906,7 @@ open func isBrandNew() -> Bool  {
     /**
      * Check whether a workspace file is security-sensitive.
      *
-     * Security-sensitive files (like LocalGPT.md) affect the agent's
+     * Security-sensitive files (like POLICY.md) affect the agent's
      * security policy and require user confirmation before editing.
      * The mobile UI should display a warning dialog before allowing
      * edits to these files.
@@ -923,9 +935,11 @@ open func listProviders() -> [String]  {
      * List the editable workspace files with their current content.
      *
      * Returns `WorkspaceFile` entries for MEMORY.md, SOUL.md,
-     * HEARTBEAT.md, and LocalGPT.md. Files that do not exist yet are
+     * HEARTBEAT.md, and POLICY.md. Files that do not exist yet are
      * returned with an empty `content` string. Security-sensitive files
-     * (like LocalGPT.md) are flagged with `is_security_sensitive = true`.
+     * (like POLICY.md) are flagged with `is_security_sensitive = true`.
+     * For POLICY.md, the content falls back to the legacy `LocalGPT.md`
+     * when the renamed file does not exist yet.
      */
 open func listWorkspaceFiles() -> [WorkspaceFile]  {
     return try!  FfiConverterSequenceTypeWorkspaceFile.lift(try! rustCall() {
@@ -993,21 +1007,6 @@ open func setHeartbeat(content: String)throws   {try rustCallWithError(FfiConver
 }
     
     /**
-     * Write new LocalGPT.md content (security policy / standing instructions).
-     *
-     * This is a plain file write — the policy is loaded and sanitized at
-     * the next session start. Editing is only allowed through explicit
-     * user action (never by the agent).
-     */
-open func setLocalgptMd(content: String)throws   {try rustCallWithError(FfiConverterTypeMobileError_lift) {
-    uniffi_localgpt_mobile_fn_method_localgptclient_set_localgpt_md(
-            self.uniffiCloneHandle(),
-        FfiConverterString.lower(content),$0
-    )
-}
-}
-    
-    /**
      * Write new MEMORY.md content.
      */
 open func setMemory(content: String)throws   {try rustCallWithError(FfiConverterTypeMobileError_lift) {
@@ -1030,6 +1029,21 @@ open func setModel(model: String)throws   {try rustCallWithError(FfiConverterTyp
 }
     
     /**
+     * Write new POLICY.md content (security policy / standing instructions).
+     *
+     * This is a plain file write — the policy is loaded and sanitized at
+     * the next session start. Editing is only allowed through explicit
+     * user action (never by the agent).
+     */
+open func setPolicy(content: String)throws   {try rustCallWithError(FfiConverterTypeMobileError_lift) {
+    uniffi_localgpt_mobile_fn_method_localgptclient_set_policy(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(content),$0
+    )
+}
+}
+    
+    /**
      * Write new SOUL.md content.
      */
 open func setSoul(content: String)throws   {try rustCallWithError(FfiConverterTypeMobileError_lift) {
@@ -1044,8 +1058,10 @@ open func setSoul(content: String)throws   {try rustCallWithError(FfiConverterTy
      * Write an arbitrary workspace file by name.
      *
      * Only the known editable files (MEMORY.md, SOUL.md, HEARTBEAT.md,
-     * LocalGPT.md) are allowed. The caller (mobile UI) must confirm
-     * security-sensitive file edits before calling this method.
+     * POLICY.md — plus the legacy LocalGPT.md) are allowed. The caller
+     * (mobile UI) must confirm security-sensitive file edits before
+     * calling this method. Writing via the legacy name stores to
+     * POLICY.md.
      */
 open func setWorkspaceFile(filename: String, content: String)throws   {try rustCallWithError(FfiConverterTypeMobileError_lift) {
     uniffi_localgpt_mobile_fn_method_localgptclient_set_workspace_file(
@@ -1526,31 +1542,31 @@ private let initializationResult: InitializationResult = {
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_get_heartbeat() != 30611) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_localgpt_mobile_checksum_method_localgptclient_get_localgpt_md() != 28767) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_get_memory() != 44993) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_get_model() != 10028) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_localgpt_mobile_checksum_method_localgptclient_get_policy() != 9101) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_get_soul() != 1522) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_localgpt_mobile_checksum_method_localgptclient_get_workspace_file() != 25833) {
+    if (uniffi_localgpt_mobile_checksum_method_localgptclient_get_workspace_file() != 62437) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_is_brand_new() != 50749) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_localgpt_mobile_checksum_method_localgptclient_is_workspace_file_security_sensitive() != 5821) {
+    if (uniffi_localgpt_mobile_checksum_method_localgptclient_is_workspace_file_security_sensitive() != 36943) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_list_providers() != 61507) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_localgpt_mobile_checksum_method_localgptclient_list_workspace_files() != 40376) {
+    if (uniffi_localgpt_mobile_checksum_method_localgptclient_list_workspace_files() != 19167) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_memory_get() != 5686) {
@@ -1568,19 +1584,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_heartbeat() != 47503) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_localgpt_md() != 29577) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_memory() != 23855) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_model() != 47445) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_policy() != 2607) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_soul() != 13659) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_workspace_file() != 57850) {
+    if (uniffi_localgpt_mobile_checksum_method_localgptclient_set_workspace_file() != 58323) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_localgpt_mobile_checksum_constructor_localgptclient_new() != 46122) {

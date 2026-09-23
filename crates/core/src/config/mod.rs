@@ -355,10 +355,10 @@ pub struct PerplexityConfig {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SecurityConfig {
-    /// Skip loading and injecting the `LocalGPT.md` workspace security policy
+    /// Skip loading and injecting the `POLICY.md` workspace security policy
     /// (default: false).
     ///
-    /// When true, the user's `LocalGPT.md` content is not loaded or
+    /// When true, the user's `POLICY.md` content is not loaded or
     /// injected into the context window. The hardcoded security suffix still
     /// applies unless [`disable_suffix`] is also set.
     #[serde(default)]

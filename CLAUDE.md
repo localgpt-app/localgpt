@@ -251,7 +251,8 @@ Aliases resolve first (e.g. `opus` → `anthropic/claude-opus-4-6`, `sonnet`,
   (mobile). **env.rs** centralizes all `LOCALGPT_*` env var names.
 - **commands.rs** — shared slash command definitions (CLI + bridges).
 - **concurrency/** — TurnGate (one agent turn at a time) + WorkspaceLock.
-- **security/** — LocalGPT.md policy loading and injection sanitization, the
+- **security/** — POLICY.md policy loading (with legacy `LocalGPT.md`
+  fallback) and injection sanitization, the
   protected-files deny list, and the hardcoded security suffix.
 
 ### Server (`crates/server/src/`)
@@ -267,10 +268,10 @@ Aliases resolve first (e.g. `opus` → `anthropic/claude-opus-4-6`, `sonnet`,
 ### CLI Subcommands (`crates/cli/src/cli/`)
 
 `chat`, `tui`, `ask`, `desktop` (feature-gated), `gen`, `daemon`, `memory`,
-`config`, `md` (LocalGPT.md policy), `paths`, `sandbox`, `search`, `init`,
-`bridge`, `doctor`, `tool`/`plugin` (MCP servers), `completion`,
-`cron`, `hooks`, `mcp-server` (run as stdio MCP server exposing memory),
-`session`, `cert`.
+`config`, `policy` (POLICY.md management; alias `md`), `paths`, `sandbox`,
+`search`, `init`, `bridge`, `doctor`, `tool`/`plugin` (MCP servers),
+`completion`, `cron`, `hooks`, `mcp-server` (run as stdio MCP server
+exposing memory), `session`, `cert`.
 
 ### Gen (3D Scene Generation with Audio + Multiplayer)
 

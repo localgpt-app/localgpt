@@ -111,7 +111,7 @@ Foundation library with zero platform-specific dependencies:
 - **Agent**: LLM provider abstraction (OpenAI, Anthropic, Ollama, Claude CLI, GLM)
 - **Memory**: SQLite FTS5 + markdown files + vector embeddings
 - **Config**: TOML configuration with XDG path resolution
-- **Security**: LocalGPT.md policy injection & sanitization, protected files, hardcoded security suffix
+- **Security**: POLICY.md policy injection & sanitization, protected files, hardcoded security suffix
 - **Heartbeat**: Autonomous task runner based on `HEARTBEAT.md`
 - **Session**: Conversation management with automatic compaction
 

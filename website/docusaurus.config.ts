@@ -59,6 +59,11 @@ const config: Config = {
             to: 'https://github.com/localgpt-app/localgpt-gen-workspace/blob/main/skills/desert-pyramids-ufo/SKILL.md',
             from: '/desert-pyramids-ufo',
           },
+          {
+            // The policy doc moved when LocalGPT.md was renamed to POLICY.md
+            to: '/docs/policy',
+            from: '/docs/localgpt',
+          },
         ],
       },
     ],
@@ -185,8 +190,8 @@ const config: Config = {
               to: '/docs/sandbox',
             },
             {
-              label: 'LocalGPT.md',
-              to: '/docs/localgpt',
+              label: 'POLICY.md',
+              to: '/docs/policy',
             },
           ],
         },

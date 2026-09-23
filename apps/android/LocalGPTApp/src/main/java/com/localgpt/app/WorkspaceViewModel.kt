@@ -24,7 +24,7 @@ data class WorkspaceFileItem(
             "MEMORY.md" -> "Long-term curated knowledge the agent remembers across sessions."
             "SOUL.md" -> "Persona and tone guidance that shapes how the agent communicates."
             "HEARTBEAT.md" -> "Task queue for autonomous background operations."
-            "LocalGPT.md" -> "Security policy that restricts what the agent can do. Changes are cryptographically signed."
+            "POLICY.md" -> "Security policy and standing instructions that shape what the agent does."
             else -> "Workspace file."
         }
 }

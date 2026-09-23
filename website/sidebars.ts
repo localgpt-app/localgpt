@@ -39,7 +39,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Security',
-      items: ['sandbox', 'localgpt'],
+      items: ['sandbox', 'policy'],
     },
     {
       type: 'category',

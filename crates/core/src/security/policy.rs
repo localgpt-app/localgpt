@@ -1,16 +1,20 @@
-//! Policy loading and sanitization pipeline for `LocalGPT.md`.
+//! Policy loading and sanitization pipeline for `POLICY.md`.
 //!
 //! Called at every session start in [`Agent::new()`](crate::agent::Agent).
 //! The policy file is plain markdown: it is read if present, run through
 //! the sanitization pipeline, truncated to [`MAX_POLICY_CHARS`], and
 //! injected into the context window ahead of the hardcoded security suffix.
 //!
+//! Workspaces created before the rename are honored: a legacy
+//! `LocalGPT.md` loads when no `POLICY.md` exists (see
+//! [`find_policy_file`]).
+//!
 //! If the file is missing, unreadable, or rejected by sanitization, the
 //! agent simply runs with the hardcoded security suffix only.
 
 use std::fs;
 use std::path::Path;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 /// Maximum characters allowed in policy content after sanitization.
 ///
@@ -18,11 +22,36 @@ use tracing::{debug, warn};
 /// this limit is truncated with a warning logged.
 pub const MAX_POLICY_CHARS: usize = 4096;
 
+/// Locate the workspace security policy file, if one exists.
+///
+/// Prefers `POLICY.md`; falls back to the legacy `LocalGPT.md` name so
+/// workspaces created before the rename keep working. When both exist,
+/// `POLICY.md` wins.
+pub fn find_policy_file(workspace: &Path) -> Option<std::path::PathBuf> {
+    let policy_path = workspace.join(super::localgpt::POLICY_FILENAME);
+    if policy_path.exists() {
+        return Some(policy_path);
+    }
+
+    let legacy_path = workspace.join(super::localgpt::LEGACY_POLICY_FILENAME);
+    if legacy_path.exists() {
+        info!(
+            "Using legacy policy file {} — consider renaming it to {}",
+            legacy_path.display(),
+            super::localgpt::POLICY_FILENAME
+        );
+        return Some(legacy_path);
+    }
+
+    debug!("No POLICY.md found in workspace");
+    None
+}
+
 /// Load and sanitize the workspace security policy.
 ///
 /// This is the main entry point called at session start:
 ///
-/// 1. Read `LocalGPT.md` from the workspace (if present)
+/// 1. Locate the policy file (`POLICY.md`, or legacy `LocalGPT.md`)
 /// 2. Sanitize content (injection marker stripping + suspicious pattern detection)
 /// 3. Enforce size limit (truncation at [`MAX_POLICY_CHARS`])
 ///
@@ -30,17 +59,16 @@ pub const MAX_POLICY_CHARS: usize = 4096;
 /// sanitization, or `None` when there is no usable policy — in which case
 /// the agent operates with the hardcoded security suffix only.
 pub fn load_policy(workspace: &Path) -> Option<String> {
-    let policy_path = workspace.join(super::localgpt::POLICY_FILENAME);
-
-    if !policy_path.exists() {
-        debug!("No LocalGPT.md found in workspace");
-        return None;
-    }
+    let policy_path = find_policy_file(workspace)?;
+    let filename = policy_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(super::localgpt::POLICY_FILENAME);
 
     let content = match fs::read_to_string(&policy_path) {
         Ok(c) => c,
         Err(e) => {
-            warn!("Failed to read LocalGPT.md: {}", e);
+            warn!("Failed to read {}: {}", filename, e);
             return None;
         }
     };
@@ -52,8 +80,8 @@ pub fn load_policy(workspace: &Path) -> Option<String> {
         }
         Err(warnings) => {
             warn!(
-                "LocalGPT.md contains suspicious patterns: {:?}. Skipping user policy.",
-                warnings
+                "{} contains suspicious patterns: {:?}. Skipping user policy.",
+                filename, warnings
             );
             None
         }
@@ -121,6 +149,34 @@ mod tests {
 
         let loaded = load_policy(&workspace).expect("policy should load");
         assert!(loaded.contains("No shell access"));
+    }
+
+    #[test]
+    fn legacy_localgpt_md_still_loads() {
+        let (_tmp, workspace) = setup_workspace();
+        fs::write(
+            workspace.join(super::super::localgpt::LEGACY_POLICY_FILENAME),
+            "# Policy\n\n- Legacy rule\n",
+        )
+        .unwrap();
+
+        let loaded = load_policy(&workspace).expect("legacy policy should load");
+        assert!(loaded.contains("Legacy rule"));
+    }
+
+    #[test]
+    fn policy_md_takes_precedence_over_legacy() {
+        let (_tmp, workspace) = setup_workspace();
+        fs::write(
+            workspace.join(super::super::localgpt::LEGACY_POLICY_FILENAME),
+            "# Policy\n\n- Legacy rule\n",
+        )
+        .unwrap();
+        write_policy(&workspace, "# Policy\n\n- Current rule\n");
+
+        let loaded = load_policy(&workspace).expect("policy should load");
+        assert!(loaded.contains("Current rule"));
+        assert!(!loaded.contains("Legacy rule"));
     }
 
     #[test]

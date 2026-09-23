@@ -19,7 +19,7 @@ Commands:
   daemon      Manage the background daemon
   memory      Memory management operations
   config      Configuration management
-  md          Manage LocalGPT.md standing instructions
+  policy      Manage POLICY.md standing instructions (alias: md)
   paths       Show resolved directory paths
   sandbox     Shell sandbox diagnostics
   search      Test and manage web search
@@ -63,7 +63,7 @@ Options:
 | [`daemon`](/docs/cli-daemon) | Start/stop/status of the background daemon |
 | [`memory`](/docs/cli-memory) | Search, reindex, and manage memory |
 | `config` | Init, show, get, and set configuration values |
-| [`md`](/docs/localgpt#quick-reference) | Manage LocalGPT.md standing instructions |
+| [`policy`](/docs/policy#quick-reference) | Manage POLICY.md standing instructions (alias: `md`) |
 | `paths` | Show resolved XDG directory paths |
 | [`sandbox`](/docs/sandbox#cli-commands) | Inspect sandbox capabilities and run tests |
 | `search` | Test and manage web search providers |

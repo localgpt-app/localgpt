@@ -2,7 +2,7 @@ import SwiftUI
 
 /// A text editor for viewing and editing a single workspace file.
 ///
-/// Security-sensitive files (like LocalGPT.md) show a warning banner
+/// Security-sensitive files (like POLICY.md) show a warning banner
 /// and require explicit confirmation before saving.
 struct FileEditorView: View {
     let file: WorkspaceFileItem

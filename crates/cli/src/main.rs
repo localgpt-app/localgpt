@@ -89,7 +89,7 @@ async fn async_main(cli: Cli) -> Result<()> {
         Commands::Memory(args) => crate::cli::memory::run(args, &cli.agent).await,
         Commands::Config(args) => crate::cli::config::run(args).await,
         Commands::Paths => crate::cli::paths::run(),
-        Commands::Md(args) => crate::cli::md::run(args).await,
+        Commands::Policy(args) => crate::cli::policy::run(args).await,
         Commands::Sandbox(args) => crate::cli::sandbox::run(args).await,
         Commands::Search(args) => crate::cli::search::run(args).await,
         Commands::Init(args) => crate::cli::init::run(args),

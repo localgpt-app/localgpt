@@ -52,16 +52,18 @@ const REGULAR_EDITABLE_FILES: &[&str] = &["MEMORY.md", "SOUL.md", "HEARTBEAT.md"
 /// Security-sensitive files that require user confirmation before editing.
 /// These files affect the agent's security policy.
 /// Editing is only allowed through explicit user action (never by the agent).
-const SECURITY_EDITABLE_FILES: &[&str] = &["LocalGPT.md"];
+const SECURITY_EDITABLE_FILES: &[&str] = &["POLICY.md"];
 
 /// Check if a filename is a security-sensitive file that requires confirmation.
+///
+/// The legacy `LocalGPT.md` name (pre-rename) is also security-sensitive.
 fn is_security_file(filename: &str) -> bool {
-    SECURITY_EDITABLE_FILES.contains(&filename)
+    SECURITY_EDITABLE_FILES.contains(&filename) || filename == security::LEGACY_POLICY_FILENAME
 }
 
 /// Check if a filename is one of the editable workspace files.
 fn is_editable_file(filename: &str) -> bool {
-    REGULAR_EDITABLE_FILES.contains(&filename) || SECURITY_EDITABLE_FILES.contains(&filename)
+    REGULAR_EDITABLE_FILES.contains(&filename) || is_security_file(filename)
 }
 
 // ---------------------------------------------------------------------------
@@ -211,19 +213,26 @@ impl LocalGPTClient {
             .map_err(|e| MobileError::Memory(e.to_string()))
     }
 
-    /// Get the LocalGPT.md content (security policy / standing instructions).
-    pub fn get_localgpt_md(&self) -> Result<String, MobileError> {
-        self.runtime
-            .block_on(self.handle.memory_get("LocalGPT.md"))
-            .map_err(|e| MobileError::Memory(e.to_string()))
+    /// Get the POLICY.md content (security policy / standing instructions).
+    ///
+    /// Falls back to the legacy `LocalGPT.md` when `POLICY.md` does not
+    /// exist yet, so workspaces created before the rename keep working.
+    pub fn get_policy(&self) -> Result<String, MobileError> {
+        let workspace = self.config.workspace_path();
+        match security::find_policy_file(&workspace) {
+            Some(path) => {
+                std::fs::read_to_string(path).map_err(|e| MobileError::Memory(e.to_string()))
+            }
+            None => Ok(String::new()),
+        }
     }
 
-    /// Write new LocalGPT.md content (security policy / standing instructions).
+    /// Write new POLICY.md content (security policy / standing instructions).
     ///
     /// This is a plain file write — the policy is loaded and sanitized at
     /// the next session start. Editing is only allowed through explicit
     /// user action (never by the agent).
-    pub fn set_localgpt_md(&self, content: String) -> Result<(), MobileError> {
+    pub fn set_policy(&self, content: String) -> Result<(), MobileError> {
         let workspace = self.config.workspace_path();
         std::fs::write(workspace.join(security::POLICY_FILENAME), &content)
             .map_err(|e| MobileError::Memory(e.to_string()))
@@ -232,29 +241,38 @@ impl LocalGPTClient {
     /// List the editable workspace files with their current content.
     ///
     /// Returns `WorkspaceFile` entries for MEMORY.md, SOUL.md,
-    /// HEARTBEAT.md, and LocalGPT.md. Files that do not exist yet are
+    /// HEARTBEAT.md, and POLICY.md. Files that do not exist yet are
     /// returned with an empty `content` string. Security-sensitive files
-    /// (like LocalGPT.md) are flagged with `is_security_sensitive = true`.
+    /// (like POLICY.md) are flagged with `is_security_sensitive = true`.
+    /// For POLICY.md, the content falls back to the legacy `LocalGPT.md`
+    /// when the renamed file does not exist yet.
     pub fn list_workspace_files(&self) -> Vec<WorkspaceFile> {
         let workspace = self.config.workspace_path();
         REGULAR_EDITABLE_FILES
             .iter()
             .chain(SECURITY_EDITABLE_FILES.iter())
             .map(|name| {
-                let path = workspace.join(name);
-                let content = match std::fs::read_to_string(&path) {
-                    Ok(c) => c,
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
-                    Err(e) => {
+                match std::fs::read_to_string(workspace.join(name)) {
+                    Ok(c) => return (name.to_string(), c),
+                    Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
                         tracing::warn!("Failed to read workspace file {}: {}", name, e);
-                        String::new()
                     }
+                    _ => {}
                 };
-                WorkspaceFile {
-                    name: name.to_string(),
-                    content,
-                    is_security_sensitive: is_security_file(name),
-                }
+
+                // POLICY.md not found — fall back to the legacy name
+                let content = if *name == security::POLICY_FILENAME {
+                    std::fs::read_to_string(workspace.join(security::LEGACY_POLICY_FILENAME))
+                        .unwrap_or_default()
+                } else {
+                    String::new()
+                };
+                (name.to_string(), content)
+            })
+            .map(|(name, content)| WorkspaceFile {
+                is_security_sensitive: is_security_file(&name),
+                name,
+                content,
             })
             .collect()
     }
@@ -262,26 +280,10 @@ impl LocalGPTClient {
     /// Read an arbitrary workspace file by name.
     ///
     /// Only the known editable files (MEMORY.md, SOUL.md, HEARTBEAT.md,
-    /// LocalGPT.md) are allowed. Returns `MobileError::Memory` for
-    /// unknown file names to prevent path-traversal.
+    /// POLICY.md — plus the legacy LocalGPT.md) are allowed. Returns
+    /// `MobileError::Memory` for unknown file names to prevent
+    /// path-traversal.
     pub fn get_workspace_file(&self, filename: String) -> Result<String, MobileError> {
-        if !is_editable_file(&filename) {
-            return Err(MobileError::Memory(format!(
-                "File '{}' is not an editable workspace file",
-                filename
-            )));
-        }
-        let workspace = self.config.workspace_path();
-        std::fs::read_to_string(workspace.join(&filename))
-            .map_err(|e| MobileError::Memory(e.to_string()))
-    }
-
-    /// Write an arbitrary workspace file by name.
-    ///
-    /// Only the known editable files (MEMORY.md, SOUL.md, HEARTBEAT.md,
-    /// LocalGPT.md) are allowed. The caller (mobile UI) must confirm
-    /// security-sensitive file edits before calling this method.
-    pub fn set_workspace_file(&self, filename: String, content: String) -> Result<(), MobileError> {
         if !is_editable_file(&filename) {
             return Err(MobileError::Memory(format!(
                 "File '{}' is not an editable workspace file",
@@ -290,7 +292,31 @@ impl LocalGPTClient {
         }
 
         if filename == security::POLICY_FILENAME {
-            return self.set_localgpt_md(content);
+            return self.get_policy();
+        }
+
+        let workspace = self.config.workspace_path();
+        std::fs::read_to_string(workspace.join(&filename))
+            .map_err(|e| MobileError::Memory(e.to_string()))
+    }
+
+    /// Write an arbitrary workspace file by name.
+    ///
+    /// Only the known editable files (MEMORY.md, SOUL.md, HEARTBEAT.md,
+    /// POLICY.md — plus the legacy LocalGPT.md) are allowed. The caller
+    /// (mobile UI) must confirm security-sensitive file edits before
+    /// calling this method. Writing via the legacy name stores to
+    /// POLICY.md.
+    pub fn set_workspace_file(&self, filename: String, content: String) -> Result<(), MobileError> {
+        if !is_editable_file(&filename) {
+            return Err(MobileError::Memory(format!(
+                "File '{}' is not an editable workspace file",
+                filename
+            )));
+        }
+
+        if filename == security::POLICY_FILENAME || filename == security::LEGACY_POLICY_FILENAME {
+            return self.set_policy(content);
         }
 
         let workspace = self.config.workspace_path();
@@ -300,7 +326,7 @@ impl LocalGPTClient {
 
     /// Check whether a workspace file is security-sensitive.
     ///
-    /// Security-sensitive files (like LocalGPT.md) affect the agent's
+    /// Security-sensitive files (like POLICY.md) affect the agent's
     /// security policy and require user confirmation before editing.
     /// The mobile UI should display a warning dialog before allowing
     /// edits to these files.
@@ -451,14 +477,17 @@ mod tests {
     /// Verify security-sensitive file detection.
     #[test]
     fn security_file_detection() {
+        assert!(is_security_file("POLICY.md"));
+        // Legacy pre-rename name stays security-sensitive
         assert!(is_security_file("LocalGPT.md"));
+        assert!(is_editable_file("LocalGPT.md"));
         assert!(!is_security_file("MEMORY.md"));
         assert!(!is_security_file("SOUL.md"));
         assert!(!is_security_file("HEARTBEAT.md"));
         assert!(!is_security_file("unknown.md"));
     }
 
-    /// Verify LocalGPT.md is the only security-sensitive editable file.
+    /// Verify POLICY.md is the only security-sensitive editable file.
     #[test]
     fn only_policy_file_is_security_sensitive() {
         for &f in REGULAR_EDITABLE_FILES

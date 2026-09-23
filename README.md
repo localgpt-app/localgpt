@@ -189,11 +189,10 @@ Full config reference: [`website/docs/configuration.md`](website/docs/configurat
 ### Security
 
 - **Kernel-enforced sandbox** — Landlock/seccomp on Linux, Seatbelt on macOS
-- **Signed policy files** — HMAC-SHA256 signed `LocalGPT.md` with tamper detection
+- **Protected policy file** — `POLICY.md` standing instructions, sanitized before injection and protected from agent self-modification
 - **Prompt injection defenses** — marker stripping, pattern detection, content boundaries
-- **Audit chain** — hash-chained security event log
 
-Security docs: [`website/docs/sandbox.md`](website/docs/sandbox.md) | [`website/docs/localgpt.md`](website/docs/localgpt.md)
+Security docs: [`website/docs/sandbox.md`](website/docs/sandbox.md) | [`website/docs/policy.md`](website/docs/policy.md)
 
 ### HTTP API
 

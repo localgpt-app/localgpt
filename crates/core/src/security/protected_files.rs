@@ -13,8 +13,10 @@ use std::path::Path;
 /// Files in the workspace that the agent must not write to.
 ///
 /// These are security-critical files whose integrity must be maintained
-/// by the user — never by the agent's tool calls.
-pub const PROTECTED_FILES: &[&str] = &["LocalGPT.md", "IDENTITY.md"];
+/// by the user — never by the agent's tool calls. `LocalGPT.md` is the
+/// pre-rename policy filename; it stays protected so legacy workspaces
+/// keep their write-deny boundary.
+pub const PROTECTED_FILES: &[&str] = &["POLICY.md", "LocalGPT.md", "IDENTITY.md"];
 
 /// Files outside the workspace (in the data directory) that the agent
 /// must not access.
@@ -35,7 +37,7 @@ pub const PROTECTED_EXTERNAL_PATHS: &[&str] = &["localgpt.device.key"];
 /// ```
 /// use localgpt_core::security::is_workspace_file_protected;
 ///
-/// assert!(is_workspace_file_protected("LocalGPT.md"));
+/// assert!(is_workspace_file_protected("POLICY.md"));
 /// assert!(is_workspace_file_protected("IDENTITY.md"));
 /// assert!(!is_workspace_file_protected("MEMORY.md"));
 /// ```
@@ -98,8 +100,8 @@ pub fn is_path_protected(path: &str, workspace: &Path, state_dir: &Path) -> bool
 /// Best-effort check for bash commands that might write to protected files.
 ///
 /// Scans the command string for protected filenames. This is a heuristic
-/// that catches common patterns (`echo > LocalGPT.md`, `cp x LocalGPT.md`,
-/// `sed -i ... LocalGPT.md`) but can be bypassed by obfuscation.
+/// that catches common patterns (`echo > POLICY.md`, `cp x POLICY.md`,
+/// `sed -i ... POLICY.md`) but can be bypassed by obfuscation.
 ///
 /// Returns a list of protected filenames found in the command.
 pub fn check_bash_command(command: &str) -> Vec<&'static str> {
@@ -127,6 +129,7 @@ mod tests {
 
     #[test]
     fn workspace_files_protected() {
+        assert!(is_workspace_file_protected("POLICY.md"));
         assert!(is_workspace_file_protected("LocalGPT.md"));
         assert!(is_workspace_file_protected("IDENTITY.md"));
     }
@@ -142,6 +145,7 @@ mod tests {
 
     #[test]
     fn path_with_directory_checks_filename() {
+        assert!(is_workspace_file_protected("workspace/POLICY.md"));
         assert!(is_workspace_file_protected("workspace/LocalGPT.md"));
         assert!(is_workspace_file_protected(
             "/home/user/.local/share/localgpt/workspace/IDENTITY.md"
@@ -150,7 +154,10 @@ mod tests {
 
     #[test]
     fn bash_command_detection() {
-        let hits = check_bash_command("echo 'new rules' > LocalGPT.md");
+        let hits = check_bash_command("echo 'new rules' > POLICY.md");
+        assert!(hits.contains(&"POLICY.md"));
+
+        let hits = check_bash_command("cp evil.md LocalGPT.md");
         assert!(hits.contains(&"LocalGPT.md"));
 
         let hits = check_bash_command("cat localgpt.device.key");
@@ -169,7 +176,7 @@ mod tests {
         fs::create_dir_all(&state_dir).unwrap();
 
         // Create the protected file so canonicalize works
-        let policy = workspace.join("LocalGPT.md");
+        let policy = workspace.join("POLICY.md");
         fs::write(&policy, "test").unwrap();
 
         assert!(is_path_protected(
@@ -188,9 +195,10 @@ mod tests {
         ));
     }
 
-    /// Verify the agent write-deny boundary: LocalGPT.md is always
-    /// protected from agent writes, while user-editable files
-    /// (MEMORY.md, SOUL.md, HEARTBEAT.md) remain accessible.
+    /// Verify the agent write-deny boundary: POLICY.md (and the legacy
+    /// LocalGPT.md) are always protected from agent writes, while
+    /// user-editable files (MEMORY.md, SOUL.md, HEARTBEAT.md) remain
+    /// accessible.
     ///
     /// This test documents that the mobile-ffi's file editor API does NOT
     /// weaken the agent protection — only the user (via mobile UI or CLI)
@@ -198,7 +206,7 @@ mod tests {
     #[test]
     fn agent_protection_boundary_enforced() {
         // Security-critical files the agent must NEVER write to
-        let agent_blocked = &["LocalGPT.md", "IDENTITY.md"];
+        let agent_blocked = &["POLICY.md", "LocalGPT.md", "IDENTITY.md"];
         for &file in agent_blocked {
             assert!(
                 is_workspace_file_protected(file),

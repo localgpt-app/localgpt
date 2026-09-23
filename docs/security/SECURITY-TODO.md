@@ -130,3 +130,4 @@ Security considerations for enterprise deployment of LocalGPT.
 *Created: 2026-02-04*
 *Updated: 2026-03-19 — Marked completed items from GAPS.md (gateway auth, encryption at rest, rate limiting, session perms, path traversal prevention)*
 *Updated: 2026-09-20 — Removed encryption-at-rest (`encrypt` commands, `enc:` config values) and LocalGPT.md policy signing/audit chain: the feature never worked reliably and was dropped from the product. The only encryption at rest that remains is bridge credential storage.*
+*Updated: 2026-09-23 — Renamed the policy file from `LocalGPT.md` to `POLICY.md`. The legacy name still loads (when `POLICY.md` is absent) and stays on the protected-files deny list.*

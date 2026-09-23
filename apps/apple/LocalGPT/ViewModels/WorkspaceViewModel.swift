@@ -17,8 +17,8 @@ struct WorkspaceFileItem: Identifiable {
             return "Persona and tone guidance that shapes how the agent communicates."
         case "HEARTBEAT.md":
             return "Task queue for autonomous background operations."
-        case "LocalGPT.md":
-            return "Security policy that restricts what the agent can do. Changes are cryptographically signed."
+        case "POLICY.md":
+            return "Security policy and standing instructions that shape what the agent does."
         default:
             return "Workspace file."
         }
@@ -30,7 +30,7 @@ struct WorkspaceFileItem: Identifiable {
         case "MEMORY.md": return "brain.head.profile"
         case "SOUL.md": return "person.fill"
         case "HEARTBEAT.md": return "heart.fill"
-        case "LocalGPT.md": return "lock.shield.fill"
+        case "POLICY.md": return "lock.shield.fill"
         default: return "doc.text"
         }
     }
@@ -51,7 +51,7 @@ class WorkspaceViewModel: ObservableObject {
         ("MEMORY.md", "# Memory\n\nThis file stores long-term knowledge.\n", false),
         ("SOUL.md", "# Soul\n\nYou are a helpful AI assistant.\n", false),
         ("HEARTBEAT.md", "# Heartbeat\n\nTasks for autonomous operation.\n", false),
-        ("LocalGPT.md", "# Security Policy\n\nThis file is security-sensitive.\n", true)
+        ("POLICY.md", "# Security Policy\n\nThis file is security-sensitive.\n", true)
     ]
 
     init() {
@@ -112,7 +112,7 @@ class WorkspaceViewModel: ObservableObject {
     }
 
     func isSecuritySensitive(filename: String) -> Bool {
-        filename == "LocalGPT.md"
+        filename == "POLICY.md" || filename == "LocalGPT.md"
     }
 
     private func handleError(_ error: Error) {

@@ -13,7 +13,7 @@
 //! ├──────────────────────┬──────────────────────┬───────────────────┤
 //! │  policy.rs           │  device_key.rs       │ protected_files.rs│
 //! │  Load + sanitize     │  Device-local key    │ Agent write deny  │
-//! │  the LocalGPT.md     │  for bridge          │ list for security-│
+//! │  the POLICY.md       │  for bridge          │ list for security-│
 //! │  policy pipeline     │  credential encryption│ critical files   │
 //! ├──────────────────────┴──────────────────────┴───────────────────┤
 //! │  suffix.rs — Hardcoded security suffix (always last in context) │
@@ -22,7 +22,7 @@
 //!
 //! ## Security Model
 //!
-//! 1. **Additive only**: The user's `LocalGPT.md` policy can tighten
+//! 1. **Additive only**: The user's `POLICY.md` policy can tighten
 //!    restrictions on top of the built-in safety rules. It cannot
 //!    weaken or override the hardcoded security suffix.
 //!
@@ -32,7 +32,8 @@
 //!    suffix only. The system never fails open.
 //!
 //! 3. **Agent-proof**: A protected files list blocks the agent from
-//!    writing to `LocalGPT.md` or reading the device key via
+//!    writing to `POLICY.md` (or the legacy `LocalGPT.md`) or reading
+//!    the device key via
 //!    `write_file`/`edit_file` tools. Bash commands get a best-effort
 //!    heuristic check (true enforcement requires OS-level sandboxing).
 //!
@@ -65,7 +66,7 @@
 //! ~/.local/share/localgpt/                  # Data directory (XDG_DATA_HOME)
 //! ├── localgpt.device.key                   # 32-byte bridge key (0600)
 //! └── workspace/                            # Memory workspace
-//!     ├── LocalGPT.md                       # User security policy
+//!     ├── POLICY.md                         # User security policy
 //!     ├── MEMORY.md                         # Long-term memory
 //!     └── HEARTBEAT.md                      # Autonomous tasks
 //!
@@ -81,7 +82,7 @@
 //!
 //! | Threat | Defense Layer |
 //! |--------|--------------|
-//! | Agent writes to `LocalGPT.md` via tool | Protected files deny list |
+//! | Agent writes to `POLICY.md` via tool | Protected files deny list |
 //! | Agent writes via `bash` | Heuristic check + OS sandbox (separate) |
 //! | Injected content in policy file | Sanitization pipeline (blocking) |
 //! | Policy weakens hardcoded rules | Hardcoded suffix always last in context |
@@ -90,7 +91,7 @@
 
 // ── Policy Loading ──────────────────────────────────────────────────
 
-pub use super::policy::{MAX_POLICY_CHARS, load_policy, sanitize_policy_content};
+pub use super::policy::{MAX_POLICY_CHARS, find_policy_file, load_policy, sanitize_policy_content};
 
 // ── Device Key ──────────────────────────────────────────────────────
 
@@ -113,4 +114,10 @@ pub use super::suffix::{HARDCODED_SECURITY_SUFFIX, build_ending_security_block};
 ///
 /// This file lives in the workspace alongside `MEMORY.md`, `HEARTBEAT.md`,
 /// and other markdown files. It follows the same plain-markdown convention.
-pub const POLICY_FILENAME: &str = "LocalGPT.md";
+pub const POLICY_FILENAME: &str = "POLICY.md";
+
+/// The pre-rename filename for the user security policy.
+///
+/// Workspaces created before the rename still load their `LocalGPT.md`.
+/// The legacy name also stays on the protected-files deny list.
+pub const LEGACY_POLICY_FILENAME: &str = "LocalGPT.md";
