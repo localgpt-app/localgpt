@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "conformance-lights",
+    "description": "A dark, foggy room lit by a point light, a spot light and a dim moon.",
+    "tags": ["conformance"]
+  },
+  "environment": {
+    "background_color": [0.02, 0.02, 0.04, 1.0],
+    "ambient_color": [0.4, 0.5, 0.8, 1.0],
+    "ambient_intensity": 40.0,
+    "fog_density": 0.03,
+    "fog_color": [0.03, 0.03, 0.06, 1.0]
+  },
+  "camera": { "position": [0.0, 4.0, 12.0], "look_at": [0.0, 1.0, 0.0], "fov_degrees": 55.0 },
+  "entities": [
+    { "id": 1, "name": "floor",
+      "shape": { "Plane": { "x": 30.0, "z": 30.0 } },
+      "material": { "color": [0.5, 0.5, 0.55, 1.0], "roughness": 0.8 } },
+    { "id": 2, "name": "back_wall", "transform": { "position": [0.0, 2.5, -6.0] },
+      "shape": { "Cuboid": { "x": 20.0, "y": 5.0, "z": 0.3 } },
+      "material": { "color": [0.6, 0.6, 0.6, 1.0], "roughness": 0.9 } },
+    { "id": 3, "name": "moon", "transform": { "position": [0.0, 30.0, 0.0] },
+      "light": { "light_type": "directional", "color": [0.6, 0.7, 1.0, 1.0], "intensity": 150.0, "direction": [0.3, -1.0, -0.2], "shadows": true } },
+    { "id": 4, "name": "point_light", "transform": { "position": [-3.0, 3.0, 0.0] },
+      "light": { "light_type": "point", "color": [1.0, 0.75, 0.4, 1.0], "intensity": 400000.0, "range": 14.0, "shadows": true } },
+    { "id": 5, "name": "point_target", "transform": { "position": [-3.0, 0.75, 0.0] },
+      "shape": { "Cuboid": { "x": 1.5, "y": 1.5, "z": 1.5 } },
+      "material": { "color": [0.9, 0.2, 0.2, 1.0], "roughness": 0.6 } },
+    { "id": 6, "name": "spot_light", "transform": { "position": [3.0, 5.0, 0.0] },
+      "light": { "light_type": "spot", "color": [0.5, 0.8, 1.0, 1.0], "intensity": 900000.0, "direction": [0.0, -1.0, 0.0], "range": 16.0, "outer_angle": 0.45, "inner_angle": 0.25, "shadows": true } },
+    { "id": 7, "name": "spot_target", "transform": { "position": [3.0, 0.9, 0.0] },
+      "shape": { "Cylinder": { "radius": 0.6, "height": 1.8 } },
+      "material": { "color": [0.2, 0.3, 0.9, 1.0], "roughness": 0.4 } },
+    { "id": 8, "name": "lantern", "transform": { "position": [0.0, 1.2, 2.0] },
+      "shape": { "Sphere": { "radius": 0.3 } },
+      "material": { "color": [0.2, 0.2, 0.2, 1.0], "emissive": [2.0, 1.4, 0.6, 1.0] },
+      "light": { "light_type": "point", "color": [1.0, 0.8, 0.5, 1.0], "intensity": 60000.0, "range": 8.0, "shadows": false } }
+  ],
+  "next_entity_id": 9
+}

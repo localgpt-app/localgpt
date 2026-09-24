@@ -6,6 +6,7 @@ use crate::identity::EntityRef;
 
 /// Camera point-of-view mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PointOfView {
     /// Camera at avatar eye level; avatar model not visible.
@@ -17,6 +18,7 @@ pub enum PointOfView {
 
 /// Avatar configuration describing the user/explorer presence in a world.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AvatarDef {
     /// Where the avatar spawns in the world.
     #[serde(default = "default_avatar_spawn")]

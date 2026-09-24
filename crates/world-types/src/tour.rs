@@ -6,6 +6,7 @@ use crate::avatar::PointOfView;
 
 /// How the camera/avatar moves between tour waypoints.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum TourMode {
     /// Ground-level movement respecting gravity / terrain.
@@ -19,6 +20,7 @@ pub enum TourMode {
 
 /// A single stop along a guided tour.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TourWaypoint {
     /// Camera / avatar position at this stop.
     pub position: [f32; 3],
@@ -34,6 +36,7 @@ pub struct TourWaypoint {
 
 /// A guided tour — a named, ordered sequence of waypoints through the world.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TourDef {
     /// Human-readable tour name (e.g., "grand_tour", "scenic_overlook").
     pub name: String,

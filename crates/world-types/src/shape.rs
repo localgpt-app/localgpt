@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// A parametric primitive shape with inline dimensions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Shape {
     Cuboid {
         #[serde(default = "default_one")]
@@ -159,6 +160,7 @@ impl Shape {
 
 /// Maps to the legacy `PrimitiveShape` enum for compatibility with gen commands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum PrimitiveShapeKind {
     Cuboid,
     Sphere,

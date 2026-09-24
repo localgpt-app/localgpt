@@ -1,0 +1,15 @@
+[package]
+name = "localgpt-world-export"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Distribution formats for LocalGPT worlds — the web viewer and self-contained HTML export of a WorldManifest (no Bevy)"
+keywords = ["localgpt", "world", "3d", "threejs", "export"]
+
+[dependencies]
+localgpt-world-types = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+ron = "0.12.1"

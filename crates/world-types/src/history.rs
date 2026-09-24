@@ -9,6 +9,7 @@ use crate::world::{CameraDef, EnvironmentDef};
 
 /// A recorded world edit with its inverse for undo support.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WorldEdit {
     /// Monotonically increasing sequence number.
     pub seq: u64,
@@ -25,6 +26,7 @@ pub struct WorldEdit {
 
 /// An atomic edit operation on the world.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum EditOp {
     /// Spawn a new entity.
     SpawnEntity { entity: WorldEntity },
@@ -48,6 +50,7 @@ pub enum EditOp {
 
 /// A single ambient audio layer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AmbienceLayerDef {
     /// Layer name (e.g., "wind", "rain").
     pub name: String,
@@ -86,6 +89,7 @@ impl EditOp {
 
 /// Edit history — append-only log of world edits.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EditHistory {
     /// All edits in chronological order.
     pub edits: Vec<WorldEdit>,

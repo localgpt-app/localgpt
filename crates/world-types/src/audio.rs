@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// Audio component attached to an entity.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AudioDef {
     /// High-level audio category.
     #[serde(default)]
@@ -28,6 +29,7 @@ pub struct AudioDef {
 
 /// High-level audio category — determines mixing bus and behavior.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum AudioKind {
     /// Environmental background (wind, rain, etc.)
@@ -41,6 +43,7 @@ pub enum AudioKind {
 
 /// What sound to produce — unified taxonomy of all sound types.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AudioSource {
     // --- Ambient sounds (from current AmbientSound) ---
     Wind {
@@ -119,6 +122,7 @@ pub enum AudioSource {
 
 /// Waveform type for custom audio synthesis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum WaveformType {
     #[default]
@@ -132,6 +136,7 @@ pub enum WaveformType {
 
 /// Audio filter type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FilterType {
     #[default]
@@ -142,6 +147,7 @@ pub enum FilterType {
 
 /// Distance rolloff model for spatial audio.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Rolloff {
     #[default]
@@ -152,6 +158,7 @@ pub enum Rolloff {
 
 /// Reverb parameters for ambient audio.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ReverbParams {
     #[serde(default = "default_half")]
     pub room_size: f32,

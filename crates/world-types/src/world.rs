@@ -9,6 +9,7 @@ use std::fmt;
 use crate::avatar::AvatarDef;
 use crate::creation::CreationDef;
 use crate::entity::WorldEntity;
+use crate::soundtrack::SoundtrackDef;
 use crate::tour::TourDef;
 
 /// Current schema version. Increment when making breaking changes.
@@ -49,6 +50,7 @@ impl fmt::Display for VersionError {
 
 /// Top-level world manifest — everything needed to save/load a world.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WorldManifest {
     /// Schema version for forward/backward migration.
     #[serde(default = "default_version")]
@@ -67,6 +69,10 @@ pub struct WorldManifest {
     /// Guided tours.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tours: Vec<TourDef>,
+    /// The song this world performs to, with the analysis that drives
+    /// entity modulations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub soundtrack: Option<SoundtrackDef>,
     // ---- Multi-file references (v2) ----
     /// Path to a separate layout file (blockout regions, spatial graph).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -97,6 +103,7 @@ pub struct WorldManifest {
 
 /// World metadata.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WorldMeta {
     /// World name (used as skill name / directory name).
     pub name: String,
@@ -154,6 +161,7 @@ pub struct WorldMeta {
 /// and content-origin seals so that exported worlds carry machine-readable
 /// provenance alongside the creative data.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ComplianceMeta {
     /// Steam "code tool" exemption flag.
     ///
@@ -206,26 +214,30 @@ pub struct ComplianceMeta {
 
 /// Environment settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EnvironmentDef {
-    /// Background/sky color (RGBA, linear).
+    /// Background/sky color, sRGB-encoded RGBA in `0..=1`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background_color: Option<[f32; 4]>,
-    /// Ambient light intensity.
+    /// Ambient light brightness in Bevy's `GlobalAmbientLight` units
+    /// (default 80; the web viewer scales it with `AMBIENT_SCALE`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ambient_intensity: Option<f32>,
-    /// Ambient light color (RGBA, linear).
+    /// Ambient light color, sRGB-encoded RGBA in `0..=1`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ambient_color: Option<[f32; 4]>,
-    /// Fog density (0.0 = no fog, 1.0 = full).
+    /// Exponential fog density (0.0 = no fog).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fog_density: Option<f32>,
-    /// Fog color (RGBA, linear).
+    /// Fog color, sRGB-encoded RGBA in `0..=1`; the background color when
+    /// unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fog_color: Option<[f32; 4]>,
 }
 
 /// Camera definition.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CameraDef {
     /// Camera position [x, y, z].
     #[serde(default = "default_camera_pos")]
@@ -319,6 +331,7 @@ impl WorldManifest {
             audio_files: None,
             avatar_file: None,
             tours: Vec::new(),
+            soundtrack: None,
             entities: Vec::new(),
             creations: Vec::new(),
             next_entity_id: default_next_id(),

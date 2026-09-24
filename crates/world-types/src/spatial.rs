@@ -7,6 +7,7 @@ pub const CHUNK_SIZE: f32 = 64.0;
 
 /// 2D chunk coordinate for spatial partitioning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ChunkCoord {
     pub x: i32,
     pub y: i32,
