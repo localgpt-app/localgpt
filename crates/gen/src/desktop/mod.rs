@@ -14,6 +14,8 @@
 //!   from Finder don't inherit, so CLI backends like `claude` are found.
 
 pub mod chat;
+#[cfg(feature = "multiplayer")]
+pub(crate) mod collab;
 pub mod models;
 pub mod panel;
 pub mod shell_env;

@@ -66,6 +66,35 @@ struct PromptOutbox {
     rx: Mutex<mpsc::UnboundedReceiver<String>>,
 }
 
+/// One line of the in-window client panel's log (desktop join mode):
+/// prompts, host chat, and queue progress, mirroring the console output.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClientEntry {
+    You(String),
+    Chat {
+        speaker: String,
+        text: String,
+    },
+    Status(String),
+    Error(String),
+}
+
+/// Log shared between the net systems (which append) and the in-window
+/// client panel (which displays it when there's no terminal). Bounded; the
+/// console still prints every line.
+#[derive(Resource, Default)]
+pub struct ClientPanelLog {
+    pub entries: Vec<ClientEntry>,
+}
+
+impl ClientPanelLog {
+    pub fn push(&mut self, entry: ClientEntry) {
+        self.entries.push(entry);
+        let excess = self.entries.len().saturating_sub(400);
+        self.entries.drain(..excess);
+    }
+}
+
 /// Marker on client entities that have local visuals built.
 #[derive(Component)]
 pub(crate) struct NetVisual;
@@ -177,6 +206,7 @@ impl Plugin for NetClientPlugin {
         .init_resource::<LocalCommands>()
         .init_resource::<ClientAssets>()
         .init_resource::<ClientStreamStats>()
+        .init_resource::<ClientPanelLog>()
         .add_systems(Startup, (connect_to_host, spawn_client_camera))
         .add_observer(on_connected)
         .add_observer(on_replicated_despawn)
@@ -260,9 +290,12 @@ fn connect_to_host(mut commands: Commands, session: Res<ClientSession>) {
     info!("Connecting to {} …", session.server_addr);
 }
 
-fn on_connected(_trigger: On<Add, Connected>) {
+fn on_connected(_trigger: On<Add, Connected>, mut log: ResMut<ClientPanelLog>) {
     println!("\n[net] Connected to host — the world will stream in shortly.");
     println!("[net] Type a prompt and press Enter to ask the host's agent.\n");
+    log.push(ClientEntry::Status(
+        "Connected — the world will stream in shortly.".into(),
+    ));
 }
 
 // ---------------------------------------------------------------------------
@@ -583,6 +616,7 @@ fn client_apply_meta(
 
 /// Send REPL prompts to the host, spawning a zero-latency local scaffold
 /// where the camera is looking.
+#[allow(clippy::too_many_arguments)]
 fn client_send_prompts(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -591,6 +625,7 @@ fn client_send_prompts(
     mut senders: Query<&mut MessageSender<ClientPrompt>>,
     camera: Query<&Transform, With<ClientFlyCam>>,
     mut local: ResMut<LocalCommands>,
+    mut log: ResMut<ClientPanelLog>,
 ) {
     let Ok(mut rx) = outbox.rx.lock() else {
         return;
@@ -604,6 +639,7 @@ fn client_send_prompts(
             local.0.push(text);
             continue;
         }
+        log.push(ClientEntry::You(text.clone()));
         let anchor = camera.single().ok().map(|cam| {
             prompt_anchor(
                 cam.translation.to_array(),
@@ -646,20 +682,23 @@ fn client_local_commands(
     bake: Option<Res<BakeState>>,
     view: Res<ClientViewState>,
     assets: Res<ClientAssets>,
+    mut log: ResMut<ClientPanelLog>,
 ) {
     for command in std::mem::take(&mut local.0) {
         let mut parts = command.split_whitespace();
-        match parts.next() {
+        let line = match parts.next() {
             Some("/stats") => {
-                let (chunks, meshes, folded) = bake.as_ref().map(|b| b.stats()).unwrap_or_default();
+                let (chunks, meshes, folded) =
+                    bake.as_ref().map(|b| b.stats()).unwrap_or_default();
                 let cam = camera
                     .single()
                     .map(|t| t.translation.to_array())
                     .unwrap_or_default();
-                println!(
+                format!(
                     "[stats] camera=({:.1}, {:.1}, {:.1}) view={} r={} entities={} scaffolds={} \
-                     local_scaffolds={} impostors_visible={} baked_chunks={chunks} baked_meshes={meshes} \
-                     baked_entities={folded} meshes_streamed={} meshes_downloaded={}",
+                     local_scaffolds={} impostors_visible={} baked_chunks={chunks} \
+                     baked_meshes={meshes} baked_entities={folded} meshes_streamed={} \
+                     meshes_downloaded={}",
                     cam[0],
                     cam[1],
                     cam[2],
@@ -671,19 +710,21 @@ fn client_local_commands(
                     visible_impostors(&impostors),
                     assets.loaded.len(),
                     assets.downloaded,
-                );
+                )
             }
             Some("/goto") => {
                 let coords: Vec<f32> = parts.filter_map(|p| p.parse().ok()).collect();
                 if let ([x, y, z], Ok(mut cam)) = (coords.as_slice(), camera.single_mut()) {
                     cam.translation = Vec3::new(*x, *y, *z);
-                    println!("[goto] camera moved to ({x}, {y}, {z})");
+                    format!("[goto] camera moved to ({x}, {y}, {z})")
                 } else {
-                    println!("usage: /goto <x> <y> <z>");
+                    "usage: /goto <x> <y> <z>".to_string()
                 }
             }
-            _ => println!("local commands: /stats, /goto <x> <y> <z>"),
-        }
+            _ => "local commands: /stats, /goto <x> <y> <z>".to_string(),
+        };
+        println!("{line}");
+        log.push(ClientEntry::Status(line));
     }
 }
 
@@ -967,26 +1008,34 @@ fn client_receive_job_status(
     mut commands: Commands,
     mut receivers: Query<&mut MessageReceiver<JobStatus>>,
     locals: Query<(Entity, &LocalScaffold)>,
+    mut log: ResMut<ClientPanelLog>,
 ) {
     for mut receiver in &mut receivers {
         for status in receiver.receive() {
-            match &status.state {
+            let line = match &status.state {
                 JobState::Queued { position: 0 } => {
-                    println!("[queue] job #{} is next up", status.job_id)
+                    format!("[queue] job #{} is next up", status.job_id)
                 }
                 JobState::Queued { position } => {
-                    println!(
-                        "[queue] job #{} queued — {position} ahead of it",
-                        status.job_id
-                    )
+                    format!("[queue] job #{} queued — {position} ahead of it", status.job_id)
                 }
-                JobState::Running => println!("[queue] job #{} is being built…", status.job_id),
-                JobState::Done => println!("[queue] job #{} done", status.job_id),
+                JobState::Running => format!("[queue] job #{} is being built…", status.job_id),
+                JobState::Done => format!("[queue] job #{} done", status.job_id),
                 JobState::Failed { reason } => {
-                    println!("[queue] job #{} failed: {reason}", status.job_id)
+                    format!("[queue] job #{} failed: {reason}", status.job_id)
                 }
-                JobState::Rejected { reason } => println!("[queue] prompt rejected: {reason}"),
-            }
+                JobState::Rejected { reason } => format!("[queue] prompt rejected: {reason}"),
+            };
+            println!("{line}");
+            let entry = if matches!(
+                &status.state,
+                JobState::Failed { .. } | JobState::Rejected { .. }
+            ) {
+                ClientEntry::Error(line)
+            } else {
+                ClientEntry::Status(line)
+            };
+            log.push(entry);
             if status.state.is_terminal() {
                 for (entity, local) in &locals {
                     if local.request_id == status.request_id {
@@ -998,11 +1047,33 @@ fn client_receive_job_status(
     }
 }
 
-/// Print host chat events to the local console.
-fn client_receive_chat(mut receivers: Query<&mut MessageReceiver<HostChat>>) {
+/// Print host chat events to the local console and the client panel.
+fn client_receive_chat(
+    mut receivers: Query<&mut MessageReceiver<HostChat>>,
+    mut log: ResMut<ClientPanelLog>,
+) {
     for mut receiver in &mut receivers {
         for chat in receiver.receive() {
             println!("\n[{}] {}\n", chat.speaker, chat.text);
+            log.push(ClientEntry::Chat {
+                speaker: chat.speaker.clone(),
+                text: chat.text.clone(),
+            });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn panel_log_stays_bounded() {
+        let mut log = ClientPanelLog::default();
+        for i in 0..500 {
+            log.push(ClientEntry::Status(format!("line {i}")));
+        }
+        assert_eq!(log.entries.len(), 400);
+        assert_eq!(log.entries.first(), Some(&ClientEntry::Status("line 100".into())));
     }
 }

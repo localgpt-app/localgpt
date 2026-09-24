@@ -96,6 +96,17 @@ pub struct NetHostOptions {
     /// Skip PIN pairing and use the public open-session key (trusted LAN /
     /// development only).
     pub open: bool,
+    /// Run remote prompts on the host's own agent with all of its tools
+    /// (`--remote-tools full`). Default: a scene-only agent
+    /// (see [`super::remote_scope`]).
+    pub full_access: bool,
+    /// Start hosting as soon as the app runs (CLI `--host`). When false the
+    /// plugin stays dormant until the prompt panel requests a session via
+    /// [`HostControl`].
+    pub autostart: bool,
+    /// Sender half of the control channel into the agent loop (hosting
+    /// started notifications).
+    pub control_tx: mpsc::UnboundedSender<HostControlEvent>,
 }
 
 /// What joiners need to know about the running session, for in-window
@@ -105,6 +116,8 @@ pub struct NetHostOptions {
 pub struct HostSessionInfo {
     pub session_name: String,
     pub port: u16,
+    /// Currently connected guests (kept in step by the lifecycle systems).
+    pub clients: usize,
     pairing: Option<Arc<PairingHost>>,
 }
 
@@ -119,11 +132,67 @@ impl HostSessionInfo {
 
     /// One line for a status display.
     pub fn summary(&self) -> String {
-        match self.pin() {
+        let mut line = match self.pin() {
             Some(pin) => format!("Hosting '{}' · PIN {pin}", self.session_name),
             None => format!("Hosting '{}' · open session (no PIN)", self.session_name),
+        };
+        if self.clients > 0 {
+            line.push_str(&format!(" · {} guest{}", self.clients, plural(self.clients)));
         }
+        line
     }
+}
+
+fn plural(count: usize) -> &'static str {
+    if count == 1 {
+        ""
+    } else {
+        "s"
+    }
+}
+
+/// A request to start hosting a session — from the CLI (`--host`, before
+/// the app runs) or from the prompt panel (at any time).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HostStartRequest {
+    pub session_name: String,
+    pub port: u16,
+    /// Open session: no PIN, public netcode key (trusted LANs only).
+    pub open: bool,
+    /// Remote prompts run on the host's own agent with full tool access.
+    pub full_access: bool,
+}
+
+/// Lifecycle of a hosted session. The plugin is always installed (so
+/// hosting can start from the window at any time), but nothing listens,
+/// announces, or replicates until a request arrives.
+#[derive(Resource, Clone, Debug, Default, PartialEq)]
+pub enum HostControl {
+    /// Not hosting and nothing requested.
+    #[default]
+    NotHosting,
+    /// A start was requested; [`host_lifecycle`] runs it this frame.
+    StartRequested(HostStartRequest),
+    /// The session is live. `warning` carries a non-fatal startup problem
+    /// (e.g. mDNS failed) for the panel to show.
+    Active {
+        warning: Option<String>,
+    },
+    /// The start failed (e.g. the port is taken); the panel shows the
+    /// reason and hosting can be requested again.
+    Failed(String),
+}
+
+impl HostControl {
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Active { .. })
+    }
+}
+
+/// Run condition for the host systems that touch the world or the network:
+/// they only do work while a session is actually live.
+pub fn hosting(control: Res<HostControl>) -> bool {
+    control.is_active()
 }
 
 /// Agent-loop side of the job/chat bridge.
@@ -134,10 +203,21 @@ pub struct AgentNetHooks {
     pub chat_tx: mpsc::UnboundedSender<HostChat>,
     /// Progress reports for dispatched jobs.
     pub job_events_tx: mpsc::UnboundedSender<JobEvent>,
-    /// Run remote prompts on the host's own agent with all of its tools
-    /// (`--remote-tools full`). Default: a scene-only agent
-    /// (see [`super::remote_scope`]).
-    pub remote_full_access: bool,
+    /// Lifecycle notifications (hosting started) from the net systems.
+    pub control_rx: mpsc::UnboundedReceiver<HostControlEvent>,
+}
+
+/// Net systems → agent loop: hosting is live, build the remote worker now.
+///
+/// Sent by [`host_lifecycle`] both for CLI-started sessions (`--host`) and
+/// panel-started ones, so the agent loop learns about remote prompts
+/// exactly when they become possible.
+#[derive(Debug, Clone)]
+pub enum HostControlEvent {
+    HostingStarted {
+        /// Run remote prompts with the host agent's full tool access.
+        full_access: bool,
+    },
 }
 
 /// Create a matched (options, hooks) pair for the host.
@@ -145,6 +225,7 @@ pub fn create_host_channels() -> (NetHostOptions, AgentNetHooks) {
     let (job_tx, job_rx) = mpsc::unbounded_channel();
     let (chat_tx, chat_rx) = mpsc::unbounded_channel();
     let (job_events_tx, job_events_rx) = mpsc::unbounded_channel();
+    let (control_tx, control_rx) = mpsc::unbounded_channel();
     (
         NetHostOptions {
             session_name: String::new(),
@@ -153,22 +234,17 @@ pub fn create_host_channels() -> (NetHostOptions, AgentNetHooks) {
             chat_rx,
             job_events_rx,
             open: false,
+            full_access: false,
+            autostart: false,
+            control_tx,
         },
         AgentNetHooks {
             job_rx,
             chat_tx,
             job_events_tx,
-            remote_full_access: false,
+            control_rx,
         },
     )
-}
-
-/// Resource carrying host session configuration.
-#[derive(Resource)]
-struct NetHostState {
-    port: u16,
-    /// Netcode private key (random per session unless `--open`).
-    private_key: [u8; 32],
 }
 
 /// Resource: the §2 prompt queue plus the channels to/from its worker.
@@ -240,6 +316,9 @@ impl Plugin for NetHostPlugin {
             chat_rx,
             job_events_rx,
             open,
+            full_access,
+            autostart,
+            control_tx,
         } = self
             .options
             .lock()
@@ -252,74 +331,28 @@ impl Plugin for NetHostPlugin {
         });
         app.add_plugins(NetProtocolPlugin);
 
-        // Session secrets: a random netcode key that never leaves this
-        // process, and a PIN joiners must know to be issued a connect token.
-        let private_key = if open {
-            super::OPEN_SESSION_KEY
+        // Dormant resources: channels exist from the start (the agent loop
+        // always wires the hooks), but nothing listens, announces, or
+        // replicates until a session is requested through `HostControl` —
+        // at startup (`--host`) or later (the prompt panel's Collaborate
+        // section).
+        let control = if autostart {
+            HostControl::StartRequested(HostStartRequest {
+                session_name,
+                port,
+                open,
+                full_access,
+            })
         } else {
-            generate_private_key()
+            HostControl::NotHosting
         };
-        let pairing = (!open).then(|| {
-            let pin = generate_pin();
-            Arc::new(PairingHost::new(
-                private_key,
-                super::PROTOCOL_ID,
-                pin,
-                |new_pin| {
-                    eprintln!(
-                        "\n[net] Too many wrong PINs — new session PIN: {}\n",
-                        format_pin(new_pin)
-                    );
-                },
-            ))
-        });
-
-        // Session HTTP (TCP, same port number as the UDP session): pairing
-        // + content-addressed assets.
-        let store = AssetStore::default();
-        let http_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port);
-        let router =
-            asset_router(store.clone()).merge(pairing_router(pairing.clone(), super::PROTOCOL_ID));
-        let asset_port = match spawn_session_http(router, http_addr) {
-            Ok(()) => {
-                eprintln!("Session HTTP (pairing + assets) on tcp://{http_addr}");
-                Some(port)
-            }
-            Err(e) => {
-                if open {
-                    eprintln!(
-                        "Session HTTP failed to start ({e}) — clients will show mesh placeholders"
-                    );
-                } else {
-                    eprintln!(
-                        "Session HTTP failed to start ({e}) — clients cannot pair; \
-                         free TCP port {port} or pass --port"
-                    );
-                }
-                None
-            }
-        };
-        match &pairing {
-            Some(pairing) => eprintln!(
-                "\n  Session PIN: {}   (joiners: localgpt-gen --join <this-host> --pin <PIN>)\n",
-                format_pin(&pairing.pin())
-            ),
-            None => eprintln!(
-                "\n  OPEN session: no PIN — anyone on the LAN with localgpt-gen can join\n"
-            ),
-        }
-
-        app.insert_resource(HostSessionInfo {
-            session_name: session_name.clone(),
-            port,
-            pairing: pairing.clone(),
-        })
+        app.insert_resource(control)
+            .insert_resource(ControlOutbox { tx: control_tx })
         .insert_resource(ReplicationMetadata::new(REPLICATION_SEND_INTERVAL))
         .insert_resource(HostAssets {
-            store,
-            port: asset_port,
+            store: AssetStore::default(),
+            port: None,
         })
-        .insert_resource(NetHostState { port, private_key })
         .insert_resource(HostJobs {
             queue: JobQueue::default(),
             scaffolds: HashMap::new(),
@@ -333,10 +366,15 @@ impl Plugin for NetHostPlugin {
         })
         .init_resource::<InterestState>()
         .init_resource::<ChunkSummaryEntities>()
-        .add_systems(Startup, start_listen_server)
-        .add_systems(Startup, spawn_world_meta_entity.after(start_listen_server))
+        .add_systems(PreUpdate, host_lifecycle)
+        .add_systems(Startup, spawn_world_meta_entity)
         .add_observer(on_client_link_connected)
-        .add_systems(PreUpdate, net_attach_new_entities)
+        .add_systems(
+            PreUpdate,
+            net_attach_new_entities
+                .run_if(hosting)
+                .after(host_lifecycle),
+        )
         .add_systems(
             PostUpdate,
             (
@@ -347,7 +385,8 @@ impl Plugin for NetHostPlugin {
                     .after(TransformSystems::Propagate)
                     .after(net_update_chunk_summaries)
                     .before(ReplicationSystems::Send),
-            ),
+            )
+                .run_if(hosting),
         )
         .add_systems(
             Update,
@@ -361,38 +400,106 @@ impl Plugin for NetHostPlugin {
                 net_view_intake,
                 net_chat_broadcast,
                 net_client_lifecycle,
-            ),
+            )
+                .run_if(hosting),
         );
-
-        match SessionAnnouncer::start(&session_name, port, super::PROTOCOL_ID) {
-            Ok(announcer) => {
-                eprintln!(
-                    "mDNS: session '{}' discoverable on the LAN ({}), port {port}",
-                    session_name,
-                    super::mdns::SERVICE_TYPE
-                );
-                app.insert_resource(HostAnnouncer {
-                    _announcer: announcer,
-                });
-            }
-            Err(e) => {
-                eprintln!("mDNS announcement failed ({e}) — clients must connect by address");
-            }
-        }
     }
 }
 
-/// Marker on the dedicated singleton entity carrying [`NetWorldMeta`].
-#[derive(Component)]
-struct WorldMetaEntity;
+/// Resource holding the agent-loop control sender.
+#[derive(Resource)]
+struct ControlOutbox {
+    tx: mpsc::UnboundedSender<HostControlEvent>,
+}
 
-/// Spawn the server link entity and start listening.
-fn start_listen_server(mut commands: Commands, state: Res<NetHostState>) {
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), state.port);
+/// Bring a requested session up: secrets, session HTTP, the listen server,
+/// and mDNS. Runs in `PreUpdate` so the gated host systems see
+/// [`HostControl::Active`] from the same frame on.
+///
+/// This is the single start path: `--host` requests it before the first
+/// frame, the panel's Collaborate section at any later one.
+fn host_lifecycle(
+    mut commands: Commands,
+    mut control: ResMut<HostControl>,
+    mut window: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
+    outbox: Res<ControlOutbox>,
+) {
+    let request = match std::mem::take(&mut *control) {
+        HostControl::StartRequested(request) => request,
+        HostControl::NotHosting => return,
+        active @ HostControl::Active { .. } | active @ HostControl::Failed(_) => {
+            *control = active;
+            return;
+        }
+    };
 
+    // Session secrets: a random netcode key that never leaves this
+    // process, and a PIN joiners must know to be issued a connect token.
+    let private_key = if request.open {
+        super::OPEN_SESSION_KEY
+    } else {
+        generate_private_key()
+    };
+    let pairing = (!request.open).then(|| {
+        let pin = generate_pin();
+        Arc::new(PairingHost::new(
+            private_key,
+            super::PROTOCOL_ID,
+            pin,
+            |new_pin| {
+                eprintln!(
+                    "\n[net] Too many wrong PINs — new session PIN: {}\n",
+                    format_pin(new_pin)
+                );
+            },
+        ))
+    });
+
+    // Session HTTP (TCP, same port number as the UDP session): pairing
+    // + content-addressed assets.
+    let store = AssetStore::default();
+    let http_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), request.port);
+    let router =
+        asset_router(store.clone()).merge(pairing_router(pairing.clone(), super::PROTOCOL_ID));
+    let asset_port = match spawn_session_http(router, http_addr) {
+        Ok(()) => {
+            eprintln!("Session HTTP (pairing + assets) on tcp://{http_addr}");
+            Some(request.port)
+        }
+        Err(e) => {
+            // A failed HTTP endpoint is fatal for PIN sessions (nobody can
+            // pair) but only degrades open ones (no asset streaming).
+            if !request.open {
+                eprintln!(
+                    "Collaborative session failed to start: session HTTP couldn't listen on \
+                     tcp://{http_addr} ({e}) — free the port or pass --port"
+                );
+                *control = HostControl::Failed(format!(
+                    "couldn't listen on port {port} ({e}) — is another session running?",
+                    port = request.port
+                ));
+                return;
+            }
+            eprintln!("Session HTTP failed to start ({e}) — clients will show mesh placeholders");
+            None
+        }
+    };
+    match &pairing {
+        Some(pairing) => eprintln!(
+            "\n  Session PIN: {}   (joiners: localgpt-gen --join <this-host> --pin <PIN>)\n",
+            format_pin(&pairing.pin())
+        ),
+        None => eprintln!(
+            "\n  OPEN session: no PIN — anyone on the LAN with localgpt-gen can join\n"
+        ),
+    }
+
+    // The listen server itself: server link entity + Start trigger. The
+    // observer-driven replication machinery picks it up from here.
+    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), request.port);
     let server_config = lightyear::netcode::server_plugin::NetcodeConfig {
         protocol_id: super::PROTOCOL_ID,
-        private_key: state.private_key,
+        private_key,
         max_clients: MAX_CLIENTS,
         // We bind 0.0.0.0 while clients connect via any of the host's LAN
         // addresses, so token-address validation would always mismatch.
@@ -401,7 +508,6 @@ fn start_listen_server(mut commands: Commands, state: Res<NetHostState>) {
         server_addr_check: false,
         ..default()
     };
-
     let server = commands
         .spawn((
             Name::new("World Host"),
@@ -412,10 +518,53 @@ fn start_listen_server(mut commands: Commands, state: Res<NetHostState>) {
         ))
         .id();
     commands.trigger(Start { entity: server });
-    // eprintln, not info!: the gen app runs with a warn-level tracing filter,
-    // so info! lines would be invisible (same reasoning as the MCP relay).
     eprintln!("Collaborative session listening on {addr}");
+
+    let mut warning = None;
+    match SessionAnnouncer::start(&request.session_name, request.port, super::PROTOCOL_ID) {
+        Ok(announcer) => {
+            eprintln!(
+                "mDNS: session '{}' discoverable on the LAN ({}), port {port}",
+                request.session_name,
+                super::mdns::SERVICE_TYPE,
+                port = request.port
+            );
+            commands.insert_resource(HostAnnouncer {
+                _announcer: announcer,
+            });
+        }
+        Err(e) => {
+            eprintln!("mDNS announcement failed ({e}) — clients must connect by address");
+            warning = Some(format!("mDNS failed ({e}) — guests must type this computer's address to join"));
+        }
+    }
+
+    commands.insert_resource(HostSessionInfo {
+        session_name: request.session_name.clone(),
+        port: request.port,
+        clients: 0,
+        pairing,
+    });
+    commands.insert_resource(HostAssets {
+        store,
+        port: asset_port,
+    });
+    if let Ok(mut window) = window.single_mut() {
+        window.title = format!("LocalGPT Gen — Hosting '{}'", request.session_name);
+    }
+
+    // Notify the agent loop that hosting is live so it can build the
+    // remote-prompt worker.
+    let _ = outbox.tx.send(HostControlEvent::HostingStarted {
+        full_access: request.full_access,
+    });
+
+    *control = HostControl::Active { warning };
 }
+
+/// Marker on the dedicated singleton entity carrying [`NetWorldMeta`].
+#[derive(Component)]
+struct WorldMetaEntity;
 
 /// Spawn the singleton entity that replicates session metadata.
 fn spawn_world_meta_entity(mut commands: Commands) {
@@ -442,14 +591,17 @@ fn default_environment() -> wt::EnvironmentDef {
     }
 }
 
-/// Enable replication for every newly spawned gen entity.
+/// Enable replication for every gen entity that doesn't have it yet.
 ///
-/// Cameras are skipped — each client renders with its own camera. Which
-/// clients actually receive an entity is decided by [`net_update_interest`].
+/// The query isn't limited to newly spawned entities on purpose: when
+/// hosting starts from the window (rather than `--host`), the world may
+/// already exist, and its entities must be picked up too. Cameras are
+/// skipped — each client renders with its own camera. Which clients
+/// actually receive an entity is decided by [`net_update_interest`].
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 fn net_attach_new_entities(
     mut commands: Commands,
-    new_entities: Query<(Entity, &GenEntity, &Name), (Added<GenEntity>, Without<Replicate>)>,
+    new_entities: Query<(Entity, &GenEntity, &Name), (With<GenEntity>, Without<Replicate>)>,
     transforms: Query<&'static Transform>,
     parametric_shapes: Query<&'static ParametricShape>,
     material_handles: Query<&'static MeshMaterial3d<StandardMaterial>>,
@@ -1059,11 +1211,13 @@ fn net_client_lifecycle(
     server: Query<&Server>,
     mut sender: ServerMultiMessageSender,
     mut jobs: ResMut<HostJobs>,
+    mut info: ResMut<HostSessionInfo>,
     mut seen: Local<HashSet<Entity>>,
 ) {
     let Some(server) = server.iter().next() else {
         return;
     };
+    info.clients = links.iter().count();
     for entity in &links {
         if seen.insert(entity) {
             eprintln!("Client connected");
@@ -1108,5 +1262,60 @@ fn net_client_lifecycle(
             server,
             &NetworkTarget::All,
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn session_info(pin: Option<&str>, clients: usize) -> HostSessionInfo {
+        HostSessionInfo {
+            session_name: "test world".into(),
+            port: 9879,
+            clients,
+            pairing: pin.map(|pin| {
+                Arc::new(PairingHost::new(
+                    generate_private_key(),
+                    super::super::PROTOCOL_ID,
+                    pin.to_string(),
+                    |_| {},
+                ))
+            }),
+        }
+    }
+
+    #[test]
+    fn summary_shows_pin_and_guests() {
+        assert_eq!(
+            session_info(Some("123456"), 0).summary(),
+            "Hosting 'test world' · PIN 123 456"
+        );
+        assert_eq!(
+            session_info(Some("123456"), 1).summary(),
+            "Hosting 'test world' · PIN 123 456 · 1 guest"
+        );
+        assert_eq!(
+            session_info(None, 3).summary(),
+            "Hosting 'test world' · open session (no PIN) · 3 guests"
+        );
+    }
+
+    #[test]
+    fn host_control_tracks_lifecycle() {
+        assert!(!HostControl::NotHosting.is_active());
+        assert!(!HostControl::StartRequested(HostStartRequest {
+            session_name: "w".into(),
+            port: 9879,
+            open: false,
+            full_access: false,
+        })
+        .is_active());
+        assert!(HostControl::Active { warning: None }.is_active());
+        assert!(HostControl::Active {
+            warning: Some("mDNS failed".into())
+        }
+        .is_active());
+        assert!(!HostControl::Failed("port taken".into()).is_active());
     }
 }

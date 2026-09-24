@@ -1264,9 +1264,9 @@ fn main() -> Result<()> {
                     .unwrap_or_else(default_session_name);
                 opts.port = cli.port;
                 opts.open = cli.open;
-                let mut hooks = hooks;
-                hooks.remote_full_access = cli.remote_tools == RemoteTools::Full;
-                if hooks.remote_full_access {
+                opts.full_access = cli.remote_tools == RemoteTools::Full;
+                opts.autostart = true;
+                if opts.full_access {
                     eprintln!(
                         "WARNING: --remote-tools full — connected clients' prompts run with this \
                          agent's full tool access, including shell commands on this machine."
@@ -1287,6 +1287,11 @@ fn main() -> Result<()> {
                 || model.starts_with("claude-cli/")
                 || model.starts_with("gemini-cli/")
                 || model.starts_with("codex-cli/");
+
+            #[cfg(feature = "multiplayer")]
+            let remote_full_access = cli.host && cli.remote_tools == RemoteTools::Full;
+            #[cfg(not(feature = "multiplayer"))]
+            let remote_full_access = false;
 
             // Spawn tokio runtime + agent loop + MCP relay on a background thread
             // (Bevy must own the main thread for windowing/GPU on macOS).
@@ -1329,6 +1334,7 @@ fn main() -> Result<()> {
                         relay_config,
                         editor_for_agent,
                         agent_net,
+                        remote_full_access,
                         agent_channels,
                         desktop,
                     )
@@ -2199,6 +2205,7 @@ async fn run_agent_loop(
     config: localgpt_core::config::Config,
     editor: Option<rustyline::DefaultEditor>,
     net_hooks: AgentNetHooksOpt,
+    remote_full_access: bool,
     panel: AgentChannels,
     desktop: bool,
 ) -> Result<()> {
@@ -2296,7 +2303,7 @@ async fn run_agent_loop(
     // Worker for prompts from collaborative clients (scene-only by default).
     #[cfg(feature = "multiplayer")]
     let mut remote_worker = match &net_hooks {
-        Some(hooks) if hooks.remote_full_access => RemoteWorker::Host,
+        Some(_) if remote_full_access => RemoteWorker::Host,
         Some(_) => match build_scoped_remote_agent(remote_bridge, &config).await {
             Ok(remote) => {
                 eprintln!(

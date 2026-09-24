@@ -117,6 +117,8 @@ pub struct PromptPanel {
     stopped: bool,
     show_help: bool,
     config_file: Option<PathBuf>,
+    #[cfg(feature = "multiplayer")]
+    collab: super::collab::CollabState,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -339,6 +341,7 @@ fn prompt_panel_ui(
     mut panel: ResMut<PromptPanel>,
     link: Res<PanelLink>,
     #[cfg(feature = "multiplayer")] host: Option<Res<crate::net::host::HostSessionInfo>>,
+    #[cfg(feature = "multiplayer")] mut host_control: ResMut<crate::net::host::HostControl>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else {
         return;
@@ -384,15 +387,30 @@ fn prompt_panel_ui(
         .default_size(380.0)
         .min_size(300.0)
         .resizable(true)
-        .show(ctx, |ui| draw_panel(ui, panel, &link, host_line.as_deref()));
+        .show(ctx, |ui| {
+            #[cfg(feature = "multiplayer")]
+            let start_request = {
+                let collab_args = Some((&*host_control, host.as_deref()));
+                draw_panel(ui, panel, &link, host_line.as_deref(), collab_args)
+            };
+            #[cfg(not(feature = "multiplayer"))]
+            draw_panel(ui, panel, &link, host_line.as_deref());
+
+            #[cfg(feature = "multiplayer")]
+            if let Some(request) = start_request {
+                *host_control = crate::net::host::HostControl::StartRequested(request);
+            }
+        });
 }
 
+#[cfg(feature = "multiplayer")]
 fn draw_panel(
     ui: &mut egui::Ui,
     panel: &mut PromptPanel,
     link: &PanelLink,
-    host_line: Option<&str>,
-) {
+    _host_line: Option<&str>,
+    collab_args: Option<(&crate::net::host::HostControl, Option<&crate::net::host::HostSessionInfo>)>,
+) -> Option<crate::net::host::HostStartRequest> {
     ui.add_space(6.0);
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new("LocalGPT Gen").strong().size(16.0));
@@ -414,14 +432,24 @@ fn draw_panel(
         });
     });
     model_menu(ui, panel, link);
-    if let Some(line) = host_line {
-        ui.label(egui::RichText::new(line).small().color(ACCENT));
-    }
+
+    // Collaborate section (replaces the old one-line host status).
+    let start_request = if let Some((control, info)) = collab_args {
+        super::collab::draw_collaborate(ui, &mut panel.collab, Some(control), info)
+    } else {
+        None
+    };
+
     if panel.show_help {
         help(ui, panel);
     }
     ui.separator();
 
+    draw_conversation(ui, panel, link);
+    start_request
+}
+
+fn draw_conversation(ui: &mut egui::Ui, panel: &mut PromptPanel, link: &PanelLink) {
     // The conversation, leaving room for the prompt box below it.
     let reserved = 124.0;
     let mut example = None;
@@ -493,6 +521,45 @@ fn draw_panel(
         }
     });
     ui.add_space(4.0);
+}
+
+#[cfg(not(feature = "multiplayer"))]
+fn draw_panel(
+    ui: &mut egui::Ui,
+    panel: &mut PromptPanel,
+    link: &PanelLink,
+    host_line: Option<&str>,
+) {
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new("LocalGPT Gen").strong().size(16.0));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui
+                .small_button("Hide")
+                .on_hover_text("Hide this panel (F2)")
+                .clicked()
+            {
+                panel.open = false;
+            }
+            if ui
+                .small_button("?")
+                .on_hover_text("Controls and settings")
+                .clicked()
+            {
+                panel.show_help = !panel.show_help;
+            }
+        });
+    });
+    model_menu(ui, panel, link);
+    if let Some(line) = host_line {
+        ui.label(egui::RichText::new(line).small().color(ACCENT));
+    }
+    if panel.show_help {
+        help(ui, panel);
+    }
+    ui.separator();
+
+    draw_conversation(ui, panel, link);
 }
 
 fn model_menu(ui: &mut egui::Ui, panel: &mut PromptPanel, link: &PanelLink) {

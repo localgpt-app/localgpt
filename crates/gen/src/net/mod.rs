@@ -51,3 +51,49 @@ pub const PROTOCOL_ID: u64 = 3;
 /// sessions use a random per-session key that never leaves the host and
 /// hand out tokens only after PIN pairing (see [`pairing`]).
 pub const OPEN_SESSION_KEY: [u8; 32] = [0u8; 32];
+
+/// Env var carrying an already-paired connect token (base64) to a
+/// `--join` child process. Set by the desktop panel when it spawns a
+/// viewer window after pairing on the user's behalf, so the child (which
+/// has no terminal to type a PIN into) can connect immediately.
+pub const JOIN_TOKEN_ENV: &str = "LOCALGPT_GEN_JOIN_TOKEN";
+
+/// Parse a peer address: `host:port`, `ip:port`, or a bare host (port
+/// defaults to the session port).
+pub fn parse_peer_addr(spec: &str) -> anyhow::Result<std::net::SocketAddr> {
+    use anyhow::Context as _;
+
+    if let Ok(addr) = spec.parse() {
+        return Ok(addr);
+    }
+    let with_port = format!("{spec}:{}", DEFAULT_PORT);
+    with_port
+        .parse()
+        .with_context(|| format!("invalid host address '{spec}' (expected host:port)"))
+}
+
+/// Default hosted-session name: "{user}'s world".
+pub fn default_session_name() -> String {
+    let user = std::env::var("USERNAME")
+        .or_else(|_| std::env::var("USER"))
+        .unwrap_or_else(|_| "gen".to_string());
+    format!("{user}'s world")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn peer_addresses_parse_with_and_without_port() {
+        assert_eq!(
+            parse_peer_addr("192.168.1.5:9879").unwrap().port(),
+            9879
+        );
+        assert_eq!(
+            parse_peer_addr("192.168.1.5").unwrap().port(),
+            DEFAULT_PORT
+        );
+        assert!(parse_peer_addr("not a host").is_err());
+    }
+}
