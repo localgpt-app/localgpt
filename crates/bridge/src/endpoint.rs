@@ -106,7 +106,7 @@ pub(crate) const SCRATCH_PREFIX: &str = ".p";
 pub(crate) mod unix {
     use super::*;
     use std::fs;
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
     use std::path::{Path, PathBuf};
 
     /// Identifies a directory entry by the inode it points at. Survives the
@@ -186,6 +186,15 @@ pub(crate) mod unix {
     /// No protocol bytes are exchanged: a completed connect is the proof, and a
     /// live peer must not be made to read a handshake it did not ask for.
     pub(crate) async fn probe(path: &Path) -> IncumbentProbe {
+        // Linux answers a connect to a regular file with ECONNREFUSED, exactly
+        // like a dead socket (macOS says ENOTSOCK); only the entry's type tells
+        // them apart. Whatever is not a socket is not ours to prove dead.
+        match fs::symlink_metadata(path) {
+            Ok(meta) if !meta.file_type().is_socket() => return IncumbentProbe::Unverifiable,
+            Ok(_) => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return IncumbentProbe::Exited,
+            Err(_) => return IncumbentProbe::Unverifiable,
+        }
         let attempt = tokio::time::timeout(PROBE_TIMEOUT, async {
             tokio::net::UnixStream::connect(path).await.map(|stream| {
                 drop(stream);
