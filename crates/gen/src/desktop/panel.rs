@@ -18,8 +18,8 @@ use tokio::sync::mpsc;
 
 use super::chat::{ChatEvent, PanelChannels};
 
-const ACCENT: egui::Color32 = egui::Color32::from_rgb(0x25, 0xc2, 0xa0);
-const ERROR: egui::Color32 = egui::Color32::from_rgb(0xf2, 0x6d, 0x6d);
+pub(crate) const ACCENT: egui::Color32 = egui::Color32::from_rgb(0x25, 0xc2, 0xa0);
+pub(crate) const ERROR: egui::Color32 = egui::Color32::from_rgb(0xf2, 0x6d, 0x6d);
 
 /// Starter prompts shown before the first message.
 const EXAMPLES: [&str; 3] = [
@@ -306,7 +306,10 @@ fn pretty_tool_name(name: &str) -> String {
 /// bevy_egui's own input absorption also swallows pointer input over any
 /// panel (which breaks mouse-look), so this clears only the keyboard, and
 /// only while typing.
-fn hold_game_keys_while_typing(wants: Res<EguiWantsInput>, mut keys: ResMut<ButtonInput<KeyCode>>) {
+pub(crate) fn hold_game_keys_while_typing(
+    wants: Res<EguiWantsInput>,
+    mut keys: ResMut<ButtonInput<KeyCode>>,
+) {
     if wants.wants_keyboard_input() {
         keys.reset_all();
     }
@@ -409,7 +412,10 @@ fn draw_panel(
     panel: &mut PromptPanel,
     link: &PanelLink,
     _host_line: Option<&str>,
-    collab_args: Option<(&crate::net::host::HostControl, Option<&crate::net::host::HostSessionInfo>)>,
+    collab_args: Option<(
+        &crate::net::host::HostControl,
+        Option<&crate::net::host::HostSessionInfo>,
+    )>,
 ) -> Option<crate::net::host::HostStartRequest> {
     ui.add_space(6.0);
     ui.horizontal(|ui| {

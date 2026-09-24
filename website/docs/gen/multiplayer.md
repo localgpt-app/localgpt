@@ -29,6 +29,13 @@ localgpt-gen --join 192.168.1.5 --pin 482913   # or connect directly
 
 Type a prompt in the joiner's terminal — "put a lighthouse on that hill" — and a translucent placeholder appears where you're looking. It turns amber while the AI works and disappears when the real build streams in for everyone.
 
+### From the window
+
+No terminal needed: open the prompt panel (**F2**, or it's already open in the desktop app) and expand **Collaborate** under the model menu.
+
+- **Host** — pick a session name, and optionally a port or an open session with no PIN, then click **Start hosting**. The panel shows the PIN and how many guests are connected. The world you've already built is shared as it is.
+- **Join** — click **Browse LAN for sessions** and pick one, or type the host's address. Enter the PIN from the host's panel and click **Connect**. A viewer window opens with its own prompt panel; type prompts there.
+
 ## Options
 
 **Host (`--host`)**

@@ -145,7 +145,10 @@ pub(crate) fn draw_collaborate(
         "Collaborate ▸"
     };
     if ui
-        .add(egui::Label::new(egui::RichText::new(heading).small().strong()).sense(egui::Sense::click()))
+        .add(
+            egui::Label::new(egui::RichText::new(heading).small().strong())
+                .sense(egui::Sense::click()),
+        )
         .clicked()
     {
         collab.expanded = !collab.expanded;
@@ -344,10 +347,7 @@ fn join_section(ui: &mut egui::Ui, form: &mut JoinForm) {
             });
         }
         JoinPhase::Joined => {
-            ui.label(
-                egui::RichText::new("✓ Viewer window launched.")
-                    .color(ACCENT),
-            );
+            ui.label(egui::RichText::new("✓ Viewer window launched.").color(ACCENT));
             if ui.small_button("Join another").clicked() {
                 form.phase = JoinPhase::Idle;
                 form.address.clear();
@@ -456,11 +456,10 @@ fn pair_and_spawn(addr_str: &str, pin: Option<&str>) -> Result<(), String> {
         let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
         cmd.env(crate::net::JOIN_TOKEN_ENV, b64);
     }
-    cmd.spawn().map_err(|e| format!("failed to start viewer: {e}"))?;
+    cmd.spawn()
+        .map_err(|e| format!("failed to start viewer: {e}"))?;
     Ok(())
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -493,7 +492,10 @@ mod tests {
     #[test]
     fn drain_join_results_applies_sessions() {
         let mut form = JoinForm::default();
-        form.results.lock().unwrap().push(JoinResult::Sessions(vec![]));
+        form.results
+            .lock()
+            .unwrap()
+            .push(JoinResult::Sessions(vec![]));
         drain_join_results(&mut form);
         assert!(matches!(form.phase, JoinPhase::Discovered(ref s) if s.is_empty()));
     }
@@ -501,7 +503,10 @@ mod tests {
     #[test]
     fn drain_join_results_applies_error() {
         let mut form = JoinForm::default();
-        form.results.lock().unwrap().push(JoinResult::Error("fail".into()));
+        form.results
+            .lock()
+            .unwrap()
+            .push(JoinResult::Error("fail".into()));
         drain_join_results(&mut form);
         assert!(matches!(form.phase, JoinPhase::Error(ref e) if e == "fail"));
     }

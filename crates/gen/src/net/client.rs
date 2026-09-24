@@ -71,10 +71,7 @@ struct PromptOutbox {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClientEntry {
     You(String),
-    Chat {
-        speaker: String,
-        text: String,
-    },
+    Chat { speaker: String, text: String },
     Status(String),
     Error(String),
 }
@@ -688,8 +685,7 @@ fn client_local_commands(
         let mut parts = command.split_whitespace();
         let line = match parts.next() {
             Some("/stats") => {
-                let (chunks, meshes, folded) =
-                    bake.as_ref().map(|b| b.stats()).unwrap_or_default();
+                let (chunks, meshes, folded) = bake.as_ref().map(|b| b.stats()).unwrap_or_default();
                 let cam = camera
                     .single()
                     .map(|t| t.translation.to_array())
@@ -1017,7 +1013,10 @@ fn client_receive_job_status(
                     format!("[queue] job #{} is next up", status.job_id)
                 }
                 JobState::Queued { position } => {
-                    format!("[queue] job #{} queued — {position} ahead of it", status.job_id)
+                    format!(
+                        "[queue] job #{} queued — {position} ahead of it",
+                        status.job_id
+                    )
                 }
                 JobState::Running => format!("[queue] job #{} is being built…", status.job_id),
                 JobState::Done => format!("[queue] job #{} done", status.job_id),
@@ -1074,6 +1073,9 @@ mod tests {
             log.push(ClientEntry::Status(format!("line {i}")));
         }
         assert_eq!(log.entries.len(), 400);
-        assert_eq!(log.entries.first(), Some(&ClientEntry::Status("line 100".into())));
+        assert_eq!(
+            log.entries.first(),
+            Some(&ClientEntry::Status("line 100".into()))
+        );
     }
 }

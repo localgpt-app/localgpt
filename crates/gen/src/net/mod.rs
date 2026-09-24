@@ -86,14 +86,8 @@ mod tests {
 
     #[test]
     fn peer_addresses_parse_with_and_without_port() {
-        assert_eq!(
-            parse_peer_addr("192.168.1.5:9879").unwrap().port(),
-            9879
-        );
-        assert_eq!(
-            parse_peer_addr("192.168.1.5").unwrap().port(),
-            DEFAULT_PORT
-        );
+        assert_eq!(parse_peer_addr("192.168.1.5:9879").unwrap().port(), 9879);
+        assert_eq!(parse_peer_addr("192.168.1.5").unwrap().port(), DEFAULT_PORT);
         assert!(parse_peer_addr("not a host").is_err());
     }
 }

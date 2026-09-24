@@ -947,17 +947,14 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // Desktop mode: the interactive app without a terminal to type in, so
-    // prompts come from the panel in the window. Automatic when stdin isn't a
-    // terminal (a double-click, or the macOS app bundle); --desktop forces it.
-    #[cfg(feature = "multiplayer")]
-    let joining = cli.join.is_some();
-    #[cfg(not(feature = "multiplayer"))]
-    let joining = false;
+    // Desktop mode: the interactive app (or a --join viewer) without a
+    // terminal to type in, so prompts come from a panel in the window.
+    // Automatic when stdin isn't a terminal (a double-click, the macOS app
+    // bundle, or a viewer launched from the panel's Join); --desktop forces it.
     let launched_from_terminal = std::io::stdin().is_terminal();
-    let desktop = cli.command.is_none() && !joining && (cli.desktop || !launched_from_terminal);
-    if cli.desktop && (cli.command.is_some() || joining) {
-        anyhow::bail!("--desktop only applies to interactive mode (no subcommand, no --join)");
+    let desktop = cli.command.is_none() && (cli.desktop || !launched_from_terminal);
+    if cli.desktop && cli.command.is_some() {
+        anyhow::bail!("--desktop only applies to interactive mode (no subcommand)");
     }
 
     // Apps opened from Finder inherit launchd's minimal PATH, which hides CLI
@@ -1047,7 +1044,7 @@ fn main() -> Result<()> {
         if cli.command.is_some() {
             anyhow::bail!("--join cannot be combined with a subcommand");
         }
-        return run_join_mode(&cli);
+        return run_join_mode(&cli, desktop);
     }
     #[cfg(feature = "multiplayer")]
     if cli.host && cli.command.is_some() {
@@ -1252,30 +1249,30 @@ fn main() -> Result<()> {
                 },
             ));
 
-            // Host mode: set up the prompt/chat bridge to the net systems.
+            // The host plugin is always installed so a session can be started
+            // from the prompt panel at any time; `--host` just starts one
+            // before the first frame. Until then it stays dormant.
             #[cfg(feature = "multiplayer")]
-            let mut host_options: Option<localgpt_gen::net::host::NetHostOptions> = None;
-            #[cfg(feature = "multiplayer")]
-            let agent_net: AgentNetHooksOpt = if cli.host {
+            let (host_options, agent_net): (
+                localgpt_gen::net::host::NetHostOptions,
+                AgentNetHooksOpt,
+            ) = {
                 let (mut opts, hooks) = localgpt_gen::net::host::create_host_channels();
                 opts.session_name = cli
                     .session_name
                     .clone()
-                    .unwrap_or_else(default_session_name);
+                    .unwrap_or_else(localgpt_gen::net::default_session_name);
                 opts.port = cli.port;
                 opts.open = cli.open;
-                opts.full_access = cli.remote_tools == RemoteTools::Full;
-                opts.autostart = true;
+                opts.full_access = cli.host && cli.remote_tools == RemoteTools::Full;
+                opts.autostart = cli.host;
                 if opts.full_access {
                     eprintln!(
                         "WARNING: --remote-tools full — connected clients' prompts run with this \
                          agent's full tool access, including shell commands on this machine."
                     );
                 }
-                host_options = Some(opts);
-                Some(hooks)
-            } else {
-                None
+                (opts, Some(hooks))
             };
             #[cfg(not(feature = "multiplayer"))]
             let agent_net: AgentNetHooksOpt = None;
@@ -1287,11 +1284,6 @@ fn main() -> Result<()> {
                 || model.starts_with("claude-cli/")
                 || model.starts_with("gemini-cli/")
                 || model.starts_with("codex-cli/");
-
-            #[cfg(feature = "multiplayer")]
-            let remote_full_access = cli.host && cli.remote_tools == RemoteTools::Full;
-            #[cfg(not(feature = "multiplayer"))]
-            let remote_full_access = false;
 
             // Spawn tokio runtime + agent loop + MCP relay on a background thread
             // (Bevy must own the main thread for windowing/GPU on macOS).
@@ -1334,7 +1326,6 @@ fn main() -> Result<()> {
                         relay_config,
                         editor_for_agent,
                         agent_net,
-                        remote_full_access,
                         agent_channels,
                         desktop,
                     )
@@ -1365,11 +1356,7 @@ fn main() -> Result<()> {
 
             // Run Bevy on the main thread (blocks until window closes)
             #[cfg(feature = "multiplayer")]
-            let result = if let Some(options) = host_options {
-                run_host_bevy_app(channels, workspace, initial_scene, options, panel)
-            } else {
-                run_bevy_app(channels, workspace, initial_scene, panel)
-            };
+            let result = run_host_bevy_app(channels, workspace, initial_scene, host_options, panel);
             #[cfg(not(feature = "multiplayer"))]
             let result = run_bevy_app(channels, workspace, initial_scene, panel);
 
@@ -1450,7 +1437,8 @@ fn run_host_bevy_app(
         DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
-                    title: "LocalGPT Gen — Host".into(),
+                    // host_lifecycle retitles it once a session starts.
+                    title: "LocalGPT Gen".into(),
                     resolution: bevy::window::WindowResolution::new(1280, 720),
                     present_mode: bevy::window::PresentMode::AutoVsync,
                     composite_alpha_mode: bevy::window::CompositeAlphaMode::Auto,
@@ -1485,6 +1473,7 @@ fn run_client_app(
     view_radius: u8,
     bake: bool,
     connect_token: Option<Vec<u8>>,
+    panel_prompt_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
 ) -> Result<()> {
     use bevy::prelude::*;
 
@@ -1518,6 +1507,12 @@ fn run_client_app(
             connect_token,
         })),
     });
+    if let Some(prompt_tx) = panel_prompt_tx {
+        app.add_plugins(localgpt_gen::desktop::ClientPanelPlugin::new(
+            prompt_tx,
+            server_addr,
+        ));
+    }
 
     app.run();
 
@@ -1526,12 +1521,17 @@ fn run_client_app(
 
 /// `--join` mode: resolve the host address (mDNS browse when unspecified),
 /// start the prompt REPL, and run the client app.
+///
+/// In `desktop` mode (no terminal — typically a viewer the host-or-join
+/// panel launched) prompts come from an in-window panel instead of the
+/// REPL, and an already-paired connect token may arrive in
+/// [`localgpt_gen::net::JOIN_TOKEN_ENV`].
 #[cfg(feature = "multiplayer")]
-fn run_join_mode(cli: &Cli) -> Result<()> {
+fn run_join_mode(cli: &Cli, desktop: bool) -> Result<()> {
     use std::net::SocketAddr;
 
     let addr: SocketAddr = match cli.join.clone().flatten() {
-        Some(spec) => parse_peer_addr(&spec)?,
+        Some(spec) => localgpt_gen::net::parse_peer_addr(&spec)?,
         None => {
             eprintln!("Browsing the LAN for collaborative sessions…");
             let sessions = localgpt_gen::net::mdns::browse_sessions(
@@ -1553,10 +1553,37 @@ fn run_join_mode(cli: &Cli) -> Result<()> {
         }
     };
 
-    let connect_token = pair_for_join(addr, cli.pin.as_deref())?;
+    let connect_token = match std::env::var(localgpt_gen::net::JOIN_TOKEN_ENV) {
+        // Paired already by the panel that launched us; don't pair twice.
+        Ok(token) if !token.is_empty() => {
+            use base64::Engine as _;
+            // SAFETY: called before any threads are spawned.
+            unsafe { std::env::remove_var(localgpt_gen::net::JOIN_TOKEN_ENV) };
+            Some(
+                base64::engine::general_purpose::STANDARD
+                    .decode(token.trim())
+                    .map_err(|e| {
+                        anyhow::anyhow!("invalid {}: {e}", localgpt_gen::net::JOIN_TOKEN_ENV)
+                    })?,
+            )
+        }
+        _ if desktop => pair_for_join_without_terminal(addr, cli.pin.as_deref())?,
+        _ => pair_for_join(addr, cli.pin.as_deref())?,
+    };
+
+    let (prompt_tx, prompt_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    if desktop {
+        return run_client_app(
+            addr,
+            prompt_rx,
+            cli.view_radius,
+            !cli.no_bake,
+            connect_token,
+            Some(prompt_tx),
+        );
+    }
 
     // Prompt REPL on a background thread — lines flow to the net systems.
-    let (prompt_tx, prompt_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     std::thread::spawn(move || {
         let Ok(mut rl) = rustyline::DefaultEditor::new() else {
             eprintln!("Failed to open input editor — prompts unavailable");
@@ -1585,7 +1612,26 @@ fn run_join_mode(cli: &Cli) -> Result<()> {
         cli.view_radius,
         !cli.no_bake,
         connect_token,
+        None,
     )
+}
+
+/// Pairing for a viewer with no terminal to type a PIN into: open sessions
+/// need nothing, PIN sessions need `--pin` (the panel pairs on the viewer's
+/// behalf instead, see `JOIN_TOKEN_ENV`).
+#[cfg(feature = "multiplayer")]
+fn pair_for_join_without_terminal(
+    addr: std::net::SocketAddr,
+    pin_arg: Option<&str>,
+) -> Result<Option<Vec<u8>>> {
+    let info = localgpt_gen::net::pairing::fetch_info(&format!("http://{addr}"))
+        .map_err(|e| anyhow::anyhow!("Couldn't reach the host at tcp://{addr} ({e})"))?;
+    if info.pairing_required && pin_arg.is_none() {
+        anyhow::bail!(
+            "This session needs a PIN. Join it from Gen's Collaborate panel, or pass --pin."
+        );
+    }
+    pair_for_join(addr, pin_arg)
 }
 
 /// Obtain a connect token from the host's pairing endpoint (TCP, same port
@@ -1642,30 +1688,6 @@ fn pair_for_join(addr: std::net::SocketAddr, pin_arg: Option<&str>) -> Result<Op
         }
     }
     anyhow::bail!("Pairing failed: wrong PIN")
-}
-
-/// Parse a peer address: `host:port`, `ip:port`, or a bare host (port
-/// defaults to the session port).
-#[cfg(feature = "multiplayer")]
-fn parse_peer_addr(spec: &str) -> Result<std::net::SocketAddr> {
-    use anyhow::Context as _;
-
-    if let Ok(addr) = spec.parse() {
-        return Ok(addr);
-    }
-    let with_port = format!("{spec}:{}", localgpt_gen::net::DEFAULT_PORT);
-    with_port
-        .parse()
-        .with_context(|| format!("invalid host address '{spec}' (expected host:port)"))
-}
-
-/// Default hosted-session name: "{user}'s world".
-#[cfg(feature = "multiplayer")]
-fn default_session_name() -> String {
-    let user = std::env::var("USERNAME")
-        .or_else(|_| std::env::var("USER"))
-        .unwrap_or_else(|_| "gen".to_string());
-    format!("{user}'s world")
 }
 
 /// The desktop-mode log (`<state dir>/logs/gen-desktop.log`, appended to),
@@ -2071,6 +2093,9 @@ enum AgentInput {
     /// Queued prompt job dispatched from a connected collaborative client.
     #[cfg(feature = "multiplayer")]
     Remote(localgpt_gen::net::host::RemoteJob),
+    /// A collaborative session went live; build the remote-prompt worker.
+    #[cfg(feature = "multiplayer")]
+    HostingStarted { full_access: bool },
 }
 
 /// What the agent loop should do with a slash command typed in the panel.
@@ -2205,7 +2230,6 @@ async fn run_agent_loop(
     config: localgpt_core::config::Config,
     editor: Option<rustyline::DefaultEditor>,
     net_hooks: AgentNetHooksOpt,
-    remote_full_access: bool,
     panel: AgentChannels,
     desktop: bool,
 ) -> Result<()> {
@@ -2300,24 +2324,11 @@ async fn run_agent_loop(
     // Inject gen-specific memory guidance so the LLM learns creative preferences
     agent.add_user_message(gen3d::system_prompt::GEN_MEMORY_PROMPT);
 
-    // Worker for prompts from collaborative clients (scene-only by default).
+    // Worker for prompts from collaborative clients. Built when a session
+    // actually starts (`--host`, or Start hosting in the panel) — see
+    // `AgentInput::HostingStarted` below.
     #[cfg(feature = "multiplayer")]
-    let mut remote_worker = match &net_hooks {
-        Some(_) if remote_full_access => RemoteWorker::Host,
-        Some(_) => match build_scoped_remote_agent(remote_bridge, &config).await {
-            Ok(remote) => {
-                eprintln!(
-                    "Remote prompts: scene-editing tools only (--remote-tools full to change)"
-                );
-                RemoteWorker::Scoped(Box::new(remote))
-            }
-            Err(e) => {
-                eprintln!("Remote prompts disabled: {e}");
-                RemoteWorker::Disabled(e.to_string())
-            }
-        },
-        None => RemoteWorker::Disabled("not hosting".into()),
-    };
+    let mut remote_worker = RemoteWorker::Disabled("not hosting".into());
 
     // Display model info (matching CLI format)
     let embedding_status = if agent.has_embeddings() {
@@ -2457,8 +2468,16 @@ async fn run_agent_loop(
         }
     });
 
+    // Chat is only echoed to clients while a session is live; the sender
+    // waits here until hosting starts.
     #[cfg(feature = "multiplayer")]
-    let (chat_tx, job_events_tx) = match net_hooks {
+    let mut idle_chat_tx = None;
+    #[cfg(feature = "multiplayer")]
+    let mut chat_tx: Option<
+        tokio::sync::mpsc::UnboundedSender<localgpt_gen::net::protocol::HostChat>,
+    > = None;
+    #[cfg(feature = "multiplayer")]
+    let job_events_tx = match net_hooks {
         Some(hooks) => {
             // Forward dispatched remote jobs into the merged input stream.
             // The host's queue hands out one job at a time, so this loop is
@@ -2472,9 +2491,26 @@ async fn run_agent_loop(
                     }
                 }
             });
-            (Some(hooks.chat_tx), Some(hooks.job_events_tx))
+            // Hosting started (from --host or the panel): build the worker.
+            let mut control_rx = hooks.control_rx;
+            let control_tx = event_tx.clone();
+            tokio::spawn(async move {
+                while let Some(localgpt_gen::net::host::HostControlEvent::HostingStarted {
+                    full_access,
+                }) = control_rx.recv().await
+                {
+                    if control_tx
+                        .send(AgentInput::HostingStarted { full_access })
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+            });
+            idle_chat_tx = Some(hooks.chat_tx);
+            Some(hooks.job_events_tx)
         }
-        None => (None, None),
+        None => None,
     };
 
     // Interactive loop over the merged event stream.
@@ -2486,6 +2522,41 @@ async fn run_agent_loop(
             AgentInput::Local(line) => (line, false),
             AgentInput::Panel(line) => (line, true),
             AgentInput::Eof => break, // Ctrl+D
+            #[cfg(feature = "multiplayer")]
+            AgentInput::HostingStarted { full_access } => {
+                remote_worker = if full_access {
+                    let note = "Guests' prompts run on this agent with all of its tools.";
+                    eprintln!("Remote prompts: {note}");
+                    sink.send(ChatEvent::Warning(note.into()));
+                    RemoteWorker::Host
+                } else {
+                    match build_scoped_remote_agent(remote_bridge.clone(), &config).await {
+                        Ok(remote) => {
+                            eprintln!(
+                                "Remote prompts: scene-editing tools only (--remote-tools full \
+                                 to change)"
+                            );
+                            sink.send(ChatEvent::Notice(
+                                "Hosting. Guests' prompts run on a separate agent that can only \
+                                 edit the scene."
+                                    .into(),
+                            ));
+                            RemoteWorker::Scoped(Box::new(remote))
+                        }
+                        Err(e) => {
+                            eprintln!("Remote prompts disabled: {e}");
+                            sink.send(ChatEvent::Warning(format!(
+                                "Hosting, but guests' prompts are disabled: {e}"
+                            )));
+                            RemoteWorker::Disabled(e.to_string())
+                        }
+                    }
+                };
+                if chat_tx.is_none() {
+                    chat_tx = idle_chat_tx.take();
+                }
+                continue;
+            }
             #[cfg(feature = "multiplayer")]
             AgentInput::Remote(job) => {
                 use localgpt_gen::net::host::JobEvent;

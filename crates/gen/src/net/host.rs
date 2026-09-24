@@ -137,18 +137,18 @@ impl HostSessionInfo {
             None => format!("Hosting '{}' · open session (no PIN)", self.session_name),
         };
         if self.clients > 0 {
-            line.push_str(&format!(" · {} guest{}", self.clients, plural(self.clients)));
+            line.push_str(&format!(
+                " · {} guest{}",
+                self.clients,
+                plural(self.clients)
+            ));
         }
         line
     }
 }
 
 fn plural(count: usize) -> &'static str {
-    if count == 1 {
-        ""
-    } else {
-        "s"
-    }
+    if count == 1 { "" } else { "s" }
 }
 
 /// A request to start hosting a session — from the CLI (`--host`, before
@@ -175,9 +175,7 @@ pub enum HostControl {
     StartRequested(HostStartRequest),
     /// The session is live. `warning` carries a non-fatal startup problem
     /// (e.g. mDNS failed) for the panel to show.
-    Active {
-        warning: Option<String>,
-    },
+    Active { warning: Option<String> },
     /// The start failed (e.g. the port is taken); the panel shows the
     /// reason and hosting can be requested again.
     Failed(String),
@@ -348,61 +346,61 @@ impl Plugin for NetHostPlugin {
         };
         app.insert_resource(control)
             .insert_resource(ControlOutbox { tx: control_tx })
-        .insert_resource(ReplicationMetadata::new(REPLICATION_SEND_INTERVAL))
-        .insert_resource(HostAssets {
-            store: AssetStore::default(),
-            port: None,
-        })
-        .insert_resource(HostJobs {
-            queue: JobQueue::default(),
-            scaffolds: HashMap::new(),
-            requester_links: HashMap::new(),
-            dispatched: None,
-            job_tx,
-            events_rx: Mutex::new(job_events_rx),
-        })
-        .insert_resource(HostChatOutbox {
-            rx: Mutex::new(chat_rx),
-        })
-        .init_resource::<InterestState>()
-        .init_resource::<ChunkSummaryEntities>()
-        .add_systems(PreUpdate, host_lifecycle)
-        .add_systems(Startup, spawn_world_meta_entity)
-        .add_observer(on_client_link_connected)
-        .add_systems(
-            PreUpdate,
-            net_attach_new_entities
-                .run_if(hosting)
-                .after(host_lifecycle),
-        )
-        .add_systems(
-            PostUpdate,
-            (
-                net_sync_changes,
-                net_sync_meta,
-                net_update_chunk_summaries,
-                net_update_interest
-                    .after(TransformSystems::Propagate)
-                    .after(net_update_chunk_summaries)
-                    .before(ReplicationSystems::Send),
+            .insert_resource(ReplicationMetadata::new(REPLICATION_SEND_INTERVAL))
+            .insert_resource(HostAssets {
+                store: AssetStore::default(),
+                port: None,
+            })
+            .insert_resource(HostJobs {
+                queue: JobQueue::default(),
+                scaffolds: HashMap::new(),
+                requester_links: HashMap::new(),
+                dispatched: None,
+                job_tx,
+                events_rx: Mutex::new(job_events_rx),
+            })
+            .insert_resource(HostChatOutbox {
+                rx: Mutex::new(chat_rx),
+            })
+            .init_resource::<InterestState>()
+            .init_resource::<ChunkSummaryEntities>()
+            .add_systems(PreUpdate, host_lifecycle)
+            .add_systems(Startup, spawn_world_meta_entity)
+            .add_observer(on_client_link_connected)
+            .add_systems(
+                PreUpdate,
+                net_attach_new_entities
+                    .run_if(hosting)
+                    .after(host_lifecycle),
             )
-                .run_if(hosting),
-        )
-        .add_systems(
-            Update,
-            (
-                net_prompt_intake,
-                net_publish_mesh_assets,
-                net_job_events,
-                net_job_dispatch
-                    .after(net_prompt_intake)
-                    .after(net_job_events),
-                net_view_intake,
-                net_chat_broadcast,
-                net_client_lifecycle,
+            .add_systems(
+                PostUpdate,
+                (
+                    net_sync_changes,
+                    net_sync_meta,
+                    net_update_chunk_summaries,
+                    net_update_interest
+                        .after(TransformSystems::Propagate)
+                        .after(net_update_chunk_summaries)
+                        .before(ReplicationSystems::Send),
+                )
+                    .run_if(hosting),
             )
-                .run_if(hosting),
-        );
+            .add_systems(
+                Update,
+                (
+                    net_prompt_intake,
+                    net_publish_mesh_assets,
+                    net_job_events,
+                    net_job_dispatch
+                        .after(net_prompt_intake)
+                        .after(net_job_events),
+                    net_view_intake,
+                    net_chat_broadcast,
+                    net_client_lifecycle,
+                )
+                    .run_if(hosting),
+            );
     }
 }
 
@@ -489,9 +487,9 @@ fn host_lifecycle(
             "\n  Session PIN: {}   (joiners: localgpt-gen --join <this-host> --pin <PIN>)\n",
             format_pin(&pairing.pin())
         ),
-        None => eprintln!(
-            "\n  OPEN session: no PIN — anyone on the LAN with localgpt-gen can join\n"
-        ),
+        None => {
+            eprintln!("\n  OPEN session: no PIN — anyone on the LAN with localgpt-gen can join\n")
+        }
     }
 
     // The listen server itself: server link entity + Start trigger. The
@@ -535,7 +533,9 @@ fn host_lifecycle(
         }
         Err(e) => {
             eprintln!("mDNS announcement failed ({e}) — clients must connect by address");
-            warning = Some(format!("mDNS failed ({e}) — guests must type this computer's address to join"));
+            warning = Some(format!(
+                "mDNS failed ({e}) — guests must type this computer's address to join"
+            ));
         }
     }
 
@@ -1304,18 +1304,22 @@ mod tests {
     #[test]
     fn host_control_tracks_lifecycle() {
         assert!(!HostControl::NotHosting.is_active());
-        assert!(!HostControl::StartRequested(HostStartRequest {
-            session_name: "w".into(),
-            port: 9879,
-            open: false,
-            full_access: false,
-        })
-        .is_active());
+        assert!(
+            !HostControl::StartRequested(HostStartRequest {
+                session_name: "w".into(),
+                port: 9879,
+                open: false,
+                full_access: false,
+            })
+            .is_active()
+        );
         assert!(HostControl::Active { warning: None }.is_active());
-        assert!(HostControl::Active {
-            warning: Some("mDNS failed".into())
-        }
-        .is_active());
+        assert!(
+            HostControl::Active {
+                warning: Some("mDNS failed".into())
+            }
+            .is_active()
+        );
         assert!(!HostControl::Failed("port taken".into()).is_active());
     }
 }

@@ -20,6 +20,12 @@ terminal (or with `--desktop`), it runs in **desktop mode**:
   which hides `claude`, `gemini`, and `codex` when they're installed with
   Homebrew, npm, or into `~/.local/bin`. Desktop mode asks your login shell for
   its `PATH` first, so those CLIs are found.
+- **Collaborate.** A section under the model menu hosts or joins a
+  collaborative session without command-line flags. *Host* picks a name,
+  port, and PIN or open session, then shows the PIN and how many guests are
+  connected. *Join* browses the LAN (or takes an address), pairs with the
+  PIN, and opens a viewer window with its own prompt panel for asking the
+  host's agent. Guests' prompts run on a scene-only agent, as with `--host`.
 - **Logs** go to `~/.local/state/localgpt/logs/gen-desktop.log`.
 
 Keys: **F2** shows or hides the panel, **Enter** in the 3D view jumps to the
@@ -73,5 +79,3 @@ install -Dm644 website/static/logo/localgpt-icon.svg \
 - **Tool calls from CLI backends.** With Claude CLI, Gemini CLI, or Codex, tools
   run through the MCP relay, so the panel shows the streamed text but not
   each tool call.
-- **Hosting and joining from the window.** `--host` shows the session PIN in
-  the panel, but starting or joining a session still takes command-line flags.

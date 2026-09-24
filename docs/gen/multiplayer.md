@@ -40,6 +40,14 @@ localgpt-gen --join --no-bake              # disable client-side static mesh bak
   the client REPL is sent to the host's agent as a queued job; a translucent
   scaffold appears where you are looking until the agent finishes, and
   replies and scene changes stream back.
+- **From the window:** the prompt panel's Collaborate section (under the
+  model menu) does the same without flags. Start hosting any time — the host
+  plugin is always installed but stays dormant (no sockets, no mDNS, no
+  replication) until a session starts, and entities that already exist are
+  picked up when it does. Join browses mDNS or takes an address, pairs with
+  the PIN in-process, and launches a `--join` viewer with the paired connect
+  token in `LOCALGPT_GEN_JOIN_TOKEN`. A viewer without a terminal (or with
+  `--desktop`) takes prompts in its own in-window panel instead of the REPL.
 - Client REPL lines starting with `/` stay local: `/stats` prints what the
   client is receiving (entities, scaffolds, visible impostors, baked chunks,
   streamed meshes); `/goto x y z` teleports the camera (handy for exercising
