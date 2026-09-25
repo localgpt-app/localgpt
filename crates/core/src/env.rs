@@ -15,6 +15,11 @@ pub const LOCALGPT_STATE_DIR: &str = "LOCALGPT_STATE_DIR";
 /// Cache directory override (e.g. `~/.cache/localgpt`)
 pub const LOCALGPT_CACHE_DIR: &str = "LOCALGPT_CACHE_DIR";
 
+/// Shared local-LLM model directory override (default
+/// `~/.local/share/localgpt/models/llm`). Gen, MD and Verse all read the
+/// GGUF from here so one download serves every app.
+pub const LOCALGPT_LLM_DIR: &str = "LOCALGPT_LLM_DIR";
+
 /// Workspace directory absolute override
 pub const LOCALGPT_WORKSPACE: &str = "LOCALGPT_WORKSPACE";
 

@@ -25,7 +25,7 @@ use libc::getuid;
 use std::path::{Path, PathBuf};
 
 use crate::env::{
-    LOCALGPT_CACHE_DIR, LOCALGPT_CONFIG_DIR, LOCALGPT_DATA_DIR, LOCALGPT_PROFILE,
+    LOCALGPT_CACHE_DIR, LOCALGPT_CONFIG_DIR, LOCALGPT_DATA_DIR, LOCALGPT_LLM_DIR, LOCALGPT_PROFILE,
     LOCALGPT_STATE_DIR, LOCALGPT_WORKSPACE,
 };
 
@@ -258,6 +258,42 @@ impl Default for Paths {
     }
 }
 
+/// The local-LLM model directory every LocalGPT app shares, so one GGUF
+/// download serves Gen, MD and Verse: `$LOCALGPT_LLM_DIR`, else
+/// `<XDG data home>/localgpt/models/llm` (`~/.local/share/localgpt/models/llm`).
+///
+/// Deliberately ignores `LOCALGPT_PROFILE` and `LOCALGPT_DATA_DIR`: a 5 GB
+/// model is the same file for every profile. MD and Verse don't depend on
+/// this crate and repeat this rule in their own `llm.rs`; keep them in step.
+pub fn shared_llm_dir() -> Option<PathBuf> {
+    shared_llm_dir_with_env(|key| std::env::var(key))
+}
+
+/// [`shared_llm_dir`] with a custom env lookup (for testing).
+pub fn shared_llm_dir_with_env<F>(env_fn: F) -> Option<PathBuf>
+where
+    F: Fn(&str) -> std::result::Result<String, std::env::VarError>,
+{
+    use etcetera::BaseStrategy;
+
+    if let Some(dir) = env_fn(LOCALGPT_LLM_DIR)
+        .ok()
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+    {
+        return Some(dir);
+    }
+    let strategy = etcetera::choose_base_strategy().ok()?;
+    Some(
+        strategy
+            .data_dir()
+            .join("localgpt")
+            .join("models")
+            .join("llm"),
+    )
+}
+
 /// Resolve an env var with fallback. Ignores empty and relative paths per XDG spec.
 fn env_or<F>(env_fn: &F, var: &str, default: impl FnOnce() -> PathBuf) -> PathBuf
 where
@@ -370,6 +406,29 @@ mod tests {
                 .map(|v| v.to_string())
                 .ok_or(std::env::VarError::NotPresent)
         }
+    }
+
+    #[test]
+    fn shared_llm_dir_ignores_profile_and_honours_override() {
+        let default = shared_llm_dir_with_env(make_env(HashMap::new())).unwrap();
+        assert!(default.ends_with("localgpt/models/llm"), "{default:?}");
+
+        let profiled =
+            shared_llm_dir_with_env(make_env(HashMap::from([(LOCALGPT_PROFILE, "work")]))).unwrap();
+        assert_eq!(profiled, default);
+
+        let over = shared_llm_dir_with_env(make_env(HashMap::from([(
+            LOCALGPT_LLM_DIR,
+            "/models/here",
+        )])))
+        .unwrap();
+        assert_eq!(over, PathBuf::from("/models/here"));
+
+        // Relative overrides are ignored, like every other LOCALGPT_* dir.
+        let relative =
+            shared_llm_dir_with_env(make_env(HashMap::from([(LOCALGPT_LLM_DIR, "models")])))
+                .unwrap();
+        assert_eq!(relative, default);
     }
 
     #[test]

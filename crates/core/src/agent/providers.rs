@@ -472,12 +472,50 @@ fn normalize_model_id(provider: &str, model_id: &str) -> String {
     }
 }
 
+/// Builds a provider for the model id after a registered prefix's `/`.
+pub type ProviderFactory = Arc<dyn Fn(&str, &Config) -> Result<Box<dyn LLMProvider>> + Send + Sync>;
+
+fn provider_factories() -> &'static RwLock<Vec<(String, ProviderFactory)>> {
+    static FACTORIES: std::sync::OnceLock<RwLock<Vec<(String, ProviderFactory)>>> =
+        std::sync::OnceLock::new();
+    FACTORIES.get_or_init(|| RwLock::new(Vec::new()))
+}
+
+/// Route `<prefix>/<model>` to a provider an app supplies, ahead of the
+/// built-in providers. Lets an app bring its own backend (Gen's in-process
+/// GGUF model) without this crate taking on its dependencies. Registering a
+/// prefix again replaces the earlier factory.
+pub fn register_provider_factory(prefix: &str, factory: ProviderFactory) {
+    let prefix = prefix.to_lowercase();
+    let mut factories = provider_factories()
+        .write()
+        .unwrap_or_else(|e| e.into_inner());
+    factories.retain(|(existing, _)| *existing != prefix);
+    factories.push((prefix, factory));
+}
+
+fn registered_provider(model: &str, config: &Config) -> Option<Result<Box<dyn LLMProvider>>> {
+    let (prefix, model_id) = model.split_once('/')?;
+    let prefix = prefix.to_lowercase();
+    let factory = provider_factories()
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .iter()
+        .find(|(registered, _)| *registered == prefix)
+        .map(|(_, factory)| factory.clone())?;
+    Some(factory(model_id, config))
+}
+
 pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvider>> {
     #[cfg(feature = "claude-cli")]
     let workspace = config.workspace_path();
 
     // Resolve aliases first (e.g., "opus" → "anthropic/claude-opus-4-5")
     let model = resolve_model_alias(model);
+
+    if let Some(provider) = registered_provider(&model, config) {
+        return provider;
+    }
 
     // Parse provider/model format (OpenClaw-compatible)
     let (provider, model_id) = if let Some(pos) = model.find('/') {
@@ -4038,6 +4076,39 @@ mod providers_test;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn registered_prefix_routes_to_its_factory() {
+        use super::*;
+
+        struct Named(String);
+        #[async_trait]
+        impl LLMProvider for Named {
+            fn name(&self) -> String {
+                self.0.clone()
+            }
+            async fn chat(&self, _: &[Message], _: Option<&[ToolSchema]>) -> Result<LLMResponse> {
+                Ok(LLMResponse::text(String::new()))
+            }
+            async fn summarize(&self, _: &str) -> Result<String> {
+                Ok(String::new())
+            }
+        }
+
+        register_provider_factory(
+            "Test-Registry",
+            Arc::new(|model_id, _| Ok(Box::new(Named(format!("first:{model_id}"))))),
+        );
+        register_provider_factory(
+            "test-registry",
+            Arc::new(|model_id, _| Ok(Box::new(Named(format!("second:{model_id}"))))),
+        );
+        let config = Config::default();
+        let provider = create_provider("test-registry/some-model", &config).unwrap();
+        assert_eq!(provider.name(), "second:some-model");
+        // Unregistered prefixes still reach the built-in routing.
+        assert!(registered_provider("nope/model", &config).is_none());
+    }
+
     #[cfg(feature = "claude-cli")]
     #[test]
     fn claude_cli_builtin_tools_flag() {
