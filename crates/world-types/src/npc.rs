@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 /// Persisted NPC brain + memory data for a single NPC entity.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NpcDef {
     /// Entity name this NPC data belongs to.
     pub entity_name: String,
@@ -20,6 +21,7 @@ pub struct NpcDef {
 
 /// Serializable brain configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NpcBrainDef {
     pub personality: String,
     pub model: String,
@@ -33,6 +35,7 @@ pub struct NpcBrainDef {
 
 /// Serializable memory store.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NpcMemoryDef {
     pub capacity: usize,
     pub auto_memorize: bool,
@@ -42,6 +45,7 @@ pub struct NpcMemoryDef {
 
 /// A single serialized memory entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NpcMemoryEntryDef {
     pub timestamp: f64,
     pub content: String,
@@ -50,6 +54,7 @@ pub struct NpcMemoryEntryDef {
 
 /// Collection of all NPC data in a world, for `npcs.ron`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NpcDataCollection {
     /// NPC definitions, one per entity with brain/memory.
     pub npcs: Vec<NpcDef>,

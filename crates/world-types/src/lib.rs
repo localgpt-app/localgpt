@@ -41,9 +41,11 @@ pub mod identity;
 pub mod library;
 pub mod light;
 pub mod material;
+pub mod modulation;
 pub mod npc;
 pub mod region;
 pub mod shape;
+pub mod soundtrack;
 pub mod spatial;
 pub mod sync;
 pub mod tour;
@@ -61,11 +63,15 @@ pub use history::{AmbienceLayerDef, EditHistory, EditOp, WorldEdit};
 pub use identity::{CreationId, EntityId, EntityName, EntityRef};
 pub use light::{LightDef, LightType};
 pub use material::{AlphaModeDef, MaterialDef};
+pub use modulation::{ModulationDef, ModulationTarget, SignalSource, StemKind};
 pub use npc::{NpcBrainDef, NpcDataCollection, NpcDef, NpcMemoryDef, NpcMemoryEntryDef};
 pub use shape::{PrimitiveShapeKind, Shape};
+pub use soundtrack::{SoundtrackDef, StemCurves, curve_at};
 pub use spatial::ChunkCoord;
 pub use tour::{TourDef, TourMode, TourWaypoint};
-pub use validation::{Severity, ValidationIssue, WorldLimits};
+pub use validation::{
+    Severity, ValidationIssue, WorldLimits, validate_entities, validate_manifest,
+};
 pub use world::{CameraDef, ComplianceMeta, EnvironmentDef, WorldManifest, WorldMeta};
 
 // Multi-file world types (v2)

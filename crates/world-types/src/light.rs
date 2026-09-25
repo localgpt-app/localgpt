@@ -4,11 +4,12 @@ use serde::{Deserialize, Serialize};
 
 /// Light source attached to an entity.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LightDef {
     /// Type of light source.
     #[serde(default)]
     pub light_type: LightType,
-    /// Light color (RGBA, linear).
+    /// Light color, sRGB-encoded RGBA in `0..=1`.
     #[serde(default = "default_white")]
     pub color: [f32; 4],
     /// Intensity (lumens for Point/Spot, lux for Directional).
@@ -49,6 +50,7 @@ impl Default for LightDef {
 
 /// Light source type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum LightType {
     #[default]

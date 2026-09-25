@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "conformance-materials",
+    "description": "A metallic-by-roughness grid of spheres, then one entity per material feature.",
+    "tags": ["conformance"]
+  },
+  "environment": {
+    "background_color": [0.12, 0.13, 0.16, 1.0],
+    "ambient_color": [0.9, 0.95, 1.0, 1.0],
+    "ambient_intensity": 200.0
+  },
+  "camera": { "position": [0.0, 5.0, 14.0], "look_at": [0.0, 1.5, 0.0], "fov_degrees": 50.0 },
+  "entities": [
+    { "id": 1, "name": "ground",
+      "shape": { "Plane": { "x": 30.0, "z": 30.0 } },
+      "material": { "color": [0.2, 0.2, 0.22, 1.0], "roughness": 0.9 } },
+    { "id": 2, "name": "sun", "transform": { "position": [0.0, 20.0, 0.0] },
+      "light": { "light_type": "directional", "intensity": 9000.0, "direction": [-0.3, -1.0, -0.5], "shadows": true } },
+    { "id": 3, "name": "fill", "transform": { "position": [4.0, 5.0, 6.0] },
+      "light": { "light_type": "point", "color": [1.0, 0.9, 0.8, 1.0], "intensity": 60000.0, "range": 30.0, "shadows": false } },
+
+    { "id": 10, "name": "m0_r01", "transform": { "position": [-4.0, 3.0, 0.0] }, "shape": { "Sphere": { "radius": 0.6 } }, "material": { "color": [0.8, 0.2, 0.2, 1.0], "metallic": 0.0, "roughness": 0.1 } },
+    { "id": 11, "name": "m0_r05", "transform": { "position": [-4.0, 1.5, 0.0] }, "shape": { "Sphere": { "radius": 0.6 } }, "material": { "color": [0.8, 0.2, 0.2, 1.0], "metallic": 0.0, "roughness": 0.5 } },
+    { "id": 12, "name": "m0_r09", "transform": { "position": [-4.0, 0.0, 0.0] }, "shape": { "Sphere": { "radius": 0.6 } }, "material": { "color": [0.8, 0.2, 0.2, 1.0], "metallic": 0.0, "roughness": 0.9 } },
+    { "id": 13, "name": "m5_r01", "transform": { "position": [-2.5, 3.0, 0.0] }, "shape": { "Sphere": { "radius": 0.6 } }, "material": { "color": [0.8, 0.2, 0.2, 1.0], "metallic": 0.5, "roughness": 0.1 } },
+    { "id": 14, "name": "m5_r05", "transform": { "position": [-2.5, 1.5, 0.0] }, "shape": { "Sphere": { "radius": 0.6 } }, "material": { "color": [0.8, 0.2, 0.2, 1.0], "metallic": 0.5, "roughness": 0.5 } },
+    { "id": 15, "name": "m5_r09", "transform": { "position": [-2.5, 0.0, 0.0] }, "shape": { "Sphere": { "radius": 0.6 } }, "material": { "color": [0.8, 0.2, 0.2, 1.0], "metallic": 0.5, "roughness": 0.9 } },
+    { "id": 16, "name": "m1_r01", "transform": { "position": [-1.0, 3.0, 0.0] }, "shape": { "Sphere": { "radius": 0.6 } }, "material": { "color": [0.8, 0.2, 0.2, 1.0], "metallic": 1.0, "roughness": 0.1 } },
+    { "id": 17, "name": "m1_r05", "transform": { "position": [-1.0, 1.5, 0.0] }, "shape": { "Sphere": { "radius": 0.6 } }, "material": { "color": [0.8, 0.2, 0.2, 1.0], "metallic": 1.0, "roughness": 0.5 } },
+    { "id": 18, "name": "m1_r09", "transform": { "position": [-1.0, 0.0, 0.0] }, "shape": { "Sphere": { "radius": 0.6 } }, "material": { "color": [0.8, 0.2, 0.2, 1.0], "metallic": 1.0, "roughness": 0.9 } },
+
+    { "id": 20, "name": "emissive", "transform": { "position": [1.0, 3.0, 0.0] }, "shape": { "Sphere": { "radius": 0.6 } },
+      "material": { "color": [0.1, 0.1, 0.1, 1.0], "emissive": [3.0, 0.8, 0.2, 1.0] } },
+    { "id": 21, "name": "blend", "transform": { "position": [1.0, 1.5, 0.0] }, "shape": { "Cuboid": { "x": 1.2, "y": 1.2, "z": 1.2 } },
+      "material": { "color": [0.3, 0.6, 0.9, 0.4], "alpha_mode": "blend" } },
+    { "id": 22, "name": "add", "transform": { "position": [1.0, 0.0, 0.0] }, "shape": { "Cuboid": { "x": 1.2, "y": 1.2, "z": 1.2 } },
+      "material": { "color": [0.2, 0.8, 0.4, 0.7], "alpha_mode": "add" } },
+    { "id": 23, "name": "mask", "transform": { "position": [2.5, 3.0, 0.0] }, "shape": { "Cuboid": { "x": 1.2, "y": 1.2, "z": 1.2 } },
+      "material": { "color": [0.9, 0.9, 0.3, 0.8], "alpha_mode": { "mask": 0.5 } } },
+    { "id": 24, "name": "unlit", "transform": { "position": [2.5, 1.5, 0.0] }, "shape": { "Cuboid": { "x": 1.2, "y": 1.2, "z": 1.2 } },
+      "material": { "color": [0.9, 0.4, 0.9, 1.0], "unlit": true } },
+    { "id": 25, "name": "double_sided", "transform": { "position": [2.5, 0.0, 0.0], "rotation_degrees": [60.0, 0.0, 0.0] }, "shape": { "Plane": { "x": 1.2, "z": 1.2 } },
+      "material": { "color": [0.4, 0.9, 0.9, 1.0], "double_sided": true } },
+    { "id": 26, "name": "reflectance", "transform": { "position": [4.0, 3.0, 0.0] }, "shape": { "Sphere": { "radius": 0.6 } },
+      "material": { "color": [0.9, 0.9, 0.9, 1.0], "roughness": 0.15, "reflectance": 0.9 } },
+    { "id": 27, "name": "opaque_scaled", "transform": { "position": [4.0, 1.5, 0.0], "scale": [1.0, 0.5, 1.0] }, "shape": { "Sphere": { "radius": 0.6 } },
+      "material": { "color": [0.5, 0.5, 0.5, 1.0], "alpha_mode": "opaque" } },
+    { "id": 28, "name": "hidden", "transform": { "position": [4.0, 0.0, 0.0], "visible": false }, "shape": { "Sphere": { "radius": 0.6 } },
+      "material": { "color": [1.0, 0.0, 1.0, 1.0] } }
+  ],
+  "next_entity_id": 29
+}

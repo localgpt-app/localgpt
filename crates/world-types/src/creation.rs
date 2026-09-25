@@ -6,6 +6,7 @@ use crate::identity::{CreationId, EntityId};
 
 /// Semantic category for a creation (aids LLM reasoning and search).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SemanticCategory {
     Building,
@@ -25,6 +26,7 @@ pub enum SemanticCategory {
 /// For example, a "house" creation might consist of walls, roof, door, and
 /// chimney entities, with optional audio (fireplace) and lights (windows).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreationDef {
     /// Unique creation identifier.
     pub id: CreationId,

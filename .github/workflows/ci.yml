@@ -64,6 +64,8 @@ jobs:
           key: onnxruntime-1.23.2-linux-x64
       - run: echo "/opt/onnxruntime/lib" | sudo tee /etc/ld.so.conf.d/onnxruntime.conf && sudo ldconfig
       - run: cargo test
+      # world.schema.json must match the types (tests/schema_snapshot.rs).
+      - run: cargo test -p localgpt-world-types --features schema
 
   clippy:
     name: Clippy

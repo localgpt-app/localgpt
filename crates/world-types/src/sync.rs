@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// Top-level sync manifest — tracks consistency state across all domains.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SyncManifest {
     /// ISO 8601 timestamp of last sync check.
     pub updated_at: String,
@@ -27,6 +28,7 @@ pub struct SyncManifest {
 
 /// Sync state for a single domain (e.g., "layout", "audio", "behaviors").
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SyncRecord {
     /// Hash of the markdown representation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -51,6 +53,7 @@ pub struct SyncRecord {
 
 /// Sync status for a domain or overall.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SyncStatus {
     /// All representations match.
     Clean,
@@ -68,6 +71,7 @@ pub enum SyncStatus {
 
 /// Direction of a sync operation.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SyncDirection {
     MdToRon,
     RonToScene,
@@ -78,6 +82,7 @@ pub enum SyncDirection {
 
 /// Summary report of drift across all domains.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DriftReport {
     /// Overall sync status (worst of all domains).
     pub overall_status: SyncStatus,
@@ -87,6 +92,7 @@ pub struct DriftReport {
 
 /// Drift details for a single domain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DomainDrift {
     /// Domain name (e.g., "layout", "entities", "audio").
     pub domain: String,
@@ -105,6 +111,7 @@ pub struct DomainDrift {
 
 /// A single structural difference between representations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct StructuralDiff {
     /// Entity name involved (if applicable).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -127,6 +134,7 @@ pub struct StructuralDiff {
 
 /// Type of structural difference.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DiffType {
     Added,
     Removed,
@@ -135,6 +143,7 @@ pub enum DiffType {
 
 /// A claim extracted from markdown about world structure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct StructuralClaim {
     /// Entity name mentioned.
     #[serde(default, skip_serializing_if = "Option::is_none")]

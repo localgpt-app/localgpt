@@ -8,6 +8,8 @@ members = [
     "crates/mobile-ffi",
     "crates/gen",
     "crates/world-types",
+    "crates/world-export",
+    "crates/world-bevy",
     "crates/bridge",
     "bridges/cli",
 ]
@@ -64,6 +66,8 @@ localgpt-server = { version = "0.3.6", path = "crates/server" }
 localgpt-sandbox = { version = "0.3.6", path = "crates/sandbox" }
 localgpt-bridge = { version = "0.3.6", path = "crates/bridge" }
 localgpt-world-types = { version = "0.3.6", path = "crates/world-types" }
+localgpt-world-export = { version = "0.3.6", path = "crates/world-export" }
+localgpt-world-bevy = { version = "0.3.6", path = "crates/world-bevy" }
 localgpt-cli-tools = { version = "0.3.6", path = "crates/cli-tools" }
 
 [profile.release]

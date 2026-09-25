@@ -1,0 +1,14 @@
+[package]
+name = "localgpt-world-bevy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The one Bevy mapping of the LocalGPT world format — meshes, materials, lights, environment — shared by Gen, MD and Verse"
+keywords = ["localgpt", "world", "3d", "bevy"]
+
+[dependencies]
+localgpt-world-types = { workspace = true }
+# Only the rendering data model: no windowing, no audio, no default plugins.
+# The app that uses this crate brings the rest of Bevy.
+bevy = { version = "0.19", default-features = false, features = ["std", "bevy_asset", "bevy_pbr"] }

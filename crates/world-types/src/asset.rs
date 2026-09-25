@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Used for glTF/GLB imports where the geometry is too complex for
 /// parametric shapes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MeshAssetRef {
     /// Relative path to the asset file within the world's `assets/` directory.
     pub path: String,

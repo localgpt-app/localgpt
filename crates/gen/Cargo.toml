@@ -16,6 +16,8 @@ path = "src/main.rs"
 [dependencies]
 localgpt-core = { workspace = true, features = ["mcp-http"] }
 localgpt-world-types = { workspace = true }
+localgpt-world-export = { workspace = true }
+localgpt-world-bevy = { workspace = true }
 localgpt-cli-tools = { workspace = true }
 
 tokio = { workspace = true }

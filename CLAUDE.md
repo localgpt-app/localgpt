@@ -64,7 +64,7 @@ mobile, and includes a Bevy-based 3D world generator.
 
 ### Workspace
 
-`Cargo.toml` defines 14 members. `crates/spacetime` is a **standalone** crate
+`Cargo.toml` defines 12 members. `crates/spacetime` is a **standalone** crate
 (its own `[workspace]`) excluded from the main build because it targets
 SpacetimeDB's wasm/module toolchain.
 
@@ -78,6 +78,8 @@ crates/
 ├── mobile-ffi/   # localgpt-mobile-ffi — UniFFI bindings for iOS/Android
 ├── gen/          # localgpt-gen — Bevy 3D scene generation binary
 ├── world-types/  # localgpt-world-types — serde-only world data model (no Bevy/SpacetimeDB)
+├── world-bevy/   # localgpt-world-bevy — the one Bevy mapping of the format (Gen, MD, Verse)
+├── world-export/ # localgpt-world-export — web viewer (three.js) + HTML export, no Bevy
 ├── bridge/       # localgpt-bridge — secure IPC protocol for bridge daemons
 └── spacetime/    # localgpt-spacetime — SpacetimeDB multiplayer world server (standalone)
 
@@ -123,7 +125,19 @@ apps/             # Native client projects
 
 Bridge daemons (core + bridge): cli
 Mobile: mobile-ffi → core (default-features=false, embeddings-local + sqlite-vec)
+World format: world-types → world-bevy (bevy, no windowing) and world-export
+  (three.js viewer + HTML, no Bevy); gen depends on both. LocalGPT MD and
+  Verse depend on these three crates from this repository too.
 ```
+
+**The world format is shared across apps.** `localgpt-world-types` is the
+source format (serde-only; `schema` feature writes `world.schema.json`);
+`localgpt-world-bevy` is the only place a `Shape`, `MaterialDef`, `LightDef`
+or `EnvironmentDef` becomes Bevy components — Gen, MD and Verse all call it;
+`localgpt-world-export` holds the only web renderer
+(`js/world-viewer.js`) and `generate_html`. Reference scenes live in
+`crates/world-types/conformance/`; render them before and after changing a
+mapping. Add fields to world-types, never a parallel format.
 
 **Critical rule:** `localgpt-core` must have zero platform-specific dependencies
 and must compile cleanly for `aarch64-apple-ios` and `aarch64-linux-android`.
@@ -278,7 +292,9 @@ exposing memory), `session`, `cert`.
 **Binary:** `localgpt-gen` — Bevy-based 3D scene generation with procedural
 environmental audio. World data uses **`localgpt-world-types`** (serde-only,
 zero Bevy/SpacetimeDB deps) so the same types serialize to RON for local saves
-and map to SpacetimeDB rows for multiplayer via `crates/spacetime`.
+and map to SpacetimeDB rows for multiplayer via `crates/spacetime`. Meshes,
+materials, lights and environment come from `localgpt-world-bevy`;
+`gen_export_html` embeds `localgpt-world-export`'s viewer.
 
 **Multiplayer (`multiplayer` feature, default on):** listen-server
 collaboration — `localgpt-gen --host` runs the authoritative ECS + render

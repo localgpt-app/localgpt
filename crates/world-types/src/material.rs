@@ -5,8 +5,10 @@ use serde::{Deserialize, Serialize};
 /// PBR material properties.  All fields mirror the Bevy `StandardMaterial`
 /// subset that the gen tools expose.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MaterialDef {
-    /// Base color (RGBA, linear).
+    /// Base color, sRGB-encoded RGBA in `0..=1` (what Bevy's `Color::srgba`
+    /// reads; renderers convert to linear).
     #[serde(default = "default_color")]
     pub color: [f32; 4],
     /// Metallic factor (0.0 = dielectric, 1.0 = metal).
@@ -15,7 +17,8 @@ pub struct MaterialDef {
     /// Roughness factor (0.0 = mirror, 1.0 = matte).
     #[serde(default = "default_roughness")]
     pub roughness: f32,
-    /// Emissive color (RGBA, linear). Non-zero = self-illuminating.
+    /// Emissive color, linear RGBA (values above 1 glow). Non-zero =
+    /// self-illuminating.
     #[serde(default)]
     pub emissive: [f32; 4],
     /// Alpha blending mode.
@@ -49,6 +52,7 @@ impl Default for MaterialDef {
 
 /// Alpha blending mode (mirrors Bevy `AlphaMode`).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum AlphaModeDef {
     Opaque,

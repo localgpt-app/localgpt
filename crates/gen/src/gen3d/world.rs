@@ -378,6 +378,7 @@ pub fn handle_save_world(
         camera: camera_def,
         avatar: avatar.map(|a| a.into()),
         tours: tours.iter().map(|t| t.into()).collect(),
+        soundtrack: None,
         layout_file: None,
         region_files: None,
         behavior_files: None,
@@ -956,6 +957,7 @@ pub fn save_multi_file_world(
         camera: camera_def,
         avatar: avatar.clone(),
         tours: tours.clone(),
+        soundtrack: None,
         layout_file: if skill_dir.join("layout/blockout.ron").exists() {
             Some("layout/blockout.ron".to_string())
         } else {
