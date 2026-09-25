@@ -400,6 +400,9 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
 
 - **Lint clean before committing:** `cargo clippy --workspace -- -D warnings`
   and `cargo fmt --check` must pass (enforced in CI).
+- **Commits:** conventional commits (`feat:`, `fix:`, `docs:`, `chore:`,
+  `refactor:`, scoped like `feat(gen):`), with no Co-Authored-By or
+  Claude-Session trailers.
 - **Keep `localgpt-core` portable:** never add platform/desktop-only deps to it;
   put them in `cli`, `cli-tools`, `server`, `sandbox`, or `gen`. Verify with the
   mobile `cargo check` targets above.
