@@ -86,7 +86,10 @@ base64 = "0.22"
 regex = "1"
 once_cell = "1"
 fs2 = "0.4"
-readability = "0.3"
+# default-features = false drops readability's optional reqwest 0.11 client (and its
+# unpatched hyper 0.14 / h2 0.3 line); LocalGPT fetches with its own reqwest and
+# only calls `extractor::extract` on the bytes.
+readability = { version = "0.3", default-features = false }
 tempfile = "3.27"
 
 # Security (hashing for memory index & media cache)
