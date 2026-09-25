@@ -116,6 +116,7 @@ indexmap = { version = "2", optional = true }
 windows-sys = { version = "0.59", features = ["Win32_Storage_FileSystem", "Win32_System_IO"] }
 
 [dev-dependencies]
+tempfile = "3.27"
 
 [features]
 default = ["physics", "multiplayer"]

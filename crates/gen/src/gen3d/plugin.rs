@@ -109,6 +109,13 @@ pub struct GenInitialScene {
     pub path: Option<PathBuf>,
 }
 
+/// World folder to load on the first frame (`--world`; see
+/// [`super::world_import`]).
+#[derive(Resource, Default)]
+pub struct GenInitialWorld {
+    pub path: Option<String>,
+}
+
 /// Undo/redo stack wrapping `EditHistory` from world-types.
 ///
 /// Records `WorldEdit` operations (spawn, delete, modify) as they happen.
@@ -254,6 +261,7 @@ pub fn setup_gen_app(
         .insert_resource(GenInitialScene {
             path: initial_scene,
         })
+        .init_resource::<GenInitialWorld>()
         .init_resource::<NameRegistry>()
         .init_resource::<NextEntityId>()
         .init_resource::<DirtyTracker>()
@@ -541,17 +549,32 @@ fn process_gen_commands(
     mut commands: Commands,
     mut params: GenCommandParams,
     mut pending_gallery_load: ResMut<crate::gen3d::gallery_ui::PendingGalleryLoad>,
+    mut initial_world: ResMut<GenInitialWorld>,
 ) {
-    // Process gallery load requests by injecting into the command channel
-    if let Some(path) = pending_gallery_load.path.take() {
-        tracing::info!("Gallery: loading world from {}", path);
-        let _ = channel_res
-            .channels
-            .cmd_tx
-            .send(GenCommand::LoadWorld { path, clear: true });
-    }
+    // Loads queued inside the app (the gallery, `--world`) run through the
+    // same handler as the agent's, but no agent awaits them: their responses
+    // are logged instead of sent, or the agent's next command would receive
+    // them.
+    let mut internal = initial_world
+        .path
+        .take()
+        .into_iter()
+        .chain(pending_gallery_load.path.take())
+        .map(|path| {
+            tracing::info!("Loading world from {}", path);
+            GenCommand::LoadWorld { path, clear: true }
+        })
+        .collect::<Vec<_>>()
+        .into_iter();
 
-    while let Ok(cmd) = channel_res.channels.cmd_rx.try_recv() {
+    loop {
+        let (cmd, reply) = if let Some(cmd) = internal.next() {
+            (cmd, false)
+        } else if let Ok(cmd) = channel_res.channels.cmd_rx.try_recv() {
+            (cmd, true)
+        } else {
+            break;
+        };
         let response = match cmd {
             GenCommand::SceneInfo => handle_scene_info(
                 &params.registry,
@@ -4616,7 +4639,13 @@ fn process_gen_commands(
             _ => {}
         }
 
-        let _ = channel_res.channels.resp_tx.send(response);
+        if reply {
+            let _ = channel_res.channels.resp_tx.send(response);
+        } else if let GenResponse::Error { message } = &response {
+            tracing::warn!("{message}");
+        } else {
+            tracing::info!("{response:?}");
+        }
     }
 }
 
@@ -5361,7 +5390,7 @@ fn handle_spawn_primitive(
     if let Some(ref parent_name) = cmd.parent
         && let Some(parent_entity) = registry.get_entity(parent_name)
     {
-        commands.entity(entity).set_parent_in_place(parent_entity);
+        attach_to_parent(commands, entity, parent_entity);
     }
 
     registry.insert_with_id(cmd.name.clone(), entity, wid);
@@ -5742,7 +5771,7 @@ fn handle_spawn_mesh(
     if let Some(ref parent_name) = cmd.parent
         && let Some(parent_entity) = registry.get_entity(parent_name)
     {
-        commands.entity(entity).set_parent_in_place(parent_entity);
+        attach_to_parent(commands, entity, parent_entity);
     }
 
     GenResponse::Spawned {
@@ -5842,25 +5871,16 @@ fn spawn_world_entities(
             spawn_light_entity(light, &name, transform, world_id, commands)
         } else if let Some(ref mesh_ref) = we.mesh_asset {
             // Imported glTF mesh — resolve path (relative or absolute)
-            let mesh_path = if mesh_ref.path.starts_with("assets/") {
-                // Relative to world directory
-                if let Some(dir) = world_dir {
-                    dir.join(&mesh_ref.path).to_string_lossy().into_owned()
-                } else {
-                    // No world_dir — can't resolve relative path, try as-is
-                    tracing::warn!(
-                        "Relative mesh path '{}' for entity '{}' but no world_dir provided",
-                        mesh_ref.path,
-                        name
-                    );
-                    mesh_ref.path.clone()
-                }
-            } else {
-                // Absolute or workspace-relative
-                shellexpand::tilde(&mesh_ref.path).into_owned()
-            };
+            if world_dir.is_none() && mesh_ref.path.starts_with("assets/") {
+                tracing::warn!(
+                    "Relative mesh path '{}' for entity '{}' but no world_dir provided",
+                    mesh_ref.path,
+                    name
+                );
+            }
+            let mesh_path = resolve_mesh_asset_path(world_dir, &mesh_ref.path);
 
-            let p = std::path::Path::new(&mesh_path);
+            let p = mesh_path.as_path();
             if p.exists() {
                 let asset_path = p.to_string_lossy().trim_start_matches('/').to_string();
                 let handle = asset_server.load::<WorldAsset>(format!("{}#Scene0", asset_path));
@@ -5939,15 +5959,25 @@ fn spawn_world_entities(
         }
     }
 
-    // Second pass: resolve parent-child relationships
+    // Second pass: resolve parent-child relationships (saved transforms are
+    // local to the parent).
     for (child_name, parent_name) in &parent_assignments {
         if let (Some(child), Some(parent)) = (
             registry.get_entity(child_name),
             registry.get_entity(parent_name),
         ) {
-            commands.entity(child).set_parent_in_place(parent);
+            attach_to_parent(commands, child, parent);
         }
     }
+}
+
+/// Attach a child spawned this frame to its parent, keeping its `Transform`
+/// as the offset from the parent that the command or the saved world gave it.
+/// `set_parent_in_place` keeps the *global* transform instead, which is still
+/// identity for an entity spawned this frame, so it collapsed children onto
+/// their parents.
+fn attach_to_parent(commands: &mut Commands, child: Entity, parent: Entity) {
+    commands.entity(child).insert(ChildOf(parent));
 }
 
 /// Convert a `wt::Shape` to a Bevy `Mesh` handle.
@@ -7040,6 +7070,27 @@ fn is_leap_year(year: i32) -> bool {
 // glTF path resolution
 // ---------------------------------------------------------------------------
 
+/// Where a world's mesh asset is on disk. The format keeps asset paths
+/// relative to the world's `assets/` folder (worlds from Verse, the web and
+/// `--world` imports); worlds Gen saved earlier store `assets/...` relative
+/// to the world folder itself. Anything else is absolute or relative to the
+/// working directory.
+pub fn resolve_mesh_asset_path(world_dir: Option<&Path>, path: &str) -> PathBuf {
+    let expanded = PathBuf::from(shellexpand::tilde(path).into_owned());
+    if let Some(dir) = world_dir
+        && expanded.is_relative()
+    {
+        let in_assets = dir.join("assets").join(&expanded);
+        if in_assets.exists() {
+            return in_assets;
+        }
+        if path.starts_with("assets/") {
+            return dir.join(&expanded);
+        }
+    }
+    expanded
+}
+
 /// Resolve a glTF file path with the following fallback logic:
 /// 1. Expand `~` and try as-is
 /// 2. Try `{workspace}/{path}`
@@ -7176,5 +7227,44 @@ fn fly_cam_scroll_speed(
 ) {
     for event in scroll_reader.read() {
         config.move_speed = (config.move_speed * (1.0 + event.y * 0.1)).clamp(0.5, 100.0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::ecs::world::CommandQueue;
+
+    /// A child spawned in the same frame as its parent keeps its offset from
+    /// the parent, as the spawn tools and the world loader attach it.
+    #[test]
+    fn a_child_spawned_with_its_parent_keeps_its_offset() {
+        let mut app = App::new();
+        app.add_plugins(bevy::transform::TransformPlugin);
+        let parent = app
+            .world_mut()
+            .spawn(Transform::from_xyz(5.0, 0.0, 0.0))
+            .id();
+        let child = app
+            .world_mut()
+            .spawn(Transform::from_xyz(1.0, 2.0, 0.0).with_rotation(Quat::from_rotation_z(1.0)))
+            .id();
+        let mut queue = CommandQueue::default();
+        {
+            let mut commands = Commands::new(&mut queue, app.world());
+            attach_to_parent(&mut commands, child, parent);
+        }
+        queue.apply(app.world_mut());
+        app.update();
+
+        let local = app.world().get::<Transform>(child).unwrap();
+        assert_eq!(local.translation, Vec3::new(1.0, 2.0, 0.0));
+        assert!(local.rotation.abs_diff_eq(Quat::from_rotation_z(1.0), 1e-6));
+        let global = app.world().get::<GlobalTransform>(child).unwrap();
+        assert!(
+            global
+                .translation()
+                .abs_diff_eq(Vec3::new(6.0, 2.0, 0.0), 1e-5)
+        );
     }
 }

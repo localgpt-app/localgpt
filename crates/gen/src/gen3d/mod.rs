@@ -27,6 +27,7 @@ pub mod sync;
 pub mod system_prompt;
 pub mod tools;
 pub mod world;
+pub mod world_import;
 
 use std::sync::Arc;
 use tokio::sync::{Mutex, mpsc};

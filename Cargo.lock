@@ -9499,6 +9499,7 @@ dependencies = [
  "shellexpand",
  "spake2",
  "splines",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",

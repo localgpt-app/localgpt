@@ -806,6 +806,13 @@ struct Cli {
     #[arg(short = 's', long, global = true)]
     scene: Option<String>,
 
+    /// Open a LocalGPT world at startup: a world folder, a world name from
+    /// {workspace}/skills/, a .json or .ron manifest, or an http(s) URL to one
+    /// (for example a world on localgpt.world). Manifests and URLs are
+    /// imported, with their assets, into {workspace}/skills/<name>/ first.
+    #[arg(long, global = true, value_name = "PATH|URL")]
+    world: Option<String>,
+
     /// Enable MCP relay server for external MCP clients.
     /// Auto-enabled when using claude-cli/* models.
     #[arg(long, global = true)]
@@ -1141,7 +1148,7 @@ fn main() -> Result<()> {
             });
 
             // Run headless Bevy on the main thread
-            let result = run_headless_bevy_app(channels, workspace, completion_flag.clone());
+            let result = run_headless_bevy_app(channels, workspace, completion_flag.clone(), None);
 
             // Map exit code based on success/failure
             if !completion_flag.is_success() {
@@ -1185,6 +1192,7 @@ fn main() -> Result<()> {
                     .as_ref()
                     .and_then(|path| gen3d::plugin::resolve_gltf_path(path, &workspace))
             };
+            let initial_world = startup_world(cli.world.as_deref(), &workspace)?;
 
             let (bridge, channels) = gen3d::create_gen_channels();
             let bridge_for_mcp = bridge.clone();
@@ -1229,9 +1237,9 @@ fn main() -> Result<()> {
             // Run Bevy on the main thread (headless or windowed)
             if headless {
                 let completion_flag = gen3d::headless::HeadlessCompletionFlag::default();
-                run_headless_bevy_app(channels, workspace, completion_flag)
+                run_headless_bevy_app(channels, workspace, completion_flag, initial_world)
             } else {
-                run_bevy_app(channels, workspace, initial_scene, None)
+                run_bevy_app(channels, workspace, initial_scene, initial_world, None)
             }
         }
 
@@ -1241,6 +1249,7 @@ fn main() -> Result<()> {
                 .scene
                 .as_ref()
                 .and_then(|path| gen3d::plugin::resolve_gltf_path(path, &workspace));
+            let initial_world = startup_world(cli.world.as_deref(), &workspace)?;
 
             let (bridge, channels) = gen3d::create_gen_channels();
             let agent_id = cli.agent;
@@ -1368,9 +1377,16 @@ fn main() -> Result<()> {
 
             // Run Bevy on the main thread (blocks until window closes)
             #[cfg(feature = "multiplayer")]
-            let result = run_host_bevy_app(channels, workspace, initial_scene, host_options, panel);
+            let result = run_host_bevy_app(
+                channels,
+                workspace,
+                initial_scene,
+                initial_world,
+                host_options,
+                panel,
+            );
             #[cfg(not(feature = "multiplayer"))]
-            let result = run_bevy_app(channels, workspace, initial_scene, panel);
+            let result = run_bevy_app(channels, workspace, initial_scene, initial_world, panel);
 
             // Clean up relay port file so stale ports aren't discovered
             if enable_relay {
@@ -1393,11 +1409,44 @@ fn add_prompt_panel(app: &mut bevy::prelude::App, panel: PanelSetup) {
     }
 }
 
+/// `--world`: the world folder to open on the first frame, importing a loose
+/// manifest or a URL into the workspace first (see `gen3d::world_import`).
+fn startup_world(arg: Option<&str>, workspace: &Path) -> Result<Option<String>> {
+    use gen3d::world_import::Outcome;
+
+    let Some(arg) = arg else {
+        return Ok(None);
+    };
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let world = rt.block_on(gen3d::world_import::prepare(arg, workspace))?;
+    match &world.outcome {
+        Outcome::Opened => {}
+        Outcome::Imported { assets, missing } => {
+            eprintln!(
+                "Imported {arg} into {} ({assets} asset{})",
+                world.dir.display(),
+                if *assets == 1 { "" } else { "s" }
+            );
+            for asset in missing {
+                eprintln!("  missing asset: {asset}");
+            }
+        }
+        Outcome::AlreadyImported => eprintln!(
+            "Opening {} — imported earlier; delete it to import {arg} again",
+            world.dir.display()
+        ),
+    }
+    Ok(Some(world.dir.to_string_lossy().into_owned()))
+}
+
 /// Set up and run the Bevy application on the main thread.
 fn run_bevy_app(
     channels: gen3d::GenChannels,
     workspace: std::path::PathBuf,
     initial_scene: Option<PathBuf>,
+    initial_world: Option<String>,
     panel: PanelSetup,
 ) -> Result<()> {
     use bevy::prelude::*;
@@ -1424,6 +1473,9 @@ fn run_bevy_app(
     );
 
     gen3d::plugin::setup_gen_app(&mut app, channels, workspace, initial_scene);
+    app.insert_resource(gen3d::plugin::GenInitialWorld {
+        path: initial_world,
+    });
     add_prompt_panel(&mut app, panel);
 
     app.run();
@@ -1438,6 +1490,7 @@ fn run_host_bevy_app(
     channels: gen3d::GenChannels,
     workspace: std::path::PathBuf,
     initial_scene: Option<PathBuf>,
+    initial_world: Option<String>,
     options: localgpt_gen::net::host::NetHostOptions,
     panel: PanelSetup,
 ) -> Result<()> {
@@ -1466,6 +1519,9 @@ fn run_host_bevy_app(
     );
 
     gen3d::plugin::setup_gen_app(&mut app, channels, workspace, initial_scene);
+    app.insert_resource(gen3d::plugin::GenInitialWorld {
+        path: initial_world,
+    });
     app.add_plugins(localgpt_gen::net::host::NetHostPlugin {
         options: std::sync::Mutex::new(Some(options)),
     });
@@ -1722,6 +1778,7 @@ fn run_headless_bevy_app(
     channels: gen3d::GenChannels,
     workspace: std::path::PathBuf,
     completion_flag: gen3d::headless::HeadlessCompletionFlag,
+    initial_world: Option<String>,
 ) -> Result<()> {
     use bevy::prelude::*;
 
@@ -1756,6 +1813,9 @@ fn run_headless_bevy_app(
     app.add_systems(Update, gen3d::headless::headless_completion_detector);
 
     gen3d::plugin::setup_gen_app(&mut app, channels, workspace, None);
+    app.insert_resource(gen3d::plugin::GenInitialWorld {
+        path: initial_world,
+    });
 
     app.run();
 

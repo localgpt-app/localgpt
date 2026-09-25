@@ -365,7 +365,7 @@ impl Tool for GenSpawnPrimitiveTool {
                     },
                     "parent": {
                         "type": "string",
-                        "description": "Name of parent entity for hierarchy. Omit for root-level."
+                        "description": "Name of parent entity for hierarchy; position, rotation and scale are then relative to the parent. Omit for root-level."
                     }
                 },
                 "required": ["name", "shape"]
@@ -1182,8 +1182,8 @@ impl Tool for GenSetEnvironmentTool {
                     },
                     "ambient_light": {
                         "type": "number",
-                        "default": 0.1,
-                        "description": "Ambient light intensity 0.0-1.0"
+                        "default": 80,
+                        "description": "Ambient light brightness in Bevy GlobalAmbientLight units (the world format's ambient_intensity): 80 is a neutral fill, 20-60 for night or interiors, 150-300 for bright daylight. Values below 1 leave the scene unlit."
                     },
                     "ambient_color": {
                         "type": "array",
@@ -1299,7 +1299,7 @@ impl Tool for GenSpawnMeshTool {
                     },
                     "parent": {
                         "type": "string",
-                        "description": "Name of parent entity for hierarchy. Omit for root-level."
+                        "description": "Name of parent entity for hierarchy; position, rotation and scale are then relative to the parent. Omit for root-level."
                     },
                     "emissive": {
                         "type": "array",

@@ -45,6 +45,10 @@ localgpt-gen "create a heart outline with spheres and cubes"
 # Load an existing glTF/GLB scene
 localgpt-gen --scene ./scene.glb
 
+# Open a world and keep building on it: a world folder, a saved world's
+# name, a .json/.ron world file, or a URL (for example from localgpt.world)
+localgpt-gen --world https://localgpt.world/worlds/md-deck.json
+
 # Verbose logging
 localgpt-gen --verbose
 
@@ -56,6 +60,8 @@ localgpt-gen --agent my-gen-agent
 ```
 
 The agent receives your prompt and iteratively builds a world — spawning shapes, adjusting materials, positioning the camera, and taking screenshots to course-correct. Type `/quit` or `/exit` to close, or close the window.
+
+`--world` imports a world file or URL into `skills/<name>/` in your workspace, with the meshes and audio it references, then opens it; from there it saves like any world you made. Running the same command again opens that copy rather than importing over your edits; delete the folder to import afresh.
 
 ## Prompt Panel & Desktop Mode
 
