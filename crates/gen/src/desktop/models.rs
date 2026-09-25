@@ -1,6 +1,6 @@
 //! Which models this machine can use right now, for the prompt panel's model
-//! menu: installed CLI backends, plus whatever a local Ollama server has
-//! pulled.
+//! menu: installed CLI backends, whatever a local Ollama server has pulled,
+//! and (with the `local-llm` feature) the GGUF models Gen can run itself.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -51,7 +51,8 @@ fn is_executable(path: &Path) -> bool {
 }
 
 /// Models worth offering: `current` first, then installed CLI backends, then
-/// local Ollama models. Never fails; missing backends are simply left out.
+/// local Ollama models, then in-process GGUF models. Never fails; missing
+/// backends are simply left out.
 pub async fn detect_model_options(current: &str, ollama_endpoint: &str) -> Vec<String> {
     let mut options = vec![current.to_string()];
     for (program, models) in CLI_BACKENDS {
@@ -65,6 +66,8 @@ pub async fn detect_model_options(current: &str, ollama_endpoint: &str) -> Vec<S
             .into_iter()
             .map(|model| format!("ollama/{model}")),
     );
+    #[cfg(feature = "local-llm")]
+    options.extend(crate::local_llm::available_models());
     dedupe(options)
 }
 

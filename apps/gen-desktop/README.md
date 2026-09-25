@@ -9,9 +9,12 @@ terminal (or with `--desktop`), it runs in **desktop mode**:
   each tool call as it runs, queues prompts while the agent is busy, and
   suggests a few starter worlds. It lives in `crates/gen/src/desktop/`.
 - **Model menu.** Lists the models this machine can use right now: installed
-  CLI backends (Claude CLI, Gemini CLI, Codex) and models pulled into a local
-  Ollama. Switching lasts for the session; `agent.default_model` in the
-  config file sets the default.
+  CLI backends (Claude CLI, Gemini CLI, Codex), models pulled into a local
+  Ollama, and — when built with `--features local-llm-metal` (Apple Silicon)
+  or `local-llm` — every GGUF in the model folder LocalGPT's apps share
+  (`~/.local/share/localgpt/models/llm`), which Gen runs in-process as
+  `gguf/<name>`. Switching lasts for the session; `agent.default_model` in
+  the config file sets the default.
 - **First-run help.** If the configured model is a CLI backend that isn't
   installed, the panel says so and points at the model menu instead of failing
   silently. Startup errors (a missing API key, say) appear in the panel, and

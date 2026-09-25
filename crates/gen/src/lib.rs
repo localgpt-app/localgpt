@@ -14,6 +14,8 @@ pub mod gpu_lock;
 pub mod heartbeat_gen;
 pub mod inspector;
 pub mod interaction;
+#[cfg(feature = "local-llm")]
+pub mod local_llm;
 pub mod mcp;
 pub mod mcp_server;
 #[cfg(feature = "multiplayer")]

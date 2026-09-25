@@ -16,4 +16,4 @@ With the feature and a model present, a background worker styles every section t
 
 Every model-authored value is clamped on the Rust side, and any generation failure keeps the rule-based draft — the app is never broken by a missing or misbehaving model.
 
-`llm-metal` is the macOS GPU path (the 5 GB Q4_K_M needs it to fit in memory); `llm` alone expects a smaller GGUF. Any standard GGUF plus a matching `tokenizer.json` dropped in `assets/llm/` (or `$LOCALGPT_MD_LLM`) is picked up — the sibling Verse checkout's model directory is searched too.
+`llm-metal` is the macOS GPU path (the 5 GB Q4_K_M needs it to fit in memory); `llm` alone expects a smaller GGUF. The model lives in `~/.local/share/localgpt/models/llm/` (set `$LOCALGPT_LLM_DIR` to move it), the folder [Verse](/docs/verse) and [Gen](/docs/gen) read too, so one download serves all three. Any standard GGUF plus a matching `tokenizer.json` dropped there is picked up. `$LOCALGPT_MD_LLM` points MD alone somewhere else, and the older `assets/llm/` folders are still searched.

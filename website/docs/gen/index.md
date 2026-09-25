@@ -117,6 +117,18 @@ default_model = "claude-sonnet-4-6"  # or "gpt-4o", "ollama/llama3", etc.
 api_key = "${ANTHROPIC_API_KEY}"
 ```
 
+#### A local model, no server
+
+Built with the `local-llm` feature, Gen runs a GGUF model itself: no API key, no Ollama. It reads the model folder [MD](/docs/md/llm) and [Verse](/docs/verse#llm) share, `~/.local/share/localgpt/models/llm/` (`$LOCALGPT_LLM_DIR` moves it), so a model fetched for either app is used as is.
+
+```bash
+cargo build --release -p localgpt-gen --features local-llm-metal   # Apple Silicon; plain `local-llm` elsewhere
+```
+
+Pick `gguf/<name>` from the model menu (every `.gguf` in the folder is listed), type `/model gguf/<name>`, or make it the default with `default_model = "gguf/default"` under `[agent]`. The first prompt loads the model, which can take a minute; it then stays loaded. A tokenizer is read from `<name>.tokenizer.json` or `tokenizer.json` beside the model, else from the GGUF itself.
+
+Scene building is a long tool-calling session with a large tool list, so a small model is much weaker at it than a hosted one. Bonsai-8B (the model MD and Verse share) runs and saves worlds, but it can call the wrong tool name or repeat a failing call until its turn budget runs out. An instruction-tuned 7–14B+ model with good tool calling (Qwen2.5-Instruct, for example) does noticeably better.
+
 ### Mode 2: Interactive with CLI Backend (no API key)
 
 Use Claude CLI, Gemini CLI, or Codex as the LLM — they handle auth through their own login. LocalGPT auto-starts an [MCP relay](/docs/gen/cli-mode) when it detects a CLI backend model, so tool calls go to your existing Bevy window.

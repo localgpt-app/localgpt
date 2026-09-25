@@ -592,9 +592,14 @@ fn model_menu(ui: &mut egui::Ui, panel: &mut PromptPanel, link: &PanelLink) {
             });
     });
     if let Some(model) = chosen {
+        let note = if model.starts_with("gguf/") {
+            " It runs on this computer; the first prompt loads it, which can take a minute."
+        } else {
+            ""
+        };
         panel
             .entries
-            .push(Entry::Notice(format!("Switching to {model}…")));
+            .push(Entry::Notice(format!("Switching to {model}…{note}")));
         if link.prompt_tx.send(format!("/model {model}")).is_err() {
             panel.agent_stopped();
         }

@@ -96,6 +96,13 @@ async fn handle_gen_command(
             println!("  claude-*        - Anthropic API (requires API key)");
             println!("  glm-*           - GLM (Z.AI)");
             println!("  ollama/*        - Ollama local (e.g., ollama/llama3)");
+            #[cfg(feature = "local-llm")]
+            {
+                println!("  gguf/*          - Run a GGUF model in-process (gguf/default)");
+                for model in localgpt_gen::local_llm::available_models() {
+                    println!("                    {model}");
+                }
+            }
             println!("\nCurrent model: {}", agent.model());
             println!("Use /model <name> to switch.\n");
             CommandResult::Continue
@@ -946,6 +953,11 @@ fn main() -> Result<()> {
     }
 
     let cli = Cli::parse();
+
+    // `gguf/<name>` models run in-process (see src/local_llm.rs); register
+    // the provider before any agent is created.
+    #[cfg(feature = "local-llm")]
+    localgpt_gen::local_llm::register();
 
     // Desktop mode: the interactive app (or a --join viewer) without a
     // terminal to type in, so prompts come from a panel in the window.

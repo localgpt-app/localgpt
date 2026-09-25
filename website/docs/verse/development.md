@@ -37,7 +37,7 @@ Threading is channels-and-atomics only across boundaries (the single shared-stat
 |---|---|---|
 | `(default)` | Playback, DSP analysis, rule-mapped worlds | — |
 | `ml` | CLAP zero-shot moods, embedding-ranked placement, Demucs stems | `scripts/fetch-clap.sh` (~78 MB) |
-| `llm` | WorldRecipe generation + agent scene builder | `scripts/fetch-bonsai.sh` (~3.5 GB) |
+| `llm` | WorldRecipe generation + agent scene builder | `scripts/fetch-bonsai.sh` (~5.2 GB, into the shared `~/.local/share/localgpt/models/llm/`) |
 | `llm-metal` | Apple-Silicon GPU inference for the LLM tiers (macOS only) | same as `llm` |
 
 CI compiles both optional tiers so they can't rot, and every tier falls back to the rule-derived world when its model is absent.

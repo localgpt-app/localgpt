@@ -69,9 +69,11 @@ The CLAP weights are **CC-BY-NC** — fine for personal and research use, not cl
 A second opt-in tier puts a small local language model in charge of imagining within a world. Build with `llm` and fetch the model once:
 
 ```bash
-scripts/fetch-bonsai.sh   # ~3.5 GB GGUF (any standard Q4_K_M GGUF works)
+scripts/fetch-bonsai.sh   # ~5.2 GB GGUF, once for Verse, MD and Gen (any standard Q4_K_M GGUF works)
 cargo run --features llm          # Apple Silicon: --features llm-metal
 ```
+
+The model goes to `~/.local/share/localgpt/models/llm/` (`$LOCALGPT_LLM_DIR` moves it), which [MD](/docs/md) and [Gen](/docs/gen) read too, so a model already fetched for either app isn't downloaded again.
 
 Two tiers ride the model, both per-track and both cached in the sidecar so they never re-run:
 

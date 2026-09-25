@@ -105,10 +105,17 @@ mdns-sd = { version = "0.21.3", optional = true }
 spake2 = { version = "0.4", optional = true, features = ["std"] }
 chacha20poly1305 = { version = "0.10", optional = true }
 base64 = { version = "0.22", optional = true }
+# `local-llm`: in-process GGUF inference (same version LocalGPT MD and Verse
+# use, so their verified constraints hold here too).
+mistralrs = { version = "0.8", optional = true }
+# Names mistral.rs's message type in src/local_llm.rs's request wrapper.
+indexmap = { version = "2", optional = true }
 
 # File locking for GPU exclusivity (Windows)
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Storage_FileSystem", "Win32_System_IO"] }
+
+[dev-dependencies]
 
 [features]
 default = ["physics", "multiplayer"]
@@ -127,6 +134,16 @@ multiplayer = [
     "dep:chacha20poly1305",
     "dep:base64",
 ]
+# In-process local LLM: runs a GGUF model through mistral.rs as the
+# `gguf/<name>` provider (src/local_llm.rs), reading the model directory
+# LocalGPT's apps share (~/.local/share/localgpt/models/llm), so the model
+# fetched for MD or Verse is reused. Off by default: mistral.rs is a large
+# build, and a ~5 GB model wants the GPU path below.
+local-llm = ["dep:mistralrs", "dep:indexmap"]
+# Apple-Silicon GPU path for `local-llm` (macOS only: never enable it in the
+# Linux CI job). The CPU device map can't hold a 5 GB Q4_K_M beside the
+# renderer on a 32 GB Mac.
+local-llm-metal = ["local-llm", "mistralrs/metal"]
 # bevy-tnua floating character controller for the player. Requires `physics`.
 # OFF by default: no Bevy 0.19-compatible bevy-tnua release exists yet, so
 # enabling this currently fails to build. When enabled the player uses the
