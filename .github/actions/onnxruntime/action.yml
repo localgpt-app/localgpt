@@ -1,0 +1,25 @@
+name: ONNX Runtime
+description: >-
+  Install ONNX Runtime 1.23.2 under /opt/onnxruntime (cached between runs),
+  register it with the dynamic linker and point ort-sys at it, so builds never
+  try to reach cdn.pyke.io, which GitHub-hosted runners can't.
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v4
+      id: cache
+      with:
+        path: /opt/onnxruntime
+        key: onnxruntime-1.23.2-linux-x64
+    - if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        curl -fL "https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-linux-x64-1.23.2.tgz" \
+          -o /tmp/onnxruntime.tgz
+        mkdir -p /opt/onnxruntime
+        tar -xzf /tmp/onnxruntime.tgz --strip-components=1 -C /opt/onnxruntime
+    - shell: bash
+      run: |
+        echo "/opt/onnxruntime/lib" | sudo tee /etc/ld.so.conf.d/onnxruntime.conf && sudo ldconfig
+        echo "ORT_LIB_LOCATION=/opt/onnxruntime/lib" >> "$GITHUB_ENV"
+        echo "ORT_PREFER_DYNAMIC_LINK=1" >> "$GITHUB_ENV"
