@@ -119,7 +119,8 @@ function flatGeometry(triangles) {
 function pyramidGeometry(bx, bz, h) {
   const hx = bx / 2, hz = bz / 2, hy = h / 2;
   const a = [-hx, -hy, -hz], b = [hx, -hy, -hz], c = [hx, -hy, hz], d = [-hx, -hy, hz], apex = [0, hy, 0];
-  return flatGeometry([[a, b, apex], [b, c, apex], [c, d, apex], [d, a, apex], [a, d, b], [b, d, c]]);
+  // Counter-clockwise seen from outside, so the sides are front faces.
+  return flatGeometry([[b, a, apex], [c, b, apex], [d, c, apex], [a, d, apex], [a, b, d], [b, c, d]]);
 }
 
 /** A ramp: right-triangle profile in XY (vertical face at -x, slope down toward +x), extruded along Z. */
@@ -782,6 +783,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     updateMovement(dt);
     updateTour(dt);
     controls.update();
+    if (camera.aspect !== (container.clientWidth || width) / (container.clientHeight || height)) resize();
     renderer.render(scene, camera);
   }
   function animate() {

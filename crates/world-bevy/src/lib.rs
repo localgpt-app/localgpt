@@ -328,13 +328,14 @@ fn pyramid_mesh(base_x: f32, base_z: f32, height: f32) -> Mesh {
     let c = [hx, -hy, hz];
     let d = [-hx, -hy, hz];
     let apex = [0.0, hy, 0.0];
+    // Counter-clockwise seen from outside, so the sides are front faces.
     flat_mesh(&[
-        [a, b, apex],
-        [b, c, apex],
-        [c, d, apex],
-        [d, a, apex],
-        [a, d, b],
-        [b, d, c],
+        [b, a, apex],
+        [c, b, apex],
+        [d, c, apex],
+        [a, d, apex],
+        [a, b, d],
+        [b, c, d],
     ])
 }
 
@@ -433,6 +434,43 @@ mod tests {
                         declared[axis]
                     );
                 }
+            }
+        }
+    }
+
+    /// Triangles wind counter-clockwise seen from outside — the front face
+    /// Bevy and three.js draw — so no shape renders inside-out.
+    #[test]
+    fn convex_shapes_face_outward() {
+        for shape in shapes() {
+            if matches!(shape, wt::Shape::Torus { .. } | wt::Shape::Plane { .. }) {
+                continue;
+            }
+            let mesh = shape_mesh(&shape);
+            let positions = mesh
+                .attribute(Mesh::ATTRIBUTE_POSITION)
+                .and_then(|v| v.as_float3())
+                .expect("positions");
+            let indices: Vec<usize> = mesh.indices().expect("indices").iter().collect();
+            // The mean of a convex mesh's vertices lies strictly inside it
+            // (the origin need not: it is on the wedge's slope).
+            let inside = positions
+                .iter()
+                .copied()
+                .map(Vec3::from_array)
+                .sum::<Vec3>()
+                / positions.len() as f32;
+            for tri in indices.chunks(3) {
+                let [a, b, c] = [tri[0], tri[1], tri[2]].map(|i| Vec3::from_array(positions[i]));
+                let normal = (b - a).cross(c - a);
+                if normal.length_squared() < 1e-12 {
+                    continue; // degenerate triangles at a sphere's poles
+                }
+                let outward = (a + b + c) / 3.0 - inside;
+                assert!(
+                    normal.dot(outward) > 0.0,
+                    "{shape:?}: triangle {tri:?} faces inward"
+                );
             }
         }
     }
