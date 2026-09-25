@@ -229,8 +229,8 @@ Jumpstart your project with ready-to-customize world templates:
 
 ## More LocalGPT Apps
 
-- **[LocalGPT Verse](https://verse.localgpt.app/)** — listens to your music and imagines a living 3D world for every song, on your machine
-- **[LocalGPT MD](https://md.localgpt.app/)** — open a Markdown file and walk through it as a 3D world; every section becomes a place
+- **[LocalGPT Verse](/docs/verse)** — listens to your music and imagines a living 3D world for every song, on your machine
+- **[LocalGPT MD](/docs/md)** — open a Markdown file and walk through it as a 3D world; every section becomes a place
 
 ## Showcase
 

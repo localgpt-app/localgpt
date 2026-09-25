@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'LocalGPT',
-  tagline: 'Build explorable 3D worlds with natural language — geometry, materials, lighting, audio, and behaviors. Open source, runs locally.',
+  tagline: 'Local AI assistant, dreaming explorable worlds.',
   favicon: 'logo/localgpt-icon.svg',
 
   url: 'https://localgpt.app',
@@ -93,8 +93,8 @@ const config: Config = {
           position: 'left',
           items: [
             {label: 'LocalGPT Gen', to: '/docs/gen'},
-            {label: 'LocalGPT Verse', href: 'https://verse.localgpt.app/'},
-            {label: 'LocalGPT MD', href: 'https://md.localgpt.app/'},
+            {label: 'LocalGPT Verse', to: '/docs/verse'},
+            {label: 'LocalGPT MD', to: '/docs/md'},
           ],
         },
         {
@@ -154,19 +154,34 @@ const config: Config = {
           ],
         },
         {
-          title: 'Apps',
+          // The family strip: every LocalGPT site lists the others in this
+          // order, with these one-liners.
+          title: 'Family',
           items: [
             {
               label: 'LocalGPT Gen',
-              to: '/docs/gen',
+              href: 'https://gen.localgpt.app/',
+              title: 'Worlds from words.',
             },
             {
               label: 'LocalGPT Verse',
               href: 'https://verse.localgpt.app/',
+              title: 'A 3D world for every song.',
             },
             {
               label: 'LocalGPT MD',
               href: 'https://md.localgpt.app/',
+              title: 'Walk through your notes as a world.',
+            },
+            {
+              label: 'localgpt.world',
+              href: 'https://localgpt.world/',
+              title: 'Worlds from every app, in your browser.',
+            },
+            {
+              label: 'localgpt.rs',
+              href: 'https://localgpt.rs/',
+              title: 'The devlog: building it all in Rust.',
             },
           ],
         },

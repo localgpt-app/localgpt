@@ -415,7 +415,11 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
 - **Edition 2024**, workspace-shared version (`0.3.x`), `resolver = "3"`.
 - Related docs live under `docs/` (architecture, gen, mobile, security, rfcs,
   roadmap). `AGENTS.md` is the longer-form contributor guide.
-- **Websites:** `website/` is the Docusaurus site for localgpt.app (docs,
-  blog). `website-gen/` is the static landing page for gen.localgpt.app (no
-  build step; `website-gen/deploy.sh` deploys it). Gen's docs stay in
-  `website/docs/gen`; the landing page links to them.
+- **Websites:** `website/` is the Docusaurus site for localgpt.app, the
+  family hub and its only docs site: the assistant's docs plus
+  `website/docs/gen`, `docs/verse` and `docs/md` (Verse and MD keep only
+  landing pages in their own repos; update their docs here when those apps
+  change). `website-gen/` is the static landing page for gen.localgpt.app (no
+  build step; `website-gen/deploy.sh` deploys it) and links to the Gen docs.
+  Every family site carries the same family strip, in this order: LocalGPT,
+  Gen, Verse, MD, localgpt.world, localgpt.rs.

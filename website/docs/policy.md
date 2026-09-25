@@ -11,7 +11,7 @@ sidebar_position: 16
 This makes `POLICY.md` one of the most persistent and influential files in your workspace. It is your tenets, your ground rules, your standing orders, your guardrails, your conventions, and your reminders — all in one place, always in effect.
 
 :::info Renamed from LocalGPT.md
-This file used to be called `LocalGPT.md`. It was renamed to avoid confusion with the [LocalGPT MD app](https://md.localgpt.app/). If your workspace still has a `LocalGPT.md`, it keeps working: LocalGPT loads it whenever no `POLICY.md` exists, and the old name stays on the protected-files deny list. To migrate, simply rename the file:
+This file used to be called `LocalGPT.md`. It was renamed to avoid confusion with the [LocalGPT MD app](/docs/md). If your workspace still has a `LocalGPT.md`, it keeps working: LocalGPT loads it whenever no `POLICY.md` exists, and the old name stays on the protected-files deny list. To migrate, simply rename the file:
 
 ```bash
 mv ~/.local/share/localgpt/workspace/LocalGPT.md ~/.local/share/localgpt/workspace/POLICY.md
