@@ -38,6 +38,22 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'LocalGPT Verse',
+      items: [
+        'verse/index',
+        'verse/controls',
+        'verse/worlds',
+        'verse/analysis',
+        'verse/development',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'LocalGPT MD',
+      items: ['md/index', 'md/llm', 'md/how-it-works'],
+    },
+    {
+      type: 'category',
       label: 'Security',
       items: ['sandbox', 'policy'],
     },

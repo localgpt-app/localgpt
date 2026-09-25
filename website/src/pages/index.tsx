@@ -60,7 +60,7 @@ function HomepageHeader() {
             </div>
             <InstallCommands />
             <p className="hero__subtitle">
-              Build explorable 3D worlds with natural language — geometry, materials, lighting, audio, and behaviors.
+              A local AI assistant with persistent memory, and apps that turn words, songs, and notes into explorable 3D worlds.
               <br />
               Open source, runs locally.
             </p>
@@ -151,7 +151,7 @@ export default function Home(): JSX.Element {
   return (
     <Layout
       title="Home"
-      description="LocalGPT - Build explorable 3D worlds with natural language. Open source, runs locally.">
+      description="LocalGPT - A local AI assistant with persistent memory, and apps that turn words, songs, and notes into explorable 3D worlds. Open source, runs locally.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />
