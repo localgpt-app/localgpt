@@ -17,7 +17,6 @@ pub mod gallery_ui;
 pub mod generation_log;
 pub mod gltf_export;
 pub mod headless;
-pub mod html_export;
 pub mod mcp_relay;
 pub mod offscreen;
 pub mod pending_writes;

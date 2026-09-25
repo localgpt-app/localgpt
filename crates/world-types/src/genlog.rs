@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 /// A single generation log entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GenLogEntry {
     /// Monotonically increasing sequence number.
     pub seq: u32,

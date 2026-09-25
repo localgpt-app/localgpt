@@ -9,6 +9,7 @@ use crate::entity::WorldEntity;
 
 /// A set of entities belonging to one spatial region.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RegionEntities {
     /// Unique region identifier (e.g., "region_north", "courtyard").
     pub region_id: String,
@@ -24,6 +25,7 @@ pub struct RegionEntities {
 
 /// Axis-aligned bounding box for a region.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RegionBounds {
     /// Center point [x, y, z].
     pub center: [f32; 3],

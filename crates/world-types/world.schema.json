@@ -1,0 +1,2385 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorldManifest",
+  "description": "Top-level world manifest — everything needed to save/load a world.",
+  "type": "object",
+  "properties": {
+    "audio_files": {
+      "description": "Paths to audio spec files.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "avatar": {
+      "description": "Avatar configuration.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AvatarDef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "avatar_file": {
+      "description": "Path to an avatar definition file.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "behavior_files": {
+      "description": "Paths to behavior library files.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "camera": {
+      "description": "Default camera position/orientation.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CameraDef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "creations": {
+      "description": "Compound creations.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CreationDef"
+      }
+    },
+    "entities": {
+      "description": "Entities (inline for small worlds).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/WorldEntity"
+      }
+    },
+    "environment": {
+      "description": "Environment settings (background, ambient light, fog).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EnvironmentDef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "layout_file": {
+      "description": "Path to a separate layout file (blockout regions, spatial graph).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "meta": {
+      "description": "World metadata (name, description, biome, etc.).",
+      "$ref": "#/$defs/WorldMeta"
+    },
+    "next_entity_id": {
+      "description": "Next entity ID to allocate.",
+      "type": "integer",
+      "format": "uint64",
+      "default": 1,
+      "minimum": 0
+    },
+    "region_files": {
+      "description": "Paths to per-region entity files.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "soundtrack": {
+      "description": "The song this world performs to, with the analysis that drives\nentity modulations.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SoundtrackDef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tours": {
+      "description": "Guided tours.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/TourDef"
+      }
+    },
+    "version": {
+      "description": "Schema version for forward/backward migration.",
+      "type": "integer",
+      "format": "uint32",
+      "default": 2,
+      "minimum": 0
+    }
+  },
+  "required": [
+    "meta"
+  ],
+  "$defs": {
+    "AlphaModeDef": {
+      "description": "Alpha blending mode (mirrors Bevy `AlphaMode`).",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "opaque",
+            "blend",
+            "add",
+            "multiply"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mask": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "mask"
+          ]
+        }
+      ]
+    },
+    "AudioDef": {
+      "description": "Audio component attached to an entity.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "description": "High-level audio category.",
+          "$ref": "#/$defs/AudioKind",
+          "default": "ambient"
+        },
+        "radius": {
+          "description": "Spatial radius.  `None` = global (fills the scene), `Some(r)` = spatial.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "rolloff": {
+          "description": "Distance rolloff model for spatial audio.",
+          "$ref": "#/$defs/Rolloff",
+          "default": "inverse_square"
+        },
+        "source": {
+          "description": "The sound source — what to play.",
+          "$ref": "#/$defs/AudioSource"
+        },
+        "volume": {
+          "description": "Volume multiplier (0.0–1.0).",
+          "type": "number",
+          "format": "float",
+          "default": 1.0
+        }
+      },
+      "required": [
+        "source"
+      ]
+    },
+    "AudioKind": {
+      "description": "High-level audio category — determines mixing bus and behavior.",
+      "oneOf": [
+        {
+          "description": "Environmental background (wind, rain, etc.)",
+          "type": "string",
+          "const": "ambient"
+        },
+        {
+          "description": "Sound effects (spatial, one-shot or looping).",
+          "type": "string",
+          "const": "sfx"
+        },
+        {
+          "description": "Music track.",
+          "type": "string",
+          "const": "music"
+        }
+      ]
+    },
+    "AudioSource": {
+      "description": "What sound to produce — unified taxonomy of all sound types.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "Wind": {
+              "type": "object",
+              "properties": {
+                "gustiness": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                },
+                "speed": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Wind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Rain": {
+              "type": "object",
+              "properties": {
+                "intensity": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Rain"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Forest": {
+              "type": "object",
+              "properties": {
+                "bird_density": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                },
+                "wind": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Forest"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Ocean": {
+              "type": "object",
+              "properties": {
+                "wave_size": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Ocean"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Cave": {
+              "type": "object",
+              "properties": {
+                "drip_rate": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                },
+                "resonance": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Cave"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Stream": {
+              "type": "object",
+              "properties": {
+                "flow_rate": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Stream"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Water": {
+              "type": "object",
+              "properties": {
+                "turbulence": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Water"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Fire": {
+              "type": "object",
+              "properties": {
+                "crackle": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                },
+                "intensity": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Fire"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Hum": {
+              "type": "object",
+              "properties": {
+                "frequency": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 220.0
+                },
+                "warmth": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Hum"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "WindEmitter": {
+              "type": "object",
+              "properties": {
+                "pitch": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "WindEmitter"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Custom": {
+              "type": "object",
+              "properties": {
+                "filter_cutoff": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1000.0
+                },
+                "filter_type": {
+                  "$ref": "#/$defs/FilterType",
+                  "default": "lowpass"
+                },
+                "waveform": {
+                  "$ref": "#/$defs/WaveformType",
+                  "default": "sine"
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Custom"
+          ]
+        },
+        {
+          "description": "ABC notation music score.",
+          "type": "object",
+          "properties": {
+            "Abc": {
+              "type": "object",
+              "properties": {
+                "notation": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "notation"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Abc"
+          ]
+        },
+        {
+          "description": "External audio file reference.",
+          "type": "object",
+          "properties": {
+            "File": {
+              "type": "object",
+              "properties": {
+                "looping": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "File"
+          ]
+        },
+        {
+          "description": "Silence (placeholder / mute).",
+          "type": "string",
+          "const": "Silence"
+        }
+      ]
+    },
+    "AvatarDef": {
+      "description": "Avatar configuration describing the user/explorer presence in a world.",
+      "type": "object",
+      "properties": {
+        "height": {
+          "description": "Avatar eye-height above ground (used for first-person eye level).",
+          "type": "number",
+          "format": "float",
+          "default": 1.7999999523162842
+        },
+        "model_entity": {
+          "description": "Entity reference of the 3D model representing the avatar (3rd-person).\nWhen `None`, the world has no visible avatar model.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "movement_speed": {
+          "description": "Movement speed in units per second.",
+          "type": "number",
+          "format": "float",
+          "default": 5.0
+        },
+        "pov": {
+          "description": "Camera point-of-view mode.",
+          "$ref": "#/$defs/PointOfView",
+          "default": "third_person"
+        },
+        "spawn_look_at": {
+          "description": "Initial look direction.",
+          "type": "array",
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "spawn_position": {
+          "description": "Where the avatar spawns in the world.",
+          "type": "array",
+          "default": [
+            0.0,
+            0.0,
+            5.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        }
+      }
+    },
+    "BehaviorDef": {
+      "description": "Declarative behavior definition — data, not code.\nEach variant fully describes a continuous animation that the tick system evaluates.",
+      "oneOf": [
+        {
+          "description": "Orbit around a center entity or point.",
+          "type": "object",
+          "properties": {
+            "Orbit": {
+              "type": "object",
+              "properties": {
+                "axis": {
+                  "description": "Orbit axis (normalized). Default: Y-up.",
+                  "type": "array",
+                  "default": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ],
+                  "items": {
+                    "type": "number",
+                    "format": "float"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3
+                },
+                "center": {
+                  "description": "Entity to orbit around (mutually exclusive with `center_point`).",
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/EntityRef"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "center_point": {
+                  "description": "Fixed point to orbit around [x,y,z] (used if `center` is None).",
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "number",
+                    "format": "float"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3
+                },
+                "phase": {
+                  "description": "Initial phase angle in degrees.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.0
+                },
+                "radius": {
+                  "description": "Orbit radius.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 5.0
+                },
+                "speed": {
+                  "description": "Orbital speed in degrees per second.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 36.0
+                },
+                "tilt": {
+                  "description": "Orbit tilt in degrees (inclination from the axis plane).",
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Orbit"
+          ]
+        },
+        {
+          "description": "Spin (rotate) around a local axis.",
+          "type": "object",
+          "properties": {
+            "Spin": {
+              "type": "object",
+              "properties": {
+                "axis": {
+                  "description": "Local axis to spin around.",
+                  "type": "array",
+                  "default": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ],
+                  "items": {
+                    "type": "number",
+                    "format": "float"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3
+                },
+                "speed": {
+                  "description": "Rotation speed in degrees per second.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 90.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Spin"
+          ]
+        },
+        {
+          "description": "Bob up and down (sinusoidal oscillation along an axis).",
+          "type": "object",
+          "properties": {
+            "Bob": {
+              "type": "object",
+              "properties": {
+                "amplitude": {
+                  "description": "Amplitude (distance from center in each direction).",
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                },
+                "axis": {
+                  "description": "Axis of oscillation.",
+                  "type": "array",
+                  "default": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ],
+                  "items": {
+                    "type": "number",
+                    "format": "float"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3
+                },
+                "frequency": {
+                  "description": "Oscillation frequency in Hz.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                },
+                "phase": {
+                  "description": "Phase offset in degrees.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Bob"
+          ]
+        },
+        {
+          "description": "Continuously look at / follow another entity.",
+          "type": "object",
+          "properties": {
+            "LookAt": {
+              "type": "object",
+              "properties": {
+                "target": {
+                  "description": "Entity to look at.",
+                  "$ref": "#/$defs/EntityRef"
+                }
+              },
+              "required": [
+                "target"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "LookAt"
+          ]
+        },
+        {
+          "description": "Scale pulsation (breathing effect).",
+          "type": "object",
+          "properties": {
+            "Pulse": {
+              "type": "object",
+              "properties": {
+                "frequency": {
+                  "description": "Pulse frequency in Hz.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                },
+                "max_scale": {
+                  "description": "Maximum scale multiplier.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.100000023841858
+                },
+                "min_scale": {
+                  "description": "Minimum scale multiplier.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.8999999761581421
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Pulse"
+          ]
+        },
+        {
+          "description": "Follow a path of waypoints in sequence.",
+          "type": "object",
+          "properties": {
+            "PathFollow": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "description": "Loop mode: \"loop\" wraps back to start, \"ping_pong\" reverses.",
+                  "$ref": "#/$defs/PathMode",
+                  "default": "loop"
+                },
+                "orient_to_path": {
+                  "description": "Smoothly interpolate rotation toward movement direction.",
+                  "type": "boolean",
+                  "default": false
+                },
+                "speed": {
+                  "description": "Movement speed in units per second.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 2.0
+                },
+                "waypoints": {
+                  "description": "Ordered waypoints [[x,y,z], ...].",
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "format": "float"
+                    },
+                    "maxItems": 3,
+                    "minItems": 3
+                  }
+                }
+              },
+              "required": [
+                "waypoints"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "PathFollow"
+          ]
+        },
+        {
+          "description": "Bouncing on a surface with gravity.",
+          "type": "object",
+          "properties": {
+            "Bounce": {
+              "type": "object",
+              "properties": {
+                "damping": {
+                  "description": "Energy retained per bounce (0.0-1.0).",
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.699999988079071
+                },
+                "gravity": {
+                  "description": "Gravity acceleration (units/s^2).",
+                  "type": "number",
+                  "format": "float",
+                  "default": 9.800000190734863
+                },
+                "height": {
+                  "description": "Height of initial/max bounce.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 3.0
+                },
+                "surface_y": {
+                  "description": "Surface Y level to bounce on.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Bounce"
+          ]
+        }
+      ]
+    },
+    "CameraDef": {
+      "description": "Camera definition.",
+      "type": "object",
+      "properties": {
+        "fov_degrees": {
+          "description": "Vertical field of view in degrees.",
+          "type": "number",
+          "format": "float",
+          "default": 45.0
+        },
+        "look_at": {
+          "description": "Camera look-at target [x, y, z].",
+          "type": "array",
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "position": {
+          "description": "Camera position [x, y, z].",
+          "type": "array",
+          "default": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        }
+      }
+    },
+    "ChunkCoord": {
+      "description": "2D chunk coordinate for spatial partitioning.",
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "y": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "ComplianceMeta": {
+      "description": "Regulatory and distribution compliance metadata.\n\nRecords classification signals for storefronts, regulatory frameworks,\nand content-origin seals so that exported worlds carry machine-readable\nprovenance alongside the creative data.",
+      "type": "object",
+      "properties": {
+        "eu_ai_act_risk_level": {
+          "description": "EU AI Act risk-level classification.\n\nLocalGPT Gen is a code-generation tool: the LLM produces scene definition\ncode (RON) that the user compiles into 3D geometry via Bevy.  Under the\nEU AI Act (Regulation 2024/1689), general-purpose code-generation tools\nwith a human in the loop fall under the \"minimal risk\" tier, requiring\nonly transparency obligations (Art. 52) -- no conformity assessment.",
+          "type": "string",
+          "default": "minimal"
+        },
+        "generation_method": {
+          "description": "How the output was produced: \"code-generation\" (LLM writes scene code\ncompiled by the engine) vs \"asset-generation\" (LLM directly produces\nbinary mesh/texture data).",
+          "type": "string",
+          "default": "code-generation"
+        },
+        "generation_tool": {
+          "description": "Tool name and version that produced this world (e.g. \"LocalGPT Gen v0.3.5\").",
+          "type": "string",
+          "default": "LocalGPT Gen v0.3.6"
+        },
+        "human_modifiable": {
+          "description": "Whether the output can be meaningfully edited by a human.\n\n`true` for LocalGPT Gen because the canonical format is RON text with\nparametric shapes -- users can open, read, and modify every dimension,\nmaterial, and behavior by hand.",
+          "type": "boolean",
+          "default": true
+        },
+        "no_gen_ai_compatible": {
+          "description": "\"No Gen AI\" seal compatibility flag.\n\n`true` indicates the output is human-editable source code (not opaque\nbinary blobs) and the creative direction is human-driven.  The scene\ndefinition can be fully read, understood, and modified by a person,\nmaking the output compatible with \"No Gen AI\" asset provenance\nrequirements that focus on human authorship of the final artifact.",
+          "type": "boolean",
+          "default": true
+        },
+        "steam_code_tool_exempt": {
+          "description": "Steam \"code tool\" exemption flag.\n\n`true` indicates the output is compilable/editable source code (RON scene\ndefinitions, parametric shapes) rather than pre-made binary assets.  Under\nValve's AI content policy, tools whose output is code that the developer\ncompiles or modifies are treated as code tools, not AI-generated asset\ngenerators.",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "CreationDef": {
+      "description": "A compound creation — a named group of entities that form a logical object.\n\nFor example, a \"house\" creation might consist of walls, roof, door, and\nchimney entities, with optional audio (fireplace) and lights (windows).",
+      "type": "object",
+      "properties": {
+        "bbox_half": {
+          "description": "Bounding box half-extents [x, y, z] for the entire creation.",
+          "type": "array",
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "entities": {
+          "description": "Entity IDs that make up this creation.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EntityId"
+          }
+        },
+        "id": {
+          "description": "Unique creation identifier.",
+          "$ref": "#/$defs/CreationId"
+        },
+        "name": {
+          "description": "Human-readable name (e.g., \"oak_tree\", \"stone_bridge\").",
+          "type": "string"
+        },
+        "semantic_category": {
+          "description": "Semantic category for search and classification.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SemanticCategory"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "CreationId": {
+      "description": "Unique identifier for a compound creation (group of entities).",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "EntityId": {
+      "description": "Stable, monotonically increasing entity identifier.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "EntityName": {
+      "description": "Human-readable entity name. Unique within a world but may be renamed.",
+      "type": "string"
+    },
+    "EntityRef": {
+      "description": "Cross-entity reference — used in behaviors, parenting, audio attachment.\n\nLLMs produce `Name` references; these are resolved to `Id` on ingestion.\nSaved worlds should only contain `Id` references.",
+      "anyOf": [
+        {
+          "description": "Stable reference by numeric ID (for persisted worlds).",
+          "$ref": "#/$defs/EntityId"
+        },
+        {
+          "description": "Human-readable reference by name (for LLM tool calls).",
+          "type": "string"
+        }
+      ]
+    },
+    "EnvironmentDef": {
+      "description": "Environment settings.",
+      "type": "object",
+      "properties": {
+        "ambient_color": {
+          "description": "Ambient light color, sRGB-encoded RGBA in `0..=1`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "ambient_intensity": {
+          "description": "Ambient light brightness in Bevy's `GlobalAmbientLight` units\n(default 80; the web viewer scales it with `AMBIENT_SCALE`).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "background_color": {
+          "description": "Background/sky color, sRGB-encoded RGBA in `0..=1`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "fog_color": {
+          "description": "Fog color, sRGB-encoded RGBA in `0..=1`; the background color when\nunset.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "fog_density": {
+          "description": "Exponential fog density (0.0 = no fog).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        }
+      }
+    },
+    "FilterType": {
+      "description": "Audio filter type.",
+      "type": "string",
+      "enum": [
+        "lowpass",
+        "highpass",
+        "bandpass"
+      ]
+    },
+    "LightDef": {
+      "description": "Light source attached to an entity.",
+      "type": "object",
+      "properties": {
+        "color": {
+          "description": "Light color, sRGB-encoded RGBA in `0..=1`.",
+          "type": "array",
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "direction": {
+          "description": "Direction vector for directional/spot lights.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "inner_angle": {
+          "description": "Inner cone angle in radians (spot lights only).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "intensity": {
+          "description": "Intensity (lumens for Point/Spot, lux for Directional).",
+          "type": "number",
+          "format": "float",
+          "default": 1000.0
+        },
+        "light_type": {
+          "description": "Type of light source.",
+          "$ref": "#/$defs/LightType",
+          "default": "directional"
+        },
+        "outer_angle": {
+          "description": "Outer cone angle in radians (spot lights only).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "range": {
+          "description": "Maximum range/radius for point and spot lights (in world units).\n`None` uses the engine default. Ignored for directional lights.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "shadows": {
+          "description": "Whether this light casts shadows.",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "LightType": {
+      "description": "Light source type.",
+      "type": "string",
+      "enum": [
+        "directional",
+        "point",
+        "spot"
+      ]
+    },
+    "MaterialDef": {
+      "description": "PBR material properties.  All fields mirror the Bevy `StandardMaterial`\nsubset that the gen tools expose.",
+      "type": "object",
+      "properties": {
+        "alpha_mode": {
+          "description": "Alpha blending mode.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AlphaModeDef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "color": {
+          "description": "Base color, sRGB-encoded RGBA in `0..=1` (what Bevy's `Color::srgba`\nreads; renderers convert to linear).",
+          "type": "array",
+          "default": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "double_sided": {
+          "description": "If true, both sides of faces are rendered.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "emissive": {
+          "description": "Emissive color, linear RGBA (values above 1 glow). Non-zero =\nself-illuminating.",
+          "type": "array",
+          "default": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "metallic": {
+          "description": "Metallic factor (0.0 = dielectric, 1.0 = metal).",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        },
+        "reflectance": {
+          "description": "Reflectance at normal incidence (default 0.5 = 4% reflectance).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "roughness": {
+          "description": "Roughness factor (0.0 = mirror, 1.0 = matte).",
+          "type": "number",
+          "format": "float",
+          "default": 0.5
+        },
+        "unlit": {
+          "description": "If true, material ignores all lighting (flat shaded).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "MeshAssetRef": {
+      "description": "Reference to an imported mesh asset (alternative to parametric Shape).\n\nUsed for glTF/GLB imports where the geometry is too complex for\nparametric shapes.",
+      "type": "object",
+      "properties": {
+        "node": {
+          "description": "Optional node name within the asset (for multi-node glTF files).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Relative path to the asset file within the world's `assets/` directory.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "ModulationDef": {
+      "description": "One parameter of an entity bound to a runtime signal.",
+      "type": "object",
+      "properties": {
+        "range": {
+          "description": "`[value at signal 0, value at signal 1]` — a multiplier for\nmultiplicative targets, world units for `offset_y`.",
+          "type": "array",
+          "default": [
+            1.0,
+            1.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "signal": {
+          "description": "Which runtime signal drives it.",
+          "$ref": "#/$defs/SignalSource"
+        },
+        "smoothing": {
+          "description": "Low-pass time constant in seconds (`0` = raw signal).",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        },
+        "target": {
+          "description": "Which parameter of the entity is driven.",
+          "$ref": "#/$defs/ModulationTarget"
+        }
+      },
+      "required": [
+        "target",
+        "signal"
+      ]
+    },
+    "ModulationTarget": {
+      "description": "The entity parameter a modulation drives.",
+      "oneOf": [
+        {
+          "description": "Multiplies the material's emissive color.",
+          "type": "string",
+          "const": "emissive"
+        },
+        {
+          "description": "Multiplies the entity's scale uniformly.",
+          "type": "string",
+          "const": "scale"
+        },
+        {
+          "description": "Multiplies the light's intensity.",
+          "type": "string",
+          "const": "light_intensity"
+        },
+        {
+          "description": "Multiplies the material's alpha.",
+          "type": "string",
+          "const": "opacity"
+        },
+        {
+          "description": "Adds an offset (world units) to the entity's Y position.",
+          "type": "string",
+          "const": "offset_y"
+        }
+      ]
+    },
+    "PathMode": {
+      "description": "Path follow loop mode.",
+      "type": "string",
+      "enum": [
+        "loop",
+        "ping_pong",
+        "once"
+      ]
+    },
+    "PointOfView": {
+      "description": "Camera point-of-view mode.",
+      "oneOf": [
+        {
+          "description": "Camera at avatar eye level; avatar model not visible.",
+          "type": "string",
+          "const": "first_person"
+        },
+        {
+          "description": "Camera orbits behind/above the avatar; avatar model visible.",
+          "type": "string",
+          "const": "third_person"
+        }
+      ]
+    },
+    "Rolloff": {
+      "description": "Distance rolloff model for spatial audio.",
+      "type": "string",
+      "enum": [
+        "inverse_square",
+        "linear",
+        "exponential"
+      ]
+    },
+    "SemanticCategory": {
+      "description": "Semantic category for a creation (aids LLM reasoning and search).",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "building",
+            "vegetation",
+            "furniture",
+            "vehicle",
+            "character",
+            "terrain",
+            "decoration",
+            "light",
+            "audio"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "custom": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "custom"
+          ]
+        }
+      ]
+    },
+    "Shape": {
+      "description": "A parametric primitive shape with inline dimensions.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "Cuboid": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                },
+                "y": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                },
+                "z": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Cuboid"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Sphere": {
+              "type": "object",
+              "properties": {
+                "radius": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Sphere"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Cylinder": {
+              "type": "object",
+              "properties": {
+                "height": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                },
+                "radius": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Cylinder"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Cone": {
+              "type": "object",
+              "properties": {
+                "height": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                },
+                "radius": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Cone"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Capsule": {
+              "type": "object",
+              "properties": {
+                "half_length": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                },
+                "radius": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Capsule"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Torus": {
+              "type": "object",
+              "properties": {
+                "major_radius": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                },
+                "minor_radius": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.25
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Torus"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Plane": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 10.0
+                },
+                "z": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 10.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Plane"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Pyramid": {
+              "type": "object",
+              "properties": {
+                "base_x": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                },
+                "base_z": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                },
+                "height": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Pyramid"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Tetrahedron": {
+              "type": "object",
+              "properties": {
+                "radius": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Tetrahedron"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Icosahedron": {
+              "type": "object",
+              "properties": {
+                "radius": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Icosahedron"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Wedge": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                },
+                "y": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                },
+                "z": {
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Wedge"
+          ]
+        }
+      ]
+    },
+    "SignalSource": {
+      "description": "A runtime signal in `0..=1`.",
+      "oneOf": [
+        {
+          "description": "The soundtrack's loudness envelope\n([`SoundtrackDef::energy`](crate::SoundtrackDef::energy)).",
+          "type": "string",
+          "const": "energy"
+        },
+        {
+          "description": "`1` on each beat, decaying linearly to `0` at the next\n([`SoundtrackDef::beat_at`](crate::SoundtrackDef::beat_at)).",
+          "type": "string",
+          "const": "beat"
+        },
+        {
+          "description": "Low band level. Live audio when playing; else the `bass` stem, else\n`energy`.",
+          "type": "string",
+          "const": "bass"
+        },
+        {
+          "description": "High band level. Live audio when playing; else the `other` stem, else\n`energy`.",
+          "type": "string",
+          "const": "highs"
+        },
+        {
+          "description": "A separated stem's envelope; falls back to `energy` when the\nsoundtrack carries no stems.",
+          "type": "object",
+          "properties": {
+            "stem": {
+              "$ref": "#/$defs/StemKind"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "stem"
+          ]
+        },
+        {
+          "description": "A free-running sine, `0..=1`, at `frequency` Hz. Needs no soundtrack.",
+          "type": "object",
+          "properties": {
+            "oscillator": {
+              "type": "object",
+              "properties": {
+                "frequency": {
+                  "description": "Cycles per second.",
+                  "type": "number",
+                  "format": "float"
+                }
+              },
+              "required": [
+                "frequency"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "oscillator"
+          ]
+        },
+        {
+          "description": "A fixed value — for authoring and previews.",
+          "type": "object",
+          "properties": {
+            "constant": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "constant"
+          ]
+        }
+      ]
+    },
+    "SoundtrackDef": {
+      "description": "The soundtrack and the analysis it was performed from.",
+      "type": "object",
+      "properties": {
+        "artist": {
+          "description": "Artist, for display.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "beat_offset": {
+          "description": "Time of the first beat in seconds.",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        },
+        "bpm": {
+          "description": "Beats per minute; `0` means no reliable beat grid.",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        },
+        "duration": {
+          "description": "Track length in seconds.",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        },
+        "energy": {
+          "description": "Loudness envelope, one value per second, normalized to `0..=1`.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "license": {
+          "description": "License of the audio (an SPDX id such as `CC0-1.0`, or free text).\nSet it whenever `path` is.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Audio file relative to the world's `assets/` directory. `None`: no\naudio ships with the world; the curves below still drive modulations.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sections": {
+          "description": "Section boundaries as fractions of `duration` in `0..=1`, ascending,\nstarting with `0`.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "stems": {
+          "description": "Per-stem envelopes aligned to `energy`, when the track was separated.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StemCurves"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "description": "Track title, for display.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "StemCurves": {
+      "description": "Per-second stem envelopes (`0..=1`), aligned to\n[`SoundtrackDef::energy`].",
+      "type": "object",
+      "properties": {
+        "bass": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "drums": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "other": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "vocals": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      }
+    },
+    "StemKind": {
+      "description": "A source-separated stem (Demucs naming).",
+      "type": "string",
+      "enum": [
+        "drums",
+        "bass",
+        "vocals",
+        "other"
+      ]
+    },
+    "TourDef": {
+      "description": "A guided tour — a named, ordered sequence of waypoints through the world.",
+      "type": "object",
+      "properties": {
+        "autostart": {
+          "description": "If true, this tour starts automatically when the world is loaded.",
+          "type": "boolean",
+          "default": false
+        },
+        "description": {
+          "description": "Brief description of the tour.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "loop_tour": {
+          "description": "If true, the tour loops back to the first waypoint after the last.",
+          "type": "boolean",
+          "default": false
+        },
+        "mode": {
+          "description": "Movement mode between waypoints.",
+          "$ref": "#/$defs/TourMode",
+          "default": "walk"
+        },
+        "name": {
+          "description": "Human-readable tour name (e.g., \"grand_tour\", \"scenic_overlook\").",
+          "type": "string"
+        },
+        "pov": {
+          "description": "Optional PoV override for this tour (falls back to avatar default).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PointOfView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "speed": {
+          "description": "Movement speed between waypoints (units/sec).",
+          "type": "number",
+          "format": "float",
+          "default": 3.0
+        },
+        "waypoints": {
+          "description": "Ordered stops along the tour.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TourWaypoint"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "waypoints"
+      ]
+    },
+    "TourMode": {
+      "description": "How the camera/avatar moves between tour waypoints.",
+      "oneOf": [
+        {
+          "description": "Ground-level movement respecting gravity / terrain.",
+          "type": "string",
+          "const": "walk"
+        },
+        {
+          "description": "Free-flying camera interpolation.",
+          "type": "string",
+          "const": "fly"
+        },
+        {
+          "description": "Instant teleport between waypoints (cut, no interpolation).",
+          "type": "string",
+          "const": "teleport"
+        }
+      ]
+    },
+    "TourWaypoint": {
+      "description": "A single stop along a guided tour.",
+      "type": "object",
+      "properties": {
+        "description": {
+          "description": "Narrative text shown to the user at this stop.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "look_at": {
+          "description": "Where the camera looks at this stop.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "pause_duration": {
+          "description": "How long to pause at this waypoint (seconds) before moving on.",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        },
+        "position": {
+          "description": "Camera / avatar position at this stop.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        }
+      },
+      "required": [
+        "position",
+        "look_at"
+      ]
+    },
+    "WaveformType": {
+      "description": "Waveform type for custom audio synthesis.",
+      "type": "string",
+      "enum": [
+        "sine",
+        "saw",
+        "square",
+        "white_noise",
+        "pink_noise",
+        "brown_noise"
+      ]
+    },
+    "WorldEntity": {
+      "description": "A single entity in the world.  Component slots are all optional —\nany combination is valid (e.g., a glowing orb has shape + light + audio).",
+      "type": "object",
+      "properties": {
+        "audio": {
+          "description": "Audio source — spatial or ambient.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AudioDef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "behaviors": {
+          "description": "Behaviors stack — multiple can be active simultaneously.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BehaviorDef"
+          }
+        },
+        "chunk": {
+          "description": "Spatial chunk assignment (for large worlds).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChunkCoord"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "creation_id": {
+          "description": "If this entity belongs to a compound creation.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CreationId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "description": "Stable numeric identifier.",
+          "$ref": "#/$defs/EntityId"
+        },
+        "light": {
+          "description": "Light source — can coexist with shape (e.g., glowing orb).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LightDef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "material": {
+          "description": "PBR material properties.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MaterialDef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mesh_asset": {
+          "description": "Reference to an imported mesh asset (alternative to Shape).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MeshAssetRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "modulations": {
+          "description": "Signal-driven modulations (soundtrack energy, beat, oscillators)\nstacked on top of the authored values.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ModulationDef"
+          }
+        },
+        "name": {
+          "description": "Human-readable name.",
+          "$ref": "#/$defs/EntityName"
+        },
+        "parent": {
+          "description": "Parent entity (for hierarchy).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shape": {
+          "description": "Parametric shape — never loses dimension info.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Shape"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transform": {
+          "description": "Spatial transform.",
+          "$ref": "#/$defs/WorldTransform",
+          "default": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "visible": true
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "WorldMeta": {
+      "description": "World metadata.",
+      "type": "object",
+      "properties": {
+        "bevy_version": {
+          "description": "Bevy engine version targeted by this world's generated code.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": "0.18"
+        },
+        "biome": {
+          "description": "Biome hint for procedural generation.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "compliance": {
+          "description": "Compliance metadata for distribution and regulatory classification.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComplianceMeta"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "description": "Human-readable description.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "generation_duration_ms": {
+          "description": "Generation duration in milliseconds.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "model": {
+          "description": "LLM model used for generation.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "World name (used as skill name / directory name).",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Original prompt used to generate this world.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "description": "Generation source: \"interactive\", \"headless\", \"experiment\", \"mcp\".",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "style_ref": {
+          "description": "Style name from memory (if applied).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tags": {
+          "description": "Free-form style tags for gallery filtering.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "time_of_day": {
+          "description": "Time of day (0.0-24.0, for lighting presets).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "variation": {
+          "description": "Variation axis and value (e.g., (\"lighting\", \"sunset\")).",
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "variation_group": {
+          "description": "If part of a variation experiment, the group ID.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "WorldTransform": {
+      "description": "Transform in world space (or parent-relative if parented).",
+      "type": "object",
+      "properties": {
+        "position": {
+          "description": "Position [x, y, z].",
+          "type": "array",
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "rotation_degrees": {
+          "description": "Euler rotation in degrees [pitch, yaw, roll].",
+          "type": "array",
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "scale": {
+          "description": "Scale [x, y, z].",
+          "type": "array",
+          "default": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "visible": {
+          "description": "Visibility flag.",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    }
+  }
+}

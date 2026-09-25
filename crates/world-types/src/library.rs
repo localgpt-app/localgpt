@@ -13,6 +13,7 @@ use crate::history::AmbienceLayerDef;
 
 /// A named collection of reusable behavior definitions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BehaviorLibrary {
     /// Behaviors keyed by name (e.g., "gentle_bob", "slow_orbit").
     pub behaviors: HashMap<String, BehaviorDef>,
@@ -20,6 +21,7 @@ pub struct BehaviorLibrary {
 
 /// Audio specification for a world — ambience layers and spatial emitters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AudioSpec {
     /// Global ambient sound layers.
     #[serde(default)]
@@ -31,6 +33,7 @@ pub struct AudioSpec {
 
 /// A named, positioned audio emitter in the world.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AudioEmitterSpec {
     /// Emitter name (e.g., "campfire_crackle").
     pub name: String,

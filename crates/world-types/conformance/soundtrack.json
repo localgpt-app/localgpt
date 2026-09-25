@@ -1,0 +1,642 @@
+{
+ "version": 2,
+ "meta": {
+  "name": "conformance-soundtrack",
+  "description": "A silent soundtrack (analysis only) driving every modulation target by every signal kind.",
+  "tags": [
+   "conformance"
+  ]
+ },
+ "environment": {
+  "background_color": [
+   0.05,
+   0.04,
+   0.09,
+   1.0
+  ],
+  "ambient_color": [
+   0.5,
+   0.4,
+   0.9,
+   1.0
+  ],
+  "ambient_intensity": 80.0,
+  "fog_density": 0.02,
+  "fog_color": [
+   0.06,
+   0.04,
+   0.1,
+   1.0
+  ]
+ },
+ "camera": {
+  "position": [
+   0.0,
+   5.0,
+   14.0
+  ],
+  "look_at": [
+   0.0,
+   1.5,
+   0.0
+  ]
+ },
+ "soundtrack": {
+  "title": "Conformance Loop",
+  "artist": "LocalGPT",
+  "duration": 60.0,
+  "bpm": 120.0,
+  "beat_offset": 0.1,
+  "sections": [
+   0.0,
+   0.25,
+   0.75
+  ],
+  "energy": [
+   0.35,
+   0.474,
+   0.481,
+   0.508,
+   0.627,
+   0.675,
+   0.614,
+   0.614,
+   0.666,
+   0.603,
+   0.481,
+   0.457,
+   0.442,
+   0.312,
+   0.196,
+   0.496,
+   0.467,
+   0.352,
+   0.32,
+   0.389,
+   0.389,
+   0.347,
+   0.424,
+   0.547,
+   0.568,
+   0.59,
+   0.725,
+   0.832,
+   0.824,
+   0.856,
+   0.965,
+   0.981,
+   0.905,
+   0.905,
+   0.937,
+   0.847,
+   0.724,
+   0.706,
+   0.676,
+   0.538,
+   0.442,
+   0.457,
+   0.424,
+   0.322,
+   0.322,
+   0.104,
+   0.104,
+   0.083,
+   0.185,
+   0.307,
+   0.321,
+   0.357,
+   0.497,
+   0.582,
+   0.559,
+   0.594,
+   0.688,
+   0.672,
+   0.584,
+   0.584,
+   0.595
+  ],
+  "stems": {
+   "drums": [
+    0.315,
+    0.501,
+    0.334,
+    0.515,
+    0.587,
+    0.52,
+    0.647,
+    0.514,
+    0.556,
+    0.639,
+    0.348,
+    0.428,
+    0.46,
+    0.181,
+    0.247,
+    0.452,
+    0.342,
+    0.415,
+    0.235,
+    0.322,
+    0.44,
+    0.22,
+    0.414,
+    0.541,
+    0.414,
+    0.612,
+    0.642,
+    0.682,
+    0.842,
+    0.704,
+    0.857,
+    0.965,
+    0.717,
+    0.863,
+    0.877,
+    0.67,
+    0.742,
+    0.608,
+    0.555,
+    0.583,
+    0.32,
+    0.417,
+    0.453,
+    0.19,
+    0.352,
+    0.111,
+    0.009,
+    0.171,
+    0.124,
+    0.238,
+    0.383,
+    0.234,
+    0.469,
+    0.582,
+    0.404,
+    0.609,
+    0.62,
+    0.53,
+    0.625,
+    0.468,
+    0.513
+   ],
+   "bass": [
+    0.245,
+    0.332,
+    0.337,
+    0.356,
+    0.439,
+    0.472,
+    0.43,
+    0.43,
+    0.466,
+    0.422,
+    0.337,
+    0.32,
+    0.309,
+    0.218,
+    0.137,
+    0.347,
+    0.327,
+    0.246,
+    0.224,
+    0.272,
+    0.272,
+    0.243,
+    0.297,
+    0.383,
+    0.398,
+    0.413,
+    0.507,
+    0.582,
+    0.577,
+    0.599,
+    0.675,
+    0.687,
+    0.633,
+    0.633,
+    0.656,
+    0.593,
+    0.507,
+    0.494,
+    0.473,
+    0.377,
+    0.309,
+    0.32,
+    0.297,
+    0.225,
+    0.225,
+    0.073,
+    0.073,
+    0.058,
+    0.13,
+    0.215,
+    0.225,
+    0.25,
+    0.348,
+    0.407,
+    0.391,
+    0.416,
+    0.482,
+    0.47,
+    0.409,
+    0.409,
+    0.416
+   ]
+  }
+ },
+ "entities": [
+  {
+   "id": 1,
+   "name": "ground",
+   "shape": {
+    "Plane": {
+     "x": 40.0,
+     "z": 40.0
+    }
+   },
+   "material": {
+    "color": [
+     0.12,
+     0.1,
+     0.16,
+     1.0
+    ],
+    "roughness": 0.9
+   }
+  },
+  {
+   "id": 2,
+   "name": "moon",
+   "transform": {
+    "position": [
+     0.0,
+     20.0,
+     0.0
+    ]
+   },
+   "light": {
+    "light_type": "directional",
+    "color": [
+     0.6,
+     0.6,
+     1.0,
+     1.0
+    ],
+    "intensity": 800.0,
+    "direction": [
+     -0.3,
+     -1.0,
+     -0.4
+    ]
+   }
+  },
+  {
+   "id": 10,
+   "name": "beacon",
+   "transform": {
+    "position": [
+     -6.0,
+     2.0,
+     0.0
+    ]
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.7
+    }
+   },
+   "material": {
+    "color": [
+     0.1,
+     0.1,
+     0.1,
+     1.0
+    ],
+    "emissive": [
+     1.0,
+     0.4,
+     0.1,
+     1.0
+    ]
+   },
+   "modulations": [
+    {
+     "target": "emissive",
+     "signal": "beat",
+     "range": [
+      0.6,
+      3.0
+     ],
+     "smoothing": 0.05
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "name": "hero",
+   "transform": {
+    "position": [
+     -3.0,
+     1.5,
+     0.0
+    ]
+   },
+   "shape": {
+    "Pyramid": {
+     "base_x": 2.0,
+     "base_z": 2.0,
+     "height": 3.0
+    }
+   },
+   "material": {
+    "color": [
+     0.7,
+     0.6,
+     0.9,
+     1.0
+    ]
+   },
+   "modulations": [
+    {
+     "target": "scale",
+     "signal": "energy",
+     "range": [
+      0.8,
+      1.3
+     ],
+     "smoothing": 0.3
+    }
+   ]
+  },
+  {
+   "id": 12,
+   "name": "lamp",
+   "transform": {
+    "position": [
+     0.0,
+     3.0,
+     0.0
+    ]
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.25
+    }
+   },
+   "material": {
+    "color": [
+     0.2,
+     0.2,
+     0.2,
+     1.0
+    ],
+    "emissive": [
+     1.5,
+     1.2,
+     0.8,
+     1.0
+    ]
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.85,
+     0.6,
+     1.0
+    ],
+    "intensity": 80000.0,
+    "range": 12.0
+   },
+   "modulations": [
+    {
+     "target": "light_intensity",
+     "signal": {
+      "stem": "drums"
+     },
+     "range": [
+      0.4,
+      1.6
+     ],
+     "smoothing": 0.08
+    }
+   ]
+  },
+  {
+   "id": 13,
+   "name": "floater",
+   "transform": {
+    "position": [
+     3.0,
+     1.5,
+     0.0
+    ]
+   },
+   "shape": {
+    "Icosahedron": {
+     "radius": 0.7
+    }
+   },
+   "material": {
+    "color": [
+     0.3,
+     0.8,
+     0.8,
+     1.0
+    ],
+    "metallic": 0.6,
+    "roughness": 0.3
+   },
+   "modulations": [
+    {
+     "target": "offset_y",
+     "signal": {
+      "oscillator": {
+       "frequency": 0.25
+      }
+     },
+     "range": [
+      0.0,
+      1.5
+     ]
+    }
+   ]
+  },
+  {
+   "id": 14,
+   "name": "veil",
+   "transform": {
+    "position": [
+     6.0,
+     1.5,
+     0.0
+    ]
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 1.5,
+     "y": 3.0,
+     "z": 0.2
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.5,
+     0.8,
+     1.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "modulations": [
+    {
+     "target": "opacity",
+     "signal": {
+      "constant": 0.5
+     },
+     "range": [
+      0.2,
+      1.0
+     ]
+    }
+   ]
+  },
+  {
+   "id": 15,
+   "name": "bass_drum",
+   "transform": {
+    "position": [
+     -1.5,
+     0.5,
+     4.0
+    ]
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.8,
+     "height": 1.0
+    }
+   },
+   "material": {
+    "color": [
+     0.8,
+     0.2,
+     0.2,
+     1.0
+    ]
+   },
+   "modulations": [
+    {
+     "target": "scale",
+     "signal": "bass",
+     "range": [
+      0.9,
+      1.2
+     ],
+     "smoothing": 0.05
+    }
+   ]
+  },
+  {
+   "id": 16,
+   "name": "hi_hat",
+   "transform": {
+    "position": [
+     1.5,
+     0.5,
+     4.0
+    ]
+   },
+   "shape": {
+    "Torus": {
+     "major_radius": 0.6,
+     "minor_radius": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.85,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.9,
+    "roughness": 0.2
+   },
+   "modulations": [
+    {
+     "target": "emissive",
+     "signal": "highs",
+     "range": [
+      1.0,
+      1.0
+     ]
+    },
+    {
+     "target": "offset_y",
+     "signal": "highs",
+     "range": [
+      0.0,
+      0.4
+     ],
+     "smoothing": 0.02
+    }
+   ]
+  },
+  {
+   "id": 17,
+   "name": "vocal_orb",
+   "transform": {
+    "position": [
+     0.0,
+     1.0,
+     -4.0
+    ]
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.5
+    }
+   },
+   "material": {
+    "color": [
+     0.95,
+     0.95,
+     1.0,
+     1.0
+    ],
+    "emissive": [
+     0.5,
+     0.5,
+     0.8,
+     1.0
+    ]
+   },
+   "modulations": [
+    {
+     "target": "emissive",
+     "signal": {
+      "stem": "vocals"
+     },
+     "range": [
+      0.5,
+      2.5
+     ],
+     "smoothing": 0.15
+    },
+    {
+     "target": "scale",
+     "signal": {
+      "stem": "other"
+     },
+     "range": [
+      0.9,
+      1.1
+     ],
+     "smoothing": 0.2
+    }
+   ]
+  }
+ ],
+ "next_entity_id": 18
+}

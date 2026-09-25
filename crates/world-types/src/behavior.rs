@@ -11,6 +11,7 @@ use crate::identity::EntityRef;
 /// Declarative behavior definition — data, not code.
 /// Each variant fully describes a continuous animation that the tick system evaluates.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum BehaviorDef {
     /// Orbit around a center entity or point.
     Orbit {
@@ -110,6 +111,7 @@ pub enum BehaviorDef {
 
 /// Path follow loop mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PathMode {
     #[default]

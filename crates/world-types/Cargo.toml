@@ -7,9 +7,19 @@ repository.workspace = true
 description = "Unified world data model for LocalGPT Gen — serde-only, no Bevy/SpacetimeDB"
 keywords = ["localgpt", "world", "3d", "types"]
 
+[features]
+# JSON Schema for the manifest (`examples/schema.rs` writes world.schema.json).
+# Off by default: the crate stays serde-only for the mobile targets.
+schema = ["dep:schemars"]
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+schemars = { version = "1.2", optional = true }
 
 [dev-dependencies]
 ron = "0.12.1"
+
+[[example]]
+name = "schema"
+required-features = ["schema"]

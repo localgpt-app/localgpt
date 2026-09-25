@@ -11,11 +11,13 @@ use crate::behavior::BehaviorDef;
 use crate::identity::{CreationId, EntityId, EntityName};
 use crate::light::LightDef;
 use crate::material::MaterialDef;
+use crate::modulation::ModulationDef;
 use crate::shape::Shape;
 use crate::spatial::ChunkCoord;
 
 /// Transform in world space (or parent-relative if parented).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WorldTransform {
     /// Position [x, y, z].
     #[serde(default)]
@@ -53,6 +55,7 @@ fn default_true() -> bool {
 /// A single entity in the world.  Component slots are all optional —
 /// any combination is valid (e.g., a glowing orb has shape + light + audio).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WorldEntity {
     /// Stable numeric identifier.
     pub id: EntityId,
@@ -90,6 +93,10 @@ pub struct WorldEntity {
     /// Reference to an imported mesh asset (alternative to Shape).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mesh_asset: Option<MeshAssetRef>,
+    /// Signal-driven modulations (soundtrack energy, beat, oscillators)
+    /// stacked on top of the authored values.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modulations: Vec<ModulationDef>,
 }
 
 impl WorldEntity {
@@ -108,6 +115,7 @@ impl WorldEntity {
             behaviors: Vec::new(),
             audio: None,
             mesh_asset: None,
+            modulations: Vec::new(),
         }
     }
 
@@ -126,6 +134,12 @@ impl WorldEntity {
     /// Builder: set light.
     pub fn with_light(mut self, light: LightDef) -> Self {
         self.light = Some(light);
+        self
+    }
+
+    /// Builder: add a signal-driven modulation.
+    pub fn with_modulation(mut self, modulation: ModulationDef) -> Self {
+        self.modulations.push(modulation);
         self
     }
 
@@ -155,6 +169,7 @@ impl WorldEntity {
 /// - `Some(None)` — field removed/cleared
 /// - `Some(Some(v))` — field set to `v`
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EntityPatch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<EntityName>,

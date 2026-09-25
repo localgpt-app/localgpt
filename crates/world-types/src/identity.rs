@@ -9,10 +9,12 @@ use serde::{Deserialize, Serialize};
 
 /// Stable, monotonically increasing entity identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EntityId(pub u64);
 
 /// Human-readable entity name. Unique within a world but may be renamed.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EntityName(pub String);
 
 impl EntityName {
@@ -42,6 +44,7 @@ impl std::fmt::Display for EntityId {
 /// LLMs produce `Name` references; these are resolved to `Id` on ingestion.
 /// Saved worlds should only contain `Id` references.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(untagged)]
 pub enum EntityRef {
     /// Stable reference by numeric ID (for persisted worlds).
@@ -62,6 +65,7 @@ impl EntityRef {
 
 /// Unique identifier for a compound creation (group of entities).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreationId(pub u64);
 
 #[cfg(test)]
