@@ -1,8 +1,11 @@
 name: ONNX Runtime
 description: >-
-  Install ONNX Runtime 1.23.2 under /opt/onnxruntime (cached between runs),
-  register it with the dynamic linker and point ort-sys at it, so builds never
-  try to reach cdn.pyke.io, which GitHub-hosted runners can't.
+  Install ONNX Runtime under /opt/onnxruntime (cached between runs), register
+  it with the dynamic linker and point ort-sys at it, so builds never try to
+  reach cdn.pyke.io, which GitHub-hosted runners can't. The version must be
+  the one the workspace's ort-sys targets (its build/download/dist.txt), or
+  the runtime rejects the API level at startup ("Failed to initialize ORT
+  API"): ort-sys 2.0.0-rc.12 with api-24 needs 1.24.x.
 runs:
   using: composite
   steps:
@@ -10,11 +13,11 @@ runs:
       id: cache
       with:
         path: /opt/onnxruntime
-        key: onnxruntime-1.23.2-linux-x64
+        key: onnxruntime-1.24.2-linux-x64
     - if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        curl -fL "https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-linux-x64-1.23.2.tgz" \
+        curl -fL "https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-linux-x64-1.24.2.tgz" \
           -o /tmp/onnxruntime.tgz
         mkdir -p /opt/onnxruntime
         tar -xzf /tmp/onnxruntime.tgz --strip-components=1 -C /opt/onnxruntime
