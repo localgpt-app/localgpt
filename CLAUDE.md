@@ -399,7 +399,12 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
 ## Conventions
 
 - **Lint clean before committing:** `cargo clippy --workspace -- -D warnings`
-  and `cargo fmt --check` must pass (enforced in CI).
+  and `cargo fmt --check` must pass (enforced in CI). CI
+  (`.github/workflows/ci.yml`) runs fmt, clippy and tests for the workspace
+  with the two Bevy crates (`gen`, `world-bevy`) in their own job, plus
+  cargo-deny (`deny.toml`); advisories run on main and weekly, never on
+  pull requests. ONNX Runtime setup is the local composite action
+  `.github/actions/onnxruntime`.
 - **Commits:** conventional commits (`feat:`, `fix:`, `docs:`, `chore:`,
   `refactor:`, scoped like `feat(gen):`), with no Co-Authored-By or
   Claude-Session trailers.
