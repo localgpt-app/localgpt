@@ -1,0 +1,22 @@
+[package]
+name = "localgpt-world-agent"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The shared world agent runtime — the tool-call protocol and pure SceneInterpreter that build localgpt-world-types entities, with the mistral.rs session loop behind `llm`"
+keywords = ["localgpt", "world", "3d", "agent"]
+
+[dependencies]
+localgpt-world-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+mistralrs = { version = "0.8", optional = true }
+tokio = { version = "1", features = ["rt", "time"], optional = true }
+etcetera = { version = "0.11", optional = true }
+
+[features]
+llm = ["dep:mistralrs", "dep:tokio", "dep:etcetera"]
+llm-metal = ["llm", "mistralrs/metal"]
