@@ -48,6 +48,9 @@ pub const LOCALGPT_GEN_COMFYUI_WORKFLOW: &str = "LOCALGPT_GEN_COMFYUI_WORKFLOW";
 /// `gen_generate_texture` (default `http://127.0.0.1:8741`)
 pub const LOCALGPT_GEN_MODEL_SERVER: &str = "LOCALGPT_GEN_MODEL_SERVER";
 
+/// Gen: Ollama base URL for NPC brains (default `http://localhost:11434`)
+pub const LOCALGPT_GEN_OLLAMA_URL: &str = "LOCALGPT_GEN_OLLAMA_URL";
+
 /// Test URL for SearXNG integration tests
 pub const LOCALGPT_TEST_SEARXNG_URL: &str = "LOCALGPT_TEST_SEARXNG_URL";
 

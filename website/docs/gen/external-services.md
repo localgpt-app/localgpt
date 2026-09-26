@@ -50,7 +50,6 @@ ollama serve
 
 # Pull models
 ollama pull llama3.2:3b       # NPC brain (text-only, 2 GB)
-ollama pull llava1.6:7b       # NPC vision (optional, 5 GB)
 ```
 
 ### How It Works
@@ -60,7 +59,7 @@ gen_set_npc_brain { entity: "elder", personality: "wise sage" }
   → Spawns brain loop (ticks every 2 seconds):
     1. Perceive: gather nearby entities, player distance
     2. Build prompt: personality + goals + memories + perception
-    3. Infer: POST to Ollama localhost:11434/api/generate
+    3. Infer: POST to Ollama localhost:11434/api/chat
     4. Parse: extract action (speak, move_to, emote, etc.)
     5. Execute: trigger Bevy systems
 ```
@@ -83,15 +82,13 @@ gen_set_npc_brain { entity: "elder", personality: "wise sage" }
 | `llama3.2:3b` | 2-3 GB | Default. Good action decisions. |
 | `mistral:7b` | 5-7 GB | Faster, instruction-tuned. |
 | `neural-chat:7b` | 5-6 GB | Optimized for dialogue. |
-| `llava1.6:7b` | 5-7 GB | Vision (NPC visual observation). |
-| `moondream2` | 2-3 GB | Lightweight vision alternative. |
 
 ### Tools
 
 | Tool | Description |
 |------|-------------|
-| `gen_set_npc_brain` | Attach an AI brain to an NPC with personality and goals |
-| `gen_npc_observe` | Render from NPC's viewpoint and describe what they see (requires vision model) |
+| `gen_set_npc_brain` | Attach an AI brain to an NPC with personality and goals (fails if Ollama or the model is missing) |
+| `gen_npc_observe` | List what the NPC perceives (named entities in its view cone and radius) and optionally answer a question about it with its model |
 | `gen_set_npc_memory` | Set NPC memory capacity and initial memories |
 
 ### Performance
@@ -101,9 +98,7 @@ gen_set_npc_brain { entity: "elder", personality: "wise sage" }
 - **Response latency:** ~200-500ms on GPU, ~2-5s on CPU
 - **Tick rate:** Default 2.0 seconds (configurable per NPC)
 
-:::info Status
-The Rust infrastructure is complete (brain config, context builder, action parser, memory system, MCP tools). The HTTP client wiring to Ollama is pending.
-:::
+Ollama's URL is `LOCALGPT_GEN_OLLAMA_URL` (default `http://localhost:11434`). If Ollama stops, brains pause and resume when it is back (checked every 30 seconds).
 
 ## ComfyUI — Depth Preview
 

@@ -637,7 +637,7 @@ impl Tool for GenSetNpcBrainTool {
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "gen_set_npc_brain".to_string(),
-            description: "Attach an AI brain to an NPC for autonomous decision-making. The brain uses a local SLM to decide actions at configurable tick rates.".to_string(),
+            description: "Attach an AI brain to an entity (usually an NPC) for autonomous decision-making: every tick_rate seconds a local Ollama model (LOCALGPT_GEN_OLLAMA_URL, default http://localhost:11434) picks its next action from what it perceives. Fails if Ollama isn't running or the model isn't pulled.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -717,6 +717,12 @@ impl Tool for GenSetNpcBrainTool {
                 .unwrap_or_default(),
         };
 
+        crate::character::npc_brain::check_ollama_model(
+            &crate::character::npc_brain::ollama_url(),
+            &config.model,
+        )
+        .await?;
+
         let cmd = GenCommand::SetNpcBrain { entity, config };
         let response = self.bridge.send(cmd).await?;
 
@@ -730,7 +736,7 @@ impl Tool for GenSetNpcBrainTool {
                 entity, model, tick_rate
             )),
             GenResponse::Error { message } => Err(anyhow::anyhow!("{}", message)),
-            _ => Ok("NPC brain set successfully".to_string()),
+            other => Err(anyhow::anyhow!("Unexpected response: {:?}", other)),
         }
     }
 }
@@ -759,7 +765,7 @@ impl Tool for GenNpcObserveTool {
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "gen_npc_observe".to_string(),
-            description: "Make an NPC observe the scene from its perspective. Optionally ask a question about what it sees.".to_string(),
+            description: "List what an NPC (or any entity) can perceive: named entities inside its view cone and perception radius (its brain's radius, else 20 m), nearest first, with distance and bearing (0 = ahead, positive = right). With a question, the NPC's Ollama model answers it from that perception. This is a scene query, not a rendered image.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -769,18 +775,12 @@ impl Tool for GenNpcObserveTool {
                     },
                     "question": {
                         "type": "string",
-                        "description": "Optional question about what the NPC sees"
+                        "description": "Optional question for the NPC to answer about what it perceives"
                     },
                     "fov": {
                         "type": "number",
-                        "default": 90.0,
-                        "description": "Field of view in degrees"
-                    },
-                    "resolution": {
-                        "type": "array",
-                        "items": { "type": "integer" },
-                        "default": [512, 512],
-                        "description": "Render resolution [width, height]"
+                        "default": 120.0,
+                        "description": "View cone in degrees around the entity's forward (360 = all around)"
                     }
                 },
                 "required": ["entity"]
@@ -795,37 +795,58 @@ impl Tool for GenNpcObserveTool {
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("entity is required"))?
             .to_string();
-
         let question = args["question"].as_str().map(|s| s.to_string());
+        let fov = args["fov"].as_f64().unwrap_or(120.0) as f32;
 
-        let fov = args["fov"].as_f64().unwrap_or(90.0) as f32;
-
-        let resolution = args["resolution"]
-            .as_array()
-            .map(|a| {
-                [
-                    a[0].as_u64().unwrap_or(512) as u32,
-                    a[1].as_u64().unwrap_or(512) as u32,
-                ]
-            })
-            .unwrap_or([512, 512]);
-
-        let cmd = GenCommand::NpcObserve {
-            entity,
-            question,
-            fov,
-            resolution,
-        };
-        let response = self.bridge.send(cmd).await?;
-
-        match response {
+        let cmd = GenCommand::NpcObserve { entity, fov };
+        let (entity, position, radius, perceived, model) = match self.bridge.send(cmd).await? {
             GenResponse::NpcObservation {
                 entity,
-                description,
-            } => Ok(format!("NPC '{}': {}", entity, description)),
-            GenResponse::Error { message } => Err(anyhow::anyhow!("{}", message)),
-            _ => Ok("NPC observation completed".to_string()),
+                position,
+                radius,
+                perceived_json,
+                model,
+            } => (
+                entity,
+                position,
+                radius,
+                serde_json::from_str::<Value>(&perceived_json).unwrap_or(Value::Null),
+                model,
+            ),
+            GenResponse::Error { message } => return Err(anyhow::anyhow!("{}", message)),
+            other => return Err(anyhow::anyhow!("Unexpected response: {:?}", other)),
+        };
+
+        let mut result = json!({
+            "entity": entity,
+            "position": position,
+            "radius": radius,
+            "fov": fov,
+            "perceived": perceived,
+        });
+        if let Some(question) = question {
+            let model = model.unwrap_or_else(|| "llama3.2:3b".to_string());
+            let prompt = format!(
+                "You are '{entity}' at {position:?}. Within {radius} m in view you perceive \
+                 (distance in m, bearing in degrees, 0 = ahead, positive = right):\n{perceived}\n\n\
+                 Question: {question}"
+            );
+            match crate::character::npc_brain::ask_ollama(
+                &crate::character::npc_brain::ollama_url(),
+                &model,
+                "You are an NPC in a 3D world. Answer briefly, in character, only from what you perceive.",
+                &prompt,
+            )
+            .await
+            {
+                Ok(answer) => result["answer"] = json!(answer),
+                Err(e) => {
+                    result["answer"] = Value::Null;
+                    result["answer_error"] = json!(format!("{model} via Ollama: {e:#}"));
+                }
+            }
         }
+        Ok(result.to_string())
     }
 }
 

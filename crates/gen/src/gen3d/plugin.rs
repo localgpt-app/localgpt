@@ -4093,20 +4093,35 @@ fn process_gen_commands(
                 }
             }
 
-            GenCommand::NpcObserve {
-                entity, question, ..
-            } => {
-                // Would render from NPC POV and send to VLM
-                let description = format!(
-                    "NPC '{}' observing scene{}",
-                    entity,
-                    question
-                        .map(|q| format!(" (question: {})", q))
-                        .unwrap_or_default()
-                );
+            GenCommand::NpcObserve { entity, fov } => 'observe: {
+                let Some(bevy_entity) = params.registry.get_entity(&entity) else {
+                    break 'observe GenResponse::Error {
+                        message: format!("Entity '{entity}' not found"),
+                    };
+                };
+                let Ok(eye) = params.transforms.get(bevy_entity).copied() else {
+                    break 'observe GenResponse::Error {
+                        message: format!("'{entity}' has no position"),
+                    };
+                };
+                let brain = params.npc_brains.get(bevy_entity).ok();
+                let radius = brain.map(|b| b.config.perception_radius).unwrap_or(20.0);
+                let others = params
+                    .registry
+                    .all_names()
+                    .filter(|(name, e)| {
+                        *name != entity.as_str() && *e != bevy_entity && *name != "main_camera"
+                    })
+                    .filter_map(|(name, e)| {
+                        Some((name.to_string(), params.transforms.get(e).ok()?.translation))
+                    });
+                let perceived = crate::character::npc_brain::perceive(&eye, fov, radius, others);
                 GenResponse::NpcObservation {
                     entity,
-                    description,
+                    position: eye.translation.to_array(),
+                    radius,
+                    perceived_json: serde_json::to_string(&perceived).unwrap_or_default(),
+                    model: brain.map(|b| b.config.model.clone()),
                 }
             }
 

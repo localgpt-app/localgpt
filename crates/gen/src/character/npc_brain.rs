@@ -309,6 +309,72 @@ mod tests {
     use super::*;
 
     #[test]
+    fn perception_is_the_view_cone_within_the_radius() {
+        // Looking down -Z from the origin.
+        let eye = Transform::default();
+        let others = [
+            ("ahead", Vec3::new(0.0, 0.0, -5.0)),
+            ("right", Vec3::new(3.0, 0.0, -3.0)),
+            ("behind", Vec3::new(0.0, 0.0, 5.0)),
+            ("far", Vec3::new(0.0, 0.0, -50.0)),
+        ]
+        .map(|(n, p)| (n.to_string(), p));
+        let seen = perceive(&eye, 120.0, 20.0, others.clone().into_iter());
+        let names: Vec<_> = seen.iter().map(|v| v["name"].as_str().unwrap()).collect();
+        assert_eq!(
+            names,
+            ["right", "ahead"],
+            "nearest first; behind and far unseen"
+        );
+        assert_eq!(seen[1]["bearing_degrees"], 0.0);
+        assert_eq!(seen[0]["bearing_degrees"], 45.0);
+        let all_round = perceive(&eye, 360.0, 20.0, others.into_iter());
+        assert_eq!(all_round.len(), 3);
+    }
+
+    async fn mock_ollama() -> String {
+        use axum::routing::{get, post};
+        let app = axum::Router::new()
+            .route(
+                "/api/tags",
+                get(|| async {
+                    axum::Json(serde_json::json!({"models": [{"name": "llama3.2:3b"}, {"name": "mistral:latest"}]}))
+                }),
+            )
+            .route(
+                "/api/chat",
+                post(|axum::Json(body): axum::Json<serde_json::Value>| async move {
+                    let asked = body["messages"][1]["content"].as_str().unwrap_or("").contains("well");
+                    axum::Json(serde_json::json!({"message": {"content": if asked { "The well is ahead." } else { "?" }}}))
+                }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        url
+    }
+
+    #[tokio::test]
+    async fn a_brain_needs_ollama_and_its_model() {
+        let url = mock_ollama().await;
+        check_ollama_model(&url, "llama3.2:3b").await.unwrap();
+        check_ollama_model(&url, "mistral").await.unwrap();
+        let missing = check_ollama_model(&url, "qwen3:8b").await.unwrap_err();
+        assert!(
+            missing.to_string().contains("ollama pull qwen3:8b"),
+            "{missing}"
+        );
+        let down = check_ollama_model("http://127.0.0.1:9", "llama3.2:3b")
+            .await
+            .unwrap_err();
+        assert!(down.to_string().contains("not reachable"), "{down}");
+        let answer = ask_ollama(&url, "llama3.2:3b", "sys", "Where is the well?")
+            .await
+            .unwrap();
+        assert_eq!(answer, "The well is ahead.");
+    }
+
+    #[test]
     fn test_brain_state_new() {
         let config = NpcBrainConfig::default();
         let state = NpcBrainState::new(config);
@@ -491,11 +557,87 @@ pub struct OllamaConfig {
 impl Default for OllamaConfig {
     fn default() -> Self {
         Self {
-            endpoint: "http://localhost:11434".to_string(),
+            endpoint: ollama_url(),
             unavailable: false,
             last_check: 0.0,
         }
     }
+}
+
+/// Ollama's base URL (`LOCALGPT_GEN_OLLAMA_URL`, default `http://localhost:11434`).
+pub fn ollama_url() -> String {
+    std::env::var(localgpt_core::env::LOCALGPT_GEN_OLLAMA_URL)
+        .unwrap_or_else(|_| "http://localhost:11434".to_string())
+        .trim_end_matches('/')
+        .to_string()
+}
+
+/// Check that Ollama answers at `url` and has `model` pulled, so a brain
+/// isn't attached that could never think.
+pub async fn check_ollama_model(url: &str, model: &str) -> anyhow::Result<()> {
+    let tags: serde_json::Value = reqwest::Client::new()
+        .get(format!("{url}/api/tags"))
+        .timeout(std::time::Duration::from_secs(3))
+        .send()
+        .await
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Ollama is not reachable at {url} ({e}); NPC brains need it running \
+                 (`ollama serve`, or set {})",
+                localgpt_core::env::LOCALGPT_GEN_OLLAMA_URL
+            )
+        })?
+        .error_for_status()?
+        .json()
+        .await?;
+    let bare = |name: &str| name.strip_suffix(":latest").unwrap_or(name).to_string();
+    let pulled: Vec<String> = tags["models"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|m| m["name"].as_str().map(bare))
+        .collect();
+    if pulled.contains(&bare(model)) {
+        Ok(())
+    } else {
+        anyhow::bail!(
+            "Ollama at {url} doesn't have '{model}' (pulled: {}); run `ollama pull {model}`",
+            if pulled.is_empty() {
+                "none".to_string()
+            } else {
+                pulled.join(", ")
+            }
+        )
+    }
+}
+
+/// Ask Ollama's chat endpoint one question (async; for tools).
+pub async fn ask_ollama(
+    url: &str,
+    model: &str,
+    system: &str,
+    prompt: &str,
+) -> anyhow::Result<String> {
+    let json: serde_json::Value = reqwest::Client::new()
+        .post(format!("{url}/api/chat"))
+        .timeout(std::time::Duration::from_secs(60))
+        .json(&serde_json::json!({
+            "model": model,
+            "messages": [
+                { "role": "system", "content": system },
+                { "role": "user", "content": prompt }
+            ],
+            "stream": false,
+        }))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    json["message"]["content"]
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| anyhow::anyhow!("Ollama returned no message"))
 }
 
 /// Call the Ollama /api/chat endpoint synchronously (runs inside a tokio task).
@@ -551,6 +693,44 @@ fn call_ollama_blocking(endpoint: &str, model: &str, prompt: &str) -> Result<Str
     })
 }
 
+/// Named things `eye` can perceive: within `radius` and inside a `fov`-degree
+/// cone around its forward, nearest first (at most 30), each with distance
+/// and bearing (degrees, 0 ahead, positive to the right).
+pub fn perceive(
+    eye: &Transform,
+    fov: f32,
+    radius: f32,
+    others: impl Iterator<Item = (String, Vec3)>,
+) -> Vec<serde_json::Value> {
+    let half_fov = (fov.clamp(1.0, 360.0) / 2.0).to_radians();
+    let forward = eye.forward().as_vec3();
+    let right = eye.right().as_vec3();
+    let mut seen: Vec<(f32, serde_json::Value)> = others
+        .filter_map(|(name, pos)| {
+            let delta = pos - eye.translation;
+            let distance = delta.length();
+            if distance > radius {
+                return None;
+            }
+            if distance > 1e-3 && forward.angle_between(delta) > half_fov + 1e-4 {
+                return None;
+            }
+            let bearing = delta.dot(right).atan2(delta.dot(forward)).to_degrees();
+            Some((
+                distance,
+                serde_json::json!({
+                    "name": name,
+                    "distance": (distance * 10.0).round() / 10.0,
+                    "bearing_degrees": bearing.round(),
+                    "position": pos.to_array(),
+                }),
+            ))
+        })
+        .collect();
+    seen.sort_by(|a, b| a.0.total_cmp(&b.0));
+    seen.into_iter().map(|(_, v)| v).take(30).collect()
+}
+
 /// Compute cardinal direction from one position to another.
 fn direction_label(from: Vec3, to: Vec3) -> String {
     let delta = to - from;
@@ -572,16 +752,13 @@ pub fn brain_tick_system(
     time: Res<Time>,
     ollama_config: Res<OllamaConfig>,
     brain_channel: Res<BrainTaskChannel>,
-    mut brain_query: Query<
-        (
-            Entity,
-            &mut NpcBrainState,
-            &Transform,
-            &Name,
-            Option<&super::npc_memory::NpcMemory>,
-        ),
-        With<super::npc::Npc>,
-    >,
+    mut brain_query: Query<(
+        Entity,
+        &mut NpcBrainState,
+        &Transform,
+        &Name,
+        Option<&super::npc_memory::NpcMemory>,
+    )>,
     player_query: Query<&Transform, With<super::player::Player>>,
     all_named: Query<(&Name, &Transform), Without<super::player::Player>>,
 ) {
@@ -685,7 +862,7 @@ pub fn brain_tick_system(
 pub fn brain_apply_results_system(
     time: Res<Time>,
     brain_channel: Res<BrainTaskChannel>,
-    mut brain_query: Query<(&mut NpcBrainState, &mut Transform, &Name), With<super::npc::Npc>>,
+    mut brain_query: Query<(&mut NpcBrainState, &mut Transform, &Name)>,
     mut memory_query: Query<&mut super::npc_memory::NpcMemory>,
 ) {
     let current_time = time.elapsed_secs_f64();
@@ -778,20 +955,23 @@ pub fn ollama_health_check_system(time: Res<Time>, mut ollama_config: ResMut<Oll
     let was_unavailable = ollama_config.unavailable;
 
     // Use a very short timeout for the health check
-    match std::net::TcpStream::connect_timeout(
-        &endpoint
-            .trim_start_matches("http://")
-            .parse()
-            .unwrap_or_else(|_| "127.0.0.1:11434".parse().unwrap()),
-        std::time::Duration::from_millis(500),
-    ) {
-        Ok(_) => {
+    use std::net::ToSocketAddrs;
+    let addr = reqwest::Url::parse(&endpoint).ok().and_then(|url| {
+        let host = url.host_str()?.to_string();
+        let port = url.port_or_known_default()?;
+        (host.as_str(), port).to_socket_addrs().ok()?.next()
+    });
+    let reachable = addr.is_some_and(|addr| {
+        std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(500)).is_ok()
+    });
+    match reachable {
+        true => {
             if was_unavailable {
                 tracing::info!("Ollama is now available at {}", endpoint);
             }
             ollama_config.unavailable = false;
         }
-        Err(_) => {
+        false => {
             if !was_unavailable {
                 tracing::warn!(
                     "Ollama unavailable at {} — NPC brains will be paused until it comes online",

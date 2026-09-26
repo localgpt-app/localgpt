@@ -270,11 +270,11 @@ pub enum GenCommand {
         entity: String,
         config: character::npc_brain::NpcBrainConfig,
     },
+    /// What an entity can perceive: named entities inside its view cone
+    /// (`fov` degrees around its forward) and perception radius.
     NpcObserve {
         entity: String,
-        question: Option<String>,
         fov: f32,
-        resolution: [u32; 2],
     },
     SetNpcMemory {
         entity: String,
@@ -1247,7 +1247,12 @@ pub enum GenResponse {
     },
     NpcObservation {
         entity: String,
-        description: String,
+        position: [f32; 3],
+        radius: f32,
+        /// JSON array of `{name, distance, bearing, position}`, nearest first.
+        perceived_json: String,
+        /// The entity's brain model, if it has a brain.
+        model: Option<String>,
     },
     NpcMemorySet {
         entity: String,
