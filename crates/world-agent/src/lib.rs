@@ -27,9 +27,9 @@ pub use assets::{
     scatter_offsets,
 };
 pub use interpreter::{
-    AgentCommand, AgentResponse, BuildOutput, ModifyEntityCmd, PlaceAssetCmd, PrimitiveShape,
-    ScatterFieldCmd, SceneInterpreter, SetLightCmd, SpawnPrimitiveCmd, clamp_local,
-    parse_tool_call, resolve_agent_assets,
+    AgentCommand, AgentResponse, BuildOutput, EnvironmentCmd, ModifyEntityCmd, PlaceAssetCmd,
+    PrimitiveShape, ScatterFieldCmd, SceneBuild, SceneInterpreter, SectionRole, SetLightCmd,
+    SpawnPrimitiveCmd, clamp_local, parse_tool_call, resolve_agent_assets,
 };
 
 #[cfg(feature = "llm")]

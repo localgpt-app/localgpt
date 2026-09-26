@@ -42,16 +42,44 @@ const MAX_DIRECTIONAL_INTENSITY: f32 = 15_000.0;
 
 /// A single tool call, as parsed from the model. Also the sidecar-side shape
 /// of a recorded call — kept serde so a session log stays inspectable.
+///
+/// The union of the apps' vocabularies: `BeginSession`/`SetEnvironment` and
+/// the `at_role` fields are Verse's (song scoping and its agent-owned
+/// environment); MD never offers them, but the protocol — and Verse's cached
+/// `SceneBuild` sidecars — carry them, so they live here.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum AgentCommand {
+    /// Scope everything the session spawns to this track/section key.
+    /// Issued once at session start; never recorded in a [`SceneBuild`]
+    /// (replay sets its own scope) and never model-facing.
+    BeginSession {
+        track: String,
+    },
     SpawnPrimitive(SpawnPrimitiveCmd),
     PlaceAsset(PlaceAssetCmd),
     ScatterField(ScatterFieldCmd),
     ModifyEntity(ModifyEntityCmd),
-    DeleteEntity { name: String },
+    DeleteEntity {
+        name: String,
+    },
     SetLight(SetLightCmd),
+    SetEnvironment(EnvironmentCmd),
     SceneInfo,
+}
+
+/// A song section's musical role — Verse's placement timing (an entity with
+/// `at_role` stays hidden until the transport reaches that section). MD has
+/// no transport and never emits it.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SectionRole {
+    Intro,
+    Verse,
+    Chorus,
+    Drop,
+    Bridge,
+    Outro,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,6 +102,9 @@ pub struct SpawnPrimitiveCmd {
     pub roughness: f32,
     #[serde(default = "zero4")]
     pub emissive: [f32; 4],
+    /// Song section this structure appears in (Verse only; `None` = always).
+    #[serde(default)]
+    pub at_role: Option<SectionRole>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,6 +135,9 @@ pub struct PlaceAssetCmd {
     pub rotation_degrees: [f32; 3],
     #[serde(default = "one_f")]
     pub scale: f32,
+    /// Song section this placement appears in (Verse only; `None` = always).
+    #[serde(default)]
+    pub at_role: Option<SectionRole>,
 }
 
 /// Scatter many assets of one kind around a position in one command.
@@ -125,6 +159,9 @@ pub struct ScatterFieldCmd {
     pub position: [f32; 3],
     #[serde(default = "one_f")]
     pub scale: f32,
+    /// Song section this field appears in (Verse only; `None` = always).
+    #[serde(default)]
+    pub at_role: Option<SectionRole>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -151,15 +188,28 @@ pub struct SetLightCmd {
     pub direction: Option<[f32; 3]>,
 }
 
+/// Set the environment (background + ambient). Verse's agent owns these for
+/// its worlds; MD's environment is draft-owned and its tools never offer
+/// `set_environment` — the protocol carries it either way.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvironmentCmd {
+    #[serde(default = "default_bg")]
+    pub background_color: [f32; 4],
+    #[serde(default = "default_ambient")]
+    pub ambient_light: [f32; 4],
+}
+
 /// The interpreter's reply to one command, stringified for the model.
 #[derive(Debug, Clone)]
 pub enum AgentResponse {
+    SessionBegun,
     Spawned { name: String },
     AssetPlaced { name: String, asset: String },
     Scattered { name: String, count: usize },
     Modified { name: String },
     Deleted { name: String },
     LightSet { name: String },
+    EnvironmentSet,
     SceneInfo(String),
     Error(String),
 }
@@ -167,15 +217,36 @@ pub enum AgentResponse {
 impl AgentResponse {
     pub fn to_message(&self) -> String {
         match self {
+            Self::SessionBegun => "session begun".into(),
             Self::Spawned { name } => format!("spawned '{name}'"),
             Self::AssetPlaced { name, asset } => format!("placed '{name}' ({asset})"),
             Self::Scattered { name, count } => format!("scattered {count} props as '{name}'"),
             Self::Modified { name } => format!("modified '{name}'"),
             Self::Deleted { name } => format!("deleted '{name}'"),
             Self::LightSet { name } => format!("light '{name}' set"),
+            Self::EnvironmentSet => "environment set".into(),
             Self::SceneInfo(s) => s.clone(),
             Self::Error(e) => format!("error: {e}"),
         }
+    }
+}
+
+/// A recorded agent session: the ordered commands the model issued plus its
+/// closing description. Verse's durable artifact — cached in its track
+/// sidecars and replayed deterministically without the LLM. (MD caches the
+/// interpreter's final entities instead; both are valid consumers of the
+/// same protocol.)
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SceneBuild {
+    pub commands: Vec<AgentCommand>,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+impl SceneBuild {
+    /// `true` when no commands were captured (the session produced nothing).
+    pub fn is_empty(&self) -> bool {
+        self.commands.is_empty()
     }
 }
 
@@ -208,6 +279,7 @@ pub fn parse_tool_call(name: &str, args: &str) -> Option<AgentCommand> {
             metallic: args["metallic"].as_f64().unwrap_or(0.0) as f32,
             roughness: args["roughness"].as_f64().unwrap_or(0.5) as f32,
             emissive: parse_arr4(&args["emissive"]),
+            at_role: parse_role(args.get("at_role")),
         })),
         "place_asset" => Some(AgentCommand::PlaceAsset(PlaceAssetCmd {
             name: args["name"].as_str()?.into(),
@@ -216,15 +288,17 @@ pub fn parse_tool_call(name: &str, args: &str) -> Option<AgentCommand> {
             position: parse_arr3(&args["position"]),
             rotation_degrees: parse_arr3(&args["rotation_degrees"]),
             scale: args["scale"].as_f64().unwrap_or(1.0).clamp(0.05, 20.0) as f32,
+            at_role: parse_role(args.get("at_role")),
         })),
         "scatter_field" => Some(AgentCommand::ScatterField(ScatterFieldCmd {
             name: args["name"].as_str()?.into(),
             kind: args["kind"].as_str().unwrap_or_default().to_lowercase(),
             assets: Vec::new(), // resolved (and recorded) by the session loop
             count: args["count"].as_i64().unwrap_or(12).clamp(1, 48) as u32,
-            radius: args["radius"].as_f64().unwrap_or(10.0).clamp(0.5, 12.0) as f32,
+            radius: args["radius"].as_f64().unwrap_or(10.0).clamp(0.5, 120.0) as f32,
             position: parse_arr3(&args["position"]),
             scale: args["scale"].as_f64().unwrap_or(1.0).clamp(0.05, 20.0) as f32,
+            at_role: parse_role(args.get("at_role")),
         })),
         "modify_entity" => Some(AgentCommand::ModifyEntity(ModifyEntityCmd {
             name: args["name"].as_str()?.into(),
@@ -245,6 +319,10 @@ pub fn parse_tool_call(name: &str, args: &str) -> Option<AgentCommand> {
             intensity: args["intensity"].as_f64().unwrap_or(1000.0) as f32,
             position: args.get("position").and_then(parse_opt_arr3),
             direction: args.get("direction").and_then(parse_opt_arr3),
+        })),
+        "set_environment" => Some(AgentCommand::SetEnvironment(EnvironmentCmd {
+            background_color: parse_arr4(&args["background_color"]),
+            ambient_light: parse_arr4(&args["ambient_light"]),
         })),
         "scene_info" => Some(AgentCommand::SceneInfo),
         _ => None,
@@ -319,12 +397,14 @@ pub fn resolve_agent_assets(
 // The interpreter — pure command execution into platform-local entities
 // ---------------------------------------------------------------------------
 
-/// A finished agent build: the section's entities (local coordinates) and
-/// the model's closing description.
+/// A finished agent build: the place's entities (local coordinates), the
+/// model's closing description, and — when a session used `set_environment`
+/// (Verse's vocabulary) — the authored environment, for apps that honor it.
 #[derive(Debug, Clone, Default)]
 pub struct BuildOutput {
     pub entities: Vec<wt::WorldEntity>,
     pub description: Option<String>,
+    pub environment: Option<EnvironmentCmd>,
 }
 
 /// Applies [`AgentCommand`]s to an in-memory scene: a name-keyed list of
@@ -335,6 +415,8 @@ pub struct BuildOutput {
 pub struct SceneInterpreter {
     section_key: String,
     entities: Vec<wt::WorldEntity>,
+    /// The last `set_environment` (Verse's vocabulary), for BuildOutput.
+    environment: Option<EnvironmentCmd>,
 }
 
 impl SceneInterpreter {
@@ -344,7 +426,13 @@ impl SceneInterpreter {
         Self {
             section_key: section_key.to_string(),
             entities: Vec::new(),
+            environment: None,
         }
+    }
+
+    /// The last `set_environment`, if the session issued one.
+    pub fn environment(&self) -> Option<&EnvironmentCmd> {
+        self.environment.as_ref()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -370,6 +458,17 @@ impl SceneInterpreter {
     /// the pack) placements keep scale 1.0 so the entity still renders.
     pub fn apply(&mut self, cmd: AgentCommand, manifest: Option<&AssetManifest>) -> AgentResponse {
         match cmd {
+            AgentCommand::BeginSession { track } => {
+                // The pure interpreter has no live scene to stamp; the key
+                // only re-salts nothing (scatter salts stay per-field). Apps
+                // with scoping track it themselves.
+                let _ = track;
+                AgentResponse::SessionBegun
+            }
+            AgentCommand::SetEnvironment(c) => {
+                self.environment = Some(c);
+                AgentResponse::EnvironmentSet
+            }
             AgentCommand::SpawnPrimitive(c) => self.spawn_primitive(c),
             AgentCommand::PlaceAsset(c) => self.place_asset(c, manifest),
             AgentCommand::ScatterField(c) => self.scatter_field(c, manifest),
@@ -750,6 +849,12 @@ fn parse_opt_arr4(v: &serde_json::Value) -> Option<[f32; 4]> {
     v.as_array().filter(|a| a.len() == 4).map(|_| parse_arr4(v))
 }
 
+/// Parse an optional `at_role` tool argument ("chorus" → [`SectionRole`]).
+fn parse_role(v: Option<&serde_json::Value>) -> Option<SectionRole> {
+    let name = v?.as_str()?;
+    serde_json::from_value(serde_json::Value::String(name.to_string())).ok()
+}
+
 // --- serde defaults ---------------------------------------------------------
 
 fn zero3() -> [f32; 3] {
@@ -766,6 +871,12 @@ fn default_color() -> [f32; 4] {
 }
 fn default_white() -> [f32; 4] {
     [1.0, 1.0, 1.0, 1.0]
+}
+fn default_bg() -> [f32; 4] {
+    [0.043, 0.047, 0.067, 1.0]
+}
+fn default_ambient() -> [f32; 4] {
+    [0.3, 0.3, 0.4, 1.0]
 }
 fn default_roughness() -> f32 {
     0.5
@@ -931,8 +1042,9 @@ mod session {
                         .unwrap_or_default()
                 );
                 Some(BuildOutput {
-                    entities: scene.into_entities(),
+                    entities: scene.entities,
                     description,
+                    environment: scene.environment,
                 })
             }
         })
@@ -1177,8 +1289,16 @@ mod tests {
             panic!("wrong variant");
         };
         assert_eq!(s.count, 48);
-        assert_eq!(s.radius, 12.0);
-        assert!(parse_tool_call("set_environment", "{}").is_none()); // dropped tool
+        // The union clamp is Verse's 0.5..120 (MD's tool schema advertises
+        // its own tighter max; the interpreter's position clamp bounds the
+        // placed result regardless).
+        assert_eq!(s.radius, 99.0);
+        // set_environment parses (union vocabulary) — whether a session
+        // OFFERS it is the app's choice.
+        assert!(matches!(
+            parse_tool_call("set_environment", "{}"),
+            Some(AgentCommand::SetEnvironment(_))
+        ));
         assert!(parse_tool_call("nope", "{}").is_none());
         assert!(parse_tool_call("spawn_primitive", "not json").is_none());
     }
@@ -1426,5 +1546,130 @@ mod tests {
             panic!("wrong variant");
         };
         assert_eq!(c.assets.len(), 3); // the synthetic pack has 3 rocks
+    }
+
+    // --- the union protocol: Verse's vocabulary, sidecar-compatible -------
+
+    #[test]
+    fn scene_build_roundtrips_with_verse_vocabulary() {
+        let build = SceneBuild {
+            commands: vec![
+                AgentCommand::BeginSession { track: "t1".into() },
+                AgentCommand::SpawnPrimitive(SpawnPrimitiveCmd {
+                    name: "tower".into(),
+                    shape: PrimitiveShape::Cuboid,
+                    dimensions: HashMap::from([
+                        ("x".into(), 2.0),
+                        ("y".into(), 8.0),
+                        ("z".into(), 2.0),
+                    ]),
+                    position: [0.0, 4.0, 0.0],
+                    rotation_degrees: [0.0, 0.0, 0.0],
+                    scale: [1.0, 1.0, 1.0],
+                    color: [0.2, 0.3, 0.8, 1.0],
+                    metallic: 0.5,
+                    roughness: 0.4,
+                    emissive: [0.0, 0.0, 0.0, 0.0],
+                    at_role: Some(SectionRole::Chorus),
+                }),
+                AgentCommand::ScatterField(ScatterFieldCmd {
+                    name: "pebble_field".into(),
+                    kind: "rock".into(),
+                    assets: vec!["stone_a.glb".into(), "stone_b.glb".into()],
+                    count: 12,
+                    radius: 8.0,
+                    position: [2.0, -0.5, -10.0],
+                    scale: 0.8,
+                    at_role: None,
+                }),
+                AgentCommand::SetEnvironment(EnvironmentCmd {
+                    background_color: [0.04, 0.05, 0.07, 1.0],
+                    ambient_light: [0.3, 0.3, 0.4, 1.0],
+                }),
+            ],
+            description: Some("a jagged skyline".into()),
+        };
+        let json = serde_json::to_string(&build).unwrap();
+        let back: SceneBuild = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.commands.len(), 4);
+        assert_eq!(back.description.as_deref(), Some("a jagged skyline"));
+        assert!(!back.is_empty());
+        assert!(matches!(
+            back.commands[0],
+            AgentCommand::BeginSession { ref track } if track == "t1"
+        ));
+        assert!(matches!(
+            &back.commands[1],
+            AgentCommand::SpawnPrimitive(c) if c.at_role == Some(SectionRole::Chorus)
+        ));
+        assert!(matches!(
+            &back.commands[3],
+            AgentCommand::SetEnvironment(e) if e.ambient_light == [0.3, 0.3, 0.4, 1.0]
+        ));
+    }
+
+    /// Verse's cached sidecars predate the kind vocabulary (and may omit
+    /// `description`) — they must deserialize exactly as authored.
+    #[test]
+    fn legacy_verse_sidecar_shapes_deserialize() {
+        let json = r#"{"commands":[
+            {"op":"place_asset","name":"gate","asset":"rock_arch.glb",
+             "position":[0,0,-6],"rotation_degrees":[0,30,0],"scale":1.4},
+            {"op":"scatter_field","name":"field","kind":"rock",
+             "assets":["stone_a.glb"],"count":6,"radius":4,
+             "position":[0,0,0],"scale":1,"at_role":"verse"}
+        ]}"#;
+        let back: SceneBuild = serde_json::from_str(json).expect("legacy sidecar parses");
+        match &back.commands[0] {
+            AgentCommand::PlaceAsset(c) => {
+                assert_eq!(c.kind, ""); // no kind key in the old sidecar
+                assert_eq!(c.asset, "rock_arch.glb");
+                assert_eq!(c.at_role, None);
+            }
+            _ => panic!("wrong variant"),
+        }
+        match &back.commands[1] {
+            AgentCommand::ScatterField(c) => {
+                assert_eq!(c.at_role, Some(SectionRole::Verse));
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn parse_and_apply_the_verse_vocabulary() {
+        // set_environment parses (Verse offers it; MD's schemas never do).
+        let cmd =
+            parse_tool_call("set_environment", r#"{"background_color":[0.1,0.1,0.2,1]}"#).unwrap();
+        let mut scene = SceneInterpreter::new("k");
+        assert!(matches!(
+            scene.apply(cmd, None),
+            AgentResponse::EnvironmentSet
+        ));
+        assert!(scene.environment().unwrap().ambient_light == [0.0, 0.0, 0.0, 1.0]); // defaulted
+        assert!(matches!(
+            scene.apply(AgentCommand::BeginSession { track: "t".into() }, None),
+            AgentResponse::SessionBegun
+        ));
+        // at_role parses on every placement command.
+        let cmd = parse_tool_call(
+            "place_asset",
+            r#"{"name":"gate","kind":"rock","at_role":"bridge"}"#,
+        )
+        .unwrap();
+        match cmd {
+            AgentCommand::PlaceAsset(c) => assert_eq!(c.at_role, Some(SectionRole::Bridge)),
+            _ => panic!("wrong variant"),
+        }
+        // An unknown at_role is dropped, not fatal (None, like Verse's parse).
+        let cmd = parse_tool_call(
+            "spawn_primitive",
+            r#"{"name":"s","shape":"Sphere","at_role":"walrus"}"#,
+        )
+        .unwrap();
+        match cmd {
+            AgentCommand::SpawnPrimitive(c) => assert_eq!(c.at_role, None),
+            _ => panic!("wrong variant"),
+        }
     }
 }
