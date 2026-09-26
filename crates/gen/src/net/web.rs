@@ -113,6 +113,8 @@ pub struct WebRoom {
     op_log: Option<OpLog>,
     /// A replayed op log is waiting to be spawned into the scene.
     scene_rebuild_pending: bool,
+    /// Browser guests join as editors (direct edits) instead of guests.
+    pub web_edit: bool,
 }
 
 impl WebRoom {
@@ -122,6 +124,7 @@ impl WebRoom {
         inbound_rx: mpsc::UnboundedReceiver<InboundEvent>,
         workspace: &std::path::Path,
         resume: Option<&str>,
+        web_edit: bool,
     ) -> Self {
         let mut room = Self {
             authority: Authority::new(session_name, Limits::default()),
@@ -131,6 +134,7 @@ impl WebRoom {
             warned_bad_projection: false,
             op_log: None,
             scene_rebuild_pending: false,
+            web_edit,
         };
         // History first: replay what a previous session left behind, then
         // open the log so this session's ops keep appending to it.
@@ -574,7 +578,12 @@ fn handle_client_msg(
                 deliver(room, error_to(id, "bad invite token"));
                 return;
             }
-            let out = room.authority.join(id, &name, Role::Guest, client);
+            let role = if room.web_edit {
+                Role::Editor
+            } else {
+                Role::Guest
+            };
+            let out = room.authority.join(id, &name, role, client);
             deliver(room, out);
         }
         _ if room.authority.peer(id).is_none() => {
@@ -621,6 +630,7 @@ fn handle_client_msg(
             let out = room
                 .authority
                 .submit(id, client_seq, expected_revision, ops);
+            queue_committed(&out, pending);
             deliver(room, out);
         }
         ClientMsg::Resync => {

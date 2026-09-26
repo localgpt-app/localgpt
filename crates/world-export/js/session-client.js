@@ -105,6 +105,215 @@ export function startSessionClient() {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   }
 
+  // ---- Direct editing (editor role): select, drag, rotate, scale, delete ----
+  const edit = {
+    role: 'guest',
+    selected: null, // a viewer record
+    helper: null,
+    drag: null,
+    clientSeq: 0,
+  };
+  const raycaster = new THREE.Raycaster();
+  const pointerNdc = new THREE.Vector2();
+
+  function isTyping() {
+    return /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '');
+  }
+
+  function recordObjects() {
+    const set = new Set();
+    if (!viewer) return set;
+    for (const rec of viewer.entities.values()) set.add(rec.object);
+    return set;
+  }
+
+  function recordAt(clientX, clientY) {
+    if (!viewer) return null;
+    const rect = viewer.renderer.domElement.getBoundingClientRect();
+    pointerNdc.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+    raycaster.setFromCamera(pointerNdc, viewer.camera);
+    const roots = [...viewer.entities.values()].map((r) => r.object);
+    const hits = raycaster.intersectObjects(roots, true);
+    if (!hits.length) return null;
+    let obj = hits[0].object;
+    while (obj) {
+      for (const rec of viewer.entities.values()) {
+        if (rec.object === obj) return rec;
+      }
+      obj = obj.parent;
+    }
+    return null;
+  }
+
+  function clearSelection() {
+    edit.selected = null;
+    if (edit.helper) {
+      viewer.scene.remove(edit.helper);
+      edit.helper.dispose?.();
+      edit.helper = null;
+    }
+  }
+
+  function select(rec) {
+    clearSelection();
+    edit.selected = rec;
+    edit.helper = new THREE.BoxHelper(rec.object, 0xffcc44);
+    viewer.scene.add(edit.helper);
+    say(`Selected ${rec.def.name} — drag to move, Q/E rotate, +/- scale, Del delete`);
+  }
+
+  function submitOps(ops) {
+    // No expected_revision: the authority's order decides (last write wins
+    // per field), so rapid successive edits can't reject each other.
+    send({
+      type: 'submit',
+      client_seq: ++edit.clientSeq,
+      ops,
+    });
+  }
+
+  function submitTransform(rec) {
+    const o = rec.object;
+    const deg = (r) => (r * 180) / Math.PI;
+    submitOps([
+      {
+        ModifyEntity: {
+          id: rec.def.id,
+          patch: {
+            transform: {
+              position: [o.position.x, o.position.y, o.position.z],
+              rotation_degrees: [deg(o.rotation.x), deg(o.rotation.y), deg(o.rotation.z)],
+              scale: [o.scale.x, o.scale.y, o.scale.z],
+              visible: o.visible,
+            },
+          },
+        },
+      },
+    ]);
+  }
+
+  function onPointerDown(e) {
+    if (edit.role !== 'editor' || !viewer || e.button !== 0 || isTyping()) return;
+    const rec = recordAt(e.clientX, e.clientY);
+    if (!rec) {
+      clearSelection();
+      return;
+    }
+    select(rec);
+    // Move on the horizontal plane through the grab point.
+    const rect = viewer.renderer.domElement.getBoundingClientRect();
+    pointerNdc.set(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    raycaster.setFromCamera(pointerNdc, viewer.camera);
+    const grab = new THREE.Vector3();
+    const world = rec.object.getWorldPosition(new THREE.Vector3());
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -world.y);
+    if (!raycaster.ray.intersectPlane(plane, grab)) return;
+    edit.drag = {
+      rec,
+      plane,
+      offset: grab.sub(world),
+      moved: false,
+    };
+    viewer.controls.enabled = false;
+    viewer.renderer.domElement.setPointerCapture?.(e.pointerId);
+  }
+
+  function onPointerMove(e) {
+    if (!edit.drag || !viewer) return;
+    const rect = viewer.renderer.domElement.getBoundingClientRect();
+    pointerNdc.set(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    raycaster.setFromCamera(pointerNdc, viewer.camera);
+    const point = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(edit.drag.plane, point)) return;
+    const target = point.sub(edit.drag.offset);
+    // Convert world → the record's parent space (its transform is local).
+    const parent = edit.drag.rec.object.parent;
+    if (parent && parent !== viewer.scene) parent.worldToLocal(target);
+    edit.drag.rec.object.position.copy(target);
+    edit.drag.moved = true;
+  }
+
+  function onPointerUp() {
+    if (!edit.drag) return;
+    const { rec, moved } = edit.drag;
+    edit.drag = null;
+    if (viewer) viewer.controls.enabled = true;
+    if (moved) submitTransform(rec);
+  }
+
+  function onEditKey(e) {
+    if (edit.role !== 'editor' || !edit.selected || isTyping()) return;
+    const rec = edit.selected;
+    const step = THREE.MathUtils.degToRad(15);
+    switch (e.code) {
+      case 'KeyQ':
+        rec.object.rotateY(step);
+        submitTransform(rec);
+        e.preventDefault();
+        break;
+      case 'KeyE':
+        rec.object.rotateY(-step);
+        submitTransform(rec);
+        e.preventDefault();
+        break;
+      case 'Equal':
+      case 'NumpadAdd':
+        rec.object.scale.multiplyScalar(1.1).clampScalar(0.05, 100);
+        submitTransform(rec);
+        e.preventDefault();
+        break;
+      case 'Minus':
+      case 'NumpadSubtract':
+        rec.object.scale.multiplyScalar(1 / 1.1).clampScalar(0.05, 100);
+        submitTransform(rec);
+        e.preventDefault();
+        break;
+      case 'Delete':
+      case 'Backspace':
+        submitOps([{ DeleteEntity: { id: rec.def.id } }]);
+        clearSelection();
+        e.preventDefault();
+        break;
+      case 'Escape':
+        clearSelection();
+        break;
+      default:
+        break;
+    }
+  }
+
+  function setupEditing() {
+    const canvas = viewer.renderer.domElement;
+    canvas.style.cursor = 'crosshair';
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointercancel', onPointerUp);
+    document.addEventListener('keydown', onEditKey);
+  }
+
+  // Keep the selection helper glued to its (possibly edited) object.
+  function updateSelectionHelper() {
+    if (!viewer) return;
+    if (edit.selected) {
+      const stillThere = viewer.entitiesById.get(String(edit.selected.def.id)) === edit.selected;
+      if (!stillThere) {
+        clearSelection();
+        return;
+      }
+      edit.helper?.update();
+    }
+  }
+
   function removePeer(id) {
     const p = peers.get(id);
     if (!p) return;
@@ -118,8 +327,10 @@ export function startSessionClient() {
       case 'welcome': {
         myPeerId = msg.peer_id;
         revision = msg.revision;
+        edit.role = msg.role === 'editor' || msg.role === 'host' ? 'editor' : 'guest';
         hudSession.textContent = msg.session.name;
         viewer = createWorldViewer(el('scene'), msg.world, { assetBase: msg.asset_base || null });
+        setupEditing();
         for (const peer of msg.peers) {
           if (peer.id === myPeerId) continue;
           const avatar = makeAvatar(peer);
@@ -148,6 +359,7 @@ export function startSessionClient() {
         break;
       }
       case 'snapshot': {
+        clearSelection();
         if (viewer) viewer.dispose();
         viewer = createWorldViewer(el('scene'), msg.world, {});
         revision = msg.revision;
@@ -191,6 +403,8 @@ export function startSessionClient() {
         break;
       case 'reject':
         say(`Edit rejected: ${msg.reason}`);
+        // Our optimistic edit diverged; take the authoritative state.
+        send({ type: 'resync' });
         break;
       case 'error':
         joinError.textContent = msg.reason;
@@ -272,6 +486,7 @@ export function startSessionClient() {
 
   function animateAvatars() {
     requestAnimationFrame(animateAvatars);
+    updateSelectionHelper();
     for (const p of peers.values()) {
       if (!p.target) continue;
       p.avatar.position.lerp(new THREE.Vector3(...p.target.position), 0.25);
@@ -280,4 +495,19 @@ export function startSessionClient() {
     }
   }
   animateAvatars();
+
+  // Debug/testing handle.
+  window.__session = {
+    get viewer() { return viewer; },
+    get revision() { return revision; },
+    get role() { return edit.role; },
+    selectByName(name) {
+      const rec = viewer?.entities.get(name);
+      if (rec) select(rec);
+      return !!rec;
+    },
+    get selected() { return edit.selected?.def.name || null; },
+    submitTransform,
+    submitOps,
+  };
 }

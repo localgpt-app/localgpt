@@ -109,6 +109,9 @@ pub struct NetHostOptions {
     /// Let browsers join as guests: serve a join page and the WebSocket ops
     /// endpoint on the session port (CLI `--web`).
     pub web: bool,
+    /// Browser guests join as editors who may move/rotate/scale/delete
+    /// entities directly (CLI `--web-edit`). Default: prompt-only guests.
+    pub web_edit: bool,
     /// Replay a previous session's op log before guests join (CLI `--resume`).
     pub resume: Option<String>,
     /// Sender half of the control channel into the agent loop (hosting
@@ -170,6 +173,8 @@ pub struct HostStartRequest {
     pub full_access: bool,
     /// Browsers may join as guests (join page + WebSocket endpoint).
     pub web: bool,
+    /// Browser guests get the editor role (direct edits).
+    pub web_edit: bool,
     /// Op log to replay at start (`--resume`; panel sessions start fresh).
     pub resume: Option<String>,
 }
@@ -246,6 +251,7 @@ pub fn create_host_channels() -> (NetHostOptions, AgentNetHooks) {
             full_access: false,
             autostart: false,
             web: false,
+            web_edit: false,
             resume: None,
             control_tx,
         },
@@ -361,6 +367,7 @@ impl Plugin for NetHostPlugin {
             full_access,
             autostart,
             web,
+            web_edit,
             resume,
             control_tx,
         } = self
@@ -387,6 +394,7 @@ impl Plugin for NetHostPlugin {
                 open,
                 full_access,
                 web,
+                web_edit,
                 resume,
             })
         } else {
@@ -538,6 +546,7 @@ fn host_lifecycle(
             inbound_rx,
             &workspace.path,
             request.resume.as_deref(),
+            request.web_edit,
         ));
         match (web::primary_lan_ip(), &token) {
             (Some(ip), Some(token)) => eprintln!(
@@ -1422,6 +1431,7 @@ mod tests {
                 open: false,
                 full_access: false,
                 web: false,
+                web_edit: false,
                 resume: None,
             })
             .is_active()

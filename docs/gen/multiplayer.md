@@ -72,6 +72,15 @@ The wire protocol is versioned JSON over one WebSocket — see
 sockets are refused, and a full room declines joins. LAN only for now: the
 internet relay (room codes through a Worker) is phase 4.
 
+## Guest editing (`--web-edit`)
+
+With `--web-edit` (plus `--web`), browser guests join as **editors**: they can
+click an entity to select it, drag to move it, `Q`/`E` to rotate, `+`/`-` to
+scale, `Delete` to remove, and `/undo` to step back through their own changes.
+Edits commit through the room authority (guests can't corrupt the document —
+every op is validated), appear in the host's window and for every other guest,
+and are theirs to undo. Without the flag, guests stay prompt-only.
+
 ## History, undo & replay
 
 Every web session keeps a build history: each committed batch appends to

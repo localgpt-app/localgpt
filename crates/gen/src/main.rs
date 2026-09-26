@@ -887,6 +887,13 @@ struct Cli {
     #[arg(long, requires = "host")]
     web: bool,
 
+    /// Let browser guests EDIT directly, not just prompt (with --web):
+    /// they join as editors and can select, move, rotate, scale and
+    /// delete entities from the join page.
+    #[cfg(feature = "multiplayer")]
+    #[arg(long, requires = "web")]
+    web_edit: bool,
+
     /// Replay a previous web session's op log before guests join (with
     /// --host --web). Pass a session name (reads
     /// <workspace>/sessions/<name>/ops.jsonl) or a path to an ops.jsonl.
@@ -1339,6 +1346,7 @@ fn main() -> Result<()> {
                 opts.full_access = cli.host && cli.remote_tools == RemoteTools::Full;
                 opts.autostart = cli.host;
                 opts.web = cli.web;
+                opts.web_edit = cli.web_edit;
                 opts.resume = cli.resume.clone();
                 if opts.full_access {
                     eprintln!(
