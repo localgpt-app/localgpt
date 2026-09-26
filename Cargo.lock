@@ -9485,6 +9485,7 @@ dependencies = [
  "localgpt-core",
  "localgpt-world-bevy",
  "localgpt-world-export",
+ "localgpt-world-sync",
  "localgpt-world-types",
  "mdns-sd",
  "mistralrs",
@@ -9587,6 +9588,15 @@ version = "0.3.6"
 dependencies = [
  "localgpt-world-types",
  "ron",
+ "serde_json",
+]
+
+[[package]]
+name = "localgpt-world-sync"
+version = "0.3.6"
+dependencies = [
+ "localgpt-world-types",
+ "serde",
  "serde_json",
 ]
 

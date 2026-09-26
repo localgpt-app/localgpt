@@ -189,6 +189,8 @@ pub struct EntityPatch {
     pub audio: Option<Option<AudioDef>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mesh_asset: Option<Option<MeshAssetRef>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modulations: Option<Vec<ModulationDef>>,
 }
 
 impl EntityPatch {
@@ -220,6 +222,9 @@ impl EntityPatch {
         }
         if let Some(ref mesh_asset) = self.mesh_asset {
             entity.mesh_asset = mesh_asset.clone();
+        }
+        if let Some(ref modulations) = self.modulations {
+            entity.modulations = modulations.clone();
         }
     }
 }

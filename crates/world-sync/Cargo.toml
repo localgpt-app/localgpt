@@ -1,0 +1,13 @@
+[package]
+name = "localgpt-world-sync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Collaborative sessions over the LocalGPT world format: shared document, ops, wire protocol and room authority — no Bevy, no I/O"
+keywords = ["localgpt", "world", "3d", "collaboration", "sync"]
+
+[dependencies]
+localgpt-world-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

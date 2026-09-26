@@ -10,6 +10,7 @@ members = [
     "crates/world-types",
     "crates/world-export",
     "crates/world-bevy",
+    "crates/world-sync",
     "crates/bridge",
     "bridges/cli",
 ]
@@ -68,6 +69,7 @@ localgpt-bridge = { version = "0.3.6", path = "crates/bridge" }
 localgpt-world-types = { version = "0.3.6", path = "crates/world-types" }
 localgpt-world-export = { version = "0.3.6", path = "crates/world-export" }
 localgpt-world-bevy = { version = "0.3.6", path = "crates/world-bevy" }
+localgpt-world-sync = { version = "0.3.6", path = "crates/world-sync" }
 localgpt-cli-tools = { version = "0.3.6", path = "crates/cli-tools" }
 
 [profile.release]
