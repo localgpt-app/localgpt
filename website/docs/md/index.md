@@ -7,7 +7,7 @@ sidebar_label: Getting started
 
 **LocalGPT MD** opens a Markdown file and lets you walk through it as a 3D world. Every `##` section becomes a place, and saving the file rebuilds the world while you watch. It is built with [Bevy](https://bevyengine.org/); see [md.localgpt.app](https://md.localgpt.app/) for the overview.
 
-Worlds start from a fast rule-based draft, then a local LLM (feature `llm`) restyles each region from what the prose actually says — palette, landmark, props — and caches the result per section in a sidecar next to the document, so nothing is generated twice. The on-device model and inference path are ported from [LocalGPT Verse](../verse/index.md) (Bonsai-8B via mistral.rs; see [PLAN.md](https://github.com/localgpt-app/localgpt-md/blob/main/PLAN.md)).
+Worlds start from a fast rule-based draft, then a local LLM (feature `llm`) takes over per section: an agent composes each place through tool calls — primitives, lights, and real [CC0 assets](../verse/index.md) from the shared Poly Haven pack — with a one-JSON recipe tier as fallback, and a `world` fence for exact overrides. Everything is cached per section in a sidecar next to the document, so nothing is generated twice. The on-device model and inference path are ported from [LocalGPT Verse](../verse/index.md) (Bonsai-8B via mistral.rs; see [PLAN.md](https://github.com/localgpt-app/localgpt-md/blob/main/PLAN.md)).
 
 ## Run {#run}
 
