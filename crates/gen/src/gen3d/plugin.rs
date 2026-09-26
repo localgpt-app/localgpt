@@ -120,9 +120,52 @@ pub struct GenInitialWorld {
 ///
 /// Records `WorldEdit` operations (spawn, delete, modify) as they happen.
 /// `gen_undo` / `gen_redo` commands apply inverse operations to restore state.
+///
+/// Also owns the scene *revision*: a counter that only ever increases, bumped on
+/// every recorded edit, undo, redo and history reset (world load, clear).
+/// Batch tools accept an `expected_revision` so an agent can refuse to apply
+/// edits planned against a scene that has since changed.
 #[derive(Resource, Default)]
 pub struct UndoStack {
     pub history: wt::EditHistory,
+    revision: u64,
+}
+
+impl UndoStack {
+    /// Current scene revision.
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    /// Record an undoable edit and advance the revision.
+    pub fn record(&mut self, op: wt::EditOp, inverse: wt::EditOp, author: Option<String>) {
+        self.history.push(op, inverse, author);
+        self.revision += 1;
+    }
+
+    /// Replace the whole history (world load / clear) and advance the revision.
+    pub fn reset(&mut self, history: wt::EditHistory) {
+        self.history = history;
+        self.revision += 1;
+    }
+
+    /// Next operation to undo, advancing the revision if there is one.
+    pub fn undo(&mut self) -> Option<wt::EditOp> {
+        let op = self.history.undo().cloned();
+        if op.is_some() {
+            self.revision += 1;
+        }
+        op
+    }
+
+    /// Next operation to redo, advancing the revision if there is one.
+    pub fn redo(&mut self) -> Option<wt::EditOp> {
+        let op = self.history.redo().cloned();
+        if op.is_some() {
+            self.revision += 1;
+        }
+        op
+    }
 }
 
 /// A glTF scene that is currently being loaded.
@@ -577,6 +620,7 @@ fn process_gen_commands(
         };
         let response = match cmd {
             GenCommand::SceneInfo => handle_scene_info(
+                params.undo_stack.revision(),
                 &params.registry,
                 &params.transforms,
                 &params.gen_entities,
@@ -717,7 +761,7 @@ fn process_gen_commands(
                     let mut new_we = old_we.clone();
                     apply_modify_to_snapshot(&mut new_we, &cmd);
                     params.dirty_tracker.mark_dirty(id);
-                    params.undo_stack.history.push(
+                    params.undo_stack.record(
                         wt::EditOp::Batch {
                             ops: vec![wt::EditOp::delete(id), wt::EditOp::spawn(new_we)],
                         },
@@ -743,15 +787,23 @@ fn process_gen_commands(
                 {
                     let id = we.id;
                     params.dirty_tracker.mark_dirty(id);
-                    params.undo_stack.history.push(
-                        wt::EditOp::delete(id),
-                        wt::EditOp::spawn(we),
-                        None,
-                    );
+                    params
+                        .undo_stack
+                        .record(wt::EditOp::delete(id), wt::EditOp::spawn(we), None);
                 }
                 resp
             }
-            GenCommand::SpawnBatch { entities } => {
+            GenCommand::SpawnBatch {
+                entities,
+                expected_revision,
+            } => 'batch: {
+                if let Err(message) = check_batch(
+                    params.undo_stack.revision(),
+                    expected_revision,
+                    validate_spawn_batch(&entities, &params.registry),
+                ) {
+                    break 'batch GenResponse::Error { message };
+                }
                 let mut results = Vec::with_capacity(entities.len());
                 let mut spawned_entities = Vec::new();
 
@@ -793,7 +845,7 @@ fn process_gen_commands(
                 // Record undo for batch spawn (single batch delete)
                 if !spawned_entities.is_empty() {
                     let ids: Vec<wt::EntityId> = spawned_entities.iter().map(|we| we.id).collect();
-                    params.undo_stack.history.push(
+                    params.undo_stack.record(
                         wt::EditOp::Batch {
                             ops: ids.into_iter().map(wt::EditOp::delete).collect(),
                         },
@@ -807,9 +859,22 @@ fn process_gen_commands(
                     );
                 }
 
-                GenResponse::BatchResult { results }
+                GenResponse::BatchResult {
+                    results,
+                    revision: params.undo_stack.revision(),
+                }
             }
-            GenCommand::ModifyBatch { entities } => {
+            GenCommand::ModifyBatch {
+                entities,
+                expected_revision,
+            } => 'batch: {
+                if let Err(message) = check_batch(
+                    params.undo_stack.revision(),
+                    expected_revision,
+                    validate_modify_batch(&entities, &params.registry),
+                ) {
+                    break 'batch GenResponse::Error { message };
+                }
                 let mut results = Vec::with_capacity(entities.len());
                 let mut undo_ops = Vec::new();
                 let mut redo_ops = Vec::new();
@@ -859,16 +924,29 @@ fn process_gen_commands(
 
                 // Record undo for batch modify
                 if !undo_ops.is_empty() {
-                    params.undo_stack.history.push(
+                    params.undo_stack.record(
                         wt::EditOp::Batch { ops: redo_ops },
                         wt::EditOp::Batch { ops: undo_ops },
                         None,
                     );
                 }
 
-                GenResponse::BatchResult { results }
+                GenResponse::BatchResult {
+                    results,
+                    revision: params.undo_stack.revision(),
+                }
             }
-            GenCommand::DeleteBatch { names } => {
+            GenCommand::DeleteBatch {
+                names,
+                expected_revision,
+            } => 'batch: {
+                if let Err(message) = check_batch(
+                    params.undo_stack.revision(),
+                    expected_revision,
+                    validate_delete_batch(&names, &params.registry),
+                ) {
+                    break 'batch GenResponse::Error { message };
+                }
                 let mut results = Vec::with_capacity(names.len());
                 let mut deleted_entities = Vec::new();
 
@@ -903,7 +981,7 @@ fn process_gen_commands(
                 // Record undo for batch delete (batch spawn to restore)
                 if !deleted_entities.is_empty() {
                     let ids: Vec<wt::EntityId> = deleted_entities.iter().map(|we| we.id).collect();
-                    params.undo_stack.history.push(
+                    params.undo_stack.record(
                         wt::EditOp::Batch {
                             ops: deleted_entities
                                 .into_iter()
@@ -917,7 +995,10 @@ fn process_gen_commands(
                     );
                 }
 
-                GenResponse::BatchResult { results }
+                GenResponse::BatchResult {
+                    results,
+                    revision: params.undo_stack.revision(),
+                }
             }
             GenCommand::SetCamera(cmd) => {
                 // Capture old camera state for undo
@@ -962,7 +1043,7 @@ fn process_gen_commands(
                 if let GenResponse::CameraSet = &resp
                     && let Some(old_cam) = old_camera
                 {
-                    params.undo_stack.history.push(
+                    params.undo_stack.record(
                         wt::EditOp::SetCamera { camera: new_camera },
                         wt::EditOp::SetCamera { camera: old_cam },
                         None,
@@ -994,7 +1075,7 @@ fn process_gen_commands(
                     if let Some(old_we) = old_light_snapshot {
                         // Replacing existing light: undo restores old, redo re-applies new
                         let old_id = old_we.id;
-                        params.undo_stack.history.push(
+                        params.undo_stack.record(
                             wt::EditOp::Batch {
                                 ops: vec![wt::EditOp::delete(new_id), wt::EditOp::spawn(new_we)],
                             },
@@ -1005,7 +1086,7 @@ fn process_gen_commands(
                         );
                     } else {
                         // New light: undo is simply delete
-                        params.undo_stack.history.push(
+                        params.undo_stack.record(
                             wt::EditOp::spawn(new_we),
                             wt::EditOp::delete(new_id),
                             None,
@@ -1045,7 +1126,7 @@ fn process_gen_commands(
                 };
                 let resp = handle_set_environment(cmd, &mut commands);
                 if let GenResponse::EnvironmentSet = &resp {
-                    params.undo_stack.history.push(
+                    params.undo_stack.record(
                         wt::EditOp::SetEnvironment { env: new_env },
                         wt::EditOp::SetEnvironment { env: old_env },
                         None,
@@ -1152,7 +1233,7 @@ fn process_gen_commands(
                         volume: layer.volume,
                     })
                     .collect();
-                params.undo_stack.history.push(
+                params.undo_stack.record(
                     wt::EditOp::SetAmbience {
                         ambience: forward_layers,
                     },
@@ -1180,7 +1261,7 @@ fn process_gen_commands(
                     &mut params.next_entity_id,
                 );
                 // Push undo: inverse removes the emitter
-                params.undo_stack.history.push(
+                params.undo_stack.record(
                     wt::EditOp::SpawnAudioEmitter {
                         name: name.clone(),
                         audio: audio_def.clone(),
@@ -1223,7 +1304,7 @@ fn process_gen_commands(
                             rolloff: wt::Rolloff::default(),
                         });
                 if let (Some(prev), Some(new)) = (prev_audio, new_audio) {
-                    params.undo_stack.history.push(
+                    params.undo_stack.record(
                         wt::EditOp::SpawnAudioEmitter {
                             name: cmd.name.clone(),
                             audio: new,
@@ -1254,7 +1335,7 @@ fn process_gen_commands(
                 let resp = audio::handle_remove_audio_emitter(&name, &mut params.audio_engine);
                 // Push undo: inverse re-spawns the emitter
                 if let Some(prev) = prev_audio {
-                    params.undo_stack.history.push(
+                    params.undo_stack.record(
                         wt::EditOp::RemoveAudioEmitter {
                             name: name.clone(),
                             audio: prev.clone(),
@@ -1291,7 +1372,7 @@ fn process_gen_commands(
                     && let Some(id) = params.registry.get_id(e)
                 {
                     let new_we = snapshot_entity(&entity_name, e, id, &snap_queries!(params));
-                    params.undo_stack.history.push(
+                    params.undo_stack.record(
                         wt::EditOp::Batch {
                             ops: vec![wt::EditOp::delete(id), wt::EditOp::spawn(new_we)],
                         },
@@ -1328,7 +1409,7 @@ fn process_gen_commands(
                     && let Some(id) = params.registry.get_id(e)
                 {
                     let new_we = snapshot_entity(&entity_name, e, id, &snap_queries!(params));
-                    params.undo_stack.history.push(
+                    params.undo_stack.record(
                         wt::EditOp::Batch {
                             ops: vec![wt::EditOp::delete(id), wt::EditOp::spawn(new_we)],
                         },
@@ -1492,10 +1573,10 @@ fn process_gen_commands(
 
                         // Restore edit history from saved world, or clear if not saved
                         if let Some(history) = world_load.edit_history {
-                            params.undo_stack.history = history;
+                            params.undo_stack.reset(history);
                         } else {
                             // No saved history — start fresh
-                            params.undo_stack.history = wt::EditHistory::default();
+                            params.undo_stack.reset(wt::EditHistory::default());
                         }
 
                         // Restore NPC brain/memory components from npcs.ron data
@@ -1613,7 +1694,7 @@ fn process_gen_commands(
                         .collect();
                     let inverse_ops: Vec<wt::EditOp> =
                         pre_snapshots.into_iter().map(wt::EditOp::spawn).collect();
-                    params.undo_stack.history.push(
+                    params.undo_stack.record(
                         wt::EditOp::Batch { ops: forward_ops },
                         wt::EditOp::Batch { ops: inverse_ops },
                         None,
@@ -4603,11 +4684,9 @@ fn process_gen_commands(
                     params.dirty_tracker.mark_dirty(id);
                     // Record undo: inverse of spawn is delete
                     let we = snapshot_entity(name, bevy_ent, id, &snap_queries!(params));
-                    params.undo_stack.history.push(
-                        wt::EditOp::spawn(we),
-                        wt::EditOp::delete(id),
-                        None,
-                    );
+                    params
+                        .undo_stack
+                        .record(wt::EditOp::spawn(we), wt::EditOp::delete(id), None);
                 }
             }
             GenResponse::Modified { name }
@@ -4634,7 +4713,7 @@ fn process_gen_commands(
             }
             GenResponse::SceneCleared { .. } => {
                 params.dirty_tracker.clear();
-                params.undo_stack.history = wt::EditHistory::new();
+                params.undo_stack.reset(wt::EditHistory::new());
             }
             _ => {}
         }
@@ -5028,6 +5107,7 @@ fn process_pending_world_setup(
 
 #[allow(clippy::too_many_arguments)]
 fn handle_scene_info(
+    revision: u64,
     registry: &NameRegistry,
     transforms: &Query<&Transform>,
     gen_entities: &Query<&GenEntity>,
@@ -5112,6 +5192,7 @@ fn handle_scene_info(
     }
 
     GenResponse::SceneInfo(SceneInfoData {
+        revision,
         entity_count: entities.len(),
         entities,
     })
@@ -5399,6 +5480,95 @@ fn handle_spawn_primitive(
         name: cmd.name,
         entity_id: wid.0,
     }
+}
+
+/// Gate a batch edit: refuse it whole if the scene moved past the revision
+/// the caller planned against, or if any item would fail. Batches either
+/// apply every item or none.
+fn check_batch(
+    current_revision: u64,
+    expected_revision: Option<u64>,
+    problems: Vec<String>,
+) -> Result<(), String> {
+    if let Some(expected) = expected_revision
+        && expected != current_revision
+    {
+        return Err(format!(
+            "Scene changed since revision {expected} (now {current_revision}); \
+             nothing was applied. Re-read the scene with gen_scene_info and retry."
+        ));
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Batch rejected; nothing was applied:\n{}",
+            problems.join("\n")
+        ))
+    }
+}
+
+fn validate_spawn_batch(entities: &[SpawnPrimitiveCmd], registry: &NameRegistry) -> Vec<String> {
+    let mut problems = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for cmd in entities {
+        if cmd.name.is_empty() {
+            problems.push("An entity has an empty name".to_string());
+        } else if registry.contains_name(&cmd.name) {
+            problems.push(format!("'{}': entity already exists", cmd.name));
+        } else if !seen.insert(cmd.name.as_str()) {
+            problems.push(format!("'{}': name appears twice in the batch", cmd.name));
+        }
+        if let Some(parent) = &cmd.parent
+            && !registry.contains_name(parent)
+            && !seen.contains(parent.as_str())
+        {
+            problems.push(format!(
+                "'{}': parent '{}' not found (it must exist or be spawned earlier in the batch)",
+                cmd.name, parent
+            ));
+        }
+    }
+    problems
+}
+
+fn validate_modify_batch(entities: &[ModifyEntityCmd], registry: &NameRegistry) -> Vec<String> {
+    let mut problems = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for cmd in entities {
+        if !registry.contains_name(&cmd.name) {
+            problems.push(format!("'{}': entity not found", cmd.name));
+        }
+        // Edits are deferred to the end of the frame, so a second edit of the
+        // same entity would read stale state and silently undo the first.
+        if !seen.insert(cmd.name.as_str()) {
+            problems.push(format!(
+                "'{}': appears twice in the batch; merge the edits into one item",
+                cmd.name
+            ));
+        }
+        if let Some(Some(parent)) = &cmd.parent {
+            if parent == &cmd.name {
+                problems.push(format!("'{}': cannot be its own parent", cmd.name));
+            } else if !registry.contains_name(parent) {
+                problems.push(format!("'{}': parent '{}' not found", cmd.name, parent));
+            }
+        }
+    }
+    problems
+}
+
+fn validate_delete_batch(names: &[String], registry: &NameRegistry) -> Vec<String> {
+    let mut problems = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for name in names {
+        if !registry.contains_name(name) {
+            problems.push(format!("'{name}': entity not found"));
+        } else if !seen.insert(name.as_str()) {
+            problems.push(format!("'{name}': appears twice in the batch"));
+        }
+    }
+    problems
 }
 
 fn handle_modify_entity(
@@ -6637,8 +6807,8 @@ fn handle_undo(
     pending_gltf: &mut ResMut<PendingGltfLoads>,
     audio_engine: &mut audio::AudioEngine,
 ) -> GenResponse {
-    let op = match undo_stack.history.undo() {
-        Some(op) => op.clone(),
+    let op = match undo_stack.undo() {
+        Some(op) => op,
         None => return GenResponse::NothingToUndo,
     };
 
@@ -6670,8 +6840,8 @@ fn handle_redo(
     pending_gltf: &mut ResMut<PendingGltfLoads>,
     audio_engine: &mut audio::AudioEngine,
 ) -> GenResponse {
-    let op = match undo_stack.history.redo() {
-        Some(op) => op.clone(),
+    let op = match undo_stack.redo() {
+        Some(op) => op,
         None => return GenResponse::NothingToRedo,
     };
 
@@ -7234,6 +7404,90 @@ fn fly_cam_scroll_speed(
 mod tests {
     use super::*;
     use bevy::ecs::world::CommandQueue;
+
+    fn registry_with(names: &[&str]) -> NameRegistry {
+        let mut registry = NameRegistry::default();
+        for (i, name) in names.iter().enumerate() {
+            registry.insert_with_id(
+                name.to_string(),
+                Entity::from_bits(i as u64 + 1),
+                wt::EntityId(i as u64 + 1),
+            );
+        }
+        registry
+    }
+
+    fn spawn_cmd(name: &str, parent: Option<&str>) -> SpawnPrimitiveCmd {
+        serde_json::from_value(serde_json::json!({
+            "name": name, "shape": "Cuboid", "parent": parent,
+        }))
+        .unwrap()
+    }
+
+    fn modify_cmd(name: &str) -> ModifyEntityCmd {
+        serde_json::from_value(serde_json::json!({ "name": name })).unwrap()
+    }
+
+    #[test]
+    fn a_batch_with_one_bad_item_is_rejected_whole() {
+        let registry = registry_with(&["tower"]);
+        let spawn = vec![spawn_cmd("a", None), spawn_cmd("tower", None)];
+        let problems = validate_spawn_batch(&spawn, &registry);
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert!(check_batch(0, None, problems).is_err());
+
+        let modify = vec![modify_cmd("tower"), modify_cmd("missing")];
+        assert_eq!(validate_modify_batch(&modify, &registry).len(), 1);
+
+        let delete = vec!["tower".to_string(), "missing".to_string()];
+        assert_eq!(validate_delete_batch(&delete, &registry).len(), 1);
+    }
+
+    #[test]
+    fn a_spawn_batch_may_parent_to_an_earlier_item() {
+        let registry = registry_with(&[]);
+        let ok = vec![spawn_cmd("base", None), spawn_cmd("roof", Some("base"))];
+        assert!(validate_spawn_batch(&ok, &registry).is_empty());
+        let backwards = vec![spawn_cmd("roof", Some("base")), spawn_cmd("base", None)];
+        assert_eq!(validate_spawn_batch(&backwards, &registry).len(), 1);
+    }
+
+    #[test]
+    fn a_batch_rejects_duplicate_names() {
+        let registry = registry_with(&["tower"]);
+        let modify = vec![modify_cmd("tower"), modify_cmd("tower")];
+        assert_eq!(validate_modify_batch(&modify, &registry).len(), 1);
+        let spawn = vec![spawn_cmd("a", None), spawn_cmd("a", None)];
+        assert_eq!(validate_spawn_batch(&spawn, &registry).len(), 1);
+    }
+
+    #[test]
+    fn a_stale_revision_rejects_the_batch() {
+        assert!(check_batch(4, Some(4), Vec::new()).is_ok());
+        assert!(check_batch(4, None, Vec::new()).is_ok());
+        let err = check_batch(5, Some(4), Vec::new()).unwrap_err();
+        assert!(err.contains("revision 4"), "{err}");
+    }
+
+    #[test]
+    fn the_revision_advances_on_every_edit_undo_redo_and_reset() {
+        let mut stack = UndoStack::default();
+        let entity = wt::WorldEntity::new(1, "cube");
+        stack.record(
+            wt::EditOp::spawn(entity.clone()),
+            wt::EditOp::delete(entity.id),
+            None,
+        );
+        assert_eq!(stack.revision(), 1);
+        assert!(stack.undo().is_some());
+        assert_eq!(stack.revision(), 2);
+        assert!(stack.undo().is_none());
+        assert_eq!(stack.revision(), 2, "a no-op undo is not an edit");
+        assert!(stack.redo().is_some());
+        assert_eq!(stack.revision(), 3);
+        stack.reset(wt::EditHistory::new());
+        assert_eq!(stack.revision(), 4, "a reset never rewinds the revision");
+    }
 
     /// A child spawned in the same frame as its parent keeps its offset from
     /// the parent, as the spawn tools and the world loader attach it.

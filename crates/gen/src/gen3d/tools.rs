@@ -623,7 +623,7 @@ impl Tool for GenSpawnBatchTool {
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "gen_spawn_batch".into(),
-            description: "Spawn multiple primitives in a single call. More efficient than repeated gen_spawn_primitive calls when creating multiple entities.".into(),
+            description: "Spawn multiple primitives in a single call. All-or-nothing: if any item is invalid (duplicate name, missing parent), nothing is spawned.".into(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -684,6 +684,10 @@ impl Tool for GenSpawnBatchTool {
                             "required": ["name", "shape"]
                         },
                         "description": "Array of entity specifications (same format as gen_spawn_primitive)"
+                    },
+                    "expected_revision": {
+                        "type": "integer",
+                        "description": "Scene revision this batch was planned against (from gen_scene_info). If the scene has changed since, nothing is applied."
                     }
                 },
                 "required": ["entities"]
@@ -734,14 +738,18 @@ impl Tool for GenSpawnBatchTool {
 
         match self
             .bridge
-            .send(GenCommand::SpawnBatch { entities })
+            .send(GenCommand::SpawnBatch {
+                entities,
+                expected_revision: args["expected_revision"].as_u64(),
+            })
             .await?
         {
-            GenResponse::BatchResult { results } => {
+            GenResponse::BatchResult { results, revision } => {
                 let success_count = results.iter().filter(|r| r.starts_with("Created:")).count();
                 Ok(format!(
-                    "Batch spawn: {} entities processed\n{}",
+                    "Batch spawn: {} entities created (scene revision {})\n{}",
                     success_count,
+                    revision,
                     results.join("\n")
                 ))
             }
@@ -774,7 +782,7 @@ impl Tool for GenModifyBatchTool {
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "gen_modify_batch".into(),
-            description: "Modify multiple entities in a single call. More efficient than repeated gen_modify_entity calls.".into(),
+            description: "Modify multiple entities in a single call. All-or-nothing: if any entity is missing or listed twice, nothing is modified.".into(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -824,6 +832,10 @@ impl Tool for GenModifyBatchTool {
                             "required": ["name"]
                         },
                         "description": "Array of entity modifications"
+                    },
+                    "expected_revision": {
+                        "type": "integer",
+                        "description": "Scene revision this batch was planned against (from gen_scene_info). If the scene has changed since, nothing is applied."
                     }
                 },
                 "required": ["entities"]
@@ -874,17 +886,21 @@ impl Tool for GenModifyBatchTool {
 
         match self
             .bridge
-            .send(GenCommand::ModifyBatch { entities })
+            .send(GenCommand::ModifyBatch {
+                entities,
+                expected_revision: args["expected_revision"].as_u64(),
+            })
             .await?
         {
-            GenResponse::BatchResult { results } => {
+            GenResponse::BatchResult { results, revision } => {
                 let success_count = results
                     .iter()
                     .filter(|r| r.starts_with("Modified:"))
                     .count();
                 Ok(format!(
-                    "Batch modify: {} entities processed\n{}",
+                    "Batch modify: {} entities modified (scene revision {})\n{}",
                     success_count,
+                    revision,
                     results.join("\n")
                 ))
             }
@@ -917,7 +933,7 @@ impl Tool for GenDeleteBatchTool {
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "gen_delete_batch".into(),
-            description: "Delete multiple entities in a single call. More efficient than repeated gen_delete_entity calls.".into(),
+            description: "Delete multiple entities in a single call. All-or-nothing: if any entity is missing, nothing is deleted.".into(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -925,6 +941,10 @@ impl Tool for GenDeleteBatchTool {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "Array of entity names to delete"
+                    },
+                    "expected_revision": {
+                        "type": "integer",
+                        "description": "Scene revision this batch was planned against (from gen_scene_info). If the scene has changed since, nothing is applied."
                     }
                 },
                 "required": ["names"]
@@ -948,12 +968,20 @@ impl Tool for GenDeleteBatchTool {
             return Err(anyhow::anyhow!("Empty names array"));
         }
 
-        match self.bridge.send(GenCommand::DeleteBatch { names }).await? {
-            GenResponse::BatchResult { results } => {
+        match self
+            .bridge
+            .send(GenCommand::DeleteBatch {
+                names,
+                expected_revision: args["expected_revision"].as_u64(),
+            })
+            .await?
+        {
+            GenResponse::BatchResult { results, revision } => {
                 let success_count = results.iter().filter(|r| r.starts_with("Deleted:")).count();
                 Ok(format!(
-                    "Batch delete: {} entities processed\n{}",
+                    "Batch delete: {} entities deleted (scene revision {})\n{}",
                     success_count,
+                    revision,
                     results.join("\n")
                 ))
             }

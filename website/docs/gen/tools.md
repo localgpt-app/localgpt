@@ -19,7 +19,7 @@ The gen agent has access to 32 specialized tools organized by category. When run
 | Tool | Description |
 |------|-------------|
 | `gen_spawn_primitive` | Spawn geometric primitives (sphere, cube, cylinder, torus, pyramid, etc.) |
-| `gen_spawn_batch` | Spawn multiple primitives in a single batch call |
+| `gen_spawn_batch` | Spawn multiple primitives in one call; all or nothing |
 | `gen_spawn_mesh` | Spawn custom mesh geometry from raw vertex data |
 | `gen_load_gltf` | Load entities from a glTF/GLB file |
 
@@ -28,9 +28,15 @@ The gen agent has access to 32 specialized tools organized by category. When run
 | Tool | Description |
 |------|-------------|
 | `gen_modify_entity` | Modify entity transform, material, or visibility |
-| `gen_modify_batch` | Modify multiple entities in a single batch call |
+| `gen_modify_batch` | Modify multiple entities in one call; all or nothing |
 | `gen_delete_entity` | Remove an entity and its children |
-| `gen_delete_batch` | Delete multiple entities in a single batch call |
+| `gen_delete_batch` | Delete multiple entities in one call; all or nothing |
+
+Batch tools check every item before applying any: one missing entity or
+duplicate name rejects the whole batch. `gen_scene_info` reports the scene
+`revision`, a counter that only goes up and advances on every edit, undo,
+redo, load and clear. Pass it as `expected_revision` to a batch tool and the
+batch is refused if the scene changed after you read it.
 
 ## Camera & Environment
 

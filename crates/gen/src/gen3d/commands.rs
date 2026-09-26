@@ -45,14 +45,19 @@ pub enum GenCommand {
     },
 
     // Tier 2b: Batch mutations
+    // A batch applies every item or none. `expected_revision`, when set,
+    // rejects the batch if the scene revision has moved on.
     SpawnBatch {
         entities: Vec<SpawnPrimitiveCmd>,
+        expected_revision: Option<u64>,
     },
     ModifyBatch {
         entities: Vec<ModifyEntityCmd>,
+        expected_revision: Option<u64>,
     },
     DeleteBatch {
         names: Vec<String>,
+        expected_revision: Option<u64>,
     },
     SetCamera(CameraCmd),
     SetLight(SetLightCmd),
@@ -1070,6 +1075,8 @@ pub enum GenResponse {
     // Batch results
     BatchResult {
         results: Vec<String>,
+        /// Scene revision after the batch was applied.
+        revision: u64,
     },
     CameraSet,
     LightSet {
@@ -1332,6 +1339,8 @@ pub enum GenResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneInfoData {
+    /// Scene revision; pass it as `expected_revision` to batch tools.
+    pub revision: u64,
     pub entity_count: usize,
     pub entities: Vec<EntitySummary>,
 }
