@@ -99,6 +99,25 @@ Every session appends committed batches to
 - **Time-lapse:** `localgpt-gen --replay <ops.jsonl> [--replay-speed N]`
   opens a no-agent window that rebuilds the world batch by batch.
 
+## Internet guests (`--relay`)
+
+The host runs behind NAT? Run a relay anywhere with a public address:
+
+```bash
+localgpt-relay 9911        # put it behind any TLS terminator for wss
+```
+
+and host with it:
+
+```bash
+localgpt-gen --host --relay https://relay.example.com
+# prints: Internet guests: https://relay.example.com/r/Q8QJVD/#t=<token>
+```
+
+The relay only forwards frames by room code (the world and the room's
+secrets never touch it — the invite token is still checked by the host
+end-to-end). Local LAN guests and relay guests share the same room.
+
 ## Trust model
 
 - Rooms are **LAN rooms with bearer secrets**: the PIN (native joiners) and

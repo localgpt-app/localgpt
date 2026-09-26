@@ -882,6 +882,13 @@ struct Cli {
     #[arg(long, requires = "web")]
     web_edit: bool,
 
+    /// Reach guests beyond the LAN through a relay (with --host): the
+    /// relay's URL (http(s)://host:port of a localgpt-relay). Prints an
+    /// internet invite link.
+    #[cfg(feature = "multiplayer")]
+    #[arg(long, requires = "host")]
+    relay: Option<String>,
+
     /// Replay a previous web session's op log before guests join (with
     /// --host --web). Pass a session name (reads
     /// <workspace>/sessions/<name>/ops.jsonl) or a path to an ops.jsonl.
@@ -1336,6 +1343,7 @@ fn main() -> Result<()> {
                 opts.web = cli.web;
                 opts.web_edit = cli.web_edit;
                 opts.resume = cli.resume.clone();
+                opts.relay = cli.relay.clone();
                 if opts.full_access {
                     eprintln!(
                         "WARNING: --remote-tools full — connected clients' prompts run with this \

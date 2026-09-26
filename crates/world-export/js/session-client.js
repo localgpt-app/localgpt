@@ -421,7 +421,10 @@ export function startSessionClient() {
   function connect(name) {
     joinError.textContent = '';
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${proto}//${location.host}/session`);
+    // The session endpoint lives next to this page: `/session` when a host
+    // serves the page at `/`, `/r/<code>/session` behind the relay.
+    const basePath = location.pathname.replace(/\/$/, '');
+    ws = new WebSocket(`${proto}//${location.host}${basePath}/session`);
     ws.onopen = () => {
       send({ type: 'hello', protocol: 1, name, token: token || undefined, client: 'web' });
     };

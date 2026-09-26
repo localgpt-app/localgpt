@@ -237,7 +237,7 @@ Steps 1–4 add up to the first demo worth showing.
 | 1 | **Ops and the authority in the host.** `world-sync` crate; the host projects its scene into ops and serves `/session` over WebSocket. | A client connected to a hosting Gen receives the world and every later change, including undo, as `ops`. |
 | 2 | **Presence.** Avatars, names and gaze for every peer, in Gen and the browser. | Host and guests see each other move. |
 | 3 | **Browser guests.** The host serves a join page; the world-export viewer applies ops live; guests chat and prompt. | A browser on the LAN joins with the invite link, sees the world update live, and a prompt from it builds for everyone. |
-| 4 | **Relay and invite links.** Room codes through a relay with TLS. | A guest on another network joins from a link. |
+| 4 | **Relay and invite links.** Room codes through a relay with TLS. | Done — a guest joined through `localgpt-relay` and saw direct guests, world, and chat. |
 | 5 | **Persistence and history.** Op log in the world folder; replay; per-user undo; time-lapse. | A room reopened later has its history; a build can be replayed. |
 | 6 | **Guest editing.** Editor role; direct manipulation; guests bringing their own model. | A guest moves an object and a desktop guest's own agent builds, both under their names. (Browser editing is Done via `--web-edit`; BYO-model guests arrive with phase 7.) |
 | 7 | **Native clients on ops.** `--join` uses the op protocol; lightyear removed. | Done — one protocol for every client (two-process verified). |
@@ -265,7 +265,7 @@ world-types representations.
 | Ops applied doc→scene (undo/edits stick) | Done | `gen3d/ops_apply.rs` |
 | Time-lapse replay (`--replay ops.jsonl`) | Done | `gen3d/replay.rs` |
 | Fully offline join page (vendored three.js) | Done | `world-export/js/vendor/` |
-| Relay | Planned | — |
+| Relay (`localgpt-relay` + `--relay`; invite links with room codes) | Done | `crates/relay`, `net/relay_client.rs` |
 | Native clients on ops (`--join` over the same WebSocket protocol; lightyear retired) | Done | `net/ops_client.rs` |
 | Guest editing UI (select/drag/rotate/scale/delete; `--web-edit`) | Done | `session-client.js` |
 

@@ -76,6 +76,8 @@ pub struct NetHostOptions {
     pub web_edit: bool,
     /// Replay a previous session's op log before guests join (CLI `--resume`).
     pub resume: Option<String>,
+    /// Reach guests beyond the LAN through this relay URL (CLI `--relay`).
+    pub relay: Option<String>,
     /// Sender half of the control channel into the agent loop (hosting
     /// started notifications).
     pub control_tx: mpsc::UnboundedSender<HostControlEvent>,
@@ -135,6 +137,8 @@ pub struct HostStartRequest {
     pub web_edit: bool,
     /// Op log to replay at start (`--resume`; panel sessions start fresh).
     pub resume: Option<String>,
+    /// Relay URL for internet guests (`--relay`).
+    pub relay: Option<String>,
 }
 
 /// Lifecycle of a hosted session. The plugin is always installed (so
@@ -211,6 +215,7 @@ pub fn create_host_channels() -> (NetHostOptions, AgentNetHooks) {
             web: false,
             web_edit: false,
             resume: None,
+            relay: None,
             control_tx,
         },
         AgentNetHooks {
@@ -299,6 +304,7 @@ impl Plugin for NetHostPlugin {
             web,
             web_edit,
             resume,
+            relay,
             control_tx,
         } = self
             .options
@@ -321,6 +327,7 @@ impl Plugin for NetHostPlugin {
                 web,
                 web_edit,
                 resume,
+                relay,
             })
         } else {
             HostControl::NotHosting
@@ -414,6 +421,9 @@ fn host_lifecycle(
             port = request.port
         ));
         return;
+    }
+    if let Some(relay_url) = &request.relay {
+        super::relay_client::start_relay_client(bridge.clone(), relay_url, token.clone());
     }
     commands.insert_resource(WebRoom::new(
         &request.session_name,
@@ -625,6 +635,7 @@ mod tests {
                 web: false,
                 web_edit: false,
                 resume: None,
+                relay: None,
             })
             .is_active()
         );

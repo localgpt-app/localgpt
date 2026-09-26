@@ -24,6 +24,7 @@ pub mod host;
 pub mod jobs;
 pub mod mdns;
 pub mod ops_client;
+pub mod relay_client;
 pub mod remote_scope;
 pub mod web;
 

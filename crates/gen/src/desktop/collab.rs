@@ -262,6 +262,7 @@ fn host_form(ui: &mut egui::Ui, form: &mut HostForm) -> Option<HostStartRequest>
             web: false,         // browser guests are a CLI flag for now
             web_edit: false,
             resume: None,
+            relay: None,
         });
     }
     request

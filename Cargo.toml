@@ -11,6 +11,7 @@ members = [
     "crates/world-export",
     "crates/world-bevy",
     "crates/world-sync",
+    "crates/relay",
     "crates/bridge",
     "bridges/cli",
 ]

@@ -8413,6 +8413,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "localgpt-relay"
+version = "0.3.6"
+dependencies = [
+ "axum",
+ "futures",
+ "localgpt-world-export",
+ "localgpt-world-sync",
+ "rand 0.10.2",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "localgpt-sandbox"
 version = "0.3.6"
 dependencies = [

@@ -57,10 +57,10 @@ const MAX_WS_MESSAGE_BYTES: usize = 1024 * 1024;
 // ---------------------------------------------------------------------------
 
 /// One frame to write to a connection's socket.
-struct OutboundFrame {
-    text: String,
+pub(crate) struct OutboundFrame {
+    pub(crate) text: String,
     /// Close after sending (protocol errors).
-    close: bool,
+    pub(crate) close: bool,
 }
 
 struct ConnTx {
@@ -103,6 +103,34 @@ impl WebBridge {
             },
             rx,
         )
+    }
+}
+
+impl WebBridge {
+    /// Allocate a peer id for a connection arriving via the relay.
+    pub(crate) fn alloc_peer_id(&self) -> PeerId {
+        self.next_conn.fetch_add(1, Ordering::Relaxed) + 1
+    }
+
+    /// Register a relay guest's frame channel as a connection.
+    pub(crate) fn insert_conn(&self, id: PeerId, tx: mpsc::UnboundedSender<OutboundFrame>) {
+        self.conns
+            .lock()
+            .expect("conns lock poisoned")
+            .insert(id, ConnTx { tx });
+    }
+
+    /// Drop a relay guest's connection.
+    pub(crate) fn remove_conn(&self, id: PeerId) {
+        self.conns.lock().expect("conns lock poisoned").remove(&id);
+    }
+
+    /// Feed an inbound event (used by the relay adapter).
+    pub(crate) fn send_inbound(
+        &self,
+        event: InboundEvent,
+    ) -> Result<(), mpsc::error::SendError<InboundEvent>> {
+        self.inbound.send(event)
     }
 }
 
@@ -359,7 +387,7 @@ pub fn spawn_session_http(router: axum::Router, addr: std::net::SocketAddr) -> s
 }
 
 async fn join_page() -> impl IntoResponse {
-    Html(JOIN_PAGE_HTML)
+    Html(localgpt_world_export::html::SESSION_JOIN_PAGE_HTML)
 }
 
 async fn viewer_js() -> impl IntoResponse {
@@ -900,83 +928,6 @@ pub(crate) fn tee_job_event(room: &mut WebRoom, event: &super::host::JobEvent) {
 // ---------------------------------------------------------------------------
 // The join page
 // ---------------------------------------------------------------------------
-
-/// The page served at `/` while hosting with web enabled. Logic lives in
-/// `/session-client.js`; three.js comes from the same CDN the HTML export
-/// uses.
-const JOIN_PAGE_HTML: &str = r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Join a LocalGPT world</title>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { width: 100%; height: 100%; overflow: hidden; background: #0b0e14; color: #e6e9ef;
-  font: 14px/1.5 system-ui, sans-serif; }
-#scene { width: 100%; height: 100%; }
-#join-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(ellipse at center, #141a26 0%, #0b0e14 100%); z-index: 10; }
-.card { background: #161c28; border: 1px solid #2a3347; border-radius: 12px; padding: 28px;
-  width: 320px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
-.card h1 { font-size: 18px; margin-bottom: 4px; }
-.card p { color: #8b95a9; margin-bottom: 16px; }
-.card input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #2a3347;
-  background: #0e1219; color: #e6e9ef; font-size: 15px; margin-bottom: 12px; }
-.card button { width: 100%; padding: 10px; border-radius: 8px; border: none; background: #4f7cff;
-  color: white; font-size: 15px; font-weight: 600; cursor: pointer; }
-.card button:disabled { opacity: 0.5; }
-#join-error { color: #ff7a7a; min-height: 18px; margin-top: 8px; }
-#hud { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); padding: 8px 12px;
-  border-radius: 8px; pointer-events: none; }
-#hud-session { font-weight: 600; }
-#hud-peers { color: #aab4c8; font-size: 12px; }
-#status { position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,0.6); padding: 6px 14px; border-radius: 999px; display: none; }
-#chat { position: absolute; left: 10px; bottom: 10px; width: 280px; display: flex;
-  flex-direction: column; gap: 6px; }
-#chat-log { max-height: 160px; overflow-y: auto; background: rgba(0,0,0,0.45); border-radius: 8px;
-  padding: 8px; font-size: 13px; }
-#chat-log:empty { display: none; }
-.chat-line b { color: #8fb3ff; margin-right: 4px; }
-.chat-agent b { color: #7be0a3; }
-.chat-system b { color: #d9b45f; }
-#chat input, #prompt-bar input { width: 100%; padding: 8px 12px; border-radius: 8px;
-  border: 1px solid #2a3347; background: rgba(14,18,25,0.9); color: #e6e9ef; }
-#prompt-bar { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
-  width: min(520px, 60vw); }
-</style>
-<script type="importmap">
-{
-  "imports": {
-    "three": "/vendor/three.module.js",
-    "three/addons/": "/vendor/three/addons/"
-  }
-}
-</script>
-</head>
-<body>
-<div id="scene"></div>
-<div id="hud"><div id="hud-session"></div><div id="hud-peers"></div></div>
-<div id="status"></div>
-<div id="chat"><div id="chat-log"></div><input id="chat-input" placeholder="Chat… (/undo undoes your last build)" autocomplete="off"></div>
-<div id="prompt-bar"><input id="prompt-input" placeholder="Ask the AI to build something…" autocomplete="off"></div>
-<div id="join-overlay">
-  <div class="card">
-    <h1>Join this world</h1>
-    <p>A friend is hosting a LocalGPT session. Pick a name and step in.</p>
-    <input id="name-input" placeholder="Your name" maxlength="32" autocomplete="off">
-    <button id="join-btn">Join</button>
-    <div id="join-error"></div>
-  </div>
-</div>
-<script type="module">
-import { startSessionClient } from '/session-client.js';
-startSessionClient();
-</script>
-</body>
-</html>
-"#;
 
 #[cfg(test)]
 mod tests {

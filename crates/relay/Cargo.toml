@@ -1,0 +1,24 @@
+[package]
+name = "localgpt-relay"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Internet relay for LocalGPT collaborative rooms: forwards WebSocket frames between a host and its guests by room code — never holds world state"
+keywords = ["localgpt", "world", "collaboration", "relay"]
+
+[dependencies]
+localgpt-world-export = { workspace = true }
+localgpt-world-sync = { workspace = true }
+axum = { version = "0.8", features = ["ws"] }
+tokio = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[[bin]]
+name = "localgpt-relay"
+path = "src/main.rs"
