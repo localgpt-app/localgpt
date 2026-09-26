@@ -260,6 +260,7 @@ fn host_form(ui: &mut egui::Ui, form: &mut HostForm) -> Option<HostStartRequest>
             open: form.open,
             full_access: false, // safe default; --remote-tools full from CLI
             web: false,         // browser guests are a CLI flag for now
+            resume: None,
         });
     }
     request

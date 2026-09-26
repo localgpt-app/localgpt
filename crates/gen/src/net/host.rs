@@ -109,6 +109,8 @@ pub struct NetHostOptions {
     /// Let browsers join as guests: serve a join page and the WebSocket ops
     /// endpoint on the session port (CLI `--web`).
     pub web: bool,
+    /// Replay a previous session's op log before guests join (CLI `--resume`).
+    pub resume: Option<String>,
     /// Sender half of the control channel into the agent loop (hosting
     /// started notifications).
     pub control_tx: mpsc::UnboundedSender<HostControlEvent>,
@@ -168,6 +170,8 @@ pub struct HostStartRequest {
     pub full_access: bool,
     /// Browsers may join as guests (join page + WebSocket endpoint).
     pub web: bool,
+    /// Op log to replay at start (`--resume`; panel sessions start fresh).
+    pub resume: Option<String>,
 }
 
 /// Lifecycle of a hosted session. The plugin is always installed (so
@@ -242,6 +246,7 @@ pub fn create_host_channels() -> (NetHostOptions, AgentNetHooks) {
             full_access: false,
             autostart: false,
             web: false,
+            resume: None,
             control_tx,
         },
         AgentNetHooks {
@@ -294,6 +299,14 @@ impl HostJobs {
     /// Drop a departed web guest's queued prompts.
     pub(crate) fn cancel_web_requester(&mut self, requester: u64) {
         self.queue.cancel_requester(requester);
+    }
+
+    /// The web peer whose prompt the worker is currently building, if any
+    /// (so the projection can attribute — and let them undo — the ops).
+    pub(crate) fn running_web_requester(&self) -> Option<u64> {
+        let id = self.dispatched?;
+        let job = self.queue.get(id)?;
+        job.requester.checked_sub(web::WEB_REQUESTER_OFFSET)
     }
 }
 
@@ -348,6 +361,7 @@ impl Plugin for NetHostPlugin {
             full_access,
             autostart,
             web,
+            resume,
             control_tx,
         } = self
             .options
@@ -373,6 +387,7 @@ impl Plugin for NetHostPlugin {
                 open,
                 full_access,
                 web,
+                resume,
             })
         } else {
             HostControl::NotHosting
@@ -436,9 +451,15 @@ impl Plugin for NetHostPlugin {
             )
             // Browser guests (--web): the room resource exists only while a
             // web-enabled session is live.
+            .init_resource::<web::PendingSceneOps>()
             .add_systems(
                 Update,
-                (web::web_drain_inbound, web::web_projection_sync)
+                (
+                    web::web_drain_inbound,
+                    web::web_apply_scene_ops,
+                    web::web_projection_sync,
+                )
+                    .chain()
                     .run_if(|room: Option<Res<web::WebRoom>>| room.is_some()),
             )
             // Guest avatars in the host's own window.
@@ -464,6 +485,7 @@ fn host_lifecycle(
     mut control: ResMut<HostControl>,
     mut window: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
     outbox: Res<ControlOutbox>,
+    workspace: Res<crate::gen3d::plugin::GenWorkspace>,
 ) {
     let request = match std::mem::take(&mut *control) {
         HostControl::StartRequested(request) => request,
@@ -510,7 +532,13 @@ fn host_lifecycle(
         };
         let (bridge, inbound_rx) = web::WebBridge::new(token.clone());
         router = router.merge(web::web_router(bridge.clone()));
-        commands.insert_resource(web::WebRoom::new(&request.session_name, bridge, inbound_rx));
+        commands.insert_resource(web::WebRoom::new(
+            &request.session_name,
+            bridge,
+            inbound_rx,
+            &workspace.path,
+            request.resume.as_deref(),
+        ));
         match (web::primary_lan_ip(), &token) {
             (Some(ip), Some(token)) => eprintln!(
                 "\n  Browser guests: http://{ip}:{port}/#t={token}\n",
@@ -1394,6 +1422,7 @@ mod tests {
                 open: false,
                 full_access: false,
                 web: false,
+                resume: None,
             })
             .is_active()
         );

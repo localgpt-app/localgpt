@@ -886,6 +886,22 @@ struct Cli {
     #[cfg(feature = "multiplayer")]
     #[arg(long, requires = "host")]
     web: bool,
+
+    /// Replay a previous web session's op log before guests join (with
+    /// --host --web). Pass a session name (reads
+    /// <workspace>/sessions/<name>/ops.jsonl) or a path to an ops.jsonl.
+    #[cfg(feature = "multiplayer")]
+    #[arg(long, requires = "web")]
+    resume: Option<String>,
+
+    /// Replay an op log as a time-lapse in the window: the world rebuilds
+    /// itself batch by batch. No agent, no session. Pass an ops.jsonl path.
+    #[arg(long)]
+    replay: Option<String>,
+
+    /// Replay pace in batches per second (with --replay).
+    #[arg(long, requires = "replay", default_value_t = 4.0)]
+    replay_speed: f32,
 }
 
 /// Tool access for prompts from collaborative clients (`--remote-tools`).
@@ -1064,6 +1080,26 @@ fn main() -> Result<()> {
     // Load config early so both Bevy and agent threads can use it
     let config = localgpt_core::config::Config::load()?;
     let workspace = config.workspace_path();
+
+    // --replay: time-lapse an op log in the window — no agent, no session.
+    if let Some(replay_path) = cli.replay.as_deref() {
+        let entries = gen3d::replay::load_op_log(replay_path)?;
+        eprintln!(
+            "[replay] {} batches from {} ({}x speed)",
+            entries.len(),
+            replay_path,
+            cli.replay_speed
+        );
+        let (_bridge, channels) = gen3d::create_gen_channels();
+        return run_bevy_app(
+            channels,
+            workspace,
+            None,
+            None,
+            None,
+            Some((entries, cli.replay_speed)),
+        );
+    }
 
     // Multiplayer client mode (--join): slim viewer app, no gen subsystems.
     #[cfg(feature = "multiplayer")]
@@ -1247,7 +1283,14 @@ fn main() -> Result<()> {
                 let completion_flag = gen3d::headless::HeadlessCompletionFlag::default();
                 run_headless_bevy_app(channels, workspace, completion_flag, initial_world)
             } else {
-                run_bevy_app(channels, workspace, initial_scene, initial_world, None)
+                run_bevy_app(
+                    channels,
+                    workspace,
+                    initial_scene,
+                    initial_world,
+                    None,
+                    None,
+                )
             }
         }
 
@@ -1296,6 +1339,7 @@ fn main() -> Result<()> {
                 opts.full_access = cli.host && cli.remote_tools == RemoteTools::Full;
                 opts.autostart = cli.host;
                 opts.web = cli.web;
+                opts.resume = cli.resume.clone();
                 if opts.full_access {
                     eprintln!(
                         "WARNING: --remote-tools full — connected clients' prompts run with this \
@@ -1395,7 +1439,14 @@ fn main() -> Result<()> {
                 panel,
             );
             #[cfg(not(feature = "multiplayer"))]
-            let result = run_bevy_app(channels, workspace, initial_scene, initial_world, panel);
+            let result = run_bevy_app(
+                channels,
+                workspace,
+                initial_scene,
+                initial_world,
+                panel,
+                None,
+            );
 
             // Clean up relay port file so stale ports aren't discovered
             if enable_relay {
@@ -1457,6 +1508,10 @@ fn run_bevy_app(
     initial_scene: Option<PathBuf>,
     initial_world: Option<String>,
     panel: PanelSetup,
+    replay: Option<(
+        std::collections::VecDeque<localgpt_world_sync::OpLogEntry>,
+        f32,
+    )>,
 ) -> Result<()> {
     use bevy::prelude::*;
 
@@ -1485,6 +1540,9 @@ fn run_bevy_app(
     app.insert_resource(gen3d::plugin::GenInitialWorld {
         path: initial_world,
     });
+    if let Some((entries, speed)) = replay {
+        gen3d::replay::setup_replay(&mut app, entries, speed);
+    }
     add_prompt_panel(&mut app, panel);
 
     app.run();

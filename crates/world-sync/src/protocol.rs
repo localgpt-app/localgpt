@@ -173,6 +173,9 @@ pub enum ClientMsg {
     },
     /// Ask for a fresh snapshot after seeing a revision gap.
     Resync,
+    /// Undo the caller's most recent batch (their own edits, and builds
+    /// the room's AI made for them).
+    Undo,
     Ping {
         t: f64,
     },

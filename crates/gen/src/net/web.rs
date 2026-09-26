@@ -109,6 +109,10 @@ pub struct WebRoom {
     inbound_rx: StdMutex<mpsc::UnboundedReceiver<InboundEvent>>,
     projection_timer: Timer,
     warned_bad_projection: bool,
+    /// The room's build history, appended on every committed batch.
+    op_log: Option<OpLog>,
+    /// A replayed op log is waiting to be spawned into the scene.
+    scene_rebuild_pending: bool,
 }
 
 impl WebRoom {
@@ -116,15 +120,151 @@ impl WebRoom {
         session_name: &str,
         bridge: WebBridge,
         inbound_rx: mpsc::UnboundedReceiver<InboundEvent>,
+        workspace: &std::path::Path,
+        resume: Option<&str>,
     ) -> Self {
-        Self {
+        let mut room = Self {
             authority: Authority::new(session_name, Limits::default()),
             bridge,
             inbound_rx: StdMutex::new(inbound_rx),
             projection_timer: Timer::new(PROJECTION_INTERVAL, TimerMode::Repeating),
             warned_bad_projection: false,
+            op_log: None,
+            scene_rebuild_pending: false,
+        };
+        // History first: replay what a previous session left behind, then
+        // open the log so this session's ops keep appending to it.
+        if let Some(resume) = resume {
+            let path = resolve_op_log_path(workspace, resume);
+            room.replay_log(&path);
+        }
+        match OpLog::open(&session_op_log_path(workspace, session_name)) {
+            Ok(log) => room.op_log = Some(log),
+            Err(e) => eprintln!("web session: op log unavailable ({e}) — history won't persist"),
+        }
+        room
+    }
+
+    /// Replay a previous session's op log into the authority.
+    fn replay_log(&mut self, path: &std::path::Path) {
+        let Ok(content) = std::fs::read_to_string(path) else {
+            eprintln!(
+                "web session: no op log at {} — starting fresh",
+                path.display()
+            );
+            return;
+        };
+        let mut applied = 0usize;
+        for (n, line) in content.lines().enumerate() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            match sync::decode_line(line) {
+                Ok(entry) => {
+                    if let Err(e) = self.authority.apply_replay(&entry.ops) {
+                        eprintln!(
+                            "web session: op log line {} no longer applies ({e}) — replay stops here",
+                            n + 1
+                        );
+                        break;
+                    }
+                    applied += 1;
+                }
+                Err(e) => eprintln!("web session: skipping unreadable log line {}: {e}", n + 1),
+            }
+        }
+        if applied > 0 {
+            self.scene_rebuild_pending = true;
+            eprintln!(
+                "web session: restored {} batches from {} — revision {}, {} entities",
+                applied,
+                path.display(),
+                self.authority.revision(),
+                self.authority.doc().len()
+            );
         }
     }
+}
+
+/// Ops committed by the authority that the scene hasn't seen yet — undo,
+/// guest edits. The projection covers scene→doc; this queue covers doc→scene.
+#[derive(Resource, Default)]
+pub struct PendingSceneOps(Vec<wt::EditOp>);
+
+/// The room's op log: `<workspace>/sessions/<slug>/ops.jsonl`, one JSON
+/// entry per committed batch (spec phase 5).
+struct OpLog {
+    file: std::fs::File,
+}
+
+impl OpLog {
+    fn open(path: &std::path::Path) -> std::io::Result<Self> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)?;
+        Ok(Self { file })
+    }
+
+    fn append(&self, entry: &sync::OpLogEntry) -> std::io::Result<()> {
+        use std::io::Write as _;
+        let mut line = sync::encode_line(entry)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        line.push('\n');
+        (&self.file).write_all(line.as_bytes())
+    }
+}
+
+/// A filesystem-safe slug for a session name.
+fn session_slug(name: &str) -> String {
+    let slug = name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    let slug: String = slug.chars().take(48).collect();
+    if slug.is_empty() {
+        "session".to_string()
+    } else {
+        slug
+    }
+}
+
+/// Where a session's op log lives.
+fn session_op_log_path(workspace: &std::path::Path, session_name: &str) -> std::path::PathBuf {
+    workspace
+        .join("sessions")
+        .join(session_slug(session_name))
+        .join("ops.jsonl")
+}
+
+/// Resolve `--resume`: a session name (its standard log path) or an explicit
+/// path to an `ops.jsonl`.
+pub(crate) fn resolve_op_log_path(workspace: &std::path::Path, resume: &str) -> std::path::PathBuf {
+    if resume.ends_with(".jsonl") || resume.contains('/') {
+        std::path::PathBuf::from(shellexpand::tilde(resume).as_ref())
+    } else {
+        session_op_log_path(workspace, resume)
+    }
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 /// A fresh invite token (128 bits, hex). The join page carries it in the
@@ -313,6 +453,22 @@ pub(crate) fn deliver(room: &WebRoom, out: Vec<Outbound>) {
     }
     let conns = room.bridge.conns.lock().expect("conns lock poisoned");
     for o in out {
+        // Every committed batch lands in the op log — the room's history.
+        if let ServerMsg::Ops {
+            revision,
+            author,
+            ops,
+            ..
+        } = &o.msg
+            && let Some(log) = &room.op_log
+        {
+            let _ = log.append(&sync::OpLogEntry {
+                revision: *revision,
+                author: author.clone(),
+                ops: ops.clone(),
+                timestamp_ms: now_ms(),
+            });
+        }
         let close = matches!(o.msg, ServerMsg::Error { .. });
         let Ok(text) = serde_json::to_string(&o.msg) else {
             continue;
@@ -352,7 +508,11 @@ fn error_to(id: PeerId, reason: impl Into<String>) -> Vec<Outbound> {
 // ---------------------------------------------------------------------------
 
 /// Drain socket events: joins, leaves, and client messages.
-pub(crate) fn web_drain_inbound(mut room: ResMut<WebRoom>, mut jobs: ResMut<HostJobs>) {
+pub(crate) fn web_drain_inbound(
+    mut room: ResMut<WebRoom>,
+    mut jobs: ResMut<HostJobs>,
+    mut pending: ResMut<PendingSceneOps>,
+) {
     let events: Vec<InboundEvent> = {
         let Ok(mut rx) = room.inbound_rx.lock() else {
             return;
@@ -369,12 +529,20 @@ pub(crate) fn web_drain_inbound(mut room: ResMut<WebRoom>, mut jobs: ResMut<Host
                 // drop them from the worker queue too.
                 jobs.cancel_web_requester(WEB_REQUESTER_OFFSET + id);
             }
-            InboundEvent::Message { id, msg } => handle_client_msg(&mut room, &mut jobs, id, msg),
+            InboundEvent::Message { id, msg } => {
+                handle_client_msg(&mut room, &mut jobs, &mut pending, id, msg)
+            }
         }
     }
 }
 
-fn handle_client_msg(room: &mut WebRoom, jobs: &mut HostJobs, id: PeerId, msg: ClientMsg) {
+fn handle_client_msg(
+    room: &mut WebRoom,
+    jobs: &mut HostJobs,
+    pending: &mut PendingSceneOps,
+    id: PeerId,
+    msg: ClientMsg,
+) {
     match msg {
         ClientMsg::Hello {
             protocol,
@@ -459,6 +627,11 @@ fn handle_client_msg(room: &mut WebRoom, jobs: &mut HostJobs, id: PeerId, msg: C
             let out = room.authority.resync(id);
             deliver(room, out);
         }
+        ClientMsg::Undo => {
+            let out = room.authority.undo(id);
+            queue_committed(&out, pending);
+            deliver(room, out);
+        }
         ClientMsg::Ping { t } => {
             deliver(
                 room,
@@ -469,6 +642,44 @@ fn handle_client_msg(room: &mut WebRoom, jobs: &mut HostJobs, id: PeerId, msg: C
             );
         }
     }
+}
+
+/// Ops that committed through the authority must also land in the scene,
+/// or the next projection would restore the pre-commit state.
+fn queue_committed(out: &[Outbound], pending: &mut PendingSceneOps) {
+    for o in out {
+        if let ServerMsg::Ops { ops, .. } = &o.msg {
+            pending.0.extend(ops.iter().cloned());
+        }
+    }
+}
+
+/// Apply queued authority ops to the scene, and rebuild the scene after an
+/// op-log replay.
+pub(crate) fn web_apply_scene_ops(
+    mut pending: ResMut<PendingSceneOps>,
+    mut room: ResMut<WebRoom>,
+    mut applier: crate::gen3d::ops_apply::OpsApplier,
+) {
+    if room.scene_rebuild_pending {
+        room.scene_rebuild_pending = false;
+        let entities: Vec<wt::WorldEntity> = room.authority.doc().entities().cloned().collect();
+        if !entities.is_empty() {
+            applier.rebuild_scene(&entities);
+            eprintln!(
+                "web session: rebuilt {} entities from the op log",
+                entities.len()
+            );
+        }
+        if let Some(env) = room.authority.doc().environment.clone() {
+            applier.apply_ops(&[wt::EditOp::SetEnvironment { env }]);
+        }
+    }
+    if pending.0.is_empty() {
+        return;
+    }
+    let ops = std::mem::take(&mut pending.0);
+    applier.apply_ops(&ops);
 }
 
 /// Read-only ECS access for projecting the scene into world-types.
@@ -503,6 +714,7 @@ pub(crate) fn web_projection_sync(
     mut room: ResMut<WebRoom>,
     clear_color: Option<Res<ClearColor>>,
     ambient_light: Option<Res<GlobalAmbientLight>>,
+    jobs: Option<Res<HostJobs>>,
     params: ProjectionQueries,
 ) {
     if !room.projection_timer.tick(time.delta()).just_finished() {
@@ -584,7 +796,17 @@ pub(crate) fn web_projection_sync(
     if ops.is_empty() {
         return;
     }
-    match room.authority.record_local_ops("host", ops) {
+    // While the worker builds a guest's prompt, the ops are theirs:
+    // attributed to them and undoable by them.
+    let owner = jobs
+        .as_deref()
+        .and_then(HostJobs::running_web_requester)
+        .filter(|p| room.authority.peer(*p).is_some());
+    let result = match owner {
+        Some(peer) => room.authority.record_local_ops_for_peer(peer, ops),
+        None => room.authority.record_local_ops("host", ops),
+    };
+    match result {
         Ok(out) => deliver(&room, out),
         Err(e) => {
             // A projection should always apply; if one doesn't, skip this
@@ -671,7 +893,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0b0e14; c
 <div id="scene"></div>
 <div id="hud"><div id="hud-session"></div><div id="hud-peers"></div></div>
 <div id="status"></div>
-<div id="chat"><div id="chat-log"></div><input id="chat-input" placeholder="Chat…" autocomplete="off"></div>
+<div id="chat"><div id="chat-log"></div><input id="chat-input" placeholder="Chat… (/undo undoes your last build)" autocomplete="off"></div>
 <div id="prompt-bar"><input id="prompt-input" placeholder="Ask the AI to build something…" autocomplete="off"></div>
 <div id="join-overlay">
   <div class="card">

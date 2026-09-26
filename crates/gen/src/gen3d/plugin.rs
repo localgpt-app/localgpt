@@ -180,7 +180,7 @@ struct PendingGltfLoad {
 
 /// Queue of pending glTF loads waiting for asset server to finish loading.
 #[derive(Resource, Default)]
-struct PendingGltfLoads {
+pub(crate) struct PendingGltfLoads {
     queue: Vec<PendingGltfLoad>,
 }
 
@@ -189,7 +189,7 @@ struct PendingGltfLoads {
 /// Placeholder resource retained for `handle_clear_scene` compatibility.
 /// No longer populated now that the legacy TOML format has been removed.
 #[derive(Resource, Default)]
-struct PendingWorldSetup {
+pub(crate) struct PendingWorldSetup {
     active: Option<WorldSetupData>,
 }
 
@@ -6192,7 +6192,7 @@ fn handle_spawn_mesh(
 /// - Behaviors (attached after spawn)
 /// - Parent-child relationships (resolved after all entities are spawned)
 #[allow(clippy::too_many_arguments)]
-fn spawn_world_entities(
+pub(crate) fn spawn_world_entities(
     world_entities: &[wt::WorldEntity],
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -7153,7 +7153,7 @@ fn handle_redo(
 // ---------------------------------------------------------------------------
 
 #[allow(clippy::too_many_arguments)]
-fn handle_clear_scene(
+pub(crate) fn handle_clear_scene(
     keep_camera: bool,
     keep_lights: bool,
     commands: &mut Commands,

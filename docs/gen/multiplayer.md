@@ -72,6 +72,22 @@ The wire protocol is versioned JSON over one WebSocket — see
 sockets are refused, and a full room declines joins. LAN only for now: the
 internet relay (room codes through a Worker) is phase 4.
 
+## History, undo & replay
+
+Every web session keeps a build history: each committed batch appends to
+`<workspace>/sessions/<session-name>/ops.jsonl`.
+
+- **Undo:** a guest types `/undo` in chat to undo their most recent batch —
+  their own edits, and builds the room's AI made *for them* (prompt builds are
+  attributed to the asker). Undoing an undo redoes it. Host-side edits undo in
+  the host's own REPL as before.
+- **Resume a room:** `--host --web --resume <session>` replays the session's
+  op log before guests join, restoring the world and its revision. The scene
+  is rebuilt from the document (clearing the startup scene first).
+- **Time-lapse:** `localgpt-gen --replay <ops.jsonl> [--replay-speed N]` opens
+  a window with no agent and rebuilds the world batch by batch — watch how a
+  build happened, or record it.
+
 
 - Host: the normal interactive gen REPL + window, plus a lightyear UDP
   server on port **9879**, a session HTTP server on TCP **9879** (pairing +

@@ -24,12 +24,19 @@
 pub mod authority;
 pub mod diff;
 pub mod doc;
+pub mod oplog;
 pub mod protocol;
+pub mod undo;
 
-pub use authority::{Authority, AuthorityEvent, Limits, Outbound, Recipients, sanitize_name};
+pub use authority::{
+    Authority, AuthorityEvent, Limits, Outbound, Recipients, sanitize_name, undo_key_for_local,
+    undo_key_for_peer,
+};
 pub use diff::{diff_entities, diff_scene};
 pub use doc::{ApplyError, WorldDoc};
+pub use oplog::{OpLogEntry, decode_line, encode_line};
 pub use protocol::{
     Author, ChatKind, ClientKind, ClientMsg, JobInfo, JobState, PROTOCOL_VERSION, PeerId, PeerInfo,
     Presence, Role, ServerMsg, SessionInfo,
 };
+pub use undo::compute_inverse;

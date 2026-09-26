@@ -213,7 +213,7 @@ pub struct ComplianceMeta {
 }
 
 /// Environment settings.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EnvironmentDef {
     /// Background/sky color, sRGB-encoded RGBA in `0..=1`.

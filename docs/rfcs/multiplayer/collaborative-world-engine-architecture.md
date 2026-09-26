@@ -260,8 +260,13 @@ world-types representations.
 | Browser prompts through the room's job queue and scoped agent | Done | `web.rs`, `net/jobs.rs` |
 | Peer avatars in the browser; joins/leaves/presence fan-out | Done | `session-client.js` |
 | Peer avatars in the host's own window | Done | `crates/gen/src/net/guest_avatars.rs` |
+| Op log persisted per session; `--resume` replays it | Done | `web.rs`, `world-sync/oplog.rs` |
+| Per-user undo (own edits + builds the AI made for you) | Done | `world-sync/undo.rs`, `authority::undo` |
+| Ops applied doc→scene (undo/edits stick) | Done | `gen3d/ops_apply.rs` |
+| Time-lapse replay (`--replay ops.jsonl`) | Done | `gen3d/replay.rs` |
+| Fully offline join page (vendored three.js) | Done | `world-export/js/vendor/` |
 | Relay | Planned | — |
-| Op log persistence | Planned | — |
+| Guest editing UI | Planned | — |
 
 Phase 1 and the core of phase 3 are verified end to end: a browser joined a
 hosting Gen over the invite link, received the world (revision 1), watched a

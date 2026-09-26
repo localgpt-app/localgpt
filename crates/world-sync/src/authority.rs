@@ -9,7 +9,7 @@
 //! Because everything flows through here, every op is checked the same way
 //! no matter who authored it.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use localgpt_world_types as wt;
 use wt::EditOp;
@@ -107,6 +107,22 @@ pub struct Authority {
     jobs: HashMap<u64, JobInfo>,
     job_request_ids: HashMap<u64, (PeerId, String)>,
     next_job_id: u64,
+    /// Per-author undo: inverses of each author's committed batches, newest
+    /// last. Keys come from [`undo_key_for_peer`] / [`undo_key_for_local`].
+    undo_stacks: HashMap<String, VecDeque<Vec<EditOp>>>,
+}
+
+/// Most batches remembered per author for undo.
+pub const UNDO_STACK_CAP: usize = 64;
+
+/// The undo-stack key for a connected peer.
+pub fn undo_key_for_peer(id: PeerId) -> String {
+    format!("peer:{id}")
+}
+
+/// The undo-stack key for host-local changes (the projection, replay).
+pub fn undo_key_for_local(author: &str) -> String {
+    format!("local:{author}")
 }
 
 impl Authority {
@@ -119,6 +135,7 @@ impl Authority {
             jobs: HashMap::new(),
             job_request_ids: HashMap::new(),
             next_job_id: 1,
+            undo_stacks: HashMap::new(),
         }
     }
 
@@ -207,6 +224,7 @@ impl Authority {
         if self.peers.remove(&id).is_none() {
             return Vec::new();
         }
+        self.undo_stacks.remove(&undo_key_for_peer(id));
         let mut out = vec![Outbound {
             to: Recipients::AllExcept(id),
             msg: ServerMsg::PeerLeft { peer_id: id },
@@ -439,6 +457,7 @@ impl Authority {
         if !peer.info.role.can_edit() {
             return reject("guests can't edit the world directly — ask the AI".into());
         }
+        let peer_name = peer.info.name.clone();
         if ops.is_empty() {
             return Vec::new();
         }
@@ -457,9 +476,11 @@ impl Authority {
                 self.revision
             ));
         }
+        let inverse = crate::undo::compute_inverse(&self.doc, &ops);
         if let Err(e) = self.doc.apply_all(&ops) {
             return reject(e.to_string());
         }
+        self.push_undo(undo_key_for_peer(id), inverse);
         self.revision += 1;
         vec![Outbound {
             to: Recipients::All,
@@ -467,7 +488,7 @@ impl Authority {
                 revision: self.revision,
                 author: Author {
                     peer: Some(id),
-                    name: peer.info.name.clone(),
+                    name: peer_name,
                 },
                 ops,
                 client_seq: Some(client_seq),
@@ -484,23 +505,131 @@ impl Authority {
         author: &str,
         ops: Vec<EditOp>,
     ) -> Result<Vec<Outbound>, ApplyError> {
+        let key = undo_key_for_local(author);
+        self.record_ops_inner(author, None, ops, key)
+    }
+
+    /// Host-local changes made on behalf of a peer — today, the AI building
+    /// a guest's prompt. Attributed to the peer, and undoable by them.
+    pub fn record_local_ops_for_peer(
+        &mut self,
+        peer: PeerId,
+        ops: Vec<EditOp>,
+    ) -> Result<Vec<Outbound>, ApplyError> {
+        let name = self
+            .peers
+            .get(&peer)
+            .map(|p| p.info.name.clone())
+            .unwrap_or_else(|| "guest".to_string());
+        self.record_ops_inner(&name, Some(peer), ops, undo_key_for_peer(peer))
+    }
+
+    fn record_ops_inner(
+        &mut self,
+        author: &str,
+        peer: Option<PeerId>,
+        ops: Vec<EditOp>,
+        undo_key: String,
+    ) -> Result<Vec<Outbound>, ApplyError> {
         if ops.is_empty() {
             return Ok(Vec::new());
         }
+        let inverse = crate::undo::compute_inverse(&self.doc, &ops);
         self.doc.apply_all(&ops)?;
+        self.push_undo(undo_key, inverse);
         self.revision += 1;
         Ok(vec![Outbound {
             to: Recipients::All,
             msg: ServerMsg::Ops {
                 revision: self.revision,
                 author: Author {
-                    peer: None,
+                    peer,
                     name: author.to_string(),
                 },
                 ops,
                 client_seq: None,
             },
         }])
+    }
+
+    /// Replay: apply committed ops without broadcasts or undo tracking —
+    /// how a restored session rebuilds its document from the op log.
+    pub fn apply_replay(&mut self, ops: &[EditOp]) -> Result<u64, ApplyError> {
+        if !ops.is_empty() {
+            self.doc.apply_all(ops)?;
+            self.revision += 1;
+        }
+        Ok(self.revision)
+    }
+
+    /// Undo the caller's most recent batch. The inverse applies like any
+    /// other commit: everyone sees it, and it can itself be undone.
+    pub fn undo(&mut self, id: PeerId) -> Vec<Outbound> {
+        let key = undo_key_for_peer(id);
+        let entry = self.undo_stacks.get_mut(&key).and_then(VecDeque::pop_back);
+        let Some(inverse) = entry else {
+            return self.notice_to(id, "Nothing to undo.".into());
+        };
+        // The redo ops must be computed against the pre-undo document.
+        let redo = crate::undo::compute_inverse(&self.doc, &inverse);
+        if let Err(e) = self.doc.apply_all(&inverse) {
+            return self.notice_to(
+                id,
+                format!("Can't undo that anymore — the world moved on ({e})."),
+            );
+        }
+        self.push_undo(key, redo);
+        self.revision += 1;
+        let name = self
+            .peers
+            .get(&id)
+            .map(|p| p.info.name.clone())
+            .unwrap_or_else(|| "guest".to_string());
+        vec![Outbound {
+            to: Recipients::All,
+            msg: ServerMsg::Ops {
+                revision: self.revision,
+                author: Author {
+                    peer: Some(id),
+                    name,
+                },
+                ops: inverse,
+                client_seq: None,
+            },
+        }]
+    }
+
+    /// How many batches the peer can still undo.
+    pub fn undo_depth(&self, id: PeerId) -> usize {
+        self.undo_stacks
+            .get(&undo_key_for_peer(id))
+            .map_or(0, VecDeque::len)
+    }
+
+    fn push_undo(&mut self, key: String, inverse: Vec<EditOp>) {
+        if inverse.is_empty() {
+            return;
+        }
+        let stack = self.undo_stacks.entry(key).or_default();
+        if stack.len() >= UNDO_STACK_CAP {
+            stack.pop_front();
+        }
+        stack.push_back(inverse);
+    }
+
+    /// A system chat line for one peer only.
+    fn notice_to(&self, id: PeerId, text: String) -> Vec<Outbound> {
+        vec![Outbound {
+            to: Recipients::One(id),
+            msg: ServerMsg::Chat {
+                from: Author {
+                    peer: None,
+                    name: "room".to_string(),
+                },
+                text,
+                kind: ChatKind::System,
+            },
+        }]
     }
 
     /// Answer a peer's `resync` with a full snapshot.
@@ -841,5 +970,120 @@ mod tests {
             ServerMsg::Chat { text, .. } => assert_eq!(text, "hello"),
             other => panic!("expected chat, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn submit_then_undo_restores_the_document() {
+        let mut a = authority();
+        a.join(1, "ed", Role::Editor, ClientKind::Gen);
+        a.submit(1, 1, None, vec![EditOp::spawn(WorldEntity::new(1, "rock"))]);
+        assert_eq!(a.doc().len(), 1);
+        assert_eq!(a.undo_depth(1), 1);
+
+        let out = a.undo(1);
+        match &out[0].msg {
+            ServerMsg::Ops {
+                revision, author, ..
+            } => {
+                assert_eq!(*revision, 2);
+                assert_eq!(author.peer, Some(1));
+            }
+            other => panic!("expected ops, got {other:?}"),
+        }
+        assert!(a.doc().is_empty());
+
+        // Undoing the undo brings it back (the undo was itself a commit).
+        let out = a.undo(1);
+        assert!(matches!(out[0].msg, ServerMsg::Ops { .. }));
+        assert_eq!(a.doc().len(), 1);
+    }
+
+    #[test]
+    fn undo_with_nothing_reports_back_to_the_caller_only() {
+        let mut a = authority();
+        a.join(1, "a", Role::Guest, ClientKind::Web);
+        let out = a.undo(1);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].to, Recipients::One(1));
+        assert!(matches!(out[0].msg, ServerMsg::Chat { .. }));
+    }
+
+    #[test]
+    fn guests_undo_the_builds_made_for_them() {
+        let mut a = authority();
+        a.join(1, "maya", Role::Guest, ClientKind::Web);
+        // The room's AI builds maya's prompt, attributed to her.
+        a.record_local_ops_for_peer(1, vec![EditOp::spawn(WorldEntity::new(1, "lighthouse"))])
+            .unwrap();
+        assert_eq!(a.undo_depth(1), 1);
+        let out = a.undo(1);
+        match &out[0].msg {
+            ServerMsg::Ops { author, ops, .. } => {
+                assert_eq!(author.name, "maya");
+                assert!(matches!(ops[0], EditOp::DeleteEntity { .. }));
+            }
+            other => panic!("expected ops, got {other:?}"),
+        }
+        assert!(a.doc().is_empty());
+    }
+
+    #[test]
+    fn undo_of_a_subtree_delete_respawns_it() {
+        let mut a = authority();
+        a.join(1, "ed", Role::Editor, ClientKind::Gen);
+        let mut roof = WorldEntity::new(2, "roof");
+        roof.parent = Some(EntityId(1));
+        a.submit(
+            1,
+            1,
+            None,
+            vec![EditOp::Batch {
+                ops: vec![
+                    EditOp::spawn(WorldEntity::new(1, "house")),
+                    EditOp::spawn(roof),
+                ],
+            }],
+        );
+        a.submit(1, 2, None, vec![EditOp::delete(EntityId(1))]);
+        assert!(a.doc().is_empty());
+        a.undo(1);
+        assert_eq!(a.doc().len(), 2);
+        assert_eq!(a.doc().get(2).unwrap().parent, Some(EntityId(1)));
+    }
+
+    #[test]
+    fn apply_replay_rebuilds_without_broadcasting() {
+        let mut a = authority();
+        let rev = a
+            .apply_replay(&[EditOp::spawn(WorldEntity::new(1, "a"))])
+            .unwrap();
+        assert_eq!(rev, 1);
+        let rev = a
+            .apply_replay(&[EditOp::spawn(WorldEntity::new(2, "b"))])
+            .unwrap();
+        assert_eq!(rev, 2);
+        assert_eq!(a.doc().len(), 2);
+        assert_eq!(a.undo_depth(1), 0);
+        // A joiner sees the replayed state.
+        let out = a.join(1, "late", Role::Guest, ClientKind::Web);
+        match &out[0].msg {
+            ServerMsg::Welcome {
+                revision, world, ..
+            } => {
+                assert_eq!(*revision, 2);
+                assert_eq!(world.entities.len(), 2);
+            }
+            other => panic!("expected welcome, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn leaving_forgets_the_peers_undo_stack() {
+        let mut a = authority();
+        a.join(1, "ed", Role::Editor, ClientKind::Gen);
+        a.submit(1, 1, None, vec![EditOp::spawn(WorldEntity::new(1, "x"))]);
+        a.leave(1);
+        a.join(1, "ed", Role::Editor, ClientKind::Gen);
+        assert_eq!(a.undo_depth(1), 0);
     }
 }

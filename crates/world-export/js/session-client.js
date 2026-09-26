@@ -236,7 +236,12 @@ export function startSessionClient() {
 
   chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && chatInput.value.trim()) {
-      send({ type: 'chat', text: chatInput.value.trim() });
+      const text = chatInput.value.trim();
+      if (text === '/undo') {
+        send({ type: 'undo' });
+      } else {
+        send({ type: 'chat', text });
+      }
       chatInput.value = '';
     }
     e.stopPropagation();

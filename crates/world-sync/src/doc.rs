@@ -266,6 +266,16 @@ impl WorldDoc {
         out
     }
 
+    /// An entity and all its descendants, parents before children — the
+    /// order needed to re-spawn a deleted subtree.
+    pub fn subtree_entities_parent_first(&self, id: u64) -> Vec<&WorldEntity> {
+        let ids: HashSet<u64> = self.subtree(id).into_iter().collect();
+        self.entities_parent_first()
+            .into_iter()
+            .filter(|e| ids.contains(&e.id.0))
+            .collect()
+    }
+
     /// Apply one op. A `Batch` applies all of its ops or none of them; on
     /// error the document is unchanged.
     pub fn apply(&mut self, op: &EditOp) -> Result<(), ApplyError> {
