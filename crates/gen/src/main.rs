@@ -878,6 +878,14 @@ struct Cli {
     #[cfg(feature = "multiplayer")]
     #[arg(long, requires = "host", value_enum, default_value_t = RemoteTools::Safe)]
     remote_tools: RemoteTools,
+
+    /// Let browsers join as guests (with --host): serve a join page and a
+    /// WebSocket endpoint on the session port, and print an invite link.
+    /// Guests watch, walk, chat and prompt the room's AI; they can't edit
+    /// directly.
+    #[cfg(feature = "multiplayer")]
+    #[arg(long, requires = "host")]
+    web: bool,
 }
 
 /// Tool access for prompts from collaborative clients (`--remote-tools`).
@@ -1287,6 +1295,7 @@ fn main() -> Result<()> {
                 opts.open = cli.open;
                 opts.full_access = cli.host && cli.remote_tools == RemoteTools::Full;
                 opts.autostart = cli.host;
+                opts.web = cli.web;
                 if opts.full_access {
                     eprintln!(
                         "WARNING: --remote-tools full — connected clients' prompts run with this \

@@ -307,7 +307,14 @@ world-types wire model, narrowed per client by chunk-based interest
 management; prompts run through a job queue with replicated scaffolds;
 clients get HLOD chunk impostors, static mesh baking, and content-addressed
 mesh streaming (HTTP on TCP 9879). Client REPL `/stats` and `/goto x y z`
-help debug streaming. See `docs/gen/multiplayer.md` and
+help debug streaming. **`--web` adds browser guests:** the session HTTP server
+serves a join page at `/` plus a WebSocket endpoint at `/session`
+(`crates/gen/src/net/web.rs`), and the host prints an invite link with a
+bearer token. The room's shared document, ops, wire protocol and authority
+live in **`localgpt-world-sync`** (`crates/world-sync`, no Bevy/no I/O); the
+host projects its scene into it and diffs (~4 Hz), so every tool syncs as
+world-types `EditOp`s. Browser guests watch, walk, chat and prompt (same job
+queue + scoped agent). See `docs/gen/multiplayer.md` and
 `crates/gen/src/net/`; the SpacetimeDB module carries the cloud-tier
 inference queue (`crates/spacetime/src/jobs.rs`).
 

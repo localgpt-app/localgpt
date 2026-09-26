@@ -6,6 +6,14 @@ All notable changes to LocalGPT are documented in this file.
 
 ### Added
 
+- **Browser guests for Gen sessions (`--web`)** — a hosting Gen serves a join page and a WebSocket endpoint on the session port and prints an invite link; anyone on the network opens it in a browser (nothing to install), sees the same world live, walks with a labeled avatar, chats, and prompts the room's AI through the same job queue native clients use. Every change to the world — tool calls, inspector edits, undo/redo, world loads — streams to guests as world-types `EditOp`s, because the host projects its scene into the shared document and diffs it ~4 times a second.
+- **`localgpt-world-sync`** — the collaboration core with no Bevy and no I/O: the shared world document (atomic, validated `EditOp` application with subtree deletes), the scene→ops diff, the versioned JSON wire protocol, and the room authority (peers, roles, revisions, presence, chat, prompt queue). `crates/world-sync`.
+- **`EntityPatch.modulations`** — entity modulation stacks can now be patched like every other field, so live sync and diffs cover them.
+
+### Changed
+
+- **The collaborative spec is v2** — `docs/rfcs/multiplayer/collaborative-world-engine-architecture.md` now describes the op-based document model (sync the world format, one authority per room, WebSocket baseline, browser guests) with phases through relay, persistence and guest editing, replacing the ECS-replication-first plan.
+
 - **One world format for Gen, MD and Verse** — `localgpt-world-types` gains `ModulationDef` (an entity parameter bound to a runtime signal: soundtrack energy, beat, bass/highs, a stem, an oscillator or a constant) and `SoundtrackDef` (the song a world performs to, as analysis curves with an optional audio file), `validate_manifest`, a `schema` feature that writes `world.schema.json`, and reference worlds under `crates/world-types/conformance/` covering every shape, material feature, light, behavior, tour and modulation.
 - **`localgpt-world-bevy`** — the one Bevy mapping of the format (meshes, materials, lights, environment, camera), used by Gen and by LocalGPT MD. Every parametric shape is centered and fits `Shape::local_aabb_half`, checked by tests.
 - **`localgpt-world-export`** — the web side of the format with no Bevy dependency: `js/world-viewer.js`, a data-driven three.js renderer of manifest JSON (behaviors, procedural audio, tours, modulations, soundtrack playback, glTF mesh assets, an embed API), plus `generate_html` (Gen's `gen_export_html`, MD's `--export x.html`) and `to_json`. localgpt.world serves the same viewer.

@@ -17,6 +17,7 @@ path = "src/main.rs"
 localgpt-core = { workspace = true, features = ["mcp-http"] }
 localgpt-world-types = { workspace = true }
 localgpt-world-export = { workspace = true }
+localgpt-world-sync = { workspace = true, optional = true }
 localgpt-world-bevy = { workspace = true }
 localgpt-cli-tools = { workspace = true }
 
@@ -134,6 +135,7 @@ multiplayer = [
     "dep:mdns-sd",
     "dep:spake2",
     "dep:chacha20poly1305",
+    "dep:localgpt-world-sync",
 ]
 # In-process local LLM: runs a GGUF model through mistral.rs as the
 # `gguf/<name>` provider (src/local_llm.rs), reading the model directory

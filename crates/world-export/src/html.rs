@@ -9,7 +9,12 @@ use localgpt_world_types as wt;
 use crate::json::to_script_safe_json;
 
 /// The web viewer module, embedded from `js/world-viewer.js`.
+/// The one web renderer for the LocalGPT world format.
 pub const WORLD_VIEWER_JS: &str = include_str!("../js/world-viewer.js");
+
+/// The browser client for collaborative sessions (joins over WebSocket,
+/// applies ops live). Served by a hosting Gen at `/session-client.js`.
+pub const SESSION_CLIENT_JS: &str = include_str!("../js/session-client.js");
 
 /// The three.js release the viewer is written against.
 pub const THREE_VERSION: &str = "0.170.0";

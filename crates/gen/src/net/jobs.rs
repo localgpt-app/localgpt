@@ -168,6 +168,23 @@ impl JobQueue {
         Ok((job, position))
     }
 
+    /// Accept a prompt whose id was assigned elsewhere (the web session
+    /// authority numbers its jobs so wire messages match), keeping the
+    /// internal counter ahead of it.
+    pub fn enqueue_with_id(
+        &mut self,
+        id: JobId,
+        requester: u64,
+        prompt: &str,
+        anchor: Option<[f32; 3]>,
+    ) -> Result<(Job, u32), EnqueueError> {
+        let (job, position) = self.enqueue(requester, 0, prompt, anchor)?;
+        let job = Job { id, ..job };
+        *self.pending.back_mut().expect("just enqueued") = job.clone();
+        self.next_id = self.next_id.max(id + 1);
+        Ok((job, position))
+    }
+
     /// Hand the next job to a worker.
     pub fn start_next(&mut self) -> Option<Job> {
         let job = self.pending.pop_front()?;

@@ -47,6 +47,7 @@ use super::protocol::{
     NetMeshAsset, NetProtocolPlugin, NetScaffold, NetTransform, NetWorldMeta, apply_net_components,
     transforms_differ,
 };
+use super::web;
 use crate::gen3d::audio::AudioEmitter;
 use crate::gen3d::behaviors::EntityBehaviors;
 use crate::gen3d::plugin::{CurrentWorld, SnapshotQueries, snapshot_entity};
@@ -104,6 +105,9 @@ pub struct NetHostOptions {
     /// plugin stays dormant until the prompt panel requests a session via
     /// [`HostControl`].
     pub autostart: bool,
+    /// Let browsers join as guests: serve a join page and the WebSocket ops
+    /// endpoint on the session port (CLI `--web`).
+    pub web: bool,
     /// Sender half of the control channel into the agent loop (hosting
     /// started notifications).
     pub control_tx: mpsc::UnboundedSender<HostControlEvent>,
@@ -161,6 +165,8 @@ pub struct HostStartRequest {
     pub open: bool,
     /// Remote prompts run on the host's own agent with full tool access.
     pub full_access: bool,
+    /// Browsers may join as guests (join page + WebSocket endpoint).
+    pub web: bool,
 }
 
 /// Lifecycle of a hosted session. The plugin is always installed (so
@@ -234,6 +240,7 @@ pub fn create_host_channels() -> (NetHostOptions, AgentNetHooks) {
             open: false,
             full_access: false,
             autostart: false,
+            web: false,
             control_tx,
         },
         AgentNetHooks {
@@ -247,7 +254,7 @@ pub fn create_host_channels() -> (NetHostOptions, AgentNetHooks) {
 
 /// Resource: the §2 prompt queue plus the channels to/from its worker.
 #[derive(Resource)]
-struct HostJobs {
+pub(crate) struct HostJobs {
     queue: JobQueue,
     /// Replicated scaffold entity per job.
     scaffolds: HashMap<JobId, Entity>,
@@ -264,6 +271,29 @@ struct HostJobs {
 #[derive(Resource)]
 struct HostChatOutbox {
     rx: Mutex<mpsc::UnboundedReceiver<HostChat>>,
+}
+
+impl HostJobs {
+    /// Enqueue a web guest's prompt with its authority-assigned job id, so
+    /// wire messages and the worker agree on the number. Web jobs share the
+    /// queue's capacity and the single dispatch slot with native prompts.
+    pub(crate) fn enqueue_web_prompt(
+        &mut self,
+        job_id: JobId,
+        requester: u64,
+        prompt: &str,
+        anchor: Option<[f32; 3]>,
+    ) -> Result<(), String> {
+        self.queue
+            .enqueue_with_id(job_id, requester, prompt, anchor)
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+
+    /// Drop a departed web guest's queued prompts.
+    pub(crate) fn cancel_web_requester(&mut self, requester: u64) {
+        self.queue.cancel_requester(requester);
+    }
 }
 
 /// Resource owning the mDNS announcer (unregisters on drop).
@@ -316,6 +346,7 @@ impl Plugin for NetHostPlugin {
             open,
             full_access,
             autostart,
+            web,
             control_tx,
         } = self
             .options
@@ -340,6 +371,7 @@ impl Plugin for NetHostPlugin {
                 port,
                 open,
                 full_access,
+                web,
             })
         } else {
             HostControl::NotHosting
@@ -400,6 +432,13 @@ impl Plugin for NetHostPlugin {
                     net_client_lifecycle,
                 )
                     .run_if(hosting),
+            )
+            // Browser guests (--web): the room resource exists only while a
+            // web-enabled session is live.
+            .add_systems(
+                Update,
+                (web::web_drain_inbound, web::web_projection_sync)
+                    .run_if(|room: Option<Res<web::WebRoom>>| room.is_some()),
             );
     }
 }
@@ -454,11 +493,32 @@ fn host_lifecycle(
     });
 
     // Session HTTP (TCP, same port number as the UDP session): pairing
-    // + content-addressed assets.
+    // + content-addressed assets, plus the browser-guest routes with --web.
     let store = AssetStore::default();
     let http_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), request.port);
-    let router =
+    let mut router =
         asset_router(store.clone()).merge(pairing_router(pairing.clone(), super::PROTOCOL_ID));
+    if request.web {
+        let token = if request.open {
+            None
+        } else {
+            Some(web::generate_web_token())
+        };
+        let (bridge, inbound_rx) = web::WebBridge::new(token.clone());
+        router = router.merge(web::web_router(bridge.clone()));
+        commands.insert_resource(web::WebRoom::new(&request.session_name, bridge, inbound_rx));
+        match (web::primary_lan_ip(), &token) {
+            (Some(ip), Some(token)) => eprintln!(
+                "\n  Browser guests: http://{ip}:{port}/#t={token}\n",
+                port = request.port
+            ),
+            (Some(ip), None) => eprintln!(
+                "\n  Browser guests: http://{ip}:{port}/  (open session)\n",
+                port = request.port
+            ),
+            (None, _) => eprintln!("\n  Browser guests: http://<this-host>:{}/\n", request.port),
+        }
+    }
     let asset_port = match spawn_session_http(router, http_addr) {
         Ok(()) => {
             eprintln!("Session HTTP (pairing + assets) on tcp://{http_addr}");
@@ -466,8 +526,9 @@ fn host_lifecycle(
         }
         Err(e) => {
             // A failed HTTP endpoint is fatal for PIN sessions (nobody can
-            // pair) but only degrades open ones (no asset streaming).
-            if !request.open {
+            // pair) and for --web (no page, no socket); it only degrades
+            // open native-only sessions (no asset streaming).
+            if !request.open || request.web {
                 eprintln!(
                     "Collaborative session failed to start: session HTTP couldn't listen on \
                      tcp://{http_addr} ({e}) — free the port or pass --port"
@@ -1131,6 +1192,7 @@ fn net_job_events(
     mut jobs: ResMut<HostJobs>,
     mut scaffolds: Query<&mut NetScaffold>,
     mut status_senders: Query<&mut MessageSender<JobStatus>>,
+    mut web_room: Option<ResMut<web::WebRoom>>,
 ) {
     let events: Vec<JobEvent> = {
         let Ok(mut rx) = jobs.events_rx.lock() else {
@@ -1139,6 +1201,10 @@ fn net_job_events(
         std::iter::from_fn(|| rx.try_recv().ok()).collect()
     };
     for event in events {
+        // Web guests hear about every job through the authority.
+        if let Some(room) = web_room.as_deref_mut() {
+            web::tee_job_event(room, &event);
+        }
         let (job_id, state) = match event {
             JobEvent::Started(job_id) => {
                 if let Some(mut scaffold) = jobs
@@ -1194,6 +1260,7 @@ fn net_chat_broadcast(
     outbox: Res<HostChatOutbox>,
     server: Query<&Server>,
     mut sender: ServerMultiMessageSender,
+    mut web_room: Option<ResMut<web::WebRoom>>,
 ) {
     let Some(server) = server.iter().next() else {
         return;
@@ -1203,6 +1270,16 @@ fn net_chat_broadcast(
     };
     while let Ok(chat) = rx.try_recv() {
         let _ = sender.send::<HostChat, ChatChannel>(&chat, server, &NetworkTarget::All);
+        // Web guests hear the same lines through the room chat.
+        if let Some(room) = web_room.as_deref_mut() {
+            let kind = if chat.speaker == "client" {
+                localgpt_world_sync::ChatKind::Human
+            } else {
+                localgpt_world_sync::ChatKind::Agent
+            };
+            let out = room.authority.post_chat(&chat.speaker, kind, &chat.text);
+            web::deliver(room, out);
+        }
     }
 }
 
@@ -1312,6 +1389,7 @@ mod tests {
                 port: 9879,
                 open: false,
                 full_access: false,
+                web: false,
             })
             .is_active()
         );

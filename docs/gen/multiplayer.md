@@ -29,7 +29,49 @@ localgpt-gen --join 192.168.1.5            # bare host, default port 9879
 localgpt-gen --join 192.168.1.5:9879 --pin 482913   # explicit address + PIN
 localgpt-gen --join --view-radius 4        # stream 4 chunks around the camera (default 2, max 8)
 localgpt-gen --join --no-bake              # disable client-side static mesh baking
+
+# Let browsers join as guests (nothing to install — they get a link):
+localgpt-gen --host --web                  # prints an invite link with a token
+localgpt-gen --host --web --open           # invite link without a token (trusted LANs)
 ```
+
+## Browser guests (`--web`)
+
+With `--web`, the session HTTP server also serves a **join page** at
+`http://<host>:<port>/` and a WebSocket endpoint at `/session`. The host
+console prints the invite link — send it to anyone on the network. They open
+it in a browser, pick a name, and they're in: no install, no PIN (the link
+carries a random invite token; browsers never send it in the HTTP request
+because it rides the URL fragment).
+
+Browser guests can:
+
+- **See the world, live.** They get the full world on join, and every later
+  change streams in as ops — builds from the AI, the host's edits, undo/redo,
+  world loads. The host projects its scene into the world format four times a
+  second and diffs it against the shared document (`localgpt-world-sync`), so
+  *every* tool syncs without per-tool work. Entities with behaviors animate
+  on each client from the shared behavior definitions (bases sync, not every
+  frame).
+- **Walk and be seen.** Every peer gets a labeled capsule avatar, and sees
+  everyone else's move at 5 Hz. Guests see guests; the host sees guests in
+  the console count (rendering guest avatars in the host's own window is a
+  follow-up).
+- **Chat.** Lines go to everyone, and the agent's replies appear as chat too.
+- **Prompt the room's AI.** A guest's prompt enters the same job queue native
+  clients use and runs on the scoped remote agent (scene tools only); status
+  (`queued → running → done/failed`) shows as it goes, and the build appears
+  for everyone.
+
+Guests are **read-only** on the document itself (direct `submit` ops are
+rejected; guest editing is phase 6 of the spec). A session caps at 16 guests,
+4 queued prompts each.
+
+The wire protocol is versioned JSON over one WebSocket — see
+`docs/rfcs/multiplayer/collaborative-world-engine-architecture.md`. Cross-origin
+sockets are refused, and a full room declines joins. LAN only for now: the
+internet relay (room codes through a Worker) is phase 4.
+
 
 - Host: the normal interactive gen REPL + window, plus a lightyear UDP
   server on port **9879**, a session HTTP server on TCP **9879** (pairing +
@@ -216,7 +258,13 @@ you'd hand your terminal to.
 
 - Clients are **read-only viewers** — no client-side scene mutation, no
   avatar/player representation, no camera replication (the host only
-  learns each client's camera position for interest management).
+  learns each client's camera position for interest management). Browser
+  guests (`--web`) do see each other's avatars, but are read-only on the
+  document (prompts only), LAN-only (the internet relay is phase 4), and
+  the host's own window doesn't render guest avatars yet.
+- Web guests sync the whole document (no per-chunk interest management),
+  and mesh assets (glTF) render as placeholders in the browser — both are
+  fine at room scale and tracked as follow-ups.
 - Replicated: primitives (shape/material/transform), lights, groups,
   behaviors (data only — not ticked client-side), audio (data only),
   parent links, environment metadata, custom-mesh geometry (streamed as

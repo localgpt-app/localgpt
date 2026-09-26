@@ -495,8 +495,9 @@ export function createWorldViewer(container, manifest, options = {}) {
     const fogColor = env.fog_color || env.background_color;
     scene.fog = new THREE.Fog(fogColor ? srgbColor(fogColor) : new THREE.Color(1, 1, 1), 1, 100 / Math.max(env.fog_density, 0.01));
   }
-  scene.add(new THREE.AmbientLight(env.ambient_color ? srgbColor(env.ambient_color) : new THREE.Color(1, 1, 1),
-    (env.ambient_intensity ?? 80) * (opts.ambientScale ?? AMBIENT_SCALE)));
+  const ambient = new THREE.AmbientLight(env.ambient_color ? srgbColor(env.ambient_color) : new THREE.Color(1, 1, 1),
+    (env.ambient_intensity ?? 80) * (opts.ambientScale ?? AMBIENT_SCALE));
+  scene.add(ambient);
 
   const cam = manifest.camera || (manifest.avatar
     ? { position: manifest.avatar.spawn_position || DEFAULT_CAMERA.position, look_at: manifest.avatar.spawn_look_at || DEFAULT_CAMERA.look_at, fov_degrees: DEFAULT_CAMERA.fov_degrees }
@@ -537,7 +538,10 @@ export function createWorldViewer(container, manifest, options = {}) {
   const byName = new Map();
   const byId = new Map();
   const gltfLoader = assetBase ? new GLTFLoader() : null;
-  for (const def of manifest.entities || []) {
+
+  // Build one entity's scene object and record (no parent attach, no
+  // dynamics) — shared by initial load and live ops.
+  function buildRecord(def) {
     const t = def.transform || {};
     const position = t.position || [0, 0, 0];
     const hasShape = !!def.shape, hasLight = !!def.light;
@@ -573,7 +577,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     object.scale.set(...(t.scale || [1, 1, 1]));
     if (t.visible === false) object.visible = false;
     object.name = def.name;
-    const rec = {
+    return {
       def, object, material, light,
       base: {
         position: object.position.clone(),
@@ -585,15 +589,18 @@ export function createWorldViewer(container, manifest, options = {}) {
       },
       behaviors: [], mods: [], resetPosition: false, resetScale: false,
     };
-    records.push(rec);
-    byName.set(def.name, rec);
-    byId.set(String(def.id), rec);
   }
-  for (const rec of records) {
+
+  function attachRecord(rec) {
     const parent = rec.def.parent != null ? byId.get(String(rec.def.parent)) : null;
     (parent ? parent.object : scene).add(rec.object);
   }
-  for (const rec of records) {
+
+  function initDynamics(rec) {
+    rec.behaviors = [];
+    rec.mods = [];
+    rec.resetPosition = false;
+    rec.resetScale = false;
     for (const b of rec.def.behaviors || []) { const fn = makeBehavior(b, rec, byName); if (fn) rec.behaviors.push(fn); }
     for (const m of rec.def.modulations || []) {
       const [target] = variant(m.target);
@@ -602,6 +609,154 @@ export function createWorldViewer(container, manifest, options = {}) {
       rec.mods.push({ def: m, target, s: 0 });
     }
   }
+
+  function disposeObject(object) {
+    object.traverse((o) => {
+      o.geometry?.dispose?.();
+      if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose?.());
+    });
+  }
+
+  function removeRecord(rec) {
+    rec.object.removeFromParent();
+    if (rec.light?.target) rec.light.target.removeFromParent();
+    disposeObject(rec.object);
+    byName.delete(rec.def.name);
+    byId.delete(String(rec.def.id));
+    const i = records.indexOf(rec);
+    if (i >= 0) records.splice(i, 1);
+  }
+
+  // Replace an entity's object (shape/material/light/mesh changes), keeping
+  // its children attached.
+  function rebuildRecord(rec) {
+    const id = rec.def.id;
+    const children = records.filter((r) => r.def.parent != null && String(r.def.parent) === String(id));
+    removeRecord(rec);
+    const fresh = buildRecord(rec.def);
+    records.push(fresh);
+    byName.set(fresh.def.name, fresh);
+    byId.set(String(fresh.def.id), fresh);
+    attachRecord(fresh);
+    for (const child of children) fresh.object.add(child.object);
+    initDynamics(fresh);
+  }
+
+  // Apply an EntityPatch to a live record.
+  function applyEntityPatch(id, patch) {
+    const rec = byId.get(String(id));
+    if (!rec) return;
+    const def = rec.def;
+    if (patch.name != null) {
+      byName.delete(def.name);
+      def.name = patch.name;
+      rec.object.name = patch.name;
+      byName.set(def.name, rec);
+    }
+    if (patch.transform) {
+      def.transform = patch.transform;
+      const t = patch.transform;
+      rec.object.position.set(...(t.position || [0, 0, 0]));
+      const rot = t.rotation_degrees || [0, 0, 0];
+      rec.object.rotation.set(THREE.MathUtils.degToRad(rot[0]), THREE.MathUtils.degToRad(rot[1]), THREE.MathUtils.degToRad(rot[2]));
+      rec.object.scale.set(...(t.scale || [1, 1, 1]));
+      rec.object.visible = t.visible !== false;
+      rec.base.position.copy(rec.object.position);
+      rec.base.scale.copy(rec.object.scale);
+    }
+    if (patch.parent !== undefined) {
+      def.parent = patch.parent;
+      attachRecord(rec);
+    }
+    let rebuild = false;
+    if (patch.shape !== undefined) { def.shape = patch.shape; rebuild = true; }
+    if (patch.material !== undefined) { def.material = patch.material; rebuild = true; }
+    if (patch.light !== undefined) { def.light = patch.light; rebuild = true; }
+    if (patch.mesh_asset !== undefined) { def.mesh_asset = patch.mesh_asset; rebuild = true; }
+    if (rebuild) { rebuildRecord(rec); return; }
+    if (patch.behaviors) { def.behaviors = patch.behaviors; initDynamics(rec); }
+    if (patch.modulations) { def.modulations = patch.modulations; initDynamics(rec); }
+    if (patch.audio !== undefined) def.audio = patch.audio;
+  }
+
+  // Scene-wide environment changes (background, fog, ambient light).
+  function applyEnvironment(envDef) {
+    if (!envDef) return;
+    if (envDef.background_color) scene.background = srgbColor(envDef.background_color);
+    if (envDef.fog_density > 0) {
+      const fogColor = envDef.fog_color || envDef.background_color;
+      scene.fog = new THREE.Fog(fogColor ? srgbColor(fogColor) : new THREE.Color(1, 1, 1), 1, 100 / Math.max(envDef.fog_density, 0.01));
+    } else if (envDef.fog_density != null) {
+      scene.fog = null;
+    }
+    if (envDef.ambient_color) ambient.color = srgbColor(envDef.ambient_color);
+    if (envDef.ambient_intensity != null) ambient.intensity = envDef.ambient_intensity * (opts.ambientScale ?? AMBIENT_SCALE);
+    Object.assign(env, envDef);
+  }
+
+  // Apply committed world ops (world-types EditOp in serde's externally
+  // tagged JSON form). Used by collaborative sessions; the document on the
+  // authority guarantees order and validity.
+  function applyOps(ops) {
+    for (const op of ops || []) {
+      const entry = Object.entries(op)[0];
+      if (!entry) continue;
+      const [variant, body] = entry;
+      switch (variant) {
+        case 'SpawnEntity': {
+          if (byId.has(String(body.entity.id))) break;
+          const rec = buildRecord(body.entity);
+          records.push(rec);
+          byName.set(rec.def.name, rec);
+          byId.set(String(rec.def.id), rec);
+          attachRecord(rec);
+          initDynamics(rec);
+          break;
+        }
+        case 'DeleteEntity': {
+          // Subtree deletes arrive children-first; each may already be gone.
+          const rec = byId.get(String(body.id));
+          if (rec) removeRecord(rec);
+          break;
+        }
+        case 'ModifyEntity':
+          applyEntityPatch(body.id, body.patch);
+          break;
+        case 'SetEnvironment':
+          applyEnvironment(body.env);
+          break;
+        case 'SetCamera':
+          // Guests keep their own cameras; camera ops matter for exports.
+          break;
+        case 'SpawnAudioEmitter': {
+          const rec = byName.get(body.name);
+          if (rec) rec.def.audio = body.audio;
+          break;
+        }
+        case 'RemoveAudioEmitter': {
+          const rec = byName.get(body.name);
+          if (rec) rec.def.audio = null;
+          break;
+        }
+        case 'SetAmbience':
+          break;
+        case 'Batch':
+          applyOps(body.ops);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  for (const def of manifest.entities || []) {
+    const rec = buildRecord(def);
+    records.push(rec);
+    byName.set(def.name, rec);
+    byId.set(String(def.id), rec);
+  }
+  for (const rec of records) attachRecord(rec);
+  for (const rec of records) initDynamics(rec);
 
   // ---- Soundtrack and signals ----
   const soundtrack = manifest.soundtrack || null;
@@ -726,6 +881,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     document.addEventListener('keyup', onKeyUp);
   }
   function updateMovement(dt) {
+    if (typeof document !== 'undefined' && /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '')) return;
     const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
     const right = new THREE.Vector3().crossVectors(dir, camera.up).normalize();
     const move = new THREE.Vector3();
@@ -866,8 +1022,9 @@ export function createWorldViewer(container, manifest, options = {}) {
   return {
     scene, camera, renderer, controls,
     entities: byName,
+    entitiesById: byId,
     tours,
-    startTour, stopTour, toggleAudio, sceneInfo, tick, dispose,
+    startTour, stopTour, toggleAudio, sceneInfo, tick, applyOps, dispose,
     get audioEnabled() { return audioState.started; },
   };
 }

@@ -32,6 +32,7 @@ pub mod mdns;
 pub mod pairing;
 pub mod protocol;
 pub mod remote_scope;
+pub mod web;
 
 /// Default UDP port for hosted sessions.
 ///
