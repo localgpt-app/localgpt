@@ -18,3 +18,4 @@ serde_json = "1.0"
 
 # Reuse shared world types
 localgpt-world-types = { path = "../world-types" }
+localgpt-world-sync = { path = "../world-sync" }

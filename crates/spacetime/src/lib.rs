@@ -6,6 +6,7 @@
 use spacetimedb::{reducer, table, Identity, ReducerContext, Timestamp, Table};
 
 pub mod jobs;
+pub mod room;
 
 // Re-export world types for clients
 pub use localgpt_world_types::{
@@ -55,6 +56,10 @@ pub struct WorldEntityRow {
     pub light_json: Option<String>,
     pub behaviors_json: String,
     pub audio_json: Option<String>,
+    pub mesh_asset_json: Option<String>,
+    pub modulations_json: Option<String>,
+    pub parent_id: Option<u64>,
+    pub visible: bool,
     pub chunk_x: i32,
     pub chunk_y: i32,
     pub owner: Option<Identity>,
@@ -106,6 +111,44 @@ pub struct ChunkSubscription {
     pub chunk_x: i32,
     pub chunk_y: i32,
     pub subscribed_at: Timestamp,
+}
+
+// ============================================================================
+// Cloud room (ops authority — spec phase 8)
+// ============================================================================
+
+/// The op log: every committed batch, in commit order.
+#[table(accessor = world_op, public)]
+pub struct WorldOp {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub revision: u64,
+    pub author_identity: Identity,
+    pub author_name: String,
+    pub ops_json: String,
+    pub timestamp: Timestamp,
+}
+
+/// Per-author undo stacks: the inverse of each committed batch.
+#[table(accessor = undo_entry)]
+pub struct UndoEntry {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub author_identity: Identity,
+    /// Per-author commit order (higher = newer).
+    pub seq: u64,
+    pub ops_json: String,
+}
+
+/// Room singleton: the document's revision and environment.
+#[table(accessor = room_state)]
+pub struct RoomState {
+    #[primary_key]
+    pub id: u8,
+    pub revision: u64,
+    pub env_json: Option<String>,
 }
 
 // ============================================================================
@@ -247,6 +290,163 @@ pub fn unsubscribe_chunk(ctx: &ReducerContext, chunk_x: i32, chunk_y: i32) {
 }
 
 // ============================================================================
+// Cloud room reducers (ops authority — spec phase 8)
+// ============================================================================
+
+/// Most undo entries kept per author.
+const UNDO_CAP: u64 = 64;
+
+fn room_revision(ctx: &ReducerContext) -> u64 {
+    ctx.db
+        .room_state()
+        .id()
+        .find(0)
+        .map(|s| s.revision)
+        .unwrap_or(0)
+}
+
+fn caller_name(ctx: &ReducerContext) -> String {
+    ctx.db
+        .player()
+        .identity()
+        .find(ctx.sender())
+        .map(|p| p.name)
+        .unwrap_or_else(|| "guest".to_string())
+}
+
+fn world_name(ctx: &ReducerContext) -> String {
+    ctx.db
+        .world_info()
+        .id()
+        .find(0)
+        .map(|w| w.name)
+        .unwrap_or_else(|| "cloud room".to_string())
+}
+
+/// Remember the inverse for undo, keeping the author's stack bounded.
+fn push_undo(ctx: &ReducerContext, inverse_json: String) {
+    if inverse_json.is_empty() || inverse_json == "[]" {
+        return;
+    }
+    let sender = ctx.sender();
+    let next_seq = ctx
+        .db
+        .undo_entry()
+        .iter()
+        .filter(|e| e.author_identity == sender)
+        .map(|e| e.seq)
+        .max()
+        .unwrap_or(0)
+        + 1;
+    if next_seq > UNDO_CAP {
+        let oldest = ctx
+            .db
+            .undo_entry()
+            .iter()
+            .filter(|e| e.author_identity == sender)
+            .min_by_key(|e| e.seq);
+        if let Some(oldest) = oldest {
+            ctx.db.undo_entry().id().delete(oldest.id);
+        }
+    }
+    ctx.db.undo_entry().insert(UndoEntry {
+        id: 0,
+        author_identity: sender,
+        seq: next_seq,
+        ops_json: inverse_json,
+    });
+}
+
+/// Apply a validated batch: write rows, bump the revision, log it, and
+/// remember its inverse. Shared by `submit_ops` and `undo`.
+fn commit(
+    ctx: &ReducerContext,
+    ops: Vec<localgpt_world_types::EditOp>,
+    expected_revision: Option<u64>,
+    ops_json: String,
+) {
+    let rows: Vec<WorldEntityRow> = ctx.db.world_entity().iter().collect();
+    let outcome = room::submit_ops(
+        rows,
+        &world_name(ctx),
+        room_revision(ctx),
+        expected_revision,
+        ops,
+        Some(ctx.sender()),
+        ctx.timestamp,
+    );
+    let room::SubmitOutcome::Applied {
+        revision,
+        changes,
+        inverse_json,
+        env_json,
+    } = outcome
+    else {
+        let room::SubmitOutcome::Rejected(reason) = outcome else {
+            unreachable!()
+        };
+        panic!("edit rejected: {reason}");
+    };
+
+    for row in changes.upserts {
+        ctx.db.world_entity().id().delete(row.id);
+        ctx.db.world_entity().insert(row);
+    }
+    for id in changes.deletes {
+        ctx.db.world_entity().id().delete(id);
+    }
+    ctx.db.room_state().id().delete(0);
+    ctx.db.room_state().insert(RoomState {
+        id: 0,
+        revision,
+        env_json,
+    });
+    ctx.db.world_op().insert(WorldOp {
+        id: 0,
+        revision,
+        author_identity: ctx.sender(),
+        author_name: caller_name(ctx),
+        ops_json,
+        timestamp: ctx.timestamp,
+    });
+    push_undo(ctx, inverse_json);
+}
+
+/// Submit ops to the room: spawn/delete/modify entities or change the
+/// environment, validated exactly as on a LAN host.
+#[reducer]
+pub fn submit_ops(ctx: &ReducerContext, ops_json: String, expected_revision: Option<u64>) {
+    let ops: Vec<localgpt_world_types::EditOp> = match serde_json::from_str(&ops_json) {
+        Ok(ops) => ops,
+        Err(e) => panic!("bad ops payload: {e}"),
+    };
+    commit(ctx, ops, expected_revision, ops_json);
+}
+
+/// Undo the caller's most recent batch (their own edits and builds made
+/// for them), exactly like `/undo` on a LAN room.
+#[reducer]
+pub fn undo(ctx: &ReducerContext) {
+    let sender = ctx.sender();
+    let entry = ctx
+        .db
+        .undo_entry()
+        .iter()
+        .filter(|e| e.author_identity == sender)
+        .max_by_key(|e| e.seq);
+    let Some(entry) = entry else {
+        panic!("nothing to undo");
+    };
+    let inverse: Vec<localgpt_world_types::EditOp> = match serde_json::from_str(&entry.ops_json) {
+        Ok(ops) => ops,
+        Err(e) => panic!("bad undo entry: {e}"),
+    };
+    ctx.db.undo_entry().id().delete(entry.id);
+    let ops_json = serde_json::to_string(&inverse).unwrap_or_default();
+    commit(ctx, inverse, None, ops_json);
+}
+
+// ============================================================================
 // World Generation
 // ============================================================================
 
@@ -285,6 +485,10 @@ fn generate_world(ctx: &ReducerContext, seed: u64) {
         light_json: None,
         behaviors_json: "[]".to_string(),
         audio_json: None,
+        mesh_asset_json: None,
+        modulations_json: None,
+        parent_id: None,
+        visible: true,
         chunk_x: 0,
         chunk_y: 0,
         owner: None,
@@ -308,6 +512,10 @@ fn create_tree_entity(id: u64, x: f32, z: f32, rng: &mut impl rand::Rng, timesta
         light_json: None,
         behaviors_json: "[]".to_string(),
         audio_json: None,
+        mesh_asset_json: None,
+        modulations_json: None,
+        parent_id: None,
+        visible: true,
         chunk_x: (x / CHUNK_SIZE).floor() as i32,
         chunk_y: (z / CHUNK_SIZE).floor() as i32,
         owner: None,
@@ -329,6 +537,10 @@ fn create_rock_entity(id: u64, x: f32, z: f32, rng: &mut impl rand::Rng, timesta
         light_json: None,
         behaviors_json: "[]".to_string(),
         audio_json: None,
+        mesh_asset_json: None,
+        modulations_json: None,
+        parent_id: None,
+        visible: true,
         chunk_x: (x / CHUNK_SIZE).floor() as i32,
         chunk_y: (z / CHUNK_SIZE).floor() as i32,
         owner: None,
@@ -375,6 +587,10 @@ pub fn spawn_entity(
         light_json,
         behaviors_json,
         audio_json,
+        mesh_asset_json: None,
+        modulations_json: None,
+        parent_id: None,
+        visible: true,
         chunk_x: (x / CHUNK_SIZE).floor() as i32,
         chunk_y: (z / CHUNK_SIZE).floor() as i32,
         owner: Some(ctx.sender()),

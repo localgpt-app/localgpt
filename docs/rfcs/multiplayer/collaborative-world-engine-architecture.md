@@ -241,7 +241,7 @@ Steps 1–4 add up to the first demo worth showing.
 | 5 | **Persistence and history.** Op log in the world folder; replay; per-user undo; time-lapse. | A room reopened later has its history; a build can be replayed. |
 | 6 | **Guest editing.** Editor role; direct manipulation; guests bringing their own model. | A guest moves an object and a desktop guest's own agent builds, both under their names. (Browser editing is Done via `--web-edit`; BYO-model guests arrive with phase 7.) |
 | 7 | **Native clients on ops.** `--join` uses the op protocol; lightyear removed. | Done — one protocol for every client (two-process verified). |
-| 8 | **Cloud rooms.** The SpacetimeDB module as an authority. | A room lives without any host running. |
+| 8 | **Cloud rooms.** The SpacetimeDB module as an authority. | Module done — `submit_ops`/`undo` reducers apply and log ops through the same world-sync document (8 tests, wasm-verified). Client SDK wiring (Gen or browser joining a cloud room directly) is the remaining piece. |
 
 Format gaps that block full sync, and are lost on save today too: terrain,
 water, foliage, sky, in-world UI (signs, HUD, labels) and NPC bodies need
@@ -268,6 +268,7 @@ world-types representations.
 | Relay (`localgpt-relay` + `--relay`; invite links with room codes) | Done | `crates/relay`, `net/relay_client.rs` |
 | Native clients on ops (`--join` over the same WebSocket protocol; lightyear retired) | Done | `net/ops_client.rs` |
 | Guest editing UI (select/drag/rotate/scale/delete; `--web-edit`) | Done | `session-client.js` |
+| Cloud rooms: SpacetimeDB module as an authority (ops, undo, op log) | Done (module side; client SDK wiring next) | `crates/spacetime/src/room.rs` |
 
 Phase 1 and the core of phase 3 are verified end to end: a browser joined a
 hosting Gen over the invite link, received the world (revision 1), watched a
