@@ -7,16 +7,22 @@ repository.workspace = true
 description = "The shared world agent runtime — the tool-call protocol and pure SceneInterpreter that build localgpt-world-types entities, with the mistral.rs session loop behind `llm`"
 keywords = ["localgpt", "world", "3d", "agent"]
 
+[features]
+# The mistral.rs session loop (`run_session`, `tool_schemas`).
+llm = ["dep:mistralrs", "dep:tokio", "dep:etcetera"]
+# Apple-Silicon GPU path (macOS-only; never build this in Linux CI).
+llm-metal = ["llm", "mistralrs/metal"]
+# JsonSchema derives on the protocol types (world-types' `schema` pattern):
+# Verse's recipe/agent schemas derive schemars over them under its `llm`.
+schema = ["dep:schemars"]
+
 [dependencies]
 localgpt-world-types = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
+schemars = { version = "1.2", optional = true }
 
 mistralrs = { version = "0.8", optional = true }
 tokio = { version = "1", features = ["rt", "time"], optional = true }
 etcetera = { version = "0.11", optional = true }
-
-[features]
-llm = ["dep:mistralrs", "dep:tokio", "dep:etcetera"]
-llm-metal = ["llm", "mistralrs/metal"]

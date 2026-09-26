@@ -47,6 +47,7 @@ const MAX_DIRECTIONAL_INTENSITY: f32 = 15_000.0;
 /// the `at_role` fields are Verse's (song scoping and its agent-owned
 /// environment); MD never offers them, but the protocol — and Verse's cached
 /// `SceneBuild` sidecars — carry them, so they live here.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum AgentCommand {
@@ -71,6 +72,7 @@ pub enum AgentCommand {
 /// A song section's musical role — Verse's placement timing (an entity with
 /// `at_role` stays hidden until the transport reaches that section). MD has
 /// no transport and never emits it.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum SectionRole {
@@ -82,6 +84,7 @@ pub enum SectionRole {
     Outro,
 }
 
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpawnPrimitiveCmd {
     pub name: String,
@@ -107,6 +110,7 @@ pub struct SpawnPrimitiveCmd {
     pub at_role: Option<SectionRole>,
 }
 
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum PrimitiveShape {
@@ -121,6 +125,7 @@ pub enum PrimitiveShape {
 /// Place one curated pack asset. Two-level vocabulary (Verse's): the model
 /// names a semantic *kind*; the session resolves it to a concrete `asset`
 /// file before the command is applied, so the build is self-contained.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlaceAssetCmd {
     pub name: String,
@@ -141,6 +146,7 @@ pub struct PlaceAssetCmd {
 }
 
 /// Scatter many assets of one kind around a position in one command.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScatterFieldCmd {
     /// Unique prefix; instances are named `{name}_1` … `{name}_{count}`.
@@ -164,6 +170,7 @@ pub struct ScatterFieldCmd {
     pub at_role: Option<SectionRole>,
 }
 
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModifyEntityCmd {
     pub name: String,
@@ -176,6 +183,7 @@ pub struct ModifyEntityCmd {
     pub emissive: Option<[f32; 4]>,
 }
 
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetLightCmd {
     pub name: String,
@@ -191,6 +199,7 @@ pub struct SetLightCmd {
 /// Set the environment (background + ambient). Verse's agent owns these for
 /// its worlds; MD's environment is draft-owned and its tools never offer
 /// `set_environment` — the protocol carries it either way.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvironmentCmd {
     #[serde(default = "default_bg")]
@@ -236,6 +245,7 @@ impl AgentResponse {
 /// sidecars and replayed deterministically without the LLM. (MD caches the
 /// interpreter's final entities instead; both are valid consumers of the
 /// same protocol.)
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SceneBuild {
     pub commands: Vec<AgentCommand>,
