@@ -36,6 +36,7 @@ use localgpt_world_types::ChunkCoord;
 use tokio::sync::mpsc;
 
 use super::assets::{AssetStore, MAX_BLOB_BYTES, asset_router, encode_mesh, spawn_session_http};
+use super::guest_avatars;
 use super::interest::{
     ChunkSummaryBuilder, Relevance, ViewWindow, VisibilityCache, VisibilityChange, summaries_differ,
 };
@@ -439,7 +440,10 @@ impl Plugin for NetHostPlugin {
                 Update,
                 (web::web_drain_inbound, web::web_projection_sync)
                     .run_if(|room: Option<Res<web::WebRoom>>| room.is_some()),
-            );
+            )
+            // Guest avatars in the host's own window.
+            .init_resource::<guest_avatars::GuestAvatars>()
+            .add_systems(Update, guest_avatars::web_guest_avatars);
     }
 }
 

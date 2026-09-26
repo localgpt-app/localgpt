@@ -260,8 +260,9 @@ you'd hand your terminal to.
   avatar/player representation, no camera replication (the host only
   learns each client's camera position for interest management). Browser
   guests (`--web`) do see each other's avatars, but are read-only on the
-  document (prompts only), LAN-only (the internet relay is phase 4), and
-  the host's own window doesn't render guest avatars yet.
+  document (prompts only), and LAN-only (the internet relay is phase 4).
+  Guest avatars render in the host's window as labeled capsules
+  (`net/guest_avatars.rs`).
 - Web guests sync the whole document (no per-chunk interest management),
   and mesh assets (glTF) render as placeholders in the browser — both are
   fine at room scale and tracked as follow-ups.

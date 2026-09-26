@@ -25,6 +25,7 @@ pub mod assets;
 pub mod bake;
 pub mod client;
 pub mod client_lod;
+pub mod guest_avatars;
 pub mod host;
 pub mod interest;
 pub mod jobs;

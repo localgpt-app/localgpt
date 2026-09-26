@@ -259,7 +259,7 @@ world-types representations.
 | Browser join page and live viewer (ops applied live; guests chat + prompt) | Done | `crates/world-export/js/` |
 | Browser prompts through the room's job queue and scoped agent | Done | `web.rs`, `net/jobs.rs` |
 | Peer avatars in the browser; joins/leaves/presence fan-out | Done | `session-client.js` |
-| Peer avatars in the host's own window | Planned | — |
+| Peer avatars in the host's own window | Done | `crates/gen/src/net/guest_avatars.rs` |
 | Relay | Planned | — |
 | Op log persistence | Planned | — |
 
