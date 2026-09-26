@@ -2,9 +2,8 @@
 //!
 //! WG7.2: Generates a styled 2D preview image by combining the blockout depth
 //! map with a text prompt and style preset. Validates creative direction before
-//! full 3D generation. Actual image generation requires an external API
-//! (ControlNet/ComfyUI); this module provides the data types and prompt
-//! composition logic.
+//! full 3D generation. This module composes the prompt; the image comes from
+//! ComfyUI through [`super::comfyui`], driven by the `gen_preview_world` tool.
 
 use serde::{Deserialize, Serialize};
 

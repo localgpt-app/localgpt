@@ -32,6 +32,22 @@ pub const LOCALGPT_CONFIG: &str = "LOCALGPT_CONFIG";
 /// Agent ID override (CLI arg default env)
 pub const LOCALGPT_AGENT: &str = "LOCALGPT_AGENT";
 
+/// Gen: ComfyUI base URL for `gen_preview_world` (default `http://127.0.0.1:8188`)
+pub const LOCALGPT_GEN_COMFYUI_URL: &str = "LOCALGPT_GEN_COMFYUI_URL";
+
+/// Gen: checkpoint file name for the built-in ComfyUI preview workflow
+pub const LOCALGPT_GEN_COMFYUI_CHECKPOINT: &str = "LOCALGPT_GEN_COMFYUI_CHECKPOINT";
+
+/// Gen: depth ControlNet file name for the built-in ComfyUI preview workflow
+pub const LOCALGPT_GEN_COMFYUI_CONTROLNET: &str = "LOCALGPT_GEN_COMFYUI_CONTROLNET";
+
+/// Gen: path to a custom ComfyUI workflow (API format) for previews
+pub const LOCALGPT_GEN_COMFYUI_WORKFLOW: &str = "LOCALGPT_GEN_COMFYUI_WORKFLOW";
+
+/// Gen: asset model server base URL for `gen_generate_asset` /
+/// `gen_generate_texture` (default `http://127.0.0.1:8741`)
+pub const LOCALGPT_GEN_MODEL_SERVER: &str = "LOCALGPT_GEN_MODEL_SERVER";
+
 /// Test URL for SearXNG integration tests
 pub const LOCALGPT_TEST_SEARXNG_URL: &str = "LOCALGPT_TEST_SEARXNG_URL";
 

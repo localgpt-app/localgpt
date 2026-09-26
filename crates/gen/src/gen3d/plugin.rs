@@ -323,6 +323,7 @@ pub fn setup_gen_app(
         .init_resource::<BehaviorState>()
         .init_resource::<avatar::CameraMode>()
         .init_resource::<crate::gen3d::asset_gen::AssetGenManager>()
+        .insert_resource(super::model_server::AssetGenWorker::spawn())
         .init_resource::<super::pending_writes::PendingWrites>()
         .init_resource::<super::generation_log::GenerationLog>()
         .init_resource::<super::region_dirty::RegionDirtyFlags>()
@@ -338,6 +339,7 @@ pub fn setup_gen_app(
         .add_systems(Update, process_gen_commands)
         .add_systems(Update, process_pending_screenshots)
         .add_systems(Update, process_pending_gltf_loads)
+        .add_systems(Update, apply_asset_gen_updates)
         .add_systems(Update, process_pending_world_setup)
         .add_systems(Update, audio::spatial_audio_update)
         .add_systems(Update, audio::auto_infer_audio)
@@ -555,6 +557,7 @@ struct GenCommandParams<'w, 's> {
     navmesh_resource: Option<Res<'w, crate::worldgen::NavMeshResource>>,
     navmesh_overrides: ResMut<'w, crate::worldgen::NavMeshOverrides>,
     asset_gen_manager: ResMut<'w, crate::gen3d::asset_gen::AssetGenManager>,
+    asset_worker: Option<Res<'w, super::model_server::AssetGenWorker>>,
     pending_writes: ResMut<'w, super::pending_writes::PendingWrites>,
     generation_log: ResMut<'w, super::generation_log::GenerationLog>,
     region_dirty_flags: ResMut<'w, super::region_dirty::RegionDirtyFlags>,
@@ -3894,52 +3897,38 @@ fn process_gen_commands(
                 }
             }
 
-            GenCommand::PreviewWorld { config } => {
-                use crate::worldgen::preview::*;
-
-                let _full_prompt = build_preview_prompt(&config.prompt, config.style_preset);
-
-                let depth_map = config
-                    .depth_map_path
-                    .clone()
-                    .unwrap_or_else(|| "(auto-render needed)".to_string());
-
-                let style_name = config
-                    .style_preset
-                    .map(|s| format!("{:?}", s).to_lowercase())
-                    .unwrap_or_else(|| "custom".to_string());
-
-                let out_path = config.output_path.unwrap_or_else(|| {
-                    let folder = params.workspace.path.join("screenshots");
-                    let _ = std::fs::create_dir_all(&folder);
-                    let ts = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis();
-                    folder
-                        .join(format!("preview_{ts}.png"))
-                        .to_string_lossy()
-                        .to_string()
-                });
-
-                // NOTE: Actual image generation requires external API (ControlNet/ComfyUI).
-                // This handler returns metadata for the generation request.
-                GenResponse::PreviewGenerated {
-                    path: out_path,
-                    style: style_name,
-                    depth_map_used: depth_map,
-                }
-            }
-
             GenCommand::GenerateAsset {
                 prompt,
                 name,
+                reference_image,
                 position,
                 scale,
                 model,
                 quality,
-                ..
-            } => {
+                pbr,
+            } => 'asset: {
+                use super::model_server::AssetJob;
+                if params.registry.contains_name(&name) {
+                    break 'asset GenResponse::Error {
+                        message: format!("Entity '{name}' already exists; pick another name"),
+                    };
+                }
+                let reference_image = match reference_image {
+                    Some(path) => match resolve_gltf_path(&path, &params.workspace.path) {
+                        Some(p) => Some(p),
+                        None => {
+                            break 'asset GenResponse::Error {
+                                message: format!("Reference image not found: {path}"),
+                            };
+                        }
+                    },
+                    None => None,
+                };
+                let Some(worker) = params.asset_worker.as_ref() else {
+                    break 'asset GenResponse::Error {
+                        message: "Asset generation is not available in this session".into(),
+                    };
+                };
                 let task_id = params.asset_gen_manager.create_task(
                     crate::gen3d::asset_gen::GenerationTaskType::Mesh,
                     prompt.clone(),
@@ -3949,15 +3938,26 @@ fn process_gen_commands(
                     position,
                     scale,
                 );
-                let estimated = model.estimated_seconds(quality);
+                worker.submit(AssetJob::Mesh {
+                    task_id: task_id.clone(),
+                    prompt,
+                    model,
+                    quality,
+                    pbr,
+                    reference_image,
+                    out_dir: params.workspace.path.join("generated").join("meshes"),
+                });
                 GenResponse::AssetGenerating {
                     task_id,
-                    estimated_seconds: estimated,
+                    estimated_seconds: model.estimated_seconds(quality),
                     message: format!(
-                        "Generating '{}' with {} ({:?} quality). Will auto-spawn at [{}, {}, {}] when ready.",
+                        "Queued '{}' on the model server ({}, {:?} quality). It is not in the \
+                         scene yet: gen_generation_status reports progress, and '{}' spawns at \
+                         [{}, {}, {}] only once the task completes.",
                         name,
                         model.display_name(),
                         quality,
+                        name,
                         position[0],
                         position[1],
                         position[2]
@@ -3970,22 +3970,58 @@ fn process_gen_commands(
                 prompt,
                 style,
                 resolution,
-            } => {
+            } => 'texture: {
+                use super::model_server::AssetJob;
+                let Some(bevy_entity) = params.registry.get_entity(&entity) else {
+                    break 'texture GenResponse::Error {
+                        message: format!("Entity '{entity}' not found"),
+                    };
+                };
+                if params.material_handles.get(bevy_entity).is_err() {
+                    break 'texture GenResponse::Error {
+                        message: format!(
+                            "'{entity}' has no material of its own to texture (textures apply \
+                             to primitives and meshes, not groups or imported scenes)"
+                        ),
+                    };
+                }
+                let Some(worker) = params.asset_worker.as_ref() else {
+                    break 'texture GenResponse::Error {
+                        message: "Texture generation is not available in this session".into(),
+                    };
+                };
+                let shape = params
+                    .parametric_shapes
+                    .get(bevy_entity)
+                    .ok()
+                    .map(|p| p.shape.clone());
+                let model = crate::gen3d::asset_gen::GenerationModel::Hunyuan3d;
+                let quality = crate::gen3d::asset_gen::GenerationQuality::Standard;
                 let task_id = params.asset_gen_manager.create_task(
                     crate::gen3d::asset_gen::GenerationTaskType::Texture,
                     prompt.clone(),
                     entity.clone(),
-                    crate::gen3d::asset_gen::GenerationModel::Hunyuan3d,
-                    crate::gen3d::asset_gen::GenerationQuality::Standard,
+                    model,
+                    quality,
                     [0.0, 0.0, 0.0],
                     1.0,
                 );
+                worker.submit(AssetJob::Texture {
+                    task_id: task_id.clone(),
+                    prompt,
+                    style,
+                    resolution,
+                    shape,
+                    out_dir: params.workspace.path.join("generated").join("textures"),
+                });
                 GenResponse::TextureGenerating {
                     task_id,
-                    estimated_seconds: 60,
+                    estimated_seconds: model.estimated_seconds(quality),
                     message: format!(
-                        "Generating {:?} textures for '{}' at {}px resolution.",
-                        style, entity, resolution
+                        "Queued {:?} {}px textures for '{}' on the model server. The material \
+                         is unchanged until the task completes; gen_generation_status reports \
+                         progress.",
+                        style, resolution, entity
                     ),
                 }
             }
@@ -3995,6 +4031,9 @@ fn process_gen_commands(
                     "cancel" => {
                         if let Some(id) = &task_id {
                             let cancelled = params.asset_gen_manager.cancel_task(id);
+                            if cancelled && let Some(worker) = params.asset_worker.as_ref() {
+                                worker.cancel(id);
+                            }
                             serde_json::json!({ "cancelled": cancelled, "task_id": id }).to_string()
                         } else {
                             serde_json::json!({ "error": "task_id required for cancel" })
@@ -4003,30 +4042,21 @@ fn process_gen_commands(
                     }
                     _ => {
                         // "status" or "list"
-                        let active: Vec<_> = params
-                            .asset_gen_manager
-                            .active_tasks()
-                            .into_iter()
-                            .cloned()
-                            .collect();
-                        let completed: Vec<_> = params
-                            .asset_gen_manager
-                            .completed_tasks()
-                            .into_iter()
-                            .cloned()
-                            .collect();
-                        let failed: Vec<_> = params
-                            .asset_gen_manager
-                            .failed_tasks()
-                            .into_iter()
-                            .cloned()
-                            .collect();
+                        let mgr = &params.asset_gen_manager;
+                        let pick = |tasks: Vec<&crate::gen3d::asset_gen::GenerationTask>| {
+                            tasks
+                                .into_iter()
+                                .filter(|t| task_id.as_ref().is_none_or(|id| &t.task_id == id))
+                                .cloned()
+                                .collect::<Vec<_>>()
+                        };
+                        let active = pick(mgr.active_tasks());
                         serde_json::json!({
                             "active": active,
-                            "completed": completed,
-                            "failed": failed,
+                            "completed": pick(mgr.completed_tasks()),
+                            "failed": pick(mgr.failed_tasks()),
                             "queue_depth": active.len(),
-                            "model_server": params.asset_gen_manager.server_status,
+                            "model_server": super::model_server::server_url(),
                         })
                         .to_string()
                     }
@@ -5006,6 +5036,147 @@ fn process_pending_gltf_loads(
                 path: load.path,
             };
             let _ = channel_res.channels.resp_tx.send(response);
+        }
+    }
+}
+
+/// Apply what the asset generation worker reports: task progress, and when a
+/// job completes, spawn the generated mesh or put the generated texture maps
+/// on the entity's material.
+#[allow(clippy::too_many_arguments)]
+fn apply_asset_gen_updates(
+    worker: Option<Res<super::model_server::AssetGenWorker>>,
+    mut manager: ResMut<crate::gen3d::asset_gen::AssetGenManager>,
+    mut commands: Commands,
+    mut registry: ResMut<NameRegistry>,
+    mut next_entity_id: ResMut<NextEntityId>,
+    mut dirty_tracker: ResMut<DirtyTracker>,
+    asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    material_handles: Query<&MeshMaterial3d<StandardMaterial>>,
+    mesh_handles: Query<&Mesh3d>,
+    existing_textures: Query<&MaterialTextures>,
+    gen_entities: Query<&GenEntity>,
+) {
+    use super::model_server::AssetUpdate;
+    use crate::gen3d::asset_gen::GenerationTaskState as State;
+    let Some(worker) = worker else {
+        return;
+    };
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or_default();
+    for task in manager.tasks.values_mut() {
+        if matches!(task.state, State::Queued | State::Generating) {
+            task.elapsed_seconds = (now - task.created_at).max(0.0) as f32;
+        }
+    }
+
+    for update in worker.drain() {
+        let task_id = match &update {
+            AssetUpdate::Generating { task_id, .. }
+            | AssetUpdate::MeshReady { task_id, .. }
+            | AssetUpdate::TexturesReady { task_id, .. }
+            | AssetUpdate::Failed { task_id, .. }
+            | AssetUpdate::Cancelled { task_id } => task_id.clone(),
+        };
+        let Some(task) = manager.tasks.get_mut(&task_id) else {
+            continue;
+        };
+        if task.state == State::Cancelled {
+            continue;
+        }
+        match update {
+            AssetUpdate::Generating { .. } => task.state = State::Generating,
+            AssetUpdate::Cancelled { .. } => task.state = State::Cancelled,
+            AssetUpdate::Failed { error, .. } => {
+                task.state = State::Failed;
+                task.error = Some(error);
+            }
+            AssetUpdate::MeshReady { path, .. } => {
+                if registry.contains_name(&task.entity_name) {
+                    task.state = State::Failed;
+                    task.error = Some(format!(
+                        "'{}' was taken while generating; the mesh is at {}",
+                        task.entity_name,
+                        path.display()
+                    ));
+                    continue;
+                }
+                let asset_path = path.to_string_lossy().trim_start_matches('/').to_string();
+                let wid = next_entity_id.alloc();
+                let entity = commands
+                    .spawn((
+                        WorldAssetRoot(asset_server.load(format!("{asset_path}#Scene0"))),
+                        Transform::from_translation(Vec3::from_array(task.position))
+                            .with_scale(Vec3::splat(task.scale)),
+                        Name::new(task.entity_name.clone()),
+                        GenEntity {
+                            entity_type: GenEntityType::Mesh,
+                            world_id: wid,
+                        },
+                        GltfSource {
+                            path: path.to_string_lossy().into_owned(),
+                        },
+                    ))
+                    .id();
+                registry.insert_with_id(task.entity_name.clone(), entity, wid);
+                dirty_tracker.mark_dirty(wid);
+                task.state = State::Complete;
+                task.output_path = Some(path.to_string_lossy().into_owned());
+            }
+            AssetUpdate::TexturesReady { maps, .. } => {
+                let target = registry.get_entity(&task.entity_name);
+                let Some((entity, handle)) =
+                    target.and_then(|e| material_handles.get(e).ok().map(|h| (e, h.0.clone())))
+                else {
+                    task.state = State::Failed;
+                    task.error = Some(format!(
+                        "'{}' no longer exists or has no material",
+                        task.entity_name
+                    ));
+                    continue;
+                };
+                let mut material = materials.get(&handle).cloned().unwrap_or_default();
+                // A generated albedo carries its own colour.
+                material.base_color = Color::WHITE.with_alpha(material.base_color.alpha());
+                let mut textures = existing_textures.get(entity).cloned().unwrap_or_default();
+                for (slot, path) in &maps {
+                    let image = asset_server
+                        .load_builder()
+                        .with_settings(localgpt_world_bevy::texture_settings(*slot))
+                        .load(path.to_string_lossy().trim_start_matches('/').to_string());
+                    match slot {
+                        wt::TextureSlot::BaseColor => material.base_color_texture = Some(image),
+                        wt::TextureSlot::MetallicRoughness => {
+                            material.metallic_roughness_texture = Some(image)
+                        }
+                        wt::TextureSlot::Normal => material.normal_map_texture = Some(image),
+                        wt::TextureSlot::Emissive => material.emissive_texture = Some(image),
+                    }
+                    textures.set(*slot, path.to_string_lossy().into_owned());
+                }
+                if maps.iter().any(|(s, _)| *s == wt::TextureSlot::Normal)
+                    && let Ok(mesh) = mesh_handles.get(entity)
+                    && let Some(mut mesh) = meshes.get_mut(&mesh.0)
+                    && let Err(e) = mesh.generate_tangents()
+                {
+                    tracing::warn!(
+                        "Could not generate tangents for '{}': {e}",
+                        task.entity_name
+                    );
+                }
+                commands
+                    .entity(entity)
+                    .insert((MeshMaterial3d(materials.add(material)), textures));
+                if let Ok(gen_entity) = gen_entities.get(entity) {
+                    dirty_tracker.mark_dirty(gen_entity.world_id);
+                }
+                task.state = State::Complete;
+                task.output_path = maps.first().map(|(_, p)| p.to_string_lossy().into_owned());
+            }
         }
     }
 }
@@ -7547,6 +7718,143 @@ mod tests {
         );
         assert_eq!(normal.texture_descriptor.format, TextureFormat::Rgba8Unorm);
         assert_eq!(albedo.size().x, 64);
+    }
+
+    /// Completed generation jobs land in the scene: a mesh spawns as a saved
+    /// entity where it was asked for, texture maps go on the material, and a
+    /// failure is reported on the task.
+    #[test]
+    fn finished_generation_jobs_change_the_scene() {
+        use crate::gen3d::asset_gen::*;
+        use crate::gen3d::model_server::{AssetGenWorker, AssetUpdate};
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            bevy::asset::AssetPlugin {
+                file_path: "/".to_string(),
+                ..default()
+            },
+            bevy::image::ImagePlugin::default(),
+        ))
+        .init_asset::<StandardMaterial>()
+        .init_asset::<Mesh>()
+        .init_asset::<WorldAsset>()
+        .init_resource::<AssetGenManager>()
+        .init_resource::<NameRegistry>()
+        .init_resource::<NextEntityId>()
+        .init_resource::<DirtyTracker>()
+        .add_systems(Update, apply_asset_gen_updates);
+        let (worker, updates) = AssetGenWorker::from_updates();
+        app.insert_resource(worker);
+
+        let material = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+        let wall = app
+            .world_mut()
+            .spawn((
+                MeshMaterial3d(material),
+                GenEntity {
+                    entity_type: GenEntityType::Primitive,
+                    world_id: wt::EntityId(99),
+                },
+            ))
+            .id();
+        app.world_mut()
+            .resource_mut::<NameRegistry>()
+            .insert_with_id("wall".into(), wall, wt::EntityId(99));
+
+        let mut manager = app.world_mut().resource_mut::<AssetGenManager>();
+        let barrel = manager.create_task(
+            GenerationTaskType::Mesh,
+            "a barrel".into(),
+            "barrel".into(),
+            GenerationModel::TripoSG,
+            GenerationQuality::Draft,
+            [1.0, 0.0, -2.0],
+            2.0,
+        );
+        let moss = manager.create_task(
+            GenerationTaskType::Texture,
+            "moss".into(),
+            "wall".into(),
+            GenerationModel::Hunyuan3d,
+            GenerationQuality::Standard,
+            [0.0; 3],
+            1.0,
+        );
+        let broken = manager.create_task(
+            GenerationTaskType::Mesh,
+            "x".into(),
+            "x".into(),
+            GenerationModel::TripoSG,
+            GenerationQuality::Draft,
+            [0.0; 3],
+            1.0,
+        );
+        for update in [
+            AssetUpdate::MeshReady {
+                task_id: barrel.clone(),
+                path: "/tmp/gen/barrel.glb".into(),
+            },
+            AssetUpdate::TexturesReady {
+                task_id: moss.clone(),
+                maps: vec![(wt::TextureSlot::BaseColor, "/tmp/gen/moss.png".into())],
+            },
+            AssetUpdate::Failed {
+                task_id: broken.clone(),
+                error: "out of VRAM".into(),
+            },
+        ] {
+            updates.send(update).unwrap();
+        }
+        app.update();
+
+        let world = app.world_mut();
+        let barrel_entity = world
+            .resource::<NameRegistry>()
+            .get_entity("barrel")
+            .unwrap();
+        let t = world.get::<Transform>(barrel_entity).unwrap();
+        assert_eq!(t.translation, Vec3::new(1.0, 0.0, -2.0));
+        assert_eq!(t.scale, Vec3::splat(2.0));
+        assert!(
+            world.get::<GenEntity>(barrel_entity).is_some(),
+            "saved with the world"
+        );
+        assert_eq!(
+            world.get::<GltfSource>(barrel_entity).unwrap().path,
+            "/tmp/gen/barrel.glb"
+        );
+
+        let handle = world
+            .get::<MeshMaterial3d<StandardMaterial>>(wall)
+            .unwrap()
+            .0
+            .clone();
+        let material = world
+            .resource::<Assets<StandardMaterial>>()
+            .get(&handle)
+            .unwrap();
+        assert!(material.base_color_texture.is_some());
+        assert_eq!(
+            world.get::<MaterialTextures>(wall).unwrap().maps,
+            vec![(wt::TextureSlot::BaseColor, "/tmp/gen/moss.png".to_string())]
+        );
+
+        let manager = world.resource::<AssetGenManager>();
+        assert_eq!(
+            manager.get_task(&barrel).unwrap().state,
+            GenerationTaskState::Complete
+        );
+        assert_eq!(
+            manager.get_task(&moss).unwrap().state,
+            GenerationTaskState::Complete
+        );
+        let failed = manager.get_task(&broken).unwrap();
+        assert_eq!(failed.state, GenerationTaskState::Failed);
+        assert_eq!(failed.error.as_deref(), Some("out of VRAM"));
     }
 
     #[test]

@@ -18,6 +18,7 @@ pub mod generation_log;
 pub mod gltf_export;
 pub mod headless;
 pub mod mcp_relay;
+pub mod model_server;
 pub mod offscreen;
 pub mod pending_writes;
 pub mod plugin;

@@ -1363,7 +1363,7 @@ impl Tool for GenPreviewWorldTool {
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "gen_preview_world".to_string(),
-            description: "Generate a styled 2D preview image from the blockout depth map + text prompt. Validates creative direction before full 3D generation.".to_string(),
+            description: "Generate a styled 2D preview image of the scene with ComfyUI: a depth map of the current scene (rendered with gen_render_depth's defaults unless depth_map_path is given) conditions a depth ControlNet with the prompt. Writes a PNG and returns its path. Fails if ComfyUI is not running (LOCALGPT_GEN_COMFYUI_URL, default http://127.0.0.1:8188).".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -1373,7 +1373,7 @@ impl Tool for GenPreviewWorldTool {
                     },
                     "depth_map_path": {
                         "type": "string",
-                        "description": "Path to the depth map PNG (from gen_render_depth). If omitted, one will need to be rendered first."
+                        "description": "Path to a depth map PNG (from gen_render_depth). If omitted, one is rendered from the current scene."
                     },
                     "style_preset": {
                         "type": "string",
@@ -1386,7 +1386,11 @@ impl Tool for GenPreviewWorldTool {
                     },
                     "output_path": {
                         "type": "string",
-                        "description": "Custom output path for the preview image PNG"
+                        "description": "Where to write the preview PNG (default: next to the depth map)"
+                    },
+                    "seed": {
+                        "type": "integer",
+                        "description": "Sampler seed, for reproducible previews"
                     }
                 },
                 "required": ["prompt"]
@@ -1400,44 +1404,88 @@ impl Tool for GenPreviewWorldTool {
         let prompt = args["prompt"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: prompt"))?;
-
-        let depth_map_path = args["depth_map_path"].as_str().map(String::from);
-
         let style_preset = args["style_preset"].as_str().and_then(|s| {
             serde_json::from_value::<worldgen::PreviewStyle>(Value::String(s.to_string())).ok()
         });
+        let negative_prompt = args["negative_prompt"].as_str();
+        let seed = args["seed"].as_u64().unwrap_or_else(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64 % 1_000_000_007)
+                .unwrap_or(0)
+        });
 
-        let negative_prompt = args["negative_prompt"].as_str().map(String::from);
-        let output_path = args["output_path"].as_str().map(String::from);
+        // Check the service before rendering anything.
+        let comfy = worldgen::comfyui::ComfyClient::from_env()?;
+        comfy.check_reachable().await?;
 
-        let config = worldgen::PreviewConfig {
-            prompt: prompt.to_string(),
-            depth_map_path,
-            style_preset,
-            negative_prompt,
-            output_path,
+        let depth_map = match args["depth_map_path"].as_str() {
+            Some(path) => path.to_string(),
+            None => match self
+                .bridge
+                .send(GenCommand::RenderDepth {
+                    config: worldgen::DepthRenderConfig::default(),
+                    output_path: None,
+                })
+                .await?
+            {
+                GenResponse::DepthRendered { path, .. } => path,
+                GenResponse::Error { message } => {
+                    return Err(anyhow::anyhow!("Rendering the depth map failed: {message}"));
+                }
+                other => return Err(anyhow::anyhow!("Unexpected response: {:?}", other)),
+            },
         };
+        let depth_png = std::fs::read(&depth_map)
+            .map_err(|e| anyhow::anyhow!("Reading depth map {depth_map}: {e}"))?;
+        let (width, height) = image::load_from_memory(&depth_png)
+            .map(|img| worldgen::comfyui::latent_size(img.width(), img.height()))
+            .map_err(|e| anyhow::anyhow!("Depth map {depth_map} is not an image: {e}"))?;
 
-        match self
-            .bridge
-            .send(GenCommand::PreviewWorld { config })
-            .await?
-        {
-            GenResponse::PreviewGenerated {
-                path,
-                style,
-                depth_map_used,
-            } => Ok(json!({
-                "path": path,
-                "style": style,
-                "depth_map_used": depth_map_used,
-                "status": "metadata_ready",
-                "note": "Actual image generation requires external API (ControlNet/ComfyUI). This response contains the computed parameters for the generation request."
+        let full_prompt = worldgen::build_preview_prompt(prompt, style_preset);
+        let png = comfy
+            .generate(&worldgen::comfyui::PreviewRequest {
+                depth_png,
+                prompt: &full_prompt,
+                negative: negative_prompt,
+                width,
+                height,
+                seed,
             })
-            .to_string()),
-            GenResponse::Error { message } => Err(anyhow::anyhow!("{}", message)),
-            other => Err(anyhow::anyhow!("Unexpected response: {:?}", other)),
+            .await?;
+
+        let out_path = match args["output_path"].as_str() {
+            Some(p) => std::path::PathBuf::from(shellexpand::tilde(p).as_ref()),
+            None => {
+                let dir = std::path::Path::new(&depth_map)
+                    .parent()
+                    .map(std::path::Path::to_path_buf)
+                    .unwrap_or_else(std::env::temp_dir);
+                let ts = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0);
+                dir.join(format!("preview_{ts}.png"))
+            }
+        };
+        if let Some(parent) = out_path.parent() {
+            std::fs::create_dir_all(parent)?;
         }
+        std::fs::write(&out_path, &png)?;
+
+        Ok(json!({
+            "path": out_path.to_string_lossy(),
+            "width": width,
+            "height": height,
+            "style": style_preset
+                .map(|s| format!("{:?}", s).to_lowercase())
+                .unwrap_or_else(|| "custom".to_string()),
+            "depth_map_used": depth_map,
+            "prompt_used": full_prompt,
+            "seed": seed,
+            "comfyui": comfy.base_url(),
+        })
+        .to_string())
     }
 }
 

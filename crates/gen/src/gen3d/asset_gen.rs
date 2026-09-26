@@ -1,7 +1,8 @@
 //! AI-powered 3D asset generation infrastructure (AI1).
 //!
-//! Manages async generation tasks that communicate with a local Python model
-//! server for text/image -> 3D mesh and PBR texture generation.
+//! Tracks generation tasks for text/image → 3D mesh and PBR texture
+//! generation. The HTTP work happens in [`super::model_server`]; this is the
+//! state `gen_generation_status` reports.
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GenerationModel {
+    #[serde(rename = "tripo_sg")]
     TripoSG,
     Hunyuan3d,
     Hunyuan3dMini,
@@ -110,33 +112,10 @@ pub enum GenerationTaskType {
     Texture,
 }
 
-/// Model server status.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelServerStatus {
-    pub running: bool,
-    pub gpu_memory_used_mb: u64,
-    pub gpu_memory_total_mb: u64,
-    pub loaded_model: Option<String>,
-    pub port: u16,
-}
-
-impl Default for ModelServerStatus {
-    fn default() -> Self {
-        Self {
-            running: false,
-            gpu_memory_used_mb: 0,
-            gpu_memory_total_mb: 0,
-            loaded_model: None,
-            port: 8741,
-        }
-    }
-}
-
-/// Bevy resource managing generation tasks and model server state.
+/// Bevy resource tracking generation tasks.
 #[derive(Resource, Default)]
 pub struct AssetGenManager {
     pub tasks: HashMap<String, GenerationTask>,
-    pub server_status: ModelServerStatus,
     next_task_id: u32,
 }
 
@@ -168,7 +147,10 @@ impl AssetGenManager {
             scale,
             output_path: None,
             error: None,
-            created_at: 0.0, // Would use real time in actual impl
+            created_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs_f64())
+                .unwrap_or_default(),
             elapsed_seconds: 0.0,
             estimated_seconds: estimated,
         };

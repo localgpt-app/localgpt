@@ -10,6 +10,7 @@
 
 pub mod blockout;
 pub mod collision_check;
+pub mod comfyui;
 pub mod depth;
 pub mod navmesh;
 pub mod navmesh_edit;

@@ -240,10 +240,8 @@ pub enum GenCommand {
         output_path: Option<String>,
     },
 
-    // Tier 22: Styled Preview (WG7.2)
-    PreviewWorld {
-        config: worldgen::PreviewConfig,
-    },
+    // Tier 22: Styled Preview (WG7.2) runs in the gen_preview_world tool
+    // itself (ComfyUI over HTTP), using RenderDepth for the depth map.
 
     // Tier 23: AI Asset Generation (AI1)
     GenerateAsset {
@@ -1224,13 +1222,6 @@ pub enum GenResponse {
         width: u32,
         height: u32,
         depth_range: [f32; 2],
-    },
-
-    // Preview responses
-    PreviewGenerated {
-        path: String,
-        style: String,
-        depth_map_used: String,
     },
 
     // AI asset generation responses

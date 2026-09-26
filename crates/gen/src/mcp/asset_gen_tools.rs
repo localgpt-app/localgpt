@@ -8,6 +8,7 @@ use std::sync::Arc;
 use crate::gen3d::GenBridge;
 use crate::gen3d::asset_gen::*;
 use crate::gen3d::commands::*;
+use crate::gen3d::model_server;
 use localgpt_core::agent::ToolSchema;
 use localgpt_core::agent::tools::Tool;
 
@@ -34,7 +35,7 @@ impl Tool for GenGenerateAssetTool {
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "gen_generate_asset".to_string(),
-            description: "Generate a 3D mesh from a text prompt using a local AI model server. The asset is queued for generation and will auto-spawn at the given position when ready. Returns a task ID for tracking progress.".to_string(),
+            description: "Generate a 3D mesh from a text prompt on the local asset model server (LOCALGPT_GEN_MODEL_SERVER, default http://127.0.0.1:8741). Fails immediately if no server is running. Otherwise returns a task ID at once; the entity is not in the scene until the task completes, when it spawns at the given position (check with gen_generation_status).".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -131,6 +132,8 @@ impl Tool for GenGenerateAssetTool {
 
         let pbr = args["pbr"].as_bool().unwrap_or(true);
 
+        model_server::check_health(&model_server::server_url()).await?;
+
         let cmd = GenCommand::GenerateAsset {
             prompt,
             name,
@@ -182,7 +185,7 @@ impl Tool for GenGenerateTextureTool {
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "gen_generate_texture".to_string(),
-            description: "Generate PBR textures for an existing entity using a text prompt. Replaces the entity's material with AI-generated textures in the specified style.".to_string(),
+            description: "Generate PBR texture maps for an existing entity on the local asset model server. Fails immediately if no server is running. Returns a task ID at once; when the task completes the maps replace the entity's material textures (and are saved with the world). Check with gen_generation_status.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -234,6 +237,8 @@ impl Tool for GenGenerateTextureTool {
         };
 
         let resolution = args["resolution"].as_u64().unwrap_or(1024) as u32;
+
+        model_server::check_health(&model_server::server_url()).await?;
 
         let cmd = GenCommand::GenerateTexture {
             entity,

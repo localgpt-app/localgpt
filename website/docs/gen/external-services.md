@@ -26,10 +26,10 @@ ollama pull llama3.2:3b
 # Moderate: depth-conditioned preview (Python)
 git clone https://github.com/comfyanonymous/ComfyUI.git
 cd ComfyUI && pip install -r requirements.txt
-python main.py --port 7860
+python main.py   # listens on 127.0.0.1:8188
 
 # Advanced: 3D asset generation (Python + large GPU)
-# (Model server implementation pending)
+# Any server implementing the model server protocol below, on port 8741
 ```
 
 ## Ollama — NPC Brains
@@ -115,24 +115,36 @@ Generates a styled 2D preview image from a scene's depth map. Lets the AI valida
 git clone https://github.com/comfyanonymous/ComfyUI.git
 cd ComfyUI
 pip install -r requirements.txt
-python main.py --listen 0.0.0.0 --port 7860
 
-# Download ControlNet depth model
-cd models/controlnet
-wget https://huggingface.co/lllyasviel/control_v11f1p_sd15_depth/resolve/main/diffusion_pytorch_model.safetensors
+# SD 1.5 checkpoint and depth ControlNet, under the names Gen asks for
+wget -P models/checkpoints https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors
+wget -O models/controlnet/control_v11f1p_sd15_depth.safetensors \
+  https://huggingface.co/lllyasviel/control_v11f1p_sd15_depth/resolve/main/diffusion_pytorch_model.safetensors
+
+python main.py   # listens on 127.0.0.1:8188
 ```
 
 ### How It Works
 
 ```
-gen_render_depth (fully implemented)
-  → depth map PNG (grayscale)
-    ↓
-gen_preview_world (scaffolded — needs HTTP client)
-  → POST depth map + prompt + style to ComfyUI
-    ↓
-  ← styled 2D preview PNG
+gen_preview_world { prompt, style_preset }
+  → depth map: depth_map_path, or gen_render_depth of the current scene
+  → POST /upload/image, POST /prompt (checkpoint + depth ControlNet workflow)
+  → poll GET /history/{id}, fetch GET /view
+  ← preview PNG written next to the depth map (or output_path)
 ```
+
+If ComfyUI isn't reachable the tool fails with an error; it never returns a
+path it didn't write.
+
+### Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `LOCALGPT_GEN_COMFYUI_URL` | `http://127.0.0.1:8188` | ComfyUI server |
+| `LOCALGPT_GEN_COMFYUI_CHECKPOINT` | `v1-5-pruned-emaonly.safetensors` | Checkpoint in `models/checkpoints/` |
+| `LOCALGPT_GEN_COMFYUI_CONTROLNET` | `control_v11f1p_sd15_depth.safetensors` | Depth ControlNet in `models/controlnet/` |
+| `LOCALGPT_GEN_COMFYUI_WORKFLOW` | — | Your own workflow (API format) instead of the built-in one; `{{prompt}}`, `{{negative}}`, `{{depth_image}}`, `{{width}}`, `{{height}}` and `{{seed}}` are filled in |
 
 ### Style Presets
 
@@ -147,35 +159,59 @@ gen_preview_world (scaffolded — needs HTTP client)
 ### GPU Requirements
 
 - 2-4 GB VRAM for SD 1.5 + ControlNet
-- 6-8 GB VRAM for SDXL + ControlNet
+- 6-8 GB VRAM for SDXL + ControlNet (use a custom workflow)
 - ~10-30 seconds per image at 512x512
 
 ### Tools
 
 | Tool | Description |
 |------|-------------|
-| `gen_render_depth` | Render a depth map from the current scene (fully implemented) |
-| `gen_preview_world` | Generate a styled 2D preview from a depth map (needs service) |
-
-:::info Status
-Depth map rendering is fully implemented. The HTTP client to ComfyUI is pending.
-:::
+| `gen_render_depth` | Render a depth map from the current scene |
+| `gen_preview_world` | Generate a styled 2D preview from a depth map through ComfyUI |
 
 ## Model Server — 3D Assets
 
-Generates 3D meshes from text prompts using local open-source models. The AI calls `gen_generate_asset`, gets a task ID, and the mesh auto-spawns when ready.
+Generates 3D meshes and PBR textures from text prompts using local open-source models. LocalGPT Gen talks to the server over HTTP; it doesn't ship one, so any server that implements the protocol below works.
 
 ### How It Works
 
 ```
-gen_generate_asset { prompt: "medieval sword", model: "triposg" }
-  → Task queued, returns task_id + ETA
+gen_generate_asset { prompt: "medieval sword", name: "sword", model: "tripo_sg" }
+  → GET /health: fails right away if no server is running
+  → POST /generate, returns a task_id; the tool returns at once
     ↓
-Background: POST to model server at localhost:8741
-  → GPU inference (30-180 seconds)
+Background: poll GET /status/{id} every 2 s (gen_generation_status shows it)
     ↓
-Complete: .glb copied to skill assets, auto-spawned into scene
+Complete: GET /result/{id}/mesh → workspace/generated/meshes/{task}.glb,
+  spawned as "sword" at the requested position and scale, saved with the world
 ```
+
+`gen_generate_texture { entity, prompt }` works the same way and, on completion, downloads the maps it reports (`base_color`, `metallic_roughness`, `normal`, `emissive`) into `workspace/generated/textures/` and puts them on the entity's material. Saving the world copies them into its `assets/textures/`.
+
+### Protocol
+
+Base URL `LOCALGPT_GEN_MODEL_SERVER` (default `http://127.0.0.1:8741`).
+
+| Request | Response |
+|---|---|
+| `GET /health` | `200` with any JSON (`{"status": "ok", ...}`) |
+| `POST /generate` | `{"task_id": "..."}` |
+| `GET /status/{id}` | `{"status": "queued" \| "generating" \| "complete" \| "failed", "progress": 0.4, "error": "...", "outputs": ["mesh"]}` |
+| `GET /result/{id}/{output}` | The file: `mesh` is a GLB, texture maps are PNGs |
+| `POST /cancel/{id}` | Anything |
+
+`POST /generate` bodies:
+
+```json
+{ "type": "mesh", "prompt": "medieval sword", "model": "tripo_sg",
+  "quality": "standard", "pbr": true, "output_format": "glb",
+  "reference_image": null }
+
+{ "type": "texture", "prompt": "mossy stone", "style": "realistic",
+  "resolution": 1024, "shape": { "Cuboid": { "x": 1, "y": 1, "z": 1 } } }
+```
+
+`reference_image` is base64 image data or `null`; `shape` is the target's parametric shape, or `null` for imported meshes.
 
 ### Supported Models
 
@@ -191,9 +227,5 @@ Complete: .glb copied to skill assets, auto-spawned into scene
 | Tool | Description |
 |------|-------------|
 | `gen_generate_asset` | Queue a 3D mesh generation task |
-| `gen_asset_status` | Check generation progress |
-| `gen_list_assets` | List all asset generation tasks |
-
-:::info Status
-The Rust infrastructure is complete (task manager, MCP tools, command handlers). The Python model server (`localgpt-model-server`) is pending implementation.
-:::
+| `gen_generate_texture` | Queue PBR texture maps for an entity |
+| `gen_generation_status` | Check progress, list tasks, or cancel one |
