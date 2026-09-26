@@ -219,7 +219,7 @@ presence coalesced to 10 Hz per peer.
 | Content-addressed mesh streaming | Kept; browsers fetch the same blobs (later) |
 | Batch `expected_revision` | Becomes the protocol's conflict check |
 | SpacetimeDB tables and job queue | The cloud-room authority (phase 8) |
-| Lightyear component replication | Retired once native `--join` uses ops (phase 7) |
+| Lightyear component replication | Retired (phase 7): one protocol for every client |
 
 ## Scope
 
@@ -240,7 +240,7 @@ Steps 1–4 add up to the first demo worth showing.
 | 4 | **Relay and invite links.** Room codes through a relay with TLS. | A guest on another network joins from a link. |
 | 5 | **Persistence and history.** Op log in the world folder; replay; per-user undo; time-lapse. | A room reopened later has its history; a build can be replayed. |
 | 6 | **Guest editing.** Editor role; direct manipulation; guests bringing their own model. | A guest moves an object and a desktop guest's own agent builds, both under their names. (Browser editing is Done via `--web-edit`; BYO-model guests arrive with phase 7.) |
-| 7 | **Native clients on ops.** `--join` uses the op protocol; lightyear removed. | One protocol for every client. |
+| 7 | **Native clients on ops.** `--join` uses the op protocol; lightyear removed. | Done — one protocol for every client (two-process verified). |
 | 8 | **Cloud rooms.** The SpacetimeDB module as an authority. | A room lives without any host running. |
 
 Format gaps that block full sync, and are lost on save today too: terrain,
@@ -266,6 +266,7 @@ world-types representations.
 | Time-lapse replay (`--replay ops.jsonl`) | Done | `gen3d/replay.rs` |
 | Fully offline join page (vendored three.js) | Done | `world-export/js/vendor/` |
 | Relay | Planned | — |
+| Native clients on ops (`--join` over the same WebSocket protocol; lightyear retired) | Done | `net/ops_client.rs` |
 | Guest editing UI (select/drag/rotate/scale/delete; `--web-edit`) | Done | `session-client.js` |
 
 Phase 1 and the core of phase 3 are verified end to end: a browser joined a

@@ -11,7 +11,7 @@ use bevy_egui::{EguiContexts, EguiPlugin, EguiPreUpdateSet, EguiPrimaryContextPa
 use tokio::sync::mpsc;
 
 use super::panel::{ACCENT, ERROR, hold_game_keys_while_typing};
-use crate::net::client::{ClientEntry, ClientPanelLog};
+use crate::net::ops_client::{ClientEntry, ClientPanelLog};
 
 /// Adds the viewer's prompt panel. Add it after `NetClientPlugin`, which
 /// owns [`ClientPanelLog`].

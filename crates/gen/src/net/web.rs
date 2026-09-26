@@ -82,11 +82,16 @@ pub struct WebBridge {
     next_conn: Arc<AtomicU64>,
     /// Invite-link bearer token; `None` for open sessions.
     token: Option<String>,
+    /// Session name, for `/session-info`.
+    session_name: String,
 }
 
 impl WebBridge {
     /// A bridge plus the receiver Bevy drains.
-    pub fn new(token: Option<String>) -> (Self, mpsc::UnboundedReceiver<InboundEvent>) {
+    pub fn new(
+        token: Option<String>,
+        session_name: &str,
+    ) -> (Self, mpsc::UnboundedReceiver<InboundEvent>) {
         let (inbound, rx) = mpsc::unbounded_channel();
         (
             Self {
@@ -94,6 +99,7 @@ impl WebBridge {
                 conns: Arc::new(StdMutex::new(HashMap::new())),
                 next_conn: Arc::new(AtomicU64::new(0)),
                 token,
+                session_name: session_name.to_string(),
             },
             rx,
         )
@@ -115,6 +121,9 @@ pub struct WebRoom {
     scene_rebuild_pending: bool,
     /// Browser guests join as editors (direct edits) instead of guests.
     pub web_edit: bool,
+    /// The session PIN, when this isn't an open session. Native guests
+    /// authenticate with it (browsers use the invite token).
+    session_pin: Option<String>,
 }
 
 impl WebRoom {
@@ -125,6 +134,7 @@ impl WebRoom {
         workspace: &std::path::Path,
         resume: Option<&str>,
         web_edit: bool,
+        session_pin: Option<String>,
     ) -> Self {
         let mut room = Self {
             authority: Authority::new(session_name, Limits::default()),
@@ -135,6 +145,7 @@ impl WebRoom {
             op_log: None,
             scene_rebuild_pending: false,
             web_edit,
+            session_pin,
         };
         // History first: replay what a previous session left behind, then
         // open the log so this session's ops keep appending to it.
@@ -299,6 +310,7 @@ pub fn web_router(bridge: WebBridge) -> axum::Router {
         .route("/", get(join_page))
         .route("/world-viewer.js", get(viewer_js))
         .route("/session-client.js", get(client_js))
+        .route("/session-info", get(session_info))
         .route("/vendor/three.module.js", get(vendor_three))
         .route(
             "/vendor/three/addons/controls/OrbitControls.js",
@@ -316,6 +328,36 @@ pub fn web_router(bridge: WebBridge) -> axum::Router {
         .with_state(bridge)
 }
 
+/// Serve the session's HTTP routes on `addr` from a background thread.
+/// Binds synchronously so the caller learns about port conflicts.
+pub fn spawn_session_http(router: axum::Router, addr: std::net::SocketAddr) -> std::io::Result<()> {
+    let listener = std::net::TcpListener::bind(addr)?;
+    listener.set_nonblocking(true)?;
+    std::thread::Builder::new()
+        .name("gen-session-http".into())
+        .spawn(move || {
+            let rt = match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(rt) => rt,
+                Err(e) => {
+                    eprintln!("Session HTTP runtime failed: {e}");
+                    return;
+                }
+            };
+            rt.block_on(async move {
+                let Ok(listener) = tokio::net::TcpListener::from_std(listener) else {
+                    return;
+                };
+                if let Err(e) = axum::serve(listener, router).await {
+                    eprintln!("Session HTTP server stopped: {e}");
+                }
+            });
+        })?;
+    Ok(())
+}
+
 async fn join_page() -> impl IntoResponse {
     Html(JOIN_PAGE_HTML)
 }
@@ -325,6 +367,16 @@ async fn viewer_js() -> impl IntoResponse {
         [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
         localgpt_world_export::html::WORLD_VIEWER_JS,
     )
+}
+
+/// What a joiner needs to know before saying hello (protocol version,
+/// session name, whether a secret is required).
+async fn session_info(State(bridge): State<WebBridge>) -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "protocol": sync::PROTOCOL_VERSION,
+        "name": bridge.session_name,
+        "secret_required": bridge.token.is_some(),
+    }))
 }
 
 async fn client_js() -> impl IntoResponse {
@@ -570,12 +622,16 @@ fn handle_client_msg(
                 );
                 return;
             }
-            // Invite links are bearer tokens. `==` on the hex strings is
-            // fine on a LAN; the relay phase adds TLS.
-            if let Some(expected) = &room.bridge.token
-                && token.as_deref() != Some(expected.as_str())
-            {
-                deliver(room, error_to(id, "bad invite token"));
+            // Two bearer secrets open the room: the invite token (browser
+            // links) and the session PIN (native --join). `==` on the
+            // strings is fine on a LAN; the relay phase adds TLS.
+            let presented = token.as_deref().unwrap_or("");
+            let ok = match (&room.bridge.token, &room.session_pin) {
+                (None, None) => true,
+                (t, p) => t.as_deref() == Some(presented) || p.as_deref() == Some(presented),
+            };
+            if !ok {
+                deliver(room, error_to(id, "bad invite token or PIN"));
                 return;
             }
             let role = if room.web_edit {
@@ -936,7 +992,7 @@ mod tests {
 
     #[test]
     fn bridge_carries_events_and_frames() {
-        let (bridge, mut rx) = WebBridge::new(Some("tok".into()));
+        let (bridge, mut rx) = WebBridge::new(Some("tok".into()), "test");
         let (tx, _frame_rx) = mpsc::unbounded_channel::<OutboundFrame>();
         let id = 7;
         bridge.conns.lock().unwrap().insert(id, ConnTx { tx });

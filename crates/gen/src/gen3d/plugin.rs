@@ -6383,11 +6383,6 @@ fn attach_to_parent(commands: &mut Commands, child: Entity, parent: Entity) {
     commands.entity(child).insert(ChildOf(parent));
 }
 
-/// Convert a `wt::Shape` to a Bevy `Mesh` handle.
-pub(crate) fn shape_to_mesh(shape: &wt::Shape, meshes: &mut ResMut<Assets<Mesh>>) -> Handle<Mesh> {
-    meshes.add(localgpt_world_bevy::shape_mesh(shape))
-}
-
 /// Parse an alpha mode string (e.g., "blend", "opaque", "mask:0.5").
 fn parse_alpha_mode(s: &str) -> AlphaMode {
     match s.to_lowercase().as_str() {
@@ -6405,11 +6400,6 @@ fn parse_alpha_mode(s: &str) -> AlphaMode {
         }
         _ => AlphaMode::Opaque,
     }
-}
-
-/// Convert a `MaterialDef` to a Bevy `StandardMaterial`.
-pub(crate) fn material_def_to_standard(mat: &wt::MaterialDef) -> StandardMaterial {
-    localgpt_world_bevy::standard_material(mat)
 }
 
 /// A `MaterialDef` as a `StandardMaterial` with its texture maps loaded.

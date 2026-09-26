@@ -1,64 +1,61 @@
-//! Collaborative multiplayer for gen.
+//! Collaborative multiplayer for gen (the v2 op-based architecture).
 //!
 //! Implements `docs/rfcs/multiplayer/collaborative-world-engine-architecture.md`:
+//! a world is a shared document, every change is a world-types `EditOp`, and
+//! one authority per room checks, orders and fans out those ops.
 //!
-//! - **§1 listen server:** one desktop `localgpt-gen` instance acts as
-//!   authoritative host and rendering client (`--host`); secondary clients
-//!   discover the session over mDNS and join as viewers (`--join`) that can
-//!   send natural-language prompts to the host's agent.
-//! - **§2 scaling mechanisms**, applied to the same session:
-//!   - spatial interest management — per-client chunk windows
-//!     ([`interest`], host-side lightyear visibility);
-//!   - an asynchronous inference queue with scaffold-then-replace
-//!     ([`jobs`], replicated `NetScaffold`s);
-//!   - HLOD chunk impostors and static mesh baking ([`client_lod`],
-//!     [`bake`]);
-//!   - content-addressed on-demand asset streaming ([`assets`]).
+//! - [`web`] — the host side: the room authority, the join page, the
+//!   WebSocket endpoint, and the scene projection (scene → ops).
+//! - [`ops_client`] — the native client (`--join`): the full gen scene
+//!   driven by the room.
+//! - [`guest_avatars`] — peer capsules, rendered on both sides.
+//! - [`jobs`] — the prompt job queue shared by every client kind.
+//! - [`mdns`] — LAN session discovery.
+//! - [`remote_scope`] — the scene-only agent room prompts run on.
 //!
-//! The wire vocabulary is `localgpt-world-types` (the same model the
-//! SpacetimeDB tier uses) and entities are identified by stable
-//! host-assigned ids, so the cloud tier can reuse the protocol.
+//! The wire vocabulary is `localgpt-world-types` (via
+//! `localgpt-world-sync`), so any renderer that reads the world format can
+//! join — the browser client uses the same protocol.
 //!
 //! See `docs/gen/multiplayer.md` for the full design and limitations.
 
-pub mod assets;
-pub mod bake;
-pub mod client;
-pub mod client_lod;
 pub mod guest_avatars;
 pub mod host;
-pub mod interest;
 pub mod jobs;
 pub mod mdns;
-pub mod pairing;
-pub mod protocol;
+pub mod ops_client;
 pub mod remote_scope;
 pub mod web;
 
-/// Default UDP port for hosted sessions.
+/// Default port for hosted sessions.
 ///
 /// (9877 is the inspector WebSocket, 9878 the MCP relay.)
 pub const DEFAULT_PORT: u16 = 9879;
 
-/// Lightyear netcode protocol id — hosts and clients must match.
-///
-/// 2: §2 additions (view reports, prompt jobs/scaffolds, chunk summaries).
-/// 3: per-session keys + PIN pairing (host-minted connect tokens).
-pub const PROTOCOL_ID: u64 = 3;
+/// Session discovery id — hosts announce and clients browse this mDNS
+/// service instance marker. Bumped with the ops protocol (v1).
+pub const PROTOCOL_ID: u64 = 4;
 
-/// Netcode private key for `--open` sessions only.
-///
-/// Open sessions skip pairing: both sides derive connect tokens from this
-/// public constant, so anyone on the LAN with the binary can connect. Normal
-/// sessions use a random per-session key that never leaves the host and
-/// hand out tokens only after PIN pairing (see [`pairing`]).
-pub const OPEN_SESSION_KEY: [u8; 32] = [0u8; 32];
+/// Env var carrying a session PIN to a `--join` child process. Set by the
+/// desktop panel when it spawns a viewer window, so the child (which has no
+/// terminal to type a PIN into) can join immediately.
+pub const JOIN_PIN_ENV: &str = "LOCALGPT_GEN_JOIN_PIN";
 
-/// Env var carrying an already-paired connect token (base64) to a
-/// `--join` child process. Set by the desktop panel when it spawns a
-/// viewer window after pairing on the user's behalf, so the child (which
-/// has no terminal to type a PIN into) can connect immediately.
-pub const JOIN_TOKEN_ENV: &str = "LOCALGPT_GEN_JOIN_TOKEN";
+/// A fresh 6-digit session PIN.
+pub fn generate_pin() -> String {
+    let n: u32 = rand::random_range(0..1_000_000);
+    format!("{n:06}")
+}
+
+/// Format a PIN for display (grouped digits).
+pub fn format_pin(pin: &str) -> String {
+    pin.to_string()
+}
+
+/// Strip formatting from a PIN the user typed (spaces, dashes).
+pub fn normalize_pin(input: &str) -> String {
+    input.chars().filter(|c| c.is_ascii_digit()).collect()
+}
 
 /// Parse a peer address: `host:port`, `ip:port`, or a bare host (port
 /// defaults to the session port).
@@ -91,5 +88,12 @@ mod tests {
         assert_eq!(parse_peer_addr("192.168.1.5:9879").unwrap().port(), 9879);
         assert_eq!(parse_peer_addr("192.168.1.5").unwrap().port(), DEFAULT_PORT);
         assert!(parse_peer_addr("not a host").is_err());
+    }
+
+    #[test]
+    fn pins_normalize() {
+        assert_eq!(normalize_pin("482 913"), "482913");
+        assert_eq!(normalize_pin("482-913"), "482913");
+        assert_eq!(generate_pin().len(), 6);
     }
 }

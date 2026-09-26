@@ -1,67 +1,23 @@
-//! Listen-server host: authoritative ECS + rendering client in one process
-//! (§1 of the collaborative world engine spec), plus the §2 mechanisms that
-//! scale it past a handful of LAN peers.
+//! Host-side session lifecycle: brings a hosted session up (secrets, session
+//! HTTP with the ops room, mDNS) and runs the prompt job queue whose worker
+//! is the agent loop.
 //!
-//! The host is the existing single-player gen app plus these additions:
-//!
-//! 1. A lightyear UDP server (netcode-authenticated) that replicates the
-//!    world-model components from [`super::protocol`] to connected clients.
-//!    Entities are attached to replication as they spawn and re-synced
-//!    whenever their live components change — the existing `GenCommand`
-//!    handlers are untouched.
-//! 2. An mDNS announcer so LAN clients can discover the session.
-//! 3. **Spatial interest management** (§2 AoI): clients report their camera
-//!    position and only receive entities in chunks around them, via
-//!    lightyear's per-link visibility. Chunks outside their window are
-//!    represented by replicated [`NetChunkSummary`] impostors (§2 HLOD).
-//! 4. **Asynchronous inference queue** (§2): client prompts become jobs in a
-//!    [`JobQueue`], each shown to everyone as a replicated [`NetScaffold`]
-//!    until the agent finishes it. The agent loop is the (single) worker; it
-//!    is handed one job at a time and reports start/finish back.
+//! The room itself (document, peers, ops fan-out) lives in
+//! [`super::web::WebRoom`]; the scene projection there turns the host's
+//! world into ops. This module owns only what the room doesn't: session
+//! setup, the job queue, job scaffolds in the host's own window, and the
+//! agent loop's chat channel.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::Mutex;
 
-use bevy::camera::primitives::Aabb;
 use bevy::prelude::*;
-use lightyear::connection::client_of::ClientOf;
-use lightyear::connection::server::Start;
-use lightyear::netcode::NetcodeServer;
-use lightyear::prelude::server::*;
-use lightyear::prelude::*;
-use localgpt_world_types as wt;
-use localgpt_world_types::ChunkCoord;
 use tokio::sync::mpsc;
 
-use super::assets::{AssetStore, MAX_BLOB_BYTES, asset_router, encode_mesh, spawn_session_http};
-use super::guest_avatars;
-use super::interest::{
-    ChunkSummaryBuilder, Relevance, ViewWindow, VisibilityCache, VisibilityChange, summaries_differ,
-};
-use super::jobs::{JobId, JobQueue, JobState};
+use super::jobs::{JobId, JobQueue};
 use super::mdns::SessionAnnouncer;
-use super::pairing::{PairingHost, format_pin, generate_pin, generate_private_key, pairing_router};
-use super::protocol::{
-    ChatChannel, ClientPrompt, ClientView, HostChat, JobStatus, NetChunkSummary, NetKind,
-    NetMeshAsset, NetProtocolPlugin, NetScaffold, NetTransform, NetWorldMeta, apply_net_components,
-    transforms_differ,
-};
-use super::web;
-use crate::gen3d::audio::AudioEmitter;
-use crate::gen3d::behaviors::EntityBehaviors;
-use crate::gen3d::plugin::{CurrentWorld, SnapshotQueries, snapshot_entity};
-use crate::gen3d::registry::{GenEntity, GenEntityType, GltfSource, NameRegistry, ParametricShape};
-
-/// How often replicated component deltas are sampled and sent.
-const REPLICATION_SEND_INTERVAL: Duration = Duration::from_millis(50);
-
-/// Maximum simultaneous clients for a LAN session.
-const MAX_CLIENTS: usize = 8;
-
-/// How often chunk summaries (HLOD impostors) are recomputed.
-const SUMMARY_INTERVAL_SECS: f32 = 1.0;
+use super::web::{self, WebRoom};
 
 /// A client prompt handed to the agent loop as a job.
 #[derive(Debug, Clone)]
@@ -83,11 +39,18 @@ pub enum JobEvent {
     },
 }
 
+/// A chat line from the agent loop, shown to every guest.
+#[derive(Debug, Clone)]
+pub struct HostChat {
+    pub speaker: String,
+    pub text: String,
+}
+
 /// Host-side options, built by the CLI when `--host` is given.
 pub struct NetHostOptions {
     /// Session name shown in mDNS discovery and to joining clients.
     pub session_name: String,
-    /// UDP port to listen on.
+    /// Port to listen on.
     pub port: u16,
     /// Sender half of the job channel into the agent loop.
     pub job_tx: mpsc::UnboundedSender<RemoteJob>,
@@ -95,8 +58,7 @@ pub struct NetHostOptions {
     pub chat_rx: mpsc::UnboundedReceiver<HostChat>,
     /// Receiver half of worker progress events.
     pub job_events_rx: mpsc::UnboundedReceiver<JobEvent>,
-    /// Skip PIN pairing and use the public open-session key (trusted LAN /
-    /// development only).
+    /// Skip the PIN: anyone on the LAN can join (trusted networks only).
     pub open: bool,
     /// Run remote prompts on the host's own agent with all of its tools
     /// (`--remote-tools full`). Default: a scene-only agent
@@ -120,29 +82,25 @@ pub struct NetHostOptions {
 }
 
 /// What joiners need to know about the running session, for in-window
-/// display (the desktop prompt panel). The PIN is read live because it
-/// rotates after too many wrong guesses.
+/// display (the desktop prompt panel).
 #[derive(Resource, Clone)]
 pub struct HostSessionInfo {
     pub session_name: String,
     pub port: u16,
-    /// Currently connected guests (kept in step by the lifecycle systems).
+    /// Currently connected guests (kept in step by the room).
     pub clients: usize,
-    pairing: Option<Arc<PairingHost>>,
+    pin: Option<String>,
 }
 
 impl HostSessionInfo {
-    /// The current session PIN, formatted like the console shows it, or
-    /// `None` for an open session.
+    /// The current session PIN, or `None` for an open session.
     pub fn pin(&self) -> Option<String> {
-        self.pairing
-            .as_ref()
-            .map(|pairing| format_pin(&pairing.pin()))
+        self.pin.clone()
     }
 
     /// One line for a status display.
     pub fn summary(&self) -> String {
-        let mut line = match self.pin() {
+        let mut line = match &self.pin {
             Some(pin) => format!("Hosting '{}' · PIN {pin}", self.session_name),
             None => format!("Hosting '{}' · open session (no PIN)", self.session_name),
         };
@@ -167,7 +125,7 @@ fn plural(count: usize) -> &'static str {
 pub struct HostStartRequest {
     pub session_name: String,
     pub port: u16,
-    /// Open session: no PIN, public netcode key (trusted LANs only).
+    /// Open session: no PIN (trusted LANs only).
     pub open: bool,
     /// Remote prompts run on the host's own agent with full tool access.
     pub full_access: bool,
@@ -264,14 +222,13 @@ pub fn create_host_channels() -> (NetHostOptions, AgentNetHooks) {
     )
 }
 
-/// Resource: the §2 prompt queue plus the channels to/from its worker.
+/// Resource: the prompt queue plus the channels to/from its worker, and the
+/// scaffold entities marking running builds in the host's own window.
 #[derive(Resource)]
 pub(crate) struct HostJobs {
     queue: JobQueue,
-    /// Replicated scaffold entity per job.
-    scaffolds: HashMap<JobId, Entity>,
-    /// Link entity of each job's requester (for targeted status messages).
-    requester_links: HashMap<JobId, Entity>,
+    /// Translucent marker per job (its anchor), shown while it runs.
+    scaffolds: HashMap<JobId, (Entity, [f32; 3])>,
     /// A job has been handed to the worker and not yet finished.
     dispatched: Option<JobId>,
     job_tx: mpsc::UnboundedSender<RemoteJob>,
@@ -322,34 +279,7 @@ struct HostAnnouncer {
     _announcer: SessionAnnouncer,
 }
 
-/// Resource: each client link's area of interest and visibility cache.
-#[derive(Resource, Default)]
-struct InterestState {
-    views: HashMap<Entity, (ViewWindow, [f32; 3])>,
-    cache: VisibilityCache<Entity, Entity>,
-}
-
-/// Resource: replicated HLOD impostor entity per chunk.
-#[derive(Resource, Default)]
-struct ChunkSummaryEntities {
-    by_chunk: HashMap<ChunkCoord, Entity>,
-}
-
-/// Resource: the content-addressed asset store and its server port.
-#[derive(Resource)]
-struct HostAssets {
-    store: AssetStore,
-    /// `None` when the asset server failed to start.
-    port: Option<u16>,
-}
-
-/// Marker for replicated entities that bypass interest management (session
-/// metadata, chunk summaries).
-#[derive(Component)]
-struct AlwaysRelevant;
-
-/// The listen-server plugin. Requires the full gen app (it replicates
-/// entities created by the gen systems).
+/// The host plugin. Always installed; dormant until a session starts.
 pub struct NetHostPlugin {
     /// Consumed on build (contains non-clonable channel halves).
     pub options: std::sync::Mutex<Option<NetHostOptions>>,
@@ -377,11 +307,6 @@ impl Plugin for NetHostPlugin {
             .take()
             .expect("NetHostPlugin options consumed twice");
 
-        app.add_plugins(ServerPlugins {
-            tick_duration: Duration::from_secs_f32(1.0 / 60.0),
-        });
-        app.add_plugins(NetProtocolPlugin);
-
         // Dormant resources: channels exist from the start (the agent loop
         // always wires the hooks), but nothing listens, announces, or
         // replicates until a session is requested through `HostControl` —
@@ -402,15 +327,9 @@ impl Plugin for NetHostPlugin {
         };
         app.insert_resource(control)
             .insert_resource(ControlOutbox { tx: control_tx })
-            .insert_resource(ReplicationMetadata::new(REPLICATION_SEND_INTERVAL))
-            .insert_resource(HostAssets {
-                store: AssetStore::default(),
-                port: None,
-            })
             .insert_resource(HostJobs {
                 queue: JobQueue::default(),
                 scaffolds: HashMap::new(),
-                requester_links: HashMap::new(),
                 dispatched: None,
                 job_tx,
                 events_rx: Mutex::new(job_events_rx),
@@ -418,48 +337,20 @@ impl Plugin for NetHostPlugin {
             .insert_resource(HostChatOutbox {
                 rx: Mutex::new(chat_rx),
             })
-            .init_resource::<InterestState>()
-            .init_resource::<ChunkSummaryEntities>()
+            .init_resource::<super::guest_avatars::GuestAvatars>()
+            .init_resource::<web::PendingSceneOps>()
             .add_systems(PreUpdate, host_lifecycle)
-            .add_systems(Startup, spawn_world_meta_entity)
-            .add_observer(on_client_link_connected)
-            .add_systems(
-                PreUpdate,
-                net_attach_new_entities
-                    .run_if(hosting)
-                    .after(host_lifecycle),
-            )
-            .add_systems(
-                PostUpdate,
-                (
-                    net_sync_changes,
-                    net_sync_meta,
-                    net_update_chunk_summaries,
-                    net_update_interest
-                        .after(TransformSystems::Propagate)
-                        .after(net_update_chunk_summaries)
-                        .before(ReplicationSystems::Send),
-                )
-                    .run_if(hosting),
-            )
             .add_systems(
                 Update,
                 (
-                    net_prompt_intake,
-                    net_publish_mesh_assets,
                     net_job_events,
-                    net_job_dispatch
-                        .after(net_prompt_intake)
-                        .after(net_job_events),
-                    net_view_intake,
+                    net_job_dispatch.after(net_job_events),
                     net_chat_broadcast,
-                    net_client_lifecycle,
                 )
                     .run_if(hosting),
             )
-            // Browser guests (--web): the room resource exists only while a
-            // web-enabled session is live.
-            .init_resource::<web::PendingSceneOps>()
+            // The ops room (browser page, native ops guests): the room
+            // resource exists only while a session is live.
             .add_systems(
                 Update,
                 (
@@ -471,8 +362,7 @@ impl Plugin for NetHostPlugin {
                     .run_if(|room: Option<Res<web::WebRoom>>| room.is_some()),
             )
             // Guest avatars in the host's own window.
-            .init_resource::<guest_avatars::GuestAvatars>()
-            .add_systems(Update, guest_avatars::web_guest_avatars);
+            .add_systems(Update, super::guest_avatars::web_guest_avatars);
     }
 }
 
@@ -482,9 +372,9 @@ struct ControlOutbox {
     tx: mpsc::UnboundedSender<HostControlEvent>,
 }
 
-/// Bring a requested session up: secrets, session HTTP, the listen server,
-/// and mDNS. Runs in `PreUpdate` so the gated host systems see
-/// [`HostControl::Active`] from the same frame on.
+/// Bring a requested session up: the PIN, session HTTP (join page +
+/// WebSocket ops endpoint), the ops room, and mDNS. Runs in `PreUpdate` so
+/// the gated host systems see [`HostControl::Active`] from the same frame on.
 ///
 /// This is the single start path: `--host` requests it before the first
 /// frame, the panel's Collaborate section at any later one.
@@ -504,50 +394,46 @@ fn host_lifecycle(
         }
     };
 
-    // Session secrets: a random netcode key that never leaves this
-    // process, and a PIN joiners must know to be issued a connect token.
-    let private_key = if request.open {
-        super::OPEN_SESSION_KEY
-    } else {
-        generate_private_key()
-    };
-    let pairing = (!request.open).then(|| {
-        let pin = generate_pin();
-        Arc::new(PairingHost::new(
-            private_key,
-            super::PROTOCOL_ID,
-            pin,
-            |new_pin| {
-                eprintln!(
-                    "\n[net] Too many wrong PINs — new session PIN: {}\n",
-                    format_pin(new_pin)
-                );
-            },
-        ))
-    });
+    // Session secrets: the PIN native guests join with (open sessions skip)
+    // and the invite token browser links carry.
+    let session_pin = (!request.open).then(super::generate_pin);
+    let token = (!request.open).then(web::generate_web_token);
 
-    // Session HTTP (TCP, same port number as the UDP session): pairing
-    // + content-addressed assets, plus the browser-guest routes with --web.
-    let store = AssetStore::default();
+    // Session HTTP (TCP, session port): the ops room's join page + WebSocket
+    // endpoint — served for every hosted session.
     let http_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), request.port);
-    let mut router =
-        asset_router(store.clone()).merge(pairing_router(pairing.clone(), super::PROTOCOL_ID));
-    if request.web {
-        let token = if request.open {
-            None
-        } else {
-            Some(web::generate_web_token())
-        };
-        let (bridge, inbound_rx) = web::WebBridge::new(token.clone());
-        router = router.merge(web::web_router(bridge.clone()));
-        commands.insert_resource(web::WebRoom::new(
-            &request.session_name,
-            bridge,
-            inbound_rx,
-            &workspace.path,
-            request.resume.as_deref(),
-            request.web_edit,
+    let (bridge, inbound_rx) = web::WebBridge::new(token.clone(), &request.session_name);
+    let router = web::web_router(bridge.clone());
+    if let Err(e) = web::spawn_session_http(router, http_addr) {
+        eprintln!(
+            "Collaborative session failed to start: session HTTP couldn't listen on \
+             tcp://{http_addr} ({e}) — free the port or pass --port"
+        );
+        *control = HostControl::Failed(format!(
+            "couldn't listen on port {port} ({e}) — is another session running?",
+            port = request.port
         ));
+        return;
+    }
+    commands.insert_resource(WebRoom::new(
+        &request.session_name,
+        bridge,
+        inbound_rx,
+        &workspace.path,
+        request.resume.as_deref(),
+        request.web_edit,
+        session_pin.clone(),
+    ));
+
+    match &session_pin {
+        Some(pin) => eprintln!(
+            "\n  Session PIN: {pin}   (joiners: localgpt-gen --join <this-host> --pin <PIN>)\n"
+        ),
+        None => {
+            eprintln!("\n  OPEN session: no PIN — anyone on the LAN can join\n")
+        }
+    }
+    if request.web {
         match (web::primary_lan_ip(), &token) {
             (Some(ip), Some(token)) => eprintln!(
                 "\n  Browser guests: http://{ip}:{port}/#t={token}\n",
@@ -557,68 +443,12 @@ fn host_lifecycle(
                 "\n  Browser guests: http://{ip}:{port}/  (open session)\n",
                 port = request.port
             ),
-            (None, _) => eprintln!("\n  Browser guests: http://<this-host>:{}/\n", request.port),
-        }
-    }
-    let asset_port = match spawn_session_http(router, http_addr) {
-        Ok(()) => {
-            eprintln!("Session HTTP (pairing + assets) on tcp://{http_addr}");
-            Some(request.port)
-        }
-        Err(e) => {
-            // A failed HTTP endpoint is fatal for PIN sessions (nobody can
-            // pair) and for --web (no page, no socket); it only degrades
-            // open native-only sessions (no asset streaming).
-            if !request.open || request.web {
-                eprintln!(
-                    "Collaborative session failed to start: session HTTP couldn't listen on \
-                     tcp://{http_addr} ({e}) — free the port or pass --port"
-                );
-                *control = HostControl::Failed(format!(
-                    "couldn't listen on port {port} ({e}) — is another session running?",
-                    port = request.port
-                ));
-                return;
+            (None, _) => {
+                eprintln!("\n  Browser guests: http://<this-host>:{}/\n", request.port)
             }
-            eprintln!("Session HTTP failed to start ({e}) — clients will show mesh placeholders");
-            None
-        }
-    };
-    match &pairing {
-        Some(pairing) => eprintln!(
-            "\n  Session PIN: {}   (joiners: localgpt-gen --join <this-host> --pin <PIN>)\n",
-            format_pin(&pairing.pin())
-        ),
-        None => {
-            eprintln!("\n  OPEN session: no PIN — anyone on the LAN with localgpt-gen can join\n")
         }
     }
-
-    // The listen server itself: server link entity + Start trigger. The
-    // observer-driven replication machinery picks it up from here.
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), request.port);
-    let server_config = lightyear::netcode::server_plugin::NetcodeConfig {
-        protocol_id: super::PROTOCOL_ID,
-        private_key,
-        max_clients: MAX_CLIENTS,
-        // We bind 0.0.0.0 while clients connect via any of the host's LAN
-        // addresses, so token-address validation would always mismatch.
-        // Tokens are still bound to this session's private key, which only
-        // the pairing endpoint uses.
-        server_addr_check: false,
-        ..default()
-    };
-    let server = commands
-        .spawn((
-            Name::new("World Host"),
-            Server::new(None),
-            NetcodeServer::new(server_config),
-            LocalAddr(addr),
-            ServerUdpIo::default(),
-        ))
-        .id();
-    commands.trigger(Start { entity: server });
-    eprintln!("Collaborative session listening on {addr}");
+    eprintln!("Collaborative session listening on {http_addr}");
 
     let mut warning = None;
     match SessionAnnouncer::start(&request.session_name, request.port, super::PROTOCOL_ID) {
@@ -645,11 +475,7 @@ fn host_lifecycle(
         session_name: request.session_name.clone(),
         port: request.port,
         clients: 0,
-        pairing,
-    });
-    commands.insert_resource(HostAssets {
-        store,
-        port: asset_port,
+        pin: session_pin,
     });
     if let Ok(mut window) = window.single_mut() {
         window.title = format!("LocalGPT Gen — Hosting '{}'", request.session_name);
@@ -664,527 +490,13 @@ fn host_lifecycle(
     *control = HostControl::Active { warning };
 }
 
-/// Marker on the dedicated singleton entity carrying [`NetWorldMeta`].
-#[derive(Component)]
-struct WorldMetaEntity;
-
-/// Spawn the singleton entity that replicates session metadata.
-fn spawn_world_meta_entity(mut commands: Commands) {
-    commands.spawn((
-        Name::new("World Meta"),
-        WorldMetaEntity,
-        AlwaysRelevant,
-        NetWorldMeta {
-            name: String::new(),
-            environment: default_environment(),
-            asset_port: None,
-        },
-        Replicate::to_clients(NetworkTarget::All),
-    ));
-}
-
-fn default_environment() -> wt::EnvironmentDef {
-    wt::EnvironmentDef {
-        background_color: None,
-        ambient_intensity: None,
-        ambient_color: None,
-        fog_density: None,
-        fog_color: None,
-    }
-}
-
-/// Enable replication for every gen entity that doesn't have it yet.
-///
-/// The query isn't limited to newly spawned entities on purpose: when
-/// hosting starts from the window (rather than `--host`), the world may
-/// already exist, and its entities must be picked up too. Cameras are
-/// skipped — each client renders with its own camera. Which clients
-/// actually receive an entity is decided by [`net_update_interest`].
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
-fn net_attach_new_entities(
-    mut commands: Commands,
-    new_entities: Query<(Entity, &GenEntity, &Name), (With<GenEntity>, Without<Replicate>)>,
-    transforms: Query<&'static Transform>,
-    parametric_shapes: Query<&'static ParametricShape>,
-    material_handles: Query<&'static MeshMaterial3d<StandardMaterial>>,
-    materials: Res<Assets<StandardMaterial>>,
-    visibility_query: Query<&'static Visibility>,
-    directional_lights: Query<&'static DirectionalLight>,
-    point_lights: Query<&'static PointLight>,
-    spot_lights: Query<&'static SpotLight>,
-    behaviors_query: Query<&'static EntityBehaviors>,
-    audio_emitters: Query<&'static AudioEmitter>,
-    parent_query: Query<&'static ChildOf>,
-    gltf_sources: Query<&'static GltfSource>,
-    registry: Res<NameRegistry>,
-) {
-    let sq = SnapshotQueries {
-        transforms: &transforms,
-        parametric_shapes: &parametric_shapes,
-        material_handles: &material_handles,
-        materials: &materials,
-        visibility_query: &visibility_query,
-        directional_lights: &directional_lights,
-        point_lights: &point_lights,
-        spot_lights: &spot_lights,
-        behaviors_query,
-        audio_emitters: &audio_emitters,
-        parent_query: &parent_query,
-        gltf_sources: &gltf_sources,
-        material_textures: None,
-        registry: &registry,
-    };
-
-    for (entity, gen_entity, name) in new_entities.iter() {
-        let Some(kind) = net_kind(gen_entity.entity_type) else {
-            continue;
-        };
-        let we = snapshot_entity(name.as_ref(), entity, gen_entity.world_id, &sq);
-        commands
-            .entity(entity)
-            .insert(Replicate::to_clients(NetworkTarget::All));
-        apply_net_components(&mut commands.entity(entity), &we, kind);
-    }
-}
-
-fn net_kind(entity_type: GenEntityType) -> Option<NetKind> {
-    match entity_type {
-        GenEntityType::Camera => None,
-        GenEntityType::Primitive => Some(NetKind::Primitive),
-        GenEntityType::Light => Some(NetKind::Light),
-        GenEntityType::Mesh => Some(NetKind::Mesh),
-        GenEntityType::Group => Some(NetKind::Group),
-        GenEntityType::AudioEmitter => Some(NetKind::AudioEmitter),
-    }
-}
-
-/// Push live ECS state into the net components whenever it changes.
-///
-/// Two paths keep bandwidth sane:
-/// - Transforms are epsilon-compared — only moved entities re-send.
-/// - Structural changes (shape/material/light/behaviors/parent) trigger a
-///   full re-snapshot of that entity.
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
-fn net_sync_changes(
-    mut commands: Commands,
-    moving: Query<(&Transform, &Visibility, &mut NetTransform), (With<Replicate>, With<GenEntity>)>,
-    structural: Query<
-        (Entity, &GenEntity, &Name),
-        (
-            With<Replicate>,
-            Or<(
-                Changed<ParametricShape>,
-                Changed<MeshMaterial3d<StandardMaterial>>,
-                Changed<EntityBehaviors>,
-                Changed<DirectionalLight>,
-                Changed<PointLight>,
-                Changed<SpotLight>,
-                Changed<ChildOf>,
-            )>,
-        ),
-    >,
-    transforms: Query<&'static Transform>,
-    parametric_shapes: Query<&'static ParametricShape>,
-    material_handles: Query<&'static MeshMaterial3d<StandardMaterial>>,
-    materials: Res<Assets<StandardMaterial>>,
-    visibility_query: Query<&'static Visibility>,
-    directional_lights: Query<&'static DirectionalLight>,
-    point_lights: Query<&'static PointLight>,
-    spot_lights: Query<&'static SpotLight>,
-    behaviors_query: Query<&'static EntityBehaviors>,
-    audio_emitters: Query<&'static AudioEmitter>,
-    parent_query: Query<&'static ChildOf>,
-    gltf_sources: Query<&'static GltfSource>,
-    registry: Res<NameRegistry>,
-) {
-    // Fast path: transforms (behavior-animated entities move every frame).
-    for (transform, visibility, mut net_transform) in moving {
-        let euler = transform.rotation.to_euler(EulerRot::XYZ);
-        let current = wt::WorldTransform {
-            position: transform.translation.to_array(),
-            rotation_degrees: [
-                euler.0.to_degrees(),
-                euler.1.to_degrees(),
-                euler.2.to_degrees(),
-            ],
-            scale: transform.scale.to_array(),
-            visible: *visibility != Visibility::Hidden,
-        };
-        if transforms_differ(&net_transform.0, &current, 1e-4) {
-            net_transform.0 = current;
-        }
-    }
-
-    if structural.is_empty() {
-        return;
-    }
-    let sq = SnapshotQueries {
-        transforms: &transforms,
-        parametric_shapes: &parametric_shapes,
-        material_handles: &material_handles,
-        materials: &materials,
-        visibility_query: &visibility_query,
-        directional_lights: &directional_lights,
-        point_lights: &point_lights,
-        spot_lights: &spot_lights,
-        behaviors_query,
-        audio_emitters: &audio_emitters,
-        parent_query: &parent_query,
-        gltf_sources: &gltf_sources,
-        material_textures: None,
-        registry: &registry,
-    };
-    for (entity, gen_entity, name) in structural {
-        let Some(kind) = net_kind(gen_entity.entity_type) else {
-            continue;
-        };
-        let we = snapshot_entity(name.as_ref(), entity, gen_entity.world_id, &sq);
-        apply_net_components(&mut commands.entity(entity), &we, kind);
-    }
-}
-
-/// Keep the singleton [`NetWorldMeta`] in step with world resources.
-fn net_sync_meta(
-    current_world: Res<CurrentWorld>,
-    assets: Res<HostAssets>,
-    clear_color: Option<Res<ClearColor>>,
-    ambient: Option<Res<GlobalAmbientLight>>,
-    mut meta: Query<&mut NetWorldMeta, With<WorldMetaEntity>>,
-) {
-    let Ok(mut meta) = meta.single_mut() else {
-        return;
-    };
-    let name = current_world.name.clone().unwrap_or_default();
-    let mut environment = default_environment();
-    if let Some(clear) = &clear_color {
-        let c = clear.0.to_srgba();
-        environment.background_color = Some([c.red, c.green, c.blue, c.alpha]);
-    }
-    if let Some(ambient) = &ambient {
-        let c = ambient.color.to_srgba();
-        environment.ambient_intensity = Some(ambient.brightness);
-        environment.ambient_color = Some([c.red, c.green, c.blue, c.alpha]);
-    }
-    if meta.name != name || meta.environment != environment || meta.asset_port != assets.port {
-        meta.name = name;
-        meta.environment = environment;
-        meta.asset_port = assets.port;
-    }
-}
-
-/// Publish custom mesh geometry to the asset store and replicate its digest
-/// (§2 asset streaming) — the geometry itself never rides replication.
-#[allow(clippy::type_complexity)]
-fn net_publish_mesh_assets(
-    mut commands: Commands,
-    assets: Res<HostAssets>,
-    meshes: Res<Assets<Mesh>>,
-    changed: Query<
-        (Entity, &GenEntity, &Mesh3d, Option<&NetMeshAsset>),
-        (With<Replicate>, Or<(Added<Replicate>, Changed<Mesh3d>)>),
-    >,
-) {
-    if assets.port.is_none() {
-        return;
-    }
-    for (entity, gen_entity, mesh3d, current) in &changed {
-        if gen_entity.entity_type != GenEntityType::Mesh {
-            continue;
-        }
-        let Some(blob) = meshes.get(&mesh3d.0).and_then(encode_mesh) else {
-            continue;
-        };
-        if blob.len() > MAX_BLOB_BYTES {
-            continue;
-        }
-        let bytes = blob.len() as u32;
-        let digest = assets.store.publish(blob);
-        if current.is_none_or(|c| c.digest != digest) {
-            commands
-                .entity(entity)
-                .insert(NetMeshAsset { digest, bytes });
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// §2 Spatial interest management
-// ---------------------------------------------------------------------------
-
-/// Record each client's reported camera position.
-fn net_view_intake(
-    mut links: Query<(Entity, &mut MessageReceiver<ClientView>), With<ClientOf>>,
-    mut interest: ResMut<InterestState>,
-) {
-    for (link, mut receiver) in &mut links {
-        // Sequenced channel: keep only the newest view.
-        if let Some(view) = receiver.receive().last() {
-            if !view.position.iter().all(|v| v.is_finite()) {
-                continue;
-            }
-            interest.views.insert(
-                link,
-                (ViewWindow::at(view.position, view.radius), view.position),
-            );
-        }
-    }
-}
-
-/// Decide, per client link, which replicated entities it should receive.
-///
-/// Entities are placed by their hierarchy *root's* world position so a
-/// child's (parent-relative) transform always arrives together with its
-/// parent. Directional lights, session metadata, and chunk summaries are
-/// global. Only visibility transitions are sent to lightyear.
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
-fn net_update_interest(
-    mut commands: Commands,
-    links: Query<Entity, (With<ClientOf>, With<ReplicationSender>)>,
-    replicated: Query<
-        (Entity, &GlobalTransform, Has<DirectionalLight>),
-        (With<Replicate>, Without<AlwaysRelevant>),
-    >,
-    parents: Query<&ChildOf>,
-    globals: Query<&GlobalTransform>,
-    mut interest: ResMut<InterestState>,
-    mut prune_timer: Local<f32>,
-    time: Res<Time>,
-) {
-    let link_set: HashSet<Entity> = links.iter().collect();
-    if link_set.is_empty() {
-        return;
-    }
-
-    let InterestState { views, cache } = &mut *interest;
-    for (entity, global, is_sun) in &replicated {
-        let relevance = if is_sun {
-            Relevance::Global
-        } else {
-            let root = parents.root_ancestor(entity);
-            let position = globals
-                .get(root)
-                .map(|g| g.translation())
-                .unwrap_or_else(|_| global.translation());
-            Relevance::at(position.to_array())
-        };
-        for &link in &link_set {
-            let view = views.get(&link).map(|(v, _)| *v).unwrap_or_default();
-            match cache.update(link, entity, relevance.visible_in(&view)) {
-                Some(VisibilityChange::Gain { link, entity }) => {
-                    commands.gain_visibility(entity, link);
-                }
-                Some(VisibilityChange::Lose { link, entity }) => {
-                    commands.lose_visibility(entity, link);
-                }
-                None => {}
-            }
-        }
-    }
-
-    // Prune state for departed links / despawned entities now and then.
-    *prune_timer += time.delta_secs();
-    if *prune_timer > 5.0 {
-        *prune_timer = 0.0;
-        let entities: HashSet<Entity> = replicated.iter().map(|(e, _, _)| e).collect();
-        cache.retain(&link_set, &entities);
-        views.retain(|link, _| link_set.contains(link));
-    }
-}
-
-/// Recompute per-chunk HLOD summaries and replicate them to every client.
-#[allow(clippy::type_complexity)]
-fn net_update_chunk_summaries(
-    mut commands: Commands,
-    visuals: Query<
-        (
-            &GlobalTransform,
-            &Aabb,
-            Option<&MeshMaterial3d<StandardMaterial>>,
-            &InheritedVisibility,
-        ),
-        (With<GenEntity>, With<Mesh3d>),
-    >,
-    materials: Res<Assets<StandardMaterial>>,
-    mut summaries: ResMut<ChunkSummaryEntities>,
-    mut existing: Query<&mut NetChunkSummary>,
-    mut timer: Local<f32>,
-    time: Res<Time>,
-) {
-    *timer += time.delta_secs();
-    if *timer < SUMMARY_INTERVAL_SECS {
-        return;
-    }
-    *timer = 0.0;
-
-    let mut builder = ChunkSummaryBuilder::new();
-    for (global, aabb, material, visibility) in &visuals {
-        if !visibility.get() {
-            continue;
-        }
-        let (min, max) = world_aabb(global, aabb);
-        let color = material
-            .and_then(|m| materials.get(&m.0))
-            .map(|m| m.base_color.to_srgba().to_f32_array())
-            .unwrap_or([0.7, 0.7, 0.7, 1.0]);
-        builder.add(min.to_array(), max.to_array(), color);
-    }
-    let fresh = builder.build();
-
-    // Despawn summaries for chunks that emptied out.
-    summaries.by_chunk.retain(|chunk, entity| {
-        let keep = fresh.contains_key(chunk);
-        if !keep {
-            commands.entity(*entity).despawn();
-        }
-        keep
-    });
-    for (chunk, summary) in fresh {
-        match summaries.by_chunk.get(&chunk) {
-            Some(&entity) => {
-                if let Ok(mut current) = existing.get_mut(entity)
-                    && summaries_differ(&current.0, &summary)
-                {
-                    current.0 = summary;
-                }
-            }
-            None => {
-                let entity = commands
-                    .spawn((
-                        Name::new(format!("Chunk Summary {chunk}")),
-                        AlwaysRelevant,
-                        NetChunkSummary(summary),
-                        Replicate::to_clients(NetworkTarget::All),
-                    ))
-                    .id();
-                summaries.by_chunk.insert(chunk, entity);
-            }
-        }
-    }
-}
-
-/// World-space AABB of a local AABB under a global transform.
-fn world_aabb(global: &GlobalTransform, aabb: &Aabb) -> (Vec3, Vec3) {
-    let affine = global.affine();
-    let center = affine.transform_point3(Vec3::from(aabb.center));
-    let m = affine.matrix3;
-    let he = Vec3::from(aabb.half_extents);
-    let extent = Vec3::new(
-        m.x_axis.x.abs() * he.x + m.y_axis.x.abs() * he.y + m.z_axis.x.abs() * he.z,
-        m.x_axis.y.abs() * he.x + m.y_axis.y.abs() * he.y + m.z_axis.y.abs() * he.z,
-        m.x_axis.z.abs() * he.x + m.y_axis.z.abs() * he.y + m.z_axis.z.abs() * he.z,
-    );
-    (center - extent, center + extent)
-}
-
-// ---------------------------------------------------------------------------
-// Links, prompts, and the §2 inference queue
-// ---------------------------------------------------------------------------
-
-/// Insert replication + message components on each client link entity.
-///
-/// Netcode spawns a `ClientOf` entity per accepted connection; replication
-/// itself only starts once the link is also `Connected`, which leaves
-/// [`net_update_interest`] a few frames to hide out-of-view entities before
-/// the first snapshot goes out.
-fn on_client_link_connected(trigger: On<Add, ClientOf>, mut commands: Commands) {
-    commands.entity(trigger.entity).insert((
-        ReplicationSender,
-        Name::new("Client Link"),
-        MessageReceiver::<ClientPrompt>::default(),
-        MessageReceiver::<ClientView>::default(),
-        MessageSender::<JobStatus>::default(),
-    ));
-}
-
-/// Turn client prompts into queued jobs with replicated scaffolds.
-fn net_prompt_intake(
-    mut commands: Commands,
-    mut links: Query<(Entity, &mut MessageReceiver<ClientPrompt>), With<ClientOf>>,
-    mut status_senders: Query<&mut MessageSender<JobStatus>>,
-    server: Query<&Server>,
-    mut sender: ServerMultiMessageSender,
-    mut jobs: ResMut<HostJobs>,
-    interest: Res<InterestState>,
-) {
-    let Some(server) = server.iter().next() else {
-        return;
-    };
-    for (link, mut receiver) in &mut links {
-        for prompt in receiver.receive() {
-            let requester = link.to_bits();
-            let result =
-                jobs.queue
-                    .enqueue(requester, prompt.request_id, &prompt.text, prompt.anchor);
-            let (job, position) = match result {
-                Ok(accepted) => accepted,
-                Err(e) => {
-                    if let Ok(mut status) = status_senders.get_mut(link) {
-                        status.send::<ChatChannel>(JobStatus {
-                            request_id: prompt.request_id,
-                            job_id: 0,
-                            state: JobState::Rejected {
-                                reason: e.to_string(),
-                            },
-                        });
-                    }
-                    continue;
-                }
-            };
-            eprintln!(
-                "[net] Prompt queued as job #{} (position {position}): {}",
-                job.id, job.prompt
-            );
-
-            // Scaffold at the anchor, else at the requester's camera, else
-            // the origin.
-            let at = job
-                .anchor
-                .or_else(|| interest.views.get(&link).map(|(_, p)| *p))
-                .unwrap_or([0.0; 3]);
-            let scaffold = commands
-                .spawn((
-                    Name::new(format!("Scaffold #{}", job.id)),
-                    Transform::from_translation(Vec3::from_array(at)),
-                    NetTransform(wt::WorldTransform {
-                        position: at,
-                        ..default()
-                    }),
-                    NetScaffold {
-                        job_id: job.id,
-                        request_id: job.request_id,
-                        prompt: job.prompt.clone(),
-                        running: false,
-                    },
-                    Replicate::to_clients(NetworkTarget::All),
-                ))
-                .id();
-            jobs.scaffolds.insert(job.id, scaffold);
-            jobs.requester_links.insert(job.id, link);
-
-            if let Ok(mut status) = status_senders.get_mut(link) {
-                status.send::<ChatChannel>(JobStatus {
-                    request_id: job.request_id,
-                    job_id: job.id,
-                    state: JobState::Queued { position },
-                });
-            }
-            let _ = sender.send::<HostChat, ChatChannel>(
-                &HostChat {
-                    speaker: "client".to_string(),
-                    text: job.prompt,
-                },
-                server,
-                &NetworkTarget::All,
-            );
-        }
-    }
-}
-
-/// Hand the next queued job to the worker once it is idle.
+/// Hand the next queued job to the worker (one at a time) and put up its
+/// scaffold marker.
 fn net_job_dispatch(
     mut commands: Commands,
     mut jobs: ResMut<HostJobs>,
-    mut status_senders: Query<&mut MessageSender<JobStatus>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     if jobs.dispatched.is_some() {
         return;
@@ -1198,41 +510,34 @@ fn net_job_dispatch(
         display: job.prompt.clone(),
     };
     if jobs.job_tx.send(remote).is_err() {
-        // Worker gone (agent loop exited) — drop the job and its scaffold.
+        // Worker gone (agent loop exited) — drop the job.
         jobs.queue.finish(job.id);
-        jobs.requester_links.remove(&job.id);
-        if let Some(scaffold) = jobs.scaffolds.remove(&job.id) {
-            commands.entity(scaffold).despawn();
-        }
         return;
     }
     jobs.dispatched = Some(job.id);
 
-    // Everyone still waiting moved up one place.
-    let positions = jobs.queue.positions();
-    for (job_id, position) in positions {
-        let Some(&link) = jobs.requester_links.get(&job_id) else {
-            continue;
-        };
-        let Some(request_id) = jobs.queue.get(job_id).map(|j| j.request_id) else {
-            continue;
-        };
-        if let Ok(mut status) = status_senders.get_mut(link) {
-            status.send::<ChatChannel>(JobStatus {
-                request_id,
-                job_id,
-                state: JobState::Queued { position },
-            });
-        }
-    }
+    // Scaffold: a translucent amber marker at the build anchor.
+    let at = job.anchor.unwrap_or([0.0; 3]);
+    let marker = commands
+        .spawn((
+            Name::new(format!("Scaffold #{}", job.id)),
+            Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgba(1.0, 0.6, 0.1, 0.35),
+                alpha_mode: AlphaMode::Blend,
+                ..default()
+            })),
+            Transform::from_translation(Vec3::from_array(at)),
+        ))
+        .id();
+    jobs.scaffolds.insert(job.id, (marker, at));
 }
 
-/// Apply worker progress: mark scaffolds running, retire finished jobs.
+/// Apply worker progress: despawn scaffolds, retire finished jobs, and tee
+/// everything to the ops room so guests see job states too.
 fn net_job_events(
     mut commands: Commands,
     mut jobs: ResMut<HostJobs>,
-    mut scaffolds: Query<&mut NetScaffold>,
-    mut status_senders: Query<&mut MessageSender<JobStatus>>,
     mut web_room: Option<ResMut<web::WebRoom>>,
 ) {
     let events: Vec<JobEvent> = {
@@ -1242,76 +547,31 @@ fn net_job_events(
         std::iter::from_fn(|| rx.try_recv().ok()).collect()
     };
     for event in events {
-        // Web guests hear about every job through the authority.
+        // Guests hear about every job through the authority.
         if let Some(room) = web_room.as_deref_mut() {
             web::tee_job_event(room, &event);
         }
-        let (job_id, state) = match event {
-            JobEvent::Started(job_id) => {
-                if let Some(mut scaffold) = jobs
-                    .scaffolds
-                    .get(&job_id)
-                    .and_then(|e| scaffolds.get_mut(*e).ok())
-                {
-                    scaffold.running = true;
-                }
-                (job_id, JobState::Running)
-            }
-            JobEvent::Finished { job_id, error } => {
-                let request = jobs.queue.finish(job_id);
+        match event {
+            JobEvent::Started(_) => {}
+            JobEvent::Finished { job_id, .. } => {
+                jobs.queue.finish(job_id);
                 if jobs.dispatched == Some(job_id) {
                     jobs.dispatched = None;
                 }
-                if let Some(entity) = jobs.scaffolds.remove(&job_id) {
-                    commands.entity(entity).despawn();
+                if let Some((marker, _)) = jobs.scaffolds.remove(&job_id) {
+                    commands.entity(marker).despawn();
                 }
-                let state = match error {
-                    None => JobState::Done,
-                    Some(reason) => JobState::Failed { reason },
-                };
-                let link = jobs.requester_links.remove(&job_id);
-                if let (Some(request), Some(link)) = (request, link)
-                    && let Ok(mut status) = status_senders.get_mut(link)
-                {
-                    status.send::<ChatChannel>(JobStatus {
-                        request_id: request.request_id,
-                        job_id,
-                        state,
-                    });
-                }
-                continue;
             }
-        };
-        let link = jobs.requester_links.get(&job_id).copied();
-        let request_id = jobs.queue.get(job_id).map(|j| j.request_id);
-        if let (Some(link), Some(request_id)) = (link, request_id)
-            && let Ok(mut status) = status_senders.get_mut(link)
-        {
-            status.send::<ChatChannel>(JobStatus {
-                request_id,
-                job_id,
-                state,
-            });
         }
     }
 }
 
-/// Broadcast agent-loop chat events to every client.
-fn net_chat_broadcast(
-    outbox: Res<HostChatOutbox>,
-    server: Query<&Server>,
-    mut sender: ServerMultiMessageSender,
-    mut web_room: Option<ResMut<web::WebRoom>>,
-) {
-    let Some(server) = server.iter().next() else {
-        return;
-    };
+/// Broadcast agent-loop chat events to every guest through the room.
+fn net_chat_broadcast(outbox: Res<HostChatOutbox>, mut web_room: Option<ResMut<web::WebRoom>>) {
     let Ok(mut rx) = outbox.rx.lock() else {
         return;
     };
     while let Ok(chat) = rx.try_recv() {
-        let _ = sender.send::<HostChat, ChatChannel>(&chat, server, &NetworkTarget::All);
-        // Web guests hear the same lines through the room chat.
         if let Some(room) = web_room.as_deref_mut() {
             let kind = if chat.speaker == "client" {
                 localgpt_world_sync::ChatKind::Human
@@ -1324,96 +584,28 @@ fn net_chat_broadcast(
     }
 }
 
-/// Announce client joins/leaves; drop a departed client's pending jobs.
-fn net_client_lifecycle(
-    mut commands: Commands,
-    links: Query<Entity, With<ClientOf>>,
-    server: Query<&Server>,
-    mut sender: ServerMultiMessageSender,
-    mut jobs: ResMut<HostJobs>,
-    mut info: ResMut<HostSessionInfo>,
-    mut seen: Local<HashSet<Entity>>,
-) {
-    let Some(server) = server.iter().next() else {
-        return;
-    };
-    info.clients = links.iter().count();
-    for entity in &links {
-        if seen.insert(entity) {
-            eprintln!("Client connected");
-            let _ = sender.send::<HostChat, ChatChannel>(
-                &HostChat {
-                    speaker: "host".to_string(),
-                    text: "client joined the session".to_string(),
-                },
-                server,
-                &NetworkTarget::All,
-            );
-        }
-    }
-    let current: HashSet<Entity> = links.iter().collect();
-    let left: Vec<Entity> = seen
-        .iter()
-        .copied()
-        .filter(|e| !current.contains(e))
-        .collect();
-    for entity in left {
-        seen.remove(&entity);
-        let cancelled = jobs.queue.cancel_requester(entity.to_bits());
-        for job in &cancelled {
-            jobs.requester_links.remove(&job.id);
-            if let Some(scaffold) = jobs.scaffolds.remove(&job.id) {
-                commands.entity(scaffold).despawn();
-            }
-        }
-        if cancelled.is_empty() {
-            eprintln!("Client disconnected");
-        } else {
-            eprintln!(
-                "Client disconnected ({} queued prompt(s) cancelled)",
-                cancelled.len()
-            );
-        }
-        let _ = sender.send::<HostChat, ChatChannel>(
-            &HostChat {
-                speaker: "host".to_string(),
-                text: "client left the session".to_string(),
-            },
-            server,
-            &NetworkTarget::All,
-        );
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn session_info(pin: Option<&str>, clients: usize) -> HostSessionInfo {
+    fn session_info(pin: Option<String>, clients: usize) -> HostSessionInfo {
         HostSessionInfo {
             session_name: "test world".into(),
             port: 9879,
             clients,
-            pairing: pin.map(|pin| {
-                Arc::new(PairingHost::new(
-                    generate_private_key(),
-                    super::super::PROTOCOL_ID,
-                    pin.to_string(),
-                    |_| {},
-                ))
-            }),
+            pin,
         }
     }
 
     #[test]
-    fn summary_shows_pin_and_guests() {
+    fn session_summary_mentions_pin_open_and_guests() {
         assert_eq!(
-            session_info(Some("123456"), 0).summary(),
-            "Hosting 'test world' · PIN 123 456"
+            session_info(Some("123456".into()), 0).summary(),
+            "Hosting 'test world' · PIN 123456"
         );
         assert_eq!(
-            session_info(Some("123456"), 1).summary(),
-            "Hosting 'test world' · PIN 123 456 · 1 guest"
+            session_info(Some("123456".into()), 1).summary(),
+            "Hosting 'test world' · PIN 123456 · 1 guest"
         );
         assert_eq!(
             session_info(None, 3).summary(),
@@ -1437,12 +629,6 @@ mod tests {
             .is_active()
         );
         assert!(HostControl::Active { warning: None }.is_active());
-        assert!(
-            HostControl::Active {
-                warning: Some("mDNS failed".into())
-            }
-            .is_active()
-        );
-        assert!(!HostControl::Failed("port taken".into()).is_active());
+        assert!(!HostControl::Failed("x".into()).is_active());
     }
 }

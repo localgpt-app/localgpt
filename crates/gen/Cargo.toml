@@ -67,6 +67,9 @@ libc = "0.2"
 # WebSocket inspector protocol (Spec 0.6)
 axum = { version = "0.8", features = ["ws"] }
 
+# Native ops client (--join): plain-WebSocket client to the host's /session
+tokio-tungstenite = { version = "0.29", default-features = false, optional = true }
+
 # Physics (P5): avian3d 0.7 targets Bevy 0.19.
 avian3d = { version = "0.7", optional = true }
 
@@ -87,25 +90,8 @@ splines = "5.0"
 
 # Random number generation (for NPC wander, foliage scattering)
 rand = { workspace = true }
-lightyear = { version = "0.30.1", optional = true, default-features = false, features = [
-    "std",
-    "client",
-    "server",
-    "replication",
-    "interpolation",
-    "netcode",
-    "udp",
-] }
-# Replication rule customization (JSON rule fns for world-types payloads).
-# Versions unify with lightyear's dependency graph.
-bevy_replicon = { version = "0.44", optional = true }
-bytes = { version = "1", optional = true }
 mdns-sd = { version = "0.21.3", optional = true }
-# PIN pairing for collaborative sessions: SPAKE2 PAKE + AEAD for the
-# host-minted connect token (see src/net/pairing.rs).
-spake2 = { version = "0.4", optional = true, features = ["std"] }
-chacha20poly1305 = { version = "0.10", optional = true }
-# Base64 panoramas (gen_panorama_to_world) and connect tokens.
+# Base64 panoramas (gen_panorama_to_world).
 base64 = "0.22"
 # `local-llm`: in-process GGUF inference (same version LocalGPT MD and Verse
 # use, so their verified constraints hold here too).
@@ -125,17 +111,12 @@ default = ["physics", "multiplayer"]
 # Avian3d rigid-body physics, colliders, joints, forces, gravity, spatial
 # queries (camera spring-arm). Works on Bevy 0.19.
 physics = ["dep:avian3d"]
-# Phase-1 collaborative listen server: lightyear netcode + mDNS discovery
-# (§1 of docs/rfcs/multiplayer/collaborative-world-engine-architecture.md).
-# `--host` / `--join` require this feature.
+# Collaborative rooms over the ops protocol (world-sync over WebSocket),
+# with mDNS discovery. `--host` / `--join` require this feature.
 multiplayer = [
-    "dep:lightyear",
-    "dep:bevy_replicon",
-    "dep:bytes",
     "dep:mdns-sd",
-    "dep:spake2",
-    "dep:chacha20poly1305",
     "dep:localgpt-world-sync",
+    "dep:tokio-tungstenite",
 ]
 # In-process local LLM: runs a GGUF model through mistral.rs as the
 # `gguf/<name>` provider (src/local_llm.rs), reading the model directory

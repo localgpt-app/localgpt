@@ -842,22 +842,10 @@ struct Cli {
     #[arg(long, num_args = 0..=1, default_missing_value = None, group = "net_mode")]
     join: Option<Option<String>>,
 
-    /// UDP port for hosted sessions (with --host).
+    /// Port for hosted sessions (with --host).
     #[cfg(feature = "multiplayer")]
     #[arg(long, requires = "host", default_value_t = 9879)]
     port: u16,
-
-    /// Area-of-interest radius in 64-unit chunks (with --join): the host
-    /// streams full detail within this many chunks of your camera; farther
-    /// chunks show as low-poly impostors.
-    #[cfg(feature = "multiplayer")]
-    #[arg(long, requires = "join", default_value_t = 2, value_parser = clap::value_parser!(u8).range(0..=8))]
-    view_radius: u8,
-
-    /// Disable static mesh baking on the client (with --join).
-    #[cfg(feature = "multiplayer")]
-    #[arg(long, requires = "join")]
-    no_bake: bool,
 
     /// Session PIN shown on the host's console (with --join). Prompted for
     /// if the host requires pairing and this is omitted.
@@ -1114,7 +1102,7 @@ fn main() -> Result<()> {
         if cli.command.is_some() {
             anyhow::bail!("--join cannot be combined with a subcommand");
         }
-        return run_join_mode(&cli, desktop);
+        return run_join_mode(&cli, desktop, &config);
     }
     #[cfg(feature = "multiplayer")]
     if cli.host && cli.command.is_some() {
@@ -1607,16 +1595,15 @@ fn run_host_bevy_app(
     Ok(())
 }
 
-/// Run the collaborative client app: a slim viewer with its own camera that
-/// renders replicated state and forwards prompts to the host.
+/// Run the ops client app: the full gen scene driven by the room over one
+/// WebSocket (see `net/ops_client.rs`).
 #[cfg(feature = "multiplayer")]
-fn run_client_app(
+fn run_ops_client_app(
     server_addr: std::net::SocketAddr,
+    pin: Option<String>,
     prompt_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
-    view_radius: u8,
-    bake: bool,
-    connect_token: Option<Vec<u8>>,
     panel_prompt_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
+    workspace: std::path::PathBuf,
 ) -> Result<()> {
     use bevy::prelude::*;
 
@@ -1641,13 +1628,16 @@ fn run_client_app(
             .disable::<bevy::log::LogPlugin>(),
     );
 
-    app.add_plugins(localgpt_gen::net::client::NetClientPlugin {
-        options: std::sync::Mutex::new(Some(localgpt_gen::net::client::NetClientOptions {
+    // The full gen scene runtime (camera, behaviors, audio) with no agent:
+    // the room drives the scene through the ops applier.
+    let (_bridge, channels) = gen3d::create_gen_channels();
+    gen3d::plugin::setup_gen_app(&mut app, channels, workspace, None);
+    app.add_plugins(localgpt_gen::net::ops_client::OpsClientPlugin {
+        options: std::sync::Mutex::new(Some(localgpt_gen::net::ops_client::OpsClientOptions {
             server_addr,
+            pin,
+            name: guest_display_name(),
             prompt_rx,
-            view_radius,
-            bake,
-            connect_token,
         })),
     });
     if let Some(prompt_tx) = panel_prompt_tx {
@@ -1662,15 +1652,80 @@ fn run_client_app(
     Ok(())
 }
 
-/// `--join` mode: resolve the host address (mDNS browse when unspecified),
-/// start the prompt REPL, and run the client app.
-///
-/// In `desktop` mode (no terminal — typically a viewer the host-or-join
-/// panel launched) prompts come from an in-window panel instead of the
-/// REPL, and an already-paired connect token may arrive in
-/// [`localgpt_gen::net::JOIN_TOKEN_ENV`].
+/// The guest's display name (env user, else "guest").
 #[cfg(feature = "multiplayer")]
-fn run_join_mode(cli: &Cli, desktop: bool) -> Result<()> {
+fn guest_display_name() -> String {
+    std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_else(|_| "guest".to_string())
+}
+
+/// What `/session-info` returns.
+#[cfg(feature = "multiplayer")]
+#[derive(serde::Deserialize)]
+struct SessionInfoWire {
+    protocol: u32,
+    name: String,
+    secret_required: bool,
+}
+
+/// Fetch the host's session info (protocol, name, whether a secret is
+/// needed) before joining.
+#[cfg(feature = "multiplayer")]
+fn fetch_session_info(addr: &std::net::SocketAddr) -> Result<SessionInfoWire> {
+    let url = format!("http://{addr}/session-info");
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    rt.block_on(async {
+        let resp = reqwest::Client::new()
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(3))
+            .send()
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Couldn't reach the host's session endpoint at {url} ({e}). Is the host running, and is TCP port {} open?",
+                    addr.port()
+                )
+            })?;
+        if !resp.status().is_success() {
+            anyhow::bail!("session endpoint answered HTTP {}", resp.status());
+        }
+        Ok(resp.json::<SessionInfoWire>().await?)
+    })
+}
+
+/// The session PIN from --pin, the panel's env hand-off, or an interactive
+/// prompt (three attempts isn't meaningful against a bearer secret — the
+/// host refuses and closes on a wrong one).
+#[cfg(feature = "multiplayer")]
+fn resolve_session_pin(pin_arg: Option<&str>, desktop: bool) -> Result<String> {
+    if let Some(pin) = pin_arg {
+        return Ok(localgpt_gen::net::normalize_pin(pin));
+    }
+    if let Ok(pin) = std::env::var(localgpt_gen::net::JOIN_PIN_ENV) {
+        // SAFETY: called before any threads are spawned.
+        unsafe { std::env::remove_var(localgpt_gen::net::JOIN_PIN_ENV) };
+        let pin = localgpt_gen::net::normalize_pin(&pin);
+        if !pin.is_empty() {
+            return Ok(pin);
+        }
+    }
+    if desktop {
+        anyhow::bail!(
+            "This session needs a PIN. Join it from Gen's Collaborate panel, or pass --pin."
+        );
+    }
+    let mut rl = rustyline::DefaultEditor::new()?;
+    let pin = rl.readline("Session PIN (shown on the host's console): ")?;
+    Ok(localgpt_gen::net::normalize_pin(&pin))
+}
+
+/// `--join` mode: resolve the host address (mDNS browse when unspecified),
+/// fetch session info, and run the ops client app.
+#[cfg(feature = "multiplayer")]
+fn run_join_mode(cli: &Cli, desktop: bool, config: &localgpt_core::config::Config) -> Result<()> {
     use std::net::SocketAddr;
 
     let addr: SocketAddr = match cli.join.clone().flatten() {
@@ -1696,37 +1751,28 @@ fn run_join_mode(cli: &Cli, desktop: bool) -> Result<()> {
         }
     };
 
-    let connect_token = match std::env::var(localgpt_gen::net::JOIN_TOKEN_ENV) {
-        // Paired already by the panel that launched us; don't pair twice.
-        Ok(token) if !token.is_empty() => {
-            use base64::Engine as _;
-            // SAFETY: called before any threads are spawned.
-            unsafe { std::env::remove_var(localgpt_gen::net::JOIN_TOKEN_ENV) };
-            Some(
-                base64::engine::general_purpose::STANDARD
-                    .decode(token.trim())
-                    .map_err(|e| {
-                        anyhow::anyhow!("invalid {}: {e}", localgpt_gen::net::JOIN_TOKEN_ENV)
-                    })?,
-            )
-        }
-        _ if desktop => pair_for_join_without_terminal(addr, cli.pin.as_deref())?,
-        _ => pair_for_join(addr, cli.pin.as_deref())?,
+    let info = fetch_session_info(&addr)?;
+    if info.protocol != localgpt_world_sync::PROTOCOL_VERSION {
+        anyhow::bail!(
+            "Host speaks session protocol {} but this client speaks {} — use matching localgpt-gen versions",
+            info.protocol,
+            localgpt_world_sync::PROTOCOL_VERSION
+        );
+    }
+    let pin = if info.secret_required {
+        Some(resolve_session_pin(cli.pin.as_deref(), desktop)?)
+    } else {
+        eprintln!("Joining '{}' (open session).", info.name);
+        None
     };
 
     let (prompt_tx, prompt_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let workspace = config.workspace_path();
     if desktop {
-        return run_client_app(
-            addr,
-            prompt_rx,
-            cli.view_radius,
-            !cli.no_bake,
-            connect_token,
-            Some(prompt_tx),
-        );
+        return run_ops_client_app(addr, pin, prompt_rx, Some(prompt_tx), workspace);
     }
 
-    // Prompt REPL on a background thread — lines flow to the net systems.
+    // Prompt REPL on a background thread — lines flow to the ops client.
     std::thread::spawn(move || {
         let Ok(mut rl) = rustyline::DefaultEditor::new() else {
             eprintln!("Failed to open input editor — prompts unavailable");
@@ -1749,88 +1795,7 @@ fn run_join_mode(cli: &Cli, desktop: bool) -> Result<()> {
         }
     });
 
-    run_client_app(
-        addr,
-        prompt_rx,
-        cli.view_radius,
-        !cli.no_bake,
-        connect_token,
-        None,
-    )
-}
-
-/// Pairing for a viewer with no terminal to type a PIN into: open sessions
-/// need nothing, PIN sessions need `--pin` (the panel pairs on the viewer's
-/// behalf instead, see `JOIN_TOKEN_ENV`).
-#[cfg(feature = "multiplayer")]
-fn pair_for_join_without_terminal(
-    addr: std::net::SocketAddr,
-    pin_arg: Option<&str>,
-) -> Result<Option<Vec<u8>>> {
-    let info = localgpt_gen::net::pairing::fetch_info(&format!("http://{addr}"))
-        .map_err(|e| anyhow::anyhow!("Couldn't reach the host at tcp://{addr} ({e})"))?;
-    if info.pairing_required && pin_arg.is_none() {
-        anyhow::bail!(
-            "This session needs a PIN. Join it from Gen's Collaborate panel, or pass --pin."
-        );
-    }
-    pair_for_join(addr, pin_arg)
-}
-
-/// Obtain a connect token from the host's pairing endpoint (TCP, same port
-/// number as the session). Returns `None` for `--open` sessions.
-#[cfg(feature = "multiplayer")]
-fn pair_for_join(addr: std::net::SocketAddr, pin_arg: Option<&str>) -> Result<Option<Vec<u8>>> {
-    use localgpt_gen::net::pairing::{PairError, fetch_info, pair_with_host};
-
-    let http_base = format!("http://{addr}");
-    let info = fetch_info(&http_base).map_err(|e| {
-        anyhow::anyhow!(
-            "Couldn't reach the host's session endpoint at tcp://{addr} ({e}).\n\
-             Is the host running the same localgpt-gen version, and is TCP port {} open?",
-            addr.port()
-        )
-    })?;
-    if info.protocol_id != localgpt_gen::net::PROTOCOL_ID {
-        anyhow::bail!(
-            "Host speaks protocol {} but this client speaks {} — use matching localgpt-gen versions",
-            info.protocol_id,
-            localgpt_gen::net::PROTOCOL_ID
-        );
-    }
-    if !info.pairing_required {
-        eprintln!("Joining an OPEN session (no PIN).");
-        return Ok(None);
-    }
-
-    let interactive = pin_arg.is_none();
-    let mut editor = None;
-    for attempt in 1..=3 {
-        let pin = match pin_arg {
-            Some(pin) => pin.to_string(),
-            None => {
-                let rl = match &mut editor {
-                    Some(rl) => rl,
-                    None => editor.insert(rustyline::DefaultEditor::new()?),
-                };
-                rl.readline("Session PIN (shown on the host's console): ")?
-            }
-        };
-        match pair_with_host(&http_base, addr, &pin) {
-            Ok(token) => {
-                eprintln!("Paired with host.");
-                let bytes = token
-                    .try_into_bytes()
-                    .map_err(|e| anyhow::anyhow!("connect token: {e}"))?;
-                return Ok(Some(bytes.to_vec()));
-            }
-            Err(PairError::WrongPin) if interactive && attempt < 3 => {
-                eprintln!("Wrong PIN — try again.");
-            }
-            Err(e) => anyhow::bail!("Pairing failed: {e}"),
-        }
-    }
-    anyhow::bail!("Pairing failed: wrong PIN")
+    run_ops_client_app(addr, pin, prompt_rx, None, workspace)
 }
 
 /// The desktop-mode log (`<state dir>/logs/gen-desktop.log`, appended to),
@@ -2364,7 +2329,7 @@ fn missing_cli_backend_hint(config: &localgpt_core::config::Config) -> Option<St
 /// synchronous) and feeds a merged event channel, so remote prompts from
 /// connected clients can be interleaved with local input. When hosting,
 /// every turn (local or remote) is echoed to connected clients as
-/// [`localgpt_gen::net::protocol::HostChat`] messages.
+/// [`localgpt_gen::net::host::HostChat`] messages.
 ///
 /// Prompts from the in-window panel join the same stream, and every turn is
 /// reported back to it. In `desktop` mode there's no terminal, so the REPL
@@ -2621,7 +2586,7 @@ async fn run_agent_loop(
     let mut idle_chat_tx = None;
     #[cfg(feature = "multiplayer")]
     let mut chat_tx: Option<
-        tokio::sync::mpsc::UnboundedSender<localgpt_gen::net::protocol::HostChat>,
+        tokio::sync::mpsc::UnboundedSender<localgpt_gen::net::host::HostChat>,
     > = None;
     #[cfg(feature = "multiplayer")]
     let job_events_tx = match net_hooks {
@@ -2736,7 +2701,7 @@ async fn run_agent_loop(
                         if let Some(chat_tx) = &chat_tx
                             && !reply.is_empty()
                         {
-                            let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
+                            let _ = chat_tx.send(localgpt_gen::net::host::HostChat {
                                 speaker: "host".to_string(),
                                 text: reply,
                             });
@@ -2796,12 +2761,12 @@ async fn run_agent_loop(
                         });
                     #[cfg(feature = "multiplayer")]
                     if let Some(chat_tx) = &chat_tx {
-                        let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
+                        let _ = chat_tx.send(localgpt_gen::net::host::HostChat {
                             speaker: "host-user".to_string(),
                             text: msg.clone(),
                         });
                         if !reply.is_empty() {
-                            let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
+                            let _ = chat_tx.send(localgpt_gen::net::host::HostChat {
                                 speaker: "host".to_string(),
                                 text: reply,
                             });
@@ -2827,12 +2792,12 @@ async fn run_agent_loop(
                 });
             #[cfg(feature = "multiplayer")]
             if let Some(chat_tx) = &chat_tx {
-                let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
+                let _ = chat_tx.send(localgpt_gen::net::host::HostChat {
                     speaker: "host-user".to_string(),
                     text: input.to_string(),
                 });
                 if !reply.is_empty() {
-                    let _ = chat_tx.send(localgpt_gen::net::protocol::HostChat {
+                    let _ = chat_tx.send(localgpt_gen::net::host::HostChat {
                         speaker: "host".to_string(),
                         text: reply,
                     });

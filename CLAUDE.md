@@ -296,25 +296,19 @@ and map to SpacetimeDB rows for multiplayer via `crates/spacetime`. Meshes,
 materials, lights and environment come from `localgpt-world-bevy`;
 `gen_export_html` embeds `localgpt-world-export`'s viewer.
 
-**Multiplayer (`multiplayer` feature, default on):** listen-server
-collaboration — `localgpt-gen --host` runs the authoritative ECS + render
-client with mDNS announcement (`_localgpt-world._udp.local.`, UDP 9879);
-`localgpt-gen --join [addr] [--pin PIN]` connects as a read-only viewer
-that can send prompts to the host. Sessions use a random per-session key
-and SPAKE2 PIN pairing (`--open` skips it); remote prompts run on a
-scene-only agent unless `--remote-tools full`. Replication is lightyear 0.30 over the
-world-types wire model, narrowed per client by chunk-based interest
-management; prompts run through a job queue with replicated scaffolds;
-clients get HLOD chunk impostors, static mesh baking, and content-addressed
-mesh streaming (HTTP on TCP 9879). Client REPL `/stats` and `/goto x y z`
-help debug streaming. **`--web` adds browser guests:** the session HTTP server
-serves a join page at `/` plus a WebSocket endpoint at `/session`
-(`crates/gen/src/net/web.rs`), and the host prints an invite link with a
-bearer token. The room's shared document, ops, wire protocol and authority
-live in **`localgpt-world-sync`** (`crates/world-sync`, no Bevy/no I/O); the
-host projects its scene into it and diffs (~4 Hz), so every tool syncs as
-world-types `EditOp`s. Browser guests watch, walk, chat and prompt (same job
-queue + scoped agent). See `docs/gen/multiplayer.md` and
+**Multiplayer (`multiplayer` feature, default on):** collaborative rooms
+over the ops protocol — `localgpt-gen --host` runs the room authority
+(`localgpt-world-sync`, `crates/world-sync`: shared document, validated
+`EditOp`s, revisions, presence, jobs) plus a session HTTP server (join page
++ WebSocket `/session`, TCP 9879) and an mDNS announcement
+(`_localgpt-world._udp.local.`). `localgpt-gen --join [addr] [--pin PIN]`
+runs the native client (`net/ops_client.rs` — the full gen scene driven by
+the room); `--web` adds browser guests via an invite link (`--web-edit`
+gives them the editor role); guests prompt a scene-only agent unless
+`--remote-tools full`. The host projects its scene into ops (~4 Hz), so
+every tool syncs; committed ops apply back into its scene. Sessions keep an
+op log (`<workspace>/sessions/<name>/ops.jsonl`) with per-user `/undo`,
+`--resume`, and `--replay` time-lapse. See `docs/gen/multiplayer.md` and
 `crates/gen/src/net/`; the SpacetimeDB module carries the cloud-tier
 inference queue (`crates/spacetime/src/jobs.rs`).
 

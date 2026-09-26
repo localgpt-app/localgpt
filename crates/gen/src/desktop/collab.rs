@@ -412,52 +412,53 @@ fn join_manual(ui: &mut egui::Ui, form: &mut JoinForm) {
     }
 }
 
-/// Pair with the host and spawn a child viewer process. Runs on a
-/// background thread.
+/// Check the host's session info and spawn a child viewer process, handing
+/// the PIN over through the environment. Runs on a background thread.
 fn pair_and_spawn(addr_str: &str, pin: Option<&str>) -> Result<(), String> {
-    use crate::net::pairing::{PairError, fetch_info, pair_with_host};
-
     let addr = crate::net::parse_peer_addr(addr_str).map_err(|e| e.to_string())?;
 
-    let http_base = format!("http://{addr}");
-    let info = fetch_info(&http_base).map_err(|e| {
-        format!(
-            "Couldn't reach the host at tcp://{addr} ({e}). \
+    let url = format!("http://{addr}/session-info");
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| e.to_string())?;
+    let info = rt
+        .block_on(async {
+            let resp = reqwest::Client::new()
+                .get(&url)
+                .timeout(std::time::Duration::from_secs(3))
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+            resp.json::<serde_json::Value>()
+                .await
+                .map_err(|e| e.to_string())
+        })
+        .map_err(|e: String| {
+            format!(
+                "Couldn't reach the host at tcp://{addr} ({e}). \
              Is the session running and the port open?"
-        )
-    })?;
+            )
+        })?;
 
-    if info.protocol_id != PROTOCOL_ID {
+    let protocol = info["protocol"].as_u64().unwrap_or(0);
+    if protocol != localgpt_world_sync::PROTOCOL_VERSION as u64 {
         return Err(format!(
             "Protocol mismatch: host speaks {} but we speak {} — use matching versions",
-            info.protocol_id, PROTOCOL_ID
+            protocol,
+            localgpt_world_sync::PROTOCOL_VERSION
         ));
     }
-
-    let token_bytes: Option<Vec<u8>> = if !info.pairing_required {
-        None
-    } else {
-        let pin_str = pin.ok_or("This session requires a PIN")?;
-        match pair_with_host(&http_base, addr, pin_str) {
-            Ok(token) => {
-                let bytes = token
-                    .try_into_bytes()
-                    .map_err(|e| format!("connect token: {e}"))?;
-                Some(bytes.to_vec())
-            }
-            Err(PairError::WrongPin) => return Err("Wrong PIN — check the host's screen".into()),
-            Err(e) => return Err(format!("Pairing failed: {e}")),
-        }
-    };
+    if info["secret_required"].as_bool().unwrap_or(false) && pin.is_none() {
+        return Err("This session requires a PIN".into());
+    }
 
     // Spawn the child viewer process.
     let exe = std::env::current_exe().map_err(|e| format!("can't find localgpt-gen: {e}"))?;
     let mut cmd = std::process::Command::new(exe);
     cmd.arg("--join").arg(addr.to_string());
-    if let Some(bytes) = token_bytes {
-        use base64::Engine as _;
-        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-        cmd.env(crate::net::JOIN_TOKEN_ENV, b64);
+    if let Some(pin) = pin {
+        cmd.env(crate::net::JOIN_PIN_ENV, pin);
     }
     cmd.spawn()
         .map_err(|e| format!("failed to start viewer: {e}"))?;
