@@ -337,6 +337,8 @@ pub fn setup_gen_app(
             ),
         )
         .add_systems(Update, process_gen_commands)
+        .init_resource::<super::offscreen::OffscreenRenderTarget>()
+        .add_systems(Update, super::offscreen::attach_offscreen_target)
         .add_systems(Update, process_pending_screenshots)
         .add_systems(Update, process_pending_gltf_loads)
         .add_systems(Update, apply_asset_gen_updates)
@@ -4768,9 +4770,9 @@ fn process_pending_screenshots(
     material_handles: Query<&MeshMaterial3d<StandardMaterial>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     gen_entities: Query<(&GenEntity, &Transform), Without<Camera>>,
-    _names_query: Query<&Name>,
+    offscreen: Res<super::offscreen::OffscreenRenderTarget>,
 ) {
-    use bevy::render::view::screenshot::{Screenshot, save_to_disk};
+    use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
 
     let mut completed = Vec::new();
 
@@ -4890,47 +4892,91 @@ fn process_pending_screenshots(
             ))]
         };
 
-        // Find the primary camera
-        let camera_entity = cameras.iter().next();
-
-        // Take screenshot using Bevy's Screenshot API
-        if let Some(_camera) = camera_entity {
-            // Create screenshot entity and observer for each path
-            for path in &paths {
-                // Ensure parent directory exists
-                if let Some(parent) = path.parent() {
-                    let _ = std::fs::create_dir_all(parent);
-                }
-
-                let path_clone = path.clone();
-                commands
-                    .spawn(Screenshot::primary_window())
-                    .observe(save_to_disk(path_clone));
-            }
-        }
-
-        // --- WG4.1: Restore original emissive after screenshot is queued ---
-        if let Some((entity, orig_emissive)) = original_emissive
-            && let Ok(mat_handle) = material_handles.get(entity)
-            && let Some(mut mat) = materials.get_mut(&mat_handle.0)
-        {
-            mat.emissive = orig_emissive;
-        }
-
-        // --- WG4.1: Restore original camera transform ---
-        if let Some(orig_tf) = original_camera_transform
-            && let Ok(mut cam_tf) = camera_transforms.single_mut()
-        {
-            *cam_tf = orig_tf;
-        }
-
-        // Send response with the first (primary) path
-        let primary_path = paths.first().cloned().unwrap_or_default();
-        let response = GenResponse::Screenshot {
-            image_path: primary_path.to_string_lossy().into_owned(),
+        // Capture the window, or the offscreen image the camera renders to
+        // when there is no window (headless). The file is written, the view
+        // restored and the tool answered only once the frame has rendered.
+        let target = match offscreen.image_handle.clone() {
+            Some(image) => Screenshot::image(image),
+            None => Screenshot::primary_window(),
         };
-        let _ = channel_res.channels.resp_tx.send(response);
+        if cameras.iter().next().is_none() {
+            restore_screenshot_view(
+                original_emissive,
+                original_camera_transform,
+                &material_handles,
+                &mut materials,
+                &mut camera_transforms,
+            );
+            let _ = channel_res.channels.resp_tx.send(GenResponse::Error {
+                message: "No camera in the scene to take a screenshot with".into(),
+            });
+            continue;
+        }
+        let resp_tx = channel_res.channels.resp_tx.clone();
+        commands.spawn(target).observe(
+            move |captured: On<ScreenshotCaptured>,
+                  mut commands: Commands,
+                  material_handles: Query<&MeshMaterial3d<StandardMaterial>>,
+                  mut materials: ResMut<Assets<StandardMaterial>>,
+                  mut camera_transforms: Query<&mut Transform, With<Camera>>| {
+                restore_screenshot_view(
+                    original_emissive,
+                    original_camera_transform,
+                    &material_handles,
+                    &mut materials,
+                    &mut camera_transforms,
+                );
+                let response = match save_screenshot(&captured.image, &paths) {
+                    Ok(()) => GenResponse::Screenshot {
+                        image_path: paths[0].to_string_lossy().into_owned(),
+                    },
+                    Err(message) => GenResponse::Error { message },
+                };
+                let _ = resp_tx.send(response);
+                commands.entity(captured.entity).despawn();
+            },
+        );
     }
+}
+
+/// Put back the camera and highlight a screenshot changed.
+fn restore_screenshot_view(
+    original_emissive: Option<(Entity, LinearRgba)>,
+    original_camera_transform: Option<Transform>,
+    material_handles: &Query<&MeshMaterial3d<StandardMaterial>>,
+    materials: &mut Assets<StandardMaterial>,
+    camera_transforms: &mut Query<&mut Transform, With<Camera>>,
+) {
+    if let Some((entity, orig_emissive)) = original_emissive
+        && let Ok(mat_handle) = material_handles.get(entity)
+        && let Some(mut mat) = materials.get_mut(&mat_handle.0)
+    {
+        mat.emissive = orig_emissive;
+    }
+    if let Some(orig_tf) = original_camera_transform
+        && let Ok(mut cam_tf) = camera_transforms.single_mut()
+    {
+        *cam_tf = orig_tf;
+    }
+}
+
+/// Write a captured frame to every path (PNG, alpha dropped as Bevy's
+/// `save_to_disk` does, since HDR stores brightness there).
+fn save_screenshot(image: &Image, paths: &[PathBuf]) -> Result<(), String> {
+    let rgb = image
+        .clone()
+        .try_into_dynamic()
+        .map_err(|e| format!("Screenshot has an unsupported format: {e}"))?
+        .to_rgb8();
+    for path in paths {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Cannot create {}: {e}", parent.display()))?;
+        }
+        rgb.save_with_format(path, image::ImageFormat::Png)
+            .map_err(|e| format!("Cannot save screenshot to {}: {e}", path.display()))?;
+    }
+    Ok(())
 }
 
 /// Compute the center and max extent of all GenEntities in the scene.

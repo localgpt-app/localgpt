@@ -1,14 +1,9 @@
 //! Offscreen rendering for headless screenshot capture.
 //!
-//! Creates a render-to-texture pipeline that captures the scene without
-//! a visible window. Based on Bevy's `headless_renderer` example pattern.
-//!
-//! NOTE: In Bevy 0.18, the offscreen render target approach requires
-//! using the `RenderTarget` component. The actual screenshot capture
-//! in headless mode currently relies on the existing `gen_screenshot`
-//! tool (which uses Bevy's `Screenshot` API). The offscreen render
-//! target will be wired in Phase 1.5 once the headless pipeline is
-//! proven with tool-call-only generation.
+//! With no primary window (`--headless`), cameras aimed at the window render
+//! nowhere and `Screenshot::primary_window()` captures nothing. The
+//! [`attach_offscreen_target`] system gives those cameras an image to render
+//! into instead, and `gen_screenshot` captures that image.
 
 use bevy::prelude::*;
 use bevy::render::render_resource::{
@@ -34,14 +29,30 @@ impl Default for OffscreenRenderTarget {
     }
 }
 
-/// Marker component for the offscreen camera (Phase 1.5).
-#[allow(dead_code)]
-#[derive(Component)]
-pub struct OffscreenCamera;
+/// Without a primary window, point every window-targeted camera at an
+/// offscreen image (created once, [`OffscreenRenderTarget`]'s size).
+pub fn attach_offscreen_target(
+    mut offscreen: ResMut<OffscreenRenderTarget>,
+    windows: Query<(), With<bevy::window::PrimaryWindow>>,
+    mut cameras: Query<&mut bevy::camera::RenderTarget, With<Camera>>,
+    mut images: ResMut<Assets<Image>>,
+) {
+    if !windows.is_empty() {
+        return;
+    }
+    let (width, height) = (offscreen.width, offscreen.height);
+    for mut target in &mut cameras {
+        if matches!(*target, bevy::camera::RenderTarget::Window(_)) {
+            let handle = offscreen
+                .image_handle
+                .get_or_insert_with(|| create_offscreen_image(&mut images, width, height))
+                .clone();
+            *target = bevy::camera::RenderTarget::Image(handle.into());
+        }
+    }
+}
 
-/// Set up the offscreen render target image (without camera — see Phase 1.5).
-///
-/// Creates the GPU texture that can be used as a render target.
+/// Create the GPU texture cameras render into when there is no window.
 pub fn create_offscreen_image(
     images: &mut Assets<Image>,
     width: u32,
@@ -58,7 +69,7 @@ pub fn create_offscreen_image(
             label: Some("offscreen_render_target"),
             size,
             dimension: TextureDimension::D2,
-            format: TextureFormat::Bgra8UnormSrgb,
+            format: TextureFormat::Rgba8UnormSrgb,
             mip_level_count: 1,
             sample_count: 1,
             usage: TextureUsages::TEXTURE_BINDING
