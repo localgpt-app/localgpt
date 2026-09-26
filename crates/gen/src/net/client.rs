@@ -496,6 +496,7 @@ fn wt_default_material() -> localgpt_world_types::MaterialDef {
         unlit: None,
         double_sided: None,
         reflectance: None,
+        ..Default::default()
     }
 }
 

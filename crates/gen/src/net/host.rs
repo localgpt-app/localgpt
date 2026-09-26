@@ -629,6 +629,7 @@ fn net_attach_new_entities(
         audio_emitters: &audio_emitters,
         parent_query: &parent_query,
         gltf_sources: &gltf_sources,
+        material_textures: None,
         registry: &registry,
     };
 
@@ -728,6 +729,7 @@ fn net_sync_changes(
         audio_emitters: &audio_emitters,
         parent_query: &parent_query,
         gltf_sources: &gltf_sources,
+        material_textures: None,
         registry: &registry,
     };
     for (entity, gen_entity, name) in structural {

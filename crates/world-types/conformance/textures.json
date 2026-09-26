@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "conformance-textures",
+    "description": "Texture maps: albedo, metallic-roughness, normal and emissive, alone and combined, on a cube, a sphere and a plane. The red checker cell marks UV (0, 0). Images live in assets/textures/.",
+    "tags": ["conformance"]
+  },
+  "environment": {
+    "background_color": [0.12, 0.13, 0.16, 1.0],
+    "ambient_color": [0.9, 0.95, 1.0, 1.0],
+    "ambient_intensity": 200.0
+  },
+  "camera": { "position": [0.0, 4.0, 10.0], "look_at": [0.0, 1.0, 0.0], "fov_degrees": 50.0 },
+  "entities": [
+    { "id": 1, "name": "ground",
+      "shape": { "Plane": { "x": 12.0, "z": 12.0 } },
+      "material": { "color": [1.0, 1.0, 1.0, 1.0], "roughness": 0.9, "base_color_texture": "textures/checker_albedo.png" } },
+    { "id": 2, "name": "sun", "transform": { "position": [0.0, 20.0, 0.0] },
+      "light": { "light_type": "directional", "intensity": 9000.0, "direction": [-0.4, -1.0, -0.6], "shadows": true } },
+
+    { "id": 10, "name": "albedo_cube", "transform": { "position": [-3.0, 1.0, 0.0] }, "shape": { "Cuboid": { "x": 1.5, "y": 1.5, "z": 1.5 } },
+      "material": { "color": [1.0, 1.0, 1.0, 1.0], "base_color_texture": "textures/checker_albedo.png" } },
+    { "id": 11, "name": "tinted_albedo_sphere", "transform": { "position": [-1.0, 1.0, 0.0] }, "shape": { "Sphere": { "radius": 0.8 } },
+      "material": { "color": [0.5, 1.0, 0.5, 1.0], "base_color_texture": "textures/checker_albedo.png" } },
+    { "id": 12, "name": "metallic_roughness_sphere", "transform": { "position": [1.0, 1.0, 0.0] }, "shape": { "Sphere": { "radius": 0.8 } },
+      "material": { "color": [0.9, 0.9, 0.9, 1.0], "metallic": 1.0, "roughness": 1.0, "metallic_roughness_texture": "textures/checker_mr.png" } },
+    { "id": 13, "name": "normal_mapped_cube", "transform": { "position": [3.0, 1.0, 0.0] }, "shape": { "Cuboid": { "x": 1.5, "y": 1.5, "z": 1.5 } },
+      "material": { "color": [0.8, 0.8, 0.8, 1.0], "normal_map_texture": "textures/checker_normal.png" } },
+    { "id": 14, "name": "emissive_cube", "transform": { "position": [0.0, 1.0, -3.0] }, "shape": { "Cuboid": { "x": 1.5, "y": 1.5, "z": 1.5 } },
+      "material": { "color": [0.1, 0.1, 0.1, 1.0], "emissive": [4.0, 4.0, 4.0, 1.0], "emissive_texture": "textures/grid_emissive.png" } },
+    { "id": 15, "name": "all_maps_sphere", "transform": { "position": [0.0, 1.0, 3.0] }, "shape": { "Sphere": { "radius": 0.8 } },
+      "material": { "color": [1.0, 1.0, 1.0, 1.0], "metallic": 1.0, "roughness": 1.0, "emissive": [1.0, 1.0, 1.0, 1.0],
+        "base_color_texture": "textures/checker_albedo.png",
+        "metallic_roughness_texture": "textures/checker_mr.png",
+        "normal_map_texture": "textures/checker_normal.png",
+        "emissive_texture": "textures/grid_emissive.png" } }
+  ],
+  "next_entity_id": 16
+}

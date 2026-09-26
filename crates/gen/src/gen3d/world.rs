@@ -43,6 +43,59 @@ pub struct EnvironmentSnapshot {
 // Save world (new RON format)
 // ---------------------------------------------------------------------------
 
+/// Copy a texture into the world's `assets/textures/` (once per source) and
+/// return its manifest path, relative to `assets/`. A texture already inside
+/// `assets/` keeps its place; one that can't be copied keeps its source path.
+fn localize_texture(
+    source: &str,
+    assets_dir: &std::path::Path,
+    done: &mut std::collections::HashMap<String, String>,
+) -> String {
+    if let Some(path) = done.get(source) {
+        return path.clone();
+    }
+    let src = std::path::Path::new(source);
+    let canonical_assets = assets_dir.canonicalize().ok();
+    let relative = src.canonicalize().ok().and_then(|abs| {
+        let base = canonical_assets.as_ref()?;
+        abs.strip_prefix(base)
+            .ok()
+            .map(|r| r.to_string_lossy().replace('\\', "/"))
+    });
+    let path = relative.unwrap_or_else(|| {
+        let textures_dir = assets_dir.join("textures");
+        let Some(file_name) = src.file_name().map(|f| f.to_string_lossy().into_owned()) else {
+            return source.to_string();
+        };
+        let mut target = file_name.clone();
+        if textures_dir.join(&target).exists() {
+            use std::hash::{Hash, Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            source.hash(&mut hasher);
+            let stem = src
+                .file_stem()
+                .map(|s| s.to_string_lossy())
+                .unwrap_or_default();
+            let ext = src
+                .extension()
+                .map(|e| e.to_string_lossy())
+                .unwrap_or_default();
+            target = format!("{stem}_{:04}.{ext}", hasher.finish() % 10000);
+        }
+        let copied = std::fs::create_dir_all(&textures_dir)
+            .and_then(|_| std::fs::copy(src, textures_dir.join(&target)));
+        match copied {
+            Ok(_) => format!("textures/{target}"),
+            Err(e) => {
+                tracing::warn!("Failed to copy texture '{}': {}", source, e);
+                source.to_string()
+            }
+        }
+    });
+    done.insert(source.to_string(), path.clone());
+    path
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn handle_save_world(
     cmd: SaveWorldCmd,
@@ -59,6 +112,7 @@ pub fn handle_save_world(
     behaviors_query: &Query<&mut EntityBehaviors>,
     parametric_shapes: &Query<&ParametricShape>,
     gltf_sources: &Query<&GltfSource>,
+    material_textures: &Query<&MaterialTextures>,
     visibility_query: &Query<&Visibility>,
     directional_lights: &Query<&DirectionalLight>,
     point_lights: &Query<&PointLight>,
@@ -145,6 +199,11 @@ pub fn handle_save_world(
             path_map.insert(original_path.clone(), original_path);
         }
     }
+
+    // Texture maps are copied into assets/textures/ as they are met below.
+    let assets_dir = skill_dir.join("assets");
+    let mut texture_map: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
 
     // Collect all entities into WorldEntity objects
     let mut world_entities: Vec<wt::WorldEntity> = Vec::new();
@@ -234,7 +293,15 @@ pub fn handle_save_world(
                 } else {
                     None
                 },
+                ..Default::default()
             });
+            if let Ok(textures) = material_textures.get(bevy_entity)
+                && let Some(def) = we.material.as_mut()
+            {
+                textures.apply_to(def, |source| {
+                    localize_texture(source, &assets_dir, &mut texture_map)
+                });
+            }
         }
 
         // Light — extract from Bevy light components (any entity type can have a light)
@@ -1228,6 +1295,38 @@ fn resolve_world_path(path: &str, workspace: &Path) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saving_copies_textures_into_the_world_assets() {
+        let tmp = tempfile::tempdir().unwrap();
+        let assets = tmp.path().join("world").join("assets");
+        std::fs::create_dir_all(assets.join("textures")).unwrap();
+        let outside = tmp.path().join("generated").join("brick.png");
+        std::fs::create_dir_all(outside.parent().unwrap()).unwrap();
+        std::fs::write(&outside, b"png").unwrap();
+        let inside = assets.join("textures").join("moss.png");
+        std::fs::write(&inside, b"png").unwrap();
+
+        let mut done = std::collections::HashMap::new();
+        let src = outside.to_str().unwrap();
+        assert_eq!(
+            localize_texture(src, &assets, &mut done),
+            "textures/brick.png"
+        );
+        assert!(assets.join("textures/brick.png").exists());
+        // Once per source: the second reference reuses the copy.
+        assert_eq!(
+            localize_texture(src, &assets, &mut done),
+            "textures/brick.png"
+        );
+        assert_eq!(
+            std::fs::read_dir(assets.join("textures")).unwrap().count(),
+            2
+        );
+        // Already in the world: referenced in place.
+        let in_place = localize_texture(inside.to_str().unwrap(), &assets, &mut done);
+        assert_eq!(in_place, "textures/moss.png");
+    }
 
     #[test]
     fn ron_manifest_roundtrip() {

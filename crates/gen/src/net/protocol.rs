@@ -397,6 +397,7 @@ mod tests {
             unlit: None,
             double_sided: None,
             reflectance: None,
+            ..Default::default()
         });
         we.behaviors = vec![wt::BehaviorDef::Bob {
             axis: [0.0, 1.0, 0.0],

@@ -62,7 +62,7 @@ pub use entity::{EntityPatch, WorldEntity, WorldTransform};
 pub use history::{AmbienceLayerDef, EditHistory, EditOp, WorldEdit};
 pub use identity::{CreationId, EntityId, EntityName, EntityRef};
 pub use light::{LightDef, LightType};
-pub use material::{AlphaModeDef, MaterialDef};
+pub use material::{AlphaModeDef, MaterialDef, TextureSlot};
 pub use modulation::{ModulationDef, ModulationTarget, SignalSource, StemKind};
 pub use npc::{NpcBrainDef, NpcDataCollection, NpcDef, NpcMemoryDef, NpcMemoryEntryDef};
 pub use shape::{PrimitiveShapeKind, Shape};

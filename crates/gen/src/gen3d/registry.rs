@@ -44,6 +44,36 @@ pub struct GltfSource {
     pub path: String,
 }
 
+/// Texture maps on an entity's material, by source file.
+///
+/// `StandardMaterial` only holds image handles, so this keeps the paths the
+/// maps were loaded from (absolute) for `snapshot_entity` and world save,
+/// which copies them into the world's `assets/textures/`.
+#[derive(Component, Clone, Debug, Default, PartialEq)]
+pub struct MaterialTextures {
+    pub maps: Vec<(localgpt_world_types::TextureSlot, String)>,
+}
+
+impl MaterialTextures {
+    /// Write these maps into a material definition, mapping each source path
+    /// through `path` (identity for snapshots, the copied asset path on save).
+    pub fn apply_to(
+        &self,
+        def: &mut localgpt_world_types::MaterialDef,
+        mut path: impl FnMut(&str) -> String,
+    ) {
+        for (slot, source) in &self.maps {
+            *def.texture_mut(*slot) = Some(path(source));
+        }
+    }
+
+    /// Set or replace one map.
+    pub fn set(&mut self, slot: localgpt_world_types::TextureSlot, source: String) {
+        self.maps.retain(|(s, _)| *s != slot);
+        self.maps.push((slot, source));
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum GenEntityType {

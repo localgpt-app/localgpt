@@ -182,6 +182,7 @@ impl From<&SpawnPrimitiveCmd> for wt::MaterialDef {
             unlit: cmd.unlit,
             double_sided: None,
             reflectance: None,
+            ..Default::default()
         }
     }
 }

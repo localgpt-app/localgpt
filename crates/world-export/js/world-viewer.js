@@ -160,7 +160,34 @@ export function createGeometry(shape) {
 // Materials and lights
 // ---------------------------------------------------------------------------
 
-export function createMaterial(def) {
+// Texture maps: paths relative to the world's `assets/` folder, glTF
+// conventions (colour maps sRGB, data maps linear; roughness in green and
+// metallic in blue of one metallic-roughness image), multiplied by the scalar
+// factors as in the Bevy mapping (an emissive map shows only where `emissive`
+// is non-zero). Without an `assetBase` they are skipped.
+const TEXTURE_SLOTS = [
+  ['base_color_texture', ['map'], true],
+  ['metallic_roughness_texture', ['roughnessMap', 'metalnessMap'], false],
+  ['normal_map_texture', ['normalMap'], false],
+  ['emissive_texture', ['emissiveMap'], true],
+];
+let textureLoader = null;
+
+function applyTextures(material, mat, assetBase) {
+  if (!assetBase) return;
+  for (const [key, props, srgb] of TEXTURE_SLOTS) {
+    const path = mat[key];
+    if (!path) continue;
+    if (props.some((p) => !(p in material))) continue; // e.g. unlit has no normalMap
+    textureLoader ||= new THREE.TextureLoader();
+    const texture = textureLoader.load(assetBase + path, () => { material.needsUpdate = true; });
+    texture.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    for (const p of props) material[p] = texture;
+  }
+}
+
+export function createMaterial(def, assetBase = null) {
   const mat = { ...DEFAULT_MATERIAL, ...(def || {}) };
   const color = srgbColor(mat.color);
   const opacity = mat.color?.[3] ?? 1;
@@ -188,6 +215,7 @@ export function createMaterial(def) {
   else if (alphaKind === 'multiply') material.blending = THREE.MultiplyBlending;
   else if (alphaKind === 'mask') material.alphaTest = typeof alphaArg === 'number' ? alphaArg : 0.5;
   // `reflectance` has no MeshStandardMaterial equivalent; Bevy F0 = 0.16 * r².
+  applyTextures(material, mat, assetBase);
   return material;
 }
 
@@ -515,7 +543,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     const hasShape = !!def.shape, hasLight = !!def.light;
     let object, material = null, light = null;
     if (hasShape) {
-      material = createMaterial(def.material);
+      material = createMaterial(def.material, assetBase);
       object = new THREE.Mesh(createGeometry(def.shape), material);
       object.castShadow = true;
       object.receiveShadow = true;

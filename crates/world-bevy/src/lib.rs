@@ -15,6 +15,8 @@
 //!   Gen's `[0, -1, -0.5]` and `[0, -1, 0]` ([`light_transform`]);
 //! - every parametric [`Shape`](wt::Shape) is centered on its origin and
 //!   fits the bounds `Shape::local_aabb_half` declares ([`shape_mesh`]).
+//! - texture maps are paths relative to the world's `assets/` folder;
+//!   colour maps decode as sRGB, data maps as linear ([`apply_textures`]).
 //!
 //! Reference scenes for eyeballing all of this live in
 //! `crates/world-types/conformance/`.
@@ -159,6 +161,46 @@ pub fn standard_material(def: &wt::MaterialDef) -> StandardMaterial {
         material.reflectance = reflectance;
     }
     material
+}
+
+/// Attach a manifest material's texture maps to `material`.
+///
+/// World-bevy doesn't know where a world lives on disk, so the caller loads
+/// each image: `load(slot, path)` receives the manifest path (relative to the
+/// world's `assets/` folder) and returns the handle, typically
+/// `asset_server.load_builder().with_settings(texture_settings(slot))`. The
+/// scalar factors stay as [`standard_material`] set them and multiply the
+/// maps, as in glTF. A normal map needs mesh tangents
+/// ([`needs_tangents`]).
+pub fn apply_textures(
+    material: &mut StandardMaterial,
+    def: &wt::MaterialDef,
+    mut load: impl FnMut(wt::TextureSlot, &str) -> Handle<Image>,
+) {
+    for (slot, path) in def.textures() {
+        let handle = Some(load(slot, path));
+        match slot {
+            wt::TextureSlot::BaseColor => material.base_color_texture = handle,
+            wt::TextureSlot::MetallicRoughness => material.metallic_roughness_texture = handle,
+            wt::TextureSlot::Normal => material.normal_map_texture = handle,
+            wt::TextureSlot::Emissive => material.emissive_texture = handle,
+        }
+    }
+}
+
+/// Image loader settings for a texture slot: colour maps decode as sRGB,
+/// data maps (metallic-roughness, normal) as linear.
+pub fn texture_settings(
+    slot: wt::TextureSlot,
+) -> impl Fn(&mut bevy::image::ImageLoaderSettings) + Send + Sync + 'static {
+    let is_srgb = slot.is_srgb();
+    move |settings| settings.is_srgb = is_srgb
+}
+
+/// Whether a mesh drawn with this material needs tangents
+/// (`Mesh::generate_tangents`): Bevy's normal mapping requires them.
+pub fn needs_tangents(def: &wt::MaterialDef) -> bool {
+    def.normal_map_texture.is_some()
 }
 
 /// Bevy's `AlphaMode` for a manifest alpha mode.
@@ -538,6 +580,7 @@ mod tests {
             unlit: Some(true),
             double_sided: Some(true),
             reflectance: Some(0.9),
+            ..Default::default()
         };
         let m = standard_material(&def);
         assert_eq!(m.base_color, Color::srgba(0.5, 0.25, 0.125, 0.5));
@@ -549,6 +592,38 @@ mod tests {
         assert!(m.double_sided);
         assert_eq!(m.reflectance, 0.9);
         assert_eq!(alpha_mode_def(AlphaMode::Add), wt::AlphaModeDef::Add);
+    }
+
+    #[test]
+    fn texture_mapping() {
+        let def = wt::MaterialDef {
+            base_color_texture: Some("textures/a.png".into()),
+            normal_map_texture: Some("textures/n.png".into()),
+            ..Default::default()
+        };
+        let mut material = standard_material(&def);
+        let mut loaded = Vec::new();
+        apply_textures(&mut material, &def, |slot, path| {
+            loaded.push((slot, path.to_string()));
+            Handle::default()
+        });
+        assert_eq!(
+            loaded,
+            vec![
+                (wt::TextureSlot::BaseColor, "textures/a.png".to_string()),
+                (wt::TextureSlot::Normal, "textures/n.png".to_string()),
+            ]
+        );
+        assert!(material.base_color_texture.is_some());
+        assert!(material.normal_map_texture.is_some());
+        assert!(material.metallic_roughness_texture.is_none());
+        assert!(needs_tangents(&def));
+
+        let mut settings = bevy::image::ImageLoaderSettings::default();
+        texture_settings(wt::TextureSlot::Normal)(&mut settings);
+        assert!(!settings.is_srgb);
+        texture_settings(wt::TextureSlot::BaseColor)(&mut settings);
+        assert!(settings.is_srgb);
     }
 
     #[test]

@@ -11,6 +11,7 @@ the format must load and draw the same way:
 | `behaviors.json` | All seven behaviors: orbit (entity and point), spin, bob, look_at, pulse, path_follow (loop, ping-pong, once), bounce |
 | `hierarchy_tours.json` | Parent/child transforms, a group entity, an avatar, a fly tour with captions, ambient and spatial procedural audio |
 | `soundtrack.json` | A soundtrack (analysis only, no audio file) and modulations of every target by every signal kind |
+| `textures.json` | Albedo (plain and tinted), metallic-roughness, normal and emissive maps, and all four together; images in `assets/textures/` |
 
 `tests/conformance.rs` parses each file, checks `validate_manifest` reports no
 errors, and round-trips it through RON and JSON. The web viewer

@@ -85,6 +85,31 @@ fn fixtures_parse_validate_and_roundtrip() {
     }
 }
 
+#[test]
+fn fixture_textures_exist_and_every_slot_is_covered() {
+    let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("conformance")
+        .join("assets");
+    let mut slots = BTreeSet::new();
+    for (name, text) in fixtures() {
+        let manifest = parse(&name, &text);
+        for e in &manifest.entities {
+            for (slot, path) in e.material.iter().flat_map(|m| m.textures()) {
+                assert!(
+                    assets.join(path).is_file(),
+                    "{name}: {} uses missing texture {path}",
+                    e.name
+                );
+                slots.insert(format!("{slot:?}"));
+            }
+        }
+    }
+    assert_eq!(
+        slots,
+        set(&["BaseColor", "Emissive", "MetallicRoughness", "Normal"])
+    );
+}
+
 /// Externally tagged variant names of every value under `key` in every
 /// entity of every fixture (`"beat"` → `beat`, `{"stem": ..}` → `stem`).
 fn variant_names(key: &str, nested: Option<&str>) -> BTreeSet<String> {

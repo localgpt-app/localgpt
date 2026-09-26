@@ -435,6 +435,7 @@ mod tests {
             unlit: None,
             double_sided: None,
             reflectance: None,
+            ..Default::default()
         });
         let mut b = a.clone();
         assert_eq!(material_key(Some(&a)), material_key(Some(&b)));

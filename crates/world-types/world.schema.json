@@ -1236,6 +1236,13 @@
             }
           ]
         },
+        "base_color_texture": {
+          "description": "Base colour (albedo) map, sRGB. Multiplied by `color`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "color": {
           "description": "Base color, sRGB-encoded RGBA in `0..=1` (what Bevy's `Color::srgba`\nreads; renderers convert to linear).",
           "type": "array",
@@ -1275,11 +1282,32 @@
           "maxItems": 4,
           "minItems": 4
         },
+        "emissive_texture": {
+          "description": "Emissive map, sRGB. Multiplied by `emissive`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "metallic": {
           "description": "Metallic factor (0.0 = dielectric, 1.0 = metal).",
           "type": "number",
           "format": "float",
           "default": 0.0
+        },
+        "metallic_roughness_texture": {
+          "description": "Metallic-roughness map, linear: roughness in green, metallic in blue.\nMultiplied by `roughness` and `metallic`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "normal_map_texture": {
+          "description": "Tangent-space normal map, linear.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "reflectance": {
           "description": "Reflectance at normal incidence (default 0.5 = 4% reflectance).",

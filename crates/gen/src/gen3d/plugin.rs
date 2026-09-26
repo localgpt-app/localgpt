@@ -533,6 +533,7 @@ struct GenCommandParams<'w, 's> {
     spot_lights: Query<'w, 's, &'static SpotLight>,
     audio_emitters: Query<'w, 's, &'static audio::AudioEmitter>,
     gltf_sources: Query<'w, 's, &'static GltfSource>,
+    material_textures: Query<'w, 's, &'static MaterialTextures>,
     projections: Query<'w, 's, &'static Projection>,
     clear_color: Option<Res<'w, ClearColor>>,
     ambient_light: Option<Res<'w, GlobalAmbientLight>>,
@@ -582,6 +583,7 @@ macro_rules! snap_queries {
             audio_emitters: &$params.audio_emitters,
             parent_query: &$params.parent_query,
             gltf_sources: &$params.gltf_sources,
+            material_textures: Some(&$params.material_textures),
             registry: &$params.registry,
         }
     };
@@ -1460,6 +1462,7 @@ fn process_gen_commands(
                     &params.behaviors_query,
                     &params.parametric_shapes,
                     &params.gltf_sources,
+                    &params.material_textures,
                     &params.visibility_query,
                     &params.directional_lights,
                     &params.point_lights,
@@ -6010,9 +6013,10 @@ fn spawn_world_entities(
         // Determine what kind of entity to spawn based on component slots
         let bevy_entity = if let Some(ref shape) = we.shape {
             // Entity with a parametric shape → spawn mesh
-            let mesh_handle = shape_to_mesh(shape, meshes);
             let mat = we.material.as_ref().cloned().unwrap_or_default();
-            let material_handle = materials.add(material_def_to_standard(&mat));
+            let mesh_handle = meshes.add(shape_mesh_for(shape, &mat));
+            let (material, textures) = textured_material(&mat, world_dir, asset_server);
+            let material_handle = materials.add(material);
 
             let parametric = ParametricShape {
                 shape: shape.clone(),
@@ -6029,6 +6033,9 @@ fn spawn_world_entities(
                 },
                 parametric,
             ));
+            if !textures.maps.is_empty() {
+                entity_cmd.insert(textures);
+            }
 
             // If entity also has a light, add it as a child or additional component
             if let Some(ref light) = we.light {
@@ -6179,6 +6186,52 @@ pub(crate) fn material_def_to_standard(mat: &wt::MaterialDef) -> StandardMateria
     localgpt_world_bevy::standard_material(mat)
 }
 
+/// A `MaterialDef` as a `StandardMaterial` with its texture maps loaded.
+///
+/// Texture paths resolve like mesh assets (relative to the world's `assets/`
+/// folder, else absolute). Returns the material and the maps that were found
+/// on disk, to attach as [`MaterialTextures`]; missing images are skipped with
+/// a warning so the entity still renders with its scalar factors.
+pub(crate) fn textured_material(
+    mat: &wt::MaterialDef,
+    world_dir: Option<&Path>,
+    asset_server: &AssetServer,
+) -> (StandardMaterial, MaterialTextures) {
+    let mut material = localgpt_world_bevy::standard_material(mat);
+    let mut textures = MaterialTextures::default();
+    let mut found = mat.clone();
+    for (slot, path) in mat.textures() {
+        let resolved = resolve_mesh_asset_path(world_dir, path);
+        if resolved.exists() {
+            let resolved = resolved.canonicalize().unwrap_or(resolved);
+            textures.set(slot, resolved.to_string_lossy().into_owned());
+        } else {
+            tracing::warn!("Texture '{}' not found; skipping it", path);
+            *found.texture_mut(slot) = None;
+        }
+    }
+    let sources: std::collections::HashMap<_, _> = textures.maps.iter().cloned().collect();
+    localgpt_world_bevy::apply_textures(&mut material, &found, |slot, _| {
+        let source = &sources[&slot];
+        asset_server
+            .load_builder()
+            .with_settings(localgpt_world_bevy::texture_settings(slot))
+            .load(source.trim_start_matches('/').to_string())
+    });
+    (material, textures)
+}
+
+/// The mesh for a shape, with tangents when the material has a normal map.
+pub(crate) fn shape_mesh_for(shape: &wt::Shape, mat: &wt::MaterialDef) -> Mesh {
+    let mut mesh = localgpt_world_bevy::shape_mesh(shape);
+    if localgpt_world_bevy::needs_tangents(mat)
+        && let Err(e) = mesh.generate_tangents()
+    {
+        tracing::warn!("Could not generate tangents for a normal-mapped mesh: {e}");
+    }
+    mesh
+}
+
 /// Insert a light component onto an existing entity command builder.
 pub(crate) fn insert_light_component(
     entity_cmd: &mut bevy::ecs::system::EntityCommands,
@@ -6299,6 +6352,9 @@ pub(crate) struct SnapshotQueries<'a, 'w, 's> {
     pub(crate) audio_emitters: &'a Query<'w, 's, &'static audio::AudioEmitter>,
     pub(crate) parent_query: &'a Query<'w, 's, &'static ChildOf>,
     pub(crate) gltf_sources: &'a Query<'w, 's, &'static GltfSource>,
+    /// Texture sources; `None` leaves texture paths out of the snapshot (the
+    /// multiplayer host: paths on the host's disk mean nothing to a client).
+    pub(crate) material_textures: Option<&'a Query<'w, 's, &'static MaterialTextures>>,
     pub(crate) registry: &'a NameRegistry,
 }
 
@@ -6362,7 +6418,13 @@ pub(crate) fn snapshot_entity(
             } else {
                 None
             },
+            ..Default::default()
         });
+        if let (Some(q), Some(def)) = (sq.material_textures, we.material.as_mut())
+            && let Ok(textures) = q.get(entity)
+        {
+            textures.apply_to(def, str::to_string);
+        }
     }
 
     // Mesh asset (imported glTF)
@@ -7426,6 +7488,71 @@ mod tests {
 
     fn modify_cmd(name: &str) -> ModifyEntityCmd {
         serde_json::from_value(serde_json::json!({ "name": name })).unwrap()
+    }
+
+    /// The conformance textures load through the asset server the way a
+    /// world load asks for them: resolved in `assets/`, colour maps as sRGB
+    /// and data maps as linear.
+    #[test]
+    fn world_textures_load_in_their_colour_space() {
+        use bevy::render::render_resource::TextureFormat;
+        let world_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../world-types/conformance")
+            .canonicalize()
+            .unwrap();
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            bevy::asset::AssetPlugin {
+                file_path: "/".to_string(),
+                ..default()
+            },
+            bevy::image::ImagePlugin::default(),
+        ));
+        // The render plugin normally registers the image loader.
+        app.register_asset_loader(bevy::image::ImageLoader::new(
+            bevy::image::CompressedImageFormats::empty(),
+        ));
+        let def = wt::MaterialDef {
+            base_color_texture: Some("textures/checker_albedo.png".into()),
+            normal_map_texture: Some("textures/checker_normal.png".into()),
+            metallic_roughness_texture: Some("textures/missing.png".into()),
+            ..Default::default()
+        };
+        let asset_server = app.world().resource::<AssetServer>().clone();
+        let (material, textures) = textured_material(&def, Some(&world_dir), &asset_server);
+        assert_eq!(textures.maps.len(), 2, "the missing map is skipped");
+        assert!(material.metallic_roughness_texture.is_none());
+        let albedo = material.base_color_texture.clone().unwrap();
+        let normal = material.normal_map_texture.clone().unwrap();
+
+        for _ in 0..500 {
+            app.update();
+            let images = app.world().resource::<Assets<Image>>();
+            if images.contains(&albedo) && images.contains(&normal) {
+                break;
+            }
+            assert!(
+                !matches!(
+                    asset_server.load_state(&albedo),
+                    bevy::asset::LoadState::Failed(_)
+                ),
+                "albedo failed to load"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let images = app.world().resource::<Assets<Image>>();
+        let state = asset_server.load_state(&albedo);
+        let albedo = images
+            .get(&albedo)
+            .unwrap_or_else(|| panic!("albedo not loaded: {state:?}"));
+        let normal = images.get(&normal).expect("normal map loaded");
+        assert_eq!(
+            albedo.texture_descriptor.format,
+            TextureFormat::Rgba8UnormSrgb
+        );
+        assert_eq!(normal.texture_descriptor.format, TextureFormat::Rgba8Unorm);
+        assert_eq!(albedo.size().x, 64);
     }
 
     #[test]

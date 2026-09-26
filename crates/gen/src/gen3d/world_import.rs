@@ -98,6 +98,9 @@ pub fn manifest_assets(manifest: &wt::WorldManifest) -> Vec<String> {
         if let Some(wt::AudioSource::File { path, .. }) = entity.audio.as_ref().map(|a| &a.source) {
             paths.push(path.clone());
         }
+        if let Some(material) = &entity.material {
+            paths.extend(material.textures().map(|(_, path)| path.to_string()));
+        }
     }
     if let Some(path) = manifest.soundtrack.as_ref().and_then(|s| s.path.clone()) {
         paths.push(path);
@@ -403,8 +406,14 @@ mod tests {
     }
 
     #[test]
-    fn assets_include_meshes_audio_files_and_the_soundtrack() {
+    fn assets_include_meshes_audio_files_textures_and_the_soundtrack() {
         let mut m = manifest("w");
+        let mut wall = wt::WorldEntity::new(4, "wall");
+        wall.material = Some(wt::MaterialDef {
+            base_color_texture: Some("textures/wall.png".into()),
+            ..Default::default()
+        });
+        m.entities.push(wall);
         let mut drum = wt::WorldEntity::new(2, "drum");
         drum.audio = Some(wt::AudioDef {
             kind: wt::AudioKind::Sfx,
@@ -429,7 +438,12 @@ mod tests {
         });
         assert_eq!(
             manifest_assets(&m),
-            ["audio/drum.ogg", "models/rock.glb", "music/song.mp3"]
+            [
+                "audio/drum.ogg",
+                "models/rock.glb",
+                "music/song.mp3",
+                "textures/wall.png"
+            ]
         );
     }
 
