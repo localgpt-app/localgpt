@@ -24,7 +24,8 @@ pub struct ApprovalRequest {
 pub enum ApprovalDecision {
     /// Allow this single execution.
     Approved,
-    /// Allow all future executions of this tool in this session.
+    /// Allow this call again, with identical arguments, for the rest of the
+    /// session. It does not approve the same tool with other arguments.
     ApprovedForSession,
     /// Deny execution.
     Denied { reason: String },
@@ -64,9 +65,15 @@ impl ApprovalGate for AutoDenyGate {
 }
 
 /// Session-scoped approval cache. Remembers "approved for session" decisions
-/// so the user isn't asked repeatedly for the same tool.
+/// so the user isn't asked again for the same call.
+///
+/// Decisions are keyed by tool name *and* arguments: approving
+/// `bash {"command":"ls"}` for the session does not approve
+/// `bash {"command":"rm -rf ~"}`. JSON arguments are canonicalized (object
+/// keys sorted, whitespace dropped) so a re-ordered but identical call still
+/// hits the cache.
 pub struct ApprovalCache {
-    decisions: Mutex<HashMap<String, ApprovalDecision>>,
+    decisions: Mutex<HashMap<(String, String), ApprovalDecision>>,
 }
 
 impl ApprovalCache {
@@ -76,19 +83,55 @@ impl ApprovalCache {
         }
     }
 
-    /// Check if a tool has a cached approval decision.
-    pub fn get(&self, tool_name: &str) -> Option<ApprovalDecision> {
+    /// Check if this exact call has a cached approval decision.
+    pub fn get(&self, tool_name: &str, arguments: &str) -> Option<ApprovalDecision> {
+        let key = cache_key(tool_name, arguments);
         self.decisions
             .lock()
             .ok()
-            .and_then(|d| d.get(tool_name).cloned())
+            .and_then(|d| d.get(&key).cloned())
     }
 
-    /// Cache an "approved for session" decision.
-    pub fn insert(&self, tool_name: &str, decision: ApprovalDecision) {
+    /// Cache an "approved for session" decision for this exact call.
+    pub fn insert(&self, tool_name: &str, arguments: &str, decision: ApprovalDecision) {
         if let Ok(mut d) = self.decisions.lock() {
-            d.insert(tool_name.to_string(), decision);
+            d.insert(cache_key(tool_name, arguments), decision);
         }
+    }
+}
+
+fn cache_key(tool_name: &str, arguments: &str) -> (String, String) {
+    let args = match serde_json::from_str::<serde_json::Value>(arguments) {
+        Ok(value) => canonical_json(&value),
+        Err(_) => arguments.to_string(),
+    };
+    (tool_name.to_string(), args)
+}
+
+/// Serialize JSON with object keys sorted at every level, independent of
+/// whether serde_json's `preserve_order` feature is enabled.
+fn canonical_json(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort();
+            let fields: Vec<String> = keys
+                .into_iter()
+                .map(|k| {
+                    format!(
+                        "{}:{}",
+                        serde_json::Value::String(k.clone()),
+                        canonical_json(&map[k])
+                    )
+                })
+                .collect();
+            format!("{{{}}}", fields.join(","))
+        }
+        serde_json::Value::Array(items) => {
+            let items: Vec<String> = items.iter().map(canonical_json).collect();
+            format!("[{}]", items.join(","))
+        }
+        other => other.to_string(),
     }
 }
 
@@ -105,11 +148,38 @@ mod tests {
     #[test]
     fn test_approval_cache() {
         let cache = ApprovalCache::new();
-        assert!(cache.get("bash").is_none());
+        let ls = r#"{"command":"ls"}"#;
+        assert!(cache.get("bash", ls).is_none());
 
-        cache.insert("bash", ApprovalDecision::ApprovedForSession);
+        cache.insert("bash", ls, ApprovalDecision::ApprovedForSession);
         assert_eq!(
-            cache.get("bash"),
+            cache.get("bash", ls),
+            Some(ApprovalDecision::ApprovedForSession)
+        );
+    }
+
+    #[test]
+    fn test_approval_cache_is_per_call_not_per_tool() {
+        let cache = ApprovalCache::new();
+        cache.insert(
+            "bash",
+            r#"{"command":"ls"}"#,
+            ApprovalDecision::ApprovedForSession,
+        );
+        assert!(cache.get("bash", r#"{"command":"rm -rf ~"}"#).is_none());
+        assert!(cache.get("write_file", r#"{"command":"ls"}"#).is_none());
+    }
+
+    #[test]
+    fn test_approval_cache_ignores_key_order_and_whitespace() {
+        let cache = ApprovalCache::new();
+        cache.insert(
+            "write_file",
+            r#"{"path":"a.txt","content":"hi"}"#,
+            ApprovalDecision::ApprovedForSession,
+        );
+        assert_eq!(
+            cache.get("write_file", r#"{ "content": "hi", "path": "a.txt" }"#),
             Some(ApprovalDecision::ApprovedForSession)
         );
     }

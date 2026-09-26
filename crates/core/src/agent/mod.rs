@@ -1272,7 +1272,7 @@ impl Agent {
                 && let Some(ref gate) = self.approval_gate
             {
                 // Check session cache first
-                let cached = self.approval_cache.get(&call.name);
+                let cached = self.approval_cache.get(&call.name, &call.arguments);
                 let decision = if let Some(approval::ApprovalDecision::ApprovedForSession) = cached
                 {
                     approval::ApprovalDecision::ApprovedForSession
@@ -1288,7 +1288,8 @@ impl Agent {
                 match decision {
                     approval::ApprovalDecision::Approved => { /* proceed */ }
                     approval::ApprovalDecision::ApprovedForSession => {
-                        self.approval_cache.insert(&call.name, decision);
+                        self.approval_cache
+                            .insert(&call.name, &call.arguments, decision);
                     }
                     approval::ApprovalDecision::Denied { reason } => {
                         anyhow::bail!(
