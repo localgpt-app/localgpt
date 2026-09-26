@@ -172,9 +172,11 @@ pub fn auto_collider_system(
                 Collider::cuboid(h[0], h[1].max(0.005), h[2])
             }
         };
+        // The entity may be despawned by a command queued earlier this frame
+        // (a world load clearing the scene), so don't panic if it is gone.
         commands
             .entity(entity)
-            .insert((RigidBody::Static, collider));
+            .try_insert((RigidBody::Static, collider));
     }
 }
 
