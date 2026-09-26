@@ -155,6 +155,19 @@ pub fn web_router(bridge: WebBridge) -> axum::Router {
         .route("/", get(join_page))
         .route("/world-viewer.js", get(viewer_js))
         .route("/session-client.js", get(client_js))
+        .route("/vendor/three.module.js", get(vendor_three))
+        .route(
+            "/vendor/three/addons/controls/OrbitControls.js",
+            get(vendor_orbit),
+        )
+        .route(
+            "/vendor/three/addons/loaders/GLTFLoader.js",
+            get(vendor_gltf),
+        )
+        .route(
+            "/vendor/three/addons/utils/BufferGeometryUtils.js",
+            get(vendor_bgu),
+        )
         .route(SESSION_ROUTE, get(session_ws))
         .with_state(bridge)
 }
@@ -174,6 +187,35 @@ async fn client_js() -> impl IntoResponse {
     (
         [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
         localgpt_world_export::html::SESSION_CLIENT_JS,
+    )
+}
+
+/// Vendored three.js, served so the join page works with no internet.
+async fn vendor_three() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        localgpt_world_export::html::THREE_MODULE_JS,
+    )
+}
+
+async fn vendor_orbit() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        localgpt_world_export::html::ORBIT_CONTROLS_JS,
+    )
+}
+
+async fn vendor_gltf() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        localgpt_world_export::html::GLTF_LOADER_JS,
+    )
+}
+
+async fn vendor_bgu() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        localgpt_world_export::html::BUFFER_GEOMETRY_UTILS_JS,
     )
 }
 
@@ -619,8 +661,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0b0e14; c
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+    "three": "/vendor/three.module.js",
+    "three/addons/": "/vendor/three/addons/"
   }
 }
 </script>

@@ -16,6 +16,16 @@ pub const WORLD_VIEWER_JS: &str = include_str!("../js/world-viewer.js");
 /// applies ops live). Served by a hosting Gen at `/session-client.js`.
 pub const SESSION_CLIENT_JS: &str = include_str!("../js/session-client.js");
 
+/// Vendored three.js (MIT, r170) and the two addons the viewer imports, so
+/// a hosted session's join page works with no internet access. Served by a
+/// hosting Gen under `/vendor/`; the join page's import map points there.
+pub const THREE_MODULE_JS: &str = include_str!("../js/vendor/three/three.module.js");
+pub const ORBIT_CONTROLS_JS: &str =
+    include_str!("../js/vendor/three/addons/controls/OrbitControls.js");
+pub const GLTF_LOADER_JS: &str = include_str!("../js/vendor/three/addons/loaders/GLTFLoader.js");
+pub const BUFFER_GEOMETRY_UTILS_JS: &str =
+    include_str!("../js/vendor/three/addons/utils/BufferGeometryUtils.js");
+
 /// The three.js release the viewer is written against.
 pub const THREE_VERSION: &str = "0.170.0";
 
