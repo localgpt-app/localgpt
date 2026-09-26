@@ -153,7 +153,13 @@ impl Tool for RemoteScoped {
 }
 
 /// Scene-editing tools for remote prompts, each path-scoped.
-pub fn create_remote_scene_tools(bridge: Arc<GenBridge>) -> Vec<Box<dyn Tool>> {
+///
+/// The tool profile can only shrink this set (e.g. `core` drops WorldGen and
+/// terrain for guests too), never widen it past the remote scope.
+pub fn create_remote_scene_tools(
+    bridge: Arc<GenBridge>,
+    profile: crate::gen3d::tool_profile::ToolProfile,
+) -> Vec<Box<dyn Tool>> {
     let mut tools: Vec<Box<dyn Tool>> = Vec::new();
     tools.extend(crate::gen3d::tools::create_gen_tools(bridge.clone()));
     tools.extend(crate::mcp::avatar_tools::create_character_tools(
@@ -172,7 +178,7 @@ pub fn create_remote_scene_tools(bridge: Arc<GenBridge>) -> Vec<Box<dyn Tool>> {
     tools.extend(crate::mcp::worldgen_tools::create_worldgen_tools(bridge));
     tools
         .into_iter()
-        .filter(|t| !HOST_ONLY_TOOLS.contains(&t.name()))
+        .filter(|t| profile.allows(t.name()) && !HOST_ONLY_TOOLS.contains(&t.name()))
         .map(|inner| Box::new(RemoteScoped { inner }) as Box<dyn Tool>)
         .collect()
 }
@@ -194,7 +200,8 @@ mod tests {
     #[test]
     fn remote_tool_set_is_scene_only() {
         let (bridge, _channels) = crate::gen3d::create_gen_channels();
-        let tools = create_remote_scene_tools(bridge);
+        let tools =
+            create_remote_scene_tools(bridge, crate::gen3d::tool_profile::ToolProfile::Full);
         let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
         assert!(names.contains(&"gen_spawn_primitive"));
         for forbidden in HOST_ONLY_TOOLS {
@@ -220,6 +227,20 @@ mod tests {
                     assert!(!props.contains_key(*key), "{} exposes {key}", tool.name());
                 }
             }
+        }
+    }
+
+    /// The tool profile shrinks the remote set too: at `core`, guests lose
+    /// WorldGen/terrain/avatar tools but keep the scene essentials.
+    #[test]
+    fn remote_tool_set_follows_the_profile() {
+        let (bridge, _channels) = crate::gen3d::create_gen_channels();
+        let tools =
+            create_remote_scene_tools(bridge, crate::gen3d::tool_profile::ToolProfile::Core);
+        let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
+        assert!(names.contains(&"gen_spawn_primitive"));
+        for dropped in ["gen_plan_layout", "gen_add_terrain", "gen_add_npc"] {
+            assert!(!names.contains(&dropped), "{dropped} must drop out at core");
         }
     }
 

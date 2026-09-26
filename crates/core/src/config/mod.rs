@@ -81,6 +81,21 @@ pub struct Config {
 
     #[serde(default)]
     pub mcp: McpConfig,
+
+    /// Settings for the Gen 3D app, from the `[gen]` table.
+    #[serde(default)]
+    pub r#gen: GenConfig,
+}
+
+/// Settings for the Gen 3D world-generation app (`localgpt-gen`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct GenConfig {
+    /// Tool profile for Gen's agents: "core" (the ~30 scene-editing
+    /// essentials — for local models with small context windows), "standard"
+    /// (adds meshes/exports/audio/terrain and the WorldGen pipeline), or
+    /// "full" (default, the whole toolbelt). `--tools` on the CLI wins.
+    #[serde(default)]
+    pub tool_profile: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1571,6 +1586,16 @@ reserve_tokens = 8000
 # Claude CLI (for claude-cli/* models, requires claude CLI installed)
 [providers.claude_cli]
 command = "claude"
+
+# Gen (3D world generation, localgpt-gen)
+# [gen]
+# # Tool profile: "core" keeps only the 22 scene-editing essentials (~3.8k
+# # tokens of schema — best for local models with small context windows; the
+# # full toolbelt is 77 gen tools, ~14k tokens per request), "standard" adds
+# # meshes/exports/audio/terrain and the WorldGen pipeline (~9.4k), "full"
+# # (default) keeps everything.
+# # `--tools` on the localgpt-gen CLI overrides this.
+# tool_profile = "full"
 
 [heartbeat]
 enabled = true

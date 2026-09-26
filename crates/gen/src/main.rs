@@ -813,6 +813,15 @@ struct Cli {
     #[arg(long, global = true, value_name = "PATH|URL")]
     world: Option<String>,
 
+    /// Tool profile for the generation agent: "core" keeps only the 22
+    /// scene-editing essentials (~3.8k tokens of schema, for local models
+    /// with small context windows — the full toolbelt is 77 gen tools,
+    /// ~14k tokens per request), "standard" adds meshes/exports/audio/
+    /// terrain and the WorldGen pipeline (~9.4k), "full" (default) keeps
+    /// everything. Overrides [gen] tool_profile in config.toml.
+    #[arg(long, global = true, value_name = "core|standard|full")]
+    tools: Option<String>,
+
     /// Enable MCP relay server for external MCP clients.
     /// Auto-enabled when using claude-cli/* models.
     #[arg(long, global = true)]
@@ -1083,6 +1092,12 @@ fn main() -> Result<()> {
     let config = localgpt_core::config::Config::load()?;
     let workspace = config.workspace_path();
 
+    // Tool profile: --tools flag > [gen] tool_profile > full.
+    let tool_profile = gen3d::tool_profile::ToolProfile::resolve(
+        cli.tools.as_deref(),
+        config.r#gen.tool_profile.as_deref(),
+    )?;
+
     // --replay: time-lapse an op log in the window — no agent, no session.
     if let Some(replay_path) = cli.replay.as_deref() {
         let entries = gen3d::replay::load_op_log(replay_path)?;
@@ -1182,7 +1197,13 @@ fn main() -> Result<()> {
                     .expect("Failed to build tokio runtime for headless gen");
 
                 rt.block_on(async move {
-                    match run_headless_agent(bridge_for_agent, headless_config, agent_config).await
+                    match run_headless_agent(
+                        bridge_for_agent,
+                        headless_config,
+                        agent_config,
+                        tool_profile,
+                    )
+                    .await
                     {
                         Ok(()) => flag_for_agent.complete_success(),
                         Err(e) => {
@@ -1406,6 +1427,7 @@ fn main() -> Result<()> {
                         agent_net,
                         agent_channels,
                         desktop,
+                        tool_profile,
                     )
                     .await
                 });
@@ -1875,6 +1897,7 @@ async fn run_headless_agent(
     bridge: std::sync::Arc<gen3d::GenBridge>,
     headless_config: gen3d::headless::HeadlessConfig,
     config: localgpt_core::config::Config,
+    tool_profile: gen3d::tool_profile::ToolProfile,
 ) -> Result<()> {
     use localgpt_core::agent::Agent;
     use localgpt_core::agent::tools::create_safe_tools;
@@ -1904,6 +1927,13 @@ async fn run_headless_agent(
     tools.extend(localgpt_gen::mcp::multifile_tools::create_multifile_tools(
         bridge.clone(),
     ));
+    tools = gen3d::tool_profile::apply_tool_profile(tools, tool_profile);
+    if tool_profile != gen3d::tool_profile::ToolProfile::Full {
+        tracing::info!(
+            "tool profile '{tool_profile}': {} tools active",
+            tools.len()
+        );
+    }
 
     // Configure agent
     let mut config = config;
@@ -2145,6 +2175,7 @@ Politely decline requests that need those abilities.";
 async fn build_scoped_remote_agent(
     bridge: std::sync::Arc<gen3d::GenBridge>,
     config: &localgpt_core::config::Config,
+    tool_profile: gen3d::tool_profile::ToolProfile,
 ) -> Result<Agent> {
     use localgpt_core::memory::MemoryManager;
     use localgpt_gen::net::remote_scope::create_remote_scene_tools;
@@ -2163,8 +2194,11 @@ async fn build_scoped_remote_agent(
     remote_config.memory.embedding_provider = "none".to_string();
 
     if model.starts_with("claude-cli") {
-        let port =
-            gen3d::mcp_relay::start_scoped_relay(create_remote_scene_tools(bridge.clone())).await?;
+        let port = gen3d::mcp_relay::start_scoped_relay(create_remote_scene_tools(
+            bridge.clone(),
+            tool_profile,
+        ))
+        .await?;
         let gen_binary =
             std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("localgpt-gen"));
         let mcp_config = serde_json::json!({
@@ -2194,7 +2228,7 @@ async fn build_scoped_remote_agent(
         Some(&remote_config),
         "gen-remote",
     )?);
-    let tools = create_remote_scene_tools(bridge);
+    let tools = create_remote_scene_tools(bridge, tool_profile);
     let mut agent = Agent::new_with_tools(remote_config, "gen-remote", memory, tools)?;
     // Also resets any CLI session the provider resumed at construction.
     agent.new_session().await?;
@@ -2352,6 +2386,7 @@ async fn run_agent_loop(
     net_hooks: AgentNetHooksOpt,
     panel: AgentChannels,
     desktop: bool,
+    tool_profile: gen3d::tool_profile::ToolProfile,
 ) -> Result<()> {
     use localgpt_core::agent::tools::create_safe_tools;
     use localgpt_core::agent::{Agent, create_spawn_agent_tool};
@@ -2387,6 +2422,13 @@ async fn run_agent_loop(
         bridge,
     ));
     tools.extend(localgpt_cli_tools::create_cli_tools(&config)?);
+    tools = gen3d::tool_profile::apply_tool_profile(tools, tool_profile);
+    if tool_profile != gen3d::tool_profile::ToolProfile::Full {
+        eprintln!(
+            "Tool profile '{tool_profile}': {} tools active (smaller schema for the model's context)",
+            tools.len()
+        );
+    }
     tools.extend(vec![create_spawn_agent_tool(
         config.clone(),
         memory.clone(),
@@ -2650,7 +2692,9 @@ async fn run_agent_loop(
                     sink.send(ChatEvent::Warning(note.into()));
                     RemoteWorker::Host
                 } else {
-                    match build_scoped_remote_agent(remote_bridge.clone(), &config).await {
+                    match build_scoped_remote_agent(remote_bridge.clone(), &config, tool_profile)
+                        .await
+                    {
                         Ok(remote) => {
                             eprintln!(
                                 "Remote prompts: scene-editing tools only (--remote-tools full \

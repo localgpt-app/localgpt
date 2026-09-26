@@ -28,6 +28,7 @@ pub mod registry;
 pub mod replay;
 pub mod sync;
 pub mod system_prompt;
+pub mod tool_profile;
 pub mod tools;
 pub mod world;
 pub mod world_import;
