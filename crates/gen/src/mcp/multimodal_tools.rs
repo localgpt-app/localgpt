@@ -324,27 +324,22 @@ impl Tool for GenPanoramaToWorldTool {
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "gen_panorama_to_world".to_string(),
-            description: "Generate an explorable 3D world from a 360° panorama image (equirectangular format). Places the player at the panorama's viewpoint and reconstructs the environment as navigable 3D geometry.".to_string(),
+            description: "Plan a world layout from a 360° equirectangular panorama. Reads the sky and ground colours and the skyline at each bearing, and plans a blockout with a landmark region wherever something rises above the horizon (terrain, biome and time of day follow the image). Nothing is spawned: call gen_apply_blockout next. The image gives bearings and angles but no depth, so regions sit on one ring around the viewpoint.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "image": {
                         "type": "string",
-                        "description": "Path to equirectangular panorama image or base64 data"
+                        "description": "Path to an equirectangular panorama image, or its base64 data (optionally a data: URI)"
                     },
                     "prompt": {
                         "type": "string",
-                        "description": "Additional guidance for world generation"
-                    },
-                    "depth_estimation": {
-                        "type": "boolean",
-                        "default": true,
-                        "description": "Estimate depth from panorama to inform 3D placement"
+                        "description": "Additional guidance: layout style, density, or a biome to use instead of the one read from the ground colour"
                     },
                     "generate_beyond": {
                         "type": "boolean",
                         "default": false,
-                        "description": "Generate areas not visible in the panorama (occluded regions)"
+                        "description": "Also plan sparse walkable regions where the panorama shows open horizon"
                     }
                 },
                 "required": ["image"]
@@ -360,38 +355,38 @@ impl Tool for GenPanoramaToWorldTool {
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: image"))?;
 
         let prompt = args["prompt"].as_str().map(String::from);
-        let depth_estimation = args["depth_estimation"].as_bool().unwrap_or(true);
         let generate_beyond = args["generate_beyond"].as_bool().unwrap_or(false);
 
         let cmd = GenCommand::PanoramaToWorld {
             image: image.to_string(),
             prompt,
-            depth_estimation,
             generate_beyond,
         };
         let response = self.bridge.send(cmd).await?;
         match response {
             GenResponse::PanoramaWorldGenerated {
                 world_name,
-                entities_generated,
+                regions_planned,
                 spawn_point,
+                analysis_json,
                 notes,
             } => {
+                let analysis: Value = serde_json::from_str(&analysis_json).unwrap_or(Value::Null);
                 let result = json!({
                     "world_name": world_name,
-                    "entities_generated": entities_generated,
+                    "regions_planned": regions_planned,
                     "spawn_point": spawn_point,
+                    "analysis": analysis,
                     "notes": notes,
                     "next_steps": [
-                        "Use gen_screenshot to view the generated world",
-                        "Use gen_evaluate_scene to assess quality",
-                        "Use gen_match_style with the original panorama to refine materials"
+                        "Review or adjust the plan, then call gen_apply_blockout to build it",
+                        "Use gen_screenshot after applying to compare with the panorama"
                     ]
                 });
                 Ok(result.to_string())
             }
             GenResponse::Error { message } => Err(anyhow::anyhow!("{}", message)),
-            _ => Ok("Panorama world generation completed".to_string()),
+            other => Err(anyhow::anyhow!("Unexpected response: {:?}", other)),
         }
     }
 }

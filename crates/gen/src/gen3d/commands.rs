@@ -358,11 +358,10 @@ pub enum GenCommand {
     PanoramaToWorld {
         /// Path to equirectangular panorama image or base64 data.
         image: String,
-        /// Additional guidance for world generation.
+        /// Additional guidance: layout style, density, biome.
         prompt: Option<String>,
-        /// Estimate depth from panorama to inform 3D placement.
-        depth_estimation: bool,
-        /// Generate areas not visible in the panorama.
+        /// Also plan sparse regions in directions where the panorama shows
+        /// open horizon, so the world continues past what it shows.
         generate_beyond: bool,
     },
 }
@@ -1325,10 +1324,13 @@ pub enum GenResponse {
         /// JSON response (varies by action: add/remove/list/clear).
         result_json: String,
     },
+    /// A blockout plan read from a panorama (not yet applied to the scene).
     PanoramaWorldGenerated {
         world_name: String,
-        entities_generated: usize,
+        regions_planned: usize,
         spawn_point: [f32; 3],
+        /// What was read from the image (sky, ground, skyline per bearing).
+        analysis_json: String,
         notes: String,
     },
 

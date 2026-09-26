@@ -14,6 +14,7 @@ pub mod depth;
 pub mod navmesh;
 pub mod navmesh_edit;
 pub mod ordering;
+pub mod panorama;
 pub mod populate;
 pub mod preview;
 pub mod regenerate;

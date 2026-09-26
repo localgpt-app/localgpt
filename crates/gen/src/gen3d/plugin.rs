@@ -4627,52 +4627,46 @@ fn process_gen_commands(
             GenCommand::PanoramaToWorld {
                 image,
                 prompt,
-                depth_estimation,
                 generate_beyond,
             } => {
-                let is_base64 = image.len() > 200 || image.starts_with("data:");
-                if !is_base64 && !std::path::Path::new(&image).exists() {
-                    GenResponse::Error {
-                        message: format!("Panorama image file not found: {}", image),
-                    }
-                } else {
-                    // Generate a world layout from the panorama
-                    let world_name =
-                        format!("panorama_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
-
-                    let layout_prompt = format!(
-                        "[Panorama-to-world: depth_estimation={}, generate_beyond={}] {}",
-                        depth_estimation,
-                        generate_beyond,
-                        prompt
-                            .as_deref()
-                            .unwrap_or("Generate explorable world from 360° panorama")
-                    );
-
-                    // Use the existing blockout pipeline
-                    let spec = crate::worldgen::BlockoutSpec::from_prompt(
-                        &layout_prompt,
-                        [80.0, 80.0], // Panorama worlds are medium-large
-                        None,
-                    );
-
-                    let region_count = spec.regions.len();
-
-                    // Store the spec as current blockout
-                    commands.insert_resource(crate::worldgen::CurrentBlockout { spec });
-
-                    let spawn_point = [0.0_f32, 1.7, 0.0]; // Eye height at origin
-
-                    GenResponse::PanoramaWorldGenerated {
-                        world_name,
-                        entities_generated: region_count,
-                        spawn_point,
-                        notes: format!(
-                            "Layout plan created with {} regions from panorama. \
-                             Call gen_apply_blockout to generate the 3D scene, then \
-                             gen_match_style with the panorama to apply visual style.",
-                            region_count
-                        ),
+                use crate::worldgen::panorama;
+                match panorama::load_panorama(&image) {
+                    Err(e) => GenResponse::Error {
+                        message: format!("{e:#}"),
+                    },
+                    Ok(img) => {
+                        let analysis = panorama::analyze(&img);
+                        let world_size = [80.0, 80.0];
+                        let spec =
+                            analysis.to_blockout(prompt.as_deref(), world_size, generate_beyond);
+                        let region_count = spec.regions.len();
+                        let landmarks = spec.regions.iter().flat_map(|r| &r.hero_slots).count();
+                        let notes = format!(
+                            "Layout planned from the panorama: {} regions ({} with landmarks), \
+                             terrain {:?}, biome {:?}, sky {}, ground {}. Nothing is in the \
+                             scene yet: call gen_apply_blockout to build it. A panorama has no \
+                             depth, so regions sit on a ring {:.0} m from the viewpoint at the \
+                             bearings where the skyline rises; heights follow the observed angles.",
+                            region_count,
+                            landmarks,
+                            spec.terrain.terrain_type,
+                            spec.palette.primary_biome,
+                            panorama::hex(analysis.sky_color),
+                            panorama::hex(analysis.ground_color),
+                            panorama::RING_FRACTION * world_size[0] / 2.0,
+                        );
+                        let analysis_json = serde_json::to_string(&analysis).unwrap_or_default();
+                        commands.insert_resource(crate::worldgen::CurrentBlockout { spec });
+                        GenResponse::PanoramaWorldGenerated {
+                            world_name: format!(
+                                "panorama_{}",
+                                chrono::Utc::now().format("%Y%m%d_%H%M%S")
+                            ),
+                            regions_planned: region_count,
+                            spawn_point: [0.0, 1.7, 0.0],
+                            analysis_json,
+                            notes,
+                        }
                     }
                 }
             }
