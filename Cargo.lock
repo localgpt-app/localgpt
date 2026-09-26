@@ -8483,6 +8483,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "localgpt-world-agent"
+version = "0.3.6"
+dependencies = [
+ "etcetera",
+ "localgpt-world-types",
+ "mistralrs",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "localgpt-world-bevy"
 version = "0.3.6"
 dependencies = [
