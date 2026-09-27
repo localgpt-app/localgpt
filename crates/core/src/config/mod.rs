@@ -6,7 +6,7 @@ pub use migrate::check_openclaw_detected;
 pub use schema::*;
 pub use watcher::{ConfigWatcher, spawn_sighup_handler};
 
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -90,6 +90,13 @@ pub struct Config {
 /// Settings for the Gen 3D world-generation app (`localgpt-gen`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GenConfig {
+    /// Model for Gen's agents, independent of the assistant's
+    /// `agent.default_model` — so switching Gen to a local model doesn't
+    /// change what `localgpt chat` uses. `"auto"` picks the best local model
+    /// this machine can run. Gen's model menu writes this key.
+    #[serde(default)]
+    pub default_model: Option<String>,
+
     /// Tool profile for Gen's agents: "core" (the ~30 scene-editing
     /// essentials — for local models with small context windows), "standard"
     /// (adds meshes/exports/audio/terrain and the WorldGen pipeline), or
@@ -1408,6 +1415,32 @@ impl Config {
         Ok(())
     }
 
+    /// Write a single `[table] key = "value"` into the config file, keeping
+    /// the rest of it byte-for-byte — comments, ordering and spacing all
+    /// survive. [`save`](Self::save) reserializes the whole struct and so
+    /// drops the commented template, which makes it the wrong tool for a UI
+    /// that persists one setting (Gen's model menu). Creates the file and
+    /// the table if they don't exist yet.
+    pub fn persist_setting(&self, table: &str, key: &str, value: &str) -> Result<PathBuf> {
+        let path = self.paths.config_file();
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        let existing = fs::read_to_string(&path).unwrap_or_default();
+        let mut doc: toml_edit::DocumentMut = existing
+            .parse()
+            .with_context(|| format!("{} is not valid TOML", path.display()))?;
+        doc[table][key] = toml_edit::value(value);
+
+        // Write through a temp file in the same directory, so an interrupted
+        // write can't leave a truncated config behind.
+        let tmp = path.with_extension("toml.tmp");
+        fs::write(&tmp, doc.to_string())?;
+        fs::rename(&tmp, &path)?;
+        Ok(path)
+    }
+
     /// Save config with a helpful template (for first-time setup)
     pub fn save_with_template(&self) -> Result<()> {
         let path = self.paths.config_file();
@@ -1596,6 +1629,11 @@ command = "claude"
 # # (default) keeps everything.
 # # `--tools` on the localgpt-gen CLI overrides this.
 # tool_profile = "full"
+# # Gen's model, independent of agent.default_model above — so pointing Gen at
+# # a local model doesn't change what `localgpt chat` uses. "auto" picks the
+# # best local model this machine can run. Gen's model menu writes this key
+# # for you; you don't need to edit it by hand.
+# default_model = "auto"
 
 [heartbeat]
 enabled = true
@@ -1679,6 +1717,76 @@ level = "info"
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `persist_setting` is what a UI calls to remember one choice, so it must
+    /// not eat the rest of the user's hand-written config the way a full
+    /// reserialize would.
+    #[test]
+    fn persist_setting_keeps_comments_and_other_values() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("config.toml");
+        let original = "# my notes\n[agent]\n# the assistant's model, not Gen's\ndefault_model = \"claude-cli/opus\"\ncontext_window = 128000\n\n[gen]\ntool_profile = \"core\"\n";
+        std::fs::write(&path, original).unwrap();
+
+        let config = Config {
+            paths: Paths {
+                config_dir: tmp.path().to_path_buf(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let written = config
+            .persist_setting("gen", "default_model", "auto")
+            .unwrap();
+        assert_eq!(written, path);
+
+        let updated = std::fs::read_to_string(&path).unwrap();
+        assert!(updated.contains("# my notes"), "{updated}");
+        assert!(
+            updated.contains("# the assistant's model, not Gen's"),
+            "{updated}"
+        );
+        // The assistant's model and the existing [gen] key are untouched.
+        assert!(
+            updated.contains("default_model = \"claude-cli/opus\""),
+            "{updated}"
+        );
+        assert!(updated.contains("tool_profile = \"core\""), "{updated}");
+
+        // And the new value round-trips into a parsed Config.
+        let parsed: Config = toml::from_str(&updated).unwrap();
+        assert_eq!(parsed.r#gen.default_model.as_deref(), Some("auto"));
+        assert_eq!(parsed.agent.default_model, "claude-cli/opus");
+
+        // Writing again replaces the value rather than duplicating the key.
+        config
+            .persist_setting("gen", "default_model", "gguf/x")
+            .unwrap();
+        let updated = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(updated.matches("default_model").count(), 2, "{updated}");
+        let parsed: Config = toml::from_str(&updated).unwrap();
+        assert_eq!(parsed.r#gen.default_model.as_deref(), Some("gguf/x"));
+    }
+
+    /// A config file that doesn't exist yet still gets the setting.
+    #[test]
+    fn persist_setting_creates_the_file_and_table() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = Config {
+            paths: Paths {
+                config_dir: tmp.path().to_path_buf(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        config
+            .persist_setting("gen", "default_model", "auto")
+            .unwrap();
+        let parsed: Config =
+            toml::from_str(&std::fs::read_to_string(tmp.path().join("config.toml")).unwrap())
+                .unwrap();
+        assert_eq!(parsed.r#gen.default_model.as_deref(), Some("auto"));
+    }
 
     #[test]
     fn test_mcp_server_config_enabled_default() {

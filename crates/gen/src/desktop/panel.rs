@@ -589,10 +589,27 @@ fn model_menu(ui: &mut egui::Ui, panel: &mut PromptPanel, link: &PanelLink) {
                         chosen = Some(option.clone());
                     }
                 }
+                // "auto" picks the best local model this machine can run, and
+                // keeps picking it as models come and go from the shared dir.
+                ui.separator();
+                let auto_selected = panel.model.as_deref() == Some("auto");
+                if ui
+                    .selectable_label(auto_selected, "auto — best local model for this machine")
+                    .on_hover_text(super::hardware::summary())
+                    .clicked()
+                    && !auto_selected
+                {
+                    chosen = Some("auto".to_string());
+                }
+                ui.label(
+                    egui::RichText::new(super::hardware::summary())
+                        .small()
+                        .weak(),
+                );
             });
     });
     if let Some(model) = chosen {
-        let note = if model.starts_with("gguf/") {
+        let note = if model.starts_with("gguf/") || model == "auto" {
             " It runs on this computer; the first prompt loads it, which can take a minute."
         } else {
             ""
@@ -623,8 +640,8 @@ fn help(ui: &mut egui::Ui, panel: &PromptPanel) {
         ui.label(
             egui::RichText::new(
                 "Esc leaves the prompt box so the keys move you again; Enter jumps back. \
-                 The model menu switches for this session; to change the default, set \
-                 agent.default_model in the config file.",
+                 The model menu switches now and is remembered as Gen's default — the \
+                 assistant keeps its own model.",
             )
             .small()
             .weak(),

@@ -22,6 +22,7 @@ pub mod chat;
 pub mod client_panel;
 #[cfg(feature = "multiplayer")]
 pub(crate) mod collab;
+pub mod hardware;
 pub mod models;
 pub mod panel;
 pub mod shell_env;
