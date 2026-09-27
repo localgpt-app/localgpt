@@ -49,7 +49,9 @@ cargo run -p localgpt-verse --features llm-metal   # LLM recipes, Apple GPU
 
 # The two shared downloads (once per machine, not per app)
 scripts/fetch-model.sh                             # ~5 GB GGUF
-scripts/fetch-assets.sh                            # 522 MB CC0 asset pack
+scripts/fetch-assets.sh                            # 522 MB CC0 pack, once;
+                                                   # symlinks it into md's and
+                                                   # verse's asset roots
 
 # Headless build (no desktop GUI)
 cargo build -p localgpt --no-default-features

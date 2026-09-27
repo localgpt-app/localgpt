@@ -58,5 +58,23 @@ for file in files:
 print(f"  {len(files)} assets referenced, {copied} copied")
 EOF
 
+# Link the pack into each Bevy app's asset root. Bevy takes ONE asset base
+# path (AssetPlugin.file_path), so models/ has to sit beside fonts/, ml/ and
+# music/ rather than being resolved separately — and before these apps joined
+# the workspace each carried its own 522 MB copy. A symlink gives one root per
+# app with one copy on disk.
+PACK="$(cd "$(dirname "$OUT")" && pwd)/models"
+for crate in crates/verse crates/md; do
+  link="$crate/assets/models"
+  if [ -L "$link" ] || [ ! -e "$link" ]; then
+    mkdir -p "$crate/assets"
+    rm -f "$link"
+    ln -s "$PACK" "$link"
+    echo "linked $link -> $PACK"
+  else
+    echo "  $link exists and is not a symlink — left alone"
+  fi
+done
+
 echo "done -> $OUT"
 echo "license: the pack is Poly Haven CC0 (see the assets repo's LICENSE)"

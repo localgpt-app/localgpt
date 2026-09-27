@@ -7,6 +7,10 @@
 > downloads are fetched once by `scripts/fetch-model.sh` and
 > `scripts/fetch-assets.sh`, and resolved by
 > `localgpt-world-agent`'s `paths` module.
+>
+> Bevy takes one asset base, so `crates/md/assets/models` is a **symlink**
+> to the shared pack that `scripts/fetch-assets.sh` creates — run it once, or
+> the app starts with no asset pack and builds procedural worlds only.
 
 Guidance for Claude Code when working in this repository.
 

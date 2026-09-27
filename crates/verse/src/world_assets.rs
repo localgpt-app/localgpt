@@ -665,11 +665,17 @@ fn resolve_asset_root() -> std::path::PathBuf {
     if dev_tree.is_dir() {
         return dev_tree;
     }
-    // Nothing bundled: fall through to the directories every LocalGPT app
-    // shares — the pack download and a sibling checkout of the asset
-    // repository, under its current and former names. Resolving the *root*
-    // here (rather than the manifest alone) keeps meshes resolving from the
-    // same directory the manifest came from.
+    // Nothing bundled and no dev tree: fall through to the directories every
+    // LocalGPT app shares — the pack download and a sibling checkout of the
+    // asset repository, under its current and former names.
+    //
+    // This is the last resort, not the usual path, because Bevy takes ONE
+    // asset base (`AssetPlugin.file_path`) and `fonts/`, `ml/` and `music/`
+    // have to sit beside `models/` under it. The dev tree above is that one
+    // root; `scripts/fetch-assets.sh` symlinks the shared pack in as its
+    // `models/`, so there is one root per app and one copy on disk. Landing
+    // here instead means models resolve but the bundled fonts and the ml
+    // models do not, which each caller degrades past on its own.
     if let Some(shared) = localgpt_world_agent::world_pack_dir(&[]) {
         return shared;
     }
