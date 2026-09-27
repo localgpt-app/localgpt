@@ -72,7 +72,8 @@ feature-depth = 1
 ignore = [
     { id = "RUSTSEC-2025-0069", reason = "daemonize: unmaintained but no alternative; transitive dep only" },
     { id = "RUSTSEC-2024-0436", reason = "paste: unmaintained, transitive dep of tokenizers/rav1e; no upgrade available" },
-    { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: unmaintained but pulled in by readability->reqwest; only reads PEM files for TLS, no code execution risk" },
+    { id = "RUSTSEC-2025-0057", reason = "fxhash: unmaintained, transitive via bm25 (mistralrs); migrate to rustc-hash when mistral.rs does" },
+    { id = "RUSTSEC-2025-0119", reason = "number_prefix: unmaintained, transitive via mistralrs (progress bars); no upgrade available" },
     { id = "RUSTSEC-2023-0071", reason = "rsa (Marvin timing side channel): transitive via jsonwebtoken; no patched release exists; LocalGPT does not use RSA keys for JWTs" },
     { id = "RUSTSEC-2026-0192", reason = "ttf-parser: unmaintained, transitive via winit -> sctk-adwaita (Wayland window decorations); no upgrade available" },
 ]
