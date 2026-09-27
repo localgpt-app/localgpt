@@ -1,0 +1,1087 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>LocalGPT World — The Portal for Local 3D Worlds</title>
+  <meta name="description" content="localgpt.world is the upcoming spatial hub for explorable 3D worlds created with LocalGPT. Explore worlds from localgpt.app, gen.localgpt.app, verse.localgpt.app, and md.localgpt.app.">
+  <link rel="canonical" href="https://localgpt.world/">
+  <link rel="icon" href="localgpt-icon.svg" type="image/svg+xml">
+
+  <!-- Open Graph / Social -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="LocalGPT World">
+  <meta property="og:title" content="LocalGPT World — worlds you can enter">
+  <meta property="og:description" content="Spatial portal for the LocalGPT ecosystem: text-to-3D worlds, walking through markdown notes, and music-reactive realms. Open source, local-first.">
+  <meta property="og:url" content="https://localgpt.world/">
+  <meta property="og:image" content="https://localgpt.world/worlds/posters/gen-basalt-lighthouse.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="LocalGPT World — worlds you can enter">
+  <meta name="twitter:description" content="Walk into worlds a local AI built: a lighthouse at dusk, a night market, a temple pool, and songs you can watch.">
+
+  <style>
+    :root {
+      --bg: #090d14;
+      --bg-alt: #0e1420;
+      --surface: #141c2c;
+      --surface-hover: #1b263b;
+      --surface-card: rgba(20, 28, 44, 0.72);
+      --ink: #f1f5f9;
+      --ink-muted: #94a3b8;
+      --ink-faint: #64748b;
+      --line: rgba(255, 255, 255, 0.1);
+      --line-bright: rgba(255, 255, 255, 0.2);
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.22);
+      --accent-gen: #2fd0ac;
+      --accent-gen-glow: rgba(47, 208, 172, 0.2);
+      --accent-md: #f0b26a;
+      --accent-md-glow: rgba(240, 178, 106, 0.2);
+      --accent-verse: #ff9d76;
+      --accent-verse-glow: rgba(255, 157, 118, 0.2);
+      --accent-core: #60a5fa;
+      --accent-core-glow: rgba(96, 165, 250, 0.2);
+      --code-bg: #06090f;
+      --code-ink: #e2e8f0;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-full: 9999px;
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      color-scheme: dark;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f8fafc;
+        --bg-alt: #f1f5f9;
+        --surface: #ffffff;
+        --surface-hover: #f8fafc;
+        --surface-card: rgba(255, 255, 255, 0.85);
+        --ink: #0f172a;
+        --ink-muted: #475569;
+        --ink-faint: #94a3b8;
+        --line: rgba(15, 23, 42, 0.08);
+        --line-bright: rgba(15, 23, 42, 0.18);
+        --accent: #0284c7;
+        --accent-glow: rgba(2, 132, 199, 0.12);
+        --accent-gen: #0e7c65;
+        --accent-gen-glow: rgba(14, 124, 101, 0.12);
+        --accent-md: #b45309;
+        --accent-md-glow: rgba(180, 83, 9, 0.12);
+        --accent-verse: #ea580c;
+        --accent-verse-glow: rgba(234, 88, 12, 0.12);
+        --accent-core: #2563eb;
+        --accent-core-glow: rgba(37, 99, 235, 0.12);
+        --code-bg: #0f172a;
+        --code-ink: #f8fafc;
+        color-scheme: light;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .wrap {
+      width: 100%;
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ---------- Header ---------- */
+    header.site-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      background: rgba(9, 13, 20, 0.75);
+      border-bottom: 1px solid var(--line);
+    }
+    @media (prefers-color-scheme: light) {
+      header.site-header {
+        background: rgba(248, 250, 252, 0.85);
+      }
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 68px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 1.15rem;
+      letter-spacing: -0.01em;
+    }
+    .brand img {
+      width: 32px;
+      height: 32px;
+      display: block;
+      border-radius: 8px;
+    }
+    .brand-tag {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid var(--line);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-size: 0.92rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+    }
+    .nav-links a:hover {
+      color: var(--ink);
+    }
+    .nav-links .active {
+      color: var(--accent);
+    }
+
+    .btn-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 16px;
+      border-radius: var(--radius-full);
+      font-size: 0.86rem;
+      font-weight: 600;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--ink);
+      transition: all 0.2s ease;
+    }
+    .btn-pill:hover {
+      background: var(--surface-hover);
+      border-color: var(--line-bright);
+      transform: translateY(-1px);
+    }
+
+    /* ---------- Hero Section ---------- */
+    .hero {
+      position: relative;
+      padding: 96px 0 72px;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    #spatial-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.55;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+
+    .status-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 14px;
+      border-radius: var(--radius-full);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      font-size: 0.84rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulse 2.2s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.6; }
+    }
+
+    h1.hero-title {
+      font-size: clamp(2.4rem, 5.5vw, 4rem);
+      font-weight: 800;
+      line-height: 1.12;
+      letter-spacing: -0.03em;
+      margin-bottom: 22px;
+      background: linear-gradient(135deg, var(--ink) 30%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.hero-lead {
+      font-size: clamp(1.05rem, 2vw, 1.25rem);
+      color: var(--ink-muted);
+      max-width: 660px;
+      margin: 0 auto 36px;
+      line-height: 1.6;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: var(--radius-md);
+      font-size: 0.96rem;
+      font-weight: 600;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #05101e;
+      box-shadow: 0 8px 24px var(--accent-glow);
+    }
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px var(--accent-glow);
+    }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--ink);
+      border-color: var(--line);
+    }
+    .btn-secondary:hover {
+      background: var(--surface-hover);
+      border-color: var(--line-bright);
+      transform: translateY(-2px);
+    }
+
+    /* ---------- Section: Domains Ecosystem ---------- */
+    section.ecosystem {
+      position: relative;
+      z-index: 2;
+      padding: 48px 0 80px;
+    }
+
+    .section-head {
+      text-align: center;
+      max-width: 620px;
+      margin: 0 auto 48px;
+    }
+    .section-head h2 {
+      font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+    .section-head p {
+      color: var(--ink-muted);
+      font-size: 1.05rem;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 22px;
+    }
+
+    .eco-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 30px;
+      border-radius: var(--radius-lg);
+      background: var(--surface-card);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease;
+      overflow: hidden;
+    }
+    .eco-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--card-accent, var(--accent));
+      opacity: 0.8;
+      transition: height 0.2s ease, opacity 0.2s ease;
+    }
+    .eco-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--card-border-hover, var(--line-bright));
+      box-shadow: 0 20px 40px -15px var(--card-glow, rgba(0, 0, 0, 0.5));
+    }
+    .eco-card:hover::before {
+      height: 4px;
+      opacity: 1;
+    }
+
+    /* Card Variant Accents */
+    .card-core {
+      --card-accent: var(--accent-core);
+      --card-glow: var(--accent-core-glow);
+      --card-border-hover: rgba(96, 165, 250, 0.4);
+    }
+    .card-gen {
+      --card-accent: var(--accent-gen);
+      --card-glow: var(--accent-gen-glow);
+      --card-border-hover: rgba(47, 208, 172, 0.4);
+    }
+    .card-md {
+      --card-accent: var(--accent-md);
+      --card-glow: var(--accent-md-glow);
+      --card-border-hover: rgba(240, 178, 106, 0.4);
+    }
+    .card-verse {
+      --card-accent: var(--accent-verse);
+      --card-glow: var(--accent-verse-glow);
+      --card-border-hover: rgba(255, 157, 118, 0.4);
+    }
+    .card-world {
+      --card-accent: var(--accent);
+      --card-glow: var(--accent-glow);
+      --card-border-hover: rgba(56, 189, 248, 0.5);
+      border-color: rgba(56, 189, 248, 0.25);
+      background: linear-gradient(180deg, rgba(20, 32, 52, 0.85) 0%, rgba(14, 20, 32, 0.85) 100%);
+    }
+    @media (prefers-color-scheme: light) {
+      .card-world {
+        border-color: rgba(2, 132, 199, 0.25);
+        background: linear-gradient(180deg, rgba(240, 249, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
+      }
+    }
+
+    .card-top {
+      margin-bottom: 20px;
+    }
+    .card-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .domain-badge {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--card-accent, var(--accent));
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--line);
+    }
+    .status-badge {
+      font-size: 0.74rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 3px 9px;
+      border-radius: var(--radius-full);
+    }
+    .badge-live {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .badge-preview {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .badge-soon {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .badge-sound {
+      background: rgba(244, 114, 182, 0.13);
+      color: #f472b6;
+      border: 1px solid rgba(244, 114, 182, 0.3);
+    }
+    @media (prefers-color-scheme: light) {
+      .badge-sound {
+        background: rgba(219, 39, 119, 0.1);
+        color: #be185d;
+        border-color: rgba(219, 39, 119, 0.3);
+      }
+    }
+
+    /* World cards: a real frame of the world over the app's accent. */
+    .world-card {
+      padding: 0;
+      cursor: pointer;
+    }
+    .world-card .card-top {
+      padding: 0;
+      margin-bottom: 0;
+    }
+    .world-card .card-meta {
+      padding: 16px 20px 0;
+    }
+    .world-card .card-title,
+    .world-card .card-desc {
+      padding-left: 20px;
+      padding-right: 20px;
+    }
+    .world-card .card-title {
+      margin-top: 14px;
+      margin-bottom: 6px;
+    }
+    .world-card .card-desc {
+      min-height: 3em;
+    }
+    .world-card .card-link {
+      padding: 0 20px 18px;
+    }
+    .world-poster {
+      display: block;
+      aspect-ratio: 1200 / 630;
+      overflow: hidden;
+      background: var(--bg-alt);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    .world-poster img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .world-card:hover .world-poster img {
+      transform: scale(1.03);
+    }
+    @media (prefers-color-scheme: light) {
+      .world-poster { background: #e2e8f0; }
+    }
+
+    .card-title {
+      font-size: 1.45rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-desc {
+      color: var(--ink-muted);
+      font-size: 0.95rem;
+      line-height: 1.55;
+      margin-bottom: 18px;
+    }
+
+    .card-features {
+      list-style: none;
+      margin-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .card-features li {
+      font-size: 0.86rem;
+      color: var(--ink-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-features li svg {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+      color: var(--card-accent, var(--accent));
+    }
+
+    .card-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      font-size: 0.94rem;
+      color: var(--card-accent, var(--accent));
+      transition: gap 0.2s ease, opacity 0.2s ease;
+    }
+    .card-link:hover {
+      gap: 10px;
+      opacity: 0.9;
+    }
+
+    /* ---------- Section: About LocalGPT.world ---------- */
+    section.vision {
+      padding: 64px 0 88px;
+      background: var(--bg-alt);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      position: relative;
+    }
+
+    .vision-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+    @media (max-width: 860px) {
+      .vision-grid {
+        grid-template-columns: 1fr;
+        gap: 32px;
+      }
+    }
+
+    .vision-content h2 {
+      font-size: clamp(1.8rem, 3.2vw, 2.4rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 18px;
+      line-height: 1.2;
+    }
+    .vision-content p {
+      color: var(--ink-muted);
+      font-size: 1.05rem;
+      margin-bottom: 18px;
+      line-height: 1.65;
+    }
+
+    .pillar-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 600px) {
+      .pillar-list {
+        grid-template-columns: 1fr;
+      }
+    }
+    .pillar-item {
+      padding: 20px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+    }
+    .pillar-icon {
+      font-size: 1.4rem;
+      margin-bottom: 10px;
+    }
+    .pillar-item h4 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .pillar-item p {
+      font-size: 0.88rem;
+      color: var(--ink-muted);
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    /* ---------- Quickstart Box ---------- */
+    .quickstart-box {
+      margin-top: 48px;
+      background: var(--code-bg);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      position: relative;
+    }
+    .quickstart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .quickstart-header span {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--ink-muted);
+    }
+    .quickstart-copy {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--ink);
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .quickstart-copy:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+    .quickstart-code {
+      font-family: var(--font-mono);
+      font-size: 0.92rem;
+      color: var(--code-ink);
+      line-height: 1.7;
+      overflow-x: auto;
+    }
+    .quickstart-code .comment {
+      color: var(--ink-faint);
+    }
+    .quickstart-code .cmd {
+      color: #38bdf8;
+    }
+
+    /* ---------- Footer ---------- */
+    footer.site-footer {
+      padding: 48px 0;
+      border-top: 1px solid var(--line);
+      margin-top: auto;
+      font-size: 0.9rem;
+      color: var(--ink-muted);
+    }
+    .footer-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .footer-left img {
+      width: 24px;
+      height: 24px;
+    }
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .footer-links a:hover {
+      color: var(--ink);
+    }
+    .footer-copy {
+      font-size: 0.84rem;
+      color: var(--ink-faint);
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 680px) {
+      .nav-links {
+        display: none;
+      }
+      .hero {
+        padding: 64px 0 48px;
+      }
+      .cards-grid {
+        grid-template-columns: 1fr;
+      }
+      .footer-inner {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header class="site-header">
+    <div class="wrap nav-inner">
+      <a class="brand" href="/" aria-label="LocalGPT World Home">
+        <img src="localgpt-icon.svg" alt="LocalGPT Logo" width="32" height="32">
+        <span>LocalGPT</span>
+        <span class="brand-tag">World</span>
+      </a>
+
+      <nav class="nav-links" aria-label="Ecosystem navigation">
+        <a href="#ecosystem">Ecosystem</a>
+        <a href="#vision">About World</a>
+        <a href="#quickstart">Quickstart</a>
+        <a href="world.html">Open a world</a>
+        <a href="https://localgpt.app" target="_blank" rel="noopener">localgpt.app &rarr;</a>
+      </nav>
+
+      <a class="btn-pill" href="https://github.com/localgpt-app" target="_blank" rel="noopener">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+        </svg>
+        GitHub
+      </a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <canvas id="spatial-canvas" aria-hidden="true"></canvas>
+
+    <div class="wrap hero-content">
+      <div class="status-eyebrow">
+        <span class="pulse-dot"></span>
+        <span>Ecosystem Portal &bull; localgpt.world</span>
+      </div>
+
+      <h1 class="hero-title">Walk into a world a local AI built.</h1>
+      
+      <p class="hero-lead">
+        <strong>localgpt.world</strong> is where worlds made on your machine can be visited by anyone. Natural language, Markdown notes and music tracks become places you can walk through — generated locally, shared here.
+      </p>
+
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#worlds">Enter a world &darr;</a>
+        <a class="btn btn-secondary" href="https://localgpt.app" target="_blank" rel="noopener">What is LocalGPT? &rarr;</a>
+        <a class="btn btn-secondary" href="https://github.com/localgpt-app" target="_blank" rel="noopener">GitHub Org</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Ecosystem Showcase -->
+  <section class="ecosystem" id="worlds">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Worlds you can enter</h2>
+        <p>Each of these was made on someone's machine by one of the LocalGPT apps. Click one to step in; the card tells you which app built it.</p>
+      </div>
+
+      <div class="cards-grid" id="world-cards">
+        <!-- Cards are rendered from worlds.js. -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Vision / About localgpt.world -->
+  <section class="vision" id="vision">
+    <div class="wrap">
+      <div class="vision-grid">
+        <div class="vision-content">
+          <h2>An open standard for spatial computing.</h2>
+          <p>
+            Most AI world-generation platforms isolate experiences inside proprietary cloud servers and closed walled gardens. LocalGPT takes the opposite stance: your machine generates the meshes, compiles the shaders, and simulates the physics.
+          </p>
+          <p>
+            <strong>localgpt.world</strong> serves as the umbrella portal where standalone world formats converge. Whether born from a single paragraph prompt, an outline in a Markdown document, or a symphonic track, worlds are represented in portable, open formats.
+          </p>
+        </div>
+
+        <div class="pillar-list">
+          <div class="pillar-item">
+            <div class="pillar-icon">🔒</div>
+            <h4>100% Local &amp; Private</h4>
+            <p>Your notes, your music library, and your creative prompts never leave your hardware.</p>
+          </div>
+          <div class="pillar-item">
+            <div class="pillar-icon">⚡</div>
+            <h4>Built with Bevy &amp; Rust</h4>
+            <p>High-performance native ECS rendering pipeline with ultra-fast startup and smooth frame rates.</p>
+          </div>
+          <div class="pillar-item">
+            <div class="pillar-icon">🌐</div>
+            <h4>Interconnected Portals</h4>
+            <p>Step seamlessly from a document world directly into a music-reactive concert hall.</p>
+          </div>
+          <div class="pillar-item">
+            <div class="pillar-icon">📦</div>
+            <h4>Open Formats</h4>
+            <p>Built on standard glTF, RON, and reproducible JSON sidecar definitions.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quickstart Box -->
+      <div class="quickstart-box" id="quickstart">
+        <div class="quickstart-header">
+          <span>Get Started via Cargo / Source</span>
+          <button class="quickstart-copy" id="copy-btn" type="button" aria-label="Copy terminal commands">Copy</button>
+        </div>
+        <pre class="quickstart-code" id="terminal-content"><code><span class="comment"># 1. Install LocalGPT Gen to generate 3D worlds from prompts</span>
+<span class="cmd">cargo install localgpt-gen</span>
+
+<span class="comment"># 2. Or run LocalGPT MD to explore markdown documents as spaces</span>
+<span class="cmd">git clone https://github.com/localgpt-app/localgpt-md.git</span>
+<span class="cmd">cd localgpt-md && cargo run -- path/to/notes.md</span>
+
+<span class="comment"># 3. Or launch LocalGPT Verse to turn songs into living worlds</span>
+<span class="cmd">git clone https://github.com/localgpt-app/localgpt-verse.git</span>
+<span class="cmd">cd localgpt-verse && cargo run</span></code></pre>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <div class="footer-left">
+        <img src="localgpt-icon.svg" alt="LocalGPT" width="24" height="24">
+        <span><strong>localgpt.world</strong> &bull; Part of the <a href="https://localgpt.app" target="_blank" rel="noopener">LocalGPT</a> family</span>
+      </div>
+
+      <nav class="footer-links" aria-label="The LocalGPT family">
+        <a href="https://localgpt.app" target="_blank" rel="noopener" title="A local AI assistant with persistent memory.">LocalGPT</a>
+        <a href="https://gen.localgpt.app" target="_blank" rel="noopener" title="Worlds from words.">LocalGPT Gen</a>
+        <a href="https://verse.localgpt.app" target="_blank" rel="noopener" title="A 3D world for every song.">LocalGPT Verse</a>
+        <a href="https://md.localgpt.app" target="_blank" rel="noopener" title="Walk through your notes as a world.">LocalGPT MD</a>
+        <a href="https://localgpt.rs" target="_blank" rel="noopener" title="The devlog: building it all in Rust.">localgpt.rs</a>
+        <a href="https://github.com/localgpt-app" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://discord.gg/spKRr6mRyp" target="_blank" rel="noopener">Discord</a>
+      </nav>
+
+      <div class="footer-copy">
+        Open Source under Apache-2.0. Built for sovereign spatial intelligence.
+      </div>
+    </div>
+  </footer>
+
+  <!-- Spatial Interactive Canvas Animation -->
+  <script type="module">
+    import WORLDS from './worlds.js';
+
+    const grid = document.getElementById('world-cards');
+    for (const w of WORLDS) {
+      const name = w.file.replace(/\.json$/, '');
+      const slug = name;
+      const card = document.createElement('a');
+      card.className = 'eco-card world-card';
+      card.href = `w/index.html?world=${slug}`;
+      card.style.textDecoration = 'none';
+      card.style.color = 'inherit';
+      const audioBadge = w.audio
+        ? '<span class="status-badge badge-sound" title="This world performs to its track">&#119070; Sound</span>'
+        : '';
+      card.innerHTML = `
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="domain-badge">${w.credit.replace('LocalGPT ', '')}</span>
+            ${audioBadge}
+          </div>
+          <div class="world-poster">
+            <img src="worlds/posters/${name}.png" alt="${name.replace(/-/g, ' ')}" loading="lazy"
+                 onerror="this.closest('.world-poster').style.display='none'">
+          </div>
+          <h3 class="card-title"></h3>
+          <p class="card-desc"></p>
+        </div>
+        <span class="card-link">Enter &rarr;</span>`;
+      card.querySelector('.card-title').textContent = w.title || name.split('-').map((c) => c[0].toUpperCase() + c.slice(1)).join(' ');
+      card.querySelector('.card-desc').textContent = w.note;
+      grid.appendChild(card);
+    }
+  </script>
+
+  <script>
+    (function () {
+      const canvas = document.getElementById('spatial-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let width, height;
+      let animationFrameId;
+      let mouseX = 0, mouseY = 0;
+      let targetMouseX = 0, targetMouseY = 0;
+
+      // Check prefers-reduced-motion
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // 3D Nodes representing world constellation
+      const numNodes = 42;
+      const nodes = [];
+
+      function resize() {
+        width = canvas.width = canvas.parentElement.offsetWidth;
+        height = canvas.height = canvas.parentElement.offsetHeight;
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      for (let i = 0; i < numNodes; i++) {
+        nodes.push({
+          x: (Math.random() - 0.5) * 800,
+          y: (Math.random() - 0.5) * 500,
+          z: (Math.random() - 0.5) * 800,
+          vx: (Math.random() - 0.5) * 0.4,
+          vy: (Math.random() - 0.5) * 0.4,
+          vz: (Math.random() - 0.5) * 0.4,
+          radius: 1.5 + Math.random() * 2.5,
+          color: i % 4 === 0 ? '#38bdf8' : (i % 4 === 1 ? '#2fd0ac' : (i % 4 === 2 ? '#f0b26a' : '#ff9d76'))
+        });
+      }
+
+      window.addEventListener('mousemove', (e) => {
+        targetMouseX = (e.clientX / window.innerWidth - 0.5) * 0.8;
+        targetMouseY = (e.clientY / window.innerHeight - 0.5) * 0.8;
+      });
+
+      let angleX = 0;
+      let angleY = 0;
+
+      function render() {
+        if (!prefersReducedMotion) {
+          mouseX += (targetMouseX - mouseX) * 0.05;
+          mouseY += (targetMouseY - mouseY) * 0.05;
+          angleY += 0.0018 + mouseX * 0.004;
+          angleX = mouseY * 0.4;
+        }
+
+        ctx.clearRect(0, 0, width, height);
+
+        const cosY = Math.cos(angleY);
+        const sinY = Math.sin(angleY);
+        const cosX = Math.cos(angleX);
+        const sinX = Math.sin(angleX);
+
+        const fov = 420;
+        const projected = [];
+
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+          if (!prefersReducedMotion) {
+            n.x += n.vx;
+            n.y += n.vy;
+            n.z += n.vz;
+            if (n.x < -400 || n.x > 400) n.vx *= -1;
+            if (n.y < -250 || n.y > 250) n.vy *= -1;
+            if (n.z < -400 || n.z > 400) n.vz *= -1;
+          }
+
+          // Rotate around Y
+          let x1 = n.x * cosY - n.z * sinY;
+          let z1 = n.z * cosY + n.x * sinY;
+
+          // Rotate around X
+          let y1 = n.y * cosX - z1 * sinX;
+          let z2 = z1 * cosX + n.y * sinX;
+
+          const depth = z2 + 650;
+          if (depth > 20) {
+            const scale = fov / depth;
+            const px = width / 2 + x1 * scale;
+            const py = height / 2 + y1 * scale;
+            const alpha = Math.max(0.08, Math.min(0.85, (depth - 200) / 700));
+            projected.push({ px, py, scale, alpha, radius: n.radius, color: n.color });
+          }
+        }
+
+        // Draw connecting edges
+        for (let i = 0; i < projected.length; i++) {
+          for (let j = i + 1; j < projected.length; j++) {
+            const p1 = projected[i];
+            const p2 = projected[j];
+            const dx = p1.px - p2.px;
+            const dy = p1.py - p2.py;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 110) {
+              const edgeAlpha = (1 - dist / 110) * 0.22 * Math.min(p1.alpha, p2.alpha);
+              ctx.beginPath();
+              ctx.moveTo(p1.px, p1.py);
+              ctx.lineTo(p2.px, p2.py);
+              ctx.strokeStyle = `rgba(56, 189, 248, ${edgeAlpha})`;
+              ctx.lineWidth = 1;
+              ctx.stroke();
+            }
+          }
+        }
+
+        // Draw nodes
+        for (let i = 0; i < projected.length; i++) {
+          const p = projected[i];
+          ctx.beginPath();
+          ctx.arc(p.px, p.py, p.radius * p.scale, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.alpha;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+
+        if (!prefersReducedMotion) {
+          animationFrameId = requestAnimationFrame(render);
+        }
+      }
+
+      render();
+
+      // Pause when out of view
+      if ('IntersectionObserver' in window) {
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting && !prefersReducedMotion) {
+              if (!animationFrameId) animationFrameId = requestAnimationFrame(render);
+            } else {
+              cancelAnimationFrame(animationFrameId);
+              animationFrameId = null;
+            }
+          });
+        });
+        observer.observe(canvas);
+      }
+
+      // Copy Button
+      const copyBtn = document.getElementById('copy-btn');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+          const codeText = `cargo install localgpt-gen\n\ngit clone https://github.com/localgpt-app/localgpt-md.git\ncd localgpt-md && cargo run -- path/to/notes.md\n\ngit clone https://github.com/localgpt-app/localgpt-verse.git\ncd localgpt-verse && cargo run`;
+          navigator.clipboard.writeText(codeText).then(() => {
+            const prevText = copyBtn.textContent;
+            copyBtn.textContent = 'Copied!';
+            copyBtn.style.color = '#34d399';
+            setTimeout(() => {
+              copyBtn.textContent = prevText;
+              copyBtn.style.color = '';
+            }, 2000);
+          }).catch(err => {
+            console.error('Clipboard copy failed:', err);
+          });
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

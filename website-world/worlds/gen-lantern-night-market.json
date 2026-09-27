@@ -1,0 +1,11464 @@
+{
+ "version": 1,
+ "meta": {
+  "name": "Lantern Night Market",
+  "description": "A night market under strings of paper lanterns, steam rising from the noodle stalls.",
+  "bevy_version": "0.18",
+  "compliance": {
+   "steam_code_tool_exempt": true,
+   "eu_ai_act_risk_level": "minimal",
+   "no_gen_ai_compatible": true,
+   "generation_tool": "LocalGPT Gen v0.3.6",
+   "generation_method": "code-generation",
+   "human_modifiable": true
+  }
+ },
+ "environment": {
+  "background_color": [
+   0.04,
+   0.05,
+   0.12,
+   1.0
+  ],
+  "ambient_intensity": 300.0,
+  "ambient_color": [
+   0.75,
+   0.72,
+   0.85,
+   1.0
+  ]
+ },
+ "camera": {
+  "position": [
+   8.0,
+   4.2,
+   24.0
+  ],
+  "look_at": [
+   4.0704308,
+   3.5014098,
+   14.831006
+  ],
+  "fov_degrees": 55.0
+ },
+ "entities": [
+  {
+   "id": 703,
+   "name": "shopper_1_head",
+   "transform": {
+    "position": [
+     0.0,
+     0.85,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 702,
+   "shape": {
+    "Sphere": {
+     "radius": 0.17
+    }
+   },
+   "material": {
+    "color": [
+     0.95,
+     0.78,
+     0.62,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.7,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 592,
+   "name": "stall_east_3_canopy",
+   "transform": {
+    "position": [
+     5.7,
+     3.15,
+     -3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     12.000001
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 3.4,
+     "y": 0.08,
+     "z": 4.8
+    }
+   },
+   "material": {
+    "color": [
+     0.25,
+     0.45,
+     0.7,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 536,
+   "name": "stall_west_4_post_1",
+   "transform": {
+    "position": [
+     -7.0,
+     1.675,
+     -0.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 569,
+   "name": "stall_east_1_canopy",
+   "transform": {
+    "position": [
+     5.7,
+     3.15,
+     -15.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     12.000001
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 3.4,
+     "y": 0.08,
+     "z": 4.8
+    }
+   },
+   "material": {
+    "color": [
+     0.85,
+     0.78,
+     0.6,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 581,
+   "name": "stall_east_2_canopy",
+   "transform": {
+    "position": [
+     5.7,
+     3.15,
+     -9.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     12.000001
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 3.4,
+     "y": 0.08,
+     "z": 4.8
+    }
+   },
+   "material": {
+    "color": [
+     0.55,
+     0.22,
+     0.45,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 532,
+   "name": "stall_west_3_lantern",
+   "transform": {
+    "position": [
+     -5.3,
+     2.45,
+     -4.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.3,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.28
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 687,
+   "name": "lantern_5_1",
+   "transform": {
+    "position": [
+     -4.526085,
+     4.95,
+     9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 700.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 702,
+   "name": "shopper_1",
+   "transform": {
+    "position": [
+     -4.4,
+     0.9,
+     -15.5
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.24,
+     "half_length": 0.42
+    }
+   },
+   "material": {
+    "color": [
+     0.3,
+     0.4,
+     0.62,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 492,
+   "name": "kerb_right",
+   "transform": {
+    "position": [
+     3.6,
+     0.09,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 0.4,
+     "y": 0.18,
+     "z": 44.0
+    }
+   },
+   "material": {
+    "color": [
+     0.55,
+     0.54,
+     0.52,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 725,
+   "name": "street_glow_5",
+   "transform": {
+    "position": [
+     0.0,
+     4.6,
+     9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.72,
+     0.42,
+     1.0
+    ],
+    "intensity": 220000.0,
+    "shadows": false,
+    "range": 15.0
+   }
+  },
+  {
+   "id": 546,
+   "name": "stall_west_5_canopy",
+   "transform": {
+    "position": [
+     -5.7,
+     3.15,
+     7.8
+    ],
+    "rotation_degrees": [
+     0.0,
+     0.0,
+     -12.000001
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 3.4,
+     "y": 0.08,
+     "z": 4.8
+    }
+   },
+   "material": {
+    "color": [
+     0.55,
+     0.22,
+     0.45,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 726,
+   "name": "street_glow_6",
+   "transform": {
+    "position": [
+     0.0,
+     4.6,
+     16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.72,
+     0.42,
+     1.0
+    ],
+    "intensity": 220000.0,
+    "shadows": false,
+    "range": 15.0
+   }
+  },
+  {
+   "id": 548,
+   "name": "stall_west_5_post_2",
+   "transform": {
+    "position": [
+     -7.0,
+     1.675,
+     10.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 616,
+   "name": "stall_east_5_post_1",
+   "transform": {
+    "position": [
+     7.0,
+     1.45,
+     7.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 528,
+   "name": "stall_west_3_bowl_1",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     -5.9
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 623,
+   "name": "stall_east_5_pot",
+   "transform": {
+    "position": [
+     6.45,
+     1.4,
+     10.3
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.42,
+     "height": 0.55
+    }
+   },
+   "material": {
+    "color": [
+     0.5,
+     0.52,
+     0.55,
+     1.0
+    ],
+    "metallic": 0.7,
+    "roughness": 0.35,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 698,
+   "name": "lantern_6_4",
+   "transform": {
+    "position": [
+     0.0,
+     4.7,
+     16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 688,
+   "name": "lantern_5_2",
+   "transform": {
+    "position": [
+     -3.0,
+     4.811111,
+     9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 522,
+   "name": "stall_west_3_counter_top",
+   "transform": {
+    "position": [
+     -6.2,
+     1.09,
+     -4.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 2.0,
+     "y": 0.08,
+     "z": 4.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.66,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 539,
+   "name": "stall_west_4_post_4",
+   "transform": {
+    "position": [
+     -5.0,
+     1.45,
+     3.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 603,
+   "name": "stall_east_4_counter_top",
+   "transform": {
+    "position": [
+     6.2,
+     1.09,
+     3.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 2.0,
+     "y": 0.08,
+     "z": 4.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.66,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 507,
+   "name": "stall_west_1_bowl_3",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     -16.9
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 613,
+   "name": "stall_east_5",
+   "transform": {
+    "position": [
+     6.2,
+     0.525,
+     9.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 1.8,
+     "y": 1.05,
+     "z": 4.2
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.42,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.75,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 722,
+   "name": "street_glow_2",
+   "transform": {
+    "position": [
+     0.0,
+     4.6,
+     -9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.72,
+     0.42,
+     1.0
+    ],
+    "intensity": 220000.0,
+    "shadows": false,
+    "range": 15.0
+   }
+  },
+  {
+   "id": 501,
+   "name": "stall_west_1_post_1",
+   "transform": {
+    "position": [
+     -7.0,
+     1.675,
+     -19.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 516,
+   "name": "stall_west_2_post_4",
+   "transform": {
+    "position": [
+     -5.0,
+     1.45,
+     -8.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 497,
+   "name": "gate_sign",
+   "transform": {
+    "position": [
+     0.0,
+     5.95,
+     23.3
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 2.6,
+     "y": 0.8,
+     "z": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.95,
+     0.8,
+     0.45,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     3.5,
+     2.4,
+     0.9,
+     1.0
+    ]
+   }
+  },
+  {
+   "id": 637,
+   "name": "stall_west_1_pot_steam_2",
+   "transform": {
+    "position": [
+     -6.419813,
+     2.5492778,
+     -15.985513
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.38
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 120.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 612,
+   "name": "stall_east_4_lantern",
+   "transform": {
+    "position": [
+     5.3,
+     2.45,
+     3.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.3,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.28
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 712,
+   "name": "shopper_6",
+   "transform": {
+    "position": [
+     4.4,
+     0.9,
+     15.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.24,
+     "half_length": 0.42
+    }
+   },
+   "material": {
+    "color": [
+     0.72,
+     0.52,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 549,
+   "name": "stall_west_5_post_3",
+   "transform": {
+    "position": [
+     -5.0,
+     1.45,
+     5.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 606,
+   "name": "stall_east_4_post_2",
+   "transform": {
+    "position": [
+     7.0,
+     1.45,
+     5.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 678,
+   "name": "lantern_string_4",
+   "transform": {
+    "position": [
+     0.0,
+     5.3,
+     3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     89.99999
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.015,
+     "height": 13.0
+    }
+   },
+   "material": {
+    "color": [
+     0.2,
+     0.18,
+     0.16,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 715,
+   "name": "stroller_1_head",
+   "transform": {
+    "position": [
+     0.0,
+     0.85,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 714,
+   "shape": {
+    "Sphere": {
+     "radius": 0.17
+    }
+   },
+   "material": {
+    "color": [
+     0.72,
+     0.52,
+     0.38,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.7,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 689,
+   "name": "lantern_5_3",
+   "transform": {
+    "position": [
+     -1.5581589,
+     4.727778,
+     9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 750.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 677,
+   "name": "lantern_3_7",
+   "transform": {
+    "position": [
+     4.5060315,
+     4.95,
+     -3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 500.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 655,
+   "name": "lantern_1_1",
+   "transform": {
+    "position": [
+     -4.542992,
+     4.95,
+     -16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 0.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 640,
+   "name": "stall_west_3_pot_steam_2",
+   "transform": {
+    "position": [
+     -6.542501,
+     2.5492778,
+     -3.5132709
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.38
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 120.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 696,
+   "name": "lantern_6_2",
+   "transform": {
+    "position": [
+     -3.0,
+     4.811111,
+     16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 517,
+   "name": "stall_west_2_bowl_1",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     -12.1
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 583,
+   "name": "stall_east_2_post_2",
+   "transform": {
+    "position": [
+     7.0,
+     1.45,
+     -7.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 566,
+   "name": "stall_west_6_lantern",
+   "transform": {
+    "position": [
+     -5.3,
+     2.45,
+     14.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.3,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.28
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 646,
+   "name": "stall_east_1_pot_steam_2",
+   "transform": {
+    "position": [
+     6.545251,
+     2.5492778,
+     -14.590684
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.38
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 120.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 634,
+   "name": "stall_east_6_bowl_3",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     15.5
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 610,
+   "name": "stall_east_4_bowl_2",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     2.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 611,
+   "name": "stall_east_4_bowl_3",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     3.1
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 656,
+   "name": "lantern_1_2",
+   "transform": {
+    "position": [
+     -3.0,
+     4.811111,
+     -16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 650,
+   "name": "stall_east_3_pot_steam_3",
+   "transform": {
+    "position": [
+     6.386145,
+     3.0490644,
+     -2.08368
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.46
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 240.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 531,
+   "name": "stall_west_3_pot",
+   "transform": {
+    "position": [
+     -6.45,
+     1.4,
+     -3.5
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.42,
+     "height": 0.55
+    }
+   },
+   "material": {
+    "color": [
+     0.5,
+     0.52,
+     0.55,
+     1.0
+    ],
+    "metallic": 0.7,
+    "roughness": 0.35,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 567,
+   "name": "stall_east_1",
+   "transform": {
+    "position": [
+     6.2,
+     0.525,
+     -15.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 1.8,
+     "y": 1.05,
+     "z": 4.2
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.42,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.75,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 598,
+   "name": "stall_east_3_bowl_2",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     -3.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 641,
+   "name": "stall_west_3_pot_steam_3",
+   "transform": {
+    "position": [
+     -6.536029,
+     3.0490644,
+     -3.5818574
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.46
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 240.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 511,
+   "name": "stall_west_2_counter_top",
+   "transform": {
+    "position": [
+     -6.2,
+     1.09,
+     -10.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 2.0,
+     "y": 0.08,
+     "z": 4.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.66,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 527,
+   "name": "stall_west_3_post_4",
+   "transform": {
+    "position": [
+     -5.0,
+     1.45,
+     -2.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 599,
+   "name": "stall_east_3_bowl_3",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     -3.1
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 685,
+   "name": "lantern_4_7",
+   "transform": {
+    "position": [
+     4.499194,
+     4.95,
+     3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 675.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 643,
+   "name": "stall_west_5_pot_steam_2",
+   "transform": {
+    "position": [
+     -6.5252395,
+     2.5492778,
+     8.844647
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.38
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 120.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 490,
+   "name": "street",
+   "transform": {
+    "position": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Plane": {
+     "x": 90.0,
+     "z": 90.0
+    }
+   },
+   "material": {
+    "color": [
+     0.5,
+     0.48,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.15,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 491,
+   "name": "kerb_left",
+   "transform": {
+    "position": [
+     -3.6,
+     0.09,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 0.4,
+     "y": 0.18,
+     "z": 44.0
+    }
+   },
+   "material": {
+    "color": [
+     0.55,
+     0.54,
+     0.52,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 526,
+   "name": "stall_west_3_post_3",
+   "transform": {
+    "position": [
+     -5.0,
+     1.45,
+     -6.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 564,
+   "name": "stall_west_6_bowl_2",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     13.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 615,
+   "name": "stall_east_5_canopy",
+   "transform": {
+    "position": [
+     5.7,
+     3.15,
+     9.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     12.000001
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 3.4,
+     "y": 0.08,
+     "z": 4.8
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.55,
+     0.16,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 636,
+   "name": "stall_west_1_pot_steam_1",
+   "transform": {
+    "position": [
+     -6.4852333,
+     1.751658,
+     -15.9698305
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 0.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 673,
+   "name": "lantern_3_3",
+   "transform": {
+    "position": [
+     -1.5598365,
+     4.727778,
+     -3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 400.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 510,
+   "name": "stall_west_2",
+   "transform": {
+    "position": [
+     -6.2,
+     0.525,
+     -10.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 1.8,
+     "y": 1.05,
+     "z": 4.2
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.42,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.75,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 505,
+   "name": "stall_west_1_bowl_1",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     -18.3
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 579,
+   "name": "stall_east_2",
+   "transform": {
+    "position": [
+     6.2,
+     0.525,
+     -9.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 1.8,
+     "y": 1.05,
+     "z": 4.2
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.42,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.75,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 728,
+   "name": "stall_west_3_pot_glow",
+   "transform": {
+    "position": [
+     -6.45,
+     2.3,
+     -3.5
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.6,
+     0.3,
+     1.0
+    ],
+    "intensity": 40000.0,
+    "shadows": false,
+    "range": 6.0
+   }
+  },
+  {
+   "id": 631,
+   "name": "stall_east_6_post_4",
+   "transform": {
+    "position": [
+     5.0,
+     1.675,
+     17.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 714,
+   "name": "stroller_1",
+   "transform": {
+    "position": [
+     -1.2121025,
+     0.9,
+     17.700527
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.3015541,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.24,
+     "half_length": 0.42
+    }
+   },
+   "material": {
+    "color": [
+     0.8,
+     0.72,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "behaviors": [
+    {
+     "PathFollow": {
+      "waypoints": [
+       [
+        -1.2,
+        0.9,
+        20.0
+       ],
+       [
+        -1.4,
+        0.9,
+        -18.0
+       ]
+      ],
+      "speed": 1.1,
+      "mode": "ping_pong",
+      "orient_to_path": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 515,
+   "name": "stall_west_2_post_3",
+   "transform": {
+    "position": [
+     -5.0,
+     1.45,
+     -13.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 732,
+   "name": "stall_east_5_pot_glow",
+   "transform": {
+    "position": [
+     6.45,
+     2.3,
+     10.3
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.6,
+     0.3,
+     1.0
+    ],
+    "intensity": 40000.0,
+    "shadows": false,
+    "range": 6.0
+   }
+  },
+  {
+   "id": 574,
+   "name": "stall_east_1_bowl_1",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     -16.9
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 506,
+   "name": "stall_west_1_bowl_2",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     -17.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 542,
+   "name": "stall_west_4_bowl_3",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     1.7
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 591,
+   "name": "stall_east_3_counter_top",
+   "transform": {
+    "position": [
+     6.2,
+     1.09,
+     -3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 2.0,
+     "y": 0.08,
+     "z": 4.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.66,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 667,
+   "name": "lantern_2_5",
+   "transform": {
+    "position": [
+     1.5379466,
+     4.727778,
+     -9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 275.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 628,
+   "name": "stall_east_6_post_1",
+   "transform": {
+    "position": [
+     7.0,
+     1.45,
+     13.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 557,
+   "name": "stall_west_6_counter_top",
+   "transform": {
+    "position": [
+     -6.2,
+     1.09,
+     14.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 2.0,
+     "y": 0.08,
+     "z": 4.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.66,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 503,
+   "name": "stall_west_1_post_3",
+   "transform": {
+    "position": [
+     -5.0,
+     1.45,
+     -19.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 669,
+   "name": "lantern_2_7",
+   "transform": {
+    "position": [
+     4.4887886,
+     4.95,
+     -9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 325.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 671,
+   "name": "lantern_3_1",
+   "transform": {
+    "position": [
+     -4.5350714,
+     4.95,
+     -3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 350.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 710,
+   "name": "shopper_5",
+   "transform": {
+    "position": [
+     4.4,
+     0.9,
+     2.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.24,
+     "half_length": 0.42
+    }
+   },
+   "material": {
+    "color": [
+     0.5,
+     0.45,
+     0.6,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 718,
+   "name": "stroller_3",
+   "transform": {
+    "position": [
+     0.15124974,
+     0.90000004,
+     4.537492
+    ],
+    "rotation_degrees": [
+     -0.0,
+     1.9091523,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.24,
+     "half_length": 0.42
+    }
+   },
+   "material": {
+    "color": [
+     0.72,
+     0.52,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "behaviors": [
+    {
+     "PathFollow": {
+      "waypoints": [
+       [
+        0.2,
+        0.9,
+        6.0
+       ],
+       [
+        -0.4,
+        0.9,
+        -12.0
+       ]
+      ],
+      "speed": 0.7,
+      "mode": "ping_pong",
+      "orient_to_path": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 683,
+   "name": "lantern_4_5",
+   "transform": {
+    "position": [
+     1.5454406,
+     4.727778,
+     3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 625.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 540,
+   "name": "stall_west_4_bowl_1",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     0.3
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 614,
+   "name": "stall_east_5_counter_top",
+   "transform": {
+    "position": [
+     6.2,
+     1.09,
+     9.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 2.0,
+     "y": 0.08,
+     "z": 4.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.66,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 721,
+   "name": "street_glow_1",
+   "transform": {
+    "position": [
+     0.0,
+     4.6,
+     -16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.72,
+     0.42,
+     1.0
+    ],
+    "intensity": 220000.0,
+    "shadows": false,
+    "range": 15.0
+   }
+  },
+  {
+   "id": 618,
+   "name": "stall_east_5_post_3",
+   "transform": {
+    "position": [
+     5.0,
+     1.675,
+     7.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 720,
+   "name": "moon",
+   "transform": {
+    "position": [
+     0.0,
+     10.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     -66.37063,
+     -24.611504,
+     -43.588856
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "directional",
+    "color": [
+     0.75,
+     0.8,
+     1.0,
+     1.0
+    ],
+    "intensity": 2500.0,
+    "direction": [
+     0.41646332,
+     -0.8329268,
+     -0.3644054
+    ],
+    "shadows": true
+   }
+  },
+  {
+   "id": 551,
+   "name": "stall_west_5_bowl_1",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     6.5
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 642,
+   "name": "stall_west_5_pot_steam_1",
+   "transform": {
+    "position": [
+     -6.465096,
+     1.751658,
+     8.96537
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 0.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 723,
+   "name": "street_glow_3",
+   "transform": {
+    "position": [
+     0.0,
+     4.6,
+     -3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.72,
+     0.42,
+     1.0
+    ],
+    "intensity": 220000.0,
+    "shadows": false,
+    "range": 15.0
+   }
+  },
+  {
+   "id": 668,
+   "name": "lantern_2_6",
+   "transform": {
+    "position": [
+     3.0,
+     4.811111,
+     -9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 576,
+   "name": "stall_east_1_bowl_3",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     -15.5
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 609,
+   "name": "stall_east_4_bowl_1",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     1.7
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 644,
+   "name": "stall_west_5_pot_steam_3",
+   "transform": {
+    "position": [
+     -6.4245133,
+     3.0490644,
+     8.989542
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.46
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 240.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 713,
+   "name": "shopper_6_head",
+   "transform": {
+    "position": [
+     0.0,
+     0.85,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 712,
+   "shape": {
+    "Sphere": {
+     "radius": 0.17
+    }
+   },
+   "material": {
+    "color": [
+     0.5,
+     0.36,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.7,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 580,
+   "name": "stall_east_2_counter_top",
+   "transform": {
+    "position": [
+     6.2,
+     1.09,
+     -9.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 2.0,
+     "y": 0.08,
+     "z": 4.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.66,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 494,
+   "name": "gate_post_right",
+   "transform": {
+    "position": [
+     4.2,
+     3.2,
+     23.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.28,
+     "height": 6.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.16,
+     0.1,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 630,
+   "name": "stall_east_6_post_3",
+   "transform": {
+    "position": [
+     5.0,
+     1.675,
+     13.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 695,
+   "name": "lantern_6_1",
+   "transform": {
+    "position": [
+     -4.4787235,
+     4.95,
+     16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 875.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 706,
+   "name": "shopper_3",
+   "transform": {
+    "position": [
+     -4.4,
+     0.9,
+     9.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.24,
+     "half_length": 0.42
+    }
+   },
+   "material": {
+    "color": [
+     0.3,
+     0.5,
+     0.35,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 707,
+   "name": "shopper_3_head",
+   "transform": {
+    "position": [
+     0.0,
+     0.85,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 706,
+   "shape": {
+    "Sphere": {
+     "radius": 0.17
+    }
+   },
+   "material": {
+    "color": [
+     0.5,
+     0.36,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.7,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 627,
+   "name": "stall_east_6_canopy",
+   "transform": {
+    "position": [
+     5.7,
+     3.15,
+     15.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     12.000001
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 3.4,
+     "y": 0.08,
+     "z": 4.8
+    }
+   },
+   "material": {
+    "color": [
+     0.18,
+     0.55,
+     0.55,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 523,
+   "name": "stall_west_3_canopy",
+   "transform": {
+    "position": [
+     -5.7,
+     3.15,
+     -4.6
+    ],
+    "rotation_degrees": [
+     0.0,
+     0.0,
+     -12.000001
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 3.4,
+     "y": 0.08,
+     "z": 4.8
+    }
+   },
+   "material": {
+    "color": [
+     0.18,
+     0.55,
+     0.55,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 594,
+   "name": "stall_east_3_post_2",
+   "transform": {
+    "position": [
+     7.0,
+     1.45,
+     -1.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 632,
+   "name": "stall_east_6_bowl_1",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     14.1
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 553,
+   "name": "stall_west_5_bowl_3",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     7.9
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 534,
+   "name": "stall_west_4_counter_top",
+   "transform": {
+    "position": [
+     -6.2,
+     1.09,
+     1.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 2.0,
+     "y": 0.08,
+     "z": 4.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.66,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 543,
+   "name": "stall_west_4_lantern",
+   "transform": {
+    "position": [
+     -5.3,
+     2.45,
+     1.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.3,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.28
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 595,
+   "name": "stall_east_3_post_3",
+   "transform": {
+    "position": [
+     5.0,
+     1.675,
+     -5.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 670,
+   "name": "lantern_string_3",
+   "transform": {
+    "position": [
+     0.0,
+     5.3,
+     -3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     89.99999
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.015,
+     "height": 13.0
+    }
+   },
+   "material": {
+    "color": [
+     0.2,
+     0.18,
+     0.16,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 704,
+   "name": "shopper_2",
+   "transform": {
+    "position": [
+     -4.4,
+     0.9,
+     -3.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.24,
+     "half_length": 0.42
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.3,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 525,
+   "name": "stall_west_3_post_2",
+   "transform": {
+    "position": [
+     -7.0,
+     1.675,
+     -2.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 690,
+   "name": "lantern_5_4",
+   "transform": {
+    "position": [
+     0.0,
+     4.7,
+     9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 541,
+   "name": "stall_west_4_bowl_2",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     1.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 605,
+   "name": "stall_east_4_post_1",
+   "transform": {
+    "position": [
+     7.0,
+     1.45,
+     0.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 664,
+   "name": "lantern_2_2",
+   "transform": {
+    "position": [
+     -3.0,
+     4.811111,
+     -9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 573,
+   "name": "stall_east_1_post_4",
+   "transform": {
+    "position": [
+     5.0,
+     1.675,
+     -13.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 608,
+   "name": "stall_east_4_post_4",
+   "transform": {
+    "position": [
+     5.0,
+     1.675,
+     5.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 701,
+   "name": "lantern_6_7",
+   "transform": {
+    "position": [
+     4.5096245,
+     4.95,
+     16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 1025.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 561,
+   "name": "stall_west_6_post_3",
+   "transform": {
+    "position": [
+     -5.0,
+     1.45,
+     11.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 565,
+   "name": "stall_west_6_bowl_3",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     14.1
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 730,
+   "name": "stall_east_1_pot_glow",
+   "transform": {
+    "position": [
+     6.45,
+     2.3,
+     -14.5
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.6,
+     0.3,
+     1.0
+    ],
+    "intensity": 40000.0,
+    "shadows": false,
+    "range": 6.0
+   }
+  },
+  {
+   "id": 639,
+   "name": "stall_west_3_pot_steam_1",
+   "transform": {
+    "position": [
+     -6.5384,
+     1.751658,
+     -3.4985127
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 0.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 705,
+   "name": "shopper_2_head",
+   "transform": {
+    "position": [
+     0.0,
+     0.85,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 704,
+   "shape": {
+    "Sphere": {
+     "radius": 0.17
+    }
+   },
+   "material": {
+    "color": [
+     0.72,
+     0.52,
+     0.38,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.7,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 570,
+   "name": "stall_east_1_post_1",
+   "transform": {
+    "position": [
+     7.0,
+     1.45,
+     -17.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 597,
+   "name": "stall_east_3_bowl_1",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     -4.5
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 651,
+   "name": "stall_east_5_pot_steam_1",
+   "transform": {
+    "position": [
+     6.4777827,
+     1.751658,
+     10.27448
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 0.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 587,
+   "name": "stall_east_2_bowl_2",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     -10.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 508,
+   "name": "stall_west_1_pot",
+   "transform": {
+    "position": [
+     -6.45,
+     1.4,
+     -15.9
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.42,
+     "height": 0.55
+    }
+   },
+   "material": {
+    "color": [
+     0.5,
+     0.52,
+     0.55,
+     1.0
+    ],
+    "metallic": 0.7,
+    "roughness": 0.35,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 626,
+   "name": "stall_east_6_counter_top",
+   "transform": {
+    "position": [
+     6.2,
+     1.09,
+     15.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 2.0,
+     "y": 0.08,
+     "z": 4.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.66,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 676,
+   "name": "lantern_3_6",
+   "transform": {
+    "position": [
+     3.0,
+     4.811111,
+     -3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 681,
+   "name": "lantern_4_3",
+   "transform": {
+    "position": [
+     -1.440777,
+     4.727778,
+     3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 575.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 498,
+   "name": "stall_west_1",
+   "transform": {
+    "position": [
+     -6.2,
+     0.525,
+     -17.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 1.8,
+     "y": 1.05,
+     "z": 4.2
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.42,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.75,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 495,
+   "name": "gate_beam",
+   "transform": {
+    "position": [
+     0.0,
+     6.3,
+     23.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 10.4,
+     "y": 0.45,
+     "z": 0.6
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.16,
+     0.1,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 653,
+   "name": "stall_east_5_pot_steam_3",
+   "transform": {
+    "position": [
+     6.3619204,
+     3.0490644,
+     10.241192
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.46
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 240.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 524,
+   "name": "stall_west_3_post_1",
+   "transform": {
+    "position": [
+     -7.0,
+     1.675,
+     -6.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 666,
+   "name": "lantern_2_4",
+   "transform": {
+    "position": [
+     0.0,
+     4.7,
+     -9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 538,
+   "name": "stall_west_4_post_3",
+   "transform": {
+    "position": [
+     -5.0,
+     1.45,
+     -0.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 658,
+   "name": "lantern_1_4",
+   "transform": {
+    "position": [
+     0.0,
+     4.7,
+     -16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 661,
+   "name": "lantern_1_7",
+   "transform": {
+    "position": [
+     4.516306,
+     4.95,
+     -16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 150.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 708,
+   "name": "shopper_4",
+   "transform": {
+    "position": [
+     4.4,
+     0.9,
+     -9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.24,
+     "half_length": 0.42
+    }
+   },
+   "material": {
+    "color": [
+     0.8,
+     0.72,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 575,
+   "name": "stall_east_1_bowl_2",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     -16.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 513,
+   "name": "stall_west_2_post_1",
+   "transform": {
+    "position": [
+     -7.0,
+     1.675,
+     -13.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 577,
+   "name": "stall_east_1_pot",
+   "transform": {
+    "position": [
+     6.45,
+     1.4,
+     -14.5
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.42,
+     "height": 0.55
+    }
+   },
+   "material": {
+    "color": [
+     0.5,
+     0.52,
+     0.55,
+     1.0
+    ],
+    "metallic": 0.7,
+    "roughness": 0.35,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 596,
+   "name": "stall_east_3_post_4",
+   "transform": {
+    "position": [
+     5.0,
+     1.675,
+     -1.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 691,
+   "name": "lantern_5_5",
+   "transform": {
+    "position": [
+     1.4513174,
+     4.727778,
+     9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 800.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 717,
+   "name": "stroller_2_head",
+   "transform": {
+    "position": [
+     0.0,
+     0.84999996,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 716,
+   "shape": {
+    "Sphere": {
+     "radius": 0.17
+    }
+   },
+   "material": {
+    "color": [
+     0.5,
+     0.36,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.7,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 562,
+   "name": "stall_west_6_post_4",
+   "transform": {
+    "position": [
+     -5.0,
+     1.45,
+     16.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 724,
+   "name": "street_glow_4",
+   "transform": {
+    "position": [
+     0.0,
+     4.6,
+     3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.72,
+     0.42,
+     1.0
+    ],
+    "intensity": 220000.0,
+    "shadows": false,
+    "range": 15.0
+   }
+  },
+  {
+   "id": 578,
+   "name": "stall_east_1_lantern",
+   "transform": {
+    "position": [
+     5.3,
+     2.45,
+     -15.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.3,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.28
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 586,
+   "name": "stall_east_2_bowl_1",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     -10.7
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 659,
+   "name": "lantern_1_5",
+   "transform": {
+    "position": [
+     1.4662485,
+     4.727778,
+     -16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 100.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 502,
+   "name": "stall_west_1_post_2",
+   "transform": {
+    "position": [
+     -7.0,
+     1.675,
+     -14.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 680,
+   "name": "lantern_4_2",
+   "transform": {
+    "position": [
+     -3.0,
+     4.811111,
+     3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 593,
+   "name": "stall_east_3_post_1",
+   "transform": {
+    "position": [
+     7.0,
+     1.45,
+     -5.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 731,
+   "name": "stall_east_3_pot_glow",
+   "transform": {
+    "position": [
+     6.45,
+     2.3,
+     -2.1
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.6,
+     0.3,
+     1.0
+    ],
+    "intensity": 40000.0,
+    "shadows": false,
+    "range": 6.0
+   }
+  },
+  {
+   "id": 633,
+   "name": "stall_east_6_bowl_2",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     14.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 727,
+   "name": "stall_west_1_pot_glow",
+   "transform": {
+    "position": [
+     -6.45,
+     2.3,
+     -15.9
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.6,
+     0.3,
+     1.0
+    ],
+    "intensity": 40000.0,
+    "shadows": false,
+    "range": 6.0
+   }
+  },
+  {
+   "id": 699,
+   "name": "lantern_6_5",
+   "transform": {
+    "position": [
+     1.551554,
+     4.727778,
+     16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 975.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 493,
+   "name": "gate_post_left",
+   "transform": {
+    "position": [
+     -4.2,
+     3.2,
+     23.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.28,
+     "height": 6.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.16,
+     0.1,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 512,
+   "name": "stall_west_2_canopy",
+   "transform": {
+    "position": [
+     -5.7,
+     3.15,
+     -10.8
+    ],
+    "rotation_degrees": [
+     0.0,
+     0.0,
+     -12.000001
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 3.4,
+     "y": 0.08,
+     "z": 4.8
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.55,
+     0.16,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 537,
+   "name": "stall_west_4_post_2",
+   "transform": {
+    "position": [
+     -7.0,
+     1.675,
+     3.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 662,
+   "name": "lantern_string_2",
+   "transform": {
+    "position": [
+     0.0,
+     5.3,
+     -9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     89.99999
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.015,
+     "height": 13.0
+    }
+   },
+   "material": {
+    "color": [
+     0.2,
+     0.18,
+     0.16,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 529,
+   "name": "stall_west_3_bowl_2",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     -5.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 602,
+   "name": "stall_east_4",
+   "transform": {
+    "position": [
+     6.2,
+     0.525,
+     3.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 1.8,
+     "y": 1.05,
+     "z": 4.2
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.42,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.75,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 645,
+   "name": "stall_east_1_pot_steam_1",
+   "transform": {
+    "position": [
+     6.4654207,
+     1.751658,
+     -14.520664
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 0.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 660,
+   "name": "lantern_1_6",
+   "transform": {
+    "position": [
+     3.0,
+     4.811111,
+     -16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 674,
+   "name": "lantern_3_4",
+   "transform": {
+    "position": [
+     0.0,
+     4.7,
+     -3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 729,
+   "name": "stall_west_5_pot_glow",
+   "transform": {
+    "position": [
+     -6.45,
+     2.3,
+     8.9
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.6,
+     0.3,
+     1.0
+    ],
+    "intensity": 40000.0,
+    "shadows": false,
+    "range": 6.0
+   }
+  },
+  {
+   "id": 624,
+   "name": "stall_east_5_lantern",
+   "transform": {
+    "position": [
+     5.3,
+     2.45,
+     9.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.3,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.28
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 607,
+   "name": "stall_east_4_post_3",
+   "transform": {
+    "position": [
+     5.0,
+     1.675,
+     0.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 496,
+   "name": "gate_lintel",
+   "transform": {
+    "position": [
+     0.0,
+     5.4,
+     23.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 9.0,
+     "y": 0.3,
+     "z": 0.45
+    }
+   },
+   "material": {
+    "color": [
+     0.2,
+     0.18,
+     0.18,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 582,
+   "name": "stall_east_2_post_1",
+   "transform": {
+    "position": [
+     7.0,
+     1.45,
+     -11.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 545,
+   "name": "stall_west_5_counter_top",
+   "transform": {
+    "position": [
+     -6.2,
+     1.09,
+     7.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 2.0,
+     "y": 0.08,
+     "z": 4.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.66,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 619,
+   "name": "stall_east_5_post_4",
+   "transform": {
+    "position": [
+     5.0,
+     1.675,
+     11.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 547,
+   "name": "stall_west_5_post_1",
+   "transform": {
+    "position": [
+     -7.0,
+     1.675,
+     5.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 530,
+   "name": "stall_west_3_bowl_3",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     -4.5
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 563,
+   "name": "stall_west_6_bowl_1",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     12.7
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 600,
+   "name": "stall_east_3_pot",
+   "transform": {
+    "position": [
+     6.45,
+     1.4,
+     -2.1
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.42,
+     "height": 0.55
+    }
+   },
+   "material": {
+    "color": [
+     0.5,
+     0.52,
+     0.55,
+     1.0
+    ],
+    "metallic": 0.7,
+    "roughness": 0.35,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 657,
+   "name": "lantern_1_3",
+   "transform": {
+    "position": [
+     -1.5596961,
+     4.727778,
+     -16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 50.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 709,
+   "name": "shopper_4_head",
+   "transform": {
+    "position": [
+     0.0,
+     0.85,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 708,
+   "shape": {
+    "Sphere": {
+     "radius": 0.17
+    }
+   },
+   "material": {
+    "color": [
+     0.95,
+     0.78,
+     0.62,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.7,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 568,
+   "name": "stall_east_1_counter_top",
+   "transform": {
+    "position": [
+     6.2,
+     1.09,
+     -15.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 2.0,
+     "y": 0.08,
+     "z": 4.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.66,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 716,
+   "name": "stroller_2",
+   "transform": {
+    "position": [
+     1.2851472,
+     0.9,
+     -17.118649
+    ],
+    "rotation_degrees": [
+     -180.0,
+     0.45232683,
+     -180.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.24,
+     "half_length": 0.42
+    }
+   },
+   "material": {
+    "color": [
+     0.5,
+     0.45,
+     0.6,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "behaviors": [
+    {
+     "PathFollow": {
+      "waypoints": [
+       [
+        1.3,
+        0.9,
+        -19.0
+       ],
+       [
+        1.0,
+        0.9,
+        19.0
+       ]
+      ],
+      "speed": 0.9,
+      "mode": "ping_pong",
+      "orient_to_path": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 500,
+   "name": "stall_west_1_canopy",
+   "transform": {
+    "position": [
+     -5.7,
+     3.15,
+     -17.0
+    ],
+    "rotation_degrees": [
+     0.0,
+     0.0,
+     -12.000001
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 3.4,
+     "y": 0.08,
+     "z": 4.8
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.2,
+     0.16,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 533,
+   "name": "stall_west_4",
+   "transform": {
+    "position": [
+     -6.2,
+     0.525,
+     1.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 1.8,
+     "y": 1.05,
+     "z": 4.2
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.42,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.75,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 682,
+   "name": "lantern_4_4",
+   "transform": {
+    "position": [
+     0.0,
+     4.7,
+     3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 620,
+   "name": "stall_east_5_bowl_1",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     7.9
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 558,
+   "name": "stall_west_6_canopy",
+   "transform": {
+    "position": [
+     -5.7,
+     3.15,
+     14.0
+    ],
+    "rotation_degrees": [
+     0.0,
+     0.0,
+     -12.000001
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 3.4,
+     "y": 0.08,
+     "z": 4.8
+    }
+   },
+   "material": {
+    "color": [
+     0.25,
+     0.45,
+     0.7,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 584,
+   "name": "stall_east_2_post_3",
+   "transform": {
+    "position": [
+     5.0,
+     1.675,
+     -11.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 588,
+   "name": "stall_east_2_bowl_3",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     -9.3
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 649,
+   "name": "stall_east_3_pot_steam_2",
+   "transform": {
+    "position": [
+     6.4116964,
+     2.5492778,
+     -2.0367746
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.38
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 120.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 700,
+   "name": "lantern_6_6",
+   "transform": {
+    "position": [
+     3.0,
+     4.811111,
+     16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 672,
+   "name": "lantern_3_2",
+   "transform": {
+    "position": [
+     -3.0,
+     4.811111,
+     -3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 663,
+   "name": "lantern_2_1",
+   "transform": {
+    "position": [
+     -4.460819,
+     4.95,
+     -9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 175.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 556,
+   "name": "stall_west_6",
+   "transform": {
+    "position": [
+     -6.2,
+     0.525,
+     14.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 1.8,
+     "y": 1.05,
+     "z": 4.2
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.42,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.75,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 521,
+   "name": "stall_west_3",
+   "transform": {
+    "position": [
+     -6.2,
+     0.525,
+     -4.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 1.8,
+     "y": 1.05,
+     "z": 4.2
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.42,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.75,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 684,
+   "name": "lantern_4_6",
+   "transform": {
+    "position": [
+     3.0,
+     4.811111,
+     3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 617,
+   "name": "stall_east_5_post_2",
+   "transform": {
+    "position": [
+     7.0,
+     1.45,
+     11.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 648,
+   "name": "stall_east_3_pot_steam_1",
+   "transform": {
+    "position": [
+     6.378851,
+     1.751658,
+     -2.1764417
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 0.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 555,
+   "name": "stall_west_5_lantern",
+   "transform": {
+    "position": [
+     -5.3,
+     2.45,
+     7.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.3,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.28
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 550,
+   "name": "stall_west_5_post_4",
+   "transform": {
+    "position": [
+     -5.0,
+     1.45,
+     10.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 719,
+   "name": "stroller_3_head",
+   "transform": {
+    "position": [
+     0.0,
+     0.85,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 718,
+   "shape": {
+    "Sphere": {
+     "radius": 0.17
+    }
+   },
+   "material": {
+    "color": [
+     0.95,
+     0.78,
+     0.62,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.7,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 585,
+   "name": "stall_east_2_post_4",
+   "transform": {
+    "position": [
+     5.0,
+     1.675,
+     -7.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 635,
+   "name": "stall_east_6_lantern",
+   "transform": {
+    "position": [
+     5.3,
+     2.45,
+     15.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.3,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.28
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 560,
+   "name": "stall_west_6_post_2",
+   "transform": {
+    "position": [
+     -7.0,
+     1.675,
+     16.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 518,
+   "name": "stall_west_2_bowl_2",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     -11.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 665,
+   "name": "lantern_2_3",
+   "transform": {
+    "position": [
+     -1.4400054,
+     4.727778,
+     -9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 225.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 675,
+   "name": "lantern_3_5",
+   "transform": {
+    "position": [
+     1.4581472,
+     4.727778,
+     -3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 450.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 499,
+   "name": "stall_west_1_counter_top",
+   "transform": {
+    "position": [
+     -6.2,
+     1.09,
+     -17.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 2.0,
+     "y": 0.08,
+     "z": 4.4
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.66,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 711,
+   "name": "shopper_5_head",
+   "transform": {
+    "position": [
+     0.0,
+     0.85,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 710,
+   "shape": {
+    "Sphere": {
+     "radius": 0.17
+    }
+   },
+   "material": {
+    "color": [
+     0.72,
+     0.52,
+     0.38,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.7,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 520,
+   "name": "stall_west_2_lantern",
+   "transform": {
+    "position": [
+     -5.3,
+     2.45,
+     -10.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.3,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.28
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 601,
+   "name": "stall_east_3_lantern",
+   "transform": {
+    "position": [
+     5.3,
+     2.45,
+     -3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.3,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.28
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 625,
+   "name": "stall_east_6",
+   "transform": {
+    "position": [
+     6.2,
+     0.525,
+     15.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 1.8,
+     "y": 1.05,
+     "z": 4.2
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.42,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.75,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 621,
+   "name": "stall_east_5_bowl_2",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     8.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 686,
+   "name": "lantern_string_5",
+   "transform": {
+    "position": [
+     0.0,
+     5.3,
+     9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     89.99999
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.015,
+     "height": 13.0
+    }
+   },
+   "material": {
+    "color": [
+     0.2,
+     0.18,
+     0.16,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 622,
+   "name": "stall_east_5_bowl_3",
+   "transform": {
+    "position": [
+     5.75,
+     1.19,
+     9.3
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 571,
+   "name": "stall_east_1_post_2",
+   "transform": {
+    "position": [
+     7.0,
+     1.45,
+     -13.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 589,
+   "name": "stall_east_2_lantern",
+   "transform": {
+    "position": [
+     5.3,
+     2.45,
+     -9.4
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.3,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.28
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.85,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     3.8,
+     1.4,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 693,
+   "name": "lantern_5_7",
+   "transform": {
+    "position": [
+     4.495574,
+     4.95,
+     9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 850.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 572,
+   "name": "stall_east_1_post_3",
+   "transform": {
+    "position": [
+     5.0,
+     1.675,
+     -17.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 679,
+   "name": "lantern_4_1",
+   "transform": {
+    "position": [
+     -4.469305,
+     4.95,
+     3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 525.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 647,
+   "name": "stall_east_1_pot_steam_3",
+   "transform": {
+    "position": [
+     6.5216937,
+     3.0490644,
+     -14.542078
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.46
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 240.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 559,
+   "name": "stall_west_6_post_1",
+   "transform": {
+    "position": [
+     -7.0,
+     1.675,
+     11.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 638,
+   "name": "stall_west_1_pot_steam_3",
+   "transform": {
+    "position": [
+     -6.4428234,
+     3.0490644,
+     -15.926862
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.46
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 240.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 590,
+   "name": "stall_east_3",
+   "transform": {
+    "position": [
+     6.2,
+     0.525,
+     -3.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 1.8,
+     "y": 1.05,
+     "z": 4.2
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.42,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.75,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 629,
+   "name": "stall_east_6_post_2",
+   "transform": {
+    "position": [
+     7.0,
+     1.45,
+     17.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 694,
+   "name": "lantern_string_6",
+   "transform": {
+    "position": [
+     0.0,
+     5.3,
+     16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     89.99999
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.015,
+     "height": 13.0
+    }
+   },
+   "material": {
+    "color": [
+     0.2,
+     0.18,
+     0.16,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 697,
+   "name": "lantern_6_3",
+   "transform": {
+    "position": [
+     -1.4433479,
+     4.727778,
+     16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.65,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     2.6,
+     0.6,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 925.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 514,
+   "name": "stall_west_2_post_2",
+   "transform": {
+    "position": [
+     -7.0,
+     1.675,
+     -8.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 3.35
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 509,
+   "name": "stall_west_1_lantern",
+   "transform": {
+    "position": [
+     -5.3,
+     2.45,
+     -17.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.3,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.28
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 604,
+   "name": "stall_east_4_canopy",
+   "transform": {
+    "position": [
+     5.7,
+     3.15,
+     3.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     12.000001
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 3.4,
+     "y": 0.08,
+     "z": 4.8
+    }
+   },
+   "material": {
+    "color": [
+     0.78,
+     0.2,
+     0.16,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 692,
+   "name": "lantern_5_6",
+   "transform": {
+    "position": [
+     3.0,
+     4.811111,
+     9.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.25,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.35,
+     0.25,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     5.0,
+     1.1,
+     0.5,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 654,
+   "name": "lantern_string_1",
+   "transform": {
+    "position": [
+     0.0,
+     5.3,
+     -16.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     89.99999
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.015,
+     "height": 13.0
+    }
+   },
+   "material": {
+    "color": [
+     0.2,
+     0.18,
+     0.16,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 535,
+   "name": "stall_west_4_canopy",
+   "transform": {
+    "position": [
+     -5.7,
+     3.15,
+     1.6
+    ],
+    "rotation_degrees": [
+     0.0,
+     0.0,
+     -12.000001
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 3.4,
+     "y": 0.08,
+     "z": 4.8
+    }
+   },
+   "material": {
+    "color": [
+     0.85,
+     0.78,
+     0.6,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 652,
+   "name": "stall_east_5_pot_steam_2",
+   "transform": {
+    "position": [
+     6.459549,
+     2.5492778,
+     10.212558
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     0.8321898,
+     0.8321898,
+     0.8321898
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.38
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0,
+     0.22
+    ],
+    "metallic": 0.0,
+    "roughness": 1.0,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "alpha_mode": "blend"
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.25,
+      "frequency": 0.35,
+      "phase": 120.0
+     }
+    },
+    {
+     "Pulse": {
+      "min_scale": 0.8,
+      "max_scale": 1.25,
+      "frequency": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": 552,
+   "name": "stall_west_5_bowl_2",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     7.2
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 504,
+   "name": "stall_west_1_post_4",
+   "transform": {
+    "position": [
+     -5.0,
+     1.45,
+     -14.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.05,
+     "height": 2.9
+    }
+   },
+   "material": {
+    "color": [
+     0.35,
+     0.28,
+     0.22,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 554,
+   "name": "stall_west_5_pot",
+   "transform": {
+    "position": [
+     -6.45,
+     1.4,
+     8.9
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.42,
+     "height": 0.55
+    }
+   },
+   "material": {
+    "color": [
+     0.5,
+     0.52,
+     0.55,
+     1.0
+    ],
+    "metallic": 0.7,
+    "roughness": 0.35,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 519,
+   "name": "stall_west_2_bowl_3",
+   "transform": {
+    "position": [
+     -5.75,
+     1.19,
+     -10.7
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.2,
+     "height": 0.12
+    }
+   },
+   "material": {
+    "color": [
+     0.92,
+     0.9,
+     0.85,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 544,
+   "name": "stall_west_5",
+   "transform": {
+    "position": [
+     -6.2,
+     0.525,
+     7.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 1.8,
+     "y": 1.05,
+     "z": 4.2
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.42,
+     0.26,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.75,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 733,
+   "name": "ambience_night_air",
+   "transform": {
+    "position": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "audio": {
+    "kind": "ambient",
+    "source": {
+     "Wind": {
+      "speed": 0.15,
+      "gustiness": 0.2
+     }
+    },
+    "volume": 0.25,
+    "rolloff": "inverse_square"
+   }
+  }
+ ],
+ "next_entity_id": 734
+}

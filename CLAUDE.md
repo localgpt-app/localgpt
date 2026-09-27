@@ -79,7 +79,7 @@ mobile, and includes a Bevy-based 3D world generator.
 
 `Cargo.toml` defines 17 members. **MD and Verse are members**, not separate
 repositories — they were folded in so the world format cannot drift between
-apps (see `localgpt-world/docs/strategy.md` §13.6). `crates/spacetime` is a **standalone** crate
+apps (see `docs/world-strategy.md` §13.6). `crates/spacetime` is a **standalone** crate
 (its own `[workspace]`) excluded from the main build because it targets
 SpacetimeDB's wasm/module toolchain.
 
@@ -115,6 +115,13 @@ apps/             # Native client projects
 scripts/          # The shared downloads, fetched once for every app
 ├── fetch-model.sh   # the ~5 GB GGUF -> ~/.local/share/localgpt/models/llm
 └── fetch-assets.sh  # the 522 MB CC0 pack -> ~/.local/share/localgpt/models/pack
+
+website*/         # One Cloudflare Worker each, all deployed by hand
+├── website/      # localgpt.app — Docusaurus, the family hub and only docs site
+├── website-gen/  # gen.localgpt.app — static landing
+├── website-md/   # localgpt.md — static landing
+├── website-verse/# verse.localgpt.app — static landing
+└── website-world/# localgpt.world — the gallery and the one web viewer
 ```
 
 ### Dependency Graph
@@ -435,7 +442,9 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
   and `cargo fmt --check` must pass (enforced in CI). CI
   (`.github/workflows/ci.yml`) runs fmt, clippy and tests for the workspace
   with the four Bevy crates (`gen`, `md`, `verse`, `world-bevy`) in their own
-  job, plus cargo-deny (`deny.toml`); advisories run on main and weekly, never on
+  job, a `features` job for the opt-in tiers (`llm`, `local-llm`, `ml` — gated
+  code is not compiled by anything else), a `viewer` job running
+  `website-world`'s headless render check, plus cargo-deny (`deny.toml`); advisories run on main and weekly, never on
   pull requests. ONNX Runtime setup is the local composite action
   `.github/actions/onnxruntime`.
 - **Commits:** conventional commits (`feat:`, `fix:`, `docs:`, `chore:`,
@@ -454,5 +463,14 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
   landing pages in their own repos; update their docs here when those apps
   change). `website-gen/` is the static landing page for gen.localgpt.app (no
   build step; `website-gen/deploy.sh` deploys it) and links to the Gen docs.
+  `website-world/` is localgpt.world: the gallery and the format's only web
+  renderer. It is **assembled** — `npm run assemble` copies
+  `crates/world-export/js/world-viewer.js` and the `crates/world-types`
+  conformance scenes in, and those copies are gitignored, so edit them in the
+  crate and re-assemble. Its `npm run check` (CI job `viewer`) is the only
+  automated check on that renderer; it lived in a separate repository until the
+  copy there drifted 185 lines behind. The curated worlds' shrunk GLBs and
+  music are LFS objects in `localgpt-world-assets` under `web/`, not tracked
+  here.
   Every family site carries the same family strip, in this order: LocalGPT,
   Gen, Verse, MD, localgpt.world, localgpt.rs.

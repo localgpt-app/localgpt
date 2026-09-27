@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title id="page-title">LocalGPT World</title>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="LocalGPT World">
+  <link rel="icon" href="../localgpt-icon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #090d14; --bg-alt: #0e1420; --surface: #141c2c; --surface-hover: #1b263b;
+      --ink: #f1f5f9; --ink-muted: #94a3b8; --ink-faint: #64748b;
+      --line: rgba(255,255,255,0.1); --line-bright: rgba(255,255,255,0.2);
+      --accent: #38bdf8; --code-bg: #06090f; --code-ink: #e2e8f0;
+      --radius-md: 14px; --radius-full: 9999px;
+      color-scheme: dark;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f8fafc; --bg-alt: #f1f5f9; --surface: #ffffff; --surface-hover: #f8fafc;
+        --ink: #0f172a; --ink-muted: #475569; --ink-faint: #94a3b8;
+        --line: rgba(15,23,42,0.08); --line-bright: rgba(15,23,42,0.18);
+        --accent: #0284c7; --code-bg: #0f172a; --code-ink: #f8fafc;
+        color-scheme: light;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg); color: var(--ink);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      display: flex; flex-direction: column; min-height: 100vh;
+    }
+    .site-header { border-bottom: 1px solid var(--line); }
+    .header-inner {
+      max-width: 1500px; margin: 0 auto; padding: 14px 24px;
+      display: flex; align-items: center; gap: 18px;
+    }
+    .brand { display: flex; align-items: center; gap: 9px; text-decoration: none; color: var(--ink); font-weight: 700; font-size: 1.02rem; }
+    .brand img { display: block; }
+    .brand-tag { color: var(--accent); font-weight: 600; }
+    .crumb { color: var(--ink-faint); font-size: 0.92rem; }
+    .crumb a { color: var(--ink-muted); text-decoration: none; }
+    .crumb a:hover { color: var(--ink); }
+    .header-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+
+    main { flex: 1; display: flex; flex-direction: column; }
+    .viewer-wrap {
+      position: relative; flex: 1; min-height: 56vh;
+      background: var(--bg-alt); border-bottom: 1px solid var(--line);
+    }
+    .viewer-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+    .viewer-load {
+      position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 18px; padding: 30px; text-align: center; cursor: pointer;
+      background: var(--bg-alt);
+      background-size: cover; background-position: center;
+      transition: opacity 0.3s ease;
+      z-index: 2;
+    }
+    .viewer-load.hidden { opacity: 0; pointer-events: none; }
+    .viewer-load img {
+      max-width: min(72%, 860px); max-height: 72%; object-fit: contain; border-radius: var(--radius-md);
+      box-shadow: 0 24px 60px -20px rgba(0,0,0,0.6);
+    }
+    .play-overlay {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      display: flex; align-items: center; gap: 12px;
+      background: rgba(9, 13, 20, 0.82); color: #fff;
+      padding: 13px 22px; border-radius: var(--radius-full); border: 1px solid rgba(255,255,255,0.25);
+      font-weight: 600; font-size: 1rem; backdrop-filter: blur(8px);
+    }
+    .play-overlay .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+
+    .world-info { max-width: 1500px; margin: 0 auto; width: 100%; padding: 26px 24px 40px; }
+    .world-info h1 { font-size: 1.6rem; letter-spacing: -0.01em; }
+    .world-meta { color: var(--ink-muted); margin: 8px 0 4px; font-size: 0.98rem; line-height: 1.5; }
+    .world-note { color: var(--ink-muted); margin: 0 0 18px; font-size: 0.98rem; line-height: 1.5; max-width: 70ch; }
+    .world-credit { color: var(--ink-faint); font-size: 0.86rem; margin-bottom: 20px; }
+
+    .remix-box {
+      background: var(--code-bg); border: 1px solid var(--line); border-radius: var(--radius-md);
+      overflow: hidden; max-width: 760px;
+    }
+    .remix-head {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 12px; background: rgba(255,255,255,0.04); border-bottom: 1px solid var(--line);
+      color: var(--ink-faint); font-size: 0.82rem; font-family: ui-monospace, Menlo, monospace;
+    }
+    .remix-copy {
+      background: none; border: 1px solid var(--line-bright); color: var(--ink-muted);
+      border-radius: 6px; padding: 3px 10px; font: inherit; cursor: pointer; font-size: 0.8rem;
+    }
+    .remix-copy:hover { color: var(--ink); background: rgba(255,255,255,0.07); }
+    .remix-code {
+      padding: 13px 14px; overflow-x: auto; color: var(--code-ink);
+      font-family: ui-monospace, Menlo, monospace; font-size: 0.88rem; line-height: 1.65;
+      white-space: pre;
+    }
+    .remix-code .comment { color: #64748b; }
+
+    .related { margin-top: 26px; }
+    .related h2 { font-size: 1rem; color: var(--ink-muted); font-weight: 600; margin-bottom: 12px; }
+    .related-links { display: flex; flex-wrap: wrap; gap: 10px; }
+    .related-links a {
+      color: var(--ink-muted); text-decoration: none; font-size: 0.9rem;
+      padding: 7px 14px; border-radius: var(--radius-full); border: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .related-links a:hover { color: var(--ink); border-color: var(--line-bright); background: var(--surface-hover); }
+    .back { color: var(--ink-faint); font-size: 0.9rem; text-decoration: none; }
+    .back:hover { color: var(--ink); }
+
+    footer.site-footer { border-top: 1px solid var(--line); padding: 18px 24px; color: var(--ink-faint); font-size: 0.84rem; }
+    .footer-inner { max-width: 1500px; margin: 0 auto; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .footer-inner a { color: var(--ink-muted); text-decoration: none; }
+    .footer-inner a:hover { color: var(--ink); }
+    @media (max-width: 720px) {
+      .header-inner, .world-info { padding-left: 16px; padding-right: 16px; }
+      .viewer-wrap { min-height: 62vw; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="../">
+        <img src="../localgpt-icon.svg" alt="LocalGPT" width="26" height="26">
+        <span>LocalGPT</span>
+        <span class="brand-tag">World</span>
+      </a>
+      <span class="crumb"><a href="../#worlds">Worlds</a> &rsaquo; <span id="crumb-name">…</span></span>
+    </div>
+  </header>
+
+  <main>
+    <div class="viewer-wrap">
+      <div class="viewer-load" id="viewer-load" role="button" tabindex="0"
+           aria-label="Load the 3D viewer">
+        <img id="poster" alt="" onerror="this.remove()">
+        <div class="play-overlay"><span class="dot"></span> Enter this world</div>
+      </div>
+      <iframe id="viewer" title="3D world viewer" allow="autoplay"></iframe>
+    </div>
+
+    <div class="world-info">
+      <a class="back" href="../#worlds">&larr; All worlds</a>
+      <h1 id="name" style="margin-top: 12px;">…</h1>
+      <p class="world-meta" id="description"></p>
+      <p class="world-note" id="note"></p>
+      <p class="world-credit" id="credit"></p>
+
+      <div class="remix-box">
+        <div class="remix-head">
+          <span>Keep building on it in Gen</span>
+          <button class="remix-copy" id="copy-btn" type="button">Copy</button>
+        </div>
+        <pre class="remix-code" id="remix-code"></pre>
+      </div>
+
+      <div class="related">
+        <h2>More worlds</h2>
+        <div class="related-links" id="related"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span><strong>localgpt.world</strong> — part of the <a href="https://localgpt.app" target="_blank" rel="noopener">LocalGPT</a> family</span>
+      <span>Open Source under Apache-2.0</span>
+    </div>
+  </footer>
+
+  <script type="module">
+    import WORLDS from '../worlds.js';
+
+    const params = new URLSearchParams(location.search);
+    const slug = params.get('world') || '';
+    const file = params.get('src') || (slug !== 'w' && slug ? `${slug}.json` : 'gen-basalt-lighthouse.json');
+    const entry = WORLDS.find((w) => w.file === file) || { file, credit: '', note: '' };
+
+    const $ = (id) => document.getElementById(id);
+    const origin = location.origin;
+
+    let manifest = null;
+    try {
+      const res = await fetch(`../worlds/${file}`, { credentials: 'omit' });
+      if (res.ok) manifest = await res.json();
+    } catch { /* the panel below shows what we have */ }
+
+    const name = manifest?.meta?.name || file.replace(/\.json$/, '').replace(/-/g, ' ');
+    const description = manifest?.meta?.description || '';
+    document.title = `${name} — LocalGPT World`;
+    $('crumb-name').textContent = name;
+    $('name').textContent = name;
+    $('description').textContent = description;
+    $('note').textContent = entry.note || '';
+    $('credit').textContent = entry.credit ? `Made with ${entry.credit}.` : '';
+    const posterImg = $('poster');
+    if (posterImg) { posterImg.src = `../worlds/posters/${file.replace(/\.json$/, '.png')}`; posterImg.alt = name; }
+
+    // og tags (link previews) point at the poster and this page.
+    const posterUrl = `${origin}/worlds/posters/${file.replace(/\.json$/, '.png')}`;
+    for (const [attr, key, val] of [
+      ['property', 'og:title', `${name} — LocalGPT World`],
+      ['property', 'og:image', posterUrl],
+      ['property', 'og:url', location.href],
+      ['name', 'twitter:card', 'summary_large_image'],
+      ['name', 'twitter:title', `${name} — LocalGPT World`],
+      ['name', 'twitter:image', posterUrl],
+    ]) {
+      const tag = document.createElement('meta');
+      tag.setAttribute(attr === 'property' ? 'property' : 'name', key);
+      tag.content = val;
+      document.head.appendChild(tag);
+    }
+
+    $('remix-code').textContent =
+      `# ${name}\n` +
+      `localgpt-gen --world ${origin}/worlds/${file}\n\n` +
+      `# or download it first\n` +
+      `# curl -o ${file} ${origin}/worlds/${file}`;
+
+    const related = $('related');
+    for (const w of WORLDS) {
+      if (w.file === file) continue;
+      const a = document.createElement('a');
+      a.href = `index.html?world=${w.file.replace(/\.json$/, '')}`;
+      a.textContent = w.note.split('—')[0].split('.')[0].trim();
+      related.appendChild(a);
+    }
+
+    // Load the 3D viewer only when asked.
+    const loader = $('viewer-load');
+    const open = () => {
+      const frame = $('viewer');
+      if (!frame.src) frame.src = `../world.html?src=worlds/${file}`;
+      loader.classList.add('hidden');
+    };
+    loader.addEventListener('click', open);
+    loader.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+
+    $('copy-btn').addEventListener('click', () => {
+      const btn = $('copy-btn');
+      navigator.clipboard.writeText($('remix-code').textContent).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1800);
+      }).catch(() => {});
+    });
+  </script>
+</body>
+</html>

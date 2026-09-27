@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>LocalGPT World — Viewer</title>
+  <meta name="description" content="Open any LocalGPT world (the localgpt-world-types JSON format) in the browser: the same renderer Gen and MD embed in their HTML exports.">
+  <link rel="icon" href="localgpt-icon.svg" type="image/svg+xml">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #05060a; color: #f2f3f7; font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+    #scene { position: absolute; inset: 0; }
+    #scene canvas { display: block; }
+    .panel { position: absolute; background: rgba(5, 6, 10, 0.72); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px; backdrop-filter: blur(8px); }
+    #top { top: 12px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; }
+    #top a.brand { color: #fff; text-decoration: none; font-weight: 600; letter-spacing: 0.02em; }
+    #top select, #top button, #controls button { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.22); border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer; }
+    #top select:hover, #top button:hover, #controls button:hover { background: rgba(255,255,255,0.16); }
+    #title { font-weight: 600; }
+    #meta { opacity: 0.75; }
+    #status { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 12px 18px; display: none; max-width: 90vw; }
+    #controls { bottom: 16px; right: 16px; display: flex; gap: 8px; padding: 8px; }
+    #caption { bottom: 70px; left: 50%; transform: translateX(-50%); padding: 10px 18px; max-width: min(560px, 90vw); text-align: center; display: none; }
+    #help { bottom: 16px; left: 16px; padding: 8px 12px; opacity: 0.8; }
+    @media (max-width: 640px) { #help { display: none; } #controls { bottom: 12px; right: 12px; } }
+  </style>
+</head>
+<body>
+  <div id="scene"></div>
+  <div id="top" class="panel">
+    <a class="brand" href="/">LocalGPT World</a>
+    <label for="picker">World</label>
+    <select id="picker" aria-label="Choose a world">
+      <option value="worlds/shapes.json">Shapes</option>
+      <option value="worlds/materials.json">Materials</option>
+      <option value="worlds/lights.json">Lights</option>
+      <option value="worlds/behaviors.json">Behaviors</option>
+      <option value="worlds/hierarchy_tours.json">Hierarchy &amp; tour</option>
+      <option value="worlds/soundtrack.json">Soundtrack &amp; modulation</option>
+      <option value="worlds/md-hello.json">LocalGPT MD: hello.md</option>
+      <option value="worlds/md-deck.json">LocalGPT MD: deck.md (talk)</option>
+    </select>
+    <span id="title"></span>
+    <span id="meta"></span>
+    <a id="download" href="#" download>JSON</a>
+  </div>
+  <div id="status" class="panel">Loading…</div>
+  <div id="caption" class="panel"></div>
+  <div id="controls" class="panel">
+    <button id="tour-btn" style="display:none">Start Tour</button>
+    <button id="audio-btn" style="display:none">Sound On</button>
+  </div>
+  <div id="help" class="panel">Drag to orbit · Scroll to zoom · WASD + Space/Shift to move</div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.min.js",
+      "three/addons/": "./vendor/three/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import { createWorldViewer, VIEWER_VERSION } from './viewer/world-viewer.js';
+
+    const params = new URLSearchParams(location.search);
+    const picker = document.getElementById('picker');
+    const status = document.getElementById('status');
+    const container = document.getElementById('scene');
+    let viewer = null;
+
+    function show(text) { status.textContent = text; status.style.display = text ? 'block' : 'none'; }
+
+    async function open(src) {
+      show('Loading…');
+      viewer?.dispose();
+      viewer = null;
+      let manifest;
+      try {
+        // Only same-origin or explicitly allowed worlds: a URL is data, never code.
+        const res = await fetch(src, { credentials: 'omit' });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        manifest = await res.json();
+        if (!manifest || !Array.isArray(manifest.entities)) throw new Error('not a world manifest');
+      } catch (err) {
+        show(`Could not open ${src}: ${err.message}`);
+        return;
+      }
+      document.title = `${manifest.meta?.name || 'World'} — LocalGPT World`;
+      document.getElementById('title').textContent = manifest.meta?.name || '';
+      const parts = [`${manifest.entities.length} entities`];
+      if (manifest.tours?.length) parts.push('tour');
+      if (manifest.soundtrack) parts.push(manifest.soundtrack.path ? 'soundtrack' : 'silent soundtrack');
+      document.getElementById('meta').textContent = parts.join(' · ');
+      document.getElementById('download').href = src;
+      viewer = createWorldViewer(container, manifest, {
+        assetBase: src.replace(/[^/]*$/, 'assets/'),
+        preserveDrawingBuffer: true,
+        audioButton: document.getElementById('audio-btn'),
+        tourButton: document.getElementById('tour-btn'),
+        tourCaption: document.getElementById('caption'),
+        embedApi: true,
+      });
+      window.localgptViewer = viewer;
+      show('');
+      if (params.get('src') !== src) history.replaceState(null, '', `?src=${encodeURIComponent(src)}`);
+    }
+
+    // Accept only relative paths on this site; anything else falls back to the samples.
+    const requested = params.get('src') || '';
+    const safe = /^(?!\/|[a-z]+:)[\w./-]+\.json$/i.test(requested) && !requested.includes('..') ? requested : picker.value;
+    if ([...picker.options].some((o) => o.value === safe)) picker.value = safe;
+    picker.addEventListener('change', () => open(picker.value));
+    open(safe);
+    console.info(`LocalGPT world viewer ${VIEWER_VERSION}`);
+  </script>
+</body>
+</html>

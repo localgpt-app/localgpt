@@ -1,0 +1,3868 @@
+{
+ "version": 1,
+ "meta": {
+  "name": "Basalt Lighthouse",
+  "description": "A lighthouse on a basalt headland at dusk, its beam sweeping a calm sea while gulls circle overhead.",
+  "bevy_version": "0.18",
+  "compliance": {
+   "steam_code_tool_exempt": true,
+   "eu_ai_act_risk_level": "minimal",
+   "no_gen_ai_compatible": true,
+   "generation_tool": "LocalGPT Gen v0.3.6",
+   "generation_method": "code-generation",
+   "human_modifiable": true
+  }
+ },
+ "environment": {
+  "background_color": [
+   0.82,
+   0.5,
+   0.42,
+   1.0
+  ],
+  "ambient_intensity": 220.0,
+  "ambient_color": [
+   1.0,
+   0.78,
+   0.68,
+   1.0
+  ]
+ },
+ "camera": {
+  "position": [
+   36.0,
+   15.0,
+   30.0
+  ],
+  "look_at": [
+   28.482033,
+   13.747005,
+   23.526194
+  ],
+  "fov_degrees": 45.0
+ },
+ "entities": [
+  {
+   "id": 372,
+   "name": "lighthouse_railing",
+   "transform": {
+    "position": [
+     2.0,
+     19.4,
+     -2.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Torus": {
+     "major_radius": 2.2,
+     "minor_radius": 0.05
+    }
+   },
+   "material": {
+    "color": [
+     0.3,
+     0.3,
+     0.33,
+     1.0
+    ],
+    "metallic": 0.7,
+    "roughness": 0.35,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 407,
+   "name": "gull_5",
+   "transform": {
+    "position": [
+     9.616326,
+     28.6,
+     9.813275
+    ],
+    "rotation_degrees": [
+     89.99999,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.12,
+     "half_length": 0.18
+    }
+   },
+   "material": {
+    "color": [
+     0.95,
+     0.95,
+     0.93,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "behaviors": [
+    {
+     "Orbit": {
+      "center_point": [
+       2.0,
+       28.6,
+       -2.0
+      ],
+      "radius": 15.8,
+      "speed": 26.0,
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "phase": 288.0,
+      "tilt": 14.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 332,
+   "name": "sea",
+   "transform": {
+    "position": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Plane": {
+     "x": 260.0,
+     "z": 260.0
+    }
+   },
+   "material": {
+    "color": [
+     0.3,
+     0.55,
+     0.66,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.3,
+    "emissive": [
+     0.03,
+     0.05,
+     0.08,
+     1.0
+    ]
+   }
+  },
+  {
+   "id": 382,
+   "name": "cottage_door",
+   "transform": {
+    "position": [
+     -5.0,
+     7.25,
+     4.62
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 1.7,
+     "z": 0.08
+    }
+   },
+   "material": {
+    "color": [
+     0.33,
+     0.19,
+     0.11,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 333,
+   "name": "headland",
+   "transform": {
+    "position": [
+     0.0,
+     3.2,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 10.5,
+     "height": 6.4
+    }
+   },
+   "material": {
+    "color": [
+     0.5,
+     0.49,
+     0.52,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.92,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 342,
+   "name": "basalt_column_08",
+   "transform": {
+    "position": [
+     -4.8,
+     1.87,
+     10.77
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.284175,
+     "height": 4.939883
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 394,
+   "name": "buoy_light",
+   "transform": {
+    "position": [
+     0.0,
+     0.9499999,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.2465253,
+     1.2465253,
+     1.2465253
+    ],
+    "visible": true
+   },
+   "parent": 393,
+   "shape": {
+    "Sphere": {
+     "radius": 0.22
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.4,
+     0.3,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     8.0,
+     1.5,
+     1.0,
+     1.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Pulse": {
+      "min_scale": 0.6,
+      "max_scale": 1.25,
+      "frequency": 0.5
+     }
+    }
+   ]
+  },
+  {
+   "id": 401,
+   "name": "gull_3",
+   "transform": {
+    "position": [
+     -8.009222,
+     26.0,
+     -5.398494
+    ],
+    "rotation_degrees": [
+     89.99999,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.12,
+     "half_length": 0.18
+    }
+   },
+   "material": {
+    "color": [
+     0.95,
+     0.95,
+     0.93,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "behaviors": [
+    {
+     "Orbit": {
+      "center_point": [
+       2.0,
+       26.0,
+       -2.0
+      ],
+      "radius": 11.4,
+      "speed": 20.0,
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "phase": 144.0,
+      "tilt": 10.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 381,
+   "name": "cottage_chimney",
+   "transform": {
+    "position": [
+     -6.3,
+     10.0,
+     3.7
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 0.55,
+     "y": 1.4,
+     "z": 0.55
+    }
+   },
+   "material": {
+    "color": [
+     0.55,
+     0.4,
+     0.33,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 389,
+   "name": "path_stone_5",
+   "transform": {
+    "position": [
+     0.95,
+     6.46,
+     0.38
+    ],
+    "rotation_degrees": [
+     0.0,
+     -10.463715,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.12,
+     "z": 0.7
+    }
+   },
+   "material": {
+    "color": [
+     0.6,
+     0.58,
+     0.55,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.95,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 346,
+   "name": "basalt_column_12",
+   "transform": {
+    "position": [
+     -10.63,
+     2.64,
+     -0.45
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.1319082,
+     "height": 6.478943
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 383,
+   "name": "cottage_window_left",
+   "transform": {
+    "position": [
+     -6.3,
+     7.9,
+     4.62
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 0.7,
+     "y": 0.7,
+     "z": 0.06
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.8,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     3.2,
+     2.2,
+     1.0,
+     1.0
+    ]
+   }
+  },
+  {
+   "id": 364,
+   "name": "shore_rock_08",
+   "transform": {
+    "position": [
+     5.53,
+     0.1,
+     -12.18
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.3,
+     0.55,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.75184053
+    }
+   },
+   "material": {
+    "color": [
+     0.44,
+     0.43,
+     0.46,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.85,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 379,
+   "name": "beam_west",
+   "transform": {
+    "position": [
+     -19.000008,
+     0.0,
+     -1.1920929e-06
+    ],
+    "rotation_degrees": [
+     6.2311624e-06,
+     2.8160775e-06,
+     -89.999916
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 377,
+   "shape": {
+    "Cone": {
+     "radius": 2.4,
+     "height": 38.0
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.93,
+     0.72,
+     0.14
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     1.6,
+     1.3,
+     0.8,
+     1.0
+    ],
+    "alpha_mode": "blend",
+    "unlit": true
+   }
+  },
+  {
+   "id": 355,
+   "name": "basalt_column_21",
+   "transform": {
+    "position": [
+     10.28,
+     1.36,
+     -5.56
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.430919,
+     "height": 3.9294822
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 385,
+   "name": "path_stone_1",
+   "transform": {
+    "position": [
+     -3.95,
+     6.46,
+     4.02
+    ],
+    "rotation_degrees": [
+     0.0,
+     -3.1417117,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.12,
+     "z": 0.7
+    }
+   },
+   "material": {
+    "color": [
+     0.6,
+     0.58,
+     0.55,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.95,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 362,
+   "name": "shore_rock_06",
+   "transform": {
+    "position": [
+     -14.44,
+     0.1,
+     1.48
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.3,
+     0.55,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 1.2932205
+    }
+   },
+   "material": {
+    "color": [
+     0.44,
+     0.43,
+     0.46,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.85,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 377,
+   "name": "beam_pivot",
+   "transform": {
+    "position": [
+     2.0,
+     19.7,
+     -2.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     16.322842,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.05
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.95,
+     0.8,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "unlit": true
+   },
+   "behaviors": [
+    {
+     "Spin": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "speed": 36.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 363,
+   "name": "shore_rock_07",
+   "transform": {
+    "position": [
+     5.34,
+     0.1,
+     11.9
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.3,
+     0.55,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 1.326739
+    }
+   },
+   "material": {
+    "color": [
+     0.44,
+     0.43,
+     0.46,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.85,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 338,
+   "name": "basalt_column_04",
+   "transform": {
+    "position": [
+     8.23,
+     2.28,
+     8.33
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.9251282,
+     "height": 5.759161
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 391,
+   "name": "boat_hull",
+   "transform": {
+    "position": [
+     17.0,
+     0.29842174,
+     11.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     28.00001,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 3.2,
+     "y": 0.55,
+     "z": 1.3
+    }
+   },
+   "material": {
+    "color": [
+     0.58,
+     0.38,
+     0.24,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.12,
+      "frequency": 0.25,
+      "phase": 0.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 376,
+   "name": "lighthouse_finial",
+   "transform": {
+    "position": [
+     2.0,
+     22.45,
+     -2.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.18
+    }
+   },
+   "material": {
+    "color": [
+     0.14,
+     0.14,
+     0.16,
+     1.0
+    ],
+    "metallic": 0.8,
+    "roughness": 0.3,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 400,
+   "name": "gull_2_wing_right",
+   "transform": {
+    "position": [
+     0.4500003,
+     0.0,
+     0.049999237
+    ],
+    "rotation_degrees": [
+     -1.8385857e-06,
+     4.0040618e-07,
+     -14.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 398,
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.03,
+     "z": 0.26
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.9,
+     0.88,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 390,
+   "name": "cottage_roof",
+   "transform": {
+    "position": [
+     -5.0,
+     9.95,
+     3.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Pyramid": {
+     "base_x": 4.8,
+     "base_z": 3.8,
+     "height": 1.9
+    }
+   },
+   "material": {
+    "color": [
+     0.4,
+     0.43,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.7,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 386,
+   "name": "path_stone_2",
+   "transform": {
+    "position": [
+     -2.69,
+     6.46,
+     3.08
+    ],
+    "rotation_degrees": [
+     0.0,
+     -15.846416,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.12,
+     "z": 0.7
+    }
+   },
+   "material": {
+    "color": [
+     0.6,
+     0.58,
+     0.55,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.95,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 370,
+   "name": "lighthouse_band_high",
+   "transform": {
+    "position": [
+     2.0,
+     17.4,
+     -2.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.63,
+     "height": 1.3
+    }
+   },
+   "material": {
+    "color": [
+     0.72,
+     0.12,
+     0.1,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.55,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 398,
+   "name": "gull_2",
+   "transform": {
+    "position": [
+     3.627719,
+     24.7,
+     -11.280733
+    ],
+    "rotation_degrees": [
+     89.99999,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.12,
+     "half_length": 0.18
+    }
+   },
+   "material": {
+    "color": [
+     0.95,
+     0.95,
+     0.93,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "behaviors": [
+    {
+     "Orbit": {
+      "center_point": [
+       2.0,
+       24.7,
+       -2.0
+      ],
+      "radius": 9.2,
+      "speed": 17.0,
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "phase": 72.0,
+      "tilt": 8.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 410,
+   "name": "sun",
+   "transform": {
+    "position": [
+     0.0,
+     10.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     -41.987198,
+     48.110813,
+     33.821827
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "directional",
+    "color": [
+     1.0,
+     0.76,
+     0.56,
+     1.0
+    ],
+    "intensity": 11000.0,
+    "direction": [
+     -0.7444375,
+     -0.4466623,
+     -0.4962916
+    ],
+    "shadows": true
+   }
+  },
+  {
+   "id": 368,
+   "name": "lighthouse_band_low",
+   "transform": {
+    "position": [
+     2.0,
+     9.4,
+     -2.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.63,
+     "height": 1.3
+    }
+   },
+   "material": {
+    "color": [
+     0.72,
+     0.12,
+     0.1,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.55,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 371,
+   "name": "lighthouse_gallery",
+   "transform": {
+    "position": [
+     2.0,
+     18.55,
+     -2.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 2.3,
+     "height": 0.3
+    }
+   },
+   "material": {
+    "color": [
+     0.3,
+     0.3,
+     0.33,
+     1.0
+    ],
+    "metallic": 0.6,
+    "roughness": 0.4,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 380,
+   "name": "cottage",
+   "transform": {
+    "position": [
+     -5.0,
+     7.7,
+     3.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 4.2,
+     "y": 2.6,
+     "z": 3.2
+    }
+   },
+   "material": {
+    "color": [
+     0.86,
+     0.83,
+     0.76,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.85,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 349,
+   "name": "basalt_column_15",
+   "transform": {
+    "position": [
+     -7.92,
+     2.48,
+     -7.97
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.0618653,
+     "height": 6.159001
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 411,
+   "name": "sky_fill",
+   "transform": {
+    "position": [
+     0.0,
+     10.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     -140.19444,
+     -37.532238,
+     -153.08432
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "directional",
+    "color": [
+     0.55,
+     0.58,
+     0.85,
+     1.0
+    ],
+    "intensity": 2600.0,
+    "direction": [
+     0.60920775,
+     -0.5076731,
+     0.6092077
+    ],
+    "shadows": false
+   }
+  },
+  {
+   "id": 373,
+   "name": "lighthouse_lantern_room",
+   "transform": {
+    "position": [
+     2.0,
+     19.7,
+     -2.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.2,
+     "height": 1.9
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.9,
+     0.62,
+     0.35
+    ],
+    "metallic": 0.0,
+    "roughness": 0.1,
+    "emissive": [
+     3.0,
+     2.3,
+     1.1,
+     1.0
+    ],
+    "alpha_mode": "blend"
+   }
+  },
+  {
+   "id": 344,
+   "name": "basalt_column_10",
+   "transform": {
+    "position": [
+     -10.75,
+     2.62,
+     5.75
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.3246858,
+     "height": 6.449013
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 360,
+   "name": "shore_rock_04",
+   "transform": {
+    "position": [
+     -11.59,
+     0.1,
+     -6.63
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.3,
+     0.55,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 1.081027
+    }
+   },
+   "material": {
+    "color": [
+     0.44,
+     0.43,
+     0.46,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.85,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 347,
+   "name": "basalt_column_13",
+   "transform": {
+    "position": [
+     -11.05,
+     0.65,
+     -4.15
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.0258305,
+     "height": 2.502561
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 384,
+   "name": "cottage_window_right",
+   "transform": {
+    "position": [
+     -3.7,
+     7.9,
+     4.62
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 0.7,
+     "y": 0.7,
+     "z": 0.06
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.8,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     3.2,
+     2.2,
+     1.0,
+     1.0
+    ]
+   }
+  },
+  {
+   "id": 392,
+   "name": "boat_seat",
+   "transform": {
+    "position": [
+     0.0,
+     0.29999986,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 391,
+   "shape": {
+    "Cuboid": {
+     "x": 0.3,
+     "y": 0.08,
+     "z": 1.2
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.45,
+     0.28,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.8,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 353,
+   "name": "basalt_column_19",
+   "transform": {
+    "position": [
+     4.26,
+     0.96,
+     -10.69
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.2862291,
+     "height": 3.1155453
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 343,
+   "name": "basalt_column_09",
+   "transform": {
+    "position": [
+     -7.41,
+     1.72,
+     8.56
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.0668977,
+     "height": 4.6494503
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 361,
+   "name": "shore_rock_05",
+   "transform": {
+    "position": [
+     -9.75,
+     0.1,
+     10.16
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.3,
+     0.55,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 1.3673078
+    }
+   },
+   "material": {
+    "color": [
+     0.44,
+     0.43,
+     0.46,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.85,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 334,
+   "name": "headland_turf",
+   "transform": {
+    "position": [
+     0.0,
+     6.4,
+     0.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 9.8,
+     "height": 0.4
+    }
+   },
+   "material": {
+    "color": [
+     0.52,
+     0.64,
+     0.38,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.95,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 366,
+   "name": "shore_rock_10",
+   "transform": {
+    "position": [
+     14.83,
+     0.1,
+     -4.8
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.3,
+     0.55,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 1.0828273
+    }
+   },
+   "material": {
+    "color": [
+     0.44,
+     0.43,
+     0.46,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.85,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 396,
+   "name": "gull_1_wing_left",
+   "transform": {
+    "position": [
+     -0.4499998,
+     0.0,
+     0.049999237
+    ],
+    "rotation_degrees": [
+     -1.8385857e-06,
+     -4.0040618e-07,
+     14.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 395,
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.03,
+     "z": 0.26
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.9,
+     0.88,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 409,
+   "name": "gull_5_wing_right",
+   "transform": {
+    "position": [
+     0.4499998,
+     0.0,
+     0.049999237
+    ],
+    "rotation_degrees": [
+     -1.8385857e-06,
+     4.0040618e-07,
+     -14.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 407,
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.03,
+     "z": 0.26
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.9,
+     0.88,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 339,
+   "name": "basalt_column_05",
+   "transform": {
+    "position": [
+     4.17,
+     2.19,
+     11.37
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.2693377,
+     "height": 5.573436
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 356,
+   "name": "basalt_column_22",
+   "transform": {
+    "position": [
+     10.05,
+     2.66,
+     -3.46
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.2851014,
+     "height": 6.5155716
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 405,
+   "name": "gull_4_wing_left",
+   "transform": {
+    "position": [
+     -0.4499998,
+     0.0,
+     0.049999237
+    ],
+    "rotation_degrees": [
+     -1.8385857e-06,
+     -4.0040618e-07,
+     14.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 404,
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.03,
+     "z": 0.26
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.9,
+     0.88,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 357,
+   "name": "shore_rock_01",
+   "transform": {
+    "position": [
+     12.89,
+     0.1,
+     9.41
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.3,
+     0.55,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.7705947
+    }
+   },
+   "material": {
+    "color": [
+     0.44,
+     0.43,
+     0.46,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.85,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 387,
+   "name": "path_stone_3",
+   "transform": {
+    "position": [
+     -1.5,
+     6.46,
+     2.2
+    ],
+    "rotation_degrees": [
+     0.0,
+     -18.452143,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.12,
+     "z": 0.7
+    }
+   },
+   "material": {
+    "color": [
+     0.6,
+     0.58,
+     0.55,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.95,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 351,
+   "name": "basalt_column_17",
+   "transform": {
+    "position": [
+     -2.07,
+     0.89,
+     -10.03
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.93593603,
+     "height": 2.9749177
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 367,
+   "name": "lighthouse_tower",
+   "transform": {
+    "position": [
+     2.0,
+     12.4,
+     -2.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.6,
+     "height": 12.0
+    }
+   },
+   "material": {
+    "color": [
+     0.93,
+     0.91,
+     0.86,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.6,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 375,
+   "name": "lighthouse_cap",
+   "transform": {
+    "position": [
+     2.0,
+     21.5,
+     -2.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cone": {
+     "radius": 1.55,
+     "height": 1.7
+    }
+   },
+   "material": {
+    "color": [
+     0.62,
+     0.11,
+     0.08,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 406,
+   "name": "gull_4_wing_right",
+   "transform": {
+    "position": [
+     0.4499998,
+     0.0,
+     0.049999237
+    ],
+    "rotation_degrees": [
+     -1.8385857e-06,
+     4.0040618e-07,
+     -14.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 404,
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.03,
+     "z": 0.26
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.9,
+     0.88,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 408,
+   "name": "gull_5_wing_left",
+   "transform": {
+    "position": [
+     -0.4499998,
+     0.0,
+     0.049999237
+    ],
+    "rotation_degrees": [
+     -1.8385857e-06,
+     -4.0040618e-07,
+     14.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 407,
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.03,
+     "z": 0.26
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.9,
+     0.88,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 399,
+   "name": "gull_2_wing_left",
+   "transform": {
+    "position": [
+     -0.45000005,
+     0.0,
+     0.049999237
+    ],
+    "rotation_degrees": [
+     -1.8385857e-06,
+     -4.0040618e-07,
+     14.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 398,
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.03,
+     "z": 0.26
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.9,
+     0.88,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 388,
+   "name": "path_stone_4",
+   "transform": {
+    "position": [
+     -0.31,
+     6.46,
+     1.32
+    ],
+    "rotation_degrees": [
+     -0.0,
+     18.50726,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.12,
+     "z": 0.7
+    }
+   },
+   "material": {
+    "color": [
+     0.6,
+     0.58,
+     0.55,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.95,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 340,
+   "name": "basalt_column_06",
+   "transform": {
+    "position": [
+     1.89,
+     1.89,
+     9.45
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.93573064,
+     "height": 4.983392
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 350,
+   "name": "basalt_column_16",
+   "transform": {
+    "position": [
+     -4.97,
+     2.92,
+     -9.21
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.3548243,
+     "height": 7.0311584
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 335,
+   "name": "basalt_column_01",
+   "transform": {
+    "position": [
+     11.06,
+     2.82,
+     -0.08
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.1793901,
+     "height": 6.8437896
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 359,
+   "name": "shore_rock_03",
+   "transform": {
+    "position": [
+     -3.66,
+     0.1,
+     12.22
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.3,
+     0.55,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.67209375
+    }
+   },
+   "material": {
+    "color": [
+     0.44,
+     0.43,
+     0.46,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.85,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 352,
+   "name": "basalt_column_18",
+   "transform": {
+    "position": [
+     1.9,
+     1.96,
+     -9.88
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.1684549,
+     "height": 5.1286874
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 341,
+   "name": "basalt_column_07",
+   "transform": {
+    "position": [
+     -0.95,
+     0.72,
+     10.18
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.1783607,
+     "height": 2.6413882
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 369,
+   "name": "lighthouse_band_mid",
+   "transform": {
+    "position": [
+     2.0,
+     13.4,
+     -2.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.63,
+     "height": 1.3
+    }
+   },
+   "material": {
+    "color": [
+     0.72,
+     0.12,
+     0.1,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.55,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 365,
+   "name": "shore_rock_09",
+   "transform": {
+    "position": [
+     -1.05,
+     0.1,
+     -15.76
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.3,
+     0.55,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.7572718
+    }
+   },
+   "material": {
+    "color": [
+     0.44,
+     0.43,
+     0.46,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.85,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 374,
+   "name": "lighthouse_lamp",
+   "transform": {
+    "position": [
+     2.0,
+     19.7,
+     -2.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.55
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.95,
+     0.8,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     18.0,
+     13.0,
+     6.0,
+     1.0
+    ],
+    "unlit": true
+   }
+  },
+  {
+   "id": 397,
+   "name": "gull_1_wing_right",
+   "transform": {
+    "position": [
+     0.4499998,
+     0.0,
+     0.049999237
+    ],
+    "rotation_degrees": [
+     -1.8385857e-06,
+     4.0040618e-07,
+     -14.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 395,
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.03,
+     "z": 0.26
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.9,
+     0.88,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 358,
+   "name": "shore_rock_02",
+   "transform": {
+    "position": [
+     -0.79,
+     0.1,
+     15.18
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.3,
+     0.55,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Sphere": {
+     "radius": 0.86316437
+    }
+   },
+   "material": {
+    "color": [
+     0.44,
+     0.43,
+     0.46,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.85,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 403,
+   "name": "gull_3_wing_right",
+   "transform": {
+    "position": [
+     0.4499998,
+     0.0,
+     0.049999237
+    ],
+    "rotation_degrees": [
+     -1.8385857e-06,
+     4.0040618e-07,
+     -14.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 401,
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.03,
+     "z": 0.26
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.9,
+     0.88,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 395,
+   "name": "gull_1",
+   "transform": {
+    "position": [
+     8.918972,
+     23.4,
+     -3.5011542
+    ],
+    "rotation_degrees": [
+     89.99999,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.12,
+     "half_length": 0.18
+    }
+   },
+   "material": {
+    "color": [
+     0.95,
+     0.95,
+     0.93,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "behaviors": [
+    {
+     "Orbit": {
+      "center_point": [
+       2.0,
+       23.4,
+       -2.0
+      ],
+      "radius": 7.0,
+      "speed": 14.0,
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "phase": 0.0,
+      "tilt": 6.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 354,
+   "name": "basalt_column_20",
+   "transform": {
+    "position": [
+     6.49,
+     1.15,
+     -8.5
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.061877,
+     "height": 3.5004687
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 348,
+   "name": "basalt_column_14",
+   "transform": {
+    "position": [
+     -8.7,
+     2.95,
+     -6.44
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.1384547,
+     "height": 7.107687
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 412,
+   "name": "lamp_glow",
+   "transform": {
+    "position": [
+     2.0,
+     19.7,
+     -2.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.82,
+     0.5,
+     1.0
+    ],
+    "intensity": 220000.0,
+    "shadows": false,
+    "range": 26.0
+   }
+  },
+  {
+   "id": 404,
+   "name": "gull_4",
+   "transform": {
+    "position": [
+     -7.1690874,
+     27.3,
+     9.802347
+    ],
+    "rotation_degrees": [
+     89.99999,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Capsule": {
+     "radius": 0.12,
+     "half_length": 0.18
+    }
+   },
+   "material": {
+    "color": [
+     0.95,
+     0.95,
+     0.93,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "behaviors": [
+    {
+     "Orbit": {
+      "center_point": [
+       2.0,
+       27.3,
+       -2.0
+      ],
+      "radius": 13.6,
+      "speed": 23.0,
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "phase": 216.0,
+      "tilt": 12.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 413,
+   "name": "cottage_glow",
+   "transform": {
+    "position": [
+     -5.0,
+     8.0,
+     5.6
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "light": {
+    "light_type": "point",
+    "color": [
+     1.0,
+     0.7,
+     0.4,
+     1.0
+    ],
+    "intensity": 26000.0,
+    "shadows": false,
+    "range": 8.0
+   }
+  },
+  {
+   "id": 336,
+   "name": "basalt_column_02",
+   "transform": {
+    "position": [
+     10.67,
+     1.08,
+     3.15
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.2071452,
+     "height": 3.3679037
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 337,
+   "name": "basalt_column_03",
+   "transform": {
+    "position": [
+     9.68,
+     0.87,
+     6.51
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 1.0820408,
+     "height": 2.9423802
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 345,
+   "name": "basalt_column_11",
+   "transform": {
+    "position": [
+     -9.69,
+     1.33,
+     3.16
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.9421341,
+     "height": 3.8584878
+    }
+   },
+   "material": {
+    "color": [
+     0.47,
+     0.46,
+     0.5,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 378,
+   "name": "beam_east",
+   "transform": {
+    "position": [
+     19.0,
+     0.0,
+     1.9073486e-06
+    ],
+    "rotation_degrees": [
+     -6.2311624e-06,
+     2.8160775e-06,
+     89.999916
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 377,
+   "shape": {
+    "Cone": {
+     "radius": 2.4,
+     "height": 38.0
+    }
+   },
+   "material": {
+    "color": [
+     1.0,
+     0.93,
+     0.72,
+     0.14
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     1.6,
+     1.3,
+     0.8,
+     1.0
+    ],
+    "alpha_mode": "blend",
+    "unlit": true
+   }
+  },
+  {
+   "id": 402,
+   "name": "gull_3_wing_left",
+   "transform": {
+    "position": [
+     -0.4499998,
+     0.0,
+     0.049999237
+    ],
+    "rotation_degrees": [
+     -1.8385857e-06,
+     -4.0040618e-07,
+     14.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "parent": 401,
+   "shape": {
+    "Cuboid": {
+     "x": 0.9,
+     "y": 0.03,
+     "z": 0.26
+    }
+   },
+   "material": {
+    "color": [
+     0.9,
+     0.9,
+     0.88,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": 393,
+   "name": "buoy",
+   "transform": {
+    "position": [
+     -18.0,
+     0.65156406,
+     13.0
+    ],
+    "rotation_degrees": [
+     -0.0,
+     0.0,
+     -0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "shape": {
+    "Cylinder": {
+     "radius": 0.5,
+     "height": 1.4
+    }
+   },
+   "material": {
+    "color": [
+     0.8,
+     0.15,
+     0.1,
+     1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "behaviors": [
+    {
+     "Bob": {
+      "axis": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "amplitude": 0.18,
+      "frequency": 0.2,
+      "phase": 90.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 414,
+   "name": "ambience_ocean",
+   "transform": {
+    "position": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "audio": {
+    "kind": "ambient",
+    "source": {
+     "Ocean": {
+      "wave_size": 0.35
+     }
+    },
+    "volume": 0.6,
+    "rolloff": "inverse_square"
+   }
+  },
+  {
+   "id": 415,
+   "name": "ambience_wind",
+   "transform": {
+    "position": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visible": true
+   },
+   "audio": {
+    "kind": "ambient",
+    "source": {
+     "Wind": {
+      "speed": 0.3,
+      "gustiness": 0.35
+     }
+    },
+    "volume": 0.3,
+    "rolloff": "inverse_square"
+   }
+  }
+ ],
+ "next_entity_id": 416
+}

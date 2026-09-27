@@ -29,6 +29,12 @@ target
 !.gitignore
 !.gitattributes
 !.github/
+# Each website-*/ deploys as a Cloudflare Worker whose static-assets directory
+# is ".", so its .assetsignore is what keeps deploy.sh and wrangler.toml from
+# being published as site content. The blanket `.*` above had left the MD,
+# Verse and World ones untracked, which a fresh clone would have deployed
+# without.
+!.assetsignore
 
 # Compiled libraries
 *.a
@@ -52,3 +58,20 @@ opencode.json
 # Wrangler local state for the landing pages (website-gen, website-md,
 # website-verse each deploy as their own static-assets Worker).
 website-*/.wrangler/
+
+# website-world/ is assembled, not stored. `scripts/assemble.mjs` copies the
+# viewer and the conformance scenes in from crates/ (so they cannot drift from
+# the apps the way the old cross-repo sync did), and the curated worlds' shrunk
+# GLBs, music and posters in from the assets checkout, where they are LFS
+# objects. Only the site's own source is tracked here.
+website-world/viewer/world-viewer.js
+website-world/worlds/assets/
+website-world/worlds/posters/
+website-world/worlds/behaviors.json
+website-world/worlds/hierarchy_tours.json
+website-world/worlds/lights.json
+website-world/worlds/materials.json
+website-world/worlds/shapes.json
+website-world/worlds/soundtrack.json
+website-world/worlds/textures.json
+website-world/node_modules/

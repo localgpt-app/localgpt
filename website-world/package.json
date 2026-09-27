@@ -1,0 +1,15 @@
+{
+  "name": "localgpt-world",
+  "private": true,
+  "description": "The localgpt.world site. No build step; `assemble` copies the viewer and conformance scenes in from crates/, and playwright is pinned for the render check.",
+  "type": "module",
+  "scripts": {
+    "assemble": "node scripts/assemble.mjs",
+    "assemble:all": "node scripts/assemble.mjs --all",
+    "check": "npm run assemble && node scripts/check-worlds.mjs",
+    "check:all": "npm run assemble:all && node scripts/check-worlds.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

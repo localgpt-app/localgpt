@@ -2,7 +2,7 @@
 
 > **This crate lives in the `localgpt` workspace** (folded in from the
 > standalone `localgpt-md` repository; see
-> `localgpt-world/docs/strategy.md` §13.6). Run everything from the
+> `docs/world-strategy.md` §13.6). Run everything from the
 > workspace root with `-p localgpt-md`. The shared model and asset
 > downloads are fetched once by `scripts/fetch-model.sh` and
 > `scripts/fetch-assets.sh`, and resolved by

@@ -1,0 +1,7928 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "EMBER FLATS — Amber Drift",
+    "description": "A LocalGPT Verse world for \"Amber Drift\" by Reverie",
+    "tags": [
+      "verse",
+      "ember-flats"
+    ],
+    "source": "verse",
+    "bevy_version": "0.19",
+    "compliance": {
+      "steam_code_tool_exempt": true,
+      "eu_ai_act_risk_level": "minimal",
+      "no_gen_ai_compatible": true,
+      "generation_tool": "LocalGPT Gen v0.3.6",
+      "generation_method": "code-generation",
+      "human_modifiable": true
+    }
+  },
+  "environment": {
+    "background_color": [
+      0.788,
+      0.514,
+      0.435,
+      1.0
+    ],
+    "ambient_intensity": 260.0,
+    "ambient_color": [
+      1.0,
+      0.8,
+      0.62,
+      1.0
+    ],
+    "fog_density": 0.012,
+    "fog_color": [
+      0.62,
+      0.42,
+      0.4,
+      1.0
+    ]
+  },
+  "camera": {
+    "position": [
+      0.0,
+      6.0,
+      22.0
+    ],
+    "look_at": [
+      0.0,
+      2.0,
+      0.0
+    ],
+    "fov_degrees": 50.0
+  },
+  "avatar": {
+    "spawn_position": [
+      0.0,
+      1.7,
+      22.0
+    ],
+    "spawn_look_at": [
+      0.0,
+      2.0,
+      0.0
+    ],
+    "pov": "first_person",
+    "movement_speed": 6.0,
+    "height": 1.7
+  },
+  "soundtrack": {
+    "path": "music/amber-drift.mp3",
+    "title": "Amber Drift",
+    "artist": "Reverie",
+    "license": "CC0-1.0",
+    "duration": 58.536,
+    "bpm": 136.9731,
+    "beat_offset": 0.368,
+    "sections": [
+      0.0,
+      0.3416701,
+      0.6833402
+    ],
+    "energy": [
+      0.72605866,
+      0.95478517,
+      0.94979024,
+      0.9315923,
+      0.93219,
+      0.935873,
+      0.72840846,
+      0.6968405,
+      0.9563029,
+      0.96904576,
+      0.9530252,
+      0.94728094,
+      0.96154356,
+      0.76143044,
+      0.69089895,
+      0.97949255,
+      0.95048094,
+      0.94929546,
+      0.9803839,
+      0.95972455,
+      0.80501336,
+      0.6514038,
+      0.977859,
+      0.98196334,
+      1.0,
+      0.9873216,
+      0.98965305,
+      0.8845108,
+      0.5934986,
+      0.92892134,
+      0.95440906,
+      0.9241842,
+      0.9469728,
+      0.9668665,
+      0.82509214,
+      0.58776206,
+      0.9509733,
+      0.9585262,
+      0.94979405,
+      0.97217244,
+      0.94437784,
+      0.8520413,
+      0.572066,
+      0.9275636,
+      0.95663995,
+      0.97317976,
+      0.9644793,
+      0.96168983,
+      0.8746839,
+      0.5557754,
+      0.9732917,
+      1.0,
+      0.98686486,
+      0.9818624,
+      1.0,
+      0.9094659,
+      0.32300803,
+      0.0010977614,
+      0.000041483858
+    ]
+  },
+  "entities": [
+    {
+      "id": 1,
+      "name": "ground",
+      "transform": {
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Plane": {
+          "x": 400.0,
+          "z": 400.0
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "name": "sun",
+      "transform": {
+        "position": [
+          0.0,
+          40.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "light": {
+        "light_type": "directional",
+        "color": [
+          1.0,
+          0.702,
+          0.541,
+          1.0
+        ],
+        "intensity": 6000.0,
+        "direction": [
+          -0.35,
+          -1.0,
+          -0.45
+        ],
+        "shadows": true
+      }
+    },
+    {
+      "id": 3,
+      "name": "hero_01_boulder_01",
+      "transform": {
+        "position": [
+          -29.095182,
+          -0.5,
+          -9.733347
+        ],
+        "rotation_degrees": [
+          0.0,
+          301.6884,
+          0.0
+        ],
+        "scale": [
+          5.275448,
+          5.275448,
+          5.275448
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/boulder_01/boulder_01.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "hero_02_dead_tree_trunk",
+      "transform": {
+        "position": [
+          -25.991417,
+          -0.5,
+          -11.993318
+        ],
+        "rotation_degrees": [
+          0.0,
+          356.6639,
+          0.0
+        ],
+        "scale": [
+          2.441835,
+          2.441835,
+          2.441835
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/dead_tree_trunk/dead_tree_trunk.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "hero_03_namaqualand_boulder_02",
+      "transform": {
+        "position": [
+          -26.32085,
+          -0.5,
+          -15.180628
+        ],
+        "rotation_degrees": [
+          0.0,
+          83.33879,
+          0.0
+        ],
+        "scale": [
+          3.027351,
+          3.027351,
+          3.027351
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/namaqualand_boulder_02/namaqualand_boulder_02.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "hero_04_namaqualand_cliff_01",
+      "transform": {
+        "position": [
+          -27.42957,
+          -0.5,
+          -14.76133
+        ],
+        "rotation_degrees": [
+          0.0,
+          59.096554,
+          0.0
+        ],
+        "scale": [
+          0.8867604,
+          0.8867604,
+          0.8867604
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/namaqualand_cliff_01/namaqualand_cliff_01.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "hero_05_quiver_tree_01",
+      "transform": {
+        "position": [
+          -10.482971,
+          -0.5,
+          6.3078237
+        ],
+        "rotation_degrees": [
+          0.0,
+          99.927414,
+          0.0
+        ],
+        "scale": [
+          2.7104611,
+          2.7104611,
+          2.7104611
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/quiver_tree_01/quiver_tree_01.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "hero_06_namaqualand_boulder_03",
+      "transform": {
+        "position": [
+          -12.653576,
+          -0.5,
+          4.6463833
+        ],
+        "rotation_degrees": [
+          0.0,
+          229.37805,
+          0.0
+        ],
+        "scale": [
+          2.86904,
+          2.86904,
+          2.86904
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/namaqualand_boulder_03/namaqualand_boulder_03.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "hero_07_namaqualand_boulder_04",
+      "transform": {
+        "position": [
+          -10.363859,
+          -0.5,
+          8.19343
+        ],
+        "rotation_degrees": [
+          0.0,
+          8.914332,
+          0.0
+        ],
+        "scale": [
+          3.5060833,
+          3.5060833,
+          3.5060833
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/namaqualand_boulder_04/namaqualand_boulder_04.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "hero_08_namaqualand_cliff_02",
+      "transform": {
+        "position": [
+          -13.450111,
+          -0.5,
+          3.6249723
+        ],
+        "rotation_degrees": [
+          0.0,
+          246.8075,
+          0.0
+        ],
+        "scale": [
+          0.30137926,
+          0.30137926,
+          0.30137926
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/namaqualand_cliff_02/namaqualand_cliff_02.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "hero_09_dead_tree_trunk_02",
+      "transform": {
+        "position": [
+          21.157915,
+          -0.5,
+          -1.3252447
+        ],
+        "rotation_degrees": [
+          0.0,
+          278.58823,
+          0.0
+        ],
+        "scale": [
+          1.5287125,
+          1.5287125,
+          1.5287125
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/dead_tree_trunk_02/dead_tree_trunk_02.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "hero_10_othonna_cerarioides",
+      "transform": {
+        "position": [
+          23.667122,
+          -0.5,
+          -3.8920355
+        ],
+        "rotation_degrees": [
+          0.0,
+          132.22658,
+          0.0
+        ],
+        "scale": [
+          1.7615122,
+          1.7615122,
+          1.7615122
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/othonna_cerarioides/othonna_cerarioides.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "hero_11_rock_face_01",
+      "transform": {
+        "position": [
+          21.108389,
+          -0.5,
+          -1.8883808
+        ],
+        "rotation_degrees": [
+          0.0,
+          56.250324,
+          0.0
+        ],
+        "scale": [
+          1.0079907,
+          1.0079907,
+          1.0079907
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/rock_face_01/rock_face_01.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "hero_12_mountainside",
+      "transform": {
+        "position": [
+          19.947962,
+          -0.5,
+          -4.698181
+        ],
+        "rotation_degrees": [
+          0.0,
+          150.47931,
+          0.0
+        ],
+        "scale": [
+          0.61207914,
+          0.61207914,
+          0.61207914
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/mountainside/mountainside.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "hero_13_boulder_01",
+      "transform": {
+        "position": [
+          11.876747,
+          -0.5,
+          -0.05039358
+        ],
+        "rotation_degrees": [
+          0.0,
+          33.99728,
+          0.0
+        ],
+        "scale": [
+          5.832083,
+          5.832083,
+          5.832083
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/boulder_01/boulder_01.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "hero_14_dead_tree_trunk",
+      "transform": {
+        "position": [
+          12.219864,
+          -0.5,
+          -0.49415708
+        ],
+        "rotation_degrees": [
+          0.0,
+          44.61482,
+          0.0
+        ],
+        "scale": [
+          2.268172,
+          2.268172,
+          2.268172
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/dead_tree_trunk/dead_tree_trunk.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "hero_15_namaqualand_boulder_02",
+      "transform": {
+        "position": [
+          13.638006,
+          -0.5,
+          -5.5832853
+        ],
+        "rotation_degrees": [
+          0.0,
+          259.74026,
+          0.0
+        ],
+        "scale": [
+          3.658292,
+          3.658292,
+          3.658292
+        ],
+        "visible": true
+      },
+      "mesh_asset": {
+        "path": "models/namaqualand_boulder_02/namaqualand_boulder_02.glb"
+      },
+      "modulations": [
+        {
+          "target": "scale",
+          "signal": "energy",
+          "range": [
+            0.95,
+            1.08
+          ],
+          "smoothing": 0.4
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "prop_16_dead_quiver_trunk",
+      "transform": {
+        "position": [
+          14.779618,
+          -0.5,
+          -4.310582
+        ],
+        "rotation_degrees": [
+          0.0,
+          69.4578,
+          0.0
+        ],
+        "scale": [
+          1.2129143,
+          1.2129143,
+          1.2129143
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 282.95697
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/dead_quiver_trunk/dead_quiver_trunk.glb"
+      }
+    },
+    {
+      "id": 19,
+      "name": "prop_17_tree_stump_02",
+      "transform": {
+        "position": [
+          -26.25357,
+          -0.5,
+          9.80997
+        ],
+        "rotation_degrees": [
+          0.0,
+          28.959942,
+          0.0
+        ],
+        "scale": [
+          1.6557643,
+          1.6557643,
+          1.6557643
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 88.956085
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/tree_stump_02/tree_stump_02.glb"
+      }
+    },
+    {
+      "id": 20,
+      "name": "prop_18_searsia_burchellii",
+      "transform": {
+        "position": [
+          -26.85173,
+          -0.5,
+          11.603812
+        ],
+        "rotation_degrees": [
+          0.0,
+          41.10434,
+          0.0
+        ],
+        "scale": [
+          0.30434105,
+          0.30434105,
+          0.30434105
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 219.7171
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/searsia_burchellii/searsia_burchellii.glb"
+      }
+    },
+    {
+      "id": 21,
+      "name": "prop_19_wild_rooibos_bush",
+      "transform": {
+        "position": [
+          -32.17988,
+          -0.5,
+          9.529633
+        ],
+        "rotation_degrees": [
+          0.0,
+          247.976,
+          0.0
+        ],
+        "scale": [
+          0.9958991,
+          0.9958991,
+          0.9958991
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 66.11338
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/wild_rooibos_bush/wild_rooibos_bush.glb"
+      }
+    },
+    {
+      "id": 22,
+      "name": "prop_20_rock_face_02",
+      "transform": {
+        "position": [
+          -31.524433,
+          -0.5,
+          12.426962
+        ],
+        "rotation_degrees": [
+          0.0,
+          7.1698666,
+          0.0
+        ],
+        "scale": [
+          0.5134803,
+          0.5134803,
+          0.5134803
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 148.29517
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/rock_face_02/rock_face_02.glb"
+      }
+    },
+    {
+      "id": 23,
+      "name": "prop_21_namaqualand_boulders_01",
+      "transform": {
+        "position": [
+          -8.346826,
+          -0.5,
+          12.491616
+        ],
+        "rotation_degrees": [
+          0.0,
+          185.36641,
+          0.0
+        ],
+        "scale": [
+          2.4246728,
+          2.4246728,
+          2.4246728
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 23.427486
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/namaqualand_boulders_01/namaqualand_boulders_01.glb"
+      }
+    },
+    {
+      "id": 24,
+      "name": "prop_22_namaqualand_boulder_06",
+      "transform": {
+        "position": [
+          -5.0714474,
+          -0.5,
+          12.502911
+        ],
+        "rotation_degrees": [
+          0.0,
+          299.38812,
+          0.0
+        ],
+        "scale": [
+          1.8820211,
+          1.8820211,
+          1.8820211
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 273.6176
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/namaqualand_boulder_06/namaqualand_boulder_06.glb"
+      }
+    },
+    {
+      "id": 25,
+      "name": "prop_23_root_cluster_01",
+      "transform": {
+        "position": [
+          -6.562216,
+          -0.5,
+          13.124501
+        ],
+        "rotation_degrees": [
+          0.0,
+          351.72592,
+          0.0
+        ],
+        "scale": [
+          0.68484217,
+          0.68484217,
+          0.68484217
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 123.27772
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/root_cluster_01/root_cluster_01.glb"
+      }
+    },
+    {
+      "id": 26,
+      "name": "prop_24_pine_roots",
+      "transform": {
+        "position": [
+          -8.628277,
+          -0.5,
+          14.716852
+        ],
+        "rotation_degrees": [
+          0.0,
+          300.29816,
+          0.0
+        ],
+        "scale": [
+          1.4101409,
+          1.4101409,
+          1.4101409
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 264.66898
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/pine_roots/pine_roots.glb"
+      }
+    },
+    {
+      "id": 27,
+      "name": "prop_25_didelta_spinosa",
+      "transform": {
+        "position": [
+          18.018763,
+          -0.5,
+          -13.994907
+        ],
+        "rotation_degrees": [
+          0.0,
+          236.81465,
+          0.0
+        ],
+        "scale": [
+          0.48530543,
+          0.48530543,
+          0.48530543
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 224.98955
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/didelta_spinosa/didelta_spinosa.glb"
+      }
+    },
+    {
+      "id": 28,
+      "name": "prop_26_leipoldtia_schultzei",
+      "transform": {
+        "position": [
+          20.446287,
+          -0.5,
+          -15.939817
+        ],
+        "rotation_degrees": [
+          0.0,
+          61.47565,
+          0.0
+        ],
+        "scale": [
+          1.186628,
+          1.186628,
+          1.186628
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 237.43622
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/leipoldtia_schultzei/leipoldtia_schultzei.glb"
+      }
+    },
+    {
+      "id": 29,
+      "name": "prop_27_dead_quiver_trunk",
+      "transform": {
+        "position": [
+          15.224791,
+          -0.5,
+          -15.990294
+        ],
+        "rotation_degrees": [
+          0.0,
+          24.970121,
+          0.0
+        ],
+        "scale": [
+          1.3844713,
+          1.3844713,
+          1.3844713
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 56.653084
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/dead_quiver_trunk/dead_quiver_trunk.glb"
+      }
+    },
+    {
+      "id": 30,
+      "name": "prop_28_tree_stump_02",
+      "transform": {
+        "position": [
+          20.357773,
+          -0.5,
+          -15.249697
+        ],
+        "rotation_degrees": [
+          0.0,
+          332.01337,
+          0.0
+        ],
+        "scale": [
+          1.8542029,
+          1.8542029,
+          1.8542029
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 357.94632
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/tree_stump_02/tree_stump_02.glb"
+      }
+    },
+    {
+      "id": 31,
+      "name": "prop_29_searsia_burchellii",
+      "transform": {
+        "position": [
+          0.8459501,
+          -0.5,
+          -15.326652
+        ],
+        "rotation_degrees": [
+          0.0,
+          50.11611,
+          0.0
+        ],
+        "scale": [
+          0.32238144,
+          0.32238144,
+          0.32238144
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 90.38405
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/searsia_burchellii/searsia_burchellii.glb"
+      }
+    },
+    {
+      "id": 32,
+      "name": "prop_30_wild_rooibos_bush",
+      "transform": {
+        "position": [
+          0.83925056,
+          -0.5,
+          -16.984371
+        ],
+        "rotation_degrees": [
+          0.0,
+          39.89614,
+          0.0
+        ],
+        "scale": [
+          1.0872345,
+          1.0872345,
+          1.0872345
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 295.65448
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/wild_rooibos_bush/wild_rooibos_bush.glb"
+      }
+    },
+    {
+      "id": 33,
+      "name": "prop_31_rock_face_02",
+      "transform": {
+        "position": [
+          -0.15813804,
+          -0.5,
+          -16.280857
+        ],
+        "rotation_degrees": [
+          0.0,
+          6.7159295,
+          0.0
+        ],
+        "scale": [
+          0.57464707,
+          0.57464707,
+          0.57464707
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 25.53888
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/rock_face_02/rock_face_02.glb"
+      }
+    },
+    {
+      "id": 34,
+      "name": "prop_32_namaqualand_boulders_01",
+      "transform": {
+        "position": [
+          0.8959671,
+          -0.5,
+          -17.570055
+        ],
+        "rotation_degrees": [
+          0.0,
+          92.87063,
+          0.0
+        ],
+        "scale": [
+          2.2711022,
+          2.2711022,
+          2.2711022
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 282.52417
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/namaqualand_boulders_01/namaqualand_boulders_01.glb"
+      }
+    },
+    {
+      "id": 35,
+      "name": "prop_33_namaqualand_boulder_06",
+      "transform": {
+        "position": [
+          -6.7471604,
+          -0.5,
+          30.131136
+        ],
+        "rotation_degrees": [
+          0.0,
+          188.58633,
+          0.0
+        ],
+        "scale": [
+          2.3086991,
+          2.3086991,
+          2.3086991
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 290.93237
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/namaqualand_boulder_06/namaqualand_boulder_06.glb"
+      }
+    },
+    {
+      "id": 36,
+      "name": "prop_34_root_cluster_01",
+      "transform": {
+        "position": [
+          -5.9931335,
+          -0.5,
+          31.574526
+        ],
+        "rotation_degrees": [
+          0.0,
+          326.83643,
+          0.0
+        ],
+        "scale": [
+          0.59609294,
+          0.59609294,
+          0.59609294
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 284.756
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/root_cluster_01/root_cluster_01.glb"
+      }
+    },
+    {
+      "id": 37,
+      "name": "prop_35_pine_roots",
+      "transform": {
+        "position": [
+          -4.589897,
+          -0.5,
+          33.195408
+        ],
+        "rotation_degrees": [
+          0.0,
+          290.99875,
+          0.0
+        ],
+        "scale": [
+          1.2584541,
+          1.2584541,
+          1.2584541
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 174.59319
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/pine_roots/pine_roots.glb"
+      }
+    },
+    {
+      "id": 38,
+      "name": "prop_36_didelta_spinosa",
+      "transform": {
+        "position": [
+          -9.264394,
+          -0.5,
+          31.98144
+        ],
+        "rotation_degrees": [
+          0.0,
+          297.66614,
+          0.0
+        ],
+        "scale": [
+          0.6212207,
+          0.6212207,
+          0.6212207
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 191.62978
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/didelta_spinosa/didelta_spinosa.glb"
+      }
+    },
+    {
+      "id": 39,
+      "name": "prop_37_leipoldtia_schultzei",
+      "transform": {
+        "position": [
+          18.211617,
+          -0.5,
+          -4.367958
+        ],
+        "rotation_degrees": [
+          0.0,
+          62.608063,
+          0.0
+        ],
+        "scale": [
+          1.1085441,
+          1.1085441,
+          1.1085441
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 43.685932
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/leipoldtia_schultzei/leipoldtia_schultzei.glb"
+      }
+    },
+    {
+      "id": 40,
+      "name": "prop_38_dead_quiver_trunk",
+      "transform": {
+        "position": [
+          18.773643,
+          -0.5,
+          -4.034086
+        ],
+        "rotation_degrees": [
+          0.0,
+          211.71481,
+          0.0
+        ],
+        "scale": [
+          1.3400831,
+          1.3400831,
+          1.3400831
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 135.49692
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/dead_quiver_trunk/dead_quiver_trunk.glb"
+      }
+    },
+    {
+      "id": 41,
+      "name": "prop_39_tree_stump_02",
+      "transform": {
+        "position": [
+          19.959867,
+          -0.5,
+          -3.8564203
+        ],
+        "rotation_degrees": [
+          0.0,
+          350.04733,
+          0.0
+        ],
+        "scale": [
+          1.9726608,
+          1.9726608,
+          1.9726608
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 138.57358
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/tree_stump_02/tree_stump_02.glb"
+      }
+    },
+    {
+      "id": 42,
+      "name": "prop_40_searsia_burchellii",
+      "transform": {
+        "position": [
+          20.351686,
+          -0.5,
+          -6.398118
+        ],
+        "rotation_degrees": [
+          0.0,
+          61.411987,
+          0.0
+        ],
+        "scale": [
+          0.33456507,
+          0.33456507,
+          0.33456507
+        ],
+        "visible": true
+      },
+      "behaviors": [
+        {
+          "Bob": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "amplitude": 0.15,
+            "frequency": 0.15915494,
+            "phase": 289.346
+          }
+        },
+        {
+          "Spin": {
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "speed": 4.5836625
+          }
+        }
+      ],
+      "mesh_asset": {
+        "path": "models/searsia_burchellii/searsia_burchellii.glb"
+      }
+    },
+    {
+      "id": 43,
+      "name": "ground_cover_001",
+      "transform": {
+        "position": [
+          -22.094358,
+          -0.5,
+          16.311348
+        ],
+        "rotation_degrees": [
+          0.0,
+          226.02318,
+          0.0
+        ],
+        "scale": [
+          0.24970308,
+          0.24970308,
+          0.24970308
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7183676,
+          0.4933226,
+          0.44873554,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 44,
+      "name": "ground_cover_002",
+      "transform": {
+        "position": [
+          -22.998882,
+          -0.5,
+          18.055382
+        ],
+        "rotation_degrees": [
+          0.0,
+          308.2425,
+          0.0
+        ],
+        "scale": [
+          0.22042403,
+          0.22042403,
+          0.22042403
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.50611037,
+          0.3319708,
+          0.39400694,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 45,
+      "name": "ground_cover_003",
+      "transform": {
+        "position": [
+          -22.842722,
+          -0.5,
+          15.627414
+        ],
+        "rotation_degrees": [
+          0.0,
+          13.486383,
+          0.0
+        ],
+        "scale": [
+          0.41782686,
+          0.41782686,
+          0.41782686
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6270698,
+          0.42464036,
+          0.42330274,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 46,
+      "name": "ground_cover_004",
+      "transform": {
+        "position": [
+          -20.12673,
+          -0.5,
+          13.079341
+        ],
+        "rotation_degrees": [
+          0.0,
+          35.266888,
+          0.0
+        ],
+        "scale": [
+          0.26045275,
+          0.26045275,
+          0.26045275
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6004167,
+          0.40442127,
+          0.4163918,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 47,
+      "name": "ground_cover_005",
+      "transform": {
+        "position": [
+          3.5569868,
+          -0.5,
+          -22.52135
+        ],
+        "rotation_degrees": [
+          0.0,
+          197.87599,
+          0.0
+        ],
+        "scale": [
+          0.6555754,
+          0.6555754,
+          0.6555754
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6650296,
+          0.45329362,
+          0.4335574,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 48,
+      "name": "ground_cover_006",
+      "transform": {
+        "position": [
+          0.82425374,
+          -0.5,
+          -25.498234
+        ],
+        "rotation_degrees": [
+          0.0,
+          109.92787,
+          0.0
+        ],
+        "scale": [
+          0.49494472,
+          0.49494472,
+          0.49494472
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.585525,
+          0.3930827,
+          0.41263852,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 49,
+      "name": "ground_cover_007",
+      "transform": {
+        "position": [
+          1.019299,
+          -0.5,
+          -26.49537
+        ],
+        "rotation_degrees": [
+          0.0,
+          255.00162,
+          0.0
+        ],
+        "scale": [
+          0.5834272,
+          0.5834272,
+          0.5834272
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7461764,
+          0.51410407,
+          0.4569829,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 50,
+      "name": "ground_cover_008",
+      "transform": {
+        "position": [
+          2.3770587,
+          -0.5,
+          -24.869854
+        ],
+        "rotation_degrees": [
+          0.0,
+          67.07655,
+          0.0
+        ],
+        "scale": [
+          0.46405476,
+          0.46405476,
+          0.46405476
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.48223895,
+          0.3133274,
+          0.38888532,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 51,
+      "name": "ground_cover_009",
+      "transform": {
+        "position": [
+          -23.305214,
+          -0.5,
+          4.655389
+        ],
+        "rotation_degrees": [
+          0.0,
+          218.98424,
+          0.0
+        ],
+        "scale": [
+          0.5169829,
+          0.5169829,
+          0.5169829
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7718584,
+          0.53325045,
+          0.46479088,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 52,
+      "name": "ground_cover_010",
+      "transform": {
+        "position": [
+          -25.669653,
+          -0.5,
+          9.342507
+        ],
+        "rotation_degrees": [
+          0.0,
+          284.16092,
+          0.0
+        ],
+        "scale": [
+          0.52822965,
+          0.52822965,
+          0.52822965
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.62182313,
+          0.4206673,
+          0.42192307,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 53,
+      "name": "ground_cover_011",
+      "transform": {
+        "position": [
+          -26.582346,
+          -0.5,
+          5.8447714
+        ],
+        "rotation_degrees": [
+          0.0,
+          185.66603,
+          0.0
+        ],
+        "scale": [
+          0.5859766,
+          0.5859766,
+          0.5859766
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.71825325,
+          0.49323702,
+          0.4487021,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 54,
+      "name": "ground_cover_012",
+      "transform": {
+        "position": [
+          -24.686396,
+          -0.5,
+          6.380252
+        ],
+        "rotation_degrees": [
+          0.0,
+          8.955424,
+          0.0
+        ],
+        "scale": [
+          0.5556263,
+          0.5556263,
+          0.5556263
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7307122,
+          0.5025544,
+          0.4523694,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 55,
+      "name": "ground_cover_013",
+      "transform": {
+        "position": [
+          -25.71019,
+          -0.5,
+          -10.356844
+        ],
+        "rotation_degrees": [
+          0.0,
+          256.4498,
+          0.0
+        ],
+        "scale": [
+          0.24554119,
+          0.24554119,
+          0.24554119
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.80892926,
+          0.56081975,
+          0.47636873,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 56,
+      "name": "ground_cover_014",
+      "transform": {
+        "position": [
+          -26.069899,
+          -0.5,
+          -10.880134
+        ],
+        "rotation_degrees": [
+          0.0,
+          74.49797,
+          0.0
+        ],
+        "scale": [
+          0.49700943,
+          0.49700943,
+          0.49700943
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.5603846,
+          0.37386364,
+          0.4064837,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 57,
+      "name": "ground_cover_015",
+      "transform": {
+        "position": [
+          -24.703146,
+          -0.5,
+          -11.118651
+        ],
+        "rotation_degrees": [
+          0.0,
+          260.04697,
+          0.0
+        ],
+        "scale": [
+          0.35745543,
+          0.35745543,
+          0.35745543
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.81331074,
+          0.5640734,
+          0.47776014,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 58,
+      "name": "ground_cover_016",
+      "transform": {
+        "position": [
+          -28.412003,
+          -0.5,
+          -9.191177
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.917747,
+          0.0
+        ],
+        "scale": [
+          0.33331534,
+          0.33331534,
+          0.33331534
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.67016405,
+          0.4571579,
+          0.43498033,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 59,
+      "name": "ground_cover_017",
+      "transform": {
+        "position": [
+          -14.561005,
+          -0.5,
+          5.2780857
+        ],
+        "rotation_degrees": [
+          0.0,
+          116.59898,
+          0.0
+        ],
+        "scale": [
+          0.6618542,
+          0.6618542,
+          0.6618542
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7394469,
+          0.50907993,
+          0.45496696,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 60,
+      "name": "ground_cover_018",
+      "transform": {
+        "position": [
+          -15.876299,
+          -0.5,
+          4.4312286
+        ],
+        "rotation_degrees": [
+          0.0,
+          48.946583,
+          0.0
+        ],
+        "scale": [
+          0.45100248,
+          0.45100248,
+          0.45100248
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7938043,
+          0.5495804,
+          0.47160226,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 61,
+      "name": "ground_cover_019",
+      "transform": {
+        "position": [
+          -11.927321,
+          -0.5,
+          8.470596
+        ],
+        "rotation_degrees": [
+          0.0,
+          225.97806,
+          0.0
+        ],
+        "scale": [
+          0.29579377,
+          0.29579377,
+          0.29579377
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.65234894,
+          0.4437389,
+          0.43007937,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 62,
+      "name": "ground_cover_020",
+      "transform": {
+        "position": [
+          -11.798773,
+          -0.5,
+          5.1826496
+        ],
+        "rotation_degrees": [
+          0.0,
+          195.56306,
+          0.0
+        ],
+        "scale": [
+          0.48233446,
+          0.48233446,
+          0.48233446
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.5918436,
+          0.39789757,
+          0.41422144,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 63,
+      "name": "ground_cover_021",
+      "transform": {
+        "position": [
+          -23.200956,
+          -0.5,
+          0.25663948
+        ],
+        "rotation_degrees": [
+          0.0,
+          358.1455,
+          0.0
+        ],
+        "scale": [
+          0.6745858,
+          0.6745858,
+          0.6745858
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.5707486,
+          0.38179907,
+          0.408993,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 64,
+      "name": "ground_cover_022",
+      "transform": {
+        "position": [
+          -22.743687,
+          -0.5,
+          -1.7921171
+        ],
+        "rotation_degrees": [
+          0.0,
+          316.8434,
+          0.0
+        ],
+        "scale": [
+          0.5969918,
+          0.5969918,
+          0.5969918
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.52832705,
+          0.349194,
+          0.39897698,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 65,
+      "name": "ground_cover_023",
+      "transform": {
+        "position": [
+          -21.830378,
+          -0.5,
+          -1.0714246
+        ],
+        "rotation_degrees": [
+          0.0,
+          12.111848,
+          0.0
+        ],
+        "scale": [
+          0.3631059,
+          0.3631059,
+          0.3631059
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6645166,
+          0.45290738,
+          0.4334157,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 66,
+      "name": "ground_cover_024",
+      "transform": {
+        "position": [
+          -26.548994,
+          -0.5,
+          -3.8008084
+        ],
+        "rotation_degrees": [
+          0.0,
+          327.0915,
+          0.0
+        ],
+        "scale": [
+          0.4504904,
+          0.4504904,
+          0.4504904
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6677598,
+          0.45534867,
+          0.43431297,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 67,
+      "name": "ground_cover_025",
+      "transform": {
+        "position": [
+          -18.20292,
+          -0.5,
+          -24.13281
+        ],
+        "rotation_degrees": [
+          0.0,
+          22.866734,
+          0.0
+        ],
+        "scale": [
+          0.6727243,
+          0.6727243,
+          0.6727243
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.56113666,
+          0.3744401,
+          0.40666446,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 68,
+      "name": "ground_cover_026",
+      "transform": {
+        "position": [
+          -18.916496,
+          -0.5,
+          -22.486595
+        ],
+        "rotation_degrees": [
+          0.0,
+          154.07956,
+          0.0
+        ],
+        "scale": [
+          0.25624654,
+          0.25624654,
+          0.25624654
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.5772303,
+          0.38675284,
+          0.4105824,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 69,
+      "name": "ground_cover_027",
+      "transform": {
+        "position": [
+          -19.647165,
+          -0.5,
+          -27.392212
+        ],
+        "rotation_degrees": [
+          0.0,
+          293.201,
+          0.0
+        ],
+        "scale": [
+          0.3242961,
+          0.3242961,
+          0.3242961
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7212014,
+          0.49544287,
+          0.44956583,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 70,
+      "name": "ground_cover_028",
+      "transform": {
+        "position": [
+          -22.856014,
+          -0.5,
+          -26.481394
+        ],
+        "rotation_degrees": [
+          0.0,
+          4.115689,
+          0.0
+        ],
+        "scale": [
+          0.42575687,
+          0.42575687,
+          0.42575687
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.81135035,
+          0.5626178,
+          0.47713703,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 71,
+      "name": "ground_cover_029",
+      "transform": {
+        "position": [
+          -1.5942854,
+          -0.5,
+          -17.12146
+        ],
+        "rotation_degrees": [
+          0.0,
+          94.02013,
+          0.0
+        ],
+        "scale": [
+          0.47020227,
+          0.47020227,
+          0.47020227
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.74617434,
+          0.51410246,
+          0.4569823,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 72,
+      "name": "ground_cover_030",
+      "transform": {
+        "position": [
+          3.371208,
+          -0.5,
+          -15.509915
+        ],
+        "rotation_degrees": [
+          0.0,
+          56.139023,
+          0.0
+        ],
+        "scale": [
+          0.30651894,
+          0.30651894,
+          0.30651894
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.5778835,
+          0.3872517,
+          0.4107434,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 73,
+      "name": "ground_cover_031",
+      "transform": {
+        "position": [
+          3.1849847,
+          -0.5,
+          -18.306932
+        ],
+        "rotation_degrees": [
+          0.0,
+          80.386215,
+          0.0
+        ],
+        "scale": [
+          0.5761715,
+          0.5761715,
+          0.5761715
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7179852,
+          0.4930365,
+          0.44862372,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 74,
+      "name": "ground_cover_032",
+      "transform": {
+        "position": [
+          -1.2943009,
+          -0.5,
+          -16.32648
+        ],
+        "rotation_degrees": [
+          0.0,
+          176.31688,
+          0.0
+        ],
+        "scale": [
+          0.24258566,
+          0.24258566,
+          0.24258566
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7516831,
+          0.51821285,
+          0.45864195,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 75,
+      "name": "ground_cover_033",
+      "transform": {
+        "position": [
+          -14.531538,
+          -0.5,
+          -30.406012
+        ],
+        "rotation_degrees": [
+          0.0,
+          84.2946,
+          0.0
+        ],
+        "scale": [
+          0.29794934,
+          0.29794934,
+          0.29794934
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.79895043,
+          0.5534059,
+          0.47321755,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 76,
+      "name": "ground_cover_034",
+      "transform": {
+        "position": [
+          -14.492571,
+          -0.5,
+          -30.420874
+        ],
+        "rotation_degrees": [
+          0.0,
+          302.08563,
+          0.0
+        ],
+        "scale": [
+          0.49633625,
+          0.49633625,
+          0.49633625
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.5772663,
+          0.38678035,
+          0.41059124,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 77,
+      "name": "ground_cover_035",
+      "transform": {
+        "position": [
+          -11.7586565,
+          -0.5,
+          -32.82104
+        ],
+        "rotation_degrees": [
+          0.0,
+          148.9976,
+          0.0
+        ],
+        "scale": [
+          0.34428057,
+          0.34428057,
+          0.34428057
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7573033,
+          0.5224043,
+          0.46034372,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 78,
+      "name": "ground_cover_036",
+      "transform": {
+        "position": [
+          -15.472923,
+          -0.5,
+          -30.717997
+        ],
+        "rotation_degrees": [
+          0.0,
+          258.05676,
+          0.0
+        ],
+        "scale": [
+          0.30902505,
+          0.30902505,
+          0.30902505
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6129338,
+          0.41392812,
+          0.4196069,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 79,
+      "name": "ground_cover_037",
+      "transform": {
+        "position": [
+          17.156038,
+          -0.5,
+          -30.449501
+        ],
+        "rotation_degrees": [
+          0.0,
+          102.7679,
+          0.0
+        ],
+        "scale": [
+          0.5869043,
+          0.5869043,
+          0.5869043
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.60747385,
+          0.40978375,
+          0.41819775,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 80,
+      "name": "ground_cover_038",
+      "transform": {
+        "position": [
+          17.136005,
+          -0.5,
+          -28.506546
+        ],
+        "rotation_degrees": [
+          0.0,
+          135.28864,
+          0.0
+        ],
+        "scale": [
+          0.20131034,
+          0.20131034,
+          0.20131034
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.72212183,
+          0.49613142,
+          0.44983602,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 81,
+      "name": "ground_cover_039",
+      "transform": {
+        "position": [
+          16.905928,
+          -0.5,
+          -26.935709
+        ],
+        "rotation_degrees": [
+          0.0,
+          62.43769,
+          0.0
+        ],
+        "scale": [
+          0.27046296,
+          0.27046296,
+          0.27046296
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.8007691,
+          0.5547574,
+          0.47378993,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 82,
+      "name": "ground_cover_040",
+      "transform": {
+        "position": [
+          17.085587,
+          -0.5,
+          -30.056599
+        ],
+        "rotation_degrees": [
+          0.0,
+          95.59782,
+          0.0
+        ],
+        "scale": [
+          0.28270638,
+          0.28270638,
+          0.28270638
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.52367437,
+          0.34559637,
+          0.39792013,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 83,
+      "name": "ground_cover_041",
+      "transform": {
+        "position": [
+          13.375591,
+          -0.5,
+          5.7597265
+        ],
+        "rotation_degrees": [
+          0.0,
+          227.95905,
+          0.0
+        ],
+        "scale": [
+          0.24133027,
+          0.24133027,
+          0.24133027
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.56549525,
+          0.377779,
+          0.40771616,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 84,
+      "name": "ground_cover_042",
+      "transform": {
+        "position": [
+          10.175051,
+          -0.5,
+          7.9340315
+        ],
+        "rotation_degrees": [
+          0.0,
+          297.74374,
+          0.0
+        ],
+        "scale": [
+          0.22336516,
+          0.22336516,
+          0.22336516
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7255998,
+          0.49873257,
+          0.4508592,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 85,
+      "name": "ground_cover_043",
+      "transform": {
+        "position": [
+          11.523634,
+          -0.5,
+          5.860686
+        ],
+        "rotation_degrees": [
+          0.0,
+          112.880684,
+          0.0
+        ],
+        "scale": [
+          0.62577075,
+          0.62577075,
+          0.62577075
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.73947775,
+          0.50910306,
+          0.45497626,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 86,
+      "name": "ground_cover_044",
+      "transform": {
+        "position": [
+          9.775409,
+          -0.5,
+          3.7490654
+        ],
+        "rotation_degrees": [
+          0.0,
+          102.63038,
+          0.0
+        ],
+        "scale": [
+          0.4051463,
+          0.4051463,
+          0.4051463
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.51436925,
+          0.33838677,
+          0.39583188,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 87,
+      "name": "ground_cover_045",
+      "transform": {
+        "position": [
+          -18.907877,
+          -0.5,
+          -29.906681
+        ],
+        "rotation_degrees": [
+          0.0,
+          237.07909,
+          0.0
+        ],
+        "scale": [
+          0.23845741,
+          0.23845741,
+          0.23845741
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7324639,
+          0.5038635,
+          0.4528886,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 88,
+      "name": "ground_cover_046",
+      "transform": {
+        "position": [
+          -19.506874,
+          -0.5,
+          -30.641794
+        ],
+        "rotation_degrees": [
+          0.0,
+          354.06796,
+          0.0
+        ],
+        "scale": [
+          0.614434,
+          0.614434,
+          0.614434
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.71873695,
+          0.493599,
+          0.44884366,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 89,
+      "name": "ground_cover_047",
+      "transform": {
+        "position": [
+          -17.412636,
+          -0.5,
+          -30.125015
+        ],
+        "rotation_degrees": [
+          0.0,
+          152.1185,
+          0.0
+        ],
+        "scale": [
+          0.2178145,
+          0.2178145,
+          0.2178145
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6193571,
+          0.4187987,
+          0.42127782,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 90,
+      "name": "ground_cover_048",
+      "transform": {
+        "position": [
+          -19.774078,
+          -0.5,
+          -28.132269
+        ],
+        "rotation_degrees": [
+          0.0,
+          299.54108,
+          0.0
+        ],
+        "scale": [
+          0.66068196,
+          0.66068196,
+          0.66068196
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6093961,
+          0.4112433,
+          0.41869268,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 91,
+      "name": "ground_cover_049",
+      "transform": {
+        "position": [
+          -12.77675,
+          -0.5,
+          -0.10923082
+        ],
+        "rotation_degrees": [
+          0.0,
+          261.43314,
+          0.0
+        ],
+        "scale": [
+          0.5204203,
+          0.5204203,
+          0.5204203
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.5142723,
+          0.33831152,
+          0.39581028,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 92,
+      "name": "ground_cover_050",
+      "transform": {
+        "position": [
+          -12.970741,
+          -0.5,
+          2.0988083
+        ],
+        "rotation_degrees": [
+          0.0,
+          112.46788,
+          0.0
+        ],
+        "scale": [
+          0.41512898,
+          0.41512898,
+          0.41512898
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6471115,
+          0.43978772,
+          0.42865804,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 93,
+      "name": "ground_cover_051",
+      "transform": {
+        "position": [
+          -13.165071,
+          -0.5,
+          -0.6707355
+        ],
+        "rotation_degrees": [
+          0.0,
+          84.085556,
+          0.0
+        ],
+        "scale": [
+          0.4523454,
+          0.4523454,
+          0.4523454
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.8000394,
+          0.5542152,
+          0.4735602,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 94,
+      "name": "ground_cover_052",
+      "transform": {
+        "position": [
+          -11.338561,
+          -0.5,
+          1.888523
+        ],
+        "rotation_degrees": [
+          0.0,
+          95.03123,
+          0.0
+        ],
+        "scale": [
+          0.55577993,
+          0.55577993,
+          0.55577993
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.64115804,
+          0.43529284,
+          0.4270533,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 95,
+      "name": "ground_cover_053",
+      "transform": {
+        "position": [
+          -17.954185,
+          -0.5,
+          28.009474
+        ],
+        "rotation_degrees": [
+          0.0,
+          42.32728,
+          0.0
+        ],
+        "scale": [
+          0.6129255,
+          0.6129255,
+          0.6129255
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6034355,
+          0.40671593,
+          0.41716218,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 96,
+      "name": "ground_cover_054",
+      "transform": {
+        "position": [
+          -15.088743,
+          -0.5,
+          29.331242
+        ],
+        "rotation_degrees": [
+          0.0,
+          245.18494,
+          0.0
+        ],
+        "scale": [
+          0.4782073,
+          0.4782073,
+          0.4782073
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.63846666,
+          0.43325955,
+          0.4263317,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 97,
+      "name": "ground_cover_055",
+      "transform": {
+        "position": [
+          -13.984061,
+          -0.5,
+          30.26073
+        ],
+        "rotation_degrees": [
+          0.0,
+          164.0001,
+          0.0
+        ],
+        "scale": [
+          0.6119975,
+          0.6119975,
+          0.6119975
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7932753,
+          0.5491872,
+          0.47143662,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 98,
+      "name": "ground_cover_056",
+      "transform": {
+        "position": [
+          -13.322903,
+          -0.5,
+          28.056204
+        ],
+        "rotation_degrees": [
+          0.0,
+          150.29851,
+          0.0
+        ],
+        "scale": [
+          0.52067405,
+          0.52067405,
+          0.52067405
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.55567926,
+          0.3702548,
+          0.4053576,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 99,
+      "name": "ground_cover_057",
+      "transform": {
+        "position": [
+          -2.625844,
+          -0.5,
+          13.387117
+        ],
+        "rotation_degrees": [
+          0.0,
+          165.78717,
+          0.0
+        ],
+        "scale": [
+          0.4721522,
+          0.4721522,
+          0.4721522
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.56582564,
+          0.37803197,
+          0.40779614,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 100,
+      "name": "ground_cover_058",
+      "transform": {
+        "position": [
+          -4.217267,
+          -0.5,
+          14.959129
+        ],
+        "rotation_degrees": [
+          0.0,
+          295.8045,
+          0.0
+        ],
+        "scale": [
+          0.20153624,
+          0.20153624,
+          0.20153624
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.78653836,
+          0.54417676,
+          0.4693333,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 101,
+      "name": "ground_cover_059",
+      "transform": {
+        "position": [
+          -0.13358545,
+          -0.5,
+          13.432948
+        ],
+        "rotation_degrees": [
+          0.0,
+          247.76721,
+          0.0
+        ],
+        "scale": [
+          0.2484437,
+          0.2484437,
+          0.2484437
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6172574,
+          0.41720715,
+          0.42073005,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 102,
+      "name": "ground_cover_060",
+      "transform": {
+        "position": [
+          -1.246389,
+          -0.5,
+          11.051817
+        ],
+        "rotation_degrees": [
+          0.0,
+          290.96252,
+          0.0
+        ],
+        "scale": [
+          0.5341177,
+          0.5341177,
+          0.5341177
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.77620727,
+          0.5364886,
+          0.4661306,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 103,
+      "name": "ground_cover_061",
+      "transform": {
+        "position": [
+          -18.75958,
+          -0.5,
+          -7.517966
+        ],
+        "rotation_degrees": [
+          0.0,
+          73.49639,
+          0.0
+        ],
+        "scale": [
+          0.4641766,
+          0.4641766,
+          0.4641766
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.66909504,
+          0.45635355,
+          0.43468338,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 104,
+      "name": "ground_cover_062",
+      "transform": {
+        "position": [
+          -18.133213,
+          -0.5,
+          -12.636878
+        ],
+        "rotation_degrees": [
+          0.0,
+          111.07704,
+          0.0
+        ],
+        "scale": [
+          0.27774525,
+          0.27774525,
+          0.27774525
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7579481,
+          0.52288514,
+          0.46053952,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 105,
+      "name": "ground_cover_063",
+      "transform": {
+        "position": [
+          -17.021393,
+          -0.5,
+          -8.202578
+        ],
+        "rotation_degrees": [
+          0.0,
+          337.076,
+          0.0
+        ],
+        "scale": [
+          0.35163713,
+          0.35163713,
+          0.35163713
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.54574394,
+          0.36262158,
+          0.40300703,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 106,
+      "name": "ground_cover_064",
+      "transform": {
+        "position": [
+          -16.63367,
+          -0.5,
+          -8.47984
+        ],
+        "rotation_degrees": [
+          0.0,
+          304.1164,
+          0.0
+        ],
+        "scale": [
+          0.39611065,
+          0.39611065,
+          0.39611065
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6825932,
+          0.46650195,
+          0.4384591,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 107,
+      "name": "ground_cover_065",
+      "transform": {
+        "position": [
+          -29.31821,
+          -0.5,
+          -3.688849
+        ],
+        "rotation_degrees": [
+          0.0,
+          276.46307,
+          0.0
+        ],
+        "scale": [
+          0.48456517,
+          0.48456517,
+          0.48456517
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6449224,
+          0.43813536,
+          0.4280666,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 108,
+      "name": "ground_cover_066",
+      "transform": {
+        "position": [
+          -27.013344,
+          -0.5,
+          -4.5360785
+        ],
+        "rotation_degrees": [
+          0.0,
+          100.95249,
+          0.0
+        ],
+        "scale": [
+          0.44762424,
+          0.44762424,
+          0.44762424
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.79864496,
+          0.55317885,
+          0.47312146,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 109,
+      "name": "ground_cover_067",
+      "transform": {
+        "position": [
+          -31.46581,
+          -0.5,
+          -1.9892303
+        ],
+        "rotation_degrees": [
+          0.0,
+          198.87027,
+          0.0
+        ],
+        "scale": [
+          0.19376487,
+          0.19376487,
+          0.19376487
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.68423223,
+          0.46773314,
+          0.43892145,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 110,
+      "name": "ground_cover_068",
+      "transform": {
+        "position": [
+          -27.88022,
+          -0.5,
+          -3.358429
+        ],
+        "rotation_degrees": [
+          0.0,
+          143.92697,
+          0.0
+        ],
+        "scale": [
+          0.5324273,
+          0.5324273,
+          0.5324273
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.48023528,
+          0.31175524,
+          0.38846594,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 111,
+      "name": "ground_cover_069",
+      "transform": {
+        "position": [
+          -1.5834234,
+          -0.5,
+          27.917767
+        ],
+        "rotation_degrees": [
+          0.0,
+          110.59111,
+          0.0
+        ],
+        "scale": [
+          0.4660017,
+          0.4660017,
+          0.4660017
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7642942,
+          0.52761537,
+          0.46247262,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 112,
+      "name": "ground_cover_070",
+      "transform": {
+        "position": [
+          -2.6319075,
+          -0.5,
+          29.496477
+        ],
+        "rotation_degrees": [
+          0.0,
+          73.64525,
+          0.0
+        ],
+        "scale": [
+          0.36863497,
+          0.36863497,
+          0.36863497
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7855396,
+          0.54343385,
+          0.46902245,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 113,
+      "name": "ground_cover_071",
+      "transform": {
+        "position": [
+          -0.34794268,
+          -0.5,
+          28.683355
+        ],
+        "rotation_degrees": [
+          0.0,
+          220.09491,
+          0.0
+        ],
+        "scale": [
+          0.40383697,
+          0.40383697,
+          0.40383697
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.5587882,
+          0.37263966,
+          0.40610072,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 114,
+      "name": "ground_cover_072",
+      "transform": {
+        "position": [
+          0.7820023,
+          -0.5,
+          26.601868
+        ],
+        "rotation_degrees": [
+          0.0,
+          177.70924,
+          0.0
+        ],
+        "scale": [
+          0.39137217,
+          0.39137217,
+          0.39137217
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.68621755,
+          0.46922404,
+          0.43948254,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 115,
+      "name": "ground_cover_073",
+      "transform": {
+        "position": [
+          37.954662,
+          -0.5,
+          7.651758
+        ],
+        "rotation_degrees": [
+          0.0,
+          244.39793,
+          0.0
+        ],
+        "scale": [
+          0.6221576,
+          0.6221576,
+          0.6221576
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7395406,
+          0.50914997,
+          0.45499498,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 116,
+      "name": "ground_cover_074",
+      "transform": {
+        "position": [
+          33.65071,
+          -0.5,
+          10.25052
+        ],
+        "rotation_degrees": [
+          0.0,
+          134.04721,
+          0.0
+        ],
+        "scale": [
+          0.33289045,
+          0.33289045,
+          0.33289045
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7556819,
+          0.52119535,
+          0.45985186,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 117,
+      "name": "ground_cover_075",
+      "transform": {
+        "position": [
+          34.46765,
+          -0.5,
+          11.987595
+        ],
+        "rotation_degrees": [
+          0.0,
+          246.53877,
+          0.0
+        ],
+        "scale": [
+          0.44475546,
+          0.44475546,
+          0.44475546
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.5626251,
+          0.37558073,
+          0.4070228,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 118,
+      "name": "ground_cover_076",
+      "transform": {
+        "position": [
+          35.65931,
+          -0.5,
+          10.982805
+        ],
+        "rotation_degrees": [
+          0.0,
+          186.77734,
+          0.0
+        ],
+        "scale": [
+          0.19408181,
+          0.19408181,
+          0.19408181
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6106825,
+          0.41221976,
+          0.41902462,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 119,
+      "name": "ground_cover_077",
+      "transform": {
+        "position": [
+          33.177094,
+          -0.5,
+          -17.637423
+        ],
+        "rotation_degrees": [
+          0.0,
+          354.9403,
+          0.0
+        ],
+        "scale": [
+          0.44618362,
+          0.44618362,
+          0.44618362
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6445692,
+          0.4378687,
+          0.42797136,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 120,
+      "name": "ground_cover_078",
+      "transform": {
+        "position": [
+          32.832764,
+          -0.5,
+          -15.2411375
+        ],
+        "rotation_degrees": [
+          0.0,
+          36.672966,
+          0.0
+        ],
+        "scale": [
+          0.20236233,
+          0.20236233,
+          0.20236233
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.8158147,
+          0.56593245,
+          0.47855747,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 121,
+      "name": "ground_cover_079",
+      "transform": {
+        "position": [
+          29.561306,
+          -0.5,
+          -15.412541
+        ],
+        "rotation_degrees": [
+          0.0,
+          161.33687,
+          0.0
+        ],
+        "scale": [
+          0.2685469,
+          0.2685469,
+          0.2685469
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.8145554,
+          0.5649975,
+          0.47815627,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 122,
+      "name": "ground_cover_080",
+      "transform": {
+        "position": [
+          35.202164,
+          -0.5,
+          -14.569353
+        ],
+        "rotation_degrees": [
+          0.0,
+          359.93747,
+          0.0
+        ],
+        "scale": [
+          0.31052166,
+          0.31052166,
+          0.31052166
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6456922,
+          0.43871653,
+          0.42827442,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 123,
+      "name": "ground_cover_081",
+      "transform": {
+        "position": [
+          -19.523516,
+          -0.5,
+          -17.717752
+        ],
+        "rotation_degrees": [
+          0.0,
+          266.26633,
+          0.0
+        ],
+        "scale": [
+          0.33289203,
+          0.33289203,
+          0.33289203
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.53212637,
+          0.3521284,
+          0.39984617,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 124,
+      "name": "ground_cover_082",
+      "transform": {
+        "position": [
+          -23.594185,
+          -0.5,
+          -16.351645
+        ],
+        "rotation_degrees": [
+          0.0,
+          251.36403,
+          0.0
+        ],
+        "scale": [
+          0.6794931,
+          0.6794931,
+          0.6794931
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.6423766,
+          0.4362132,
+          0.42738083,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 125,
+      "name": "ground_cover_083",
+      "transform": {
+        "position": [
+          -21.986813,
+          -0.5,
+          -15.3129
+        ],
+        "rotation_degrees": [
+          0.0,
+          86.50195,
+          0.0
+        ],
+        "scale": [
+          0.28345928,
+          0.28345928,
+          0.28345928
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.75651294,
+          0.52181506,
+          0.46010387,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 126,
+      "name": "ground_cover_084",
+      "transform": {
+        "position": [
+          -23.019283,
+          -0.5,
+          -14.079256
+        ],
+        "rotation_degrees": [
+          0.0,
+          295.44174,
+          0.0
+        ],
+        "scale": [
+          0.45802036,
+          0.45802036,
+          0.45802036
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.66262954,
+          0.45148647,
+          0.43289518,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 127,
+      "name": "ground_cover_085",
+      "transform": {
+        "position": [
+          3.4701204,
+          -0.5,
+          13.347168
+        ],
+        "rotation_degrees": [
+          0.0,
+          327.17877,
+          0.0
+        ],
+        "scale": [
+          0.1865075,
+          0.1865075,
+          0.1865075
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7643983,
+          0.527693,
+          0.4625044,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 128,
+      "name": "ground_cover_086",
+      "transform": {
+        "position": [
+          1.0525134,
+          -0.5,
+          10.980465
+        ],
+        "rotation_degrees": [
+          0.0,
+          176.17064,
+          0.0
+        ],
+        "scale": [
+          0.38901043,
+          0.38901043,
+          0.38901043
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7477332,
+          0.5152658,
+          0.4574511,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 129,
+      "name": "ground_cover_087",
+      "transform": {
+        "position": [
+          4.6670923,
+          -0.5,
+          9.841276
+        ],
+        "rotation_degrees": [
+          0.0,
+          31.946161,
+          0.0
+        ],
+        "scale": [
+          0.44201598,
+          0.44201598,
+          0.44201598
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.55502987,
+          0.3697565,
+          0.40520284,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 130,
+      "name": "ground_cover_088",
+      "transform": {
+        "position": [
+          4.301342,
+          -0.5,
+          12.704405
+        ],
+        "rotation_degrees": [
+          0.0,
+          339.71463,
+          0.0
+        ],
+        "scale": [
+          0.22469512,
+          0.22469512,
+          0.22469512
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.742173,
+          0.5111156,
+          0.45578212,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 131,
+      "name": "ground_cover_089",
+      "transform": {
+        "position": [
+          -19.42224,
+          -0.5,
+          13.812367
+        ],
+        "rotation_degrees": [
+          0.0,
+          47.14047,
+          0.0
+        ],
+        "scale": [
+          0.5558634,
+          0.5558634,
+          0.5558634
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.5129727,
+          0.337303,
+          0.39552137,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 132,
+      "name": "ground_cover_090",
+      "transform": {
+        "position": [
+          -15.124491,
+          -0.5,
+          14.224412
+        ],
+        "rotation_degrees": [
+          0.0,
+          227.78732,
+          0.0
+        ],
+        "scale": [
+          0.5203295,
+          0.5203295,
+          0.5203295
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7664945,
+          0.52925485,
+          0.46314538,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 133,
+      "name": "ground_cover_091",
+      "transform": {
+        "position": [
+          -19.690533,
+          -0.5,
+          12.206769
+        ],
+        "rotation_degrees": [
+          0.0,
+          267.42255,
+          0.0
+        ],
+        "scale": [
+          0.51003027,
+          0.51003027,
+          0.51003027
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.58310807,
+          0.39123937,
+          0.41203687,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 134,
+      "name": "ground_cover_092",
+      "transform": {
+        "position": [
+          -19.187195,
+          -0.5,
+          13.754141
+        ],
+        "rotation_degrees": [
+          0.0,
+          221.7327,
+          0.0
+        ],
+        "scale": [
+          0.55280066,
+          0.55280066,
+          0.55280066
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7528265,
+          0.5190658,
+          0.45898747,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 135,
+      "name": "ground_cover_093",
+      "transform": {
+        "position": [
+          29.443575,
+          -0.5,
+          4.6393695
+        ],
+        "rotation_degrees": [
+          0.0,
+          38.992306,
+          0.0
+        ],
+        "scale": [
+          0.4576359,
+          0.4576359,
+          0.4576359
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.58478,
+          0.3925146,
+          0.41245288,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 136,
+      "name": "ground_cover_094",
+      "transform": {
+        "position": [
+          30.833881,
+          -0.5,
+          7.00784
+        ],
+        "rotation_degrees": [
+          0.0,
+          84.56316,
+          0.0
+        ],
+        "scale": [
+          0.465955,
+          0.465955,
+          0.465955
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7908203,
+          0.5473616,
+          0.4706688,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 137,
+      "name": "ground_cover_095",
+      "transform": {
+        "position": [
+          28.870268,
+          -0.5,
+          3.7181473
+        ],
+        "rotation_degrees": [
+          0.0,
+          342.45325,
+          0.0
+        ],
+        "scale": [
+          0.2399053,
+          0.2399053,
+          0.2399053
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.73104936,
+          0.50280637,
+          0.4524693,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 138,
+      "name": "ground_cover_096",
+      "transform": {
+        "position": [
+          35.117756,
+          -0.5,
+          4.0178785
+        ],
+        "rotation_degrees": [
+          0.0,
+          174.51515,
+          0.0
+        ],
+        "scale": [
+          0.22199264,
+          0.22199264,
+          0.22199264
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7511966,
+          0.51785,
+          0.45849502,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 139,
+      "name": "ground_cover_097",
+      "transform": {
+        "position": [
+          -0.66500795,
+          -0.5,
+          28.07871
+        ],
+        "rotation_degrees": [
+          0.0,
+          41.78133,
+          0.0
+        ],
+        "scale": [
+          0.5059298,
+          0.5059298,
+          0.5059298
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.5226595,
+          0.344811,
+          0.39769074,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 140,
+      "name": "ground_cover_098",
+      "transform": {
+        "position": [
+          0.2866975,
+          -0.5,
+          23.51838
+        ],
+        "rotation_degrees": [
+          0.0,
+          23.700815,
+          0.0
+        ],
+        "scale": [
+          0.2286193,
+          0.2286193,
+          0.2286193
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7516618,
+          0.51819706,
+          0.4586355,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 141,
+      "name": "ground_cover_099",
+      "transform": {
+        "position": [
+          -1.9639693,
+          -0.5,
+          25.64501
+        ],
+        "rotation_degrees": [
+          0.0,
+          29.655964,
+          0.0
+        ],
+        "scale": [
+          0.46720883,
+          0.46720883,
+          0.46720883
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.61042535,
+          0.41202453,
+          0.41895822,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 142,
+      "name": "ground_cover_100",
+      "transform": {
+        "position": [
+          2.2031078,
+          -0.5,
+          22.779915
+        ],
+        "rotation_degrees": [
+          0.0,
+          240.13486,
+          0.0
+        ],
+        "scale": [
+          0.584131,
+          0.584131,
+          0.584131
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7642337,
+          0.52757037,
+          0.46245408,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 143,
+      "name": "ground_cover_101",
+      "transform": {
+        "position": [
+          -15.812401,
+          -0.5,
+          10.039244
+        ],
+        "rotation_degrees": [
+          0.0,
+          234.68773,
+          0.0
+        ],
+        "scale": [
+          0.34521303,
+          0.34521303,
+          0.34521303
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.49629426,
+          0.32432306,
+          0.39187312,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 144,
+      "name": "ground_cover_102",
+      "transform": {
+        "position": [
+          -14.077714,
+          -0.5,
+          9.49129
+        ],
+        "rotation_degrees": [
+          0.0,
+          146.67043,
+          0.0
+        ],
+        "scale": [
+          0.4363592,
+          0.4363592,
+          0.4363592
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.78172636,
+          0.54059654,
+          0.4678381,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 145,
+      "name": "ground_cover_103",
+      "transform": {
+        "position": [
+          -12.115584,
+          -0.5,
+          9.749053
+        ],
+        "rotation_degrees": [
+          0.0,
+          6.611345,
+          0.0
+        ],
+        "scale": [
+          0.32222667,
+          0.32222667,
+          0.32222667
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.67195207,
+          0.45850295,
+          0.43547776,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 146,
+      "name": "ground_cover_104",
+      "transform": {
+        "position": [
+          -17.27485,
+          -0.5,
+          10.823098
+        ],
+        "rotation_degrees": [
+          0.0,
+          240.27095,
+          0.0
+        ],
+        "scale": [
+          0.36303267,
+          0.36303267,
+          0.36303267
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.5116729,
+          0.33629394,
+          0.39523312,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 147,
+      "name": "ground_cover_105",
+      "transform": {
+        "position": [
+          -27.94447,
+          -0.5,
+          -6.8639483
+        ],
+        "rotation_degrees": [
+          0.0,
+          328.62906,
+          0.0
+        ],
+        "scale": [
+          0.65699995,
+          0.65699995,
+          0.65699995
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.7480517,
+          0.5155035,
+          0.457547,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 148,
+      "name": "ground_cover_106",
+      "transform": {
+        "position": [
+          -30.271603,
+          -0.5,
+          -5.1883554
+        ],
+        "rotation_degrees": [
+          0.0,
+          105.51287,
+          0.0
+        ],
+        "scale": [
+          0.4578922,
+          0.4578922,
+          0.4578922
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.56954294,
+          0.38087678,
+          0.40869904,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 149,
+      "name": "ground_cover_107",
+      "transform": {
+        "position": [
+          -30.038408,
+          -0.5,
+          -5.456231
+        ],
+        "rotation_degrees": [
+          0.0,
+          311.67316,
+          0.0
+        ],
+        "scale": [
+          0.4524712,
+          0.4524712,
+          0.4524712
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.68201095,
+          0.4660645,
+          0.43829504,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 150,
+      "name": "ground_cover_108",
+      "transform": {
+        "position": [
+          -28.20291,
+          -0.5,
+          -8.132379
+        ],
+        "rotation_degrees": [
+          0.0,
+          41.103527,
+          0.0
+        ],
+        "scale": [
+          0.43953526,
+          0.43953526,
+          0.43953526
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Icosahedron": {
+          "radius": 1.0
+        }
+      },
+      "material": {
+        "color": [
+          0.63166666,
+          0.42811868,
+          0.42451924,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 151,
+      "name": "skyline_01",
+      "transform": {
+        "position": [
+          46.0,
+          -0.5,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          90.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 8.760587,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 152,
+      "name": "skyline_02",
+      "transform": {
+        "position": [
+          44.760063,
+          -0.5,
+          10.60833
+        ],
+        "rotation_degrees": [
+          0.0,
+          76.66667,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 10.997902,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 153,
+      "name": "skyline_03",
+      "transform": {
+        "position": [
+          41.1071,
+          -0.5,
+          20.644762
+        ],
+        "rotation_degrees": [
+          0.0,
+          63.33334,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 10.8219,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 154,
+      "name": "skyline_04",
+      "transform": {
+        "position": [
+          35.238045,
+          -0.5,
+          29.568232
+        ],
+        "rotation_degrees": [
+          0.0,
+          50.000008,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 8.784084,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 155,
+      "name": "skyline_05",
+      "transform": {
+        "position": [
+          27.469296,
+          -0.5,
+          36.897667
+        ],
+        "rotation_degrees": [
+          0.0,
+          36.666668,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 11.190457,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 156,
+      "name": "skyline_06",
+      "transform": {
+        "position": [
+          18.219667,
+          -0.5,
+          42.23794
+        ],
+        "rotation_degrees": [
+          0.0,
+          23.333336,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 10.97281,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 157,
+      "name": "skyline_07",
+      "transform": {
+        "position": [
+          7.987813,
+          -0.5,
+          45.30116
+        ],
+        "rotation_degrees": [
+          0.0,
+          9.999994,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 9.114305,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 158,
+      "name": "skyline_08",
+      "transform": {
+        "position": [
+          -2.6746619,
+          -0.5,
+          45.922176
+        ],
+        "rotation_degrees": [
+          0.0,
+          -3.3333337,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 11.294926,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 159,
+      "name": "skyline_09",
+      "transform": {
+        "position": [
+          -13.192949,
+          -0.5,
+          44.067516
+        ],
+        "rotation_degrees": [
+          0.0,
+          -16.666666,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 10.992954,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 160,
+      "name": "skyline_10",
+      "transform": {
+        "position": [
+          -23.000002,
+          -0.5,
+          39.83717
+        ],
+        "rotation_degrees": [
+          0.0,
+          -30.000002,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 11.097245,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 161,
+      "name": "skyline_11",
+      "transform": {
+        "position": [
+          -31.567118,
+          -0.5,
+          33.459187
+        ],
+        "rotation_degrees": [
+          0.0,
+          -43.333336,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 8.014038,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 162,
+      "name": "skyline_12",
+      "transform": {
+        "position": [
+          -38.43244,
+          -0.5,
+          25.277409
+        ],
+        "rotation_degrees": [
+          0.0,
+          -56.666683,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 11.5,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 163,
+      "name": "skyline_13",
+      "transform": {
+        "position": [
+          -43.225864,
+          -0.5,
+          15.732921
+        ],
+        "rotation_degrees": [
+          0.0,
+          -70.000015,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 11.39653,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 164,
+      "name": "skyline_14",
+      "transform": {
+        "position": [
+          -45.688965,
+          -0.5,
+          5.3402653
+        ],
+        "rotation_degrees": [
+          0.0,
+          -83.33334,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 7.434986,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 165,
+      "name": "skyline_15",
+      "transform": {
+        "position": [
+          -45.688965,
+          -0.5,
+          -5.3402734
+        ],
+        "rotation_degrees": [
+          0.0,
+          -96.66667,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 11.04409,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 166,
+      "name": "skyline_16",
+      "transform": {
+        "position": [
+          -43.225857,
+          -0.5,
+          -15.732938
+        ],
+        "rotation_degrees": [
+          0.0,
+          -110.00003,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 10.9697275,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 167,
+      "name": "skyline_17",
+      "transform": {
+        "position": [
+          -38.432438,
+          -0.5,
+          -25.277416
+        ],
+        "rotation_degrees": [
+          0.0,
+          -123.33334,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 9.750921,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 168,
+      "name": "skyline_18",
+      "transform": {
+        "position": [
+          -31.567112,
+          -0.5,
+          -33.45919
+        ],
+        "rotation_degrees": [
+          0.0,
+          -136.66666,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 11.085262,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 169,
+      "name": "skyline_19",
+      "transform": {
+        "position": [
+          -22.999996,
+          -0.5,
+          -39.83717
+        ],
+        "rotation_degrees": [
+          0.0,
+          -150.00002,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 11.2217245,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 170,
+      "name": "skyline_20",
+      "transform": {
+        "position": [
+          -13.192952,
+          -0.5,
+          -44.067516
+        ],
+        "rotation_degrees": [
+          0.0,
+          -163.33333,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 10.020413,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 171,
+      "name": "skyline_21",
+      "transform": {
+        "position": [
+          -2.6746538,
+          -0.5,
+          -45.922176
+        ],
+        "rotation_degrees": [
+          0.0,
+          -176.66669,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 10.775636,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 172,
+      "name": "skyline_22",
+      "transform": {
+        "position": [
+          7.987837,
+          -0.5,
+          -45.30115
+        ],
+        "rotation_degrees": [
+          0.0,
+          169.99997,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 11.231797,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 173,
+      "name": "skyline_23",
+      "transform": {
+        "position": [
+          18.219679,
+          -0.5,
+          -42.237934
+        ],
+        "rotation_degrees": [
+          0.0,
+          156.66666,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 11.116899,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 174,
+      "name": "skyline_24",
+      "transform": {
+        "position": [
+          27.469315,
+          -0.5,
+          -36.89765
+        ],
+        "rotation_degrees": [
+          0.0,
+          143.3333,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 7.057754,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 175,
+      "name": "skyline_25",
+      "transform": {
+        "position": [
+          35.238052,
+          -0.5,
+          -29.56822
+        ],
+        "rotation_degrees": [
+          0.0,
+          129.99998,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 11.368649,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 176,
+      "name": "skyline_26",
+      "transform": {
+        "position": [
+          41.107105,
+          -0.5,
+          -20.644758
+        ],
+        "rotation_degrees": [
+          0.0,
+          116.666664,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 11.5,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 177,
+      "name": "skyline_27",
+      "transform": {
+        "position": [
+          44.760067,
+          -0.5,
+          -10.608313
+        ],
+        "rotation_degrees": [
+          0.0,
+          103.33331,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 4.7300806,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    },
+    {
+      "id": 178,
+      "name": "skyline_28",
+      "transform": {
+        "position": [
+          46.0,
+          -0.5,
+          0.000008042895
+        ],
+        "rotation_degrees": [
+          0.0,
+          89.99999,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.8,
+          "y": 1.5004148,
+          "z": 1.4
+        }
+      },
+      "material": {
+        "color": [
+          0.478,
+          0.31,
+          0.388,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "emissive": [
+          0.22,
+          0.09918523,
+          0.05587375,
+          1.0
+        ],
+        "unlit": true
+      }
+    }
+  ],
+  "next_entity_id": 179
+}

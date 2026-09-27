@@ -1,0 +1,2851 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "Markdown, as a place",
+    "description": "A talk you can walk through — LocalGPT MD in six slides.",
+    "tags": [
+      "localgpt-md",
+      "deck"
+    ],
+    "source": "localgpt-md draft + llm recipe",
+    "bevy_version": "0.19"
+  },
+  "environment": {
+    "background_color": [
+      0.46,
+      0.56,
+      0.72,
+      1.0
+    ],
+    "ambient_intensity": 350.0,
+    "ambient_color": [
+      0.85,
+      0.88,
+      1.0,
+      1.0
+    ],
+    "fog_density": 0.012,
+    "fog_color": [
+      0.46,
+      0.56,
+      0.72,
+      1.0
+    ]
+  },
+  "camera": {
+    "position": [
+      0.0,
+      4.0,
+      14.0
+    ],
+    "look_at": [
+      0.0,
+      2.0,
+      -0.0
+    ],
+    "fov_degrees": 50.0
+  },
+  "tours": [
+    {
+      "name": "sections",
+      "description": "One stop per section, in document order",
+      "waypoints": [
+        {
+          "position": [
+            0.0,
+            4.0,
+            14.0
+          ],
+          "look_at": [
+            0.0,
+            2.0,
+            -0.0
+          ],
+          "description": "Markdown, as a place",
+          "pause_duration": 0.0
+        },
+        {
+          "position": [
+            0.0,
+            4.0,
+            -2.0
+          ],
+          "look_at": [
+            0.0,
+            2.0,
+            -16.0
+          ],
+          "description": "One file, one world",
+          "pause_duration": 0.0
+        },
+        {
+          "position": [
+            0.0,
+            4.0,
+            -18.0
+          ],
+          "look_at": [
+            0.0,
+            2.0,
+            -32.0
+          ],
+          "description": "The draft renders instantly",
+          "pause_duration": 0.0
+        },
+        {
+          "position": [
+            0.0,
+            4.0,
+            -34.0
+          ],
+          "look_at": [
+            0.0,
+            2.0,
+            -48.0
+          ],
+          "description": "Then a local model reads your slides",
+          "pause_duration": 0.0
+        },
+        {
+          "position": [
+            0.0,
+            4.0,
+            -50.0
+          ],
+          "look_at": [
+            0.0,
+            2.0,
+            -64.0
+          ],
+          "description": "Nothing is generated twice",
+          "pause_duration": 0.0
+        },
+        {
+          "position": [
+            0.0,
+            4.0,
+            -66.0
+          ],
+          "look_at": [
+            0.0,
+            2.0,
+            -80.0
+          ],
+          "description": "Thank you",
+          "pause_duration": 0.0
+        }
+      ],
+      "speed": 6.0,
+      "mode": "fly",
+      "autostart": false,
+      "loop_tour": false
+    }
+  ],
+  "entities": [
+    {
+      "id": 1,
+      "name": "ground-lead-in",
+      "transform": {
+        "position": [
+          0.0,
+          0.0,
+          22.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Plane": {
+          "x": 300.0,
+          "z": 22.0
+        }
+      },
+      "material": {
+        "color": [
+          0.26,
+          0.31,
+          0.29,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "name": "sun",
+      "transform": {
+        "position": [
+          0.0,
+          30.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "light": {
+        "light_type": "directional",
+        "color": [
+          1.0,
+          0.94,
+          0.86,
+          1.0
+        ],
+        "intensity": 9000.0,
+        "direction": [
+          -0.4,
+          -1.0,
+          -0.35
+        ],
+        "shadows": true
+      }
+    },
+    {
+      "id": 1001,
+      "name": "s01-ground",
+      "transform": {
+        "position": [
+          0.0,
+          0.0,
+          -0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Plane": {
+          "x": 300.0,
+          "z": 22.0
+        }
+      },
+      "material": {
+        "color": [
+          0.4,
+          0.3,
+          0.2,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 1002,
+      "name": "s01-platform",
+      "transform": {
+        "position": [
+          0.0,
+          0.25,
+          -0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cylinder": {
+          "radius": 6.0,
+          "height": 0.5
+        }
+      },
+      "material": {
+        "color": [
+          0.75360006,
+          0.7043201,
+          0.68640006,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.9,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 1003,
+      "name": "s01-landmark",
+      "transform": {
+        "position": [
+          0.0,
+          2.8249998,
+          -0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          45.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 1.8,
+          "y": 4.6499996,
+          "z": 1.8
+        }
+      },
+      "material": {
+        "color": [
+          0.3,
+          0.2,
+          0.5,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.35,
+        "emissive": [
+          0.030000001,
+          0.020000001,
+          0.05,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": 1004,
+      "name": "s01-prop-01",
+      "transform": {
+        "position": [
+          -1.514183,
+          0.885,
+          4.660177
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.77,
+          "y": 0.77,
+          "z": 0.77
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.74899995,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 1005,
+      "name": "s01-prop-02",
+      "transform": {
+        "position": [
+          -4.7929235,
+          1.0074999,
+          1.0187669
+        ],
+        "rotation_degrees": [
+          0.0,
+          37.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 1.015,
+          "y": 1.015,
+          "z": 1.015
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.74899995,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 1006,
+      "name": "s01-prop-03",
+      "transform": {
+        "position": [
+          -3.2787404,
+          0.85,
+          -3.6414094
+        ],
+        "rotation_degrees": [
+          0.0,
+          74.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.7,
+          "y": 0.7,
+          "z": 0.7
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.74899995,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 1007,
+      "name": "s01-prop-04",
+      "transform": {
+        "position": [
+          1.5141839,
+          0.9375,
+          -4.6601768
+        ],
+        "rotation_degrees": [
+          0.0,
+          21.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.875,
+          "y": 0.875,
+          "z": 0.875
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.74899995,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 1008,
+      "name": "s01-prop-05",
+      "transform": {
+        "position": [
+          4.792923,
+          0.85,
+          -1.0187676
+        ],
+        "rotation_degrees": [
+          0.0,
+          58.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.7,
+          "y": 0.7,
+          "z": 0.7
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.74899995,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 1009,
+      "name": "s01-prop-06",
+      "transform": {
+        "position": [
+          3.278741,
+          1.0074999,
+          3.6414087
+        ],
+        "rotation_degrees": [
+          0.0,
+          5.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 1.015,
+          "y": 1.015,
+          "z": 1.015
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.74899995,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 1010,
+      "name": "s01-lamp",
+      "transform": {
+        "position": [
+          0.0,
+          7.1499996,
+          2.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "light": {
+        "light_type": "point",
+        "color": [
+          0.3,
+          0.2,
+          0.5,
+          1.0
+        ],
+        "intensity": 250000.0,
+        "shadows": false,
+        "range": 20.0
+      }
+    },
+    {
+      "id": 2001,
+      "name": "s02-ground",
+      "transform": {
+        "position": [
+          0.0,
+          0.0,
+          -16.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Plane": {
+          "x": 300.0,
+          "z": 22.0
+        }
+      },
+      "material": {
+        "color": [
+          0.4,
+          0.6,
+          0.8,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 2002,
+      "name": "s02-platform",
+      "transform": {
+        "position": [
+          0.0,
+          0.25,
+          -16.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cylinder": {
+          "radius": 6.0,
+          "height": 0.5
+        }
+      },
+      "material": {
+        "color": [
+          0.75360006,
+          0.72112006,
+          0.68640006,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.9,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 2003,
+      "name": "s02-landmark",
+      "transform": {
+        "position": [
+          0.0,
+          3.4625,
+          -16.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          45.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 1.8,
+          "y": 5.925,
+          "z": 1.8
+        }
+      },
+      "material": {
+        "color": [
+          0.3,
+          0.5,
+          0.7,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.35,
+        "emissive": [
+          0.060000002,
+          0.1,
+          0.14,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": 2004,
+      "name": "s02-prop-01",
+      "transform": {
+        "position": [
+          4.0138445,
+          0.86749995,
+          -18.810526
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.73499995,
+          "y": 0.73499995,
+          "z": 0.73499995
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.69649994,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 2005,
+      "name": "s02-prop-02",
+      "transform": {
+        "position": [
+          4.440908,
+          0.745,
+          -13.929171
+        ],
+        "rotation_degrees": [
+          0.0,
+          37.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.48999998,
+          "y": 0.48999998,
+          "z": 0.48999998
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.69649994,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 2006,
+      "name": "s02-prop-03",
+      "transform": {
+        "position": [
+          0.42706373,
+          0.9025,
+          -11.118647
+        ],
+        "rotation_degrees": [
+          0.0,
+          74.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.80499995,
+          "y": 0.80499995,
+          "z": 0.80499995
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.69649994,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 2007,
+      "name": "s02-prop-04",
+      "transform": {
+        "position": [
+          -4.0138445,
+          0.85,
+          -13.189474
+        ],
+        "rotation_degrees": [
+          0.0,
+          21.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.7,
+          "y": 0.7,
+          "z": 0.7
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.69649994,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 2008,
+      "name": "s02-prop-05",
+      "transform": {
+        "position": [
+          -4.4409094,
+          0.86749995,
+          -18.070827
+        ],
+        "rotation_degrees": [
+          0.0,
+          58.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.73499995,
+          "y": 0.73499995,
+          "z": 0.73499995
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.69649994,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 2009,
+      "name": "s02-prop-06",
+      "transform": {
+        "position": [
+          -0.42706212,
+          0.7625,
+          -20.881355
+        ],
+        "rotation_degrees": [
+          0.0,
+          5.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.525,
+          "y": 0.525,
+          "z": 0.525
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.69649994,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 2010,
+      "name": "s02-lamp",
+      "transform": {
+        "position": [
+          0.0,
+          8.425,
+          -14.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "light": {
+        "light_type": "point",
+        "color": [
+          0.3,
+          0.5,
+          0.7,
+          1.0
+        ],
+        "intensity": 250000.0,
+        "shadows": false,
+        "range": 20.0
+      }
+    },
+    {
+      "id": 3001,
+      "name": "s03-ground",
+      "transform": {
+        "position": [
+          0.0,
+          0.0,
+          -32.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Plane": {
+          "x": 300.0,
+          "z": 22.0
+        }
+      },
+      "material": {
+        "color": [
+          0.4,
+          0.3,
+          0.6,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 3002,
+      "name": "s03-platform",
+      "transform": {
+        "position": [
+          0.0,
+          0.25,
+          -32.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cylinder": {
+          "radius": 6.0,
+          "height": 0.5
+        }
+      },
+      "material": {
+        "color": [
+          0.75360006,
+          0.68640006,
+          0.74352,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.9,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 3003,
+      "name": "s03-landmark",
+      "transform": {
+        "position": [
+          0.0,
+          3.3125,
+          -32.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          45.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 1.8,
+          "y": 5.625,
+          "z": 1.8
+        }
+      },
+      "material": {
+        "color": [
+          0.3,
+          0.2,
+          0.5,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.35,
+        "emissive": [
+          0.030000001,
+          0.020000001,
+          0.05,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": 3004,
+      "name": "s03-prop-01",
+      "transform": {
+        "position": [
+          4.1554356,
+          0.97249997,
+          -34.596603
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.94499993,
+          "y": 0.94499993,
+          "z": 0.94499993
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.80499995,
+          0.6265,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 3005,
+      "name": "s03-prop-02",
+      "transform": {
+        "position": [
+          4.3264437,
+          0.885,
+          -29.69959
+        ],
+        "rotation_degrees": [
+          0.0,
+          37.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.77,
+          "y": 0.77,
+          "z": 0.77
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.80499995,
+          0.6265,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 3006,
+      "name": "s03-prop-03",
+      "transform": {
+        "position": [
+          0.17100726,
+          0.86749995,
+          -27.102985
+        ],
+        "rotation_degrees": [
+          0.0,
+          74.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.73499995,
+          "y": 0.73499995,
+          "z": 0.73499995
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.80499995,
+          0.6265,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 3007,
+      "name": "s03-prop-04",
+      "transform": {
+        "position": [
+          -4.1554365,
+          0.815,
+          -29.403397
+        ],
+        "rotation_degrees": [
+          0.0,
+          21.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.63,
+          "y": 0.63,
+          "z": 0.63
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.80499995,
+          0.6265,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 3008,
+      "name": "s03-prop-05",
+      "transform": {
+        "position": [
+          -4.326443,
+          0.7975,
+          -34.30041
+        ],
+        "rotation_degrees": [
+          0.0,
+          58.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.595,
+          "y": 0.595,
+          "z": 0.595
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.80499995,
+          0.6265,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 3009,
+      "name": "s03-prop-06",
+      "transform": {
+        "position": [
+          -0.17100799,
+          0.8325,
+          -36.897015
+        ],
+        "rotation_degrees": [
+          0.0,
+          5.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.66499996,
+          "y": 0.66499996,
+          "z": 0.66499996
+        }
+      },
+      "material": {
+        "color": [
+          0.59499997,
+          0.80499995,
+          0.6265,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 3010,
+      "name": "s03-lamp",
+      "transform": {
+        "position": [
+          0.0,
+          8.125,
+          -30.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "light": {
+        "light_type": "point",
+        "color": [
+          0.3,
+          0.2,
+          0.5,
+          1.0
+        ],
+        "intensity": 250000.0,
+        "shadows": false,
+        "range": 20.0
+      }
+    },
+    {
+      "id": 4001,
+      "name": "s04-ground",
+      "transform": {
+        "position": [
+          0.0,
+          0.0,
+          -48.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Plane": {
+          "x": 300.0,
+          "z": 22.0
+        }
+      },
+      "material": {
+        "color": [
+          0.4,
+          0.3,
+          0.2,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 4002,
+      "name": "s04-platform",
+      "transform": {
+        "position": [
+          0.0,
+          0.25,
+          -48.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cylinder": {
+          "radius": 6.0,
+          "height": 0.5
+        }
+      },
+      "material": {
+        "color": [
+          0.68640006,
+          0.7345601,
+          0.75360006,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.9,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 4003,
+      "name": "s04-landmark",
+      "transform": {
+        "position": [
+          0.0,
+          3.125,
+          -48.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          45.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 1.8,
+          "y": 5.25,
+          "z": 1.8
+        }
+      },
+      "material": {
+        "color": [
+          0.3,
+          0.2,
+          0.5,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.35,
+        "emissive": [
+          0.030000001,
+          0.020000001,
+          0.05,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": 4004,
+      "name": "s04-prop-01",
+      "transform": {
+        "position": [
+          1.8355726,
+          0.97249997,
+          -43.4568
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.94499993,
+          "y": 0.94499993,
+          "z": 0.94499993
+        }
+      },
+      "material": {
+        "color": [
+          0.80499995,
+          0.65449995,
+          0.59499997,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 4005,
+      "name": "s04-prop-02",
+      "transform": {
+        "position": [
+          -3.016741,
+          0.955,
+          -44.13875
+        ],
+        "rotation_degrees": [
+          0.0,
+          37.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.90999997,
+          "y": 0.90999997,
+          "z": 0.90999997
+        }
+      },
+      "material": {
+        "color": [
+          0.80499995,
+          0.65449995,
+          0.59499997,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 4006,
+      "name": "s04-prop-03",
+      "transform": {
+        "position": [
+          -4.8523135,
+          0.8325,
+          -48.68195
+        ],
+        "rotation_degrees": [
+          0.0,
+          74.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.66499996,
+          "y": 0.66499996,
+          "z": 0.66499996
+        }
+      },
+      "material": {
+        "color": [
+          0.80499995,
+          0.65449995,
+          0.59499997,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 4007,
+      "name": "s04-prop-04",
+      "transform": {
+        "position": [
+          -1.8355733,
+          0.745,
+          -52.5432
+        ],
+        "rotation_degrees": [
+          0.0,
+          21.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.48999998,
+          "y": 0.48999998,
+          "z": 0.48999998
+        }
+      },
+      "material": {
+        "color": [
+          0.80499995,
+          0.65449995,
+          0.59499997,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 4008,
+      "name": "s04-prop-05",
+      "transform": {
+        "position": [
+          3.0167415,
+          0.78,
+          -51.86125
+        ],
+        "rotation_degrees": [
+          0.0,
+          58.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.56,
+          "y": 0.56,
+          "z": 0.56
+        }
+      },
+      "material": {
+        "color": [
+          0.80499995,
+          0.65449995,
+          0.59499997,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 4009,
+      "name": "s04-prop-06",
+      "transform": {
+        "position": [
+          4.852314,
+          0.92,
+          -47.318054
+        ],
+        "rotation_degrees": [
+          0.0,
+          5.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.84000003,
+          "y": 0.84000003,
+          "z": 0.84000003
+        }
+      },
+      "material": {
+        "color": [
+          0.80499995,
+          0.65449995,
+          0.59499997,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 4010,
+      "name": "s04-lamp",
+      "transform": {
+        "position": [
+          0.0,
+          7.75,
+          -46.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "light": {
+        "light_type": "point",
+        "color": [
+          0.3,
+          0.2,
+          0.5,
+          1.0
+        ],
+        "intensity": 250000.0,
+        "shadows": false,
+        "range": 20.0
+      }
+    },
+    {
+      "id": 5001,
+      "name": "s05-ground",
+      "transform": {
+        "position": [
+          0.0,
+          0.0,
+          -64.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Plane": {
+          "x": 300.0,
+          "z": 22.0
+        }
+      },
+      "material": {
+        "color": [
+          0.4,
+          0.3,
+          0.2,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 5002,
+      "name": "s05-platform",
+      "transform": {
+        "position": [
+          0.0,
+          0.25,
+          -64.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cylinder": {
+          "radius": 6.0,
+          "height": 0.5
+        }
+      },
+      "material": {
+        "color": [
+          0.68640006,
+          0.69760007,
+          0.75360006,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.9,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 5003,
+      "name": "s05-landmark",
+      "transform": {
+        "position": [
+          0.0,
+          3.5375001,
+          -64.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          45.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 1.8,
+          "y": 6.0750003,
+          "z": 1.8
+        }
+      },
+      "material": {
+        "color": [
+          0.3,
+          0.2,
+          0.5,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.35,
+        "emissive": [
+          0.030000001,
+          0.020000001,
+          0.05,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": 5004,
+      "name": "s05-prop-01",
+      "transform": {
+        "position": [
+          2.8105247,
+          0.99,
+          -59.986156
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.97999996,
+          "y": 0.97999996,
+          "z": 0.97999996
+        }
+      },
+      "material": {
+        "color": [
+          0.80499995,
+          0.77,
+          0.59499997,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 5005,
+      "name": "s05-prop-02",
+      "transform": {
+        "position": [
+          -2.0708299,
+          0.815,
+          -59.559093
+        ],
+        "rotation_degrees": [
+          0.0,
+          37.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.63,
+          "y": 0.63,
+          "z": 0.63
+        }
+      },
+      "material": {
+        "color": [
+          0.80499995,
+          0.77,
+          0.59499997,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 5006,
+      "name": "s05-prop-03",
+      "transform": {
+        "position": [
+          -4.881354,
+          0.9375,
+          -63.572937
+        ],
+        "rotation_degrees": [
+          0.0,
+          74.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.875,
+          "y": 0.875,
+          "z": 0.875
+        }
+      },
+      "material": {
+        "color": [
+          0.80499995,
+          0.77,
+          0.59499997,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 5007,
+      "name": "s05-prop-04",
+      "transform": {
+        "position": [
+          -2.810524,
+          1.0074999,
+          -68.01385
+        ],
+        "rotation_degrees": [
+          0.0,
+          21.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 1.015,
+          "y": 1.015,
+          "z": 1.015
+        }
+      },
+      "material": {
+        "color": [
+          0.80499995,
+          0.77,
+          0.59499997,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 5008,
+      "name": "s05-prop-05",
+      "transform": {
+        "position": [
+          2.0708292,
+          0.78,
+          -68.44091
+        ],
+        "rotation_degrees": [
+          0.0,
+          58.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.56,
+          "y": 0.56,
+          "z": 0.56
+        }
+      },
+      "material": {
+        "color": [
+          0.80499995,
+          0.77,
+          0.59499997,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 5009,
+      "name": "s05-prop-06",
+      "transform": {
+        "position": [
+          4.881354,
+          0.99,
+          -64.42706
+        ],
+        "rotation_degrees": [
+          0.0,
+          5.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.97999996,
+          "y": 0.97999996,
+          "z": 0.97999996
+        }
+      },
+      "material": {
+        "color": [
+          0.80499995,
+          0.77,
+          0.59499997,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 5010,
+      "name": "s05-lamp",
+      "transform": {
+        "position": [
+          0.0,
+          8.575001,
+          -62.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "light": {
+        "light_type": "point",
+        "color": [
+          0.3,
+          0.2,
+          0.5,
+          1.0
+        ],
+        "intensity": 250000.0,
+        "shadows": false,
+        "range": 20.0
+      }
+    },
+    {
+      "id": 6001,
+      "name": "s06-ground",
+      "transform": {
+        "position": [
+          0.0,
+          0.0,
+          -80.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Plane": {
+          "x": 300.0,
+          "z": 22.0
+        }
+      },
+      "material": {
+        "color": [
+          0.4,
+          0.3,
+          0.6,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.95,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 6002,
+      "name": "s06-platform",
+      "transform": {
+        "position": [
+          0.0,
+          0.25,
+          -80.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cylinder": {
+          "radius": 6.0,
+          "height": 0.5
+        }
+      },
+      "material": {
+        "color": [
+          0.68752,
+          0.75360006,
+          0.68640006,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.9,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 6003,
+      "name": "s06-landmark",
+      "transform": {
+        "position": [
+          0.0,
+          2.4125,
+          -80.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          45.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 1.8,
+          "y": 3.8249998,
+          "z": 1.8
+        }
+      },
+      "material": {
+        "color": [
+          0.3,
+          0.2,
+          0.5,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.35,
+        "emissive": [
+          0.030000001,
+          0.020000001,
+          0.05,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": 6004,
+      "name": "s06-prop-01",
+      "transform": {
+        "position": [
+          -1.268213,
+          1.0074999,
+          -84.73304
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 1.015,
+          "y": 1.015,
+          "z": 1.015
+        }
+      },
+      "material": {
+        "color": [
+          0.80149996,
+          0.59499997,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 6005,
+      "name": "s06-prop-02",
+      "transform": {
+        "position": [
+          3.4648228,
+          0.9375,
+          -83.46482
+        ],
+        "rotation_degrees": [
+          0.0,
+          37.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.875,
+          "y": 0.875,
+          "z": 0.875
+        }
+      },
+      "material": {
+        "color": [
+          0.80149996,
+          0.59499997,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 6006,
+      "name": "s06-prop-03",
+      "transform": {
+        "position": [
+          4.7330365,
+          1.0074999,
+          -78.73179
+        ],
+        "rotation_degrees": [
+          0.0,
+          74.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 1.015,
+          "y": 1.015,
+          "z": 1.015
+        }
+      },
+      "material": {
+        "color": [
+          0.80149996,
+          0.59499997,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 6007,
+      "name": "s06-prop-04",
+      "transform": {
+        "position": [
+          1.2682137,
+          0.99,
+          -75.26696
+        ],
+        "rotation_degrees": [
+          0.0,
+          21.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.97999996,
+          "y": 0.97999996,
+          "z": 0.97999996
+        }
+      },
+      "material": {
+        "color": [
+          0.80149996,
+          0.59499997,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 6008,
+      "name": "s06-prop-05",
+      "transform": {
+        "position": [
+          -3.4648223,
+          0.92,
+          -76.53518
+        ],
+        "rotation_degrees": [
+          0.0,
+          58.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.84000003,
+          "y": 0.84000003,
+          "z": 0.84000003
+        }
+      },
+      "material": {
+        "color": [
+          0.80149996,
+          0.59499997,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 6009,
+      "name": "s06-prop-06",
+      "transform": {
+        "position": [
+          -4.733037,
+          0.885,
+          -81.26821
+        ],
+        "rotation_degrees": [
+          0.0,
+          5.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "shape": {
+        "Cuboid": {
+          "x": 0.77,
+          "y": 0.77,
+          "z": 0.77
+        }
+      },
+      "material": {
+        "color": [
+          0.80149996,
+          0.59499997,
+          0.80499995,
+          1.0
+        ],
+        "metallic": 0.1,
+        "roughness": 0.8,
+        "emissive": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "id": 6010,
+      "name": "s06-lamp",
+      "transform": {
+        "position": [
+          0.0,
+          6.325,
+          -78.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "visible": true
+      },
+      "light": {
+        "light_type": "point",
+        "color": [
+          0.3,
+          0.2,
+          0.5,
+          1.0
+        ],
+        "intensity": 250000.0,
+        "shadows": false,
+        "range": 20.0
+      }
+    }
+  ],
+  "next_entity_id": 6011
+}

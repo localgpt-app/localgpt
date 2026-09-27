@@ -1,0 +1,11 @@
+wrangler.toml
+deploy.sh
+.assetsignore
+.wrangler
+.wrangler/
+.DS_Store
+# Build tooling, not site content.
+scripts/
+package.json
+package-lock.json
+node_modules/

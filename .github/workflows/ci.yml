@@ -135,6 +135,35 @@ jobs:
           ORT_LIB_LOCATION: /opt/onnxruntime-1.23/lib
           ORT_PREFER_DYNAMIC_LINK: "1"
 
+  # The one web renderer. Until localgpt.world folded in here, this check lived
+  # in that repository and ran against a *copy* of
+  # crates/world-export/js/world-viewer.js — so a change to the canonical
+  # renderer could break every published world while this repository's CI stayed
+  # green, and on 2026-09-27 the copy was found 185 lines behind. The check now
+  # sits next to what it tests.
+  #
+  # Conformance scenes only: the seven of them reference nothing but the four
+  # checker textures in crates/world-types/conformance/assets, so this needs no
+  # asset checkout. The curated gallery worlds are checked at deploy, where
+  # their GLBs are (`npm run check:all`).
+  viewer:
+    name: Web viewer (conformance render)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website-world
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website-world/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check
+
   # Licenses, bans and sources only change with Cargo.lock and deny.toml, so
   # they gate every change.
   deps:
