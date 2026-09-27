@@ -21,6 +21,7 @@
 
 pub mod assets;
 pub mod interpreter;
+pub mod paths;
 
 pub use assets::{
     AssetEntry, AssetManifest, Tier, fold_seed, mesh_path, read_manifest_at, resolve_kind,
@@ -31,6 +32,7 @@ pub use interpreter::{
     PrimitiveShape, ScatterFieldCmd, SceneBuild, SceneInterpreter, SectionRole, SetLightCmd,
     SpawnPrimitiveCmd, clamp_local, parse_tool_call, resolve_agent_assets,
 };
+pub use paths::{shared_llm_dir, world_pack_dir};
 
 #[cfg(feature = "llm")]
 pub use interpreter::run_session;

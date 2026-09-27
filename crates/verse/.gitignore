@@ -1,0 +1,14 @@
+/target
+/verse-photos
+# Bundled assets live in the separate assets repo (localgpt-world-assets);
+# copied in for dev and at packaging time. Fonts README stays tracked.
+/assets/models
+/dist
+# CLAP models (M5) are a download (scripts/fetch-clap.sh), never committed —
+# only the small precomputed mood_text_embeddings.json is tracked.
+/assets/ml/*.onnx
+/assets/ml/tokenizer.json
+# Starter music: source of truth is the assets repo's music/, copied in for dev
+/assets/music
+# LLM model: downloaded via the workspace's scripts/fetch-model.sh
+/assets/llm

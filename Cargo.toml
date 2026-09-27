@@ -7,6 +7,8 @@ members = [
     "crates/sandbox",
     "crates/mobile-ffi",
     "crates/gen",
+    "crates/md",
+    "crates/verse",
     "crates/world-types",
     "crates/world-export",
     "crates/world-bevy",
@@ -82,3 +84,14 @@ localgpt-cli-tools = { version = "0.3.6", path = "crates/cli-tools" }
 lto = true
 codegen-units = 1
 strip = true
+
+# Bevy's recommended dev profile, carried in from the MD and Verse manifests
+# when they joined this workspace: our own crates stay quick to rebuild while
+# dependencies are optimised, which is what makes a Bevy app usable in a debug
+# build. Profiles only take effect at the workspace root, so this now applies
+# to every member — including gen, the third Bevy binary.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

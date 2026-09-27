@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LocalGPT Verse — every song imagines a world</title>
+<meta name="description" content="LocalGPT Verse is a desktop app that listens to your music and imagines a living 3D world for every song — analyzed, staged, and performed entirely on your machine.">
+<meta property="og:title" content="LocalGPT Verse — every song imagines a world">
+<meta property="og:description" content="A desktop app that imagines a 3D world for every song. On-device analysis, worlds that perform the music, optional local ML/LLM imagination tiers.">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="index.html">
+      <img src="assets/favicon.svg" alt="" width="26" height="26">
+      LocalGPT Verse
+    </a>
+    <button class="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button>
+    <nav class="nav-links">
+      <a href="index.html" aria-current="page">Overview</a>
+      <a href="https://localgpt.app/docs/verse">Docs</a>
+      <a href="https://localgpt.app/docs/verse/worlds">Worlds</a>
+      <a href="https://github.com/localgpt-app/localgpt-verse">GitHub</a>
+      <a class="btn btn-primary nav-cta" href="https://localgpt.app/docs/verse">Get started</a>
+      <a class="nav-family" href="https://localgpt.app">localgpt.app &rarr;</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============================== Hero ============================== -->
+
+<section class="hero">
+  <div class="world-stage" aria-hidden="true"></div>
+  <div class="hero-ridge" aria-hidden="true">
+    <svg viewBox="0 0 1440 320" preserveAspectRatio="none">
+      <path fill="currentColor" opacity="0.55"
+        d="M0,224 L80,197 L160,213 L240,160 L320,181 L400,144 L480,176 L560,165 L640,203 L720,187 L800,213 L880,176 L960,192 L1040,160 L1120,187 L1200,171 L1280,208 L1360,192 L1440,213 L1440,320 L0,320 Z"/>
+      <path fill="currentColor" opacity="0.85"
+        d="M0,288 L96,272 L192,283 L288,251 L384,267 L480,240 L576,261 L672,256 L768,277 L864,261 L960,283 L1056,256 L1152,272 L1248,261 L1344,283 L1440,272 L1440,320 L0,320 Z"/>
+    </svg>
+  </div>
+  <div class="hero-veil" aria-hidden="true"></div>
+
+  <div class="hero-content">
+    <p class="hero-world"><span class="dot"></span>Now playing · <span class="world-name">Ember Flats</span></p>
+    <h1>Every song imagines a world.</h1>
+    <p class="lede">
+      LocalGPT Verse is a desktop app that listens to your music and builds a living
+      3D world for every track — its tempo, its structure, and its mood,
+      staged and performed entirely on your machine.
+    </p>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="https://localgpt.app/docs/verse">Get started <span class="arrow">→</span></a>
+      <a class="btn" href="https://github.com/localgpt-app/localgpt-verse">View on GitHub</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ Features ============================ -->
+
+<section class="section">
+  <div class="wrap">
+    <p class="eyebrow reveal">What it does</p>
+    <h2 class="section-title reveal">A world assembled from the music itself</h2>
+    <p class="lede reveal">
+      Point LocalGPT Verse at your music folder. It decodes each track, measures its
+      tempo, beats, sections, energy, and mood — then raises a world that
+      performs the song while it plays.
+    </p>
+
+    <div class="features" style="margin-top: 3rem;">
+      <article class="feature reveal">
+        <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3v18"/><path d="M7 8v8"/><path d="M17 8v8"/><path d="M3 11v2"/><path d="M21 11v2"/>
+        </svg>
+        <h3>Heard, not uploaded</h3>
+        <p>Every analysis runs on-device — tempo, a beat grid, section
+        boundaries, an energy curve, and a mood — cached beside the app as a
+        content-keyed sidecar. Your music folder is never written to, and
+        nothing ever leaves the machine.</p>
+      </article>
+
+      <article class="feature reveal">
+        <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 20h18"/><path d="M6 20V9l6-5 6 5v11"/><path d="M12 20v-6"/>
+        </svg>
+        <h3>Worlds that perform</h3>
+        <p>Ground props rise out of the terrain and settle on the first
+        downbeat. Choruses shift energy and motion, the skyline traces the
+        energy curve, and song-to-song crossfades land on the next track's
+        section boundaries.</p>
+      </article>
+
+      <article class="feature reveal">
+        <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>
+        </svg>
+        <h3>Explore or drift</h3>
+        <p>Fly the world yourself with full 360° freedom, or hand the camera
+        to Drift and let it glide through the arrangement on its own. One key
+        trades one for the other.</p>
+      </article>
+
+      <article class="feature reveal">
+        <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>
+        </svg>
+        <h3>Imagination tiers, optional</h3>
+        <p>Opt in to a local CLAP model for zero-shot moods and embedding-ranked
+        placement, or a small local LLM that authors world recipes — and even
+        builds scenes entity-by-entity. Everything cached, never re-run.</p>
+      </article>
+
+      <article class="feature reveal">
+        <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 21s-7.5-4.6-9.5-9C1 8.5 3 5 6.5 5c2 0 3.5 1 4.5 2.5C12 6 13.5 5 15.5 5 19 5 21 8.5 20.5 12c-1 4.4-8.5 9-8.5 9z"/>
+        </svg>
+        <h3>Comfort first</h3>
+        <p>Setup opens with a photosensitivity check, and the Comfort settings
+        are real: <i>Reduce flashing</i> holds the glow steady, <i>Gentler
+        world motion</i> damps the sway. Every effect passes through them.</p>
+      </article>
+
+      <article class="feature reveal">
+        <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M9 15l6-6"/><path d="M9.5 9.5h.01M14.5 14.5h.01"/>
+        </svg>
+        <h3>Free inside</h3>
+        <p>Apache-2.0 code, OFL fonts, and 171 CC0 Poly Haven models in 19
+        kinds — heroes, props, and ground cover with provenance tracked in a
+        manifest, credited in-app.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ Worlds ============================= -->
+
+<section class="section" id="worlds">
+  <div class="wrap">
+    <p class="eyebrow reveal">The worlds</p>
+    <h2 class="section-title reveal">Eight moods, waiting for a song</h2>
+    <p class="lede reveal">
+      The analysis lands each track in one of eight worlds along an
+      energy–valence continuum. Each has its own palette, fog, ground, and
+      way of arranging its props.
+    </p>
+
+    <div class="worlds-grid" style="margin-top: 3rem;">
+      <a class="world-card mood-ember-flats reveal" href="https://localgpt.app/docs/verse/worlds#ember-flats">
+        <span class="plate"><b>EMBER FLATS</b><span>Dawn chorus · warm ambers · clumped outcrops</span></span>
+      </a>
+      <a class="world-card mood-velvet-circuit reveal" href="https://localgpt.app/docs/verse/worlds#velvet-circuit">
+        <span class="plate"><b>VELVET CIRCUIT</b><span>Neon surge · deep indigo · city grid</span></span>
+      </a>
+      <a class="world-card mood-tide-gardens reveal" href="https://localgpt.app/docs/verse/worlds#tide-gardens">
+        <span class="plate"><b>TIDE GARDENS</b><span>Night bloom · cool aqua · tidal terraces</span></span>
+      </a>
+      <a class="world-card mood-glass-expanse reveal" href="https://localgpt.app/docs/verse/worlds#glass-expanse">
+        <span class="plate"><b>GLASS EXPANSE</b><span>Glass runner · pale ice · crystal rings</span></span>
+      </a>
+      <a class="world-card mood-cinder-reach reveal" href="https://localgpt.app/docs/verse/worlds#cinder-reach">
+        <span class="plate"><b>CINDER REACH</b><span>Smoldering · driving, dark, restrained</span></span>
+      </a>
+      <a class="world-card mood-mirage-circuit reveal" href="https://localgpt.app/docs/verse/worlds#mirage-circuit">
+        <span class="plate"><b>MIRAGE CIRCUIT</b><span>Daylight haze · driving, bright, restrained</span></span>
+      </a>
+      <a class="world-card mood-abyss-terraces reveal" href="https://localgpt.app/docs/verse/worlds#abyss-terraces">
+        <span class="plate"><b>ABYSS TERRACES</b><span>The stillest water · calm, dark, quiet</span></span>
+      </a>
+      <a class="world-card mood-dawn-expanse reveal" href="https://localgpt.app/docs/verse/worlds#dawn-expanse">
+        <span class="plate"><b>DAWN EXPANSE</b><span>First light · calm, bright, hushed</span></span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- =========================== Quickstart =========================== -->
+
+<section class="section">
+  <div class="wrap quickstart">
+    <div>
+      <p class="eyebrow reveal">Quick start</p>
+      <h2 class="section-title reveal">From clone to world in a minute</h2>
+      <ol class="steps">
+        <li class="reveal"><b>Build and run.</b> A stable Rust toolchain is all
+          you need — no models, no services, no keys.</li>
+        <li class="reveal"><b>Click through setup.</b> Photosensitivity, controls,
+          import — or press <b>Enter</b> to skip straight into a world.</li>
+        <li class="reveal"><b>Choose your music folder.</b> MP3, FLAC, WAV, OGG,
+          M4A, and AIFF. The queue fills with your tracks and the first world
+          rises on the first downbeat.</li>
+      </ol>
+      <div class="hero-ctas reveal">
+        <a class="btn btn-primary" href="https://localgpt.app/docs/verse">Read the docs <span class="arrow">→</span></a>
+      </div>
+    </div>
+    <div class="terminal reveal" aria-label="Terminal example">
+      <div class="terminal-bar"><i></i><i></i><i></i></div>
+      <pre><code><span class="c-dim">$</span> git clone https://github.com/localgpt-app/localgpt-verse.git
+<span class="c-dim">$</span> cd localgpt-verse
+<span class="c-dim">$</span> cargo run
+
+<span class="c-dim"># a window titled <span class="c-acc">LocalGPT Verse</span> opens —
+# choose your music folder, and listen.</span></code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ Footer ============================= -->
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h4>LocalGPT Verse</h4>
+        <p style="max-width: 26rem;">A desktop app that imagines a 3D world for
+        every song — built with <a href="https://bevyengine.org/">Bevy</a>, driven
+        by on-device music analysis, and free inside and out.</p>
+      </div>
+      <div>
+        <h4>Docs</h4>
+        <ul>
+          <li><a href="https://localgpt.app/docs/verse">Getting started</a></li>
+          <li><a href="https://localgpt.app/docs/verse/controls">Controls &amp; HUD</a></li>
+          <li><a href="https://localgpt.app/docs/verse/worlds">Worlds &amp; moods</a></li>
+          <li><a href="https://localgpt.app/docs/verse/analysis">Under the hood</a></li>
+          <li><a href="https://localgpt.app/docs/verse/development">Development</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <ul>
+          <li><a href="https://github.com/localgpt-app/localgpt-verse">GitHub</a></li>
+          <li><a href="https://github.com/localgpt-app/localgpt-verse/blob/main/LICENSE">Apache-2.0 license</a></li>
+          <li><a href="https://localgpt.app/docs/verse/development#licenses">Fonts &amp; asset licenses</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Family</h4>
+        <ul>
+          <li><a href="https://localgpt.app" title="A local AI assistant with persistent memory.">LocalGPT</a></li>
+          <li><a href="https://gen.localgpt.app" title="Worlds from words.">LocalGPT Gen</a></li>
+          <li><a href="https://md.localgpt.app" title="Walk through your notes as a world.">LocalGPT MD</a></li>
+          <li><a href="https://localgpt.world" title="Worlds from every app, in your browser.">localgpt.world</a></li>
+          <li><a href="https://localgpt.rs" title="The devlog: building it all in Rust.">localgpt.rs</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="fine">Code under Apache-2.0 · Marcellus &amp; Hanken Grotesk under
+    the SIL OFL · 3D models and starter music dedicated to the public domain
+    under CC0.</p>
+  </div>
+</footer>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

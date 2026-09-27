@@ -38,6 +38,19 @@ cargo run -p localgpt-gen -- -v                    # Verbose logging
 cargo run -p localgpt-gen -- --host                # Host a collaborative session (mDNS, UDP 9879)
 cargo run -p localgpt-gen -- --join 192.168.1.5    # Join a session (or --join to browse)
 
+# MD — a Markdown file as a walkable world
+cargo run -p localgpt-md                           # samples/hello.md
+cargo run -p localgpt-md -- path/to/doc.md         # any file (rebuilds on save)
+cargo run -p localgpt-md --features llm-metal -- doc.md   # LLM-authored scenery
+
+# Verse — a 3D world for every song
+cargo run -p localgpt-verse
+cargo run -p localgpt-verse --features llm-metal   # LLM recipes, Apple GPU
+
+# The two shared downloads (once per machine, not per app)
+scripts/fetch-model.sh                             # ~5 GB GGUF
+scripts/fetch-assets.sh                            # 522 MB CC0 asset pack
+
 # Headless build (no desktop GUI)
 cargo build -p localgpt --no-default-features
 
@@ -64,7 +77,9 @@ mobile, and includes a Bevy-based 3D world generator.
 
 ### Workspace
 
-`Cargo.toml` defines 12 members. `crates/spacetime` is a **standalone** crate
+`Cargo.toml` defines 17 members. **MD and Verse are members**, not separate
+repositories — they were folded in so the world format cannot drift between
+apps (see `localgpt-world/docs/strategy.md` §13.6). `crates/spacetime` is a **standalone** crate
 (its own `[workspace]`) excluded from the main build because it targets
 SpacetimeDB's wasm/module toolchain.
 
@@ -77,9 +92,14 @@ crates/
 ├── sandbox/      # localgpt-sandbox — Landlock/Seatbelt kernel-enforced shell isolation
 ├── mobile-ffi/   # localgpt-mobile-ffi — UniFFI bindings for iOS/Android
 ├── gen/          # localgpt-gen — Bevy 3D scene generation binary
+├── md/           # localgpt-md — a Markdown file as a walkable world (Bevy)
+├── verse/        # localgpt-verse — a 3D world for every song (Bevy)
 ├── world-types/  # localgpt-world-types — serde-only world data model (no Bevy/SpacetimeDB)
 ├── world-bevy/   # localgpt-world-bevy — the one Bevy mapping of the format (Gen, MD, Verse)
 ├── world-export/ # localgpt-world-export — web viewer (three.js) + HTML export, no Bevy
+├── world-sync/   # localgpt-world-sync — room authority: shared doc, EditOps, presence
+├── world-agent/  # localgpt-world-agent — tool-call protocol, interpreter, shared paths
+├── relay/        # localgpt-relay — internet reach for collaborative rooms
 ├── bridge/       # localgpt-bridge — secure IPC protocol for bridge daemons
 └── spacetime/    # localgpt-spacetime — SpacetimeDB multiplayer world server (standalone)
 
@@ -89,7 +109,12 @@ bridges/          # Standalone bridge binaries (depend on core + bridge)
 apps/             # Native client projects
 ├── apple/        # iOS/macOS (Swift)
 ├── android/      # Android (Kotlin)
+├── gen-desktop/  # macOS .app bundler for Gen
 └── web/          # Web client
+
+scripts/          # The shared downloads, fetched once for every app
+├── fetch-model.sh   # the ~5 GB GGUF -> ~/.local/share/localgpt/models/llm
+└── fetch-assets.sh  # the 522 MB CC0 pack -> ~/.local/share/localgpt/models/pack
 ```
 
 ### Dependency Graph
@@ -200,6 +225,13 @@ providers when a primary errors out.
 **Memory context:** New sessions auto-load `MEMORY.md`, recent daily logs, and
 `HEARTBEAT.md`. Active recall (`memory/active_recall.rs`) can search memory
 before each reply and inject results.
+
+**Shared downloads:** the ~5 GB GGUF and the 522 MB CC0 asset pack are
+resolved by `localgpt-world-agent`'s `paths` module — `shared_llm_dir()` and
+`world_pack_dir()` — so one download serves Gen, MD and Verse. It lives there
+because all three depend on that crate and none of them can depend on
+`localgpt-core`. Never re-implement the XDG rule in an app; `LOCALGPT_LLM_DIR`
+and `LOCALGPT_WORLD_ASSETS` override.
 
 **Path expansion & safety:** Tools use `shellexpand::tilde()` for `~`; path
 handling and traversal guards live in `agent/path_utils.rs` and
@@ -402,8 +434,8 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
 - **Lint clean before committing:** `cargo clippy --workspace -- -D warnings`
   and `cargo fmt --check` must pass (enforced in CI). CI
   (`.github/workflows/ci.yml`) runs fmt, clippy and tests for the workspace
-  with the two Bevy crates (`gen`, `world-bevy`) in their own job, plus
-  cargo-deny (`deny.toml`); advisories run on main and weekly, never on
+  with the four Bevy crates (`gen`, `md`, `verse`, `world-bevy`) in their own
+  job, plus cargo-deny (`deny.toml`); advisories run on main and weekly, never on
   pull requests. ONNX Runtime setup is the local composite action
   `.github/actions/onnxruntime`.
 - **Commits:** conventional commits (`feat:`, `fix:`, `docs:`, `chore:`,

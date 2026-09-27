@@ -9,7 +9,7 @@ keywords = ["localgpt", "world", "3d", "agent"]
 
 [features]
 # The mistral.rs session loop (`run_session`, `tool_schemas`).
-llm = ["dep:mistralrs", "dep:tokio", "dep:etcetera"]
+llm = ["dep:mistralrs", "dep:tokio"]
 # Apple-Silicon GPU path (macOS-only; never build this in Linux CI).
 llm-metal = ["llm", "mistralrs/metal"]
 # JsonSchema derives on the protocol types (world-types' `schema` pattern):
@@ -25,4 +25,6 @@ schemars = { version = "1.2", optional = true }
 
 mistralrs = { version = "0.8", optional = true }
 tokio = { version = "1", features = ["rt", "time"], optional = true }
-etcetera = { version = "0.11", optional = true }
+# `paths`: the shared model and asset-pack directories, so the XDG rule
+# lives here once instead of in every app.
+etcetera = "0.11"

@@ -1,0 +1,2045 @@
+{
+  "version": 2,
+  "generator": "localgpt-md",
+  "recipes": {},
+  "builds": {
+    "6bf84152df8792f7d307310877c83920fe338eb046186538ce7d5ec64fc57167": {
+      "model": "prism-ml_Bonsai-8B-unpacked-Q4_K_M.gguf",
+      "description": "The place is a serene shoreline with a circular platform at the origin. It features a collection of trees, including quiver trees, othonna cerarioides, and pachira aquatica, arranged in a natural, scattered pattern across the platform. The trees are placed in a way that creates a lush, weathered look, reflecting the muted and desaturated tones of dusk light. Along the edge of the platform, several lamps are placed, each with a unique design, adding warmth and illumination to the scene. The overall atmosphere is calm and inviting, evoking the quiet beauty of a coastal setting.",
+      "entities": [
+        {
+          "id": 1,
+          "name": "tree_1",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              2.5773196,
+              2.5773196,
+              2.5773196
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 2,
+          "name": "tree_2",
+          "transform": {
+            "position": [
+              2.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.7632241,
+              1.7632241,
+              1.7632241
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/othonna_cerarioides/othonna_cerarioides.glb"
+          }
+        },
+        {
+          "id": 3,
+          "name": "tree_3",
+          "transform": {
+            "position": [
+              -2.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.0190712,
+              1.0190712,
+              1.0190712
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/pachira_aquatica_01/pachira_aquatica_01.glb"
+          }
+        },
+        {
+          "id": 4,
+          "name": "tree_field_1_1",
+          "transform": {
+            "position": [
+              0.9596766,
+              0.0,
+              -3.0027387
+            ],
+            "rotation_degrees": [
+              0.0,
+              256.46872,
+              0.0
+            ],
+            "scale": [
+              0.21912995,
+              0.21912995,
+              0.21912995
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/jacaranda_tree/jacaranda_tree.glb"
+          }
+        },
+        {
+          "id": 5,
+          "name": "tree_field_1_2",
+          "transform": {
+            "position": [
+              -2.0546324,
+              0.0,
+              3.673615
+            ],
+            "rotation_degrees": [
+              0.0,
+              334.784,
+              0.0
+            ],
+            "scale": [
+              2.272572,
+              2.272572,
+              2.272572
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 6,
+          "name": "tree_field_1_3",
+          "transform": {
+            "position": [
+              0.6710362,
+              0.0,
+              3.9988494
+            ],
+            "rotation_degrees": [
+              0.0,
+              230.93321,
+              0.0
+            ],
+            "scale": [
+              0.28841054,
+              0.28841054,
+              0.28841054
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/jacaranda_tree/jacaranda_tree.glb"
+          }
+        },
+        {
+          "id": 7,
+          "name": "tree_field_1_4",
+          "transform": {
+            "position": [
+              3.0399199,
+              0.0,
+              -3.4392898
+            ],
+            "rotation_degrees": [
+              0.0,
+              133.98193,
+              0.0
+            ],
+            "scale": [
+              3.4059703,
+              3.4059703,
+              3.4059703
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 8,
+          "name": "tree_field_1_5",
+          "transform": {
+            "position": [
+              -3.0142972,
+              0.0,
+              3.6706543
+            ],
+            "rotation_degrees": [
+              0.0,
+              149.44196,
+              0.0
+            ],
+            "scale": [
+              0.36452168,
+              0.36452168,
+              0.36452168
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/jacaranda_tree/jacaranda_tree.glb"
+          }
+        },
+        {
+          "id": 9,
+          "name": "tree_field_1_6",
+          "transform": {
+            "position": [
+              2.7411585,
+              0.0,
+              -2.2886894
+            ],
+            "rotation_degrees": [
+              0.0,
+              17.076767,
+              0.0
+            ],
+            "scale": [
+              3.1364443,
+              3.1364443,
+              3.1364443
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 10,
+          "name": "tree_field_1_7",
+          "transform": {
+            "position": [
+              4.1926436,
+              0.0,
+              0.9582681
+            ],
+            "rotation_degrees": [
+              0.0,
+              229.18155,
+              0.0
+            ],
+            "scale": [
+              0.26507536,
+              0.26507536,
+              0.26507536
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/jacaranda_tree/jacaranda_tree.glb"
+          }
+        },
+        {
+          "id": 11,
+          "name": "tree_field_1_8",
+          "transform": {
+            "position": [
+              -4.489049,
+              0.0,
+              -3.043671
+            ],
+            "rotation_degrees": [
+              0.0,
+              203.88954,
+              0.0
+            ],
+            "scale": [
+              2.4500294,
+              2.4500294,
+              2.4500294
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 12,
+          "name": "tree_field_1_9",
+          "transform": {
+            "position": [
+              1.1495638,
+              0.0,
+              2.0536892
+            ],
+            "rotation_degrees": [
+              0.0,
+              342.37204,
+              0.0
+            ],
+            "scale": [
+              0.30674934,
+              0.30674934,
+              0.30674934
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/jacaranda_tree/jacaranda_tree.glb"
+          }
+        },
+        {
+          "id": 13,
+          "name": "tree_field_1_10",
+          "transform": {
+            "position": [
+              -3.782863,
+              0.0,
+              3.6776743
+            ],
+            "rotation_degrees": [
+              0.0,
+              140.89835,
+              0.0
+            ],
+            "scale": [
+              2.41563,
+              2.41563,
+              2.41563
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 14,
+          "name": "tree_field_1_11",
+          "transform": {
+            "position": [
+              0.9835377,
+              0.0,
+              3.881011
+            ],
+            "rotation_degrees": [
+              0.0,
+              80.31195,
+              0.0
+            ],
+            "scale": [
+              0.3501289,
+              0.3501289,
+              0.3501289
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/jacaranda_tree/jacaranda_tree.glb"
+          }
+        },
+        {
+          "id": 15,
+          "name": "tree_field_1_12",
+          "transform": {
+            "position": [
+              -4.373449,
+              0.0,
+              -0.52432007
+            ],
+            "rotation_degrees": [
+              0.0,
+              6.5751886,
+              0.0
+            ],
+            "scale": [
+              2.7709606,
+              2.7709606,
+              2.7709606
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 16,
+          "name": "lamp_1",
+          "transform": {
+            "position": [
+              0.0,
+              3.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              5.4945054,
+              5.4945054,
+              5.4945054
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/industrial_pipe_lamp/industrial_pipe_lamp.glb"
+          }
+        },
+        {
+          "id": 17,
+          "name": "lamp_2",
+          "transform": {
+            "position": [
+              0.0,
+              5.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.8083183,
+              1.8083183,
+              1.8083183
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/street_lamp_01/street_lamp_01.glb"
+          }
+        },
+        {
+          "id": 18,
+          "name": "lamp_3",
+          "transform": {
+            "position": [
+              0.0,
+              7.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              4.708098,
+              4.708098,
+              4.708098
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/security_light/security_light.glb"
+          }
+        },
+        {
+          "id": 19,
+          "name": "lamp_4",
+          "transform": {
+            "position": [
+              0.0,
+              9.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              2.151463,
+              2.151463,
+              2.151463
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/caged_hanging_light/caged_hanging_light.glb"
+          }
+        },
+        {
+          "id": 20,
+          "name": "lamp_5",
+          "transform": {
+            "position": [
+              0.0,
+              11.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              2.0661156,
+              2.0661156,
+              2.0661156
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/industrial_caged_sconce/industrial_caged_sconce.glb"
+          }
+        },
+        {
+          "id": 21,
+          "name": "lamp_6",
+          "transform": {
+            "position": [
+              0.0,
+              13.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              2.741228,
+              2.741228,
+              2.741228
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/mounted_fluorescent_lights/mounted_fluorescent_lights.glb"
+          }
+        }
+      ]
+    },
+    "b28c0e85880f3770e347d538378871573dc7f2c419f1a01225ecf2fa6e8ebe02": {
+      "model": "prism-ml_Bonsai-8B-unpacked-Q4_K_M.gguf",
+      "description": "The Observatory place has been built with the following elements:\n\n- A **brass telescope** (bronze_whale_statue/bronze_whale_statue.glb) placed at the origin.\n- A **dome** (bronze_shark_statue/bronze_shark_statue.glb) positioned at the origin.\n- A **dusk light** (security_light/security_light.glb) placed at the origin to simulate the muted, desaturated light of dusk.\n- A **stone ground cover** (12 instances) scattered across the circular platform, representing the weathered stone and earthy tones of the observatory's surroundings.\n- A **lamp** (industrial_pipe_lamp/industrial_pipe_lamp.glb) placed at the origin to provide warm, ambient lighting.\n\nThis design reflects the observatory's theme of a brass telescope on a hilltop dome, pointed at a sky crowded with slow-turning planets, with muted and desaturated colors to evoke a weathered, natural setting.",
+      "entities": [
+        {
+          "id": 1,
+          "name": "telescope",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              5.1244507,
+              5.1244507,
+              5.1244507
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/bronze_whale_statue/bronze_whale_statue.glb"
+          }
+        },
+        {
+          "id": 2,
+          "name": "dome",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              3.2894738,
+              3.2894738,
+              3.2894738
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/bronze_shark_statue/bronze_shark_statue.glb"
+          }
+        },
+        {
+          "id": 3,
+          "name": "ground_cover_1",
+          "transform": {
+            "position": [
+              -5.509992,
+              0.0,
+              1.9040482
+            ],
+            "rotation_degrees": [
+              0.0,
+              203.25674,
+              0.0
+            ],
+            "scale": [
+              2.2643294,
+              2.2643294,
+              2.2643294
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/boulder_01/boulder_01.glb"
+          }
+        },
+        {
+          "id": 4,
+          "name": "ground_cover_2",
+          "transform": {
+            "position": [
+              2.5076244,
+              0.0,
+              3.7204099
+            ],
+            "rotation_degrees": [
+              0.0,
+              208.1223,
+              0.0
+            ],
+            "scale": [
+              1.5253226,
+              1.5253226,
+              1.5253226
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/namaqualand_boulder_02/namaqualand_boulder_02.glb"
+          }
+        },
+        {
+          "id": 5,
+          "name": "ground_cover_3",
+          "transform": {
+            "position": [
+              4.5229487,
+              0.0,
+              3.9326339
+            ],
+            "rotation_degrees": [
+              0.0,
+              121.98148,
+              0.0
+            ],
+            "scale": [
+              0.5208409,
+              0.5208409,
+              0.5208409
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/namaqualand_cliff_01/namaqualand_cliff_01.glb"
+          }
+        },
+        {
+          "id": 6,
+          "name": "ground_cover_4",
+          "transform": {
+            "position": [
+              -0.77190584,
+              0.0,
+              -5.0031776
+            ],
+            "rotation_degrees": [
+              0.0,
+              316.68506,
+              0.0
+            ],
+            "scale": [
+              1.291013,
+              1.291013,
+              1.291013
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/namaqualand_boulder_03/namaqualand_boulder_03.glb"
+          }
+        },
+        {
+          "id": 7,
+          "name": "ground_cover_5",
+          "transform": {
+            "position": [
+              1.3433229,
+              0.0,
+              -3.6044512
+            ],
+            "rotation_degrees": [
+              0.0,
+              306.8802,
+              0.0
+            ],
+            "scale": [
+              1.9331537,
+              1.9331537,
+              1.9331537
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/boulder_01/boulder_01.glb"
+          }
+        },
+        {
+          "id": 8,
+          "name": "ground_cover_6",
+          "transform": {
+            "position": [
+              -3.072164,
+              0.0,
+              4.7951226
+            ],
+            "rotation_degrees": [
+              0.0,
+              207.80846,
+              0.0
+            ],
+            "scale": [
+              1.2637285,
+              1.2637285,
+              1.2637285
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/namaqualand_boulder_02/namaqualand_boulder_02.glb"
+          }
+        },
+        {
+          "id": 9,
+          "name": "ground_cover_7",
+          "transform": {
+            "position": [
+              -4.0798717,
+              0.0,
+              1.3462514
+            ],
+            "rotation_degrees": [
+              0.0,
+              121.876854,
+              0.0
+            ],
+            "scale": [
+              0.35570982,
+              0.35570982,
+              0.35570982
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/namaqualand_cliff_01/namaqualand_cliff_01.glb"
+          }
+        },
+        {
+          "id": 10,
+          "name": "ground_cover_8",
+          "transform": {
+            "position": [
+              -1.5908711,
+              0.0,
+              0.09895545
+            ],
+            "rotation_degrees": [
+              0.0,
+              172.95047,
+              0.0
+            ],
+            "scale": [
+              1.1094847,
+              1.1094847,
+              1.1094847
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/namaqualand_boulder_03/namaqualand_boulder_03.glb"
+          }
+        },
+        {
+          "id": 11,
+          "name": "ground_cover_9",
+          "transform": {
+            "position": [
+              -4.32447,
+              0.0,
+              2.6534202
+            ],
+            "rotation_degrees": [
+              0.0,
+              45.85009,
+              0.0
+            ],
+            "scale": [
+              3.6128998,
+              3.6128998,
+              3.6128998
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/boulder_01/boulder_01.glb"
+          }
+        },
+        {
+          "id": 12,
+          "name": "ground_cover_10",
+          "transform": {
+            "position": [
+              -2.2840385,
+              0.0,
+              2.5730426
+            ],
+            "rotation_degrees": [
+              0.0,
+              314.75342,
+              0.0
+            ],
+            "scale": [
+              2.2937362,
+              2.2937362,
+              2.2937362
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/namaqualand_boulder_02/namaqualand_boulder_02.glb"
+          }
+        },
+        {
+          "id": 13,
+          "name": "ground_cover_11",
+          "transform": {
+            "position": [
+              -0.9081308,
+              0.0,
+              1.912929
+            ],
+            "rotation_degrees": [
+              0.0,
+              99.65786,
+              0.0
+            ],
+            "scale": [
+              0.39871466,
+              0.39871466,
+              0.39871466
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/namaqualand_cliff_01/namaqualand_cliff_01.glb"
+          }
+        },
+        {
+          "id": 14,
+          "name": "ground_cover_12",
+          "transform": {
+            "position": [
+              2.477511,
+              0.0,
+              -1.9074484
+            ],
+            "rotation_degrees": [
+              0.0,
+              38.788326,
+              0.0
+            ],
+            "scale": [
+              1.5680422,
+              1.5680422,
+              1.5680422
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/namaqualand_boulder_03/namaqualand_boulder_03.glb"
+          }
+        },
+        {
+          "id": 15,
+          "name": "lamp",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              5.4945054,
+              5.4945054,
+              5.4945054
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/industrial_pipe_lamp/industrial_pipe_lamp.glb"
+          }
+        },
+        {
+          "id": 16,
+          "name": "lamp_1",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              4.708098,
+              4.708098,
+              4.708098
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/security_light/security_light.glb"
+          }
+        },
+        {
+          "id": 17,
+          "name": "dusk_light",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "visible": true
+          },
+          "light": {
+            "light_type": "directional",
+            "color": [
+              0.5,
+              0.5,
+              0.5,
+              1.0
+            ],
+            "intensity": 500.0,
+            "direction": [
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "shadows": false
+          }
+        }
+      ]
+    },
+    "b6c0e87dc8546353cf756fab990405db0d77e776a1f9475ffcfbb2cbbf9375f4": {
+      "model": "prism-ml_Bonsai-8B-unpacked-Q4_K_M.gguf",
+      "description": "The place is a circular library platform with tall, weathered shelves spiraling upward, each adorned with books and dusty spines. A brass lamp casts a warm glow, illuminating the space with a soft, golden light. The shelves are interspersed with scattered trees, creating a natural, organic feel. The atmosphere is calm and inviting, with muted colors and a sense of quiet contemplation.",
+      "entities": [
+        {
+          "id": 1,
+          "name": "shelf_1",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              2.5773196,
+              2.5773196,
+              2.5773196
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 2,
+          "name": "shelf_2",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.7632241,
+              1.7632241,
+              1.7632241
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/othonna_cerarioides/othonna_cerarioides.glb"
+          }
+        },
+        {
+          "id": 3,
+          "name": "shelf_3",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.0190712,
+              1.0190712,
+              1.0190712
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/pachira_aquatica_01/pachira_aquatica_01.glb"
+          }
+        },
+        {
+          "id": 4,
+          "name": "brass_lamp_1",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              5.4945054,
+              5.4945054,
+              5.4945054
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/industrial_pipe_lamp/industrial_pipe_lamp.glb"
+          }
+        },
+        {
+          "id": 5,
+          "name": "tree_field_1_1",
+          "transform": {
+            "position": [
+              -1.9306681,
+              0.0,
+              5.1357613
+            ],
+            "rotation_degrees": [
+              0.0,
+              62.939857,
+              0.0
+            ],
+            "scale": [
+              0.39554074,
+              0.39554074,
+              0.39554074
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/jacaranda_tree/jacaranda_tree.glb"
+          }
+        },
+        {
+          "id": 6,
+          "name": "tree_field_1_2",
+          "transform": {
+            "position": [
+              3.252582,
+              0.0,
+              0.36971018
+            ],
+            "rotation_degrees": [
+              0.0,
+              91.726204,
+              0.0
+            ],
+            "scale": [
+              1.8541406,
+              1.8541406,
+              1.8541406
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 7,
+          "name": "tree_field_1_3",
+          "transform": {
+            "position": [
+              -3.3041413,
+              0.0,
+              0.6197108
+            ],
+            "rotation_degrees": [
+              0.0,
+              333.76556,
+              0.0
+            ],
+            "scale": [
+              0.36076942,
+              0.36076942,
+              0.36076942
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/jacaranda_tree/jacaranda_tree.glb"
+          }
+        },
+        {
+          "id": 8,
+          "name": "tree_field_1_4",
+          "transform": {
+            "position": [
+              0.92459124,
+              0.0,
+              2.4853587
+            ],
+            "rotation_degrees": [
+              0.0,
+              10.904896,
+              0.0
+            ],
+            "scale": [
+              3.3799987,
+              3.3799987,
+              3.3799987
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 9,
+          "name": "tree_field_1_5",
+          "transform": {
+            "position": [
+              3.0752215,
+              0.0,
+              -3.158495
+            ],
+            "rotation_degrees": [
+              0.0,
+              251.83073,
+              0.0
+            ],
+            "scale": [
+              0.34615687,
+              0.34615687,
+              0.34615687
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/jacaranda_tree/jacaranda_tree.glb"
+          }
+        },
+        {
+          "id": 10,
+          "name": "tree_field_1_6",
+          "transform": {
+            "position": [
+              2.4183416,
+              0.0,
+              3.112069
+            ],
+            "rotation_degrees": [
+              0.0,
+              140.73026,
+              0.0
+            ],
+            "scale": [
+              3.169525,
+              3.169525,
+              3.169525
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 11,
+          "name": "tree_field_1_7",
+          "transform": {
+            "position": [
+              -2.49478,
+              0.0,
+              0.008337746
+            ],
+            "rotation_degrees": [
+              0.0,
+              251.11842,
+              0.0
+            ],
+            "scale": [
+              0.24471638,
+              0.24471638,
+              0.24471638
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/jacaranda_tree/jacaranda_tree.glb"
+          }
+        },
+        {
+          "id": 12,
+          "name": "tree_field_1_8",
+          "transform": {
+            "position": [
+              3.0004284,
+              0.0,
+              -0.5093764
+            ],
+            "rotation_degrees": [
+              0.0,
+              13.737545,
+              0.0
+            ],
+            "scale": [
+              3.1147425,
+              3.1147425,
+              3.1147425
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 13,
+          "name": "tree_field_1_9",
+          "transform": {
+            "position": [
+              3.9064798,
+              0.0,
+              0.21797054
+            ],
+            "rotation_degrees": [
+              0.0,
+              10.466431,
+              0.0
+            ],
+            "scale": [
+              0.28506997,
+              0.28506997,
+              0.28506997
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/jacaranda_tree/jacaranda_tree.glb"
+          }
+        },
+        {
+          "id": 14,
+          "name": "tree_field_1_10",
+          "transform": {
+            "position": [
+              1.1717161,
+              0.0,
+              5.132342
+            ],
+            "rotation_degrees": [
+              0.0,
+              53.88807,
+              0.0
+            ],
+            "scale": [
+              2.8514342,
+              2.8514342,
+              2.8514342
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 15,
+          "name": "tree_field_1_11",
+          "transform": {
+            "position": [
+              -4.059953,
+              0.0,
+              -0.15121654
+            ],
+            "rotation_degrees": [
+              0.0,
+              223.46988,
+              0.0
+            ],
+            "scale": [
+              0.31936082,
+              0.31936082,
+              0.31936082
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/jacaranda_tree/jacaranda_tree.glb"
+          }
+        },
+        {
+          "id": 16,
+          "name": "tree_field_1_12",
+          "transform": {
+            "position": [
+              -0.08408982,
+              0.0,
+              5.2364883
+            ],
+            "rotation_degrees": [
+              0.0,
+              211.43634,
+              0.0
+            ],
+            "scale": [
+              3.3945613,
+              3.3945613,
+              3.3945613
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 17,
+          "name": "shelf_4",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              2.5773196,
+              2.5773196,
+              2.5773196
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 18,
+          "name": "shelf_5",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              2.5773196,
+              2.5773196,
+              2.5773196
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 19,
+          "name": "shelf_6",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              2.5773196,
+              2.5773196,
+              2.5773196
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 20,
+          "name": "shelf_7",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              2.5773196,
+              2.5773196,
+              2.5773196
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 21,
+          "name": "shelf_8",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              2.5773196,
+              2.5773196,
+              2.5773196
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 22,
+          "name": "warm_light",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "visible": true
+          },
+          "light": {
+            "light_type": "directional",
+            "color": [
+              0.5,
+              0.5,
+              0.5,
+              1.0
+            ],
+            "intensity": 500.0,
+            "direction": [
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "shadows": false
+          }
+        }
+      ]
+    },
+    "d299419df6f8f5dfe925d7614f67764c5b2f94c009dfdafc6079d0bed7d97475": {
+      "model": "prism-ml_Bonsai-8B-unpacked-Q4_K_M.gguf",
+      "description": "The place \"The Clearing\" is built with a circular platform of radius 6 centered at the origin. It features a ring of pale birches arranged symmetrically around the clearing, with each tree representing a different variant of the quiver tree. A single lantern glows on a flat stone in the center, casting a warm, desaturated light that enhances the mood of the scene. The scattered field of trees adds a natural, dense coverage across the platform, creating a sense of depth and atmosphere. The scene is illuminated by a directional light that mimics the soft, low light of dusk, enhancing the desaturated and muted color palette. This design reflects the serene and atmospheric tone of the section described.",
+      "entities": [
+        {
+          "id": 1,
+          "name": "birch_1",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              2.5773196,
+              2.5773196,
+              2.5773196
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 2,
+          "name": "birch_2",
+          "transform": {
+            "position": [
+              2.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.7632241,
+              1.7632241,
+              1.7632241
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/othonna_cerarioides/othonna_cerarioides.glb"
+          }
+        },
+        {
+          "id": 3,
+          "name": "birch_3",
+          "transform": {
+            "position": [
+              -2.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.0190712,
+              1.0190712,
+              1.0190712
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/pachira_aquatica_01/pachira_aquatica_01.glb"
+          }
+        },
+        {
+          "id": 4,
+          "name": "birch_4",
+          "transform": {
+            "position": [
+              0.0,
+              2.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              0.2896152,
+              0.2896152,
+              0.2896152
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/jacaranda_tree/jacaranda_tree.glb"
+          }
+        },
+        {
+          "id": 5,
+          "name": "birch_5",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              2.5773196,
+              2.5773196,
+              2.5773196
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 6,
+          "name": "tree_1_1",
+          "transform": {
+            "position": [
+              3.4765737,
+              0.0,
+              3.7757902
+            ],
+            "rotation_degrees": [
+              0.0,
+              211.08174,
+              0.0
+            ],
+            "scale": [
+              2.4983256,
+              2.4983256,
+              2.4983256
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 7,
+          "name": "tree_1_2",
+          "transform": {
+            "position": [
+              -1.8987625,
+              0.0,
+              4.725457
+            ],
+            "rotation_degrees": [
+              0.0,
+              11.522942,
+              0.0
+            ],
+            "scale": [
+              2.2214818,
+              2.2214818,
+              2.2214818
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 8,
+          "name": "tree_1_3",
+          "transform": {
+            "position": [
+              2.4555,
+              0.0,
+              1.3853323
+            ],
+            "rotation_degrees": [
+              0.0,
+              279.1732,
+              0.0
+            ],
+            "scale": [
+              3.0033097,
+              3.0033097,
+              3.0033097
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 9,
+          "name": "tree_1_4",
+          "transform": {
+            "position": [
+              2.3873692,
+              0.0,
+              0.05453803
+            ],
+            "rotation_degrees": [
+              0.0,
+              161.93521,
+              0.0
+            ],
+            "scale": [
+              2.3289754,
+              2.3289754,
+              2.3289754
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 10,
+          "name": "tree_1_5",
+          "transform": {
+            "position": [
+              -1.6493161,
+              0.0,
+              3.1720295
+            ],
+            "rotation_degrees": [
+              0.0,
+              158.5811,
+              0.0
+            ],
+            "scale": [
+              2.1355002,
+              2.1355002,
+              2.1355002
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 11,
+          "name": "tree_1_6",
+          "transform": {
+            "position": [
+              -2.6753855,
+              0.0,
+              -1.8207408
+            ],
+            "rotation_degrees": [
+              0.0,
+              297.64258,
+              0.0
+            ],
+            "scale": [
+              2.6940234,
+              2.6940234,
+              2.6940234
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 12,
+          "name": "tree_1_7",
+          "transform": {
+            "position": [
+              2.5714357,
+              0.0,
+              -1.3714161
+            ],
+            "rotation_degrees": [
+              0.0,
+              136.92378,
+              0.0
+            ],
+            "scale": [
+              1.8517655,
+              1.8517655,
+              1.8517655
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 13,
+          "name": "tree_1_8",
+          "transform": {
+            "position": [
+              5.799231,
+              0.0,
+              -0.4294927
+            ],
+            "rotation_degrees": [
+              0.0,
+              200.2495,
+              0.0
+            ],
+            "scale": [
+              3.1401877,
+              3.1401877,
+              3.1401877
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 14,
+          "name": "tree_1_9",
+          "transform": {
+            "position": [
+              3.18368,
+              0.0,
+              0.41709775
+            ],
+            "rotation_degrees": [
+              0.0,
+              343.27325,
+              0.0
+            ],
+            "scale": [
+              2.053112,
+              2.053112,
+              2.053112
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 15,
+          "name": "tree_1_10",
+          "transform": {
+            "position": [
+              3.1235385,
+              0.0,
+              1.968743
+            ],
+            "rotation_degrees": [
+              0.0,
+              7.5107217,
+              0.0
+            ],
+            "scale": [
+              2.67551,
+              2.67551,
+              2.67551
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 16,
+          "name": "tree_1_11",
+          "transform": {
+            "position": [
+              -4.5866385,
+              0.0,
+              3.493873
+            ],
+            "rotation_degrees": [
+              0.0,
+              172.35173,
+              0.0
+            ],
+            "scale": [
+              3.0788484,
+              3.0788484,
+              3.0788484
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 17,
+          "name": "tree_1_12",
+          "transform": {
+            "position": [
+              -5.1150503,
+              0.0,
+              -1.3125635
+            ],
+            "rotation_degrees": [
+              0.0,
+              159.65817,
+              0.0
+            ],
+            "scale": [
+              2.4063675,
+              2.4063675,
+              2.4063675
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/quiver_tree_01/quiver_tree_01.glb"
+          }
+        },
+        {
+          "id": 18,
+          "name": "lantern_1",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              5.4945054,
+              5.4945054,
+              5.4945054
+            ],
+            "visible": true
+          },
+          "mesh_asset": {
+            "path": "models/industrial_pipe_lamp/industrial_pipe_lamp.glb"
+          }
+        },
+        {
+          "id": 19,
+          "name": "dusk_light",
+          "transform": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "visible": true
+          },
+          "light": {
+            "light_type": "directional",
+            "color": [
+              0.5,
+              0.5,
+              0.5,
+              1.0
+            ],
+            "intensity": 500.0,
+            "direction": [
+              0.0,
+              -1.0,
+              0.0
+            ],
+            "shadows": false
+          }
+        }
+      ]
+    }
+  }
+}

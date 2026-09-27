@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LocalGPT Verse — LLM Integration Progress</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --card: #12151d;
+    --line: #232836;
+    --text: #e8eaf0;
+    --muted: #9aa1b2;
+    --accent: #e8a06a;
+    --ok: #6fd18a;
+    --warn: #e8c06a;
+    --human: #7fb4e8;
+    --code: #1a1e28;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 -apple-system, "Segoe UI", Roboto, "Hanken Grotesk", sans-serif;
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 48px 24px 96px; }
+  h1 { font-size: 26px; font-weight: 600; margin: 0 0 4px; letter-spacing: 0.2px; }
+  h1 .dot { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 13.5px; margin-bottom: 28px; }
+  .sub code { color: var(--accent); }
+  h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 1.6px;
+    color: var(--muted); margin: 40px 0 12px; font-weight: 600;
+    display: flex; align-items: center; gap: 10px;
+  }
+  h2::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .summary { display: flex; gap: 12px; flex-wrap: wrap; }
+  .stat {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 18px; min-width: 120px;
+  }
+  .stat b { font-size: 22px; display: block; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  .stat.ok b { color: var(--ok); }
+  .stat.next b { color: var(--warn); }
+  .stat.human b { color: var(--human); }
+  table { width: 100%; border-collapse: collapse; background: var(--card);
+          border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: 1px;
+       color: var(--muted); padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td.pri { white-space: nowrap; font-weight: 600; }
+  .pill { display: inline-block; padding: 1px 9px; border-radius: 99px; font-size: 11.5px;
+          font-weight: 600; white-space: nowrap; }
+  .pill.done { background: rgba(111,209,138,.14); color: var(--ok); }
+  .pill.p1 { background: rgba(232,160,106,.16); color: var(--accent); }
+  .pill.p2 { background: rgba(232,192,106,.14); color: var(--warn); }
+  .pill.p3 { background: rgba(154,161,178,.14); color: var(--muted); }
+  .pill.human { background: rgba(127,180,232,.15); color: var(--human); }
+  code { font: 12.5px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+         background: var(--code); padding: 1px 6px; border-radius: 5px; }
+  pre { background: var(--code); border: 1px solid var(--line); border-radius: 10px;
+        padding: 14px 16px; overflow-x: auto; }
+  pre code { background: none; padding: 0; color: #cdd3e0; }
+  .callout { background: rgba(127,180,232,.07); border: 1px solid rgba(127,180,232,.3);
+             border-radius: 10px; padding: 16px 18px; }
+  .callout h3 { margin: 0 0 8px; font-size: 14.5px; color: var(--human); }
+  .callout ol { margin: 0; padding-left: 20px; }
+  .callout li { margin: 7px 0; }
+  ul.clean { list-style: none; padding: 0; margin: 0; }
+  ul.clean li { padding: 9px 0 9px 30px; position: relative; border-bottom: 1px solid var(--line); }
+  ul.clean li:last-child { border-bottom: none; }
+  ul.clean li::before { content: "✓"; position: absolute; left: 4px; color: var(--ok);
+                        font-weight: 700; }
+  ul.clean li b { color: var(--text); }
+  ul.clean li .where { color: var(--muted); font-size: 12.5px; display: block; }
+  .note { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  footer { color: var(--muted); font-size: 12.5px; margin-top: 56px;
+           border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1><span class="dot">●</span> LocalGPT Verse — LLM Integration Progress</h1>
+  <p class="sub">Tracking the gap analysis → fix work on the <code>llm</code> tiers (recipe + agent)
+     and the world-interestingness rounds.
+     Last updated <strong>2026-09-13</strong> · commits <code>c27f6d2</code> →
+     <code>c738a4a</code> · <strong style="color:var(--ok)">runtime-verified with the real model</strong></p>
+
+  <div class="summary">
+    <div class="stat ok"><b>5 / 5</b><span>gap items fixed &amp; committed</span></div>
+    <div class="stat ok"><b>8</b><span>world-interestingness items shipped</span></div>
+    <div class="stat ok"><b>4 / 4</b><span>tracks got LLM recipes in the live app</span></div>
+    <div class="stat next"><b>5</b><span>backlog items remain</span></div>
+    <div class="stat human"><b>1</b><span>needs a human decision (CLAP license)</span></div>
+  </div>
+
+  <h2>Shipped — verified compile + tests + smoke</h2>
+  <ul class="clean">
+    <li><b>Recipe text surfaces in the UI.</b> The LLM’s <code>world_name</code> (e.g. “Velvet
+      Megacity Ruins”) replaces the static mood name in the HUD eyebrow and the pause title,
+      capped at 40 chars, falling back to the mood name.
+      <span class="where">src/hud.rs · src/overlays/pause.rs</span></li>
+    <li><b>Full WorldRecipe consumption.</b> Section choreography (role → measured segment via
+      energy curve → energy shift / motion / palette wash), fog density, ambient tint, primary
+      biome tint (≤40% mix), biome layout override, secondary-biome accent props, kind-matched
+      landmarks with emissive beacons, and the recipe seed (pin &gt; recipe &gt; path).
+      <span class="where">src/world.rs · src/world_assets.rs · src/analysis.rs</span></li>
+    <li><b>Agent leak + timing fixes.</b> Lights/environment are name-registered (update in
+      place, despawned with the scene); Comfort gates applied to every emissive/light at
+      execution; every entity is track-scoped and hidden until its track is current, so
+      lookahead sessions never pop into the playing world.
+      <span class="where">src/agent.rs · src/agent_types.rs · src/plugins.rs</span></li>
+    <li><b>The LLM got the asset vocabulary.</b> New <code>place_asset</code> agent tool whose
+      schema enum <em>is</em> the 52-model manifest (read from disk on the worker thread) — the
+      model can now place curated CC0 assets, not just raw primitives. Landmark kinds also match
+      hero assets by name keywords.
+      <span class="where">src/agent.rs · src/world_assets.rs</span></li>
+    <li><b>CI compiles the gated tiers.</b> <code>cargo check --features llm</code> and
+      <code>--features ml</code> added to the localgpt-verse job — the LLM code can no longer rot
+      broken while default-feature CI stays green. Docs (README, PLAN, module headers) updated
+      to match reality.
+      <span class="where">.github/workflows/ci.yml · README.md · PLAN.md</span></li>
+  </ul>
+  <p class="note">Gates at the baseline commit: clippy + fmt clean (default <em>and</em> llm
+     features) · 88 tests (default) / 95 (llm) pass · <code>VERSE_SMOKE=1</code> boots every
+     screen and places props 86 / 79 across a crossfade.</p>
+
+  <h2>Runtime verification — done (2026-09-12)</h2>
+  <ul class="clean">
+    <li><b>The model path works end to end.</b> Bonsai-8B Q4_K_M (5.2 GB, Apache-2.0) on
+      the <code>llm-metal</code> GPU path: plain chat at ~25 tok/s; a full
+      <code>WorldRecipe</code> in 20–80 s per track (idea.md’s “&lt; song length” bar).
+      In the live app, 4/4 imported tracks got recipes cached to their sidecars (one with a
+      model-chosen <code>density 0.8</code>), 3/4 got agent builds (24 tool-calls each),
+      and the cached-build replay ran 4× as tracks auto-advanced.
+      <span class="where">probe: llm.rs::llm_generation_probe · logs: “LLM authored recipe …”, “agent: session produced 24 commands”</span></li>
+    <li><b>Three real defects found &amp; fixed along the way:</b>
+      (1) the fetch script’s pinned Q1_0 quant doesn’t parse in mistral.rs 0.8 → default is
+      now the verified Q4_K_M; (2) the Q4_K_M doesn’t fit the <em>CPU</em> device map
+      alongside the renderer → opt-in <code>llm-metal</code> feature; (3) mistral.rs 0.8’s
+      grammar-constrained <code>generate_structured</code> hangs on GGUF even for a
+      two-field schema → recipe generation is now plain instructed-JSON with a lenient
+      balanced-object parse (serde defaults + <code>clamped()</code> + rule fallback keep
+      every safety property), with a 180 s timeout.
+      <span class="where">scripts/fetch-bonsai.sh · Cargo.toml · src/llm.rs</span></li>
+    <li><b>Worker shutdown is bounded.</b> Cooperative <code>WorkerCancel</code> between
+      tracks/passes/turns + a 15 s join with detach backstop — a shutdown during inference
+      no longer blocks app teardown for the rest of the track.
+      <span class="where">src/analysis.rs · src/agent.rs</span></li>
+  </ul>
+
+  <h2>Remaining human action</h2>
+  <div class="callout">
+    <h3>One decision left</h3>
+    <ol>
+      <li><b>CLAP weights licensing</b> (the <code>ml</code> feature) is CC-BY-NC — verify
+        against your distribution model before shipping that tier in a release. The Bonsai
+        half of the caveat is <em>cleared</em>: model + tokenizer are Apache-2.0. Both
+        tiers remain opt-in and the app runs fully without them (rule-derived path).</li>
+    </ol>
+  </div>
+
+  <h2>Shipped — world interestingness, round 1 (stem + band reactivity)</h2>
+  <ul class="clean">
+    <li><b>The world now listens per frequency range, not as one loudness.</b> The live tap
+      publishes <code>bass</code>/<code>highs</code> band envelopes alongside energy/pulse;
+      the Demucs stem curves cached in sidecars are sampled at the playhead into a
+      <code>StemLevels</code> resource (stem value wins, live band stands in when absent).
+      Bass swells the drifters’ sway, the “other” stem quickens their spin, drums accent
+      the beat glow and breathe the landmark beacons, vocals widen particle wander, and
+      the live high band breathes the particle field’s emissive — all Comfort-gated
+      (reduce-flashing holds brightness steady; motion reactivity halves instead).
+      <span class="where">src/audio.rs · src/playback.rs · src/analysis.rs · src/world.rs · src/world_assets.rs</span></li>
+  </ul>
+
+  <h2>Shipped — world interestingness, rounds 2–5 (2026-09-12/13)</h2>
+  <ul class="clean">
+    <li><b>The world reads as the song.</b> Sections now have <em>structural verbs</em>
+      (eased): the chorus lights beacons ×1.4 and swells particles, the bridge strips
+      particles to 0.15 and dims beacons, the outro sinks scatter into the ground.
+      Without the LLM tier, roles fall back to positional (intro / middle chorus / last
+      outro), so every track gets them.
+      <span class="where">src/world.rs · src/world_assets.rs</span></li>
+    <li><b>The world materializes across the whole song.</b> Scatter rises in the intro
+      (still settling on the first downbeat), mediums spread through the verses, heroes and
+      landmarks land exactly on the chorus. Plus: <b>the skyline is the waveform</b> — 28 rim
+      stelae whose heights sample the energy curve, each rising with its section.
+      <span class="where">src/world_assets.rs</span></li>
+    <li><b>A performed world.</b> Placed props keep breathing (bob/spin riding the bass);
+      the Drift camera does section-aware moves (calm pulls up and out, active drops in
+      close, quiet ends pull wide); the recipe’s authored name appears as 3D horizon text
+      over the intro.
+      <span class="where">src/world_assets.rs · src/world.rs</span></li>
+    <li><b>Eight moods and the continuum between them.</b> CINDER REACH / MIRAGE CIRCUIT /
+      ABYSS TERRACES / DAWN EXPANSE split the four quadrants by energy (each borrowing its
+      base’s asset set); the palette also drifts continuously — spectral centroid nudges the
+      hues and boundary-adjacent tracks blend toward the world they almost landed in. Two
+      “Tide Gardens” songs no longer look identical.
+      <span class="where">src/theme.rs · src/analysis.rs · src/world.rs</span></li>
+    <li><b>The ground is an instrument</b> — a 64×64-subdivided plane displaced by a
+      bass-driven radial ripple + diagonal swell, distance-faded so the rim stays still,
+      gentler-motion-gated.
+      <span class="where">src/world.rs</span></li>
+    <li><b>Prop ceiling broken for ground cover.</b> The scatter tier merged into ONE
+      vertex-tinted procedural mesh (pebbles/shards/chips per arrangement) at 4× density in
+      a single draw — 86 entities → 41 props + 1 field of 180 pebbles. Density recipes now
+      have headroom to spend.
+      <span class="where">src/world_assets.rs</span></li>
+    <li><b>LLM polish.</b> The prompt demands an invented world name (no more mood-name
+      echo); the agent gets a wrap-up nudge 6 steps before budget so sessions close with a
+      description; <code>at_role</code> on <code>spawn_primitive</code>/<code>place_asset</code>
+      scopes structures to song sections (gateways for the bridge, monuments on the drop);
+      the pause overlay shows the tier — “imagined by Bonsai · agent scene: N parts” — plus
+      the agent’s description in quotes.
+      <span class="where">src/llm.rs · src/agent.rs · src/agent_types.rs · src/overlays/pause.rs</span></li>
+    <li><b>CLAP-embedding asset selection (the M5→M6 hook).</b> The text tower now runs at
+      runtime (<code>TextEmbedder</code>, background thread — it was fetched but unused
+      before) and embeds all 52 asset names; placement weights medium-tier counts and the
+      hero fallback by cosine(track audio embedding, asset text embedding), min-max
+      normalized to [0.4, 1.6] — an oceanic song favours coral assets. Neutral 1.0 without
+      either signal (no-model path is byte-identical to before). Placement re-runs once
+      when embeddings first land. Also fixed the 8-mood regression: the CLAP vote covers
+      the four base quadrants, and the worker folds mean energy into the variant.
+      <span class="where">src/ml.rs · src/world_assets.rs · src/analysis.rs · src/plugins.rs</span></li>
+  </ul>
+  <p class="note">Design note: asset ranking is driven by the track’s <em>audio</em>
+     embedding only. The probe measured CLAP text↔text similarity as off-manifold
+     (ocean→coral 0.18 &lt; ocean→monolith 0.22 — noise) — the model is trained
+     audio↔text, so recipe “intent” prose stays on the keyword path. Probe:
+     <code>ml::tests::text_embedding_probe</code>. One rough edge found in <code>--features ml</code>
+     runs: <code>stem-splitter-core</code>’s Demucs model fetch can panic on a background
+     thread when the model is unavailable; the app survives it (tier stays off) — upstream
+     issue to report, not ours to fix in-tree.</p>
+
+  <h2>Backlog — what remains</h2>
+  <table>
+    <tr><th></th><th>Item</th><th>Who</th><th>Notes</th></tr>
+    <tr>
+      <td class="pri"><span class="pill p2">P2</span></td>
+      <td><b><s>Embedding-based asset selection.</s></b> <em>Shipped 2026-09-13</em> (track
+          audio embedding ranks the manifest; keywords stay the no-model fallback).
+          Remaining if ever wanted: manifest <code>tags</code> from a
+          <code>verse-assets</code> regen would sharpen the text descriptions the ranker
+          embeds.</td>
+      <td><span class="pill p2">done</span></td>
+      <td>Runtime-verified: 52 assets embedded on a background thread, placement re-runs once on fill.</td>
+    </tr>
+    <tr>
+      <td class="pri"><span class="pill p2">P2</span></td>
+      <td><b>Per-section sub-recipes.</b> N small recipes (one per section role) instead of
+          one monolith — faster generation and harder sync. The monolith is runtime-verified,
+          so this is an upgrade, not a fix.</td>
+      <td><span class="pill p2">Claude</span></td>
+      <td>Prompt + sidecar schema change.</td>
+    </tr>
+    <tr>
+      <td class="pri"><span class="pill p3">P3</span></td>
+      <td><b>True GPU instancing</b> for the hero/medium glTF tiers (the merged scatter
+          covers ground cover; scene-root clones still cap the rest — measured 14 fps @
+          1k props).</td>
+      <td><span class="pill p3">Claude</span></td>
+      <td>Infrastructure; the one remaining perf item.</td>
+    </tr>
+    <tr>
+      <td class="pri"><span class="pill p3">P3</span></td>
+      <td><b>M7 remainders.</b> Beat This! ONNX beat tracking
+          (<code>beat-this</code> crate, unaudited). Demucs reactivity is
+          <em>shipped</em> (stem curves sampled at the playhead into the world).</td>
+      <td><span class="pill p3">Claude</span></td>
+      <td>None load-bearing.</td>
+    </tr>
+    <tr>
+      <td class="pri"><span class="pill p3">P3</span></td>
+      <td><b>Asset packs for the four new moods</b> — they currently borrow their base
+          quadrant’s set (<code>ASSET_BASE_MOODS</code>); distinct sets want a
+          <code>verse-assets</code> repo regen.</td>
+      <td><span class="pill human">human + Claude</span></td>
+      <td>Other-repo change (fetch_polyhaven.py tags).</td>
+    </tr>
+  </table>
+
+  <h2>Verify the current state yourself</h2>
+<pre><code># Lint + tests (default and llm features)
+cargo clippy --tests -- -D warnings
+cargo clippy --tests --features llm -- -D warnings
+cargo test && cargo test --features llm
+
+# The ml tier compiles
+cargo check --features ml
+
+# UI/runtime smoke (boots every screen, exits by itself)
+VERSE_SMOKE=1 cargo run
+
+# The full LLM path (verified 2026-09-12; recipes in 20–80 s per track)
+scripts/fetch-bonsai.sh
+cargo run --features llm-metal        # macOS GPU path (Q4_K_M needs it)
+cargo run --features llm             # CPU-only: use a smaller GGUF
+
+# One-shot generation probe (plain chat / grammar hang / real recipe path)
+cargo test --features llm-metal -- --ignored --nocapture llm_generation_probe</code></pre>
+
+  <footer>Maintained alongside <code>PLAN.md</code>’s status notes — update this page in the
+     same commit that changes tier status. Open directly in a browser
+     (<code>open PROGRESS.html</code>); no build step, no dependencies.</footer>
+</main>
+</body>
+</html>

@@ -43,7 +43,7 @@ pub const KNOWN_MODELS: &[KnownModel] = &[
         name: "prism-ml_Bonsai-8B-unpacked-Q4_K_M",
         label: "Bonsai-8B Q4_K_M",
         size_gb: 5.2,
-        fetch_hint: "localgpt-md/scripts/fetch-bonsai.sh (shared with MD and Verse)",
+        fetch_hint: "scripts/fetch-model.sh (one download, shared with MD and Verse)",
     },
     KnownModel {
         name: "Qwen3-8B-Instruct-Q4_K_M",
@@ -88,7 +88,7 @@ pub fn auto_local_model() -> Option<String> {
 #[cfg(feature = "local-llm")]
 fn gguf_size_gb(model_id: &str) -> Option<f32> {
     let name = model_id.strip_prefix(&format!("{}/", crate::local_llm::PREFIX))?;
-    let dir = localgpt_core::paths::shared_llm_dir()?;
+    let dir = localgpt_world_agent::shared_llm_dir()?;
     let bytes = std::fs::metadata(dir.join(format!("{name}.gguf")))
         .ok()?
         .len();

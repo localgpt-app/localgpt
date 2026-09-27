@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LocalGPT MD</title>
+<meta name="description" content="Open a Markdown file and walk through it as a 3D world. Every section becomes a place, and saving the file rebuilds the world. Runs on your machine.">
+<link rel="canonical" href="https://md.localgpt.app/">
+<link rel="icon" href="localgpt-icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #f6f3ec;
+    --surface: #fffdf8;
+    --ink: #1d2230;
+    --muted: #596073;
+    --line: #e1dacb;
+    --accent: #a85f14;
+    --code-bg: #1a1f2d;
+    --code-ink: #dfe5f2;
+    --code-muted: #8a93a8;
+    --code-accent: #f0b26a;
+    --sky-top: #8ea5c8;
+    --sky-bottom: #e8e0cf;
+    --ground: #b9b8a6;
+    --platform: #ece6d8;
+    --label: #3c4356;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10141d;
+      --surface: #171c28;
+      --ink: #e7ebf3;
+      --muted: #a2aabd;
+      --line: #2a3142;
+      --accent: #f0b26a;
+      --code-bg: #0b0e15;
+      --sky-top: #1d2a45;
+      --sky-bottom: #4a5670;
+      --ground: #2c3340;
+      --platform: #59627a;
+      --label: #d5dbe8;
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 17px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+
+  header.top {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 20px 0;
+  }
+  .wordmark {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-weight: 700; letter-spacing: -0.01em; color: var(--ink); text-decoration: none;
+  }
+  .wordmark .mark { width: 26px; height: 26px; display: block; }
+  .wordmark span { color: var(--accent); }
+  .top-link { font-size: 15px; color: var(--muted); text-decoration: none; }
+  .top-link:hover { color: var(--ink); }
+
+  .hero { padding: 40px 0 28px; }
+  h1 {
+    font-size: clamp(34px, 6vw, 56px); line-height: 1.08; letter-spacing: -0.025em;
+    margin: 0 0 16px; max-width: 16ch;
+  }
+  .lede { font-size: clamp(18px, 2.2vw, 21px); color: var(--muted); max-width: 40ch; margin: 0 0 28px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+  .button {
+    display: inline-block; padding: 11px 18px; border-radius: 10px; font-weight: 600; font-size: 16px;
+    text-decoration: none; border: 1px solid var(--line); color: var(--ink); background: var(--surface);
+  }
+  .button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  .demo {
+    display: grid; gap: 16px; margin: 36px 0 12px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 780px) { .demo { grid-template-columns: 5fr 7fr; } }
+  .card { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface); min-width: 0; }
+  .card-bar {
+    display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+    font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line);
+  }
+  .editor { background: var(--code-bg); border-color: var(--code-bg); }
+  .editor .card-bar { color: var(--code-muted); border-color: #ffffff14; }
+  .editor pre {
+    margin: 0; padding: 18px 18px 22px; overflow-x: auto;
+    font: 14.5px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--code-ink);
+  }
+  .editor .h { color: var(--code-accent); font-weight: 600; }
+  .editor .dim { color: var(--code-muted); }
+  .world svg { display: block; width: 100%; height: auto; }
+  .world .sky-top { stop-color: var(--sky-top); }
+  .world .sky-bottom { stop-color: var(--sky-bottom); }
+  .world .ground { fill: var(--ground); }
+  .world .platform { fill: var(--platform); }
+  .world .path { stroke: var(--platform); }
+  .world .label { fill: var(--label); font: 600 12px ui-sans-serif, system-ui, sans-serif; }
+  .caption { font-size: 14px; color: var(--muted); margin: 0 0 56px; }
+
+  h2 { font-size: 26px; letter-spacing: -0.015em; margin: 0 0 18px; }
+  .steps { display: grid; gap: 16px; grid-template-columns: 1fr; margin-bottom: 56px; }
+  @media (min-width: 780px) { .steps { grid-template-columns: repeat(3, 1fr); } }
+  .step { padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  .step b { display: block; font-size: 18px; margin-bottom: 6px; }
+  .step p { margin: 0; color: var(--muted); font-size: 16px; }
+  code { font: 0.92em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  .next { padding: 24px; border-radius: 14px; border: 1px dashed var(--line); margin-bottom: 56px; }
+  .next p { margin: 0 0 10px; color: var(--muted); }
+  .next p:last-child { margin-bottom: 0; }
+
+  footer { border-top: 1px solid var(--line); padding: 22px 0 40px; font-size: 14px; color: var(--muted); }
+  footer .row { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+  footer .row + .row { margin-top: 12px; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="wordmark" href="/"><img class="mark" src="localgpt-icon.svg" alt="">LocalGPT <span>MD</span></a>
+      <a class="top-link" href="https://localgpt.app/docs/md">Docs &rarr;</a>
+    </header>
+
+    <section class="hero">
+      <h1>Open a Markdown file. Walk&nbsp;through&nbsp;it.</h1>
+      <p class="lede">Every section becomes a place. Save the file and the world rebuilds. It all runs on your machine.</p>
+      <div class="actions">
+        <a class="button primary" href="https://github.com/localgpt-app/localgpt-md">Build from source</a>
+        <a class="button" href="#how">How it works</a>
+      </div>
+
+      <div class="demo">
+        <div class="card editor">
+          <div class="card-bar">notes.md</div>
+<pre><span class="h"># A Walk Through My Notes</span>
+
+<span class="h">## The Clearing</span>
+<span class="dim">Pale birches, fog at dusk, one
+lantern on a flat stone.</span>
+
+<span class="h">## The Library</span>
+<span class="dim">Tall shelves spiral up into
+darkness. Ladders, dusty spines.</span>
+
+<span class="h">## The Shore</span>
+<span class="dim">Black sand, a long pier, waves
+that glow where they break.</span></pre>
+        </div>
+
+        <div class="card world">
+          <div class="card-bar">The same file, as a world</div>
+          <svg viewBox="0 0 480 320" role="img" aria-label="The three sections of notes.md as places along a winding path: a pyramid in The Clearing, a glowing orb in The Library, and a ring on The Shore.">
+            <defs>
+              <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" class="sky-top"/>
+                <stop offset="1" class="sky-bottom"/>
+              </linearGradient>
+              <linearGradient id="fog" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" class="sky-bottom" stop-opacity="0.9"/>
+                <stop offset="1" class="sky-bottom" stop-opacity="0"/>
+              </linearGradient>
+              <radialGradient id="orb-glow">
+                <stop offset="0" stop-color="#7fd3c6" stop-opacity="0.85"/>
+                <stop offset="1" stop-color="#7fd3c6" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <rect width="480" height="320" fill="url(#sky)"/>
+            <polygon class="ground" points="0,320 480,320 480,150 0,150"/>
+            <path class="path" d="M170 300 C 240 265, 330 240, 318 205 S 220 170, 238 150" fill="none" stroke-width="3" stroke-dasharray="2 9" stroke-linecap="round"/>
+
+            <!-- The Shore: far, small, upright ring -->
+            <ellipse class="platform" cx="240" cy="148" rx="30" ry="6"/>
+            <ellipse cx="240" cy="129" rx="10" ry="15" fill="none" stroke="#a894e0" stroke-width="3.5"/>
+            <text class="label" x="276" y="142">The Shore</text>
+
+            <!-- The Library: middle, floating orb -->
+            <ellipse class="platform" cx="318" cy="208" rx="54" ry="11"/>
+            <circle cx="318" cy="168" r="34" fill="url(#orb-glow)"/>
+            <circle cx="318" cy="168" r="15" fill="#5fb8aa"/>
+            <rect x="279" y="198" width="7" height="7" fill="#d9c3a0"/>
+            <circle cx="355" cy="201" r="4" fill="#d9c3a0"/>
+            <text class="label" x="378" y="206">The Library</text>
+
+            <!-- The Clearing: near, pyramid -->
+            <ellipse class="platform" cx="170" cy="276" rx="92" ry="20"/>
+            <polygon points="128,272 170,186 212,272" fill="#e3a256"/>
+            <polygon points="170,186 212,272 186,276" fill="#c98636"/>
+            <rect x="96" y="262" width="11" height="11" fill="#c7d3e6"/>
+            <circle cx="238" cy="266" r="6" fill="#c7d3e6"/>
+            <rect x="222" y="279" width="9" height="9" fill="#c7d3e6"/>
+            <text class="label" x="22" y="236">The Clearing</text>
+
+            <rect width="480" height="150" y="70" fill="url(#fog)" opacity="0.35"/>
+          </svg>
+        </div>
+      </div>
+      <p class="caption">Each <code>##</code> heading becomes a place along a path. Longer sections grow taller landmarks. Arrow keys fly you from one to the next.</p>
+    </section>
+
+    <section id="how">
+      <h2>How it works</h2>
+      <div class="steps">
+        <div class="step">
+          <b>1. Open any Markdown</b>
+          <p>Notes, a story, a talk. Each <code>##</code> heading becomes a place, and the text stays beside you as you walk.</p>
+        </div>
+        <div class="step">
+          <b>2. Walk it</b>
+          <p>Arrow keys move from section to section. Worlds use LocalGPT's world format, the same one LocalGPT Gen saves.</p>
+        </div>
+        <div class="step">
+          <b>3. Save to rebuild</b>
+          <p>Keep the file open in your editor. Each save rebuilds the world, and sections you didn't touch stay exactly as they were.</p>
+        </div>
+      </div>
+
+      <div class="next">
+        <p><strong>Coming next:</strong> an agent tier: the model builds each section through tool calls and fills it with real 3D assets from the shared pack — still local, your notes never leaving your computer.</p>
+        <p>Slides already become 3D talks (try <code>cargo run -- samples/deck.md</code>). Later: scripts become blocked-out scenes, journals become worlds that grow.</p>
+      </div>
+    </section>
+
+    <footer>
+      <div class="row">
+        <span>LocalGPT MD is part of <a href="https://localgpt.app">LocalGPT</a>.</span>
+        <a href="https://localgpt.app/docs/md">Docs</a>
+        <a href="https://github.com/localgpt-app/localgpt-md">Source on GitHub</a>
+        <span>Apache-2.0</span>
+      </div>
+      <nav class="row" aria-label="The LocalGPT family">
+        <span>Family:</span>
+        <a href="https://localgpt.app" title="A local AI assistant with persistent memory.">LocalGPT</a>
+        <a href="https://gen.localgpt.app" title="Worlds from words.">LocalGPT Gen</a>
+        <a href="https://verse.localgpt.app" title="A 3D world for every song.">LocalGPT Verse</a>
+        <a href="https://localgpt.world" title="Worlds from every app, in your browser.">localgpt.world</a>
+        <a href="https://localgpt.rs" title="The devlog: building it all in Rust.">localgpt.rs</a>
+      </nav>
+    </footer>
+  </div>
+</body>
+</html>

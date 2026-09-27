@@ -1,0 +1,126 @@
+[package]
+name = "localgpt-verse"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "LocalGPT Verse — a desktop app that imagines a 3D world for every song"
+
+
+[dependencies]
+# `jpeg` for the CC0 glTF texture format (Poly Haven ships .jpg maps).
+# `system_font_discovery` lets parley/fontique auto-discover OS fonts for
+# fallback glyphs — e.g. Microsoft YaHei / PingFang for CJK track titles the
+# bundled Latin fonts (Marcellus, Hanken Grotesk) can't render. Without it,
+# non-Latin characters show as blank (tofu).
+bevy = { version = "0.19", features = ["jpeg", "system_font_discovery"] }
+
+# M1 — real playback core (see PLAN.md §1.1)
+# mixer on cpal: precise clocks, tweens, streaming symphonia decode.
+# Extra format features cover the onboarding promise (AIFF) + common .m4a/.aac.
+kira = { version = "0.12", features = ["aiff", "aac", "isomp4", "alac"] }
+lofty = "0.24"    # tag + duration reading for the library scan
+rfd = "0.17"      # native folder picker ("Choose your music folder…")
+walkdir = "2"     # library scan
+
+# M2/M3 — analysis (see PLAN.md §1.2): offline decode + DSP + sidecar cache
+symphonia = { version = "0.5", features = ["mp3", "aac", "alac", "isomp4", "aiff"] }
+realfft = "3"     # real-input FFT for onset/section analysis
+blake3 = "1"      # content-hash keys for the analysis cache
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"  # sidecar serialization
+dirs = "6"        # per-user cache directory
+ebur128 = "0.1"   # integrated loudness (LUFS) for volume normalization
+
+# The shared LocalGPT world format (src/world_manifest.rs): a track's world as
+# a `WorldManifest` with its soundtrack analysis and modulations, so it renders
+# and performs in Gen, MD and the web viewer. Workspace path dependencies
+# since this crate joined the localgpt workspace, which is what makes the
+# two pins impossible to drift apart — they had, by one commit, before the
+# fold. world-agent also owns the shared model and asset-pack directories.
+localgpt-world-types = { workspace = true }
+localgpt-world-agent = { workspace = true }
+ron = "0.12"      # `.world.ron`, Gen's save format, next to the JSON export
+
+
+# PLAN.md M5 — CLAP zero-shot mood + audio embeddings. Opt-in: the model is a
+# ~78 MB download (scripts/fetch-clap.sh) and ort pulls ONNX Runtime binaries;
+# without the feature (or the model file) the app uses the rule mapper (M4).
+#
+# LICENSE NOTE (commercial shipping): CLAP weights (LAION) are CC-BY-NC-4.0 —
+# NOT commercial-friendly. The **rule mapper** (analysis.rs::map_mood, pure
+# Rust DSP, Apache-2.0) is the commercial shipping mood tier; `ml`/CLAP is an
+# opt-in, non-commercial "research quality boost". The app runs fully without
+# the `ml` feature. MERT is also CC-BY-NC, so it is not a clean swap.
+#
+# PLAN.md M7 — Demucs stem separation rides the `ml` feature via
+# `stem-splitter-core` (MIT OR Apache-2.0 — commercial-friendly), which wraps
+# htdemucs ONNX and owns the decode→chunk→separate→merge pipeline. Added with
+# --no-default-features so the coreml/cuda/directml backends stay off (CPU-only,
+# matching the existing `ort` default).
+[features]
+ml = ["dep:ort", "dep:rubato", "dep:stem-splitter-core", "dep:tokenizers"]
+# PLAN.md M7 — LLM-authored scene recipes (src/recipe.rs, src/llm.rs). Opt-in:
+# `mistralrs` builds a pure-Rust inference engine (CUDA/Metal via its own
+# optional features, off by default), and the GGUF model is a separate ~4–5 GB
+# download (scripts/fetch-bonsai.sh, or a standard-Q4_K_M fallback). Without the
+# feature (or the model file) the app keeps the rule-derived recipe (today's
+# path). `schemars` must match mistralrs's internal version (derive path) and
+# its `JsonSchema` bound on `generate_structured`; `tokio` drives the worker
+# thread's block_on runtime (mistralrs's build()/generate are async).
+llm = ["dep:mistralrs", "dep:schemars", "dep:tokio", "dep:etcetera", "localgpt-world-agent/schema"]
+# Apple-Silicon acceleration for the LLM tiers (PLAN.md M7): runs the GGUF on
+# the Metal GPU — unified memory makes the 5 GB Q4_K_M fit comfortably (the
+# CPU device map saw only ~7.6 GB free and refused) and generation is an order
+# of magnitude faster. Opt-in because candle-metal is macOS-only, so this
+# feature must never be built into the Linux CI job.
+llm-metal = ["llm", "mistralrs/metal"]
+
+[dependencies.ort]
+# Pinned to rc.11 to match `stem-splitter-core` (which pins =2.0.0-rc.11). The
+# LocalGPT's fastembed uses rc.12, but LocalGPT Verse is a standalone workspace and its
+# ort API usage (Session/Tensor/run) is identical across rc.11↔rc.12.
+version = "=2.0.0-rc.11"
+optional = true
+
+[dependencies.rubato]
+version = "0.16"
+optional = true
+
+# htdemucs stem separation (PLAN.md M7). MIT OR Apache-2.0. --no-default-features
+# keeps coreml/cuda/directml off (CPU-only). Owns the model fetch internally.
+[dependencies.stem-splitter-core]
+version = "1.2"
+default-features = false
+optional = true
+
+# RoBERTa tokenizer for the CLAP *text* tower (asset-selection ranking,
+# M5→M6 hook). HF `tokenizers` (pure Rust); only compiled under `ml`.
+[dependencies.tokenizers]
+version = "0.21"
+default-features = false
+features = ["fancy-regex"]
+optional = true
+
+[dependencies.mistralrs]
+version = "0.8"
+optional = true
+
+# Must be the same major/minor mistralrs re-exports (`pub use schemars`) so the
+# `T: schemars::JsonSchema` bound on `Model::generate_structured` resolves to
+# the same trait. mistralrs 0.8.1 re-exports schemars 1.x; verify on the first
+# `cargo check --features llm` and bump in lockstep with mistralrs.
+[dependencies.schemars]
+version = "1"
+optional = true
+
+# Resolves the model directory LocalGPT's apps share
+# (`~/.local/share/localgpt/models/llm`, see src/llm.rs) the same way
+# localgpt-core does.
+[dependencies.etcetera]
+version = "0.11"
+optional = true
+
+[dependencies.tokio]
+version = "1"
+features = ["rt", "time"]
+optional = true

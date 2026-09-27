@@ -48,3 +48,7 @@ website/node_modules/
 
 # Opencode
 opencode.json
+
+# Wrangler local state for the landing pages (website-gen, website-md,
+# website-verse each deploy as their own static-assets Worker).
+website-*/.wrangler/

@@ -1,0 +1,14 @@
+# The docs moved to localgpt.app, the LocalGPT family's docs site. Old links
+# keep their #fragment through the redirect.
+/docs                   https://localgpt.app/docs/verse              301
+/docs/                  https://localgpt.app/docs/verse              301
+/docs/index.html        https://localgpt.app/docs/verse              301
+/docs/controls          https://localgpt.app/docs/verse/controls     301
+/docs/controls.html     https://localgpt.app/docs/verse/controls     301
+/docs/worlds            https://localgpt.app/docs/verse/worlds       301
+/docs/worlds.html       https://localgpt.app/docs/verse/worlds       301
+/docs/analysis          https://localgpt.app/docs/verse/analysis     301
+/docs/analysis.html     https://localgpt.app/docs/verse/analysis     301
+/docs/development       https://localgpt.app/docs/verse/development  301
+/docs/development.html  https://localgpt.app/docs/verse/development  301
+/docs/*                 https://localgpt.app/docs/verse              301

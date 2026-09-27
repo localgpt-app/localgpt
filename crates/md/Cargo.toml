@@ -1,0 +1,70 @@
+[package]
+name = "localgpt-md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "LocalGPT MD — open a Markdown file and walk through it as a 3D world"
+repository.workspace = true
+
+
+[dependencies]
+# `jpeg` because the CC0 asset pack's glTF files embed JPEG textures
+# (Poly Haven ships .jpg maps — Verse's finding); without the feature every
+# pack model fails to load with "invalid image mime type: image/jpeg".
+# `system_font_discovery` lets parley/fontique fall back to OS fonts, so CJK
+# and other non-Latin headings render instead of showing as blank boxes.
+bevy = { version = "0.19", features = ["jpeg", "system_font_discovery"] }
+
+# Markdown → sections. Parsing only; the `html` renderer isn't needed.
+pulldown-cmark = { version = "0.13", default-features = false }
+
+# The shared LocalGPT world format: the data model (serde-only), the one Bevy
+# mapping every LocalGPT app renders with, the web viewer / HTML export, and
+# the world agent runtime (tool-call protocol, pure interpreter, and the
+# shared model/asset-pack paths). Workspace path dependencies since this crate
+# joined the localgpt workspace — the git-rev pins they replace had already
+# drifted out of step with Verse's.
+localgpt-world-types = { workspace = true }
+localgpt-world-bevy = { workspace = true }
+localgpt-world-export = { workspace = true }
+localgpt-world-agent = { workspace = true }
+
+# `--print-ron` / `--export x.ron`: the same serializer and version Gen uses
+# for world.ron.
+ron = "0.12.1"
+
+# Stable per-section content hashes (seed the draft now; cache keys later).
+blake3 = "1"
+
+# LLM-authored recipes (src/recipe.rs) and the sidecar cache (src/sidecar.rs).
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+# The LLM tiers (PLAN.md M1/M3): plain instructed-JSON generation and the
+# tool-calling agent loop through mistral.rs, ported from LocalGPT Verse.
+# No `schemars` on purpose — grammar-constrained generation hangs on GGUF
+# (mistral.rs 0.8), so nothing uses a schema; safety is the clamps + the
+# lenient parse. Forwards into the shared world-agent crate.
+llm = ["dep:mistralrs", "dep:tokio", "dep:etcetera", "localgpt-world-agent/llm"]
+# Apple-Silicon GPU path for the ~5 GB Q4_K_M (macOS-only; the CPU device
+# map can't hold it beside a renderer — same rule as Verse).
+llm-metal = ["llm", "mistralrs/metal", "localgpt-world-agent/llm-metal"]
+
+[dependencies.mistralrs]
+version = "0.8"
+optional = true
+
+# Resolves the model directory LocalGPT's apps share
+# (`~/.local/share/localgpt/models/llm`, see src/llm.rs) the same way
+# localgpt-core does.
+[dependencies.etcetera]
+version = "0.11"
+optional = true
+
+# Drives each generation's block_on runtime + timeout (mistral.rs is async).
+[dependencies.tokio]
+version = "1"
+features = ["rt", "time"]
+optional = true
+

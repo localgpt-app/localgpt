@@ -1,0 +1,11 @@
+# Cloudflare Worker for verse.localgpt.app: static assets only, no Worker
+# script, nothing to build. Deploy with ./deploy.sh from this directory.
+name = "localgpt-verse"
+compatibility_date = "2026-09-21"
+
+[assets]
+directory = "."
+# /foo.html redirects to /foo; directories serve their index.html.
+html_handling = "auto-trailing-slash"
+# No 404.html in the site: unmatched paths get a plain 404.
+not_found_handling = "none"

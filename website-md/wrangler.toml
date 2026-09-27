@@ -1,0 +1,7 @@
+# Cloudflare Worker for md.localgpt.app: static assets only, no Worker
+# script, nothing to build. Deploy with ./deploy.sh from this directory.
+name = "localgpt-md"
+compatibility_date = "2026-09-21"
+
+[assets]
+directory = "."

@@ -1,0 +1,582 @@
+/* ==========================================================================
+   LocalGPT Verse — website design system
+   Mirrors src/theme.rs: the chrome never changes; only the accent does.
+   ========================================================================== */
+
+/* ---------- Fonts (OFL — see assets/fonts/OFL-*.txt) ---------- */
+
+@font-face {
+  font-family: "Marcellus";
+  src: url("../fonts/Marcellus-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("../fonts/HankenGrotesk.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---------- Tokens ---------- */
+
+:root {
+  --base: #0b0c11;
+  --base-raise: #10121a;
+  --text: #f4f2ee;
+  --text-dim: #e8e6e1;
+  --text-muted: rgba(232, 230, 225, 0.55);
+  --veil-hud: rgba(10, 10, 18, 0.55);
+  --veil-panel: rgba(10, 10, 18, 0.8);
+  --hairline: rgba(255, 255, 255, 0.12);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-pill: 9999px;
+
+  /* The one variable — sampled from the "current world" (main.js cycles it
+     through the eight worlds; Ember Flats is the default). */
+  --accent: #ffb38a;
+
+  --font-display: "Marcellus", "Iowan Old Style", Georgia, serif;
+  --font-ui: "Hanken Grotesk", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  --page-pad: clamp(1.25rem, 4vw, 3rem);
+}
+
+/* The eight worlds (src/theme.rs BUILTIN_MOODS). Each class sets the world's
+   palette on whatever element carries it — hero stage, mood card. */
+.mood-ember-flats    { --m-accent: #ffb38a; --m-sky-top: #ffd9b0; --m-sky-bottom: #c9836f; --m-fog: #9e6b66; --m-ground: #7a4f63; }
+.mood-velvet-circuit { --m-accent: #62f5ff; --m-sky-top: #241054; --m-sky-bottom: #0b0722; --m-fog: #3d1a57; --m-ground: #0d0b2a; }
+.mood-tide-gardens   { --m-accent: #a8d8de; --m-sky-top: #12333e; --m-sky-bottom: #0b0c11; --m-fog: #2d6a72; --m-ground: #12333e; }
+.mood-glass-expanse  { --m-accent: #8ef4ff; --m-sky-top: #231b2d; --m-sky-bottom: #0b0722; --m-fog: #332947; --m-ground: #161125; }
+.mood-cinder-reach   { --m-accent: #e86a4a; --m-sky-top: #8b402d; --m-sky-bottom: #4d2520; --m-fog: #5c3833; --m-ground: #38201c; }
+.mood-mirage-circuit { --m-accent: #b7f5ff; --m-sky-top: #87aac9; --m-sky-bottom: #4d5d73; --m-fog: #8c9eb3; --m-ground: #4a5361; }
+.mood-abyss-terraces { --m-accent: #6fa8b8; --m-sky-top: #06141b; --m-sky-bottom: #03060a; --m-fog: #0f2930; --m-ground: #061317; }
+.mood-dawn-expanse   { --m-accent: #ffd9b8; --m-sky-top: #d6bab0; --m-sky-bottom: #927a73; --m-fog: #b8a199; --m-ground: #61524f; }
+
+/* Registered so palette swaps in the hero animate as colors, not jumps. */
+@property --h-sky-top    { syntax: "<color>"; inherits: false; initial-value: #ffd9b0; }
+@property --h-sky-bottom { syntax: "<color>"; inherits: false; initial-value: #c9836f; }
+@property --h-fog        { syntax: "<color>"; inherits: false; initial-value: #9e6b66; }
+@property --h-ground     { syntax: "<color>"; inherits: false; initial-value: #7a4f63; }
+
+/* ---------- Reset / base ---------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--base);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+img, svg { display: block; max-width: 100%; }
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color 0.4s ease;
+}
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 1.15;
+  margin: 0 0 0.5em;
+}
+
+code, pre, kbd {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+
+::selection { background: var(--accent); color: var(--base); }
+
+/* ---------- Layout helpers ---------- */
+
+.wrap {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding-left: var(--page-pad);
+  padding-right: var(--page-pad);
+}
+
+.section { padding: clamp(4rem, 10vw, 7.5rem) 0; }
+.section + .section { border-top: 1px solid var(--hairline); }
+
+.eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 0.9rem;
+  transition: color 1.2s ease;
+}
+
+.lede {
+  font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+  color: var(--text-dim);
+  max-width: 38rem;
+}
+
+.section-title { font-size: clamp(1.9rem, 3.4vw, 2.6rem); }
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.4rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--hairline);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.25s ease, background 0.25s ease, color 0.4s ease;
+}
+.btn:hover { border-color: var(--accent); text-decoration: none; }
+
+.btn-primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--base);
+  transition: background 1.2s ease, transform 0.15s ease;
+}
+.btn-primary:hover { filter: brightness(1.08); }
+
+.btn .arrow { font-family: var(--font-ui); }
+
+/* ---------- Nav ---------- */
+
+.nav {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 50;
+  background: var(--veil-hud);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.nav-inner {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  height: 60px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.brand:hover { text-decoration: none; }
+.brand svg { width: 26px; height: 26px; border-radius: 6px; }
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+  margin-left: auto;
+}
+
+.nav-links a {
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+.nav-links a:hover, .nav-links a[aria-current="page"] { color: var(--accent); text-decoration: none; }
+
+/* Back-link to the LocalGPT family site (md-style: quiet, not a nav peer) */
+.nav-links a.nav-family { color: var(--text-muted); }
+.nav-links a.nav-family:hover { color: var(--text); }
+
+.nav-cta { padding: 0.45rem 1.1rem; font-size: 0.88rem; }
+
+.nav-toggle {
+  display: none;
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  width: 40px;
+  height: 36px;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+/* ---------- Hero ---------- */
+
+.hero {
+  position: relative;
+  min-height: min(92vh, 54rem);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* The world behind the hero: sky gradient + fog band + ground, all driven by
+   the --h-* properties that main.js repaints from the eight mood palettes. */
+.world-stage {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  --h-sky-top: #ffd9b0;
+  --h-sky-bottom: #c9836f;
+  --h-fog: #9e6b66;
+  --h-ground: #7a4f63;
+  background:
+    linear-gradient(to bottom,
+      var(--h-sky-top) 0%,
+      var(--h-sky-bottom) 52%,
+      var(--h-fog) 62%,
+      var(--h-ground) 78%,
+      var(--h-ground) 100%);
+  transition:
+    --h-sky-top 2.4s ease, --h-sky-bottom 2.4s ease,
+    --h-fog 2.4s ease, --h-ground 2.4s ease;
+}
+
+/* drifting glow orbs — the world's lights */
+.world-stage::before,
+.world-stage::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.5;
+}
+.world-stage::before {
+  width: 34vmax; height: 34vmax;
+  left: -8vmax; top: -10vmax;
+  background: var(--h-sky-top);
+  animation: drift-a 26s ease-in-out infinite alternate;
+}
+.world-stage::after {
+  width: 26vmax; height: 26vmax;
+  right: -6vmax; top: 18%;
+  background: var(--h-fog);
+  animation: drift-b 32s ease-in-out infinite alternate;
+}
+
+@keyframes drift-a {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(9vw, 6vh, 0) scale(1.15); }
+}
+@keyframes drift-b {
+  from { transform: translate3d(0, 0, 0) scale(1.1); }
+  to   { transform: translate3d(-8vw, -5vh, 0) scale(0.95); }
+}
+
+/* terrain silhouette against the fog band */
+.hero-ridge {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: -1;
+  height: 46%;
+  color: var(--h-ground);
+  transition: color 2.4s ease;
+  opacity: 0.9;
+}
+.hero-ridge svg { width: 100%; height: 100%; }
+
+/* legibility veil — the HUD veil, on the web */
+.hero-veil {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(to bottom,
+    rgba(11, 12, 17, 0.35) 0%,
+    rgba(11, 12, 17, 0.05) 40%,
+    rgba(11, 12, 17, 0.72) 100%);
+}
+
+.hero-content {
+  padding: 9rem var(--page-pad) clamp(3rem, 8vh, 5.5rem);
+  max-width: 72rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.hero h1 {
+  font-size: clamp(2.6rem, 6.4vw, 4.6rem);
+  max-width: 14ch;
+  text-wrap: balance;
+  text-shadow: 0 2px 30px rgba(11, 12, 17, 0.5);
+}
+
+.hero .lede { text-shadow: 0 1px 18px rgba(11, 12, 17, 0.6); }
+
+.hero-ctas { display: flex; gap: 0.9rem; flex-wrap: wrap; margin-top: 2.2rem; }
+
+/* the "now playing" chip — names the world currently painting the hero */
+.hero-world {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 1.4rem;
+  padding: 0.4rem 0.95rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--veil-hud);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.hero-world .dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  transition: background 2.4s ease;
+}
+
+/* ---------- Feature grid ---------- */
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--hairline);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.feature {
+  background: var(--base);
+  padding: 1.8rem 1.6rem 2rem;
+  transition: background 0.3s ease;
+}
+.feature:hover { background: var(--base-raise); }
+
+.feature h3 { font-size: 1.25rem; margin-bottom: 0.45rem; }
+.feature p { color: var(--text-muted); font-size: 0.95rem; margin: 0; }
+
+.feature .glyph {
+  width: 34px; height: 34px;
+  margin-bottom: 1.1rem;
+  color: var(--accent);
+  transition: color 1.2s ease;
+}
+
+/* ---------- Worlds showcase ---------- */
+
+.worlds-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.1rem;
+}
+
+.world-card {
+  position: relative;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hairline);
+  overflow: hidden;
+  min-height: 15rem;
+  display: flex;
+  align-items: flex-end;
+  background:
+    linear-gradient(to bottom,
+      var(--m-sky-top) 0%,
+      var(--m-sky-bottom) 48%,
+      var(--m-fog) 60%,
+      var(--m-ground) 82%);
+  transition: transform 0.25s ease, border-color 0.25s ease;
+}
+.world-card:hover { transform: translateY(-4px); border-color: var(--m-accent); }
+
+.world-card .plate {
+  width: 100%;
+  padding: 0.85rem 1rem 0.8rem;
+  background: var(--veil-panel);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--hairline);
+}
+.world-card .plate b {
+  display: block;
+  font-size: 0.82rem;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  color: var(--m-accent);
+}
+.world-card .plate span { font-size: 0.78rem; color: var(--text-muted); }
+
+/* ---------- Quickstart ---------- */
+
+.quickstart {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: center;
+}
+
+.steps { list-style: none; margin: 1.6rem 0 0; padding: 0; counter-reset: step; }
+.steps li {
+  counter-increment: step;
+  position: relative;
+  padding: 0 0 1.4rem 3rem;
+  color: var(--text-dim);
+}
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0; top: 0.1rem;
+  width: 2rem; height: 2rem;
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  color: var(--accent);
+  transition: color 1.2s ease;
+}
+.steps b { color: var(--text); }
+
+/* ---------- Code ---------- */
+
+pre {
+  background: #07080d;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  padding: 1.1rem 1.3rem;
+  overflow-x: auto;
+  line-height: 1.55;
+}
+pre code { color: var(--text-dim); background: none; padding: 0; }
+
+code {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 5px;
+  padding: 0.12em 0.4em;
+  color: var(--text-dim);
+}
+
+pre .c-dim { color: var(--text-muted); }
+pre .c-acc { color: var(--accent); }
+
+.terminal {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #07080d;
+}
+.terminal-bar {
+  display: flex;
+  gap: 6px;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--veil-hud);
+}
+.terminal-bar i {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+}
+.terminal pre { border: 0; border-radius: 0; margin: 0; }
+
+/* ---------- Footer ---------- */
+
+.footer {
+  border-top: 1px solid var(--hairline);
+  padding: 3rem 0 3.5rem;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 2rem;
+}
+
+.footer h4 {
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.8rem;
+}
+.footer ul { list-style: none; margin: 0; padding: 0; }
+.footer li { margin-bottom: 0.45rem; }
+.footer a { color: var(--text-muted); }
+.footer a:hover { color: var(--accent); text-decoration: none; }
+
+.footer .fine { margin-top: 2.5rem; padding-top: 1.4rem; border-top: 1px solid var(--hairline); }
+
+/* ---------- Reveal animation ---------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.reveal.in { opacity: 1; transform: none; }
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 62rem) {
+  .features { grid-template-columns: 1fr 1fr; }
+  .worlds-grid { grid-template-columns: repeat(2, 1fr); }
+  .quickstart { grid-template-columns: 1fr; }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 40rem) {
+  .features { grid-template-columns: 1fr; }
+  .worlds-grid { grid-template-columns: 1fr; }
+  .footer-grid { grid-template-columns: 1fr; }
+
+  .nav-toggle { display: block; }
+  .nav-links {
+    position: absolute;
+    top: 60px; left: 0; right: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    padding: 0.8rem var(--page-pad) 1.2rem;
+    background: var(--veil-panel);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--hairline);
+    display: none;
+  }
+  .nav-links.open { display: flex; }
+  .nav-links a { padding: 0.5rem 0; }
+}
+
+/* ---------- Reduced motion (the web's Comfort gate) ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .world-stage::before, .world-stage::after { animation: none; }
+  .world-stage, .hero-ridge, .hero-world .dot { transition: none; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .btn, .feature, .world-card, a { transition: none; }
+}

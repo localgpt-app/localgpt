@@ -3,7 +3,7 @@
 //! API key or CLI backend.
 //!
 //! Models come from the directory LocalGPT's apps share
-//! ([`localgpt_core::paths::shared_llm_dir`],
+//! ([`localgpt_world_agent::shared_llm_dir`],
 //! `~/.local/share/localgpt/models/llm`), where LocalGPT MD's and Verse's
 //! `scripts/fetch-bonsai.sh` put Bonsai-8B, so a model fetched for either
 //! app is used here without a second download. Any GGUF dropped there works:
@@ -72,7 +72,7 @@ pub fn available_models() -> Vec<String> {
 }
 
 fn shared_dir() -> Option<PathBuf> {
-    localgpt_core::paths::shared_llm_dir()
+    localgpt_world_agent::shared_llm_dir()
 }
 
 /// A GGUF on disk and the tokenizer to load with it. Filenames are bare,
