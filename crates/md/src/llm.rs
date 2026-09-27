@@ -183,21 +183,11 @@ fn locate_model() -> Option<(PathBuf, String, String)> {
     None
 }
 
-/// [`locate_model`] over one directory, testable against a temp dir so a
-/// model fetched on the dev machine can't flip a test.
+/// [`locate_model`] over one directory. The rule is shared with Verse and Gen
+/// in `localgpt_world_agent::paths`; this alias keeps the call sites and the
+/// tests below reading the same as before.
 fn locate_model_in(dir: &Path) -> Option<(PathBuf, String, String)> {
-    let gguf = std::fs::read_dir(dir).ok()?.find_map(|entry| {
-        let name = entry.ok()?.file_name().to_string_lossy().into_owned();
-        name.ends_with(".gguf").then_some(name)
-    })?;
-    let tokenizer = std::fs::read_dir(dir)
-        .ok()?
-        .find_map(|entry| {
-            let name = entry.ok()?.file_name().to_string_lossy().into_owned();
-            (name == "tokenizer.json").then_some(name)
-        })
-        .unwrap_or_else(|| "tokenizer.json".to_string());
-    Some((dir.to_path_buf(), gguf, tokenizer))
+    localgpt_world_agent::paths::locate_model_in(dir)
 }
 
 /// The prompt: system describes the JSON contract; user carries the section.

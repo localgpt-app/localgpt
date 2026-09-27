@@ -240,31 +240,7 @@ fn locate_model() -> Option<(PathBuf, String, String)> {
 /// testable against a temp dir instead of whatever happens to sit in
 /// `assets/llm/` on the dev machine (a fetched model must not flip the test).
 fn locate_model_in(dir: &PathBuf) -> Option<(PathBuf, String, String)> {
-    // First .gguf in the directory wins.
-    let gguf = std::fs::read_dir(dir).ok()?.find_map(|entry| {
-        let entry = entry.ok()?;
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if name.ends_with(".gguf") {
-            Some(name)
-        } else {
-            None
-        }
-    })?;
-
-    let tokenizer = std::fs::read_dir(dir)
-        .ok()?
-        .find_map(|entry| {
-            let entry = entry.ok()?;
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if name == "tokenizer.json" {
-                Some(name)
-            } else {
-                None
-            }
-        })
-        .unwrap_or_else(|| "tokenizer.json".to_string());
-
-    Some((dir.clone(), gguf, tokenizer))
+    localgpt_world_agent::paths::locate_model_in(dir)
 }
 
 /// Turn a track's MIR analysis into the system+user prompt for recipe authoring.

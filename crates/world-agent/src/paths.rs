@@ -82,6 +82,42 @@ where
         .find(|dir| exists(&dir.join(PACK_MARKER)))
 }
 
+/// The `.gguf` files in `dir`, sorted so "the first one" is stable.
+///
+/// Gen's richer rule, shared: MD and Verse each walked `read_dir` and took
+/// whatever came back first, which is filesystem order and so not reproducible.
+pub fn gguf_files(dir: &Path) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut files: Vec<String> = entries
+        .filter_map(|entry| {
+            let name = entry.ok()?.file_name().to_string_lossy().into_owned();
+            name.ends_with(".gguf").then_some(name)
+        })
+        .collect();
+    files.sort();
+    files
+}
+
+/// The tokenizer to load beside `gguf`: its own `<name>.tokenizer.json` first,
+/// then a shared `tokenizer.json`. `None` when neither is present.
+pub fn tokenizer_for(dir: &Path, gguf: &str) -> Option<String> {
+    let own = format!("{}.tokenizer.json", gguf.trim_end_matches(".gguf"));
+    [own, "tokenizer.json".to_string()]
+        .into_iter()
+        .find(|name| dir.join(name).is_file())
+}
+
+/// The first usable `(dir, gguf, tokenizer)` trio in `dir`, the form
+/// mistral.rs's `GgufModelBuilder` wants. A missing tokenizer still yields
+/// `tokenizer.json`, since that is the name the fetch script writes.
+pub fn locate_model_in(dir: &Path) -> Option<(PathBuf, String, String)> {
+    let gguf = gguf_files(dir).into_iter().next()?;
+    let tokenizer = tokenizer_for(dir, &gguf).unwrap_or_else(|| "tokenizer.json".to_string());
+    Some((dir.to_path_buf(), gguf, tokenizer))
+}
+
 /// `<XDG data home>/localgpt` — the base both shared downloads sit under.
 fn shared_data_dir() -> Option<PathBuf> {
     use etcetera::BaseStrategy;
@@ -156,6 +192,45 @@ mod tests {
     fn pack_falls_back_to_the_former_asset_repo_name() {
         let found = world_pack_dir_with(&[], |p| p.starts_with("../localgpt-verse-assets"));
         assert_eq!(found, Some(PathBuf::from("../localgpt-verse-assets")));
+    }
+
+    #[test]
+    fn gguf_listing_is_sorted_and_tokenizers_prefer_their_own() {
+        let dir = std::env::temp_dir().join(format!("lga-paths-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for f in [
+            "b-model.gguf",
+            "a-model.gguf",
+            "a-model.tokenizer.json",
+            "tokenizer.json",
+        ] {
+            std::fs::write(dir.join(f), b"x").unwrap();
+        }
+        assert_eq!(gguf_files(&dir), ["a-model.gguf", "b-model.gguf"]);
+        assert_eq!(
+            tokenizer_for(&dir, "a-model.gguf").as_deref(),
+            Some("a-model.tokenizer.json")
+        );
+        assert_eq!(
+            tokenizer_for(&dir, "b-model.gguf").as_deref(),
+            Some("tokenizer.json"),
+            "no own tokenizer -> the shared one"
+        );
+        assert_eq!(
+            locate_model_in(&dir),
+            Some((
+                dir.clone(),
+                "a-model.gguf".into(),
+                "a-model.tokenizer.json".into()
+            )),
+            "the first gguf is the sorted-first one, not whatever read_dir returns"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn locate_model_in_is_none_without_a_gguf() {
+        assert_eq!(locate_model_in(Path::new("/definitely/not/here")), None);
     }
 
     #[test]

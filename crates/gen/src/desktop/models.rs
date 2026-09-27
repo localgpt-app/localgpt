@@ -62,7 +62,7 @@ pub fn auto_local_model() -> Option<String> {
     let present = crate::local_llm::available_models();
     let is_present = |name: &str| {
         let id = format!("{}/{name}", crate::local_llm::PREFIX);
-        present.iter().any(|model| *model == id).then_some(id)
+        present.contains(&id).then_some(id)
     };
 
     for known in KNOWN_MODELS {

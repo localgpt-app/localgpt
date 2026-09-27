@@ -128,27 +128,10 @@ fn resolve(model_id: &str, shared: Option<&Path>) -> Result<ModelFiles> {
     })
 }
 
-/// `.gguf` files in `dir`, sorted so "first" is stable.
-fn gguf_files(dir: &Path) -> Vec<String> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
-    let mut files: Vec<String> = entries
-        .filter_map(|entry| {
-            let name = entry.ok()?.file_name().to_string_lossy().into_owned();
-            name.ends_with(".gguf").then_some(name)
-        })
-        .collect();
-    files.sort();
-    files
-}
-
-fn tokenizer_for(dir: &Path, gguf: &str) -> Option<String> {
-    let own = format!("{}.tokenizer.json", gguf.trim_end_matches(".gguf"));
-    [own, "tokenizer.json".to_string()]
-        .into_iter()
-        .find(|name| dir.join(name).is_file())
-}
+// `.gguf` listing and tokenizer resolution moved to
+// `localgpt_world_agent::paths` so MD and Verse stopped keeping weaker copies
+// (they took whatever `read_dir` returned first, which is not reproducible).
+use localgpt_world_agent::paths::{gguf_files, tokenizer_for};
 
 /// The loaded model and the files it came from.
 type Loaded = Option<(ModelFiles, Arc<mistralrs::Model>)>;

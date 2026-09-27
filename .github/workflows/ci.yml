@@ -91,6 +91,50 @@ jobs:
       - run: cargo clippy -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -- -D warnings
       - run: cargo test -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse
 
+  # The opt-in tiers are compiled by none of the jobs above, so without this
+  # the gated code rots broken while default-feature CI stays green. MD and
+  # Verse each carried a job like this into the workspace; Gen's `local-llm`
+  # had none, and the first run of this one caught a missing dependency in it.
+  # Check only, no clippy or tests: these pull heavy native deps, and the lint
+  # bar stays on the default build.
+  features:
+    name: Feature tiers (llm, ml)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Free runner disk
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL && df -h /
+      - name: Install Bevy build deps
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends $BEVY_APT_DEPS
+      # mistral.rs, shared by all three: never with `*-metal`, which is
+      # macOS-only.
+      - run: cargo check -p localgpt-md --features llm
+      - run: cargo check -p localgpt-verse --features llm
+      - run: cargo check -p localgpt-gen --features local-llm
+      # Verse's `ml` tier pins ort =2.0.0-rc.11, which targets ONNX Runtime
+      # 1.23 — not the 1.24.2 the shared onnxruntime action installs for
+      # rc.12 — so it gets its own, as it did in Verse's own CI.
+      - name: Cache ONNX Runtime 1.23.2
+        id: cache-ort
+        uses: actions/cache@v4
+        with:
+          path: /opt/onnxruntime-1.23
+          key: onnxruntime-1.23.2-linux-x64
+      - name: Download ONNX Runtime 1.23.2
+        if: steps.cache-ort.outputs.cache-hit != 'true'
+        run: |
+          curl -fL "https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-linux-x64-1.23.2.tgz" \
+            -o /tmp/onnxruntime.tgz
+          mkdir -p /opt/onnxruntime-1.23
+          tar -xzf /tmp/onnxruntime.tgz --strip-components=1 -C /opt/onnxruntime-1.23
+      - run: cargo check -p localgpt-verse --features ml
+        env:
+          ORT_LIB_LOCATION: /opt/onnxruntime-1.23/lib
+          ORT_PREFER_DYNAMIC_LINK: "1"
+
   # Licenses, bans and sources only change with Cargo.lock and deny.toml, so
   # they gate every change.
   deps:

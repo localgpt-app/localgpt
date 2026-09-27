@@ -19,6 +19,10 @@ localgpt-world-types = { workspace = true }
 localgpt-world-export = { workspace = true }
 localgpt-world-sync = { workspace = true, optional = true }
 localgpt-world-bevy = { workspace = true }
+# For `paths`: the shared model directory and the GGUF/tokenizer discovery
+# rule, which MD and Verse read from here too. Not optional — `local-llm`
+# needs it, and nothing in this crate is cheaper without it.
+localgpt-world-agent = { workspace = true }
 localgpt-cli-tools = { workspace = true }
 
 tokio = { workspace = true }
