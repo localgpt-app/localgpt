@@ -100,6 +100,10 @@ pub struct Agent {
     config: AgentConfig,
     app_config: Config,
     provider: Box<dyn LLMProvider>,
+    /// Which agent this is (`"main"`, `"gen"`, …). Scopes session
+    /// transcripts and compaction checkpoints on disk, so two apps sharing
+    /// one workspace don't write into the same session pool.
+    agent_id: String,
     session: Session,
     memory: Arc<MemoryManager>,
     tools: Vec<Box<dyn Tool>>,
@@ -307,6 +311,7 @@ impl Agent {
             config,
             app_config: app_config.clone(),
             provider,
+            agent_id: session::DEFAULT_AGENT_ID.to_string(),
             session: Session::new(),
             memory,
             tools,
@@ -329,7 +334,7 @@ impl Agent {
     /// Create an agent with custom pre-built tools (e.g., for Gen mode).
     pub fn new_with_tools(
         app_config: Config,
-        _agent_id: &str,
+        agent_id: &str,
         memory: Arc<MemoryManager>,
         tools: Vec<Box<dyn Tool>>,
     ) -> Result<Self> {
@@ -383,6 +388,7 @@ impl Agent {
             config: agent_config,
             app_config,
             provider,
+            agent_id: agent_id.to_string(),
             session: Session::new(),
             memory,
             tools,
@@ -700,9 +706,23 @@ impl Agent {
         Ok(())
     }
 
+    /// Set which agent this is, for on-disk session scoping. Builder form of
+    /// the `agent_id` [`new_with_tools`](Self::new_with_tools) takes, for the
+    /// [`new`](Self::new) constructors (CLI, TUI, desktop) that would
+    /// otherwise write every transcript into `main`.
+    pub fn with_agent_id(mut self, agent_id: &str) -> Self {
+        self.agent_id = agent_id.to_string();
+        self
+    }
+
+    /// Which agent's session directory this agent reads and writes.
+    pub fn agent_id(&self) -> &str {
+        &self.agent_id
+    }
+
     pub async fn resume_session(&mut self, session_id: &str) -> Result<()> {
-        self.session = Session::load(session_id)?;
-        info!("Resumed session: {}", session_id);
+        self.session = Session::load_for_agent(session_id, &self.agent_id)?;
+        info!("Resumed session {} for agent {}", session_id, self.agent_id);
         Ok(())
     }
 
@@ -1578,8 +1598,8 @@ impl Agent {
     }
 
     pub async fn compact_session(&mut self) -> Result<(usize, usize)> {
-        self.compact_session_for_agent(session::DEFAULT_AGENT_ID)
-            .await
+        let agent_id = self.agent_id.clone();
+        self.compact_session_for_agent(&agent_id).await
     }
 
     pub async fn compact_session_for_agent(&mut self, agent_id: &str) -> Result<(usize, usize)> {
@@ -1804,7 +1824,7 @@ impl Agent {
     }
 
     pub async fn save_session(&self) -> Result<PathBuf> {
-        self.session.save()
+        self.session.save_for_agent(&self.agent_id)
     }
 
     /// Save session for a specific agent ID (used by HTTP server)
@@ -2168,7 +2188,7 @@ impl Agent {
 
     /// Auto-save session to disk (call after each message)
     pub fn auto_save_session(&self) -> Result<()> {
-        self.session.auto_save()
+        self.session.auto_save_for_agent(&self.agent_id)
     }
 }
 
@@ -2411,6 +2431,7 @@ mod tests {
             config: agent_config,
             app_config,
             provider,
+            agent_id: session::DEFAULT_AGENT_ID.to_string(),
             session: Session::new(),
             memory,
             tools: Vec::new(),
@@ -2426,6 +2447,18 @@ mod tests {
             approval_cache: approval::ApprovalCache::new(),
             permission_level: tools::PermissionLevel::Safe,
         }
+    }
+
+    /// Sessions are scoped to the agent that wrote them. Gen passes `"gen"`
+    /// to `new_with_tools`, which used to be discarded — so its transcripts
+    /// landed in `agents/main/sessions` while `/sessions` listed the (empty)
+    /// `agents/gen/sessions`.
+    #[test]
+    fn agent_id_defaults_to_main_and_the_builder_overrides_it() {
+        let agent = test_agent(Box::new(SingleTextProvider::new("hi")));
+        assert_eq!(agent.agent_id(), session::DEFAULT_AGENT_ID);
+        let agent = agent.with_agent_id("gen");
+        assert_eq!(agent.agent_id(), "gen");
     }
 
     #[test]

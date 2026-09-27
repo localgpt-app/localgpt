@@ -714,6 +714,17 @@ impl Session {
         self.save()?;
         Ok(())
     }
+
+    /// [`auto_save`](Self::auto_save) into a specific agent's session
+    /// directory, so an agent's transcripts stay with the agent that wrote
+    /// them (Gen, the MCP server, a bridge) instead of landing in `main`.
+    pub fn auto_save_for_agent(&self, agent_id: &str) -> Result<()> {
+        if self.messages.is_empty() {
+            return Ok(());
+        }
+        self.save_for_agent(agent_id)?;
+        Ok(())
+    }
 }
 
 impl Default for Session {
@@ -1097,6 +1108,17 @@ mod tests {
 
         assert!(preview.contains("needle"));
         assert!(preview.starts_with("..."));
+    }
+
+    /// Each agent owns its own session directory, so Gen's transcripts don't
+    /// land in the assistant's pool (and get pruned with it).
+    #[test]
+    fn session_dirs_are_scoped_by_agent() {
+        let main = get_sessions_dir_for_agent(DEFAULT_AGENT_ID).unwrap();
+        let gen_dir = get_sessions_dir_for_agent("gen").unwrap();
+        assert_ne!(main, gen_dir);
+        assert!(gen_dir.ends_with("agents/gen/sessions"), "{gen_dir:?}");
+        assert_eq!(get_sessions_dir().unwrap(), main);
     }
 
     #[tokio::test]

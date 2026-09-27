@@ -46,6 +46,7 @@ async fn handle_gen_command(
     agent: &mut Agent,
     agent_id: &str,
     workspace: &Path,
+    config: &localgpt_core::config::Config,
 ) -> CommandResult {
     let parts: Vec<&str> = input.split_whitespace().collect();
     let cmd = parts.first().copied().unwrap_or("");
@@ -66,9 +67,20 @@ async fn handle_gen_command(
                 println!("\nCurrent model: {}\n", agent.model());
                 return CommandResult::Continue;
             }
-            let model = parts[1];
-            match agent.set_model(model) {
-                Ok(()) => println!("\nSwitched to model: {}\n", model),
+            let (model, remember_as) = match resolve_model_choice(parts[1]) {
+                Ok(pair) => pair,
+                Err(e) => {
+                    eprintln!("\nError: {e}\n");
+                    return CommandResult::Continue;
+                }
+            };
+            match agent.set_model(&model) {
+                Ok(()) => match persist_gen_model(config, &remember_as) {
+                    Ok(()) => {
+                        println!("\nSwitched to model: {model} (remembered as Gen's default)\n")
+                    }
+                    Err(e) => println!("\nSwitched to model: {model} (this session only: {e})\n"),
+                },
                 Err(e) => eprintln!("\nError: Failed to switch model: {}\n", e),
             }
             CommandResult::Continue
@@ -595,6 +607,50 @@ fn advance_chars(value: &str, byte_index: usize, char_count: usize) -> usize {
 mod tests {
     use super::*;
 
+    /// `[gen] default_model` overrides the assistant's model for Gen only.
+    #[test]
+    fn gen_model_overrides_the_assistant_model() {
+        let mut config = localgpt_core::config::Config::default();
+        config.agent.default_model = "claude-cli/opus".to_string();
+
+        // Unset: the assistant's model stands.
+        apply_gen_model(&mut config);
+        assert_eq!(config.agent.default_model, "claude-cli/opus");
+
+        // Set: Gen uses its own.
+        config.r#gen.default_model = Some("gguf/bonsai".to_string());
+        apply_gen_model(&mut config);
+        assert_eq!(config.agent.default_model, "gguf/bonsai");
+
+        // Blank is ignored rather than clearing the model.
+        config.r#gen.default_model = Some("   ".to_string());
+        apply_gen_model(&mut config);
+        assert_eq!(config.agent.default_model, "gguf/bonsai");
+    }
+
+    /// "auto" is remembered as "auto" so it keeps re-picking; anything else
+    /// passes through untouched.
+    #[test]
+    fn model_choices_pass_through_except_auto() {
+        let (model, remembered) = resolve_model_choice("claude-cli/sonnet").unwrap();
+        assert_eq!(model, "claude-cli/sonnet");
+        assert_eq!(remembered, "claude-cli/sonnet");
+
+        match resolve_model_choice("auto") {
+            // With a usable local model, "auto" resolves to it but is stored
+            // as "auto".
+            Ok((model, remembered)) => {
+                assert_eq!(remembered, "auto");
+                assert!(model.starts_with("gguf/"), "{model}");
+            }
+            // Without one, the error says what to do about it.
+            Err(e) => {
+                let message = e.to_string();
+                assert!(message.contains("no local model"), "{message}");
+            }
+        }
+    }
+
     #[test]
     fn extract_snippet_handles_multibyte_context() {
         let content = format!("{} marker {}", "✅".repeat(12), "界".repeat(12));
@@ -1089,8 +1145,14 @@ fn main() -> Result<()> {
     }
 
     // Load config early so both Bevy and agent threads can use it
-    let config = localgpt_core::config::Config::load()?;
+    let mut config = localgpt_core::config::Config::load()?;
     let workspace = config.workspace_path();
+
+    // Gen's model is its own: [gen] default_model (which the model menu
+    // writes) overrides the assistant's agent.default_model, so pointing Gen
+    // at a local model doesn't change what `localgpt chat` uses.
+    apply_gen_model(&mut config);
+    let config = config;
 
     // Tool profile: --tools flag > [gen] tool_profile > full.
     let tool_profile = gen3d::tool_profile::ToolProfile::resolve(
@@ -1910,8 +1972,14 @@ async fn run_headless_agent(
     let memory = MemoryManager::new_with_agent(&config.memory, agent_id)?;
     let memory = Arc::new(memory);
 
-    // Create safe tools + gen tools (no CLI tools needed in headless)
+    // Create safe tools + gen tools (no CLI tools needed in headless).
+    // memory_save / memory_log come too: GEN_MEMORY_PROMPT below tells the
+    // model to use them, so they have to exist (they did only in the MCP
+    // server path, leaving the prompt pointing at missing tools).
     let mut tools = create_safe_tools(&config, Some(memory.clone()))?;
+    tools.extend(localgpt_core::mcp::memory_tools::create_memory_write_tools(
+        config.workspace_path(),
+    ));
     tools.extend(gen3d::tools::create_gen_tools(bridge.clone()));
     tools.extend(localgpt_gen::mcp::avatar_tools::create_character_tools(
         bridge.clone(),
@@ -2050,6 +2118,74 @@ async fn run_mcp_stdio_relay(port: u16) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// The config key Gen's model menu writes, and reads at startup.
+const GEN_MODEL_TABLE: &str = "gen";
+const GEN_MODEL_KEY: &str = "default_model";
+
+/// Point `agent.default_model` at Gen's own model, if `[gen] default_model`
+/// asks for one. `"auto"` resolves to the best local model this machine can
+/// run; when nothing local is usable it leaves the configured model alone and
+/// says why, rather than failing to start.
+fn apply_gen_model(config: &mut localgpt_core::config::Config) {
+    let Some(requested) = config.r#gen.default_model.clone() else {
+        return;
+    };
+    let requested = requested.trim();
+    if requested.is_empty() {
+        return;
+    }
+
+    if requested.eq_ignore_ascii_case("auto") {
+        match localgpt_gen::desktop::models::auto_local_model() {
+            Some(model) => {
+                eprintln!(
+                    "Model: {model} (auto — {})",
+                    localgpt_gen::desktop::hardware::summary()
+                );
+                config.agent.default_model = model;
+            }
+            None => eprintln!(
+                "Model: {} ([gen] default_model = \"auto\" found no local model that fits this \
+                 machine — {})",
+                config.agent.default_model,
+                localgpt_gen::desktop::hardware::summary()
+            ),
+        }
+        return;
+    }
+
+    config.agent.default_model = requested.to_string();
+}
+
+/// Turn what the user picked into `(model to switch to, value to remember)`.
+/// `"auto"` resolves to a concrete local model now but is remembered as
+/// `"auto"`, so it keeps re-picking as models come and go from the shared
+/// directory.
+fn resolve_model_choice(choice: &str) -> Result<(String, String)> {
+    let choice = choice.trim();
+    if choice.eq_ignore_ascii_case("auto") {
+        let model = localgpt_gen::desktop::models::auto_local_model().ok_or_else(|| {
+            anyhow::anyhow!(
+                "no local model this machine can run ({}). Download one first: {}",
+                localgpt_gen::desktop::hardware::summary(),
+                localgpt_gen::desktop::models::KNOWN_MODELS[0].fetch_hint
+            )
+        })?;
+        return Ok((model, "auto".to_string()));
+    }
+    Ok((choice.to_string(), choice.to_string()))
+}
+
+/// Remember a model as Gen's default, so a switch in the model menu (or at
+/// the REPL) survives a restart without anyone editing config.toml. Writes
+/// only `[gen] default_model`, leaving the assistant's `agent.default_model`
+/// and the rest of the file untouched.
+fn persist_gen_model(config: &localgpt_core::config::Config, model: &str) -> Result<()> {
+    config
+        .persist_setting(GEN_MODEL_TABLE, GEN_MODEL_KEY, model)
+        .map(|_| ())
 }
 
 /// Run the interactive agent loop in headless control mode.
@@ -2263,7 +2399,12 @@ enum PanelCommand {
 /// Slash commands typed in the prompt panel. [`handle_gen_command`] prints
 /// its results, which nobody sees without a terminal, so the commands that
 /// make sense in the window are handled here and the rest are explained.
-async fn panel_command(input: &str, agent: &mut Agent, sink: &ChatSink) -> PanelCommand {
+async fn panel_command(
+    input: &str,
+    agent: &mut Agent,
+    sink: &ChatSink,
+    config: &localgpt_core::config::Config,
+) -> PanelCommand {
     let mut words = input.split_whitespace();
     let command = words.next().unwrap_or_default();
     let argument = words.collect::<Vec<_>>().join(" ");
@@ -2277,12 +2418,29 @@ async fn panel_command(input: &str, agent: &mut Agent, sink: &ChatSink) -> Panel
             PanelCommand::Handled
         }
         "/model" => {
-            match agent.set_model(&argument) {
+            let (model, remember_as) = match resolve_model_choice(&argument) {
+                Ok(pair) => pair,
+                Err(e) => {
+                    sink.send(ChatEvent::Warning(format!("{e}")));
+                    return PanelCommand::Handled;
+                }
+            };
+            match agent.set_model(&model) {
                 Ok(()) => {
                     sink.send(ChatEvent::Ready {
                         model: agent.model().to_string(),
                     });
-                    sink.send(ChatEvent::Notice(format!("Now using {}.", agent.model())));
+                    let remembered = match persist_gen_model(config, &remember_as) {
+                        Ok(()) => "Gen will use it next time too".to_string(),
+                        Err(e) => {
+                            tracing::warn!("couldn't persist [gen] default_model: {e}");
+                            "this session only — couldn't write config.toml".to_string()
+                        }
+                    };
+                    sink.send(ChatEvent::Notice(format!(
+                        "Now using {} ({remembered}).",
+                        agent.model()
+                    )));
                 }
                 Err(e) => sink.send(ChatEvent::Warning(format!(
                     "Couldn't switch to {argument}: {e}"
@@ -2404,8 +2562,13 @@ async fn run_agent_loop(
     let memory = MemoryManager::new_with_agent(&config.memory, agent_id)?;
     let memory = Arc::new(memory);
 
-    // Create safe tools + gen tools + CLI tools
+    // Create safe tools + gen tools + CLI tools. memory_save / memory_log
+    // come too — GEN_MEMORY_PROMPT instructs the model to use them, and
+    // without them it fell back to write_file on the same files.
     let mut tools = create_safe_tools(&config, Some(memory.clone()))?;
+    tools.extend(localgpt_core::mcp::memory_tools::create_memory_write_tools(
+        config.workspace_path(),
+    ));
     tools.extend(gen3d::tools::create_gen_tools(bridge.clone()));
     tools.extend(localgpt_gen::mcp::avatar_tools::create_character_tools(
         bridge.clone(),
@@ -2787,12 +2950,12 @@ async fn run_agent_loop(
         // that make sense without a terminal and explains the rest.
         if input.starts_with('/') {
             if from_panel {
-                match panel_command(input, &mut agent, &sink).await {
+                match panel_command(input, &mut agent, &sink, &config).await {
                     PanelCommand::Handled => continue,
                     PanelCommand::Quit => break,
                 }
             }
-            let result = handle_gen_command(input, &mut agent, agent_id, &workspace).await;
+            let result = handle_gen_command(input, &mut agent, agent_id, &workspace, &config).await;
             // Keep the panel's model label right after /model and friends.
             sink.send(ChatEvent::Ready {
                 model: agent.model().to_string(),
