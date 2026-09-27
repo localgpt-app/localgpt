@@ -51,7 +51,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/onnxruntime
       - run: cargo clippy --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
-          --exclude localgpt-md --exclude localgpt-verse -- -D warnings
+          --exclude localgpt-md --exclude localgpt-verse \
+          --exclude localgpt-world-audio -- -D warnings
 
   test:
     name: Test
@@ -63,16 +64,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/onnxruntime
       - run: cargo test --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
-          --exclude localgpt-md --exclude localgpt-verse
+          --exclude localgpt-md --exclude localgpt-verse \
+          --exclude localgpt-world-audio
       # world.schema.json must match the types (tests/schema_snapshot.rs).
       - run: cargo test -p localgpt-world-types --features schema
 
-  # The Bevy crates: the Gen, MD and Verse binaries and the shared Bevy
-  # mapping. Kept apart because they compile Bevy, avian and lightyear, which
-  # dwarfs the rest. MD and Verse joined this workspace with their own CI; this
-  # job is where their checks landed.
+  # The crates that need native audio and windowing headers: the three Bevy
+  # binaries, the shared Bevy mapping, and world-audio (kira -> cpal ->
+  # alsa-sys). Kept apart because Bevy, avian and lightyear dwarf the rest, and
+  # because only this job installs $BEVY_APT_DEPS.
   bevy:
-    name: Bevy apps (Gen, MD, Verse)
+    name: Native deps (Gen, MD, Verse, audio)
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
@@ -88,8 +90,8 @@ jobs:
       - name: Install Bevy build deps
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends $BEVY_APT_DEPS
       - uses: ./.github/actions/onnxruntime
-      - run: cargo clippy -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -- -D warnings
-      - run: cargo test -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse
+      - run: cargo clippy -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -p localgpt-world-audio -- -D warnings
+      - run: cargo test -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -p localgpt-world-audio
 
   # The opt-in tiers are compiled by none of the jobs above, so without this
   # the gated code rots broken while default-feature CI stays green. MD and

@@ -8609,6 +8609,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "localgpt-world-audio"
+version = "0.3.6"
+dependencies = [
+ "fundsp",
+ "kira",
+ "localgpt-world-types",
+ "tracing",
+]
+
+[[package]]
 name = "localgpt-world-bevy"
 version = "0.3.6"
 dependencies = [

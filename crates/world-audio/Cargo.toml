@@ -1,0 +1,22 @@
+[package]
+name = "localgpt-world-audio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The one mapping from the LocalGPT world format's audio to sound: FunDSP synthesis inside a kira mixer"
+repository.workspace = true
+keywords = ["localgpt", "world", "audio", "dsp"]
+
+[dependencies]
+localgpt-world-types = { workspace = true }
+
+# The two halves, and they are not competitors: kira is a playback engine
+# (mixer, clocks, tweens, streaming decode, spatial tracks) and FunDSP is a
+# synthesis DSL. Gen had FunDSP over a hand-rolled cpal engine; Verse had kira.
+# Here kira owns the device and FunDSP is a source feeding it, so one process
+# can play a document world's ambience and a song world's soundtrack at once —
+# which is what Worlds has to do.
+kira = { version = "0.12", features = ["aiff", "aac", "isomp4", "alac"] }
+fundsp = "0.23"
+
+tracing = { workspace = true }

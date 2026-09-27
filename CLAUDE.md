@@ -98,6 +98,7 @@ crates/
 ├── verse/        # localgpt-verse — a 3D world for every song (Bevy)
 ├── world-types/  # localgpt-world-types — serde-only world data model (no Bevy/SpacetimeDB)
 ├── world-bevy/   # localgpt-world-bevy — the one Bevy mapping of the format (Gen, MD, Verse)
+├── world-audio/  # localgpt-world-audio — the one mapping of the format's audio (kira + FunDSP)
 ├── world-export/ # localgpt-world-export — web viewer (three.js) + HTML export, no Bevy
 ├── world-sync/   # localgpt-world-sync — room authority: shared doc, EditOps, presence
 ├── world-agent/  # localgpt-world-agent — tool-call protocol, interpreter, shared paths
@@ -234,6 +235,16 @@ providers when a primary errors out.
 **Memory context:** New sessions auto-load `MEMORY.md`, recent daily logs, and
 `HEARTBEAT.md`. Active recall (`memory/active_recall.rs`) can search memory
 before each reply and inject results.
+
+**Audio:** `localgpt-world-audio` is the one mapping from the format's audio
+types to sound, the counterpart to `world-bevy` for meshes. **kira owns the
+device, FunDSP is a source** — they are different layers, not alternatives, so
+the crate is one `AudioManager` with the synthesis graphs feeding it through
+`FundspSound`. `graphs::build` takes `wt::AudioSource` (already the union of
+Gen's `AmbientSound` and `EmitterSound`) and is pure, so it tests without an
+audio device. Gen's `gen3d/audio.rs` engine and Verse's `audio.rs` still run
+their own; migrating them onto this crate is what lets one process play a
+document world's ambience and a song world's soundtrack, which Worlds needs.
 
 **Shared downloads:** the ~5 GB GGUF and the 522 MB CC0 asset pack are
 resolved by `localgpt-world-agent`'s `paths` module — `shared_llm_dir()` and
