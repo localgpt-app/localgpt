@@ -1505,11 +1505,28 @@ fn process_gen_commands(
                 }
             }
             GenCommand::LoadWorld { path, clear } => {
-                // Clear existing scene before loading if requested.
-                if clear {
+                // Read the world before touching the scene, so a world that
+                // fails to load leaves the current one as it was.
+                let result = super::world::handle_load_world(
+                    &path,
+                    &params.workspace,
+                    &mut params.behavior_state,
+                );
+
+                // Clear the existing scene if requested. The current lights
+                // stay only when the incoming world brings none, so a world
+                // without lights is not left dark. A world's own lights are
+                // part of it: keeping the old ones would skip each light it
+                // defines under a name already in use (every `sun`) and leave
+                // the rest of the old lighting in place.
+                if clear && let Ok(world_load) = &result {
+                    let brings_lights = world_load
+                        .world_entities
+                        .iter()
+                        .any(|entity| entity.light.is_some());
                     handle_clear_scene(
-                        true, // keep camera
-                        true, // keep lights
+                        true,           // keep camera
+                        !brings_lights, // keep lights
                         &mut commands,
                         &mut params.registry,
                         &params.gen_entities,
@@ -1519,11 +1536,6 @@ fn process_gen_commands(
                     );
                 }
 
-                let result = super::world::handle_load_world(
-                    &path,
-                    &params.workspace,
-                    &mut params.behavior_state,
-                );
                 match result {
                     Ok(world_load) => {
                         // Track the loaded world
