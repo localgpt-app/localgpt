@@ -369,6 +369,16 @@ pub trait LLMProvider: Send + Sync {
     /// Default: no-op (most providers are stateless).
     fn reset_session(&self) {}
 
+    /// Use this instance for self-contained completions: forget any stored
+    /// conversation and never persist one. CLI backends otherwise resume the
+    /// session stored under their key ("main") and write each new session id
+    /// back there — which is right for the assistant's own chat, and wrong
+    /// for a side task running on the same machine: it would inherit the
+    /// chat's history and then hijack the chat's next turn. Unlike
+    /// [`LLMProvider::reset_session`], this touches nothing on disk. Stateless
+    /// providers (the API ones) need nothing, hence the no-op default.
+    fn make_ephemeral(&self) {}
+
     /// Get the current effort level, if the provider supports it.
     fn effort(&self) -> Option<String> {
         None
@@ -2395,6 +2405,8 @@ pub struct ClaudeCliProvider {
     localgpt_session_id: String,
     /// CLI session ID for multi-turn conversations (interior mutability for &self methods)
     cli_session_id: StdMutex<Option<String>>,
+    /// Set by `make_ephemeral`: never load or persist a CLI session.
+    ephemeral: std::sync::atomic::AtomicBool,
     /// Effort level for Claude CLI (low, medium, high, max)
     effort: StdMutex<String>,
     /// Optional MCP config JSON to pass via --mcp-config + --strict-mcp-config.
@@ -2427,6 +2439,7 @@ impl ClaudeCliProvider {
             session_key,
             localgpt_session_id: uuid::Uuid::new_v4().to_string(),
             cli_session_id: StdMutex::new(existing_session),
+            ephemeral: std::sync::atomic::AtomicBool::new(false),
             effort: StdMutex::new("max".to_string()),
             mcp_config_override: None,
             builtin_tools: None,
@@ -2725,6 +2738,14 @@ impl LLMProvider for ClaudeCliProvider {
         "claude-cli".to_string()
     }
 
+    fn make_ephemeral(&self) {
+        self.ephemeral
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        if let Ok(mut cli_session) = self.cli_session_id.lock() {
+            *cli_session = None;
+        }
+    }
+
     fn reset_session(&self) {
         if let Ok(mut cli_session) = self.cli_session_id.lock() {
             *cli_session = None;
@@ -2794,12 +2815,14 @@ impl LLMProvider for ClaudeCliProvider {
             *cli_session = Some(new_cli_sid.clone());
 
             // Persist to session store for cross-restart continuity
-            if let Err(e) = save_cli_session_to_store(
-                &self.session_key,
-                &self.localgpt_session_id,
-                CLAUDE_CLI_PROVIDER,
-                new_cli_sid,
-            ) {
+            if !self.ephemeral.load(std::sync::atomic::Ordering::Relaxed)
+                && let Err(e) = save_cli_session_to_store(
+                    &self.session_key,
+                    &self.localgpt_session_id,
+                    CLAUDE_CLI_PROVIDER,
+                    new_cli_sid,
+                )
+            {
                 debug!("Failed to persist CLI session: {}", e);
             }
 
@@ -2884,6 +2907,8 @@ impl LLMProvider for ClaudeCliProvider {
         // Clone session state for the stream closure
         let cli_session_id = self.cli_session_id.lock().ok().and_then(|g| g.clone());
         let session_key = self.session_key.clone();
+        // Read once: the stream below is 'static and cannot borrow self.
+        let ephemeral = self.ephemeral.load(std::sync::atomic::Ordering::Relaxed);
         let localgpt_session_id = self.localgpt_session_id.clone();
         let cli_session_mutex = std::sync::Arc::new(StdMutex::new(cli_session_id));
 
@@ -3047,7 +3072,8 @@ impl LLMProvider for ClaudeCliProvider {
                                 }
 
                                 // Persist to session store
-                                if let Err(e) = save_cli_session_to_store(
+                                if !ephemeral
+                                    && let Err(e) = save_cli_session_to_store(
                                     &session_key,
                                     &localgpt_session_id,
                                     CLAUDE_CLI_PROVIDER,
@@ -3140,6 +3166,8 @@ pub struct GeminiCliProvider {
     localgpt_session_id: String,
     /// CLI session ID for multi-turn conversations (interior mutability for &self methods)
     cli_session_id: StdMutex<Option<String>>,
+    /// Set by `make_ephemeral`: never load or persist a CLI session.
+    ephemeral: std::sync::atomic::AtomicBool,
 }
 
 #[cfg(feature = "gemini-cli")]
@@ -3164,6 +3192,7 @@ impl GeminiCliProvider {
             session_key,
             localgpt_session_id: uuid::Uuid::new_v4().to_string(),
             cli_session_id: StdMutex::new(existing_session),
+            ephemeral: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
@@ -3325,6 +3354,14 @@ impl LLMProvider for GeminiCliProvider {
         "gemini-cli".to_string()
     }
 
+    fn make_ephemeral(&self) {
+        self.ephemeral
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        if let Ok(mut cli_session) = self.cli_session_id.lock() {
+            *cli_session = None;
+        }
+    }
+
     fn reset_session(&self) {
         if let Ok(mut cli_session) = self.cli_session_id.lock() {
             *cli_session = None;
@@ -3370,12 +3407,14 @@ impl LLMProvider for GeminiCliProvider {
                 .map_err(|e| anyhow::anyhow!("Session lock poisoned: {}", e))?;
             *cli_session = Some(new_cli_sid.clone());
 
-            if let Err(e) = save_cli_session_to_store(
-                &self.session_key,
-                &self.localgpt_session_id,
-                GEMINI_CLI_PROVIDER,
-                new_cli_sid,
-            ) {
+            if !self.ephemeral.load(std::sync::atomic::Ordering::Relaxed)
+                && let Err(e) = save_cli_session_to_store(
+                    &self.session_key,
+                    &self.localgpt_session_id,
+                    GEMINI_CLI_PROVIDER,
+                    new_cli_sid,
+                )
+            {
                 debug!("Failed to persist CLI session: {}", e);
             }
 
@@ -3452,6 +3491,8 @@ impl LLMProvider for GeminiCliProvider {
 
         let cli_session_id = self.cli_session_id.lock().ok().and_then(|g| g.clone());
         let session_key = self.session_key.clone();
+        // Read once: the stream below is 'static and cannot borrow self.
+        let ephemeral = self.ephemeral.load(std::sync::atomic::Ordering::Relaxed);
         let localgpt_session_id = self.localgpt_session_id.clone();
         let cli_session_mutex = std::sync::Arc::new(StdMutex::new(cli_session_id));
 
@@ -3484,7 +3525,8 @@ impl LLMProvider for GeminiCliProvider {
                                 if let Ok(mut guard) = cli_session_mutex.lock() {
                                     *guard = Some(sid.to_string());
                                 }
-                                if let Err(e) = save_cli_session_to_store(
+                                if !ephemeral
+                                    && let Err(e) = save_cli_session_to_store(
                                     &session_key,
                                     &localgpt_session_id,
                                     GEMINI_CLI_PROVIDER,
@@ -3742,6 +3784,8 @@ pub struct CodexCliProvider {
     session_key: String,
     localgpt_session_id: String,
     cli_session_id: StdMutex<Option<String>>,
+    /// Set by `make_ephemeral`: never load or persist a CLI session.
+    ephemeral: std::sync::atomic::AtomicBool,
 }
 
 #[cfg(feature = "codex-cli")]
@@ -3764,6 +3808,7 @@ impl CodexCliProvider {
             session_key,
             localgpt_session_id: uuid::Uuid::new_v4().to_string(),
             cli_session_id: StdMutex::new(existing_session),
+            ephemeral: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
@@ -3845,6 +3890,14 @@ impl LLMProvider for CodexCliProvider {
         "codex-cli".to_string()
     }
 
+    fn make_ephemeral(&self) {
+        self.ephemeral
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        if let Ok(mut cli_session) = self.cli_session_id.lock() {
+            *cli_session = None;
+        }
+    }
+
     fn reset_session(&self) {
         if let Ok(mut cli_session) = self.cli_session_id.lock() {
             *cli_session = None;
@@ -3891,12 +3944,14 @@ impl LLMProvider for CodexCliProvider {
                 .map_err(|e| anyhow::anyhow!("Session lock poisoned: {}", e))?;
             *cli_session = Some(new_cli_sid.clone());
 
-            if let Err(e) = save_cli_session_to_store(
-                &self.session_key,
-                &self.localgpt_session_id,
-                CODEX_CLI_PROVIDER,
-                new_cli_sid,
-            ) {
+            if !self.ephemeral.load(std::sync::atomic::Ordering::Relaxed)
+                && let Err(e) = save_cli_session_to_store(
+                    &self.session_key,
+                    &self.localgpt_session_id,
+                    CODEX_CLI_PROVIDER,
+                    new_cli_sid,
+                )
+            {
                 debug!("Failed to persist CLI session: {}", e);
             }
 
@@ -3982,6 +4037,8 @@ impl LLMProvider for CodexCliProvider {
 
         let cli_session_id = self.cli_session_id.lock().ok().and_then(|g| g.clone());
         let session_key = self.session_key.clone();
+        // Read once: the stream below is 'static and cannot borrow self.
+        let ephemeral = self.ephemeral.load(std::sync::atomic::Ordering::Relaxed);
         let localgpt_session_id = self.localgpt_session_id.clone();
         let cli_session_mutex = std::sync::Arc::new(StdMutex::new(cli_session_id));
 
@@ -4010,7 +4067,8 @@ impl LLMProvider for CodexCliProvider {
                                 if let Ok(mut guard) = cli_session_mutex.lock() {
                                     *guard = Some(thread_id.to_string());
                                 }
-                                if let Err(e) = save_cli_session_to_store(
+                                if !ephemeral
+                                    && let Err(e) = save_cli_session_to_store(
                                     &session_key,
                                     &localgpt_session_id,
                                     CODEX_CLI_PROVIDER,
@@ -4243,6 +4301,25 @@ mod tests {
             args[idx + 1],
             "",
             "empty value disables every built-in tool"
+        );
+    }
+
+    /// A side-channel request (the desktop app authoring a place) must not
+    /// resume the chat's stored CLI conversation. Persisting is guarded by the
+    /// same flag; that half is not exercised here because it would write the
+    /// real session store.
+    #[cfg(feature = "claude-cli")]
+    #[test]
+    fn an_ephemeral_claude_cli_provider_never_resumes_the_chat_session() {
+        let provider = ClaudeCliProvider::new("claude", "sonnet", std::env::temp_dir()).unwrap();
+        // As if the chat's session had just been loaded from the store.
+        *provider.cli_session_id.lock().unwrap() = Some("chat-session".into());
+        provider.make_ephemeral();
+        assert!(provider.cli_session_id.lock().unwrap().is_none());
+        assert!(
+            provider
+                .ephemeral
+                .load(std::sync::atomic::Ordering::Relaxed)
         );
     }
 
