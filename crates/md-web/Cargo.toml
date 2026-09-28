@@ -21,3 +21,11 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
+
+[package.metadata.wasm-pack.profile.release]
+# wasm-opt off: the locally installed binaryen predates bulk-memory operations
+# (memory.copy), which rustc emits for wasm32 by default, so `wasm-opt -O`
+# fails validation and takes the deploy with it. The unoptimized module is
+# what the page check verifies anyway — same bytes locally and in CI — and
+# ~546 KB is small next to the three.js it ships beside.
+wasm-opt = false
