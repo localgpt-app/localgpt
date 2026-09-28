@@ -180,7 +180,7 @@ impl FastEmbedProvider {
     }
 
     pub fn new_with_cache_dir(model_name: Option<&str>, cache_dir: Option<&str>) -> Result<Self> {
-        use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
+        use fastembed::{InitOptions, TextEmbedding};
 
         // Set cache directory via environment variable if provided
         // This must be done before TextEmbedding::try_new
@@ -195,49 +195,7 @@ impl FastEmbedProvider {
             debug!("Set FASTEMBED_CACHE_DIR to {}", expanded);
         }
 
-        // Supported models with disk sizes:
-        // - all-MiniLM-L6-v2:      384 dims, ~80 MB  (default, English, fastest)
-        // - bge-base-en-v1.5:      768 dims, ~430 MB (English, quality)
-        // - bge-small-zh-v1.5:     512 dims, ~95 MB  (Chinese only)
-        // - multilingual-e5-small: 384 dims, ~470 MB (multilingual, compact)
-        // - multilingual-e5-base:  768 dims, ~1.1 GB (multilingual, recommended for Chinese)
-        // - bge-m3:               1024 dims, ~2.2 GB (best multilingual quality)
-        let (model_enum, name, dims) = match model_name {
-            // English models
-            Some("all-MiniLM-L6-v2") | None => {
-                (EmbeddingModel::AllMiniLML6V2, "all-MiniLM-L6-v2", 384)
-            }
-            Some("bge-base-en-v1.5") => (EmbeddingModel::BGEBaseENV15, "bge-base-en-v1.5", 768),
-            // Chinese-specific model
-            Some("bge-small-zh-v1.5") => (EmbeddingModel::BGESmallZHV15, "bge-small-zh-v1.5", 512),
-            // Multilingual models (Chinese, Japanese, Korean, 100+ languages)
-            Some("multilingual-e5-small") => (
-                EmbeddingModel::MultilingualE5Small,
-                "multilingual-e5-small",
-                384,
-            ),
-            Some("multilingual-e5-base") => (
-                EmbeddingModel::MultilingualE5Base,
-                "multilingual-e5-base",
-                768,
-            ),
-            Some("bge-m3") => (EmbeddingModel::BGEM3, "bge-m3", 1024),
-            Some(other) => {
-                anyhow::bail!(
-                    "Unknown embedding model: '{}'. Supported models:\n\
-                     English:\n\
-                       - all-MiniLM-L6-v2 (default, ~80MB)\n\
-                       - bge-base-en-v1.5 (~430MB)\n\
-                     Chinese:\n\
-                       - bge-small-zh-v1.5 (~95MB)\n\
-                     Multilingual:\n\
-                       - multilingual-e5-small (~470MB)\n\
-                       - multilingual-e5-base (~1.1GB, recommended for Chinese)\n\
-                       - bge-m3 (~2.2GB, best quality)",
-                    other
-                );
-            }
-        };
+        let (model_enum, name, dims) = local_model(model_name)?;
 
         debug!("Loading local embedding model: {}", name);
         let model = TextEmbedding::try_new(InitOptions::new(model_enum))?;
@@ -247,6 +205,95 @@ impl FastEmbedProvider {
             model_name: name.to_string(),
             dimensions: dims,
         })
+    }
+}
+
+/// The fastembed model behind a configured name, its canonical name and its
+/// dimensions. Supported models with disk sizes:
+/// - all-MiniLM-L6-v2:      384 dims, ~80 MB  (default, English, fastest)
+/// - bge-base-en-v1.5:      768 dims, ~430 MB (English, quality)
+/// - bge-small-zh-v1.5:     512 dims, ~95 MB  (Chinese only)
+/// - multilingual-e5-small: 384 dims, ~470 MB (multilingual, compact)
+/// - multilingual-e5-base:  768 dims, ~1.1 GB (multilingual, recommended for Chinese)
+/// - bge-m3:               1024 dims, ~2.2 GB (best multilingual quality)
+#[cfg(feature = "embeddings-local")]
+fn local_model(
+    model_name: Option<&str>,
+) -> Result<(fastembed::EmbeddingModel, &'static str, usize)> {
+    use fastembed::EmbeddingModel;
+
+    Ok(match model_name {
+        // English models
+        Some("all-MiniLM-L6-v2") | None => (EmbeddingModel::AllMiniLML6V2, "all-MiniLM-L6-v2", 384),
+        Some("bge-base-en-v1.5") => (EmbeddingModel::BGEBaseENV15, "bge-base-en-v1.5", 768),
+        // Chinese-specific model
+        Some("bge-small-zh-v1.5") => (EmbeddingModel::BGESmallZHV15, "bge-small-zh-v1.5", 512),
+        // Multilingual models (Chinese, Japanese, Korean, 100+ languages)
+        Some("multilingual-e5-small") => (
+            EmbeddingModel::MultilingualE5Small,
+            "multilingual-e5-small",
+            384,
+        ),
+        Some("multilingual-e5-base") => (
+            EmbeddingModel::MultilingualE5Base,
+            "multilingual-e5-base",
+            768,
+        ),
+        Some("bge-m3") => (EmbeddingModel::BGEM3, "bge-m3", 1024),
+        Some(other) => {
+            anyhow::bail!(
+                "Unknown embedding model: '{}'. Supported models:\n\
+                 English:\n\
+                   - all-MiniLM-L6-v2 (default, ~80MB)\n\
+                   - bge-base-en-v1.5 (~430MB)\n\
+                 Chinese:\n\
+                   - bge-small-zh-v1.5 (~95MB)\n\
+                 Multilingual:\n\
+                   - multilingual-e5-small (~470MB)\n\
+                   - multilingual-e5-base (~1.1GB, recommended for Chinese)\n\
+                   - bge-m3 (~2.2GB, best quality)",
+                other
+            );
+        }
+    })
+}
+
+/// Whether the local embedding model is already on disk, so starting
+/// [`FastEmbedProvider`] downloads nothing. An app that has to open at once
+/// on a bare machine can turn embeddings on only when they are free.
+///
+/// fastembed keeps models in the Hugging Face hub layout:
+/// `<cache>/models--<org>--<name>/refs/main` names the snapshot, and the
+/// snapshot directory holds the model file. `cache_dir` is
+/// `memory.embedding_cache_dir` (empty means fastembed's own default).
+/// Always `false` without the `embeddings-local` feature.
+pub fn local_model_cached(model_name: Option<&str>, cache_dir: Option<&str>) -> bool {
+    #[cfg(feature = "embeddings-local")]
+    {
+        let Ok((model, _, _)) = local_model(model_name) else {
+            return false;
+        };
+        let Ok(info) = fastembed::TextEmbedding::get_model_info(&model) else {
+            return false;
+        };
+        let cache = match cache_dir.filter(|dir| !dir.is_empty()) {
+            Some(dir) => shellexpand::tilde(dir).to_string(),
+            None => fastembed::get_cache_dir(),
+        };
+        let repo = std::path::Path::new(&cache)
+            .join(format!("models--{}", info.model_code.replace('/', "--")));
+        let Ok(snapshot) = std::fs::read_to_string(repo.join("refs").join("main")) else {
+            return false;
+        };
+        repo.join("snapshots")
+            .join(snapshot.trim())
+            .join(&info.model_file)
+            .is_file()
+    }
+    #[cfg(not(feature = "embeddings-local"))]
+    {
+        let _ = (model_name, cache_dir);
+        false
     }
 }
 
@@ -784,6 +831,27 @@ pub fn deserialize_embedding(json: &str) -> Vec<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The hub layout fastembed downloads into, and nothing less, counts as
+    /// cached: a repo whose snapshot lacks the model file is a download cut
+    /// short, and an unknown model name is never cached.
+    #[cfg(feature = "embeddings-local")]
+    #[test]
+    fn a_local_model_is_cached_only_when_its_snapshot_holds_the_model() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache = tmp.path().to_str().unwrap();
+        let repo = tmp.path().join("models--Qdrant--all-MiniLM-L6-v2-onnx");
+        std::fs::create_dir_all(repo.join("refs")).unwrap();
+        std::fs::write(repo.join("refs").join("main"), "abc123\n").unwrap();
+        std::fs::create_dir_all(repo.join("snapshots").join("abc123")).unwrap();
+        assert!(!local_model_cached(None, Some(cache)), "no model file yet");
+
+        std::fs::write(repo.join("snapshots/abc123/model.onnx"), b"onnx").unwrap();
+        assert!(local_model_cached(None, Some(cache)));
+        assert!(local_model_cached(Some("all-MiniLM-L6-v2"), Some(cache)));
+        assert!(!local_model_cached(Some("bge-m3"), Some(cache)), "another model");
+        assert!(!local_model_cached(Some("no-such-model"), Some(cache)));
+    }
 
     #[test]
     fn test_normalize_embedding() {

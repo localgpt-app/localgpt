@@ -41,6 +41,23 @@ use tracing::{debug, info, warn};
 
 use crate::config::{Config, MemoryConfig};
 
+/// The local model and cache directory `memory` asks for: `None` means
+/// fastembed's default model (an empty setting, or the OpenAI default left in
+/// a config written for it) or fastembed's own cache.
+fn local_embedding_settings(memory: &MemoryConfig) -> (Option<&str>, Option<&str>) {
+    let model = memory.embedding_model.as_str();
+    let model = (!model.is_empty() && model != "text-embedding-3-small").then_some(model);
+    let cache = memory.embedding_cache_dir.as_str();
+    (model, (!cache.is_empty()).then_some(cache))
+}
+
+/// Whether `memory`'s local embedding model is already on disk, so turning
+/// local embeddings on costs no download.
+pub fn local_embeddings_cached(memory: &MemoryConfig) -> bool {
+    let (model, cache) = local_embedding_settings(memory);
+    embeddings::local_model_cached(model, cache)
+}
+
 #[derive(Clone)]
 pub struct MemoryManager {
     workspace: PathBuf,
@@ -144,18 +161,7 @@ impl MemoryManager {
             "local" => {
                 #[cfg(feature = "embeddings-local")]
                 {
-                    let model_name = if memory_config.embedding_model.is_empty()
-                        || memory_config.embedding_model == "text-embedding-3-small"
-                    {
-                        None // Use default local model
-                    } else {
-                        Some(memory_config.embedding_model.as_str())
-                    };
-                    let cache_dir = if memory_config.embedding_cache_dir.is_empty() {
-                        None
-                    } else {
-                        Some(memory_config.embedding_cache_dir.as_str())
-                    };
+                    let (model_name, cache_dir) = local_embedding_settings(memory_config);
                     match FastEmbedProvider::new_with_cache_dir(model_name, cache_dir) {
                         Ok(provider) => {
                             info!("Using local embedding provider: {}", provider.model());

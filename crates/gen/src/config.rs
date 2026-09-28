@@ -63,10 +63,15 @@ pub fn apply_gen_defaults(
     // scene_info between steps); core's default of 3 aborts mid-scene.
     config.agent.max_tool_repeats = config.agent.max_tool_repeats.max(20);
 
-    // Local embeddings would block the first launch on an ~80 MB model
-    // download. Keyword search still works, and nothing in Gen needs vectors
-    // to build a world.
-    config.memory.embedding_provider = "none".to_string();
+    // Local embeddings only when they cost nothing: with the model already on
+    // disk (the assistant fetched it, or an earlier run did) style recall gets
+    // vectors; on a bare machine the ~80 MB download would block the first
+    // launch, and keyword search still finds a style by name. Gen's settings
+    // can force either way.
+    let local = settings
+        .embeddings
+        .unwrap_or_else(|| localgpt_core::memory::local_embeddings_cached(&config.memory));
+    config.memory.embedding_provider = if local { "local" } else { "none" }.to_string();
 
     config.agent.default_model = choose_model(settings.default_model.as_deref(), config);
 
@@ -265,6 +270,8 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let mut config = localgpt_core::config::Config::default();
         config.paths.data_dir = tmp.path().to_path_buf();
+        // An empty model cache, whatever this machine has downloaded.
+        config.memory.embedding_cache_dir = tmp.path().join("embeddings").display().to_string();
         apply_gen_defaults(&mut config, &crate::settings::GenSettings::default());
 
         // Its own workspace, not the assistant's.
@@ -275,7 +282,7 @@ mod tests {
         );
         // Scene building needs a high repeat ceiling.
         assert!(config.agent.max_tool_repeats >= 20);
-        // No ~80 MB embedding download on first launch.
+        // No ~80 MB embedding download on a first launch.
         assert_eq!(config.memory.embedding_provider, "none");
         // Subagents run on the same backend as Gen, not claude-cli/sonnet.
         assert_eq!(
@@ -283,6 +290,40 @@ mod tests {
             Some(config.agent.default_model.as_str())
         );
         assert!(!config.agent.default_model.is_empty());
+    }
+
+    /// With the embedding model already on disk, Gen's memory gets vectors
+    /// for free; Gen's settings can force either way.
+    #[test]
+    fn embeddings_are_on_when_the_model_is_already_on_disk() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (cached, empty) = (tmp.path().join("cached"), tmp.path().join("empty"));
+        // fastembed's hub layout for the default model.
+        let repo = cached.join("models--Qdrant--all-MiniLM-L6-v2-onnx");
+        std::fs::create_dir_all(repo.join("refs")).unwrap();
+        std::fs::write(repo.join("refs/main"), "abc123\n").unwrap();
+        std::fs::create_dir_all(repo.join("snapshots/abc123")).unwrap();
+        std::fs::write(repo.join("snapshots/abc123/model.onnx"), b"onnx").unwrap();
+
+        let provider = |cache: &std::path::Path, embeddings: Option<bool>| {
+            let mut config = localgpt_core::config::Config::default();
+            config.paths.data_dir = tmp.path().to_path_buf();
+            config.memory.embedding_cache_dir = cache.display().to_string();
+            let settings = crate::settings::GenSettings {
+                embeddings,
+                ..Default::default()
+            };
+            apply_gen_defaults(&mut config, &settings);
+            config.memory.embedding_provider
+        };
+        assert_eq!(provider(&cached, None), "local");
+        assert_eq!(provider(&empty, None), "none");
+        assert_eq!(provider(&cached, Some(false)), "none");
+        assert_eq!(
+            provider(&empty, Some(true)),
+            "local",
+            "downloads on first use"
+        );
     }
 
     /// The trap this refactor turns on: `MemoryManager::new_with_agent`
@@ -295,6 +336,8 @@ mod tests {
         let mut config = localgpt_core::config::Config::default();
         config.paths.data_dir = tmp.path().to_path_buf();
         config.paths.cache_dir = tmp.path().join("cache");
+        // No embedding model, so no ONNX load whatever this machine has.
+        config.memory.embedding_cache_dir = tmp.path().join("embeddings").display().to_string();
         apply_gen_defaults(&mut config, &crate::settings::GenSettings::default());
         let gen_workspace = config.paths.workspace.clone();
 

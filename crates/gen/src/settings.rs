@@ -41,6 +41,13 @@ pub struct GenSettings {
     /// `core` / `standard` / `full` — see `gen3d::tool_profile`.
     #[serde(default)]
     pub tool_profile: Option<String>,
+
+    /// Local embeddings for Gen's memory (style recall). `None`: on when the
+    /// model is already on disk, so a first launch never waits on a download.
+    /// `Some(true)`: always, fetching the ~80 MB model the first time.
+    /// `Some(false)`: never — keyword search only.
+    #[serde(default)]
+    pub embeddings: Option<bool>,
 }
 
 fn default_version() -> u32 {
@@ -53,6 +60,7 @@ impl Default for GenSettings {
             version: VERSION,
             default_model: None,
             tool_profile: None,
+            embeddings: None,
         }
     }
 }
@@ -148,6 +156,7 @@ mod tests {
             version: VERSION,
             default_model: Some("gguf/bonsai".into()),
             tool_profile: Some("core".into()),
+            embeddings: Some(false),
         };
         let json = serde_json::to_string_pretty(&settings).unwrap();
         assert_eq!(
