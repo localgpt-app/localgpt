@@ -176,6 +176,10 @@ struct PendingGltfLoad {
     send_response: bool,
     /// WG6.3: Decompose loaded mesh into editable sub-objects.
     segment: bool,
+    /// The placeholder a world load spawned for this asset, carrying the
+    /// entity's transform, name, id and components; the scene fills it in
+    /// place. `None` for a tool or startup load, which spawns its own root.
+    target: Option<Entity>,
 }
 
 /// Queue of pending glTF loads waiting for asset server to finish loading.
@@ -504,6 +508,7 @@ fn load_initial_scene(
         path: path.to_string_lossy().into_owned(),
         send_response: false,
         segment: false,
+        target: None,
     });
 }
 
@@ -1200,6 +1205,7 @@ fn process_gen_commands(
                         path: resolved.to_string_lossy().into_owned(),
                         send_response: true,
                         segment,
+                        target: None,
                     });
                 } else {
                     let response = GenResponse::Error {
@@ -5071,6 +5077,7 @@ fn process_pending_gltf_loads(
     mut pending: ResMut<PendingGltfLoads>,
     mut commands: Commands,
     mut registry: ResMut<NameRegistry>,
+    placeholders: Query<(), With<GenEntity>>,
 ) {
     let mut completed = Vec::new();
 
@@ -5090,17 +5097,29 @@ fn process_pending_gltf_loads(
         // worldgen/segment.rs; actual mesh decomposition requires post-spawn
         // access to vertex/index buffers which happens in a deferred system.
         let _segment = load.segment;
-        let entity = commands
-            .spawn((
-                WorldAssetRoot(load.handle.clone()),
-                GltfSource {
-                    path: load.path.clone(),
-                },
-            ))
-            .id();
-
-        // Register in the name registry
-        registry.insert(load.name.clone(), entity);
+        let scene = (
+            WorldAssetRoot(load.handle.clone()),
+            GltfSource {
+                path: load.path.clone(),
+            },
+        );
+        match load.target {
+            // A world load: fill the placeholder, already registered under
+            // its name and id.
+            Some(target) if placeholders.contains(target) => {
+                commands.entity(target).insert(scene);
+            }
+            // Its placeholder is gone — the scene was cleared or the world
+            // rebuilt while the asset loaded. Nothing to put it in.
+            Some(_) => {
+                tracing::debug!("glTF '{}' loaded after its entity was removed", load.name);
+                continue;
+            }
+            None => {
+                let entity = commands.spawn(scene).id();
+                registry.insert(load.name.clone(), entity);
+            }
+        }
 
         // Send response if this was a tool request (not a startup load)
         if load.send_response {
@@ -6295,6 +6314,20 @@ pub(crate) fn spawn_world_entities(
             }
             let mesh_path = resolve_mesh_asset_path(world_dir, &mesh_ref.path);
 
+            // The entity itself, with everything the manifest gives it; the
+            // glTF scene is filled into it once the asset server has it, so
+            // it keeps its transform, id and components. (It used to land on
+            // a fresh root at the origin, unscaled, with this left empty.)
+            let placeholder = commands
+                .spawn((
+                    transform,
+                    Name::new(name.clone()),
+                    GenEntity {
+                        entity_type: GenEntityType::Mesh,
+                        world_id,
+                    },
+                ))
+                .id();
             let p = mesh_path.as_path();
             if p.exists() {
                 let asset_path = p.to_string_lossy().trim_start_matches('/').to_string();
@@ -6305,6 +6338,7 @@ pub(crate) fn spawn_world_entities(
                     path: mesh_ref.path.clone(),
                     send_response: false,
                     segment: false,
+                    target: Some(placeholder),
                 });
             } else {
                 tracing::warn!(
@@ -6313,19 +6347,7 @@ pub(crate) fn spawn_world_entities(
                     name
                 );
             }
-            // Spawn a placeholder entity — process_pending_gltf_loads will
-            // replace it when the glTF finishes loading. For now register
-            // so behaviors and parent assignments can still resolve by name.
-            commands
-                .spawn((
-                    transform,
-                    Name::new(name.clone()),
-                    GenEntity {
-                        entity_type: GenEntityType::Mesh,
-                        world_id,
-                    },
-                ))
-                .id()
+            placeholder
         } else {
             // Empty entity (group, audio-only, etc.)
             commands
