@@ -905,19 +905,284 @@ fn ten_f() -> f32 {
 // The session (llm feature) — the tool-calling loop, ported from Verse
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// The protocol, for any model backend
+// ---------------------------------------------------------------------------
+//
+// Everything a driver needs to put this protocol in front of a model: the tool
+// specs, the per-section prompt, and a [`Session`] that turns the model's tool
+// calls into a build. `run_session` below drives it with an in-process GGUF
+// through mistral.rs; the one-window LocalGPT app drives it with whatever
+// provider it is configured for (a signed-in CLI backend, an API model, or the
+// same GGUF). Both apply calls through `Session::call`, so the clamps, the
+// asset resolution and the replies are identical whichever model is talking.
+
+/// Most model turns one section's session may take.
+pub const MAX_AGENT_STEPS: usize = 14;
+
+/// One tool as a model sees it: a name, what it does, and a JSON schema for
+/// its arguments — the shape every provider's tool API takes.
+#[derive(Debug, Clone)]
+pub struct ToolSpec {
+    pub name: String,
+    pub description: String,
+    pub parameters: serde_json::Value,
+}
+
+/// The tool specs (ported from Verse, minus set_environment and at_role;
+/// radius clamped to the platform's scale). `place_asset` and
+/// `scatter_field` are offered only when an asset pack is present.
+pub fn tool_specs(manifest: Option<&AssetManifest>) -> Vec<ToolSpec> {
+    use serde_json::json;
+
+    fn f(name: &str, desc: &str, params: serde_json::Value) -> ToolSpec {
+        ToolSpec {
+            name: name.into(),
+            description: desc.into(),
+            parameters: params,
+        }
+    }
+
+    let mut tools = vec![
+        f(
+            "spawn_primitive",
+            "Spawn a 3D primitive shape (Cuboid/Sphere/Cylinder/Cone/Torus/Plane) with a material and transform. Use for structures the asset pack lacks; combine several to compose towers, platforms, frames.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Unique name for this entity (e.g. 'tower_base', 'crystal_1')"},
+                    "shape": {"type": "string", "enum": ["Cuboid","Sphere","Cylinder","Cone","Torus","Plane"]},
+                    "dimensions": {"type": "object", "description": "Cuboid:{x,y,z}. Sphere:{radius}. Cylinder:{radius,height}. Cone:{radius,height}. Torus:{major_radius,minor_radius}. Plane:{x,z}."},
+                    "position": {"type": "array", "items": {"type":"number"}, "default": [0,0,0]},
+                    "rotation_degrees": {"type": "array", "items": {"type":"number"}, "default": [0,0,0]},
+                    "scale": {"type": "array", "items": {"type":"number"}, "default": [1,1,1]},
+                    "color": {"type": "array", "items": {"type":"number"}, "default": [0.8,0.8,0.8,1.0], "description": "RGBA 0-1"},
+                    "metallic": {"type": "number", "default": 0.0, "minimum": 0, "maximum": 1},
+                    "roughness": {"type": "number", "default": 0.5, "minimum": 0, "maximum": 1},
+                    "emissive": {"type": "array", "items": {"type":"number"}, "default": [0,0,0,0], "description": "Glow color RGBA"}
+                },
+                "required": ["name", "shape"]
+            }),
+        ),
+        f(
+            "modify_entity",
+            "Partially update an existing entity by name. Only provided fields change.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "position": {"type": "array", "items": {"type":"number"}},
+                    "scale": {"type": "array", "items": {"type":"number"}},
+                    "color": {"type": "array", "items": {"type":"number"}},
+                    "emissive": {"type": "array", "items": {"type":"number"}}
+                },
+                "required": ["name"]
+            }),
+        ),
+        f(
+            "delete_entity",
+            "Delete an entity by name.",
+            json!({"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}),
+        ),
+        f(
+            "set_light",
+            "Add or update a named light. Omit direction for a point light; provide it for a directional (sun) light. Reusing a name updates that light instead of adding another.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "color": {"type": "array", "items": {"type":"number"}, "default": [1,1,1,1]},
+                    "intensity": {"type": "number", "default": 1000},
+                    "position": {"type": "array", "items": {"type":"number"}},
+                    "direction": {"type": "array", "items": {"type":"number"}, "description": "Direction vector for a sun/directional light"}
+                },
+                "required": ["name"]
+            }),
+        ),
+        f(
+            "scene_info",
+            "List all currently-placed entities and lights, so you can review and iterate on the place you are building.",
+            json!({"type":"object","properties":{}}),
+        ),
+    ];
+    if let Some(manifest) = manifest {
+        // The enum is the *kind* list; the description carries example
+        // names per kind so the model knows what each kind looks like
+        // without a per-file enum (long file-name enums are exactly what
+        // a small local model handles worst).
+        let kinds = manifest.kinds();
+        let listed = kinds
+            .iter()
+            .map(|k| {
+                let examples: Vec<&str> = manifest
+                    .assets
+                    .iter()
+                    .filter(|a| a.kind == *k)
+                    .take(3)
+                    .map(|a| a.name.as_str())
+                    .collect();
+                format!("{k} ({})", examples.join(", "))
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        tools.insert(
+            1,
+            f(
+                "place_asset",
+                &format!(
+                    "Place one of the app's curated CC0 3D models — real scanned props, grouped \
+                     by kind: {listed}. You name the kind; the app picks a concrete model that \
+                     fits and varies it on repeats. Prefer these over primitives."
+                ),
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Unique name for this placement (e.g. 'gate_1')"},
+                        "kind": {"type": "string", "enum": kinds, "description": "What to place (the app picks the model)"},
+                        "position": {"type": "array", "items": {"type":"number"}, "default": [0,0,0]},
+                        "rotation_degrees": {"type": "array", "items": {"type":"number"}, "default": [0,0,0]},
+                        "scale": {"type": "number", "default": 1.0, "description": "Uniform scale multiplier"}
+                    },
+                    "required": ["name", "kind"]
+                }),
+            ),
+        );
+        tools.insert(
+            2,
+            f(
+                "scatter_field",
+                &format!(
+                    "Scatter many instances of one kind across a disk in a single call — a field \
+                     of rocks, a drift of shells, rows of barrels. Kinds: {listed}. Use this \
+                     instead of repeated place_asset whenever you want more than ~4 of something; \
+                     it is the cheapest way to make the place feel dense."
+                ),
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Unique prefix; instances are named name_1 … name_N"},
+                        "kind": {"type": "string", "enum": kinds, "description": "What to scatter (variants mix automatically)"},
+                        "count": {"type": "integer", "minimum": 1, "maximum": 48, "default": 12},
+                        "radius": {"type": "number", "minimum": 0.5, "maximum": 12, "default": 6, "description": "Disk radius in metres around position"},
+                        "position": {"type": "array", "items": {"type":"number"}, "default": [0,0,0]},
+                        "scale": {"type": "number", "default": 1.0, "description": "Uniform scale multiplier"}
+                    },
+                    "required": ["name", "kind"]
+                }),
+            ),
+        );
+    }
+    tools
+}
+
+/// The prompt that sets up one section's session. `has_assets` switches on
+/// the asset-pack guidance, matching whether [`tool_specs`] offered the pack
+/// tools.
+pub fn section_prompt(heading: &str, excerpt: &str, genre: &str, has_assets: bool) -> String {
+    let assets = if has_assets {
+        "place_asset places curated CC0 models by *kind* (rock, tree, lamp, statue, …) — \
+         the app picks the concrete model and varies it on repeats, so prefer kinds over \
+         hand-built primitives. scatter_field is the richness multiplier: one call \
+         scatters a whole field of one kind — use it for ground cover and anything you \
+         want more than a few of. "
+    } else {
+        ""
+    };
+    format!(
+        "You are a 3D place designer. Build ONE place that reflects one section of a \
+document by calling the tools. {assets}\
+The stage: a circular platform of radius 6 already exists at the origin — a ground strip and \
+the world's layout are already built. Work in platform-local coordinates: x/z across the \
+platform (keep within ~10 of the centre), y up from the surface (y = 0 sits ON the platform). \
+Call scene_info to review your work and iterate.\n\n\
+Section (genre: {genre}): \"{heading}\".\nSection text: \"{excerpt}\".\n\
+Let the text decide everything: a shore wants water-edge things, a library wants shelves and \
+warm lamps, an observatory wants brass and a clear view up. Colours are muted and \
+desaturated (dusk light, weathered stone, deep water — never pure primaries, never neon). \
+Keep it tasteful: 6-12 structures plus one or two scatter fields is plenty; one or two \
+lights. When you are done, reply with a short description of the place instead of calling \
+more tools.",
+    )
+}
+
+/// One section's session: the scene being built, the asset-variation state,
+/// and the pack. Driver-agnostic — a model loop feeds it tool calls and sends
+/// back what [`Session::call`] returns.
+pub struct Session {
+    scene: SceneInterpreter,
+    asset_used: Vec<String>,
+    manifest: Option<AssetManifest>,
+}
+
+impl Session {
+    pub fn new(section_key: &str, manifest: Option<AssetManifest>) -> Self {
+        Self {
+            scene: SceneInterpreter::new(section_key),
+            asset_used: Vec::new(),
+            manifest,
+        }
+    }
+
+    pub fn manifest(&self) -> Option<&AssetManifest> {
+        self.manifest.as_ref()
+    }
+
+    /// Apply one tool call from the model. Returns the reply to send back and
+    /// whether the *scene* rejected it — an unknown tool or an unresolvable
+    /// kind is answered as an error too, but only the interpreter's own
+    /// rejections count here, which is what a driver's give-up rule keys on.
+    pub fn call(&mut self, name: &str, args: &str) -> (String, bool) {
+        let Some(cmd) = parse_tool_call(name, args) else {
+            return (format!("error: unknown tool '{name}'"), false);
+        };
+        // Resolve kinds to concrete files before applying, so the build is
+        // self-contained and errors never ghost in.
+        let cmd = match &self.manifest {
+            Some(manifest) => match resolve_agent_assets(cmd, manifest, &mut self.asset_used) {
+                Ok(cmd) => cmd,
+                Err(e) => return (format!("error: {e}"), false),
+            },
+            None => cmd,
+        };
+        let reply = self.scene.apply(cmd, self.manifest.as_ref());
+        let rejected = matches!(reply, AgentResponse::Error(_));
+        (reply.to_message(), rejected)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.scene.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.scene.len()
+    }
+
+    /// The finished build, or `None` if nothing was placed — the caller then
+    /// falls back to the next tier.
+    pub fn finish(self, description: Option<String>) -> Option<BuildOutput> {
+        if self.scene.is_empty() {
+            return None;
+        }
+        Some(BuildOutput {
+            entities: self.scene.entities,
+            description,
+            environment: self.scene.environment,
+        })
+    }
+}
+
 #[cfg(feature = "llm")]
 mod session {
     use mistralrs::{RequestBuilder, TextMessageRole, ToolChoice};
     use tracing::{info, warn};
 
-    use super::parse_tool_call;
-    use super::{BuildOutput, SceneInterpreter, resolve_agent_assets};
+    use super::BuildOutput;
     use crate::assets::AssetManifest;
 
     /// Cap on agent turns per section — bounds LLM cost and keeps a session
     /// inside a couple of minutes on the verified Metal setup. The prompt
     /// asks for 8–14 structures; 14 turns leaves room for review + revise.
-    pub const MAX_AGENT_STEPS: usize = 14;
+    use super::MAX_AGENT_STEPS;
 
     /// Per-chat-request cap, matching the recipe tier's.
     const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(180);
@@ -943,9 +1208,9 @@ mod session {
 
         rt.block_on(async move {
             let tools = tool_schemas(manifest);
-            let mut scene = SceneInterpreter::new(section_key);
-            // Session-wide kind rotation: repeats within a region differ.
-            let mut asset_used: Vec<String> = Vec::new();
+            // Session-wide kind rotation lives in the Session: repeats within
+            // a region differ.
+            let mut session = super::Session::new(section_key, manifest.cloned());
             let mut description = None;
 
             let mut messages = RequestBuilder::new()
@@ -1002,60 +1267,28 @@ mod session {
                 );
 
                 for call in tool_calls {
-                    let name = &call.function.name;
-                    let args = &call.function.arguments;
-                    let cmd = match parse_tool_call(name, args) {
-                        Some(cmd) => cmd,
-                        None => {
-                            messages = messages.add_tool_message(
-                                format!("error: unknown tool '{name}'"),
-                                call.id.clone(),
-                            );
-                            continue;
-                        }
-                    };
-                    // Resolve kinds to concrete files before applying, so the
-                    // build is self-contained and errors never ghost in.
-                    let cmd = if let Some(manifest) = manifest {
-                        match resolve_agent_assets(cmd, manifest, &mut asset_used) {
-                            Ok(cmd) => cmd,
-                            Err(e) => {
-                                messages = messages
-                                    .add_tool_message(format!("error: {e}"), call.id.clone());
-                                continue;
-                            }
-                        }
-                    } else {
-                        cmd
-                    };
-                    let reply = scene.apply(cmd, manifest);
-                    messages = messages.add_tool_message(reply.to_message(), call.id.clone());
-                    if matches!(reply, super::AgentResponse::Error(_))
-                        && scene.is_empty()
-                        && step + 1 == MAX_AGENT_STEPS
-                    {
+                    let (reply, rejected) =
+                        session.call(&call.function.name, &call.function.arguments);
+                    messages = messages.add_tool_message(reply, call.id.clone());
+                    if rejected && session.is_empty() && step + 1 == MAX_AGENT_STEPS {
                         break 'steps;
                     }
                 }
             }
 
-            if scene.is_empty() {
+            if session.is_empty() {
                 warn!("agent: session for \"{heading}\" built nothing — recipe tier next");
                 None
             } else {
                 info!(
                     "agent: built {} entities for \"{heading}\"{}",
-                    scene.len(),
+                    session.len(),
                     description
                         .as_deref()
                         .map(|d| format!(" — {d}"))
                         .unwrap_or_default()
                 );
-                Some(BuildOutput {
-                    entities: scene.entities,
-                    description,
-                    environment: scene.environment,
-                })
+                session.finish(description)
             }
         })
     }
@@ -1069,179 +1302,23 @@ mod session {
         genre: &str,
         manifest: Option<&AssetManifest>,
     ) -> String {
-        let assets = if manifest.is_some() {
-            "place_asset places curated CC0 models by *kind* (rock, tree, lamp, statue, …) — \
-             the app picks the concrete model and varies it on repeats, so prefer kinds over \
-             hand-built primitives. scatter_field is the richness multiplier: one call \
-             scatters a whole field of one kind — use it for ground cover and anything you \
-             want more than a few of. "
-        } else {
-            ""
-        };
-        format!(
-            "You are a 3D place designer. Build ONE place that reflects one section of a \
-document by calling the tools. {assets}\
-The stage: a circular platform of radius 6 already exists at the origin — a ground strip and \
-the world's layout are already built. Work in platform-local coordinates: x/z across the \
-platform (keep within ~10 of the centre), y up from the surface (y = 0 sits ON the platform). \
-Call scene_info to review your work and iterate.\n\n\
-Section (genre: {genre}): \"{heading}\".\nSection text: \"{excerpt}\".\n\
-Let the text decide everything: a shore wants water-edge things, a library wants shelves and \
-warm lamps, an observatory wants brass and a clear view up. Colours are muted and \
-desaturated (dusk light, weathered stone, deep water — never pure primaries, never neon). \
-Keep it tasteful: 6-12 structures plus one or two scatter fields is plenty; one or two \
-lights. When you are done, reply with a short description of the place instead of calling \
-more tools.",
-        )
+        super::section_prompt(heading, excerpt, genre, manifest.is_some())
     }
 
-    /// The tool schemas (ported from Verse, minus set_environment and
-    /// at_role; radius clamped to the platform's scale).
+    /// The protocol's tool specs as mistral.rs tools.
     pub fn tool_schemas(manifest: Option<&AssetManifest>) -> Vec<mistralrs::Tool> {
         use mistralrs::{Function, Tool, ToolType};
-        use serde_json::json;
-
-        fn f(name: &str, desc: &str, params: serde_json::Value) -> Tool {
-            Tool {
+        super::tool_specs(manifest)
+            .into_iter()
+            .map(|spec| Tool {
                 tp: ToolType::Function,
                 function: Function {
-                    description: Some(desc.into()),
-                    name: name.into(),
-                    parameters: Some(serde_json::from_value(params).unwrap_or_default()),
+                    description: Some(spec.description),
+                    name: spec.name,
+                    parameters: Some(serde_json::from_value(spec.parameters).unwrap_or_default()),
                 },
-            }
-        }
-
-        let mut tools = vec![
-            f(
-                "spawn_primitive",
-                "Spawn a 3D primitive shape (Cuboid/Sphere/Cylinder/Cone/Torus/Plane) with a material and transform. Use for structures the asset pack lacks; combine several to compose towers, platforms, frames.",
-                json!({
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string", "description": "Unique name for this entity (e.g. 'tower_base', 'crystal_1')"},
-                        "shape": {"type": "string", "enum": ["Cuboid","Sphere","Cylinder","Cone","Torus","Plane"]},
-                        "dimensions": {"type": "object", "description": "Cuboid:{x,y,z}. Sphere:{radius}. Cylinder:{radius,height}. Cone:{radius,height}. Torus:{major_radius,minor_radius}. Plane:{x,z}."},
-                        "position": {"type": "array", "items": {"type":"number"}, "default": [0,0,0]},
-                        "rotation_degrees": {"type": "array", "items": {"type":"number"}, "default": [0,0,0]},
-                        "scale": {"type": "array", "items": {"type":"number"}, "default": [1,1,1]},
-                        "color": {"type": "array", "items": {"type":"number"}, "default": [0.8,0.8,0.8,1.0], "description": "RGBA 0-1"},
-                        "metallic": {"type": "number", "default": 0.0, "minimum": 0, "maximum": 1},
-                        "roughness": {"type": "number", "default": 0.5, "minimum": 0, "maximum": 1},
-                        "emissive": {"type": "array", "items": {"type":"number"}, "default": [0,0,0,0], "description": "Glow color RGBA"}
-                    },
-                    "required": ["name", "shape"]
-                }),
-            ),
-            f(
-                "modify_entity",
-                "Partially update an existing entity by name. Only provided fields change.",
-                json!({
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string"},
-                        "position": {"type": "array", "items": {"type":"number"}},
-                        "scale": {"type": "array", "items": {"type":"number"}},
-                        "color": {"type": "array", "items": {"type":"number"}},
-                        "emissive": {"type": "array", "items": {"type":"number"}}
-                    },
-                    "required": ["name"]
-                }),
-            ),
-            f(
-                "delete_entity",
-                "Delete an entity by name.",
-                json!({"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}),
-            ),
-            f(
-                "set_light",
-                "Add or update a named light. Omit direction for a point light; provide it for a directional (sun) light. Reusing a name updates that light instead of adding another.",
-                json!({
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string"},
-                        "color": {"type": "array", "items": {"type":"number"}, "default": [1,1,1,1]},
-                        "intensity": {"type": "number", "default": 1000},
-                        "position": {"type": "array", "items": {"type":"number"}},
-                        "direction": {"type": "array", "items": {"type":"number"}, "description": "Direction vector for a sun/directional light"}
-                    },
-                    "required": ["name"]
-                }),
-            ),
-            f(
-                "scene_info",
-                "List all currently-placed entities and lights, so you can review and iterate on the place you are building.",
-                json!({"type":"object","properties":{}}),
-            ),
-        ];
-        if let Some(manifest) = manifest {
-            // The enum is the *kind* list; the description carries example
-            // names per kind so the model knows what each kind looks like
-            // without a per-file enum (long file-name enums are exactly what
-            // a small local model handles worst).
-            let kinds = manifest.kinds();
-            let listed = kinds
-                .iter()
-                .map(|k| {
-                    let examples: Vec<&str> = manifest
-                        .assets
-                        .iter()
-                        .filter(|a| a.kind == *k)
-                        .take(3)
-                        .map(|a| a.name.as_str())
-                        .collect();
-                    format!("{k} ({})", examples.join(", "))
-                })
-                .collect::<Vec<_>>()
-                .join("; ");
-            tools.insert(
-                1,
-                f(
-                    "place_asset",
-                    &format!(
-                        "Place one of the app's curated CC0 3D models — real scanned props, grouped \
-                         by kind: {listed}. You name the kind; the app picks a concrete model that \
-                         fits and varies it on repeats. Prefer these over primitives."
-                    ),
-                    json!({
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string", "description": "Unique name for this placement (e.g. 'gate_1')"},
-                            "kind": {"type": "string", "enum": kinds, "description": "What to place (the app picks the model)"},
-                            "position": {"type": "array", "items": {"type":"number"}, "default": [0,0,0]},
-                            "rotation_degrees": {"type": "array", "items": {"type":"number"}, "default": [0,0,0]},
-                            "scale": {"type": "number", "default": 1.0, "description": "Uniform scale multiplier"}
-                        },
-                        "required": ["name", "kind"]
-                    }),
-                ),
-            );
-            tools.insert(
-                2,
-                f(
-                    "scatter_field",
-                    &format!(
-                        "Scatter many instances of one kind across a disk in a single call — a field \
-                         of rocks, a drift of shells, rows of barrels. Kinds: {listed}. Use this \
-                         instead of repeated place_asset whenever you want more than ~4 of something; \
-                         it is the cheapest way to make the place feel dense."
-                    ),
-                    json!({
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string", "description": "Unique prefix; instances are named name_1 … name_N"},
-                            "kind": {"type": "string", "enum": kinds, "description": "What to scatter (variants mix automatically)"},
-                            "count": {"type": "integer", "minimum": 1, "maximum": 48, "default": 12},
-                            "radius": {"type": "number", "minimum": 0.5, "maximum": 12, "default": 6, "description": "Disk radius in metres around position"},
-                            "position": {"type": "array", "items": {"type":"number"}, "default": [0,0,0]},
-                            "scale": {"type": "number", "default": 1.0, "description": "Uniform scale multiplier"}
-                        },
-                        "required": ["name", "kind"]
-                    }),
-                ),
-            );
-        }
-        tools
+            })
+            .collect()
     }
 }
 
@@ -1276,6 +1353,79 @@ mod tests {
             &format!(r#"{{"name":"{name}","shape":"Cuboid","dimensions":{{"x":2,"y":3,"z":2}},"position":[1,0,-2],"color":[9,0.2,0.1,1],"emissive":[0,0.5,0,1]}}"#),
         )
         .unwrap()
+    }
+
+    // --- The protocol, as any model backend sees it ------------------------
+
+    #[test]
+    fn tool_specs_offer_pack_tools_only_with_a_pack() {
+        let bare: Vec<String> = tool_specs(None).into_iter().map(|t| t.name).collect();
+        assert_eq!(
+            bare,
+            [
+                "spawn_primitive",
+                "modify_entity",
+                "delete_entity",
+                "set_light",
+                "scene_info"
+            ]
+        );
+        let with_pack: Vec<String> = tool_specs(Some(&manifest()))
+            .into_iter()
+            .map(|t| t.name)
+            .collect();
+        assert_eq!(with_pack[1], "place_asset");
+        assert_eq!(with_pack[2], "scatter_field");
+        // Every spec is a JSON-schema object — the shape every provider takes.
+        for spec in tool_specs(Some(&manifest())) {
+            assert_eq!(spec.parameters["type"], "object", "{}", spec.name);
+            assert!(!spec.description.is_empty(), "{}", spec.name);
+        }
+    }
+
+    #[test]
+    fn the_section_prompt_carries_the_section_and_pack_guidance_on_request() {
+        let with = section_prompt("Harbour", "gulls over wet stone", "world", true);
+        assert!(with.contains("\"Harbour\"") && with.contains("gulls over wet stone"));
+        assert!(with.contains("place_asset"));
+        let without = section_prompt("Harbour", "gulls", "world", false);
+        assert!(
+            !without.contains("place_asset"),
+            "no pack, no pack tools in the prompt"
+        );
+    }
+
+    #[test]
+    fn a_session_applies_calls_and_answers_errors_without_counting_them() {
+        let empty = Session::new("s01", Some(manifest()));
+        assert!(
+            empty.finish(None).is_none(),
+            "an empty session builds nothing"
+        );
+
+        let mut session = Session::new("s01", Some(manifest()));
+        let (reply, rejected) = session.call(
+            "spawn_primitive",
+            r#"{"name":"tower","shape":"Cuboid","dimensions":{"x":1,"y":4,"z":1}}"#,
+        );
+        assert!(!rejected, "{reply}");
+        assert_eq!(session.len(), 1);
+
+        // A model inventing a tool is told so, but it is not the scene's
+        // rejection — a driver's give-up rule must not key on it.
+        let (reply, rejected) = session.call("summon_dragon", "{}");
+        assert!(reply.starts_with("error: unknown tool"), "{reply}");
+        assert!(!rejected);
+
+        let (_, rejected) = session.call("place_asset", r#"{"name":"stone","kind":"rock"}"#);
+        assert!(!rejected);
+        let build = session.finish(Some("a harbour".into())).unwrap();
+        assert_eq!(build.entities.len(), 2);
+        assert_eq!(build.description.as_deref(), Some("a harbour"));
+        assert!(
+            build.entities.iter().any(|e| e.mesh_asset.is_some()),
+            "place_asset resolved a kind to a concrete pack model"
+        );
     }
 
     #[test]
