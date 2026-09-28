@@ -491,6 +491,45 @@ genuinely new is the in-app editor pane (egui `TextEdit` — gen already embeds
 egui), a typing debounce feeding the existing worker, and the
 navigation/hierarchy UI. That is product work, not an engine rewrite.
 
+**Status (2026-09-28): the app exists; documents and songs open in it.**
+`crates/app` (`localgpt-app`) is Gen's shell — Bevy window, egui prompt panel,
+agent loop — assembled from the gen lib, with documents and songs as inputs:
+
+- **Documents** (`--md`). An editor pane beside the viewport; the file saves
+  and the world rebuilds 0.7 s after typing stops. The app's own model
+  authors each section through `world-agent`'s protocol — one request per
+  section with a JSON plan, so it works on the zero-config default, a
+  signed-in CLI backend, which ignores tool schemas. Builds land in MD's
+  sidecar keyed by section hash. Verified with `claude-cli/opus` on a
+  three-section document: three authored places in about 45 s; editing one
+  section re-authored only that one (about 25 s) and kept the other two;
+  a restart reopened all three from the cache with no model call; and the
+  chat's stored CLI session was untouched (`make_ephemeral`). The text↔world
+  map: the outline labels each section fence / model / authoring… / draft;
+  the cursor moving into a section flies the camera there; a place card
+  shows the model's description and what the place is made of, and picking
+  a thing selects it in Gen's inspector. The UI interactions are
+  unit-tested, not yet driven by hand.
+- **Songs** (`--song`). Verse is now a lib plus a thin bin; `song_world`
+  gives a song's world — analysis, mood, props, soundtrack curves and
+  modulations — and Gen's viewport plays it: `world-bevy` gained the
+  modulation runtime (the web viewer's semantics, applied only for
+  rendering, so saves and shared sessions see authored values) and
+  `world-audio` streams the soundtrack on the one mixer and reports its
+  position as the modulation clock. Verified: a starter-pack song opens as
+  its 178-entity world and plays; the modulation clock follows the song,
+  and the heroes' rendered scale breathes with its energy. A small
+  transport at the bottom of the window shows the song and pauses it.
+- Two Gen bugs this surfaced, both fixed: reloading a world kept the old
+  lights and skipped the new ones, and every mesh asset of a loaded world
+  landed at the origin (gallery and saved worlds included).
+
+Still to do: the assistant mode (the chat surface over the assistant's own
+memory — which needs a decision about the assistant's config and workspace,
+since the app deliberately reads neither today), a mode switcher in the
+window (today the mode is the launch argument), and the release pipeline of
+§13.7.
+
 ### 13.2 The two names
 
 | App | Name | Is | Lives at |

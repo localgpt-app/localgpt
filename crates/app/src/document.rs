@@ -105,7 +105,9 @@ pub fn world_dir(workspace: &Path, md: &Path) -> PathBuf {
 /// The folder name for a document: its stem, plus a hash of where it lives,
 /// so two files both called README.md never share a world. FNV-1a rather
 /// than `DefaultHasher`, whose output is not promised across Rust releases.
-fn document_key(md: &Path) -> String {
+/// A stable folder name for a source file: its slugged stem plus a hash of
+/// its full path, so two `README.md`s in different places never share one.
+pub(crate) fn document_key(md: &Path) -> String {
     let full = md.canonicalize().unwrap_or_else(|_| md.to_path_buf());
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in full.to_string_lossy().bytes() {

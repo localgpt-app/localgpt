@@ -13,7 +13,12 @@ localgpt-gen = { path = "../gen" }
 # The pure half only: the app compiles Markdown to a world manifest in-process
 # and never needs MD's renderer, which is this app's own viewport.
 localgpt-md = { path = "../md", default-features = false }
+# Songs: Verse's library turns a song file into its world (analysis, mood,
+# props, soundtrack curves and modulations), and Gen's viewport plays it.
+localgpt-verse = { path = "../verse" }
 localgpt-world-types = { workspace = true }
+# The soundtrack the loaded world performs, for the now-playing transport.
+localgpt-world-bevy = { workspace = true }
 # The world-building protocol (tool specs, section prompt, Session) that the
 # app drives with its configured model, as MD drives it with a local GGUF.
 localgpt-world-agent = { workspace = true }

@@ -11,17 +11,22 @@
 //! cargo run -p localgpt-app                          # the shell
 //! cargo run -p localgpt-app -- --md notes.md         # a document as a world
 //! cargo run -p localgpt-app -- --md notes.md --no-author   # rules only, no model
+//! cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
 //! cargo run -p localgpt-app -- --world place.json    # any world manifest
 //! ```
 //!
-//! Verse (playback + worlds) and the assistant (chat + memory) are the next
-//! modes; nothing here forecloses them. What this crate deliberately does NOT
-//! do is duplicate Gen's entry path — everything heavy comes from the gen
-//! lib, and this is the thin assembly.
+//! A song (`--song`) opens as the world Verse's library builds for it, and
+//! Gen's viewport plays it: the soundtrack streams on the shared mixer and the
+//! world's modulations follow it. The assistant (chat + memory) is the next
+//! mode; nothing here forecloses it. What this crate deliberately does NOT do
+//! is duplicate Gen's entry path — everything heavy comes from the gen lib,
+//! and this is the thin assembly.
 
 mod authoring;
 mod document;
+mod now_playing;
 mod screenshot;
+mod song;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -41,6 +46,7 @@ const AGENT_ID: &str = "gen";
 #[derive(Debug, Default)]
 struct Args {
     md: Option<PathBuf>,
+    song: Option<PathBuf>,
     world: Option<String>,
     tools: Option<String>,
     /// Build documents from rules and fences only, never asking a model.
@@ -53,12 +59,14 @@ fn parse_args() -> Args {
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "--md" => args.md = iter.next().map(PathBuf::from),
+            "--song" => args.song = iter.next().map(PathBuf::from),
             "--world" => args.world = iter.next(),
             "--tools" => args.tools = iter.next(),
             "--no-author" => args.no_author = true,
             other => {
                 eprintln!(
-                    "localgpt-app: unknown argument {other:?} (--md, --world, --tools, --no-author)"
+                    "localgpt-app: unknown argument {other:?} \
+                     (--md, --song, --world, --tools, --no-author)"
                 );
                 std::process::exit(2);
             }
@@ -165,6 +173,22 @@ fn main() -> anyhow::Result<()> {
         }
         live_document = Some(live);
         Some(dir.to_string_lossy().into_owned())
+    } else if let Some(track) = &args.song {
+        // A song: Verse's analysis (seconds on first open, cached after),
+        // then its world, which Gen loads and plays.
+        eprintln!("localgpt-app: listening to {} …", track.display());
+        let (dir, world) = song::prepare(track, &workspace)?;
+        let soundtrack = world.soundtrack.as_ref();
+        eprintln!(
+            "localgpt-app: {} -> {} ({} entities; {} — {}, {:.0} bpm)",
+            track.display(),
+            dir.display(),
+            world.entities.len(),
+            soundtrack.and_then(|s| s.title.as_deref()).unwrap_or("?"),
+            soundtrack.and_then(|s| s.artist.as_deref()).unwrap_or("?"),
+            soundtrack.map_or(0.0, |s| s.bpm),
+        );
+        Some(dir.to_string_lossy().into_owned())
     } else {
         args.world.as_ref().map(|world| import(world))
     };
@@ -238,7 +262,7 @@ fn main() -> anyhow::Result<()> {
             settings_file: localgpt_gen::settings::settings_path(),
         },
     ));
-    app.add_plugins(document::DocumentPlugin);
+    app.add_plugins((document::DocumentPlugin, now_playing::NowPlayingPlugin));
     if let Some(live) = live_document {
         app.insert_resource(live);
     }
