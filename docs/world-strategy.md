@@ -526,9 +526,9 @@ agent loop — assembled from the gen lib, with documents and songs as inputs:
 
 Still to do: the assistant mode (the chat surface over the assistant's own
 memory — which needs a decision about the assistant's config and workspace,
-since the app deliberately reads neither today), a mode switcher in the
-window (today the mode is the launch argument), and the release pipeline of
-§13.7.
+since the app deliberately reads neither today) and the release pipeline of
+§13.7. Modes switch in the window: an "Open…" button takes a document, a
+song or a world, as the launch arguments do.
 
 ### 13.2 The two names
 
