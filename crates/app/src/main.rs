@@ -21,6 +21,7 @@
 
 mod authoring;
 mod document;
+mod screenshot;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -240,6 +241,9 @@ fn main() -> anyhow::Result<()> {
     app.add_plugins(document::DocumentPlugin);
     if let Some(live) = live_document {
         app.insert_resource(live);
+    }
+    if let Some(shot) = screenshot::ScreenshotPlugin::from_env() {
+        app.add_plugins(shot);
     }
     app.run();
     Ok(())
