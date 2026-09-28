@@ -124,6 +124,8 @@ pub fn handle_save_world(
     edit_history: &wt::EditHistory,
     npc_brains: &Query<&crate::character::npc_brain::NpcBrainState>,
     npc_memories: &Query<&crate::character::npc_memory::NpcMemory>,
+    modulated: &Query<&localgpt_world_bevy::modulation::Modulated>,
+    soundtrack: Option<&wt::SoundtrackDef>,
 ) -> GenResponse {
     // Resolve output directory
     let skill_dir = if let Some(ref path) = cmd.path {
@@ -229,6 +231,12 @@ pub fn handle_save_world(
         let euler = transform.rotation.to_euler(EulerRot::XYZ);
 
         let mut we = wt::WorldEntity::new(entity_id.0, name);
+        // Transforms, materials and lights read here are authored values:
+        // modulation is taken back out before `Update` and only re-applied
+        // for rendering (see world-bevy's `modulation`).
+        if let Ok(modulated) = modulated.get(bevy_entity) {
+            we.modulations = modulated.defs().cloned().collect();
+        }
         we.transform = wt::WorldTransform {
             position: transform.translation.to_array(),
             rotation_degrees: [
@@ -445,7 +453,7 @@ pub fn handle_save_world(
         camera: camera_def,
         avatar: avatar.map(|a| a.into()),
         tours: tours.iter().map(|t| t.into()).collect(),
-        soundtrack: None,
+        soundtrack: soundtrack.cloned(),
         layout_file: None,
         region_files: None,
         behavior_files: None,
@@ -606,6 +614,9 @@ pub struct WorldLoadResult {
     pub behavior_count: usize,
     /// Restored edit history from history.jsonl (if present).
     pub edit_history: Option<wt::EditHistory>,
+    /// The song the world performs: curves that drive its modulations, and
+    /// the audio file when one ships with the world.
+    pub soundtrack: Option<wt::SoundtrackDef>,
 }
 
 pub fn handle_load_world(
@@ -736,6 +747,7 @@ fn load_ron_world(world_dir: &Path, ron_path: &Path) -> Result<WorldLoadResult, 
         behavior_count,
         edit_history,
         npc_data,
+        soundtrack: manifest.soundtrack.clone(),
     })
 }
 
@@ -929,6 +941,7 @@ fn load_multi_file_world(
         behavior_count,
         edit_history,
         npc_data,
+        soundtrack: manifest.soundtrack.clone(),
     })
 }
 
@@ -1326,6 +1339,47 @@ mod tests {
         // Already in the world: referenced in place.
         let in_place = localize_texture(inside.to_str().unwrap(), &assets, &mut done);
         assert_eq!(in_place, "textures/moss.png");
+    }
+
+    /// A world that performs a song keeps the song and each entity's
+    /// modulations through loading, so the scene can play them.
+    #[test]
+    fn loading_keeps_the_soundtrack_and_modulations() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut beacon =
+            wt::WorldEntity::new(1, "beacon").with_shape(wt::Shape::Sphere { radius: 1.0 });
+        beacon.modulations.push(wt::ModulationDef::new(
+            wt::ModulationTarget::Scale,
+            wt::SignalSource::Beat,
+            [1.0, 1.4],
+        ));
+        let mut manifest = wt::WorldManifest::new("song");
+        manifest.entities.push(beacon);
+        manifest.soundtrack = Some(wt::SoundtrackDef {
+            title: Some("Amber Drift".into()),
+            duration: 30.0,
+            bpm: 120.0,
+            energy: vec![0.5; 30],
+            ..Default::default()
+        });
+        let ron_path = tmp.path().join("world.ron");
+        std::fs::write(
+            &ron_path,
+            ron::ser::to_string_pretty(&manifest, Default::default()).unwrap(),
+        )
+        .unwrap();
+
+        let loaded = load_ron_world(tmp.path(), &ron_path).unwrap();
+        let soundtrack = loaded.soundtrack.expect("soundtrack kept");
+        assert_eq!(soundtrack.bpm, 120.0);
+        assert_eq!(soundtrack.title.as_deref(), Some("Amber Drift"));
+        let beacon = loaded
+            .world_entities
+            .iter()
+            .find(|e| e.name.as_str() == "beacon")
+            .unwrap();
+        assert_eq!(beacon.modulations.len(), 1);
+        assert!(localgpt_world_bevy::modulation::modulated(beacon).is_some());
     }
 
     #[test]

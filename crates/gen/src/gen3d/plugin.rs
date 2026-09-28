@@ -332,6 +332,9 @@ pub fn setup_gen_app(
         .init_resource::<super::generation_log::GenerationLog>()
         .init_resource::<super::region_dirty::RegionDirtyFlags>()
         .init_resource::<ReferenceBoard>()
+        // Worlds that perform a song (Verse's): signal-driven modulation,
+        // evaluated as every renderer of the format does.
+        .add_plugins(localgpt_world_bevy::modulation::ModulationPlugin)
         .add_systems(
             Startup,
             (
@@ -570,6 +573,8 @@ struct GenCommandParams<'w, 's> {
     region_dirty_flags: ResMut<'w, super::region_dirty::RegionDirtyFlags>,
     region_member_q: Query<'w, 's, (Entity, &'static super::registry::RegionMember)>,
     reference_board: ResMut<'w, ReferenceBoard>,
+    soundtrack: ResMut<'w, localgpt_world_bevy::modulation::Soundtrack>,
+    modulated: Query<'w, 's, &'static localgpt_world_bevy::modulation::Modulated>,
 }
 
 /// Build a `SnapshotQueries` from `GenCommandParams`. Used in many dispatch arms.
@@ -1485,6 +1490,8 @@ fn process_gen_commands(
                     &params.undo_stack.history,
                     &params.npc_brains,
                     &params.npc_memories,
+                    &params.modulated,
+                    params.soundtrack.def.as_ref(),
                 )
             }
             GenCommand::ExportWorld { format } => handle_export_world(
@@ -1552,6 +1559,16 @@ fn process_gen_commands(
                             .unwrap_or_else(|| "unknown".to_string());
                         params.current_world.name = Some(world_name);
                         params.current_world.path = Some(world_path);
+
+                        // The song this world performs. A cleared scene
+                        // takes the new world's (or none); merging a world
+                        // in keeps the current one unless it brings its own.
+                        if clear || world_load.soundtrack.is_some() {
+                            *params.soundtrack = localgpt_world_bevy::modulation::Soundtrack {
+                                def: world_load.soundtrack.clone(),
+                                ..Default::default()
+                            };
+                        }
 
                         // Spawn entities directly from WorldManifest data
                         if !world_load.world_entities.is_empty() {
@@ -1709,6 +1726,8 @@ fn process_gen_commands(
                     &mut params.behavior_state,
                     &mut params.pending_world,
                 );
+                // An empty scene performs nothing.
+                *params.soundtrack = localgpt_world_bevy::modulation::Soundtrack::default();
 
                 if let GenResponse::SceneCleared { .. } = &resp
                     && !pre_snapshots.is_empty()
@@ -6368,6 +6387,10 @@ pub(crate) fn spawn_world_entities(
         }
 
         registry.insert_with_id(name.clone(), bevy_entity, world_id);
+
+        if let Some(modulated) = localgpt_world_bevy::modulation::modulated(we) {
+            commands.entity(bevy_entity).insert(modulated);
+        }
 
         // Attach behaviors
         if !we.behaviors.is_empty() {

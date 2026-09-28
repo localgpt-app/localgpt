@@ -20,6 +20,11 @@
 //!
 //! Reference scenes for eyeballing all of this live in
 //! `crates/world-types/conformance/`.
+//!
+//! [`modulation`] is the one runtime piece: the signal-driven layer that lets
+//! a world perform its soundtrack, evaluated as the web viewer does.
+
+pub mod modulation;
 
 use std::f32::consts::FRAC_PI_4;
 

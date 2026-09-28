@@ -15,7 +15,9 @@
 //!
 //! Multiplicative targets (`emissive`, `scale`, `light_intensity`,
 //! `opacity`) apply `factor` to the entity's authored value; `offset_y` adds
-//! `factor` (world units) to the authored position. When the runtime has no
+//! `factor` (world units) to the authored position. Several modulations on
+//! one target combine the same way: their factors multiply, their offsets
+//! add. When the runtime has no
 //! source for the signal (no soundtrack, no stems) the modulation is
 //! **inactive**: multiplicative targets use `1.0` and `offset_y` uses `0.0`,
 //! so a world without music renders exactly as authored.

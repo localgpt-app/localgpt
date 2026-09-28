@@ -794,7 +794,11 @@ export function createWorldViewer(container, manifest, options = {}) {
     }
   }
 
+  // Several modulations on one target combine: factors multiply, offsets
+  // add (the format's rule; world-bevy's `modulation` does the same).
   function applyModulations(rec, dt, t, playing) {
+    const combined = { emissive: 1, scale: 1, light_intensity: 1, opacity: 1, offset_y: 0 };
+    const driven = new Set();
     for (const m of rec.mods) {
       const raw = signalValue(m.def.signal, t, playing);
       let factor;
@@ -805,15 +809,16 @@ export function createWorldViewer(container, manifest, options = {}) {
         m.s = sm > 0 ? m.s + (raw - m.s) * Math.min(1, dt / sm) : raw;
         factor = modulationFactor(m.def, m.s);
       }
-      switch (m.target) {
-        case 'emissive': if (rec.material?.emissive) rec.material.emissiveIntensity = rec.base.emissiveIntensity * factor; break;
-        case 'scale': rec.object.scale.multiplyScalar(factor); break;
-        case 'light_intensity': if (rec.light) rec.light.intensity = rec.base.lightIntensity * factor; break;
-        case 'opacity': if (rec.material) { rec.material.opacity = rec.base.opacity * factor; rec.material.transparent = true; } break;
-        case 'offset_y': rec.object.position.y += factor; break;
-        default: break;
-      }
+      if (!(m.target in combined)) continue;
+      driven.add(m.target);
+      if (m.target === 'offset_y') combined.offset_y += factor;
+      else combined[m.target] *= factor;
     }
+    if (driven.has('emissive') && rec.material?.emissive) rec.material.emissiveIntensity = rec.base.emissiveIntensity * combined.emissive;
+    if (driven.has('scale')) rec.object.scale.multiplyScalar(combined.scale);
+    if (driven.has('light_intensity') && rec.light) rec.light.intensity = rec.base.lightIntensity * combined.light_intensity;
+    if (driven.has('opacity') && rec.material) { rec.material.opacity = rec.base.opacity * combined.opacity; rec.material.transparent = true; }
+    if (driven.has('offset_y')) rec.object.position.y += combined.offset_y;
   }
 
   // ---- Audio control ----
