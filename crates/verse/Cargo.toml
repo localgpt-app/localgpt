@@ -5,6 +5,17 @@ edition.workspace = true
 license.workspace = true
 description = "LocalGPT Verse — a desktop app that imagines a 3D world for every song"
 
+# The app is the bin; the lib is what other LocalGPT apps use (`song_world`).
+[lib]
+name = "localgpt_verse"
+path = "src/lib.rs"
+# The module docs hold diagrams, not examples; the bin never ran them either.
+doctest = false
+
+[[bin]]
+name = "localgpt-verse"
+path = "src/main.rs"
+
 
 [dependencies]
 # `jpeg` for the CC0 glTF texture format (Poly Haven ships .jpg maps).
