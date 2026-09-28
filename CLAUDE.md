@@ -79,7 +79,7 @@ mobile, and includes a Bevy-based 3D world generator.
 
 ### Workspace
 
-`Cargo.toml` defines 17 members. **MD and Verse are members**, not separate
+`Cargo.toml` defines 20 members. **MD and Verse are members**, not separate
 repositories — they were folded in so the world format cannot drift between
 apps (see `docs/world-strategy.md` §13.6). `crates/spacetime` is a **standalone** crate
 (its own `[workspace]`) excluded from the main build because it targets
@@ -94,8 +94,10 @@ crates/
 ├── sandbox/      # localgpt-sandbox — Landlock/Seatbelt kernel-enforced shell isolation
 ├── mobile-ffi/   # localgpt-mobile-ffi — UniFFI bindings for iOS/Android
 ├── gen/          # localgpt-gen — Bevy 3D scene generation binary
-├── md/           # localgpt-md — a Markdown file as a walkable world (Bevy)
-├── verse/        # localgpt-verse — a 3D world for every song (Bevy)
+├── app/          # localgpt-app — the one desktop app: Gen's shell, documents and songs as modes
+├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
+├── md-web/       # localgpt-md-web — MD's lib as WASM for the localgpt.md page
+├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin; `song_world`)
 ├── world-types/  # localgpt-world-types — serde-only world data model (no Bevy/SpacetimeDB)
 ├── world-bevy/   # localgpt-world-bevy — the one Bevy mapping of the format (Gen, MD, Verse)
 ├── world-audio/  # localgpt-world-audio — the one mapping of the format's audio (kira + FunDSP)
@@ -113,6 +115,7 @@ apps/             # Native client projects
 ├── apple/        # iOS/macOS (Swift)
 ├── android/      # Android (Kotlin)
 ├── gen-desktop/  # macOS .app bundler for Gen
+├── app-desktop/  # macOS .app bundler for the one app (Developer ID + notarization when given)
 └── web/          # Web client
 
 scripts/          # The shared downloads, fetched once for every app

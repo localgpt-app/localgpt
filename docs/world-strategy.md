@@ -900,7 +900,10 @@ and every artifact that exists is hand-built: `apps/gen-desktop/macos/build-app.
 produces an ad-hoc-signed `LocalGPT Gen.app` and an optional `.dmg`, and
 `localgpt-verse/scripts/bundle.sh` assembles a portable `dist/`. Both say in
 their own comments what is missing — a Developer ID signature and
-notarization. One workspace (§13.6) also means one release pipeline instead of
+notarization. The one app's bundler, `apps/app-desktop/macos/build-app.sh`
+(2026-09-28), builds `LocalGPT.app` and does both when given the
+credentials (`APPLE_SIGNING_IDENTITY`, `APPLE_NOTARY_PROFILE`); only its
+ad-hoc path has been run, since no Developer ID is set up here. One workspace (§13.6) also means one release pipeline instead of
 three.
 
 **Worlds — the consumer app**
