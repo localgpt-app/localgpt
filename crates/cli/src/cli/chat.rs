@@ -196,7 +196,12 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
 
     // Load skills from workspace
     let workspace = config.workspace_path();
-    let skills = load_skills(&workspace).unwrap_or_default();
+    // Saved Gen worlds are not the assistant's skills (see the agent's prompt).
+    let skills: Vec<_> = load_skills(&workspace)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|skill| !skill.is_world())
+        .collect();
     let skills_count = skills.iter().filter(|s| s.eligibility.is_ready()).count();
 
     let embedding_status = if agent.has_embeddings() {

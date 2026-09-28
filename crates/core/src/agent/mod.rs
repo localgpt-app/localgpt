@@ -671,7 +671,19 @@ impl Agent {
         self.provider.reset_session();
 
         // Load skills from workspace
-        let workspace_skills = skills::load_skills(self.memory.workspace()).unwrap_or_default();
+        let mut workspace_skills = skills::load_skills(self.memory.workspace()).unwrap_or_default();
+        // A saved world is a skill only to an agent that can load one (Gen's).
+        // Worlds saved before Gen had its own workspace still sit in the
+        // assistant's skills/ — Gen copies them, never moves them — and each
+        // would otherwise be a line in the assistant's prompt it can do
+        // nothing with.
+        if !self
+            .tools
+            .iter()
+            .any(|tool| tool.name() == "gen_load_world")
+        {
+            workspace_skills.retain(|skill| !skill.is_world());
+        }
         let skills_prompt = skills::build_skills_prompt(&workspace_skills, None);
         debug!("Loaded {} skills from workspace", workspace_skills.len());
 

@@ -312,6 +312,14 @@ impl Skill {
         !self.disable_model_invocation && self.eligibility.is_ready()
     }
 
+    /// A world Gen saved — a `world.ron` beside the SKILL.md — rather than
+    /// instructions. It is a skill only to an agent that can load worlds.
+    pub fn is_world(&self) -> bool {
+        self.path
+            .parent()
+            .is_some_and(|dir| dir.join("world.ron").is_file())
+    }
+
     /// Check if this skill can be invoked via slash command
     pub fn can_invoke(&self) -> bool {
         self.user_invocable && self.eligibility.is_ready()
@@ -802,6 +810,26 @@ fn extract_description(content: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_saved_world_is_told_apart_from_instructions() {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, world) in [("weather", false), ("medieval-village", true)] {
+            let skill = dir.path().join(name);
+            fs::create_dir_all(&skill).unwrap();
+            fs::write(skill.join("SKILL.md"), format!("# {name}\n")).unwrap();
+            if world {
+                fs::write(skill.join("world.ron"), "()").unwrap();
+            }
+        }
+        let mut skills = load_skills_from_dir(dir.path(), SkillSource::Workspace).unwrap();
+        skills.sort_by(|a, b| a.name.cmp(&b.name));
+        let worlds: Vec<_> = skills
+            .iter()
+            .map(|s| (s.name.as_str(), s.is_world()))
+            .collect();
+        assert_eq!(worlds, [("medieval-village", true), ("weather", false)]);
+    }
 
     #[test]
     fn test_parse_frontmatter() {
