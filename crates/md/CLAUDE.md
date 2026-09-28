@@ -67,10 +67,11 @@ pure interpreter, pack manifest), and `llm.rs`/`generation.rs` (the `llm`
 feature: model + background worker running the tier chain **agent build →
 recipe → draft**, first success wins).
 
-- **`doc.rs`, `draft.rs`, `recipe.rs`, `sidecar.rs`, `assets.rs`, and the
-  interpreter half of `agent.rs` are renderer-free** (sidecar's only Bevy
-  touch is the `Resource` derive). Keep them that way; they are what moves
-  into a shared crate later (PLAN.md M5).
+- **The lib/bin split is load-bearing**: `src/lib.rs` holds doc, draft,
+  recipe, sidecar, assets and agent — renderer-free, compiled without Bevy
+  under `--no-default-features` — because `crates/md-web` builds exactly that
+  to WASM for the localgpt.md page. The Bevy app is the bin behind the
+  `app` feature. Keep new pure logic in the lib and renderer logic in the bin.
 - **Genres** (`front_matter.genre`): `world` (default) — one section per
   `##` heading on a winding path; `deck` — one section per `---`-separated
   slide (Marp/Slidev) on a straight path. Deck separators must be
@@ -159,8 +160,9 @@ generations (1-bit/2-bit) cannot run on mistral.rs 0.8 — skip them.
 - Commits: conventional commits (`feat:`, `fix:`, `docs:`, `chore:`,
   `refactor:`), with no Co-Authored-By or Claude-Session trailers.
 - Never use `sed` to edit Rust files; use the Edit tool.
-- `website/` is the static landing page for md.localgpt.app (no build step;
-  `website/deploy.sh` deploys it); localgpt.md redirects there. The docs live
-  on localgpt.app, in the `localgpt` repository's `website/docs/md/`: update
-  them there when commands, keys, export or the LLM tier change, and keep
-  README.md to the quick start.
+- `website-md/` (workspace root) is the **localgpt.md page**: drop a Markdown
+  file, walk the world, in the tab. Its compiler is this crate's lib half via
+  `crates/md-web` (wasm-pack; `localgpt-md --no-default-features` must stay
+  Bevy-free for it), and it is assembled like website-world. The docs live on
+  localgpt.app under `website/docs/md/`; update them when commands, keys,
+  export or the LLM tier change.
