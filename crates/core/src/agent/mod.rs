@@ -373,6 +373,7 @@ impl Agent {
                 providers_vec.remove(0)
             }
         };
+        provider.set_session_owner(agent_id);
 
         // Load security policy (plain load + sanitize; see Agent::new)
         let workspace = app_config.workspace_path();
@@ -451,6 +452,7 @@ impl Agent {
     /// Switch to a different model
     pub fn set_model(&mut self, model: &str) -> Result<()> {
         let provider = providers::create_provider(model, &self.app_config)?;
+        provider.set_session_owner(&self.agent_id);
         self.config.model = model.to_string();
         self.provider = provider;
         info!("Switched to model: {}", model);
@@ -712,6 +714,8 @@ impl Agent {
     /// otherwise write every transcript into `main`.
     pub fn with_agent_id(mut self, agent_id: &str) -> Self {
         self.agent_id = agent_id.to_string();
+        // A CLI backend's resumable conversation belongs to the agent too.
+        self.provider.set_session_owner(agent_id);
         self
     }
 

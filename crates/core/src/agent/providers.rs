@@ -379,6 +379,15 @@ pub trait LLMProvider: Send + Sync {
     /// providers (the API ones) need nothing, hence the no-op default.
     fn make_ephemeral(&self) {}
 
+    /// Keep the resumable CLI conversation in `agent_id`'s session store. A
+    /// provider is built before it knows whose it is, so CLI backends start
+    /// on the assistant's store (`main`); the agent calls this with its own
+    /// id as soon as it has one. Without it every agent on the machine —
+    /// Gen's prompt panel, a document's authoring model — resumed the
+    /// assistant's conversation and wrote its own session id over it.
+    /// Stateless providers need nothing, hence the no-op default.
+    fn set_session_owner(&self, _agent_id: &str) {}
+
     /// Get the current effort level, if the provider supports it.
     fn effort(&self) -> Option<String> {
         None
@@ -2401,6 +2410,9 @@ pub struct ClaudeCliProvider {
     workspace: std::path::PathBuf,
     /// Session key for the session store (e.g., "main")
     session_key: String,
+    /// The agent whose session store holds the CLI session (`main` until
+    /// `set_session_owner`).
+    session_owner: StdMutex<String>,
     /// LocalGPT session ID (for session store tracking)
     localgpt_session_id: String,
     /// CLI session ID for multi-turn conversations (interior mutability for &self methods)
@@ -2426,7 +2438,9 @@ impl ClaudeCliProvider {
     pub fn new(command: &str, model: &str, workspace: std::path::PathBuf) -> Result<Self> {
         // Load existing CLI session from session store
         let session_key = "main".to_string();
-        let existing_session = load_cli_session_from_store(&session_key, CLAUDE_CLI_PROVIDER);
+        let owner = super::session::DEFAULT_AGENT_ID;
+        let existing_session =
+            load_cli_session_from_store(owner, &session_key, CLAUDE_CLI_PROVIDER);
 
         if let Some(ref sid) = existing_session {
             debug!("Loaded existing Claude CLI session: {}", sid);
@@ -2437,6 +2451,7 @@ impl ClaudeCliProvider {
             model: normalize_claude_model(model),
             workspace,
             session_key,
+            session_owner: StdMutex::new(owner.to_string()),
             localgpt_session_id: uuid::Uuid::new_v4().to_string(),
             cli_session_id: StdMutex::new(existing_session),
             ephemeral: std::sync::atomic::AtomicBool::new(false),
@@ -2641,18 +2656,19 @@ impl ClaudeCliProvider {
     }
 }
 
-#[cfg(feature = "claude-cli")]
-/// Load CLI session ID from session store
-fn load_cli_session_from_store(session_key: &str, provider: &str) -> Option<String> {
+/// Load a CLI session ID from `owner`'s session store (an agent id).
+#[cfg(any(feature = "claude-cli", feature = "gemini-cli", feature = "codex-cli"))]
+fn load_cli_session_from_store(owner: &str, session_key: &str, provider: &str) -> Option<String> {
     use super::session_store::SessionStore;
 
-    let store = SessionStore::load().ok()?;
+    let store = SessionStore::load_for_agent(owner).ok()?;
     store.get_cli_session_id(session_key, provider)
 }
 
-#[cfg(feature = "claude-cli")]
-/// Save CLI session ID to session store
+/// Save a CLI session ID to `owner`'s session store (an agent id).
+#[cfg(any(feature = "claude-cli", feature = "gemini-cli", feature = "codex-cli"))]
 fn save_cli_session_to_store(
+    owner: &str,
     session_key: &str,
     session_id: &str,
     provider: &str,
@@ -2660,9 +2676,56 @@ fn save_cli_session_to_store(
 ) -> Result<()> {
     use super::session_store::SessionStore;
 
-    let mut store = SessionStore::load()?;
+    let mut store = SessionStore::load_for_agent(owner)?;
     store.set_cli_session_id(session_key, session_id, provider, cli_session_id)?;
     Ok(())
+}
+
+/// Clear a CLI provider's stored session ids in `owner`'s session store.
+#[cfg(any(feature = "claude-cli", feature = "gemini-cli", feature = "codex-cli"))]
+fn clear_cli_sessions_in_store(owner: &str, session_key: &str, localgpt_session_id: &str) {
+    if let Ok(mut store) = super::session_store::SessionStore::load_for_agent(owner) {
+        let _ = store.update(session_key, localgpt_session_id, |entry| {
+            entry.clear_cli_session_ids();
+        });
+    }
+}
+
+/// Whose session store a CLI provider's conversation lives in.
+#[cfg(any(feature = "claude-cli", feature = "gemini-cli", feature = "codex-cli"))]
+fn session_owner(owner: &StdMutex<String>) -> String {
+    owner
+        .lock()
+        .map(|owner| owner.clone())
+        .unwrap_or_else(|_| super::session::DEFAULT_AGENT_ID.to_string())
+}
+
+/// [`LLMProvider::set_session_owner`] for the CLI providers: move to
+/// `agent_id`'s store and pick up the conversation stored there — or none,
+/// for an ephemeral provider, which never resumes one.
+#[cfg(any(feature = "claude-cli", feature = "gemini-cli", feature = "codex-cli"))]
+fn move_cli_session(
+    owner: &StdMutex<String>,
+    cli_session_id: &StdMutex<Option<String>>,
+    ephemeral: bool,
+    agent_id: &str,
+    session_key: &str,
+    provider: &str,
+) {
+    if let Ok(mut owner) = owner.lock() {
+        if *owner == agent_id {
+            return;
+        }
+        *owner = agent_id.to_string();
+    }
+    let stored = if ephemeral {
+        None
+    } else {
+        load_cli_session_from_store(agent_id, session_key, provider)
+    };
+    if let Ok(mut cli_session) = cli_session_id.lock() {
+        *cli_session = stored;
+    }
 }
 
 #[cfg(feature = "claude-cli")]
@@ -2746,16 +2809,27 @@ impl LLMProvider for ClaudeCliProvider {
         }
     }
 
+    fn set_session_owner(&self, agent_id: &str) {
+        move_cli_session(
+            &self.session_owner,
+            &self.cli_session_id,
+            self.ephemeral.load(std::sync::atomic::Ordering::Relaxed),
+            agent_id,
+            &self.session_key,
+            CLAUDE_CLI_PROVIDER,
+        );
+    }
+
     fn reset_session(&self) {
         if let Ok(mut cli_session) = self.cli_session_id.lock() {
             *cli_session = None;
         }
         // Clear from session store on disk
-        if let Ok(mut store) = super::session_store::SessionStore::load() {
-            let _ = store.update(&self.session_key, &self.localgpt_session_id, |entry| {
-                entry.clear_cli_session_ids();
-            });
-        }
+        clear_cli_sessions_in_store(
+            &session_owner(&self.session_owner),
+            &self.session_key,
+            &self.localgpt_session_id,
+        );
         info!("Claude CLI session reset (next call will start fresh)");
     }
 
@@ -2817,6 +2891,7 @@ impl LLMProvider for ClaudeCliProvider {
             // Persist to session store for cross-restart continuity
             if !self.ephemeral.load(std::sync::atomic::Ordering::Relaxed)
                 && let Err(e) = save_cli_session_to_store(
+                    &session_owner(&self.session_owner),
                     &self.session_key,
                     &self.localgpt_session_id,
                     CLAUDE_CLI_PROVIDER,
@@ -2907,6 +2982,7 @@ impl LLMProvider for ClaudeCliProvider {
         // Clone session state for the stream closure
         let cli_session_id = self.cli_session_id.lock().ok().and_then(|g| g.clone());
         let session_key = self.session_key.clone();
+        let owner = session_owner(&self.session_owner);
         // Read once: the stream below is 'static and cannot borrow self.
         let ephemeral = self.ephemeral.load(std::sync::atomic::Ordering::Relaxed);
         let localgpt_session_id = self.localgpt_session_id.clone();
@@ -3074,6 +3150,7 @@ impl LLMProvider for ClaudeCliProvider {
                                 // Persist to session store
                                 if !ephemeral
                                     && let Err(e) = save_cli_session_to_store(
+                                    &owner,
                                     &session_key,
                                     &localgpt_session_id,
                                     CLAUDE_CLI_PROVIDER,
@@ -3162,6 +3239,9 @@ pub struct GeminiCliProvider {
     workspace: std::path::PathBuf,
     /// Session key for the session store (e.g., "main")
     session_key: String,
+    /// The agent whose session store holds the CLI session (`main` until
+    /// `set_session_owner`).
+    session_owner: StdMutex<String>,
     /// LocalGPT session ID (for session store tracking)
     localgpt_session_id: String,
     /// CLI session ID for multi-turn conversations (interior mutability for &self methods)
@@ -3179,7 +3259,9 @@ impl GeminiCliProvider {
     pub fn new(command: &str, model: &str, workspace: std::path::PathBuf) -> Result<Self> {
         // Load existing CLI session from session store
         let session_key = "main".to_string();
-        let existing_session = load_cli_session_from_store(&session_key, GEMINI_CLI_PROVIDER);
+        let owner = super::session::DEFAULT_AGENT_ID;
+        let existing_session =
+            load_cli_session_from_store(owner, &session_key, GEMINI_CLI_PROVIDER);
 
         if let Some(ref sid) = existing_session {
             debug!("Loaded existing Gemini CLI session: {}", sid);
@@ -3190,6 +3272,7 @@ impl GeminiCliProvider {
             model: model.to_string(),
             workspace,
             session_key,
+            session_owner: StdMutex::new(owner.to_string()),
             localgpt_session_id: uuid::Uuid::new_v4().to_string(),
             cli_session_id: StdMutex::new(existing_session),
             ephemeral: std::sync::atomic::AtomicBool::new(false),
@@ -3362,16 +3445,27 @@ impl LLMProvider for GeminiCliProvider {
         }
     }
 
+    fn set_session_owner(&self, agent_id: &str) {
+        move_cli_session(
+            &self.session_owner,
+            &self.cli_session_id,
+            self.ephemeral.load(std::sync::atomic::Ordering::Relaxed),
+            agent_id,
+            &self.session_key,
+            GEMINI_CLI_PROVIDER,
+        );
+    }
+
     fn reset_session(&self) {
         if let Ok(mut cli_session) = self.cli_session_id.lock() {
             *cli_session = None;
         }
         // Clear from session store on disk
-        if let Ok(mut store) = super::session_store::SessionStore::load() {
-            let _ = store.update(&self.session_key, &self.localgpt_session_id, |entry| {
-                entry.clear_cli_session_ids();
-            });
-        }
+        clear_cli_sessions_in_store(
+            &session_owner(&self.session_owner),
+            &self.session_key,
+            &self.localgpt_session_id,
+        );
         info!("Gemini CLI session reset");
     }
 
@@ -3409,6 +3503,7 @@ impl LLMProvider for GeminiCliProvider {
 
             if !self.ephemeral.load(std::sync::atomic::Ordering::Relaxed)
                 && let Err(e) = save_cli_session_to_store(
+                    &session_owner(&self.session_owner),
                     &self.session_key,
                     &self.localgpt_session_id,
                     GEMINI_CLI_PROVIDER,
@@ -3491,6 +3586,7 @@ impl LLMProvider for GeminiCliProvider {
 
         let cli_session_id = self.cli_session_id.lock().ok().and_then(|g| g.clone());
         let session_key = self.session_key.clone();
+        let owner = session_owner(&self.session_owner);
         // Read once: the stream below is 'static and cannot borrow self.
         let ephemeral = self.ephemeral.load(std::sync::atomic::Ordering::Relaxed);
         let localgpt_session_id = self.localgpt_session_id.clone();
@@ -3527,6 +3623,7 @@ impl LLMProvider for GeminiCliProvider {
                                 }
                                 if !ephemeral
                                     && let Err(e) = save_cli_session_to_store(
+                                    &owner,
                                     &session_key,
                                     &localgpt_session_id,
                                     GEMINI_CLI_PROVIDER,
@@ -3782,6 +3879,9 @@ pub struct CodexCliProvider {
     model: String,
     workspace: std::path::PathBuf,
     session_key: String,
+    /// The agent whose session store holds the CLI session (`main` until
+    /// `set_session_owner`).
+    session_owner: StdMutex<String>,
     localgpt_session_id: String,
     cli_session_id: StdMutex<Option<String>>,
     /// Set by `make_ephemeral`: never load or persist a CLI session.
@@ -3795,7 +3895,8 @@ const CODEX_CLI_PROVIDER: &str = "codex-cli";
 impl CodexCliProvider {
     pub fn new(command: &str, model: &str, workspace: std::path::PathBuf) -> Result<Self> {
         let session_key = "main".to_string();
-        let existing_session = load_cli_session_from_store(&session_key, CODEX_CLI_PROVIDER);
+        let owner = super::session::DEFAULT_AGENT_ID;
+        let existing_session = load_cli_session_from_store(owner, &session_key, CODEX_CLI_PROVIDER);
 
         if let Some(ref sid) = existing_session {
             debug!("Loaded existing Codex CLI session: {}", sid);
@@ -3806,6 +3907,7 @@ impl CodexCliProvider {
             model: model.to_string(),
             workspace,
             session_key,
+            session_owner: StdMutex::new(owner.to_string()),
             localgpt_session_id: uuid::Uuid::new_v4().to_string(),
             cli_session_id: StdMutex::new(existing_session),
             ephemeral: std::sync::atomic::AtomicBool::new(false),
@@ -3898,15 +4000,26 @@ impl LLMProvider for CodexCliProvider {
         }
     }
 
+    fn set_session_owner(&self, agent_id: &str) {
+        move_cli_session(
+            &self.session_owner,
+            &self.cli_session_id,
+            self.ephemeral.load(std::sync::atomic::Ordering::Relaxed),
+            agent_id,
+            &self.session_key,
+            CODEX_CLI_PROVIDER,
+        );
+    }
+
     fn reset_session(&self) {
         if let Ok(mut cli_session) = self.cli_session_id.lock() {
             *cli_session = None;
         }
-        if let Ok(mut store) = super::session_store::SessionStore::load() {
-            let _ = store.update(&self.session_key, &self.localgpt_session_id, |entry| {
-                entry.clear_cli_session_ids();
-            });
-        }
+        clear_cli_sessions_in_store(
+            &session_owner(&self.session_owner),
+            &self.session_key,
+            &self.localgpt_session_id,
+        );
         info!("Codex CLI session reset");
     }
 
@@ -3946,6 +4059,7 @@ impl LLMProvider for CodexCliProvider {
 
             if !self.ephemeral.load(std::sync::atomic::Ordering::Relaxed)
                 && let Err(e) = save_cli_session_to_store(
+                    &session_owner(&self.session_owner),
                     &self.session_key,
                     &self.localgpt_session_id,
                     CODEX_CLI_PROVIDER,
@@ -4037,6 +4151,7 @@ impl LLMProvider for CodexCliProvider {
 
         let cli_session_id = self.cli_session_id.lock().ok().and_then(|g| g.clone());
         let session_key = self.session_key.clone();
+        let owner = session_owner(&self.session_owner);
         // Read once: the stream below is 'static and cannot borrow self.
         let ephemeral = self.ephemeral.load(std::sync::atomic::Ordering::Relaxed);
         let localgpt_session_id = self.localgpt_session_id.clone();
@@ -4069,6 +4184,7 @@ impl LLMProvider for CodexCliProvider {
                                 }
                                 if !ephemeral
                                     && let Err(e) = save_cli_session_to_store(
+                                    &owner,
                                     &session_key,
                                     &localgpt_session_id,
                                     CODEX_CLI_PROVIDER,
@@ -4320,6 +4436,33 @@ mod tests {
             provider
                 .ephemeral
                 .load(std::sync::atomic::Ordering::Relaxed)
+        );
+    }
+
+    /// Every agent resumes only its own CLI conversation. Before this, Gen's
+    /// prompt panel loaded the assistant's (`main`) and wrote its own session
+    /// id over it. A fresh agent id has no store yet, and loading one only
+    /// reads, so nothing on disk is touched.
+    #[cfg(feature = "claude-cli")]
+    #[test]
+    fn a_cli_provider_resumes_only_its_own_agents_conversation() {
+        let provider = ClaudeCliProvider::new("claude", "sonnet", std::env::temp_dir()).unwrap();
+        // As if the assistant's conversation had been loaded from `main`.
+        *provider.cli_session_id.lock().unwrap() = Some("assistant-session".into());
+        let agent = format!("test-owner-{}", uuid::Uuid::new_v4());
+        provider.set_session_owner(&agent);
+        assert_eq!(session_owner(&provider.session_owner), agent);
+        assert!(
+            provider.cli_session_id.lock().unwrap().is_none(),
+            "the assistant's conversation is not this agent's"
+        );
+
+        // Told the same owner again, it keeps the conversation under way.
+        *provider.cli_session_id.lock().unwrap() = Some("its-own-session".into());
+        provider.set_session_owner(&agent);
+        assert_eq!(
+            provider.cli_session_id.lock().unwrap().as_deref(),
+            Some("its-own-session")
         );
     }
 

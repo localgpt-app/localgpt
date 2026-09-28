@@ -214,8 +214,11 @@ impl SpawnAgentTool {
             model
         );
 
-        // Create provider for subagent
+        // Create provider for subagent. A task is self-contained: a CLI
+        // backend must neither resume the conversation it was spawned from
+        // nor write its own session id over it.
         let provider = crate::agent::providers::create_provider(model, &self.context.config)?;
+        provider.make_ephemeral();
 
         // Build system prompt for subagent
         let system_prompt = self.build_subagent_prompt(params);

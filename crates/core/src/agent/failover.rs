@@ -223,6 +223,20 @@ impl LLMProvider for FailoverProvider {
             provider.reset_session();
         }
     }
+
+    // Both reach every provider: a fallback that answers a turn must not
+    // resume a conversation the primary was told to leave alone.
+    fn make_ephemeral(&self) {
+        for provider in &self.providers {
+            provider.make_ephemeral();
+        }
+    }
+
+    fn set_session_owner(&self, agent_id: &str) {
+        for provider in &self.providers {
+            provider.set_session_owner(agent_id);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -269,5 +283,43 @@ mod tests {
 
         let err = anyhow::anyhow!("Error: 400 Bad Request");
         assert!(!FailoverProvider::is_retryable(&err));
+    }
+
+    /// What a CLI provider is told about its session reaches every provider
+    /// in the chain, fallbacks included.
+    #[test]
+    fn session_calls_reach_every_provider() {
+        use std::sync::{Arc, Mutex};
+
+        struct Recorder(Arc<Mutex<Vec<String>>>);
+        #[async_trait]
+        impl LLMProvider for Recorder {
+            fn name(&self) -> String {
+                "recorder".into()
+            }
+            async fn chat(&self, _: &[Message], _: Option<&[ToolSchema]>) -> Result<LLMResponse> {
+                Ok(LLMResponse::text(String::new()))
+            }
+            async fn summarize(&self, _: &str) -> Result<String> {
+                Ok(String::new())
+            }
+            fn make_ephemeral(&self) {
+                self.0.lock().unwrap().push("ephemeral".into());
+            }
+            fn set_session_owner(&self, agent_id: &str) {
+                self.0.lock().unwrap().push(format!("owner {agent_id}"));
+            }
+        }
+
+        let (a, b) = (Arc::default(), Arc::default());
+        let chain = FailoverProvider::new(vec![
+            Box::new(Recorder(Arc::clone(&a))),
+            Box::new(Recorder(Arc::clone(&b))),
+        ]);
+        chain.set_session_owner("gen");
+        chain.make_ephemeral();
+        for calls in [a, b] {
+            assert_eq!(*calls.lock().unwrap(), ["owner gen", "ephemeral"]);
+        }
     }
 }
