@@ -346,7 +346,12 @@ fn prompt_panel_ui(
     mut panel: ResMut<PromptPanel>,
     link: Res<PanelLink>,
     #[cfg(feature = "multiplayer")] host: Option<Res<crate::net::host::HostSessionInfo>>,
-    #[cfg(feature = "multiplayer")] mut host_control: ResMut<crate::net::host::HostControl>,
+    // Optional: `HostControl` belongs to `NetHostPlugin`, which Gen always
+    // installs but another embedder of this panel (the one-window LocalGPT
+    // app) need not. Without the host the Collaborate section is simply not
+    // drawn — `draw_panel` already takes it as an `Option` — instead of the
+    // whole panel system panicking on a missing resource.
+    #[cfg(feature = "multiplayer")] mut host_control: Option<ResMut<crate::net::host::HostControl>>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else {
         return;
@@ -395,15 +400,19 @@ fn prompt_panel_ui(
         .show(ctx, |ui| {
             #[cfg(feature = "multiplayer")]
             let start_request = {
-                let collab_args = Some((&*host_control, host.as_deref()));
+                let collab_args = host_control
+                    .as_deref()
+                    .map(|control| (control, host.as_deref()));
                 draw_panel(ui, panel, &link, host_line.as_deref(), collab_args)
             };
             #[cfg(not(feature = "multiplayer"))]
             draw_panel(ui, panel, &link, host_line.as_deref());
 
             #[cfg(feature = "multiplayer")]
-            if let Some(request) = start_request {
-                *host_control = crate::net::host::HostControl::StartRequested(request);
+            if let Some(request) = start_request
+                && let Some(control) = host_control.as_deref_mut()
+            {
+                *control = crate::net::host::HostControl::StartRequested(request);
             }
         });
 }
