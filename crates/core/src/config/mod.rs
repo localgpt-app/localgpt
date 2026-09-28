@@ -87,7 +87,32 @@ pub struct Config {
     pub r#gen: GenConfig,
 }
 
+/// What Gen imports once from a config file written before it kept its own
+/// settings. See [`Config::peek_gen_migration`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GenMigration {
+    pub gen_default_model: Option<String>,
+    pub gen_tool_profile: Option<String>,
+    pub agent_default_model: Option<String>,
+    /// The file these came from, for telling the user what was imported.
+    pub source: PathBuf,
+}
+
+impl GenMigration {
+    /// Whether there was anything worth importing.
+    pub fn is_empty(&self) -> bool {
+        self.gen_default_model.is_none()
+            && self.gen_tool_profile.is_none()
+            && self.agent_default_model.is_none()
+    }
+}
+
 /// Settings for the Gen 3D world-generation app (`localgpt-gen`).
+///
+/// Gen no longer reads this table — it keeps `gen-settings.json` in its state
+/// directory so the desktop app needs no config file. The table is still
+/// parsed so [`Config::peek_gen_migration`] can import an existing choice
+/// once; it can go once no one is upgrading from before that change.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GenConfig {
     /// Model for Gen's agents, independent of the assistant's
@@ -1068,19 +1093,19 @@ fn default_image_max_dimension() -> u32 {
 fn default_post_compaction_sections() -> Vec<String> {
     vec!["Session Startup".to_string(), "Red Lines".to_string()]
 }
-fn default_openai_base_url() -> String {
+pub(crate) fn default_openai_base_url() -> String {
     "https://api.openai.com/v1".to_string()
 }
-fn default_xai_base_url() -> String {
+pub(crate) fn default_xai_base_url() -> String {
     "https://api.x.ai/v1".to_string()
 }
-fn default_anthropic_base_url() -> String {
+pub(crate) fn default_anthropic_base_url() -> String {
     "https://api.anthropic.com".to_string()
 }
-fn default_ollama_endpoint() -> String {
+pub(crate) fn default_ollama_endpoint() -> String {
     "http://localhost:11434".to_string()
 }
-fn default_ollama_model() -> String {
+pub(crate) fn default_ollama_model() -> String {
     "llama3".to_string()
 }
 fn default_claude_cli_command() -> String {
@@ -1104,10 +1129,10 @@ fn default_codex_cli_command() -> String {
 fn default_codex_cli_model() -> String {
     "o4-mini".to_string()
 }
-fn default_glm_base_url() -> String {
+pub(crate) fn default_glm_base_url() -> String {
     "https://api.z.ai/api/coding/paas/v4".to_string()
 }
-fn default_gemini_base_url() -> String {
+pub(crate) fn default_gemini_base_url() -> String {
     "https://generativelanguage.googleapis.com".to_string()
 }
 fn default_vertex_location() -> String {
@@ -1441,6 +1466,36 @@ impl Config {
         Ok(path)
     }
 
+    /// Read Gen's settings out of the config file **only if it already
+    /// exists**, creating and writing nothing — unlike [`load`](Self::load),
+    /// whose first-run branch writes the file, and which hard-errors on
+    /// malformed TOML.
+    ///
+    /// This exists for one purpose: Gen keeps its own settings now
+    /// (`gen-settings.json`) and does not read this file, but a user who set
+    /// `[gen] default_model` before that change should not silently lose it.
+    /// Gen imports once, then never looks again. Returns [`None`] when there
+    /// is no file, or it can't be parsed.
+    pub fn peek_gen_migration(paths: &Paths) -> Option<GenMigration> {
+        let path = paths.config_file();
+        let text = fs::read_to_string(&path).ok()?;
+        let value: toml::Value = match toml::from_str(&text) {
+            Ok(value) => value,
+            Err(e) => {
+                tracing::warn!("{} isn't valid TOML ({e}) — not importing", path.display());
+                return None;
+            }
+        };
+        let string_at =
+            |table: &str, key: &str| value.get(table)?.get(key)?.as_str().map(str::to_string);
+        Some(GenMigration {
+            gen_default_model: string_at("gen", "default_model"),
+            gen_tool_profile: string_at("gen", "tool_profile"),
+            agent_default_model: string_at("agent", "default_model"),
+            source: path,
+        })
+    }
+
     /// Save config with a helpful template (for first-time setup)
     pub fn save_with_template(&self) -> Result<()> {
         let path = self.paths.config_file();
@@ -1467,6 +1522,11 @@ impl Config {
         }
         if let Some(ref mut xai) = self.providers.xai {
             xai.api_key = expand_env(&xai.api_key);
+        }
+        // GLM was missing here, so `api_key = "${GLM_API_KEY}"` was sent to
+        // the API literally.
+        if let Some(ref mut glm) = self.providers.glm {
+            glm.api_key = expand_env(&glm.api_key);
         }
         if let Some(ref mut anthropic) = self.providers.anthropic {
             anthropic.api_key = expand_env(&anthropic.api_key);

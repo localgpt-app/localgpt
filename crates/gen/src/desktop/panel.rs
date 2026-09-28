@@ -48,8 +48,9 @@ pub struct PanelSettings {
     pub open: bool,
     /// Put the cursor in the prompt box at startup.
     pub focus_input: bool,
-    /// The config file, offered in the help section.
-    pub config_file: Option<PathBuf>,
+    /// Gen's own settings file, offered in the help section. Gen keeps its
+    /// settings here rather than in the assistant's config.toml.
+    pub settings_file: Option<PathBuf>,
 }
 
 /// Adds the prompt panel. Add it after the gen app so the egui plugin the
@@ -116,7 +117,7 @@ pub struct PromptPanel {
     busy: bool,
     stopped: bool,
     show_help: bool,
-    config_file: Option<PathBuf>,
+    settings_file: Option<PathBuf>,
     #[cfg(feature = "multiplayer")]
     collab: super::collab::CollabState,
 }
@@ -150,7 +151,7 @@ impl PromptPanel {
         Self {
             open: settings.open,
             focus_input: settings.open && settings.focus_input,
-            config_file: settings.config_file.clone(),
+            settings_file: settings.settings_file.clone(),
             ..Default::default()
         }
     }
@@ -289,8 +290,9 @@ fn explain_model_error(model: Option<&str>, error: &str) -> String {
         || lower.contains("unauthorized")
     {
         return format!(
-            "{model} rejected the request. Check its API key in the config file (see ? above), \
-             or pick another model from the menu above.\n\n{error}"
+            "{model} needs an API key, which Gen doesn't ask for. Pick a model from the menu \
+             above that works without one — a signed-in CLI backend, or a model on this \
+             computer.\n\n{error}"
         );
     }
     format!("{model} failed: {error}")
@@ -646,9 +648,9 @@ fn help(ui: &mut egui::Ui, panel: &PromptPanel) {
             .small()
             .weak(),
         );
-        if let Some(path) = &panel.config_file
+        if let Some(path) = &panel.settings_file
             && ui
-                .small_button("Open config file")
+                .small_button("Open settings file")
                 .on_hover_text(path.display().to_string())
                 .clicked()
         {

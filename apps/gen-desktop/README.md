@@ -13,8 +13,11 @@ terminal (or with `--desktop`), it runs in **desktop mode**:
   Ollama, and — when built with `--features local-llm-metal` (Apple Silicon)
   or `local-llm` — every GGUF in the model folder LocalGPT's apps share
   (`~/.local/share/localgpt/models/llm`), which Gen runs in-process as
-  `gguf/<name>`. Switching lasts for the session; `agent.default_model` in
-  the config file sets the default.
+  `gguf/<name>`. Switching is remembered: Gen writes its own
+  `~/.local/state/localgpt/gen-settings.json` (there's an "Open settings file"
+  button in the help section) and needs no config file at all. `auto` keeps
+  picking the best local model this machine can run. The assistant's
+  `agent.default_model` is separate and untouched.
 - **First-run help.** If the configured model is a CLI backend that isn't
   installed, the panel says so and points at the model menu instead of failing
   silently. Startup errors (a missing API key, say) appear in the panel, and

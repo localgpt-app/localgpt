@@ -7,7 +7,7 @@ use std::time::Duration;
 
 /// CLI backends by executable name, and the model strings that select them
 /// (the providers' defaults; see `localgpt_core::config`).
-const CLI_BACKENDS: [(&str, &[&str]); 3] = [
+pub const CLI_BACKENDS: [(&str, &[&str]); 3] = [
     ("claude", &["claude-cli/opus", "claude-cli/sonnet"]),
     ("gemini", &["gemini-cli/gemini-3.1-pro-preview"]),
     ("codex", &["codex-cli/o4-mini"]),

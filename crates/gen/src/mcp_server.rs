@@ -52,7 +52,10 @@ pub fn create_mcp_tools(bridge: Arc<GenBridge>, config: &Config) -> Result<Vec<B
     let workspace = config.workspace_path();
 
     // Core read tools: memory_search, memory_get, web_fetch, web_search
-    let memory = MemoryManager::new_with_agent(&config.memory, "gen-mcp")?;
+    // new_with_full_config, not new_with_agent: the latter drops config.paths
+    // and re-resolves from the environment, which would silently put Gen back
+    // in the assistant's workspace.
+    let memory = MemoryManager::new_with_full_config(&config.memory, Some(config), "gen-mcp")?;
     let memory = Arc::new(memory);
     let mut tools = create_safe_tools(config, Some(memory))?;
 

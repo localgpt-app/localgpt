@@ -21,6 +21,7 @@ pub mod mcp_server;
 #[cfg(feature = "multiplayer")]
 pub mod net;
 pub mod physics;
+pub mod settings;
 pub mod terrain;
 pub mod tracing_printer;
 pub mod ui;
