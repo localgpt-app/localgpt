@@ -1290,7 +1290,7 @@ fn process_gen_commands(
                         .get(&cmd.name)
                         .map(|meta| wt::AudioDef {
                             kind: wt::AudioKind::Sfx,
-                            source: compat::emitter_sound_to_source(&meta.sound),
+                            source: meta.sound.clone(),
                             volume: meta.base_volume,
                             radius: Some(meta.radius),
                             rolloff: wt::Rolloff::default(),
@@ -1305,7 +1305,7 @@ fn process_gen_commands(
                         .get(&cmd.name)
                         .map(|meta| wt::AudioDef {
                             kind: wt::AudioKind::Sfx,
-                            source: compat::emitter_sound_to_source(&meta.sound),
+                            source: meta.sound.clone(),
                             volume: meta.base_volume,
                             radius: Some(meta.radius),
                             rolloff: wt::Rolloff::default(),
@@ -1334,7 +1334,7 @@ fn process_gen_commands(
                         .get(&name)
                         .map(|meta| wt::AudioDef {
                             kind: wt::AudioKind::Sfx,
-                            source: compat::emitter_sound_to_source(&meta.sound),
+                            source: meta.sound.clone(),
                             volume: meta.base_volume,
                             radius: Some(meta.radius),
                             rolloff: wt::Rolloff::default(),
@@ -6713,7 +6713,7 @@ pub(crate) fn snapshot_entity(
     if let Ok(ae) = sq.audio_emitters.get(entity) {
         we.audio = Some(wt::AudioDef {
             kind: wt::AudioKind::Sfx,
-            source: wt::AudioSource::from(&ae.sound),
+            source: ae.sound.clone(),
             volume: ae.volume,
             radius: Some(ae.radius),
             rolloff: wt::Rolloff::InverseSquare,

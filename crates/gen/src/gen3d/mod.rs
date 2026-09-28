@@ -7,7 +7,6 @@
 
 pub mod asset_gen;
 pub mod audio;
-pub mod audio_graphs;
 pub mod avatar;
 pub mod behaviors;
 pub mod commands;

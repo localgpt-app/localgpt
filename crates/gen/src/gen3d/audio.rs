@@ -1,23 +1,38 @@
 //! AudioEngine resource, AudioEmitter component, and Bevy systems for
 //! procedural environmental audio.
 //!
-//! Architecture:
-//! - Audio management thread: owns FunDSP `Net` frontend, processes graph updates
-//! - cpal callback thread: owns `Net` backend, renders samples
-//! - Bevy main thread: sends graph updates via channel, sets `Shared` params lock-free
+//! Since the move to `localgpt-world-audio`, this module is the Bevy-facing
+//! half of a two-part engine:
+//!
+//! - **This side** (Bevy main thread): the `AudioEngine` resource, the
+//!   `AudioEmitter`/`SpatialAudioListener` components, the command handlers
+//!   and the per-frame spatial system. It owns metadata — names, base
+//!   volumes, radii, `last_ambience` for world save round-trips.
+//! - **`localgpt_world_audio::Engine`** (dedicated thread): the kira mixer
+//!   playing FunDSP graphs. It owns the device.
+//!
+//! The two halves talk over an mpsc channel of [`AudioUpdate`]s, drained
+//! blocking on the audio thread. That replaces the previous hand-rolled
+//! transport — a cpal stream plus a FunDSP `Net` rebuilt in place plus
+//! `Shared<f32>` atomics threaded between threads — and with it the two
+//! things kira now does instead: distance attenuation (an emitter is a
+//! spatial sub-track, so moving the listener or the emitter is the whole of
+//! it) and panning (tracks pan). The quadratic falloff Gen computed per
+//! frame is now kira's min/max-distance curve; the audible difference is
+//! small and the per-frame cost is a channel send instead of math per
+//! emitter.
 
-#![allow(clippy::precedence)]
-
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::mpsc;
 
 use bevy::prelude::*;
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{FromSample, SizedSample};
-use fundsp::prelude::*;
+use localgpt_world_audio::wt;
+use localgpt_world_audio::wt::AudioSource;
 
-use super::audio_graphs;
-use super::commands::*;
+use super::commands::{
+    AmbienceCmd, AudioEmitterCmd, AudioEmitterSummary, AudioInfoResponse, GenResponse,
+    ModifyAudioEmitterCmd,
+};
 use super::registry::{GenEntity, NameRegistry};
 
 // ---------------------------------------------------------------------------
@@ -28,7 +43,7 @@ use super::registry::{GenEntity, NameRegistry};
 #[derive(Component)]
 pub struct AudioEmitter {
     #[allow(dead_code)]
-    pub sound: EmitterSound,
+    pub sound: AudioSource,
     pub radius: f32,
     pub volume: f32,
     pub emitter_name: String,
@@ -45,24 +60,19 @@ pub struct SpatialAudioListener;
 #[derive(Resource)]
 pub struct AudioEngine {
     pub active: bool,
-    master_volume: Shared,
-    emitter_params: HashMap<String, EmitterSharedParams>,
-    layer_volumes: HashMap<String, Shared>,
-    graph_tx: mpsc::Sender<AudioGraphUpdate>,
+    master_volume: f32,
+    /// Names of live emitters, mirroring the audio thread's map.
+    emitter_names: HashSet<String>,
+    update_tx: mpsc::Sender<AudioUpdate>,
     pub ambience_layer_names: Vec<String>,
     pub emitter_meta: HashMap<String, EmitterMeta>,
     /// Last ambience command for world save round-trip.
     pub last_ambience: Option<AmbienceCmd>,
 }
 
-struct EmitterSharedParams {
-    volume: Shared,
-    pan: Shared,
-}
-
 pub struct EmitterMeta {
     pub sound_type: String,
-    pub sound: EmitterSound,
+    pub sound: AudioSource,
     pub base_volume: f32,
     pub radius: f32,
     pub attached_to: Option<String>,
@@ -73,104 +83,119 @@ impl AudioEngine {
     /// Play a one-shot sound emitter at a world position.
     ///
     /// Used by trigger systems (proximity, click) to fire PlaySoundAction.
-    /// Creates a temporary emitter named "trigger_{sound}_{counter}" with
-    /// a default volume and no spatial tracking (fire-and-forget).
+    /// Creates a temporary emitter named "trigger_{sound}_{counter}" with a
+    /// default volume (fire-and-forget).
     pub fn play_emitter_at(&mut self, sound_name: &str, position: Vec3) {
-        use super::commands::{EmitterSound, FilterType, WaveformType};
+        let emitter_name = format!("trigger_{}_{}", sound_name, self.emitter_names.len());
+        let volume = 0.6;
 
-        let emitter_name = format!("trigger_{}_{}", sound_name, self.emitter_params.len());
-        let volume = shared(0.6);
-        let pan = shared(0.0); // center pan for one-shots
+        // Infer the sound from the name, same vocabulary as auto-inference.
+        let (sound, radius) =
+            localgpt_world_audio::infer_emitter_from_name(sound_name).unwrap_or((
+                AudioSource::Custom {
+                    waveform: wt::WaveformType::WhiteNoise,
+                    filter_cutoff: 2000.0,
+                    filter_type: wt::FilterType::Lowpass,
+                },
+                10.0,
+            ));
+        let position = [position.x, position.y, position.z];
 
-        // Infer EmitterSound from the name
-        let sound = match sound_name {
-            "water" => EmitterSound::Water { turbulence: 0.5 },
-            "fire" => EmitterSound::Fire {
-                intensity: 0.7,
-                crackle: 0.5,
-            },
-            "hum" => EmitterSound::Hum {
-                frequency: 220.0,
-                warmth: 0.5,
-            },
-            "wind" => EmitterSound::Wind { pitch: 300.0 },
-            _ => EmitterSound::Custom {
-                waveform: WaveformType::WhiteNoise,
-                filter_cutoff: 2000.0,
-                filter_type: FilterType::Lowpass,
-            },
-        };
-
-        let _ = self.graph_tx.send(AudioGraphUpdate::AddEmitter {
+        let _ = self.update_tx.send(AudioUpdate::AddEmitter {
             name: emitter_name.clone(),
             sound: sound.clone(),
-            volume_shared: volume.clone(),
-            pan_shared: pan.clone(),
+            volume,
+            radius,
+            position,
         });
 
-        self.emitter_params
-            .insert(emitter_name.clone(), EmitterSharedParams { volume, pan });
+        self.emitter_names.insert(emitter_name.clone());
         self.emitter_meta.insert(
             emitter_name,
             EmitterMeta {
                 sound_type: sound_name.to_string(),
                 sound,
-                base_volume: 0.6,
-                radius: 10.0,
+                base_volume: volume,
+                radius,
                 attached_to: None,
-                position: Some([position.x, position.y, position.z]),
+                position: Some(position),
             },
         );
     }
 
     /// Stop all audio: remove all emitters and clear ambience state.
     pub fn stop_all(&mut self) {
-        let emitter_names: Vec<String> = self.emitter_params.keys().cloned().collect();
-        for name in &emitter_names {
-            let _ = self
-                .graph_tx
-                .send(AudioGraphUpdate::RemoveEmitter { name: name.clone() });
+        for name in self.emitter_names.drain() {
+            let _ = self.update_tx.send(AudioUpdate::RemoveEmitter { name });
         }
-        self.emitter_params.clear();
         self.emitter_meta.clear();
         self.ambience_layer_names.clear();
-        self.layer_volumes.clear();
         self.last_ambience = None;
+    }
+
+    /// Master volume as stored on the Bevy side (the thread applies it).
+    pub fn master_volume(&self) -> f32 {
+        self.master_volume
     }
 }
 
-/// Messages sent from Bevy to the audio management thread.
-enum AudioGraphUpdate {
+// ---------------------------------------------------------------------------
+// Messages sent from Bevy to the audio thread
+// ---------------------------------------------------------------------------
+
+enum AudioUpdate {
     SetAmbience {
-        layers: Vec<(String, AmbientSound, f32, Shared)>,
-        master_vol: Shared,
+        layers: Vec<(String, AudioSource, f32)>,
+        master_volume: Option<f32>,
     },
     AddEmitter {
         name: String,
-        sound: EmitterSound,
-        volume_shared: Shared,
-        pan_shared: Shared,
+        sound: AudioSource,
+        volume: f32,
+        radius: f32,
+        position: [f32; 3],
+    },
+    SetEmitterVolume {
+        name: String,
+        volume: f32,
+    },
+    SetEmitterRadius {
+        name: String,
+        radius: f32,
     },
     RemoveEmitter {
         name: String,
     },
-    #[allow(dead_code)]
-    Shutdown,
+    SetListener {
+        position: [f32; 3],
+        orientation: [f32; 4],
+    },
+    SetEmitterPosition {
+        name: String,
+        position: [f32; 3],
+    },
 }
 
 // ---------------------------------------------------------------------------
 // Audio thread
 // ---------------------------------------------------------------------------
 
+/// What the thread remembers per emitter, so radius and sound changes can
+/// rebuild a voice without a round-trip to the Bevy side.
+struct ThreadEmitter {
+    sound: AudioSource,
+    volume: f32,
+    radius: f32,
+    position: [f32; 3],
+}
+
 pub fn start_audio_engine() -> Option<AudioEngine> {
-    let (graph_tx, graph_rx) = mpsc::channel::<AudioGraphUpdate>();
-    let master_volume = Shared::new(0.8);
-    let master_vol_clone = master_volume.clone();
+    let (update_tx, update_rx) = mpsc::channel::<AudioUpdate>();
 
     let thread_result = std::thread::Builder::new()
         .name("gen-audio".into())
         .spawn(move || {
-            audio_thread_main(graph_rx, master_vol_clone);
+            audio_thread_main(update_rx);
         });
 
     match thread_result {
@@ -178,10 +203,9 @@ pub fn start_audio_engine() -> Option<AudioEngine> {
             tracing::info!("Audio engine started");
             Some(AudioEngine {
                 active: true,
-                master_volume,
-                emitter_params: HashMap::new(),
-                layer_volumes: HashMap::new(),
-                graph_tx,
+                master_volume: 0.8,
+                emitter_names: HashSet::new(),
+                update_tx,
                 ambience_layer_names: Vec::new(),
                 emitter_meta: HashMap::new(),
                 last_ambience: None,
@@ -194,236 +218,84 @@ pub fn start_audio_engine() -> Option<AudioEngine> {
     }
 }
 
-/// State maintained on the audio thread for graph rebuilding.
-struct AudioThreadState {
-    ambience_layers: Vec<(String, AmbientSound, f32, Shared)>,
-    emitters: HashMap<String, (EmitterSound, Shared, Shared)>,
-    master_vol: Shared,
-}
-
-fn audio_thread_main(rx: mpsc::Receiver<AudioGraphUpdate>, master_vol: Shared) {
-    let host = cpal::default_host();
-    let device = match host.default_output_device() {
-        Some(d) => d,
-        None => {
-            tracing::error!("No audio output device found");
-            return;
-        }
-    };
-
-    let supported_config = match device.default_output_config() {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::error!("Failed to get audio config: {}", e);
-            return;
-        }
-    };
-
-    let sample_rate = supported_config.sample_rate() as f64;
-    let channels = supported_config.channels() as usize;
-    let mut config = supported_config.config();
-
-    // Request a larger buffer to avoid underruns from FunDSP graph processing
-    config.buffer_size = cpal::BufferSize::Fixed(2048);
-
-    tracing::info!(
-        "Audio output: {} Hz, {} channels, buffer 2048",
-        sample_rate,
-        channels
-    );
-
-    // Build initial silent graph
-    let mut net = Net::new(0, 2);
-    let silence_id = net.push(Box::new(dc(0.0) | dc(0.0)));
-    net.pipe_output(silence_id);
-    net.set_sample_rate(sample_rate);
-    net.allocate();
-
-    // Get backend for cpal callback
-    let mut backend = net.backend();
-    backend.set_sample_rate(sample_rate);
-
-    // Start cpal stream
-    let _stream = match supported_config.sample_format() {
-        cpal::SampleFormat::F32 => build_cpal_stream::<f32>(&device, &config, backend, channels),
-        cpal::SampleFormat::I16 => build_cpal_stream::<i16>(&device, &config, backend, channels),
-        cpal::SampleFormat::U16 => build_cpal_stream::<u16>(&device, &config, backend, channels),
-        _ => {
-            tracing::error!("Unsupported audio sample format");
-            return;
-        }
-    };
-
-    let Some(stream) = _stream else {
-        tracing::error!("Failed to create audio stream");
+fn audio_thread_main(rx: mpsc::Receiver<AudioUpdate>) {
+    // No output device is not an error — a headless runner or a machine with
+    // no sound card gets a silent world, and the channel quietly drains.
+    let Some(mut engine) = localgpt_world_audio::Engine::new() else {
         return;
     };
+    engine.set_master_volume(0.8);
 
-    if let Err(e) = stream.play() {
-        tracing::error!("Failed to play audio stream: {}", e);
-        return;
-    }
+    let mut emitters: HashMap<String, ThreadEmitter> = HashMap::new();
 
-    let mut state = AudioThreadState {
-        ambience_layers: Vec::new(),
-        emitters: HashMap::new(),
-        master_vol,
-    };
-
-    // Process graph updates
-    loop {
-        match rx.recv() {
-            Ok(AudioGraphUpdate::SetAmbience { layers, master_vol }) => {
-                state.ambience_layers = layers;
-                state.master_vol = master_vol;
-                rebuild_graph(&mut net, &state, sample_rate);
+    while let Ok(update) = rx.recv() {
+        match update {
+            AudioUpdate::SetAmbience {
+                layers,
+                master_volume,
+            } => {
+                if let Some(volume) = master_volume {
+                    engine.set_master_volume(volume);
+                }
+                engine.set_ambience(&layers);
             }
-            Ok(AudioGraphUpdate::AddEmitter {
+            AudioUpdate::AddEmitter {
                 name,
                 sound,
-                volume_shared,
-                pan_shared,
-            }) => {
-                state
-                    .emitters
-                    .insert(name.clone(), (sound, volume_shared, pan_shared));
-                rebuild_graph(&mut net, &state, sample_rate);
+                volume,
+                radius,
+                position,
+            } => {
+                engine.remove_emitter(&name);
+                engine.add_emitter(&name, &sound, volume, position, radius);
+                emitters.insert(
+                    name,
+                    ThreadEmitter {
+                        sound,
+                        volume,
+                        radius,
+                        position,
+                    },
+                );
             }
-            Ok(AudioGraphUpdate::RemoveEmitter { name }) => {
-                state.emitters.remove(&name);
-                rebuild_graph(&mut net, &state, sample_rate);
-            }
-            Ok(AudioGraphUpdate::Shutdown) | Err(_) => {
-                tracing::info!("Audio thread shutting down");
-                break;
-            }
-        }
-    }
-}
-
-/// Rebuild the entire audio graph from current state.
-/// Uses Net's commit() for glitch-free transition.
-fn rebuild_graph(net: &mut Net, state: &AudioThreadState, sample_rate: f64) {
-    // Remove all existing nodes
-    let ids: Vec<NodeId> = net.ids().copied().collect();
-    for id in ids {
-        net.remove(id);
-    }
-
-    let mut all_stereo_ids: Vec<NodeId> = Vec::new();
-
-    // Build ambience layers
-    for (_name, sound, base_vol, vol_shared) in &state.ambience_layers {
-        vol_shared.set(*base_vol);
-        let graph = audio_graphs::build_ambient_graph(sound);
-        let stereo_id = add_mono_source_stereo(net, graph, vol_shared, &state.master_vol);
-        all_stereo_ids.push(stereo_id);
-    }
-
-    // Build emitters
-    for (sound, vol_shared, _pan_shared) in state.emitters.values() {
-        let graph = audio_graphs::build_emitter_graph(sound);
-        let stereo_id = add_mono_source_stereo(net, graph, vol_shared, &state.master_vol);
-        all_stereo_ids.push(stereo_id);
-    }
-
-    // Sum all stereo outputs into the net output
-    if all_stereo_ids.is_empty() {
-        let sid = net.push(Box::new(dc(0.0) | dc(0.0)));
-        net.pipe_output(sid);
-    } else if all_stereo_ids.len() == 1 {
-        net.pipe_output(all_stereo_ids[0]);
-    } else {
-        // Chain stereo sums: sum pairs iteratively
-        let mut current = all_stereo_ids[0];
-        for &next in &all_stereo_ids[1..] {
-            current = sum_two_stereo(net, current, next);
-        }
-        net.pipe_output(current);
-    }
-
-    net.set_sample_rate(sample_rate);
-    net.allocate();
-    net.commit();
-    tracing::debug!(
-        "Audio graph rebuilt: {} ambience layers, {} emitters",
-        state.ambience_layers.len(),
-        state.emitters.len()
-    );
-}
-
-/// Add a mono source to the Net, multiply by volume and master volume,
-/// then pan to stereo. Returns the stereo output node ID.
-fn add_mono_source_stereo(
-    net: &mut Net,
-    source: Box<dyn AudioUnit>,
-    volume: &Shared,
-    master_vol: &Shared,
-) -> NodeId {
-    let id_src = net.push(source);
-    let id_vol = net.push(Box::new(var(volume)));
-    let id_mvol = net.push(Box::new(var(master_vol)));
-
-    // Multiply: source * volume
-    let id_mul1 = net.push(Box::new(pass() * pass()));
-    net.set_source(id_mul1, 0, Source::Local(id_src, 0));
-    net.set_source(id_mul1, 1, Source::Local(id_vol, 0));
-
-    // Multiply: (source*volume) * master_volume
-    let id_mul2 = net.push(Box::new(pass() * pass()));
-    net.set_source(id_mul2, 0, Source::Local(id_mul1, 0));
-    net.set_source(id_mul2, 1, Source::Local(id_mvol, 0));
-
-    // Pan mono to stereo (center)
-    let id_pan = net.push(Box::new(pan(0.0)));
-    net.pipe_all(id_mul2, id_pan);
-
-    id_pan
-}
-
-/// Sum two stereo nodes into one stereo output.
-/// Uses (pass() + pass()) | (pass() + pass()) — 4 inputs, 2 outputs.
-fn sum_two_stereo(net: &mut Net, a: NodeId, b: NodeId) -> NodeId {
-    let id_sum = net.push(Box::new((pass() + pass()) | (pass() + pass())));
-    net.set_source(id_sum, 0, Source::Local(a, 0)); // left A
-    net.set_source(id_sum, 1, Source::Local(b, 0)); // left B
-    net.set_source(id_sum, 2, Source::Local(a, 1)); // right A
-    net.set_source(id_sum, 3, Source::Local(b, 1)); // right B
-    id_sum
-}
-
-fn build_cpal_stream<T>(
-    device: &cpal::Device,
-    config: &cpal::StreamConfig,
-    mut backend: NetBackend,
-    channels: usize,
-) -> Option<cpal::Stream>
-where
-    T: SizedSample + FromSample<f32>,
-{
-    let mut next_value = move || backend.get_stereo();
-
-    let stream = device
-        .build_output_stream(
-            *config,
-            move |data: &mut [T], _: &cpal::OutputCallbackInfo| {
-                for frame in data.chunks_mut(channels) {
-                    let (left, right) = next_value();
-                    for (i, sample) in frame.iter_mut().enumerate() {
-                        *sample = if i % 2 == 0 {
-                            T::from_sample(left)
-                        } else {
-                            T::from_sample(right)
-                        };
-                    }
+            AudioUpdate::SetEmitterVolume { name, volume } => {
+                if let Some(thread_emitter) = emitters.get_mut(&name) {
+                    thread_emitter.volume = volume;
                 }
-            },
-            |err| tracing::warn!("Audio stream: {}", err),
-            None,
-        )
-        .ok()?;
-
-    Some(stream)
+                engine.set_emitter_volume(&name, volume);
+            }
+            AudioUpdate::SetEmitterRadius { name, radius } => {
+                // Distances are baked into the spatial track at build time,
+                // so a radius change rebuilds the voice in place.
+                if let Some(thread_emitter) = emitters.get_mut(&name) {
+                    thread_emitter.radius = radius;
+                    let sound = thread_emitter.sound.clone();
+                    let volume = thread_emitter.volume;
+                    let position = thread_emitter.position;
+                    engine.remove_emitter(&name);
+                    engine.add_emitter(&name, &sound, volume, position, radius);
+                }
+            }
+            AudioUpdate::RemoveEmitter { name } => {
+                engine.remove_emitter(&name);
+                emitters.remove(&name);
+            }
+            AudioUpdate::SetListener {
+                position,
+                orientation,
+            } => {
+                engine.set_listener(position, orientation);
+            }
+            AudioUpdate::SetEmitterPosition { name, position } => {
+                if let Some(thread_emitter) = emitters.get_mut(&name) {
+                    thread_emitter.position = position;
+                }
+                engine.set_emitter_position(&name, position);
+            }
+        }
+    }
+    // The loop ends when every sender drops — the resource going away at
+    // shutdown — which drops the engine and stops the stream.
 }
 
 // ---------------------------------------------------------------------------
@@ -437,13 +309,14 @@ pub fn init_audio_engine(mut commands: Commands) {
         }
         None => {
             tracing::warn!("Audio engine not available — continuing without audio");
-            let (tx, _rx) = mpsc::channel();
+            let (tx, rx) = mpsc::channel();
+            // Keep the receiver alive so sends never block; nothing reads it.
+            std::mem::forget(rx);
             commands.insert_resource(AudioEngine {
                 active: false,
-                master_volume: Shared::new(0.0),
-                emitter_params: HashMap::new(),
-                layer_volumes: HashMap::new(),
-                graph_tx: tx,
+                master_volume: 0.0,
+                emitter_names: HashSet::new(),
+                update_tx: tx,
                 ambience_layer_names: Vec::new(),
                 emitter_meta: HashMap::new(),
                 last_ambience: None,
@@ -462,32 +335,26 @@ pub fn handle_set_ambience(cmd: AmbienceCmd, engine: &mut AudioEngine) -> GenRes
     }
 
     if let Some(vol) = cmd.master_volume {
-        engine.master_volume.set(vol.clamp(0.0, 1.0));
+        engine.master_volume = vol.clamp(0.0, 1.0);
     }
 
     let mut layers = Vec::new();
-    let mut layer_volumes = HashMap::new();
     let mut layer_names = Vec::new();
-
     for layer_def in &cmd.layers {
-        let vol_shared = Shared::new(layer_def.volume);
-        layer_volumes.insert(layer_def.name.clone(), vol_shared.clone());
         layers.push((
             layer_def.name.clone(),
-            layer_def.sound.clone(),
+            AudioSource::from(&layer_def.sound),
             layer_def.volume,
-            vol_shared,
         ));
         layer_names.push(layer_def.name.clone());
     }
 
-    engine.layer_volumes = layer_volumes;
     engine.ambience_layer_names = layer_names;
     engine.last_ambience = Some(cmd.clone());
 
-    let _ = engine.graph_tx.send(AudioGraphUpdate::SetAmbience {
+    let _ = engine.update_tx.send(AudioUpdate::SetAmbience {
         layers,
-        master_vol: engine.master_volume.clone(),
+        master_volume: Some(engine.master_volume),
     });
 
     GenResponse::AmbienceSet
@@ -506,22 +373,14 @@ pub fn handle_spawn_audio_emitter(
         };
     }
 
-    let vol_shared = Shared::new(cmd.volume);
-    let pan_shared = Shared::new(0.0);
+    let sound = AudioSource::from(&cmd.sound);
 
-    engine.emitter_params.insert(
-        cmd.name.clone(),
-        EmitterSharedParams {
-            volume: vol_shared.clone(),
-            pan: pan_shared.clone(),
-        },
-    );
-
+    engine.emitter_names.insert(cmd.name.clone());
     engine.emitter_meta.insert(
         cmd.name.clone(),
         EmitterMeta {
-            sound_type: emitter_sound_type_name(&cmd.sound),
-            sound: cmd.sound.clone(),
+            sound_type: emitter_sound_type_name(&sound),
+            sound: sound.clone(),
             base_volume: cmd.volume,
             radius: cmd.radius,
             attached_to: cmd.entity.clone(),
@@ -529,18 +388,22 @@ pub fn handle_spawn_audio_emitter(
         },
     );
 
-    let _ = engine.graph_tx.send(AudioGraphUpdate::AddEmitter {
+    let _ = engine.update_tx.send(AudioUpdate::AddEmitter {
         name: cmd.name.clone(),
-        sound: cmd.sound.clone(),
-        volume_shared: vol_shared,
-        pan_shared,
+        sound,
+        volume: cmd.volume,
+        radius: cmd.radius,
+        // A position-less emitter attached to an entity gets its position
+        // from `spatial_audio_update` on the next frame; until then it sits
+        // at the origin, as the old engine's default pan/volume did.
+        position: cmd.position.unwrap_or([0.0, 0.0, 0.0]),
     });
 
     // Attach to existing entity or spawn standalone
     if let Some(ref entity_name) = cmd.entity {
         if let Some(entity) = registry.get_entity(entity_name) {
             bevy_commands.entity(entity).insert(AudioEmitter {
-                sound: cmd.sound.clone(),
+                sound: AudioSource::from(&cmd.sound),
                 radius: cmd.radius,
                 volume: cmd.volume,
                 emitter_name: cmd.name.clone(),
@@ -557,7 +420,7 @@ pub fn handle_spawn_audio_emitter(
                     world_id: wid,
                 },
                 AudioEmitter {
-                    sound: cmd.sound.clone(),
+                    sound: AudioSource::from(&cmd.sound),
                     radius: cmd.radius,
                     volume: cmd.volume,
                     emitter_name: cmd.name.clone(),
@@ -574,7 +437,7 @@ pub fn handle_modify_audio_emitter(
     cmd: ModifyAudioEmitterCmd,
     engine: &mut AudioEngine,
 ) -> GenResponse {
-    if !engine.emitter_params.contains_key(&cmd.name) {
+    if !engine.emitter_names.contains(&cmd.name) {
         return GenResponse::Error {
             message: format!("Audio emitter '{}' not found", cmd.name),
         };
@@ -584,32 +447,47 @@ pub fn handle_modify_audio_emitter(
         && let Some(meta) = engine.emitter_meta.get_mut(&cmd.name)
     {
         meta.base_volume = vol;
+        let _ = engine.update_tx.send(AudioUpdate::SetEmitterVolume {
+            name: cmd.name.clone(),
+            volume: vol,
+        });
     }
-    if let Some(radius) = cmd.radius
-        && let Some(meta) = engine.emitter_meta.get_mut(&cmd.name)
-    {
-        meta.radius = radius;
+    if let Some(radius) = cmd.radius {
+        if let Some(meta) = engine.emitter_meta.get_mut(&cmd.name) {
+            meta.radius = radius;
+        }
+        let _ = engine.update_tx.send(AudioUpdate::SetEmitterRadius {
+            name: cmd.name.clone(),
+            radius,
+        });
     }
 
     if let Some(ref new_sound) = cmd.sound {
-        // Remove and re-add with new sound
-        let params = engine.emitter_params.get(&cmd.name).unwrap();
-        let vol_shared = params.volume.clone();
-        let pan_shared = params.pan.clone();
-
-        let _ = engine.graph_tx.send(AudioGraphUpdate::RemoveEmitter {
+        // Rebuild the voice with the new graph, keeping volume and position.
+        let new_source = AudioSource::from(new_sound);
+        let _ = engine.update_tx.send(AudioUpdate::RemoveEmitter {
             name: cmd.name.clone(),
         });
-        let _ = engine.graph_tx.send(AudioGraphUpdate::AddEmitter {
+        let (volume, position) = engine
+            .emitter_meta
+            .get(&cmd.name)
+            .map(|meta| (meta.base_volume, meta.position.unwrap_or([0.0, 0.0, 0.0])))
+            .unwrap_or((0.6, [0.0, 0.0, 0.0]));
+        let _ = engine.update_tx.send(AudioUpdate::AddEmitter {
             name: cmd.name.clone(),
-            sound: new_sound.clone(),
-            volume_shared: vol_shared,
-            pan_shared,
+            sound: new_source.clone(),
+            volume,
+            radius: engine
+                .emitter_meta
+                .get(&cmd.name)
+                .map(|meta| meta.radius)
+                .unwrap_or(10.0),
+            position,
         });
 
         if let Some(meta) = engine.emitter_meta.get_mut(&cmd.name) {
-            meta.sound_type = emitter_sound_type_name(new_sound);
-            meta.sound = new_sound.clone();
+            meta.sound_type = emitter_sound_type_name(&new_source);
+            meta.sound = new_source;
         }
     }
 
@@ -617,10 +495,10 @@ pub fn handle_modify_audio_emitter(
 }
 
 pub fn handle_remove_audio_emitter(name: &str, engine: &mut AudioEngine) -> GenResponse {
-    engine.emitter_params.remove(name);
+    engine.emitter_names.remove(name);
     engine.emitter_meta.remove(name);
 
-    let _ = engine.graph_tx.send(AudioGraphUpdate::RemoveEmitter {
+    let _ = engine.update_tx.send(AudioUpdate::RemoveEmitter {
         name: name.to_string(),
     });
 
@@ -647,12 +525,15 @@ pub fn handle_audio_info(engine: &AudioEngine) -> GenResponse {
         active: engine.active,
         ambience_layers: engine.ambience_layer_names.clone(),
         emitters,
-        master_volume: engine.master_volume.value(),
+        master_volume: engine.master_volume(),
     })
 }
 
-/// Update spatial audio based on camera distance to emitters.
-/// Lock-free — sets Shared params directly.
+/// Forward camera and emitter transforms to the audio thread.
+///
+/// The old system computed quadratic attenuation and stereo panning here,
+/// per emitter per frame; the kira spatial tracks do both from the positions
+/// alone, so this is now just movement, shipped as channel messages.
 pub fn spatial_audio_update(
     engine: Res<AudioEngine>,
     listener_query: Query<&Transform, With<SpatialAudioListener>>,
@@ -666,36 +547,18 @@ pub fn spatial_audio_update(
         return;
     };
 
-    let listener_pos = listener_transform.translation;
-    let listener_right = listener_transform.right().as_vec3();
+    let position = listener_transform.translation.to_array();
+    let rotation = listener_transform.rotation;
+    let _ = engine.update_tx.send(AudioUpdate::SetListener {
+        position,
+        orientation: [rotation.x, rotation.y, rotation.z, rotation.w],
+    });
 
     for (emitter_transform, emitter) in emitter_query.iter() {
-        let Some(params) = engine.emitter_params.get(&emitter.emitter_name) else {
-            continue;
-        };
-
-        let emitter_pos = emitter_transform.translation;
-        let to_emitter = emitter_pos - listener_pos;
-        let distance = to_emitter.length();
-
-        // Volume: quadratic falloff within radius
-        let attenuation = if distance < 1.0 {
-            1.0
-        } else if distance > emitter.radius {
-            0.0
-        } else {
-            let t = 1.0 - (distance - 1.0) / (emitter.radius - 1.0).max(0.01);
-            t * t
-        };
-
-        params.volume.set(emitter.volume * attenuation);
-
-        // Stereo pan
-        if distance > 0.01 {
-            let dir = to_emitter.normalize();
-            let pan_value = dir.dot(listener_right).clamp(-1.0, 1.0);
-            params.pan.set(pan_value);
-        }
+        let _ = engine.update_tx.send(AudioUpdate::SetEmitterPosition {
+            name: emitter.emitter_name.clone(),
+            position: emitter_transform.translation.to_array(),
+        });
     }
 }
 
@@ -715,29 +578,20 @@ pub fn auto_infer_audio(
             _ => continue,
         }
 
-        let Some((sound, radius)) = audio_graphs::infer_emitter_from_name(name.as_str()) else {
+        let Some((sound, radius)) = localgpt_world_audio::infer_emitter_from_name(name.as_str())
+        else {
             continue;
         };
 
         let emitter_name = format!("{}_audio", name.as_str());
-        if engine.emitter_params.contains_key(&emitter_name) {
+        if engine.emitter_names.contains(&emitter_name) {
             continue;
         }
 
         let base_volume = 0.6;
         let pos = transform.translation.to_array();
 
-        let vol_shared = Shared::new(base_volume);
-        let pan_shared = Shared::new(0.0);
-
-        engine.emitter_params.insert(
-            emitter_name.clone(),
-            EmitterSharedParams {
-                volume: vol_shared.clone(),
-                pan: pan_shared.clone(),
-            },
-        );
-
+        engine.emitter_names.insert(emitter_name.clone());
         engine.emitter_meta.insert(
             emitter_name.clone(),
             EmitterMeta {
@@ -750,11 +604,12 @@ pub fn auto_infer_audio(
             },
         );
 
-        let _ = engine.graph_tx.send(AudioGraphUpdate::AddEmitter {
+        let _ = engine.update_tx.send(AudioUpdate::AddEmitter {
             name: emitter_name.clone(),
             sound: sound.clone(),
-            volume_shared: vol_shared,
-            pan_shared,
+            volume: base_volume,
+            radius,
+            position: pos,
         });
 
         commands.entity(entity).insert(AudioEmitter {
@@ -763,22 +618,28 @@ pub fn auto_infer_audio(
             volume: base_volume,
             emitter_name,
         });
-
-        tracing::debug!("Auto-inferred audio emitter for entity '{}'", name.as_str());
     }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-fn emitter_sound_type_name(sound: &EmitterSound) -> String {
+/// The short name of a sound, for the inspector and `gen_audio_info`.
+fn emitter_sound_type_name(sound: &AudioSource) -> String {
     match sound {
-        EmitterSound::Water { .. } => "water".to_string(),
-        EmitterSound::Fire { .. } => "fire".to_string(),
-        EmitterSound::Hum { .. } => "hum".to_string(),
-        EmitterSound::Wind { .. } => "wind".to_string(),
-        EmitterSound::Custom { .. } => "custom".to_string(),
+        AudioSource::Water { .. } => "water".to_string(),
+        AudioSource::Fire { .. } => "fire".to_string(),
+        AudioSource::Hum { .. } => "hum".to_string(),
+        AudioSource::WindEmitter { .. } => "wind".to_string(),
+        AudioSource::Custom { .. } => "custom".to_string(),
+        // Ambient-only shapes never reach an emitter, but the format's enum
+        // is shared, so name them rather than panic.
+        AudioSource::Wind { .. } => "wind".to_string(),
+        AudioSource::Rain { .. } => "rain".to_string(),
+        AudioSource::Forest { .. } => "forest".to_string(),
+        AudioSource::Ocean { .. } => "ocean".to_string(),
+        AudioSource::Cave { .. } => "cave".to_string(),
+        AudioSource::Stream { .. } => "stream".to_string(),
+        AudioSource::Abc { .. } => "abc".to_string(),
+        AudioSource::File { .. } => "file".to_string(),
+        AudioSource::Silence => "silence".to_string(),
     }
 }
 
@@ -789,80 +650,34 @@ mod tests {
     #[test]
     fn test_emitter_sound_type_name() {
         assert_eq!(
-            emitter_sound_type_name(&EmitterSound::Water { turbulence: 0.5 }),
+            emitter_sound_type_name(&AudioSource::Water { turbulence: 0.5 }),
             "water"
         );
         assert_eq!(
-            emitter_sound_type_name(&EmitterSound::Fire {
-                intensity: 0.5,
-                crackle: 0.3
+            emitter_sound_type_name(&AudioSource::Fire {
+                intensity: 0.7,
+                crackle: 0.5
             }),
             "fire"
         );
         assert_eq!(
-            emitter_sound_type_name(&EmitterSound::Hum {
-                frequency: 120.0,
+            emitter_sound_type_name(&AudioSource::Hum {
+                frequency: 220.0,
                 warmth: 0.5
             }),
             "hum"
         );
         assert_eq!(
-            emitter_sound_type_name(&EmitterSound::Wind { pitch: 400.0 }),
+            emitter_sound_type_name(&AudioSource::WindEmitter { pitch: 300.0 }),
             "wind"
         );
         assert_eq!(
-            emitter_sound_type_name(&EmitterSound::Custom {
-                waveform: WaveformType::Sine,
-                filter_cutoff: 1000.0,
-                filter_type: FilterType::Lowpass,
+            emitter_sound_type_name(&AudioSource::Custom {
+                waveform: wt::WaveformType::WhiteNoise,
+                filter_cutoff: 2000.0,
+                filter_type: wt::FilterType::Lowpass
             }),
             "custom"
         );
-    }
-
-    #[test]
-    fn test_audio_emitter_component() {
-        let emitter = AudioEmitter {
-            sound: EmitterSound::Water { turbulence: 0.8 },
-            radius: 15.0,
-            volume: 0.6,
-            emitter_name: "fountain_audio".to_string(),
-        };
-        assert_eq!(emitter.radius, 15.0);
-        assert_eq!(emitter.volume, 0.6);
-        assert_eq!(emitter.emitter_name, "fountain_audio");
-    }
-
-    #[test]
-    fn test_emitter_meta() {
-        let meta = EmitterMeta {
-            sound_type: "fire".to_string(),
-            sound: EmitterSound::Fire {
-                intensity: 0.7,
-                crackle: 0.4,
-            },
-            base_volume: 0.5,
-            radius: 10.0,
-            attached_to: Some("campfire".to_string()),
-            position: Some([1.0, 0.0, 2.0]),
-        };
-        assert_eq!(meta.sound_type, "fire");
-        assert_eq!(meta.base_volume, 0.5);
-        assert_eq!(meta.attached_to, Some("campfire".to_string()));
-        assert_eq!(meta.position, Some([1.0, 0.0, 2.0]));
-    }
-
-    #[test]
-    fn test_emitter_meta_standalone() {
-        let meta = EmitterMeta {
-            sound_type: "water".to_string(),
-            sound: EmitterSound::Water { turbulence: 0.3 },
-            base_volume: 0.8,
-            radius: 20.0,
-            attached_to: None,
-            position: None,
-        };
-        assert!(meta.attached_to.is_none());
-        assert!(meta.position.is_none());
     }
 }

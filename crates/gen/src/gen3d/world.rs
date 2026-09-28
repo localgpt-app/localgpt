@@ -357,7 +357,7 @@ pub fn handle_save_world(
         // Audio emitter (check if this entity has audio attached)
         // Audio emitters are tracked in AudioEngine.emitter_meta by name.
         if let Some(meta) = audio_engine.emitter_meta.get(name) {
-            let source: wt::AudioSource = (&meta.sound).into();
+            let source = meta.sound.clone();
             we.audio = Some(wt::AudioDef {
                 kind: wt::AudioKind::Sfx,
                 source,

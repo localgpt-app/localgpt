@@ -364,13 +364,15 @@ op log (`<workspace>/sessions/<name>/ops.jsonl`) with per-user `/undo`,
 `crates/gen/src/net/`; the SpacetimeDB module carries the cloud-tier
 inference queue (`crates/spacetime/src/jobs.rs`).
 
-**Audio System:** FunDSP v0.20 synthesis + cpal output, 3-thread model
-(Bevy main → audio mgmt thread → cpal callback) with lock-free `Shared<f32>`
-params. Ambient (Wind/Rain/Forest/Ocean/Cave/Stream/Silence) and spatial
-distance-attenuated emitters (Water/Fire/Hum/Wind/Custom). Auto-inference from
-entity names ("campfire", "waterfall"). Tools: `gen_set_ambience`,
-`gen_audio_emitter`, `gen_modify_audio`, `gen_audio_info`. See
-`docs/gen/gen-audio.md`.
+**Audio System:** `localgpt-world-audio` — one kira `AudioManager` with the
+FunDSP graphs feeding it as sources. The Bevy side (`gen3d/audio.rs`) keeps
+metadata and forwards listener/emitter transforms to a dedicated thread that
+owns the engine; emitters are kira spatial tracks, so distance attenuation and
+panning come from positions rather than per-frame math. Ambient
+(Wind/Rain/Forest/Ocean/Cave/Stream/Silence) and spatial emitters
+(Water/Fire/Hum/Wind/Custom). Auto-inference from entity names ("campfire",
+"waterfall"). Tools: `gen_set_ambience`, `gen_audio_emitter`,
+`gen_modify_audio`, `gen_audio_info`. See `docs/gen/gen-audio.md`.
 
 **Behavior System:** Declarative, data-driven animations (all 7 types in
 `world-types`): `orbit`, `spin`, `bob`, `look_at`, `pulse`, `path_follow`

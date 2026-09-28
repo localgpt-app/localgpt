@@ -2,7 +2,7 @@
 
 ## Overview
 
-LocalGPT Gen mode includes a procedural environmental audio system built on FunDSP v0.20 and cpal. The system synthesizes natural-sounding ambient soundscapes and spatial sound emitters that respond to camera position in real-time.
+LocalGPT Gen mode includes a procedural environmental audio system built on FunDSP synthesis inside a kira mixer (via `localgpt-world-audio`, the one mapping from the world format's audio types to sound). The system synthesizes natural-sounding ambient soundscapes and spatial sound emitters that respond to camera position in real-time.
 
 ### Architecture
 
@@ -21,34 +21,31 @@ LocalGPT Gen mode includes a procedural environmental audio system built on FunD
 │ • spatial_audio_update()             │
 │ • auto_infer_audio()                 │
 │                                      │
-│ Sets Shared<f32> params lock-free    │
+│ Holds AudioEngine metadata + the     │
+│ update channel's sender              │
 └──────────────┬───────────────────────┘
-               │ Shared<f32> (atomic)
+               │ AudioUpdate messages
 ┌──────────────▼───────────────────────┐
-│ Audio Management Thread              │
+│ Audio Thread                         │
 │                                      │
-│ • Owns FunDSP Net frontend           │
-│ • Processes AudioGraphUpdate msgs    │
-│ • Rebuilds graphs on structural      │
-│   changes (add/remove sounds)        │
-└──────────────┬───────────────────────┘
-               │ Net backend
-┌──────────────▼───────────────────────┐
-│ cpal Audio Callback Thread           │
-│                                      │
-│ • Owns FunDSP Net backend            │
-│ • Reads Shared params (lock-free)    │
-│ • Renders 512 samples per callback   │
-│ • Outputs stereo to system audio     │
+│ • Owns localgpt-world-audio Engine   │
+│   (one kira AudioManager)            │
+│ • Emitters are kira spatial tracks:  │
+│   distance attenuation and panning   │
+│   come from positions alone          │
+│ • FunDSP graphs feed the mixer as    │
+│   sources (FundspSound)              │
 └──────────────────────────────────────┘
 ```
 
 **Key design choices:**
 - **Bevy owns main thread** (macOS GPU/windowing requirement)
-- **Audio thread manages graph structure** (Net frontend), avoiding blocking Bevy
-- **cpal callback uses Net backend** for sample rendering
-- **Lock-free Shared params** for volume/pan updates with zero blocking
-- **Full graph rebuilds** only on structural changes (add/remove emitters), not parameter updates
+- **kira owns the device and the mixer**; FunDSP is a synthesis DSL feeding it, not a rival engine — the graphs are Gen's, unchanged, and the transport is kira's
+- **Spatial tracks replace per-frame math**: an emitter is a sub-track with min/max distances, so moving the listener or the emitter attenuates and pans it; the old quadratic falloff is now kira's distance curve
+- **Volume is amplitude** (the format's unit) and converts to decibels at the engine edge
+- **No output device is silence, not an error** — headless runners get a quiet world
+
+`localgpt-world-audio` is shared with MD and Verse, so one process can play a document world's ambience and a song world's soundtrack at once.
 
 ## Sound Types
 
@@ -270,7 +267,9 @@ gen_modify_audio({
 
 ### FunDSP Graph Patterns
 
-Each sound compiles to a FunDSP `AudioUnit`. Complex sounds use `Net` (dynamic graph) with explicit node connections:
+The graphs live in `localgpt-world-audio/src/graphs.rs`, keyed on
+`wt::AudioSource` — the format's union of what used to be Gen's
+`AmbientSound` and `EmitterSound`. Each sound compiles to a FunDSP `AudioUnit`. Complex sounds use `Net` (dynamic graph) with explicit node connections:
 
 **Ambient Wind (simple):**
 ```rust
