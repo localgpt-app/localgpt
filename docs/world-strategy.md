@@ -775,6 +775,23 @@ one engine there is no device contention — but not the decision: Gen stays a
 separate binary for its toolbelt, its user and its onboarding, which is the
 seam that was always doing the work.
 
+**Status (2026-09-27, later): built, and both apps are on it.** The crate is
+`graphs::build` (the twelve FunDSP builders, keyed on `wt::AudioSource`, pure
+and testable without a device), `FundspSound` (a graph as a kira voice:
+retunes on a sample-rate mismatch, clamps non-finite samples, finishes when
+its handle drops) and `Engine` (the `AudioManager`, ambience layers, spatial
+emitters as distance-attenuating sub-tracks, master volume, `manager()` for a
+caller's own playback layers). Gen's `gen3d/audio.rs` was rewritten onto it:
+same public surface, but the cpal transport, the in-place Net rebuilds, the
+per-frame attenuation and panning math are gone — `spatial_audio_update`
+forwards transforms and kira does the rest — and fundsp and cpal left Gen's
+Cargo.toml. Verse's `AudioInner` holds the Engine and adds its music sub-track
+and tap effect through `manager()`, so soundtrack and ambience provably share
+one mixer. Still open: mapping `AmbienceLayerDef`/`AudioEmitterSpec` from a
+`WorldManifest` directly (both apps currently drive the Engine from their own
+command paths), and `SoundtrackDef` playback as more than Verse's internal
+layer.
+
 ### 13.7 Artifacts and delivery channels
 
 Nothing below ships today. The three repositories carry `ci.yml` and (in
