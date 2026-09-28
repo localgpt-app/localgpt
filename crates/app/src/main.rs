@@ -5,7 +5,8 @@
 //! world viewport — with Markdown as the first second-class input: `--md
 //! doc.md` compiles the document with MD's pure lib (the rule-derived draft
 //! plus any ```world fences) and opens it as a world in the same viewport,
-//! tour and all, where the full toolbelt still works on it.
+//! tour and all, where Gen's tools still work on it (the `core` profile
+//! unless `--tools` or Gen's settings say otherwise).
 //!
 //! ```sh
 //! cargo run -p localgpt-app                          # the shell
@@ -189,15 +190,11 @@ fn main() -> anyhow::Result<()> {
     let (bridge, channels) = gen3d::create_gen_channels();
     let (panel_channels, agent_channels) = desktop::create_chat_channels();
 
-    let tool_profile = match args.tools.as_deref() {
-        Some("core") => gen3d::tool_profile::ToolProfile::Core,
-        Some("standard") => gen3d::tool_profile::ToolProfile::Standard,
-        Some("full") | None => gen3d::tool_profile::ToolProfile::Full,
-        Some(other) => {
-            eprintln!("localgpt-app: --tools {other:?} (core, standard, full)");
+    let tool_profile = tool_profile(args.tools.as_deref(), config.r#gen.tool_profile.as_deref())
+        .unwrap_or_else(|e| {
+            eprintln!("localgpt-app: {e}");
             std::process::exit(2);
-        }
-    };
+        });
 
     // The agent on a background thread: Bevy owns the main thread (macOS).
     let agent_config = config.clone();
@@ -283,6 +280,26 @@ fn file_name(path: &std::path::Path) -> String {
         .unwrap_or_default()
 }
 
+/// The prompt panel's toolbelt: `--tools`, else the profile picked in Gen's
+/// settings, else `core`. Gen alone falls back to `full` — it is the tool for
+/// building a world tool by tool — but this app opens for anyone
+/// (docs/world-strategy.md §13.2: core, deterministic default), and the full
+/// belt's ~14k tokens of schema ride on every request, more than a small
+/// local model's whole context.
+fn tool_profile(
+    flag: Option<&str>,
+    saved: Option<&str>,
+) -> Result<gen3d::tool_profile::ToolProfile, String> {
+    use gen3d::tool_profile::ToolProfile;
+    if let Some(flag) = flag {
+        return ToolProfile::parse(flag)
+            .ok_or_else(|| format!("--tools {flag:?} (core, standard, full)"));
+    }
+    Ok(saved
+        .and_then(ToolProfile::parse)
+        .unwrap_or(ToolProfile::Core))
+}
+
 /// The panel-driven agent: one turn per prompt, everything else identical to
 /// Gen's desktop loop in shape (safe tools + memory writes + the gen tools,
 /// filtered by the tool profile). Streaming is folded into a single Delta —
@@ -336,4 +353,25 @@ async fn run_agent(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gen3d::tool_profile::ToolProfile;
+
+    #[test]
+    fn the_app_opens_with_the_core_toolbelt_unless_told_otherwise() {
+        assert_eq!(tool_profile(None, None), Ok(ToolProfile::Core));
+        // What the user picked in Gen's settings carries over.
+        assert_eq!(tool_profile(None, Some("full")), Ok(ToolProfile::Full));
+        // The flag beats the setting.
+        assert_eq!(
+            tool_profile(Some("standard"), Some("full")),
+            Ok(ToolProfile::Standard)
+        );
+        // A bad setting must not stop the app opening; a bad flag is an error.
+        assert_eq!(tool_profile(None, Some("typo")), Ok(ToolProfile::Core));
+        assert!(tool_profile(Some("typo"), None).is_err());
+    }
 }
