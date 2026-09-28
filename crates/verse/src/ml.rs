@@ -268,10 +268,6 @@ pub fn mood_for(embedding: &[f32]) -> usize {
 // The model
 // ---------------------------------------------------------------------------
 
-/// Re-exported so ml.rs callers (and tests) keep the short name; the
-/// definition lives in `crate::analysis` (ungated — placement uses it too).
-pub(crate) use crate::analysis::dot_normed;
-
 /// The CLAP audio branch. `None` from `try_load` when the model file is
 /// missing — the caller keeps the rule-based mood (graceful fallback).
 pub struct ClapModel {
@@ -430,6 +426,9 @@ impl TextEmbedder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Defined in `analysis` (ungated — placement uses it too); its cosine
+    // checks live here beside the embeddings they compare.
+    use crate::analysis::dot_normed;
 
     /// The same deterministic signal the Python reference fixture used.
     fn test_signal() -> Vec<f32> {
