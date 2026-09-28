@@ -439,6 +439,7 @@ stays the guarantee that a world renders the same everywhere (§5.3).
 | Multiplayer in v1 | Out. A shared link carries most of the social value of a shared room at a fraction of the cost; `world-sync` and `localgpt-relay` ship after. |
 | Live SpacetimeDB plots in v1 | Out. Static R2 snapshots plus posters prove the loop first (§3). |
 | The assistant stack inside Worlds | Absent, not gated: no memory, dreaming, cron, heartbeat, bridges, MCP or POLICY. |
+| Verse's `ml` tier in a paid build | Out. LAION CLAP is CC-BY-NC-4.0, so the tier it powers — semantic moods and asset-selection ranking — ships only while Worlds is free. HT-Demucs (MIT) is **not** a substitute: it separates stems, it cannot tell that a track sounds aggressive. Without `ml` the rule-derived mood stands, which §13.3 already calls a finished world for a song. |
 | Android renderer | The web viewer in a WebView. One renderer per tier: Bevy on desktop, RealityKit on iOS, three.js on Android and web. |
 
 ### 13.2 The two names
@@ -860,10 +861,17 @@ why the on-device tier of §13.3 is not a nicety there but the only path.
   only ambience, emitters and soundtrack, or the modulation evaluation too;
   and whether kira 0.12's spatial-track and listener API covers what Gen's
   hand-rolled distance attenuation does today.
-- **The CLAP licence bars it from a paid product.** `fetch-clap.sh` notes
-  LAION CLAP is CC-BY-NC-4.0, so the mood and asset-selection tier it powers
-  cannot ship in a commercial Worlds; HT-Demucs (MIT) is the commercial-clean
-  path. Decide before Worlds has a price, not after.
+- Whether a permissively licensed audio-text embedding model can replace CLAP
+  well enough to restore semantic moods to a paid build (§13.1 ships without
+  it for now). Not a drop-in: `ml.rs`'s mel frontend is validated against
+  Hugging Face's `ClapFeatureExtractor`, and the four mood embeddings would
+  need regenerating.
+- Whether `crates/verse/assets/ml/mood_text_embeddings.json` — 28 KB of CLAP
+  *output*, committed in an Apache-2.0 repository and naming its own
+  provenance — may be redistributed there. It is compiled only under `ml`
+  (`mod ml` is cfg-gated), so it is in no default binary, but it is in the
+  source. Whether model outputs inherit a model's licence is unsettled; one
+  for counsel, with the trademark questions.
 
 ## Sources
 

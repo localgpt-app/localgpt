@@ -18,5 +18,7 @@ localgpt-world-types = { workspace = true }
 # which is what Worlds has to do.
 kira = { version = "0.12", features = ["aiff", "aac", "isomp4", "alac"] }
 fundsp = "0.23"
+# kira takes positions and orientations as mint types.
+mint = "0.5"
 
 tracing = { workspace = true }

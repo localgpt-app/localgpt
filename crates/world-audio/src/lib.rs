@@ -26,9 +26,11 @@
 //! [`graphs`] is pure synthesis and needs no device, so it is testable without
 //! one; that is where the conformance of a sound to the format lives.
 
+pub mod engine;
 pub mod graphs;
 pub mod source;
 
+pub use engine::Engine;
 pub use graphs::{build, infer_emitter_from_name};
 pub use source::FundspSound;
 

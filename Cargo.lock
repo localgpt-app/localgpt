@@ -8615,6 +8615,7 @@ dependencies = [
  "fundsp",
  "kira",
  "localgpt-world-types",
+ "mint",
  "tracing",
 ]
 
