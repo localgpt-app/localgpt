@@ -849,7 +849,10 @@ mod tests {
         std::fs::write(repo.join("snapshots/abc123/model.onnx"), b"onnx").unwrap();
         assert!(local_model_cached(None, Some(cache)));
         assert!(local_model_cached(Some("all-MiniLM-L6-v2"), Some(cache)));
-        assert!(!local_model_cached(Some("bge-m3"), Some(cache)), "another model");
+        assert!(
+            !local_model_cached(Some("bge-m3"), Some(cache)),
+            "another model"
+        );
         assert!(!local_model_cached(Some("no-such-model"), Some(cache)));
     }
 
