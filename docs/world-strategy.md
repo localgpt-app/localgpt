@@ -496,7 +496,9 @@ navigation/hierarchy UI. That is product work, not an engine rewrite.
 agent loop — assembled from the gen lib, with documents and songs as inputs:
 
 - **Documents** (`--md`). An editor pane beside the viewport; the file saves
-  and the world rebuilds 0.7 s after typing stops. The app's own model
+  and the world rebuilds 0.7 s after typing stops — in place, changing only
+  the sections whose text changed (verified: an edit to one of three
+  sections replaced 11 entities and kept 54, assets loaded). The app's own model
   authors each section through `world-agent`'s protocol — one request per
   section with a JSON plan, so it works on the zero-config default, a
   signed-in CLI backend, which ignores tool schemas. Builds land in MD's
