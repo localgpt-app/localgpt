@@ -18,7 +18,7 @@ use kira::info::Info;
 use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
 use kira::sound::{FromFileError, PlaybackState};
 use kira::track::{TrackBuilder, TrackHandle};
-use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Easing, Frame, Tween};
+use kira::{Easing, Frame, Tween};
 use lofty::file::{AudioFile, TaggedFileExt};
 use lofty::tag::Accessor;
 
@@ -55,9 +55,13 @@ pub(crate) fn crossfade_secs(duration: f32) -> f32 {
 // ---------------------------------------------------------------------------
 
 struct AudioInner {
-    /// Owns the audio thread — never read after setup, must stay alive.
+    /// Owns the audio thread — never read after setup, must stay alive. This
+    /// is `localgpt-world-audio`'s Engine rather than a bare AudioManager so
+    /// that a process playing both a soundtrack and synthesized ambience
+    /// (Worlds) shares one device and one mixer; Verse adds its music
+    /// sub-track and the analysis tap effect through `Engine::manager()`.
     #[allow(dead_code)]
-    manager: AudioManager<DefaultBackend>,
+    engine: localgpt_world_audio::Engine,
     /// All music plays on this sub-track so the tap effect hears it.
     track: TrackHandle,
     handle: Option<StreamingSoundHandle<FromFileError>>,
@@ -89,14 +93,14 @@ pub struct AudioTap(Arc<TapShared>);
 /// Create the audio device. On failure the app runs silent (simulated clock).
 pub fn init_audio(player: ResMut<AudioPlayer>, tap: Res<AudioTap>) {
     let mut guard = player.0.lock().unwrap();
-    match AudioManager::<DefaultBackend>::new(AudioManagerSettings::default()) {
-        Ok(mut manager) => {
+    match localgpt_world_audio::Engine::new() {
+        Some(mut engine) => {
             // Music sub-track with the analysis tap effect (PLAN.md M2).
             let builder = TrackBuilder::new().with_effect(TapBuilder(tap.0.clone()));
-            match manager.add_sub_track(builder) {
+            match engine.manager().add_sub_track(builder) {
                 Ok(track) => {
                     *guard = Some(AudioInner {
-                        manager,
+                        engine,
                         track,
                         handle: None,
                         fading_out: None,
@@ -110,7 +114,7 @@ pub fn init_audio(player: ResMut<AudioPlayer>, tap: Res<AudioTap>) {
                 Err(e) => warn!("Audio mixer setup failed — running silent ({e})"),
             }
         }
-        Err(e) => warn!("No audio device — running silent ({e})"),
+        None => warn!("No audio device — running silent"),
     }
 }
 

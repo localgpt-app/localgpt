@@ -114,6 +114,14 @@ impl Engine {
         })
     }
 
+    /// The mixer, for callers with their own playback layers to add — Verse's
+    /// soundtrack track and its analysis tap effect, for instance. Everything
+    /// this crate maps goes through the same manager, so one process has one
+    /// device and one mixer no matter how many kinds of sound it plays.
+    pub fn manager(&mut self) -> &mut AudioManager {
+        &mut self.manager
+    }
+
     /// Master volume, as amplitude.
     pub fn set_master_volume(&mut self, amplitude: f32) {
         self.manager

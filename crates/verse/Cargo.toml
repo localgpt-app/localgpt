@@ -39,6 +39,11 @@ ebur128 = "0.1"   # integrated loudness (LUFS) for volume normalization
 # fold. world-agent also owns the shared model and asset-pack directories.
 localgpt-world-types = { workspace = true }
 localgpt-world-agent = { workspace = true }
+# The one audio mapping. Verse keeps kira for its own playback layer
+# (streaming decode, clocks, the analysis tap effect) but owns the device
+# through world-audio's Engine, so soundtrack and synthesized ambience share
+# one mixer when the apps merge into Worlds.
+localgpt-world-audio = { workspace = true }
 ron = "0.12"      # `.world.ron`, Gen's save format, next to the JSON export
 
 

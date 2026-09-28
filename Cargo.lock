@@ -8575,6 +8575,7 @@ dependencies = [
  "etcetera",
  "kira",
  "localgpt-world-agent",
+ "localgpt-world-audio",
  "localgpt-world-types",
  "lofty",
  "mistralrs",
