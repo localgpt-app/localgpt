@@ -8312,12 +8312,17 @@ dependencies = [
  "anyhow",
  "bevy 0.19.0",
  "bevy_egui",
+ "blake3",
  "localgpt-core",
  "localgpt-gen",
  "localgpt-md",
+ "localgpt-world-agent",
  "localgpt-world-types",
  "ron",
+ "serde",
+ "serde_json",
  "tokio",
+ "tracing",
  "tracing-subscriber",
 ]
 

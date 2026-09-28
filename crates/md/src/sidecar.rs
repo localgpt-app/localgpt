@@ -36,7 +36,8 @@ const VERSION: u32 = 2;
 /// renumbers them into the section's id band) plus provenance.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildEntry {
-    /// The GGUF file name that authored this build (PLAN.md M2's open note).
+    /// The model that authored this build: MD's GGUF file name (PLAN.md M2's
+    /// open note), or the LocalGPT app's `provider/model` id.
     pub model: String,
     /// The model's closing description of the place (logged, and there for
     /// future UI surfacing).

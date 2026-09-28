@@ -14,6 +14,14 @@ localgpt-gen = { path = "../gen" }
 # and never needs MD's renderer, which is this app's own viewport.
 localgpt-md = { path = "../md", default-features = false }
 localgpt-world-types = { workspace = true }
+# The world-building protocol (tool specs, section prompt, Session) that the
+# app drives with its configured model, as MD drives it with a local GGUF.
+localgpt-world-agent = { workspace = true }
+# Section hashes are MD's cache keys.
+blake3 = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
 
 tokio = { workspace = true }
 anyhow = { workspace = true }

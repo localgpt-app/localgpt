@@ -10,6 +10,7 @@
 //! ```sh
 //! cargo run -p localgpt-app                          # the shell
 //! cargo run -p localgpt-app -- --md notes.md         # a document as a world
+//! cargo run -p localgpt-app -- --md notes.md --no-author   # rules only, no model
 //! cargo run -p localgpt-app -- --world place.json    # any world manifest
 //! ```
 //!
@@ -18,6 +19,7 @@
 //! do is duplicate Gen's entry path — everything heavy comes from the gen
 //! lib, and this is the thin assembly.
 
+mod authoring;
 mod document;
 
 use std::path::PathBuf;
@@ -40,6 +42,8 @@ struct Args {
     md: Option<PathBuf>,
     world: Option<String>,
     tools: Option<String>,
+    /// Build documents from rules and fences only, never asking a model.
+    no_author: bool,
 }
 
 fn parse_args() -> Args {
@@ -50,8 +54,11 @@ fn parse_args() -> Args {
             "--md" => args.md = iter.next().map(PathBuf::from),
             "--world" => args.world = iter.next(),
             "--tools" => args.tools = iter.next(),
+            "--no-author" => args.no_author = true,
             other => {
-                eprintln!("localgpt-app: unknown argument {other:?} (--md, --world, --tools)");
+                eprintln!(
+                    "localgpt-app: unknown argument {other:?} (--md, --world, --tools, --no-author)"
+                );
                 std::process::exit(2);
             }
         }
@@ -147,13 +154,15 @@ fn main() -> anyhow::Result<()> {
             world.entities.len(),
             doc.sections.len(),
         );
-        live_document = Some(document::Document::new(
-            md.clone(),
-            dir.clone(),
-            text,
-            &doc,
-            &world,
-        ));
+        let mut live = document::Document::new(md.clone(), dir.clone(), text, &doc, &world);
+        // The model authors each section's place in the background; the draft
+        // above is on screen meanwhile, and each build replaces its section's
+        // draft as it lands. Same model as the prompt panel.
+        if !args.no_author {
+            let manifest = localgpt_md::assets::read_manifest_from_disk();
+            live = live.with_authoring(authoring::Worker::spawn(&config, manifest), &doc);
+        }
+        live_document = Some(live);
         Some(dir.to_string_lossy().into_owned())
     } else {
         args.world.as_ref().map(|world| import(world))
