@@ -714,12 +714,16 @@ impl Document {
         Some(line)
     }
 
-    /// A section's heading, as the outline shows it.
-    fn heading(&self, section: usize) -> Option<&str> {
+    /// A section's own row in the outline (not one of its sub-headings').
+    fn section_row(&self, section: usize) -> Option<&OutlineItem> {
         self.outline
             .iter()
             .find(|item| item.level == 2 && item.section == Some(section))
-            .map(|item| item.text.as_str())
+    }
+
+    /// A section's heading, as the outline shows it.
+    fn heading(&self, section: usize) -> Option<&str> {
+        self.section_row(section).map(|item| item.text.as_str())
     }
 
     /// Select a section and fly to its place.
@@ -1018,7 +1022,9 @@ fn watch_file(mut doc: ResMut<Document>) {
     }
 }
 
-/// World → text: selecting an entity highlights the section it belongs to.
+/// World → text: selecting an entity (a click in the viewport while Gen's
+/// inspector is showing) selects the section it belongs to and brings that
+/// section's heading into view in the editor.
 fn follow_selection(
     selection: Option<Res<InspectorSelection>>,
     names: Query<&Name>,
@@ -1034,8 +1040,13 @@ fn follow_selection(
         .entity
         .and_then(|entity| names.get(entity).ok())
         .and_then(|name| section_of(name.as_str()));
-    if section.is_some() {
-        doc.selected = section;
+    // Another thing in the section already selected — a chip on its place
+    // card — leaves the editor where the writer has it.
+    if let Some(section) = section
+        && doc.selected != Some(section)
+    {
+        doc.selected = Some(section);
+        doc.scroll_to_line = doc.section_row(section).and_then(|row| row.line);
     }
 }
 
@@ -1253,7 +1264,8 @@ fn document_panel(
                     if output.response.changed() {
                         doc.edited_at = Some(Instant::now());
                     }
-                    // An outline click brings its heading into view. The
+                    // An outline click, or a thing picked in the world,
+                    // brings the section's heading into view. The
                     // editor does not take focus: keys would type into the
                     // document instead of moving through the world.
                     if let Some(line) = doc.scroll_to_line.take() {
@@ -1543,6 +1555,41 @@ mod tests {
             "temp file left behind"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn picking_a_thing_in_the_world_scrolls_the_text_to_its_section() {
+        let text = "# Trip\n\n## Harbor\n\nBoats.\n\n## Lighthouse\n\nA beam.\n";
+        let md = std::env::temp_dir().join("localgpt-app-follow/trip.md");
+        let (doc, world) = compile(text, &md);
+        let document = Document::new(
+            md.clone(),
+            md.with_extension("world"),
+            text.to_string(),
+            &doc,
+            &world,
+        );
+        let mut app = App::new();
+        app.insert_resource(document)
+            .init_resource::<InspectorSelection>()
+            .add_systems(Update, follow_selection);
+        let beam = app.world_mut().spawn(Name::new("s02-beam")).id();
+        let lamp = app.world_mut().spawn(Name::new("s02-lamp")).id();
+
+        app.world_mut().resource_mut::<InspectorSelection>().entity = Some(beam);
+        app.update();
+        let doc = app.world().resource::<Document>();
+        assert_eq!(doc.selected, Some(1), "the Lighthouse section");
+        assert_eq!(doc.scroll_to_line, Some(6), "its heading's line");
+
+        // The editor takes the scroll; then another thing of the same
+        // section is picked (a chip on its card): the text stays put.
+        app.world_mut().resource_mut::<Document>().scroll_to_line = None;
+        app.world_mut().resource_mut::<InspectorSelection>().entity = Some(lamp);
+        app.update();
+        let doc = app.world().resource::<Document>();
+        assert_eq!(doc.selected, Some(1));
+        assert_eq!(doc.scroll_to_line, None);
     }
 
     #[test]
