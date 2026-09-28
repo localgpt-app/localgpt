@@ -16,12 +16,15 @@
 //!   `--join` window without a terminal.
 //! - [`shell_env`]: recovers the login shell's `PATH`, which apps launched
 //!   from Finder don't inherit, so CLI backends like `claude` are found.
+//! - [`fonts`]: a system CJK font as egui's lowest-priority fallback, so
+//!   Chinese, Japanese and Korean text in the panels isn't empty boxes.
 
 pub mod chat;
 #[cfg(feature = "multiplayer")]
 pub mod client_panel;
 #[cfg(feature = "multiplayer")]
 pub(crate) mod collab;
+pub mod fonts;
 pub mod hardware;
 pub mod models;
 pub mod panel;

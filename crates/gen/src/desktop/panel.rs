@@ -94,7 +94,10 @@ impl Plugin for PromptPanelPlugin {
                 .before(EguiPreUpdateSet::BeginPass),
         )
         .add_systems(Update, receive_chat_events)
-        .add_systems(EguiPrimaryContextPass, prompt_panel_ui);
+        .add_systems(
+            EguiPrimaryContextPass,
+            (super::fonts::install_cjk_fallback, prompt_panel_ui).chain(),
+        );
     }
 }
 
