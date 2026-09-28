@@ -7,6 +7,7 @@ members = [
     "crates/sandbox",
     "crates/mobile-ffi",
     "crates/gen",
+    "crates/app",
     "crates/md",
     "crates/md-web",
     "crates/verse",

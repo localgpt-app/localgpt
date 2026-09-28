@@ -1,0 +1,24 @@
+[package]
+name = "localgpt-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The LocalGPT desktop app — one window, every mode: today the creator shell (Gen) with Markdown worlds (MD); Verse and the assistant follow"
+repository.workspace = true
+keywords = ["localgpt", "desktop", "world", "bevy"]
+
+[dependencies]
+localgpt-core = { workspace = true }
+localgpt-gen = { path = "../gen" }
+# The pure half only: the app compiles Markdown to a world manifest in-process
+# and never needs MD's renderer, which is this app's own viewport.
+localgpt-md = { path = "../md", default-features = false }
+localgpt-world-types = { workspace = true }
+
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing-subscriber = { workspace = true }
+# A world folder is world.ron, the format Gen LoadWorld reads.
+ron = "0.12.1"
+
+bevy = { version = "0.19", features = ["jpeg", "system_font_discovery"] }

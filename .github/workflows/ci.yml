@@ -52,7 +52,7 @@ jobs:
       - uses: ./.github/actions/onnxruntime
       - run: cargo clippy --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
           --exclude localgpt-md --exclude localgpt-verse \
-          --exclude localgpt-world-audio -- -D warnings
+          --exclude localgpt-world-audio --exclude localgpt-app -- -D warnings
 
   test:
     name: Test
@@ -65,7 +65,7 @@ jobs:
       - uses: ./.github/actions/onnxruntime
       - run: cargo test --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
           --exclude localgpt-md --exclude localgpt-verse \
-          --exclude localgpt-world-audio
+          --exclude localgpt-world-audio --exclude localgpt-app
       # world.schema.json must match the types (tests/schema_snapshot.rs).
       - run: cargo test -p localgpt-world-types --features schema
 
@@ -74,7 +74,7 @@ jobs:
   # alsa-sys). Kept apart because Bevy, avian and lightyear dwarf the rest, and
   # because only this job installs $BEVY_APT_DEPS.
   bevy:
-    name: Native deps (Gen, MD, Verse, audio)
+    name: Native deps (app, Gen, MD, Verse, audio)
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
@@ -90,8 +90,8 @@ jobs:
       - name: Install Bevy build deps
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends $BEVY_APT_DEPS
       - uses: ./.github/actions/onnxruntime
-      - run: cargo clippy -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -p localgpt-world-audio -- -D warnings
-      - run: cargo test -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -p localgpt-world-audio
+      - run: cargo clippy -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -p localgpt-world-audio -p localgpt-app -- -D warnings
+      - run: cargo test -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -p localgpt-world-audio -p localgpt-app
 
   # The opt-in tiers are compiled by none of the jobs above, so without this
   # the gated code rots broken while default-feature CI stays green. MD and

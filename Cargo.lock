@@ -8306,6 +8306,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "localgpt-app"
+version = "0.3.6"
+dependencies = [
+ "anyhow",
+ "bevy 0.19.0",
+ "localgpt-core",
+ "localgpt-gen",
+ "localgpt-md",
+ "localgpt-world-types",
+ "ron",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "localgpt-bridge"
 version = "0.3.6"
 dependencies = [
