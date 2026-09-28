@@ -187,9 +187,9 @@ Experiments are tracked in an append-only JSONL file (`<state_dir>/gen-experimen
 - Duration, timestamps, error message
 - Variation group and axis/value
 
-### GPU Exclusivity
+### One at a time
 
-Only one headless generation runs at a time. A file lock (`gen-gpu.lock`) prevents concurrent Bevy instances from fighting over the GPU. The heartbeat runner skips gen experiments if the lock is held and retries on the next tick.
+The heartbeat dispatches one gen experiment per tick and waits for its `localgpt-gen headless` process to exit, so experiments never overlap each other. Nothing keeps a headless run off the GPU while a Gen window is open, though; on a machine with little GPU memory, close the window while experiments run.
 
 ## Gallery
 

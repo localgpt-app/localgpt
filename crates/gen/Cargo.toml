@@ -64,7 +64,7 @@ hex = "0.4"
 # Timestamps for experiment tracking
 chrono = { workspace = true }
 
-# File locking for GPU exclusivity (unix only, used by gpu_lock)
+# flock for the experiment log (experiment.rs, unix only)
 libc = "0.2"
 
 # WebSocket inspector protocol (Spec 0.6)
@@ -101,10 +101,6 @@ base64 = "0.22"
 mistralrs = { version = "0.8", optional = true }
 # Names mistral.rs's message type in src/local_llm.rs's request wrapper.
 indexmap = { version = "2", optional = true }
-
-# File locking for GPU exclusivity (Windows)
-[target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Storage_FileSystem", "Win32_System_IO"] }
 
 [dev-dependencies]
 tempfile = "3.27"

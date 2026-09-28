@@ -11,8 +11,6 @@ pub mod config;
 pub mod desktop;
 pub mod experiment;
 pub mod gen3d;
-pub mod gpu_lock;
-pub mod heartbeat_gen;
 pub mod inspector;
 pub mod interaction;
 #[cfg(feature = "local-llm")]
