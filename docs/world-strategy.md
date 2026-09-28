@@ -432,7 +432,7 @@ stays the guarantee that a world renders the same everywhere (§5.3).
 
 | Question | Decision |
 |---|---|
-| How many apps ship | Two: **Worlds** (consumer) and **Gen** (creator). MD and Verse become input modes of Worlds, not products ([§13.2](#132-the-two-names)). |
+| How many apps ship | **Revised (2026-09-28): one desktop app.** All four use cases — assistant, Gen, MD, Verse — are modes of a single LocalGPT desktop app, not two products or a launcher. Supersedes the Worlds/Gen split below it in priority; §13.2's naming note follows. |
 | Where generation happens | Deterministic first, on-device second, local GGUF last ([§13.3](#133-generation-tiers)). Link-first, not local-first. |
 | What the product hands a user | A link: `localgpt.world/w/<hash>`. The world is the unit; the apps are editors of it. |
 | localgpt.md | No longer a 301 to `md.localgpt.app`. It becomes a zero-install, no-model utility ([§13.4](#134-localgptmd-the-developer-wedge)), reversing §12.1. |
@@ -462,6 +462,34 @@ removed the last *technical* reason Gen was a separate binary — if Worlds ever
 grows a creator mode, there is nothing left to launch. If a hub-shaped itch
 survives all that, the honest form is an "Apps" panel inside the assistant's
 existing desktop GUI, after Worlds ships, if users ask — a link, not an app.
+
+**One desktop app (2026-09-28).** The consolidation decision goes further than
+the two-app split above: assistant, Gen, MD and Verse become modes of **one**
+desktop app. This is not the launcher — no second binary, no catalog, no update
+protocol; it is the opposite, the door picker inside a single window — and it
+is newly cheap because the unifications landed: one workspace, one world
+format, one renderer (`world-bevy`), one audio engine (`world-audio`, whose
+existence removed the last technical reason Gen was a separate process). The
+merge vehicle is gen's existing desktop shell (Bevy + an egui panel + a world
+viewport + an agent loop), extended with a mode switcher — not a new shell.
+
+The naming note in §13.2 ("Worlds" as the consumer app's own name) softens
+with this: one app named **LocalGPT** with Gen/MD/Verse as its modes is a
+*stronger* trademark posture (one consistent mark on one app, the Adobe/Raycast
+shape) and retires the descriptive-name problem §13.2 flagged. localgpt.world
+is unaffected: the destination, not an app.
+
+MD's mode also carries a raised ambition, decided the same day: **live
+authoring** — the user types Markdown, the LLM analyses each section as it
+settles and rebuilds that section's place in the world, with a bidirectional
+map between text and places (click a heading, fly to its region; click a
+region, scroll to its section) and a hierarchy view of the document's
+structure. MD's existing architecture is already most of this: sections hash
+independently, a changed section regenerates alone, results upgrade in place
+under stable entity ids, and generation runs off the main thread. What is
+genuinely new is the in-app editor pane (egui `TextEdit` — gen already embeds
+egui), a typing debounce feeding the existing worker, and the
+navigation/hierarchy UI. That is product work, not an engine rewrite.
 
 ### 13.2 The two names
 
