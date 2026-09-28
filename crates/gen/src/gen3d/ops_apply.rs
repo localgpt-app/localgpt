@@ -64,6 +64,17 @@ impl OpsApplier<'_, '_> {
     }
     /// Spawn every entity in a document (used after replaying an op log).
     pub fn spawn_all(&mut self, entities: &[wt::WorldEntity]) {
+        self.spawn(entities, None);
+    }
+
+    /// Spawn entities of a world on disk, resolving mesh assets and textures
+    /// against `world_dir` as loading the world does — for callers that
+    /// update a loaded world in place instead of reloading it.
+    pub fn spawn_in_world(&mut self, entities: &[wt::WorldEntity], world_dir: &std::path::Path) {
+        self.spawn(entities, Some(world_dir));
+    }
+
+    fn spawn(&mut self, entities: &[wt::WorldEntity], world_dir: Option<&std::path::Path>) {
         spawn_world_entities(
             entities,
             &mut self.commands,
@@ -74,7 +85,7 @@ impl OpsApplier<'_, '_> {
             &mut self.behavior_state,
             &self.asset_server,
             &mut self.pending_gltf,
-            None,
+            world_dir,
         );
     }
 

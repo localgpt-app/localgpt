@@ -40,7 +40,8 @@ use std::time::{Duration, Instant, SystemTime};
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use localgpt_gen::gen3d::avatar::CameraMode;
-use localgpt_gen::gen3d::plugin::GenInitialWorld;
+use localgpt_gen::gen3d::ops_apply::OpsApplier;
+use localgpt_gen::gen3d::plugin::{CurrentWorld, GenInitialWorld};
 use localgpt_gen::gen3d::registry::NameRegistry;
 use localgpt_gen::inspector::{InspectorMode, InspectorSelection, InspectorState};
 use localgpt_md::doc::Doc;
@@ -512,6 +513,9 @@ pub struct Document {
     follow_cursor: bool,
     /// Scroll the editor to this line on the next frame (an outline click).
     scroll_to_line: Option<usize>,
+    /// The world as the scene shows it, so a rebuild can change only what
+    /// differs.
+    shown: wt::WorldManifest,
 }
 
 impl Document {
@@ -552,6 +556,7 @@ impl Document {
             caret_section: None,
             follow_cursor: true,
             scroll_to_line: None,
+            shown: world.clone(),
         };
         document.refresh(doc, world);
         document.sync_authoring(doc, false);
@@ -769,8 +774,49 @@ impl Plugin for DocumentPlugin {
     }
 }
 
+/// What a rebuild changes in the scene: the ids of entities the new world no
+/// longer has, or has differently, and the entities that are new or changed.
+/// Everything else — every section the edit did not touch — is left alone,
+/// so its assets stay loaded and nothing blinks while the writer types.
+fn world_changes<'a>(
+    old: &[wt::WorldEntity],
+    new: &'a [wt::WorldEntity],
+) -> (Vec<wt::EntityId>, Vec<&'a wt::WorldEntity>) {
+    use std::collections::HashMap;
+    let old_by_name: HashMap<&str, &wt::WorldEntity> =
+        old.iter().map(|e| (e.name.as_str(), e)).collect();
+    let new_by_name: HashMap<&str, &wt::WorldEntity> =
+        new.iter().map(|e| (e.name.as_str(), e)).collect();
+    let removed = old
+        .iter()
+        .filter(|e| new_by_name.get(e.name.as_str()) != Some(e))
+        .map(|e| e.id)
+        .collect();
+    let added = new
+        .iter()
+        .filter(|e| old_by_name.get(e.name.as_str()) != Some(e))
+        .collect();
+    (removed, added)
+}
+
+/// Whether the scene still shows this document's world: another world
+/// loaded since (from the gallery, say) means a diff would edit the wrong
+/// scene, so the rebuild loads the document's world whole instead.
+fn scene_is(current: &CurrentWorld, world_dir: &Path) -> bool {
+    let canonical = |p: &Path| p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+    current
+        .path
+        .as_deref()
+        .is_some_and(|p| canonical(p) == canonical(world_dir))
+}
+
 /// Save and rebuild once typing has settled.
-fn rebuild_when_settled(mut doc: ResMut<Document>, mut initial_world: ResMut<GenInitialWorld>) {
+fn rebuild_when_settled(
+    mut doc: ResMut<Document>,
+    mut initial_world: ResMut<GenInitialWorld>,
+    current: Res<CurrentWorld>,
+    mut scene: OpsApplier,
+) {
     let Some(edited_at) = doc.edited_at else {
         return;
     };
@@ -809,7 +855,25 @@ fn rebuild_when_settled(mut doc: ResMut<Document>, mut initial_world: ResMut<Gen
         doc.status = format!("Could not build the world: {e}");
         return;
     }
-    initial_world.path = Some(doc.world_dir.to_string_lossy().into_owned());
+    // Change only what differs, in place; load the world whole when the
+    // environment changed or the scene is showing something else.
+    if doc.shown.environment == world.environment && scene_is(&current, &doc.world_dir) {
+        let (removed, added) = world_changes(&doc.shown.entities, &world.entities);
+        let removed: Vec<wt::EditOp> = removed.into_iter().map(wt::EditOp::delete).collect();
+        let added: Vec<wt::WorldEntity> = added.into_iter().cloned().collect();
+        info!(
+            "rebuilt in place: {} removed, {} added, {} kept",
+            removed.len(),
+            added.len(),
+            world.entities.len() - added.len()
+        );
+        scene.apply_ops(&removed);
+        scene.spawn_in_world(&added, &doc.world_dir);
+    } else {
+        info!("rebuilt: loading the world whole");
+        initial_world.path = Some(doc.world_dir.to_string_lossy().into_owned());
+    }
+    doc.shown = world.clone();
     doc.built = doc.text.clone();
     doc.refresh(&parsed, &world);
     doc.sync_authoring(&parsed, true);
@@ -1411,6 +1475,36 @@ mod tests {
                 ("7".to_string(), "s01-7", 1),
             ]
         );
+    }
+
+    #[test]
+    fn a_rebuild_changes_only_what_differs() {
+        let at = |id: u64, name: &str, x: f32| {
+            let mut entity = wt::WorldEntity::new(id, name);
+            entity.transform.position = [x, 0.0, 0.0];
+            entity
+        };
+        let old = [
+            at(1, "ground", 0.0),
+            at(1001, "s01-tree", 1.0),
+            at(2001, "s02-rock", 2.0),
+        ];
+        let new = [
+            at(1, "ground", 0.0),
+            at(1001, "s01-tree", 1.5),
+            at(3001, "s03-lamp", 3.0),
+        ];
+        let (removed, added) = world_changes(&old, &new);
+        assert_eq!(removed, [wt::EntityId(1001), wt::EntityId(2001)]);
+        let added: Vec<&str> = added.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(
+            added,
+            ["s01-tree", "s03-lamp"],
+            "moved and new; ground kept"
+        );
+
+        let (removed, added) = world_changes(&new, &new);
+        assert!(removed.is_empty() && added.is_empty(), "nothing changed");
     }
 
     #[test]
