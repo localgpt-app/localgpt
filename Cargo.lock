@@ -8311,6 +8311,7 @@ version = "0.3.6"
 dependencies = [
  "anyhow",
  "bevy 0.19.0",
+ "bevy_egui",
  "localgpt-core",
  "localgpt-gen",
  "localgpt-md",

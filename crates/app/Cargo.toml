@@ -22,3 +22,5 @@ tracing-subscriber = { workspace = true }
 ron = "0.12.1"
 
 bevy = { version = "0.19", features = ["jpeg", "system_font_discovery"] }
+# Same version as Gen, so there is one egui context and one copy of the crate.
+bevy_egui = "0.40"

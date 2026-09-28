@@ -18,7 +18,9 @@
 //! do is duplicate Gen's entry path — everything heavy comes from the gen
 //! lib, and this is the thin assembly.
 
-use std::path::{Path, PathBuf};
+mod document;
+
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use bevy::prelude::*;
@@ -55,123 +57,6 @@ fn parse_args() -> Args {
         }
     }
     args
-}
-
-/// Compile a Markdown document into a world folder the app owns, and return
-/// the folder. Called on every launch, and the folder is overwritten each
-/// time, because the document is the source of truth — routing it through
-/// `world_import` instead would reopen a stale world after an edit (same slug,
-/// "already imported") and would file the document under `skills/`, where
-/// Gen's gallery lists *saved* worlds. A live view of a document is neither.
-///
-/// It is MD's own pipeline, not a second one: `Doc::parse`, then
-/// `draft::compile_with` over MD's sidecar (`doc.world.json` beside the file),
-/// so scenery a local model already authored in `localgpt-md` shows up here
-/// too. The sidecar is read, never written — authoring is MD's job until its
-/// live-authoring mode lands in this app.
-fn compile_md_world(md: &Path, workspace: &Path) -> anyhow::Result<PathBuf> {
-    let text = std::fs::read_to_string(md)
-        .map_err(|e| anyhow::anyhow!("reading {}: {e}", md.display()))?;
-    let title = md
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "document".into());
-    let doc = localgpt_md::doc::Doc::parse(&text, &title);
-    let store = localgpt_md::RecipeStore::load(&md.with_extension("world.json"));
-    let world = localgpt_md::draft::compile_with(&doc, &store);
-    for issue in localgpt_md::draft::validate(&world) {
-        eprintln!("localgpt-app: {:?}: {}", issue.severity, issue.message);
-    }
-
-    let dir = workspace.join("documents").join(document_key(md));
-    std::fs::create_dir_all(&dir)?;
-    let ron = ron::ser::to_string_pretty(&world, ron::ser::PrettyConfig::default())?;
-    std::fs::write(dir.join("world.ron"), ron)?;
-    link_asset_pack(&world, &dir);
-    eprintln!(
-        "localgpt-app: {} -> {} ({} entities, {} section{})",
-        md.display(),
-        dir.display(),
-        world.entities.len(),
-        doc.sections.len(),
-        if doc.sections.len() == 1 { "" } else { "s" },
-    );
-    Ok(dir)
-}
-
-/// The folder name for a document: its stem, plus a hash of where it lives,
-/// so two files both called README.md never share a world. FNV-1a rather
-/// than `DefaultHasher`, whose output is not promised across Rust releases.
-fn document_key(md: &Path) -> String {
-    let full = md.canonicalize().unwrap_or_else(|_| md.to_path_buf());
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in full.to_string_lossy().bytes() {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0100_0000_01b3);
-    }
-    let stem = md
-        .file_stem()
-        .map(|s| slug(&s.to_string_lossy()))
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "document".into());
-    format!("{stem}-{:08x}", hash as u32)
-}
-
-/// Authored scenery references pack models as `models/<file>`; Gen resolves a
-/// world's assets under `<world>/assets/`. So the world's `assets` is the
-/// shared pack — a symlink on Unix, one copy on disk however many documents
-/// use it, the same trick `scripts/fetch-assets.sh` plays for MD and Verse.
-/// A draft with no meshes needs nothing, and a missing pack only costs the
-/// placeholder boxes Gen already shows for a missing model.
-fn link_asset_pack(world: &localgpt_world_types::WorldManifest, dir: &Path) {
-    if !world.entities.iter().any(|e| e.mesh_asset.is_some()) {
-        return;
-    }
-    let pack = localgpt_md::assets::assets_dir();
-    if !pack.join("models/manifest.json").is_file() {
-        eprintln!(
-            "localgpt-app: this document uses pack models but no pack is installed — run \
-             scripts/fetch-assets.sh"
-        );
-        return;
-    }
-    let link = dir.join("assets");
-    #[cfg(unix)]
-    {
-        let pack = pack.canonicalize().unwrap_or(pack);
-        if std::fs::read_link(&link).ok().as_deref() == Some(pack.as_path()) {
-            return;
-        }
-        let _ = std::fs::remove_file(&link);
-        if let Err(e) = std::os::unix::fs::symlink(&pack, &link) {
-            eprintln!("localgpt-app: could not link the asset pack: {e}");
-        }
-    }
-    #[cfg(not(unix))]
-    for entity in &world.entities {
-        let Some(mesh) = &entity.mesh_asset else {
-            continue;
-        };
-        let (from, to) = (pack.join(&mesh.path), link.join(&mesh.path));
-        if to.is_file() || !from.is_file() {
-            continue;
-        }
-        if let Some(parent) = to.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let _ = std::fs::copy(&from, &to);
-    }
-}
-
-fn slug(name: &str) -> String {
-    let mut s: String = name
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '-' })
-        .collect();
-    while s.contains("--") {
-        s = s.replace("--", "-");
-    }
-    s.trim_matches('-').to_lowercase()
 }
 
 /// Logging, before Bevy starts: Bevy's own LogPlugin is disabled (as in Gen),
@@ -246,12 +131,30 @@ fn main() -> anyhow::Result<()> {
                 arg.to_string()
             })
     };
+    // A document: MD's pipeline builds the first world (camera included — it
+    // places the view once), and the live Document drives every rebuild after.
+    let mut live_document = None;
     let initial_world = if let Some(md) = &args.md {
-        Some(
-            compile_md_world(md, &workspace)?
-                .to_string_lossy()
-                .into_owned(),
-        )
+        let text = std::fs::read_to_string(md)
+            .map_err(|e| anyhow::anyhow!("reading {}: {e}", md.display()))?;
+        let (doc, world) = document::compile(&text, md);
+        let dir = document::world_dir(&workspace, md);
+        document::write_world(&world, &dir)?;
+        eprintln!(
+            "localgpt-app: {} -> {} ({} entities, {} sections)",
+            md.display(),
+            dir.display(),
+            world.entities.len(),
+            doc.sections.len(),
+        );
+        live_document = Some(document::Document::new(
+            md.clone(),
+            dir.clone(),
+            text,
+            &doc,
+            &world,
+        ));
+        Some(dir.to_string_lossy().into_owned())
     } else {
         args.world.as_ref().map(|world| import(world))
     };
@@ -325,6 +228,10 @@ fn main() -> anyhow::Result<()> {
             settings_file: localgpt_gen::settings::settings_path(),
         },
     ));
+    app.add_plugins(document::DocumentPlugin);
+    if let Some(live) = live_document {
+        app.insert_resource(live);
+    }
     app.run();
     Ok(())
 }
