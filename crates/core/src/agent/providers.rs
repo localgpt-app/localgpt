@@ -506,6 +506,38 @@ fn registered_provider(model: &str, config: &Config) -> Option<Result<Box<dyn LL
     Some(factory(model_id, config))
 }
 
+/// Resolve `(api_key, base_url)` for an API provider.
+///
+/// Every one of these providers' "not configured" messages has told users to
+/// set an env var, but nothing read it — only the config file was ever
+/// consulted, and `${VAR}` interpolation runs solely on values parsed *from*
+/// that file. So the advice was wrong, and an app with no config file (Gen)
+/// could not use an API provider at all. The env var is now a real fallback,
+/// used when the provider's table is absent or its key is blank.
+///
+/// `configured` is `(api_key, base_url)` from the config, when present.
+fn api_credentials(
+    configured: Option<(&str, &str)>,
+    env_var: &str,
+    default_base_url: fn() -> String,
+) -> Option<(String, String)> {
+    let from_env = || {
+        std::env::var(env_var)
+            .ok()
+            .filter(|key| !key.trim().is_empty())
+    };
+    match configured {
+        // A configured key wins.
+        Some((key, base_url)) if !key.trim().is_empty() => {
+            Some((key.to_string(), base_url.to_string()))
+        }
+        // Table present but no key: keep its base_url, take the key from env.
+        Some((_, base_url)) => from_env().map(|key| (key, base_url.to_string())),
+        // No table at all: env key, default endpoint.
+        None => from_env().map(|key| (key, default_base_url())),
+    }
+}
+
 pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvider>> {
     #[cfg(feature = "claude-cli")]
     let workspace = config.workspace_path();
@@ -544,7 +576,16 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
 
     match provider.as_str() {
         "anthropic" => {
-            let anthropic_config = config.providers.anthropic.as_ref().ok_or_else(|| {
+            let (api_key, base_url) = api_credentials(
+                config
+                    .providers
+                    .anthropic
+                    .as_ref()
+                    .map(|c| (c.api_key.as_str(), c.base_url.as_str())),
+                "ANTHROPIC_API_KEY",
+                crate::config::default_anthropic_base_url,
+            )
+            .ok_or_else(|| {
                 anyhow::anyhow!(
                     "Anthropic provider not configured.\n\
                     Set ANTHROPIC_API_KEY env var or add to {}/config.toml:\n\n\
@@ -556,15 +597,24 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
 
             let full_model = normalize_model_id("anthropic", &model_id);
             Ok(Box::new(AnthropicProvider::new(
-                &anthropic_config.api_key,
-                &anthropic_config.base_url,
+                &api_key,
+                &base_url,
                 &full_model,
                 config.agent.max_tokens,
             )?))
         }
 
         "openai" => {
-            let openai_config = config.providers.openai.as_ref().ok_or_else(|| {
+            let (api_key, base_url) = api_credentials(
+                config
+                    .providers
+                    .openai
+                    .as_ref()
+                    .map(|c| (c.api_key.as_str(), c.base_url.as_str())),
+                "OPENAI_API_KEY",
+                crate::config::default_openai_base_url,
+            )
+            .ok_or_else(|| {
                 anyhow::anyhow!(
                     "OpenAI provider not configured.\n\
                     Set OPENAI_API_KEY env var or add to {}/config.toml:\n\n\
@@ -575,15 +625,21 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
             })?;
 
             Ok(Box::new(OpenAIProvider::new(
-                &openai_config.api_key,
-                &openai_config.base_url,
-                &model_id,
-                "OpenAI",
+                &api_key, &base_url, &model_id, "OpenAI",
             )?))
         }
 
         "xai" => {
-            let xai_config = config.providers.xai.as_ref().ok_or_else(|| {
+            let (api_key, base_url) = api_credentials(
+                config
+                    .providers
+                    .xai
+                    .as_ref()
+                    .map(|c| (c.api_key.as_str(), c.base_url.as_str())),
+                "XAI_API_KEY",
+                crate::config::default_xai_base_url,
+            )
+            .ok_or_else(|| {
                 anyhow::anyhow!(
                     "xAI provider not configured.\n\
                     Set XAI_API_KEY env var or add to {}/config.toml:\n\n\
@@ -593,11 +649,7 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
                 )
             })?;
 
-            Ok(Box::new(XaiProvider::new(
-                &xai_config.api_key,
-                &xai_config.base_url,
-                &model_id,
-            )?))
+            Ok(Box::new(XaiProvider::new(&api_key, &base_url, &model_id)?))
         }
 
         #[cfg(feature = "claude-cli")]
@@ -658,24 +710,31 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
         }
 
         "ollama" => {
-            let ollama_config = config.providers.ollama.as_ref().ok_or_else(|| {
-                anyhow::anyhow!(
-                    "Ollama provider not configured.\n\
-                    Add to {}/config.toml:\n\n\
-                    [providers.ollama]\n\
-                    endpoint = \"http://localhost:11434\"",
-                    DEFAULT_CONFIG_DIR_STR
-                )
-            })?;
+            // Ollama needs no credential, and its endpoint has a default — so
+            // an absent [providers.ollama] table is not a reason to refuse.
+            // It used to be, which meant a model the picker offered from a
+            // live local Ollama failed the moment it was chosen.
+            let endpoint = config
+                .providers
+                .ollama
+                .as_ref()
+                .map(|c| c.endpoint.clone())
+                .unwrap_or_else(crate::config::default_ollama_endpoint);
 
-            Ok(Box::new(OllamaProvider::new(
-                &ollama_config.endpoint,
-                &model_id,
-            )?))
+            Ok(Box::new(OllamaProvider::new(&endpoint, &model_id)?))
         }
 
         "glm" => {
-            let glm_config = config.providers.glm.as_ref().ok_or_else(|| {
+            let (api_key, base_url) = api_credentials(
+                config
+                    .providers
+                    .glm
+                    .as_ref()
+                    .map(|c| (c.api_key.as_str(), c.base_url.as_str())),
+                "GLM_API_KEY",
+                crate::config::default_glm_base_url,
+            )
+            .ok_or_else(|| {
                 anyhow::anyhow!(
                     "GLM provider not configured.\n\
                     Set GLM_API_KEY env var or add to {}/config.toml:\n\n\
@@ -686,15 +745,21 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
             })?;
 
             Ok(Box::new(OpenAIProvider::new(
-                &glm_config.api_key,
-                &glm_config.base_url,
-                &model_id,
-                "GLM",
+                &api_key, &base_url, &model_id, "GLM",
             )?))
         }
 
         "gemini" => {
-            let gemini_config = config.providers.gemini.as_ref().ok_or_else(|| {
+            let (api_key, base_url) = api_credentials(
+                config
+                    .providers
+                    .gemini
+                    .as_ref()
+                    .map(|c| (c.api_key.as_str(), c.base_url.as_str())),
+                "GEMINI_API_KEY",
+                crate::config::default_gemini_base_url,
+            )
+            .ok_or_else(|| {
                 anyhow::anyhow!(
                     "Gemini provider not configured.\n\
                     Set GEMINI_API_KEY env var and add to {}/config.toml:\n\n\
@@ -704,9 +769,7 @@ pub fn create_provider(model: &str, config: &Config) -> Result<Box<dyn LLMProvid
                 )
             })?;
             Ok(Box::new(GeminiApiKeyProvider::new(
-                &gemini_config.api_key,
-                &gemini_config.base_url,
-                &model_id,
+                &api_key, &base_url, &model_id,
             )?))
         }
 
@@ -4076,6 +4139,56 @@ mod providers_test;
 
 #[cfg(test)]
 mod tests {
+    /// The "not configured" messages have always told users to set an env var;
+    /// now one actually works. Uses a name no real provider reads, so the test
+    /// needs no env mutation.
+    #[test]
+    fn api_credentials_prefer_config_then_fall_back_to_env() {
+        use super::api_credentials;
+
+        fn default_base() -> String {
+            "https://default.example".to_string()
+        }
+
+        // A configured key wins, with its own base_url.
+        let resolved = api_credentials(
+            Some(("sk-configured", "https://configured.example")),
+            "LOCALGPT_TEST_KEY_THAT_IS_UNSET",
+            default_base,
+        );
+        assert_eq!(
+            resolved,
+            Some((
+                "sk-configured".to_string(),
+                "https://configured.example".to_string()
+            ))
+        );
+
+        // Table present but the key is blank, and no env var: nothing usable.
+        assert_eq!(
+            api_credentials(
+                Some(("   ", "https://configured.example")),
+                "LOCALGPT_TEST_KEY_THAT_IS_UNSET",
+                default_base
+            ),
+            None
+        );
+
+        // No table and no env var: nothing usable, so the caller reports the
+        // provider as unconfigured rather than sending an empty key.
+        assert_eq!(
+            api_credentials(None, "LOCALGPT_TEST_KEY_THAT_IS_UNSET", default_base),
+            None
+        );
+
+        // With the env var set, an absent table resolves to the default host.
+        // PATH is always present and non-empty, so it stands in for a key.
+        let resolved = api_credentials(None, "PATH", default_base);
+        let (key, base_url) = resolved.expect("PATH is set in any test environment");
+        assert!(!key.is_empty());
+        assert_eq!(base_url, default_base());
+    }
+
     #[test]
     fn registered_prefix_routes_to_its_factory() {
         use super::*;

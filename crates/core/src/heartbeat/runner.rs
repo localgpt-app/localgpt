@@ -419,13 +419,13 @@ impl HeartbeatRunner {
             let gen_timeout = self.run_timeout.as_secs().max(60);
             let dispatched = tokio::task::spawn_blocking({
                 let workspace = self.workspace.clone();
-                let model = self.config.agent.default_model.clone();
+                // No model: Gen keeps its own settings and its own
+                // credentials now. Forcing the assistant's model here used
+                // the shared config.toml as an implicit credential channel,
+                // so an API-backed assistant handed Gen a model it can no
+                // longer authenticate.
                 move || {
-                    super::gen_dispatch::try_dispatch_gen_experiment(
-                        &workspace,
-                        gen_timeout,
-                        Some(model.as_str()),
-                    )
+                    super::gen_dispatch::try_dispatch_gen_experiment(&workspace, gen_timeout, None)
                 }
             })
             .await
