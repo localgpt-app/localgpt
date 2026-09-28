@@ -129,7 +129,7 @@ fn main() -> anyhow::Result<()> {
     // Gen's in-memory config, not Config::load(): a desktop app must open on a
     // machine with nothing on disk and must not write the assistant's
     // config.toml or read its workspace. Same path as `localgpt-gen`.
-    let config = localgpt_gen::config::gen_config();
+    let (config, settings) = localgpt_gen::config::gen_config_and_settings();
     let workspace = config.workspace_path();
 
     // The initial world: an explicit --world arg, or a Markdown document
@@ -190,7 +190,7 @@ fn main() -> anyhow::Result<()> {
     let (bridge, channels) = gen3d::create_gen_channels();
     let (panel_channels, agent_channels) = desktop::create_chat_channels();
 
-    let tool_profile = tool_profile(args.tools.as_deref(), config.r#gen.tool_profile.as_deref())
+    let tool_profile = tool_profile(args.tools.as_deref(), settings.tool_profile.as_deref())
         .unwrap_or_else(|e| {
             eprintln!("localgpt-app: {e}");
             std::process::exit(2);

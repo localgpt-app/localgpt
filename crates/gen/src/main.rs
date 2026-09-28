@@ -1124,13 +1124,13 @@ fn main() -> Result<()> {
 
     // Gen's configuration is built in memory from its own settings — no
     // config.toml is read, and none is created.
-    let config = localgpt_gen::config::gen_config();
+    let (config, settings) = localgpt_gen::config::gen_config_and_settings();
     let workspace = config.workspace_path();
 
     // Tool profile: --tools flag > Gen's settings > full.
     let tool_profile = gen3d::tool_profile::ToolProfile::resolve(
         cli.tools.as_deref(),
-        config.r#gen.tool_profile.as_deref(),
+        settings.tool_profile.as_deref(),
     )?;
 
     // --replay: time-lapse an op log in the window — no agent, no session.

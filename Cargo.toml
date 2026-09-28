@@ -52,9 +52,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 toml = "1.0"
-# Format-preserving TOML edits, so writing one setting back to config.toml
-# keeps the user's comments and layout (`toml` reserializes the whole file).
-toml_edit = "0.25"
 
 # Logging
 tracing = "0.1"

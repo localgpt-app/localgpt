@@ -20,6 +20,12 @@ use std::path::Path;
 /// Paths still come from `Paths::resolve()` via `Config::default()`, so every
 /// `LOCALGPT_*` override and the XDG rules keep working.
 pub fn gen_config() -> localgpt_core::config::Config {
+    gen_config_and_settings().0
+}
+
+/// [`gen_config`], plus the settings it was built from — for what core's
+/// `Config` has no field for, such as the tool profile.
+pub fn gen_config_and_settings() -> (localgpt_core::config::Config, crate::settings::GenSettings) {
     let mut config = localgpt_core::config::Config::default();
     let legacy_workspace = config.paths.workspace.clone();
 
@@ -28,7 +34,7 @@ pub fn gen_config() -> localgpt_core::config::Config {
     let settings = load_or_import_settings(&config);
     apply_gen_defaults(&mut config, &settings);
     migrate_legacy_worlds(&legacy_workspace, &config.paths.workspace);
-    config
+    (config, settings)
 }
 
 /// Gen's settings, importing from a pre-existing config file the first time.
@@ -78,8 +84,6 @@ pub fn apply_gen_defaults(
     // Subagents otherwise default to claude-cli/sonnet, which would quietly
     // reach for a different backend than the one Gen is running on.
     config.agent.subagent_model = Some(config.agent.default_model.clone());
-
-    config.r#gen.tool_profile = settings.tool_profile.clone();
 }
 
 /// Whether Gen can actually run this model. Gen asks for no credentials, so a
