@@ -441,6 +441,27 @@ stays the guarantee that a world renders the same everywhere (§5.3).
 | The assistant stack inside Worlds | Absent, not gated: no memory, dreaming, cron, heartbeat, bridges, MCP or POLICY. |
 | Verse's `ml` tier in a paid build | Out. LAION CLAP is CC-BY-NC-4.0, so the tier it powers — semantic moods and asset-selection ranking — ships only while Worlds is free. HT-Demucs (MIT) is **not** a substitute: it separates stems, it cannot tell that a track sounds aggressive. Without `ml` the rule-derived mood stands, which §13.3 already calls a finished world for a song. |
 | Android renderer | The web viewer in a WebView. One renderer per tier: Bevy on desktop, RealityKit on iOS, three.js on Android and web. |
+| A desktop "hub" app that downloads and launches the others | **Rejected** (2026-09-28). Worlds' door picker is the hub; downloads live on localgpt.app. See below. |
+
+**Why no hub app.** Four use cases (assistant, Gen, MD, Verse) producing four
+desktop things is a real problem, and the launcher is the one answer that
+makes it worse: one more native app — three platforms, signing, notarization,
+an update protocol and a catalog, on top of the per-app release pipeline of
+§13.7 that does not exist yet — whose first-run experience is a screen of apps
+the user does not have yet (the launcher cold-start, with no catalog). It
+would also be scaffolding around a demolition: MD and Verse are scheduled to
+merge into Worlds, so it manages a state this section is trying to end, and it
+was floated under the `localgpt.world` name, which is the destination — the
+gallery and every share link — not a store (the TLD-is-the-noun rule, §13.5).
+
+Each underlying need already has a cheaper home: discovery is localgpt.md
+(zero install, live) and localgpt.app's download page; using MD *and* Verse is
+Worlds, one binary with two doors; prompt→world is Worlds' prompt door at the
+core tool profile; updates are one release pipeline. And the audio work
+removed the last *technical* reason Gen was a separate binary — if Worlds ever
+grows a creator mode, there is nothing left to launch. If a hub-shaped itch
+survives all that, the honest form is an "Apps" panel inside the assistant's
+existing desktop GUI, after Worlds ships, if users ask — a link, not an app.
 
 ### 13.2 The two names
 
