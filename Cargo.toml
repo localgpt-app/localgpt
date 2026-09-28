@@ -8,6 +8,7 @@ members = [
     "crates/mobile-ffi",
     "crates/gen",
     "crates/md",
+    "crates/md-web",
     "crates/verse",
     "crates/world-types",
     "crates/world-export",

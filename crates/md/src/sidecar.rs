@@ -20,9 +20,9 @@ use std::collections::{BTreeMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
 
-use bevy::prelude::Resource;
 use localgpt_world_types as wt;
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 use crate::doc::Doc;
 use crate::recipe::RegionRecipe;
@@ -53,7 +53,8 @@ pub struct BuildEntry {
 /// they stay compiled in the default build (Verse's `tier.rs` precedent) so
 /// the tests proving the cache contract run without the model, and so the
 /// default build still *applies* a cached sidecar.
-#[derive(Debug, Default, Resource)]
+#[derive(Debug, Default)]
+#[cfg_attr(feature = "app", derive(bevy::prelude::Resource))]
 pub struct RecipeStore {
     /// The sidecar file; empty for an in-memory store (tests, `--print-ron`
     /// without a sidecar).
@@ -106,21 +107,21 @@ impl RecipeStore {
                 store.builds = file.builds;
             }
             Ok(file) if file.version == 1 => {
-                bevy::log::warn!(
+                warn!(
                     "sidecar {}: version 1 (recipes only) is superseded by v2 \
                      (agent builds) — ignoring it; regenerate with --generate",
                     path.display()
                 );
             }
             Ok(file) => {
-                bevy::log::warn!(
+                warn!(
                     "sidecar {}: version {} != {VERSION} — ignoring it",
                     path.display(),
                     file.version
                 );
             }
             Err(err) => {
-                bevy::log::warn!(
+                warn!(
                     "sidecar {}: can't parse ({err}) — ignoring it",
                     path.display()
                 );

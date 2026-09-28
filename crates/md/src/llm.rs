@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use bevy::prelude::*;
 use mistralrs::{GgufModelBuilder, TextMessageRole};
 
-use crate::recipe::RegionRecipe;
+use localgpt_md::recipe::RegionRecipe;
 
 /// The loaded LLM, ready to author recipes and agent builds. `None` from
 /// [`Self::try_load`] when no model file is found — the caller keeps the

@@ -11,17 +11,13 @@
 //! [`sidecar`] entries) → [`scene`] (manifest → Bevy), with [`tour`] for
 //! navigation, [`watch`] for hot reload, and [`llm`]/[`gen`] for authoring.
 
-mod agent;
-mod assets;
-mod doc;
-mod draft;
+use localgpt_md::{assets, doc, draft, sidecar};
+
 #[cfg(feature = "llm")]
 mod generation;
 #[cfg(feature = "llm")]
 mod llm;
-mod recipe;
 mod scene;
-mod sidecar;
 mod tour;
 mod watch;
 

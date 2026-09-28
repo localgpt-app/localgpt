@@ -75,3 +75,11 @@ website-world/worlds/shapes.json
 website-world/worlds/soundtrack.json
 website-world/worlds/textures.json
 website-world/node_modules/
+# website-md/ is assembled like website-world/: the viewer comes from
+# crates/world-export, three.js and the samples are copied in, and wasm/ is
+# wasm-pack output. Only the page and its scripts are tracked.
+website-md/viewer/
+website-md/vendor/
+website-md/samples/
+website-md/wasm/
+website-md/node_modules/

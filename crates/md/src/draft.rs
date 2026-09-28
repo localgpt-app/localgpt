@@ -237,7 +237,7 @@ impl RegionIds {
 /// the document still opens.
 fn parse_world_fence(text: &str) -> Option<Vec<wt::WorldEntity>> {
     let parse =
-        |err: serde_json::Error| bevy::log::warn!("world fence ignored — can't parse ({err})");
+        |err: serde_json::Error| tracing::warn!("world fence ignored — can't parse ({err})");
     let mut items = serde_json::from_str::<Vec<serde_json::Value>>(text.trim())
         .map_err(parse)
         .ok()?;

@@ -7,13 +7,24 @@ description = "LocalGPT MD — open a Markdown file and walk through it as a 3D 
 repository.workspace = true
 
 
+[lib]
+name = "localgpt_md"
+path = "src/lib.rs"
+
+# The Bevy app that walks the world. Everything renderer-free lives in the
+# lib so the same code compiles to WASM for localgpt.md.
+[[bin]]
+name = "localgpt-md"
+path = "src/main.rs"
+required-features = ["app"]
+
 [dependencies]
 # `jpeg` because the CC0 asset pack's glTF files embed JPEG textures
 # (Poly Haven ships .jpg maps — Verse's finding); without the feature every
 # pack model fails to load with "invalid image mime type: image/jpeg".
 # `system_font_discovery` lets parley/fontique fall back to OS fonts, so CJK
 # and other non-Latin headings render instead of showing as blank boxes.
-bevy = { version = "0.19", features = ["jpeg", "system_font_discovery"] }
+bevy = { version = "0.19", features = ["jpeg", "system_font_discovery"], optional = true }
 
 # Markdown → sections. Parsing only; the `html` renderer isn't needed.
 pulldown-cmark = { version = "0.13", default-features = false }
@@ -35,12 +46,18 @@ ron = "0.12.1"
 
 # Stable per-section content hashes (seed the draft now; cache keys later).
 blake3 = "1"
+# The lib logs through tracing (what bevy::log re-exports), so a WASM build
+# keeps the same sink.
+tracing = { workspace = true }
 
 # LLM-authored recipes (src/recipe.rs) and the sidecar cache (src/sidecar.rs).
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [features]
+default = ["app"]
+# The desktop app: the Bevy renderer, camera, tour and generation worker.
+app = ["dep:bevy"]
 # The LLM tiers (PLAN.md M1/M3): plain instructed-JSON generation and the
 # tool-calling agent loop through mistral.rs, ported from LocalGPT Verse.
 # No `schemars` on purpose — grammar-constrained generation hangs on GGUF

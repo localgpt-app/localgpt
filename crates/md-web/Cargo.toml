@@ -1,0 +1,23 @@
+[package]
+name = "localgpt-md-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The localgpt.md page's WASM: Markdown in, a walkable world out, in the browser tab"
+repository.workspace = true
+keywords = ["localgpt", "md", "wasm", "world"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The pure half of MD only — no Bevy, no model, no tokio. This is the
+# dependency edge that keeps the page honest: nothing here can grow a
+# renderer or an inference engine without it being a Cargo.toml decision.
+localgpt-md = { path = "../md", default-features = false }
+
+wasm-bindgen = "0.2"
+serde_json = { workspace = true }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"

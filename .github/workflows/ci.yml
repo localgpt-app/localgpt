@@ -149,22 +149,38 @@ jobs:
   # asset checkout. The curated gallery worlds are checked at deploy, where
   # their GLBs are (`npm run check:all`).
   viewer:
-    name: Web viewer (conformance render)
+    name: Web viewer and localgpt.md page
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: website-world
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: website-world/package-lock.json
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run check
+          cache-dependency-path: |
+            website-world/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+      # The one web renderer, gated on the crates that own it.
+      - name: world-viewer conformance render
+        working-directory: website-world
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run check
+      # The localgpt.md page: drop a Markdown file, require a rendered world.
+      - name: localgpt.md page check
+        working-directory: website-md
+        run: |
+          npm ci
+          npm run assemble
+          npx --no-install playwright install --with-deps chromium
+          npm run check
 
   # Licenses, bans and sources only change with Cargo.lock and deny.toml, so
   # they gate every change.

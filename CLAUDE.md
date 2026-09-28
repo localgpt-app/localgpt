@@ -122,7 +122,7 @@ scripts/          # The shared downloads, fetched once for every app
 website*/         # One Cloudflare Worker each, all deployed by hand
 ├── website/      # localgpt.app — Docusaurus, the family hub and only docs site
 ├── website-gen/  # gen.localgpt.app — static landing
-├── website-md/   # localgpt.md — static landing
+├── website-md/   # localgpt.md — the drop-a-file page (WASM compiler + viewer)
 ├── website-verse/# verse.localgpt.app — static landing
 └── website-world/# localgpt.world — the gallery and the one web viewer
 ```
@@ -478,6 +478,11 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
   landing pages in their own repos; update their docs here when those apps
   change). `website-gen/` is the static landing page for gen.localgpt.app (no
   build step; `website-gen/deploy.sh` deploys it) and links to the Gen docs.
+  `website-md/` is localgpt.md: drop a Markdown file, walk the world, in the
+  tab. Its compiler is `crates/md-web` (wasm-pack, `localgpt-md`
+  default-features=false — the pure half only) and its page check (drop the
+  sample through the real input, require a rendered world) runs in the same
+  `viewer` CI job.
   `website-world/` is localgpt.world: the gallery and the format's only web
   renderer. It is **assembled** — `npm run assemble` copies
   `crates/world-export/js/world-viewer.js` and the `crates/world-types`

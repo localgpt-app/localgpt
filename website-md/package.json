@@ -1,0 +1,13 @@
+{
+  "name": "localgpt-md-site",
+  "private": true,
+  "description": "The localgpt.md page. `assemble` copies the viewer, three.js and samples in and builds the WASM compiler; `check` loads the page headlessly, drops a Markdown file, and requires a rendered world.",
+  "type": "module",
+  "scripts": {
+    "assemble": "./scripts/assemble.sh",
+    "check": "node scripts/check.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

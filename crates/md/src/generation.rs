@@ -24,11 +24,11 @@ use std::sync::mpsc;
 
 use bevy::prelude::*;
 
-use crate::assets::AssetManifest;
 use crate::llm;
-use crate::recipe::RegionRecipe;
 use crate::scene::CurrentWorld;
-use crate::sidecar::{BuildEntry, RecipeStore};
+use localgpt_md::assets::AssetManifest;
+use localgpt_md::recipe::RegionRecipe;
+use localgpt_md::sidecar::{BuildEntry, RecipeStore};
 
 pub struct GenerationPlugin;
 
@@ -88,7 +88,7 @@ fn worker(jobs: mpsc::Receiver<(blake3::Hash, Job)>, outcomes: mpsc::Sender<Outc
     while let Ok((hash, job)) = jobs.recv() {
         if model.is_none() {
             model = llm::RecipeModel::try_load();
-            manifest = crate::assets::read_manifest_from_disk();
+            manifest = localgpt_md::assets::read_manifest_from_disk();
         }
         let result = generate_for(model.as_mut(), manifest.as_ref(), &hash, &job);
         if outcomes.send(Outcome { hash, result }).is_err() {
@@ -110,7 +110,7 @@ pub(crate) fn generate_for(
 ) -> Option<SectionOutput> {
     let model = model?;
     let key = hash.to_hex().to_string();
-    if let Some(build) = crate::agent::run_session(
+    if let Some(build) = localgpt_md::agent::run_session(
         model.model_mut(),
         &key,
         &job.heading,
@@ -200,6 +200,6 @@ fn drain_outcomes(
         "llm: {builds} build(s) + {recipes} recipe(ies) applied ({} cached)",
         store.len()
     );
-    let manifest = crate::draft::compile_with(&world.doc, &store);
+    let manifest = localgpt_md::draft::compile_with(&world.doc, &store);
     world.manifest = manifest;
 }

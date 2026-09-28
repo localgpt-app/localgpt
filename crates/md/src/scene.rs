@@ -19,7 +19,7 @@ use bevy::prelude::*;
 use localgpt_world_bevy as wb;
 use localgpt_world_types as wt;
 
-use crate::doc::Doc;
+use localgpt_md::doc::Doc;
 
 pub struct ScenePlugin;
 

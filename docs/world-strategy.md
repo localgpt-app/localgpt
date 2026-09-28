@@ -604,6 +604,18 @@ Why this is the cheapest distribution the project has:
   pre-generated worlds — not the draft — are what put the real thing in front
   of a free audience before Worlds ships.
 
+**Status (2026-09-27, evening): built and verified.** `crates/md` is split
+into a lib (doc/draft/recipe/sidecar/assets — pure, `--no-default-features`
+compiles no Bevy) and the Bevy bin behind an `app` feature; `crates/md-web`
+is the WASM wrapper, one function, depending on the lib with default features
+off so nothing here can grow a renderer or an inference engine. The page
+(`website-md/`) assembles like website-world — viewer from world-export,
+three.js vendored, samples from the crate — and its check drops the app's own
+`hello.md` through the real file input in headless Chromium and requires a
+rendered world (4 sections, 40 entities, draft labelled, zero page errors).
+It runs in the `viewer` CI job. Deploy: `website-md/deploy.sh`; still to do in
+the dashboard — localgpt.md canonical, md.localgpt.app 301.
+
 How to build the drop-a-file half: compile the section parser and the draft
 (the fence and rule tiers — no agent, no model) to **WASM** —
 both are pure, with no Bevy, no model and no tokio, so it is a small

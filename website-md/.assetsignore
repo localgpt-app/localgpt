@@ -1,7 +1,12 @@
-README.md
 wrangler.toml
 deploy.sh
 .assetsignore
 .wrangler
 .wrangler/
 .DS_Store
+# Build tooling, not page content.
+scripts/
+package.json
+package-lock.json
+node_modules/
+README.md
