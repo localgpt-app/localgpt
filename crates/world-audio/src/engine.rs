@@ -15,10 +15,18 @@
 //!
 //! Volume is amplitude here, as everywhere else in the format, and converted to
 //! kira's decibels at the edge ([`amplitude_to_db`]).
+//!
+//! A world's **soundtrack** — `SoundtrackDef::path`, the song a Verse world
+//! performs — streams from its file on the same mixer, looping, and reports
+//! its position so the scene's modulations can follow the song rather than a
+//! wall clock ([`Engine::play_soundtrack`], [`Engine::soundtrack_position`]).
 
 use std::collections::HashMap;
+use std::path::Path;
 
 use kira::listener::ListenerHandle;
+use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
+use kira::sound::{FromFileError, PlaybackState};
 use kira::track::{SpatialTrackBuilder, SpatialTrackHandle, TrackBuilder, TrackHandle};
 use kira::{AudioManager, AudioManagerSettings, Decibels, DefaultBackend, Tween};
 use localgpt_world_types as wt;
@@ -67,6 +75,7 @@ pub struct Engine {
     listener: ListenerHandle,
     ambience: Vec<Layer>,
     emitters: HashMap<String, Emitter>,
+    soundtrack: Option<StreamingSoundHandle<FromFileError>>,
 }
 
 impl Engine {
@@ -111,6 +120,7 @@ impl Engine {
             listener,
             ambience: Vec::new(),
             emitters: HashMap::new(),
+            soundtrack: None,
         })
     }
 
@@ -284,11 +294,116 @@ impl Engine {
     pub fn emitter_names(&self) -> Vec<&str> {
         self.emitters.keys().map(String::as_str).collect()
     }
+
+    /// Stream the world's song from `path`, looping, in place of any song
+    /// already playing. Returns its decoded length in seconds.
+    pub fn play_soundtrack(&mut self, path: &Path, amplitude: f32) -> Result<f32, String> {
+        self.stop_soundtrack();
+        let sound = StreamingSoundData::from_file(path)
+            .map_err(|e| format!("can't decode {}: {e}", path.display()))?;
+        let seconds = sound.duration().as_secs_f32();
+        let sound = sound.loop_region(..).volume(amplitude_to_db(amplitude));
+        let handle = self
+            .manager
+            .play(sound)
+            .map_err(|e| format!("can't play {}: {e}", path.display()))?;
+        debug!("soundtrack: {} ({seconds:.1} s)", path.display());
+        self.soundtrack = Some(handle);
+        Ok(seconds)
+    }
+
+    /// Stop the song, with a short fade.
+    pub fn stop_soundtrack(&mut self) {
+        if let Some(mut handle) = self.soundtrack.take() {
+            handle.stop(fade());
+        }
+    }
+
+    /// Pause or resume the song where it is.
+    pub fn pause_soundtrack(&mut self, paused: bool) {
+        if let Some(handle) = &mut self.soundtrack {
+            if paused {
+                handle.pause(fade());
+            } else {
+                handle.resume(fade());
+            }
+        }
+    }
+
+    /// Where the song is, in seconds, while it is audibly playing; `None`
+    /// when there is no song, or it is paused or stopped.
+    pub fn soundtrack_position(&self) -> Option<f32> {
+        let handle = self.soundtrack.as_ref()?;
+        (handle.state() == PlaybackState::Playing).then(|| handle.position() as f32)
+    }
+}
+
+/// The fade for starting, stopping, pausing and resuming a song: long enough
+/// not to click, short enough to feel immediate.
+fn fade() -> Tween {
+    Tween {
+        duration: std::time::Duration::from_millis(250),
+        ..Default::default()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A mono 16-bit WAV of `seconds` of silence.
+    fn write_silent_wav(path: &Path, rate: u32, seconds: f32) {
+        let samples = (rate as f32 * seconds) as u32;
+        let data_len = samples * 2;
+        let mut bytes = Vec::with_capacity(44 + data_len as usize);
+        bytes.extend_from_slice(b"RIFF");
+        bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
+        bytes.extend_from_slice(b"WAVEfmt ");
+        bytes.extend_from_slice(&16u32.to_le_bytes()); // fmt chunk size
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // PCM
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // mono
+        bytes.extend_from_slice(&rate.to_le_bytes());
+        bytes.extend_from_slice(&(rate * 2).to_le_bytes()); // byte rate
+        bytes.extend_from_slice(&2u16.to_le_bytes()); // block align
+        bytes.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
+        bytes.extend_from_slice(b"data");
+        bytes.extend_from_slice(&data_len.to_le_bytes());
+        bytes.resize(44 + data_len as usize, 0);
+        std::fs::write(path, bytes).unwrap();
+    }
+
+    /// Needs an output device; skipped where there is none (CI runners).
+    /// Plays at zero amplitude, so it makes no sound.
+    #[test]
+    fn a_soundtrack_streams_from_a_file_and_reports_where_it_is() {
+        let Some(mut engine) = Engine::new() else {
+            eprintln!("skipped: no audio output device");
+            return;
+        };
+        let path = std::env::temp_dir().join(format!(
+            "localgpt-world-audio-song-{}.wav",
+            std::process::id()
+        ));
+        write_silent_wav(&path, 44_100, 2.0);
+
+        let seconds = engine.play_soundtrack(&path, 0.0).unwrap();
+        assert!((seconds - 2.0).abs() < 0.05, "decoded length {seconds}");
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        let position = engine.soundtrack_position().expect("playing");
+        assert!(position > 0.0 && position < 2.0, "position {position}");
+
+        engine.pause_soundtrack(true);
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        assert_eq!(engine.soundtrack_position(), None, "paused");
+
+        engine.stop_soundtrack();
+        assert!(
+            engine
+                .play_soundtrack(Path::new("/nonexistent/song.mp3"), 1.0)
+                .is_err()
+        );
+        std::fs::remove_file(&path).ok();
+    }
 
     #[test]
     fn amplitude_converts_to_decibels_with_silence_at_the_bottom() {

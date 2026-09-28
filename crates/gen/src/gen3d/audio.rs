@@ -23,7 +23,11 @@
 //! emitter.
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc;
+use std::time::Duration;
 
 use bevy::prelude::*;
 use localgpt_world_audio::wt;
@@ -68,6 +72,9 @@ pub struct AudioEngine {
     pub emitter_meta: HashMap<String, EmitterMeta>,
     /// Last ambience command for world save round-trip.
     pub last_ambience: Option<AmbienceCmd>,
+    /// The song's position in seconds as the audio thread last saw it, as
+    /// `f32` bits; NaN while no song is audibly playing.
+    soundtrack_position: Arc<AtomicU32>,
 }
 
 pub struct EmitterMeta {
@@ -123,11 +130,13 @@ impl AudioEngine {
         );
     }
 
-    /// Stop all audio: remove all emitters and clear ambience state.
+    /// Stop all audio: remove all emitters, clear ambience state, and stop
+    /// the world's song.
     pub fn stop_all(&mut self) {
         for name in self.emitter_names.drain() {
             let _ = self.update_tx.send(AudioUpdate::RemoveEmitter { name });
         }
+        let _ = self.update_tx.send(AudioUpdate::StopSoundtrack);
         self.emitter_meta.clear();
         self.ambience_layer_names.clear();
         self.last_ambience = None;
@@ -136,6 +145,25 @@ impl AudioEngine {
     /// Master volume as stored on the Bevy side (the thread applies it).
     pub fn master_volume(&self) -> f32 {
         self.master_volume
+    }
+
+    /// Stream a world's song from `path`, looping, in place of any other.
+    pub fn play_soundtrack(&mut self, path: PathBuf) {
+        let _ = self.update_tx.send(AudioUpdate::PlaySoundtrack { path });
+    }
+
+    pub fn stop_soundtrack(&mut self) {
+        let _ = self.update_tx.send(AudioUpdate::StopSoundtrack);
+    }
+
+    pub fn pause_soundtrack(&mut self, paused: bool) {
+        let _ = self.update_tx.send(AudioUpdate::PauseSoundtrack(paused));
+    }
+
+    /// Where the song is, in seconds, while it is audibly playing.
+    pub fn soundtrack_position(&self) -> Option<f32> {
+        let seconds = f32::from_bits(self.soundtrack_position.load(Ordering::Relaxed));
+        (!seconds.is_nan()).then_some(seconds)
     }
 }
 
@@ -174,6 +202,11 @@ enum AudioUpdate {
         name: String,
         position: [f32; 3],
     },
+    PlaySoundtrack {
+        path: PathBuf,
+    },
+    StopSoundtrack,
+    PauseSoundtrack(bool),
 }
 
 // ---------------------------------------------------------------------------
@@ -191,11 +224,13 @@ struct ThreadEmitter {
 
 pub fn start_audio_engine() -> Option<AudioEngine> {
     let (update_tx, update_rx) = mpsc::channel::<AudioUpdate>();
+    let soundtrack_position = Arc::new(AtomicU32::new(f32::NAN.to_bits()));
+    let position = Arc::clone(&soundtrack_position);
 
     let thread_result = std::thread::Builder::new()
         .name("gen-audio".into())
         .spawn(move || {
-            audio_thread_main(update_rx);
+            audio_thread_main(update_rx, &position);
         });
 
     match thread_result {
@@ -209,6 +244,7 @@ pub fn start_audio_engine() -> Option<AudioEngine> {
                 ambience_layer_names: Vec::new(),
                 emitter_meta: HashMap::new(),
                 last_ambience: None,
+                soundtrack_position,
             })
         }
         Err(e) => {
@@ -218,7 +254,11 @@ pub fn start_audio_engine() -> Option<AudioEngine> {
     }
 }
 
-fn audio_thread_main(rx: mpsc::Receiver<AudioUpdate>) {
+/// How often the thread wakes, when nothing is sent, to report where the
+/// song is — about two frames.
+const SOUNDTRACK_POLL: Duration = Duration::from_millis(30);
+
+fn audio_thread_main(rx: mpsc::Receiver<AudioUpdate>, soundtrack_position: &AtomicU32) {
     // No output device is not an error — a headless runner or a machine with
     // no sound card gets a silent world, and the channel quietly drains.
     let Some(mut engine) = localgpt_world_audio::Engine::new() else {
@@ -228,7 +268,28 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioUpdate>) {
 
     let mut emitters: HashMap<String, ThreadEmitter> = HashMap::new();
 
-    while let Ok(update) = rx.recv() {
+    loop {
+        let update = match rx.recv_timeout(SOUNDTRACK_POLL) {
+            Ok(update) => Some(update),
+            Err(mpsc::RecvTimeoutError::Timeout) => None,
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        };
+        if let Some(update) = update {
+            apply_update(&mut engine, &mut emitters, update);
+        }
+        let position = engine.soundtrack_position().unwrap_or(f32::NAN);
+        soundtrack_position.store(position.to_bits(), Ordering::Relaxed);
+    }
+    // The loop ends when every sender drops — the resource going away at
+    // shutdown — which drops the engine and stops the stream.
+}
+
+fn apply_update(
+    engine: &mut localgpt_world_audio::Engine,
+    emitters: &mut HashMap<String, ThreadEmitter>,
+    update: AudioUpdate,
+) {
+    {
         match update {
             AudioUpdate::SetAmbience {
                 layers,
@@ -292,10 +353,15 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioUpdate>) {
                 }
                 engine.set_emitter_position(&name, position);
             }
+            AudioUpdate::PlaySoundtrack { path } => {
+                if let Err(e) = engine.play_soundtrack(&path, 1.0) {
+                    tracing::warn!("soundtrack: {e}");
+                }
+            }
+            AudioUpdate::StopSoundtrack => engine.stop_soundtrack(),
+            AudioUpdate::PauseSoundtrack(paused) => engine.pause_soundtrack(paused),
         }
     }
-    // The loop ends when every sender drops — the resource going away at
-    // shutdown — which drops the engine and stops the stream.
 }
 
 // ---------------------------------------------------------------------------
@@ -320,8 +386,21 @@ pub fn init_audio_engine(mut commands: Commands) {
                 ambience_layer_names: Vec::new(),
                 emitter_meta: HashMap::new(),
                 last_ambience: None,
+                soundtrack_position: Arc::new(AtomicU32::new(f32::NAN.to_bits())),
             });
         }
+    }
+}
+
+/// Keep the modulation clock on the song while it plays: modulations follow
+/// what is heard, not a wall clock that drifts from it.
+pub fn sync_soundtrack_clock(
+    audio: Option<Res<AudioEngine>>,
+    mut soundtrack: ResMut<localgpt_world_bevy::modulation::Soundtrack>,
+) {
+    let position = audio.and_then(|audio| audio.soundtrack_position());
+    if soundtrack.position != position {
+        soundtrack.position = position;
     }
 }
 

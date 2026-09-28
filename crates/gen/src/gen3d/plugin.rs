@@ -344,6 +344,7 @@ pub fn setup_gen_app(
             ),
         )
         .add_systems(Update, process_gen_commands)
+        .add_systems(Update, audio::sync_soundtrack_clock)
         .init_resource::<super::offscreen::OffscreenRenderTarget>()
         .add_systems(Update, super::offscreen::attach_offscreen_target)
         .add_systems(Update, process_pending_screenshots)
@@ -1568,6 +1569,19 @@ fn process_gen_commands(
                                 def: world_load.soundtrack.clone(),
                                 ..Default::default()
                             };
+                        }
+                        // A song that ships with the world plays from its
+                        // `assets/` folder; one that doesn't still drives the
+                        // modulations from its curves, on the world clock.
+                        if let Some(song) = world_load
+                            .soundtrack
+                            .as_ref()
+                            .and_then(|soundtrack| soundtrack.path.as_ref())
+                        {
+                            let file = PathBuf::from(&world_load.world_path)
+                                .join("assets")
+                                .join(song);
+                            params.audio_engine.play_soundtrack(file);
                         }
 
                         // Spawn entities directly from WorldManifest data
