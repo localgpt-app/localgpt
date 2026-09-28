@@ -98,6 +98,36 @@ pub fn write_world(world: &wt::WorldManifest, dir: &Path) -> anyhow::Result<()> 
 /// source of truth. Routing it through `world_import` instead would reopen a
 /// stale world after an edit (same slug, "already imported") and would file
 /// it under `skills/`, where Gen's gallery lists *saved* worlds.
+/// Open `md` as a live document: compile it with MD's pipeline, write its
+/// first world (camera included — it places the view once) to its folder,
+/// and return the document with that folder. With a `config`, the app's
+/// model authors each section in the background; the draft is on screen
+/// meanwhile.
+pub fn open(
+    md: &Path,
+    workspace: &Path,
+    config: Option<&localgpt_core::config::Config>,
+) -> anyhow::Result<(Document, PathBuf)> {
+    let text = std::fs::read_to_string(md)
+        .map_err(|e| anyhow::anyhow!("reading {}: {e}", md.display()))?;
+    let (doc, world) = compile(&text, md);
+    let dir = world_dir(workspace, md);
+    write_world(&world, &dir)?;
+    tracing::info!(
+        "{} -> {} ({} entities, {} sections)",
+        md.display(),
+        dir.display(),
+        world.entities.len(),
+        doc.sections.len(),
+    );
+    let mut live = Document::new(md.to_path_buf(), dir.clone(), text, &doc, &world);
+    if let Some(config) = config {
+        let manifest = localgpt_md::assets::read_manifest_from_disk();
+        live = live.with_authoring(crate::authoring::Worker::spawn(config, manifest), &doc);
+    }
+    Ok((live, dir))
+}
+
 pub fn world_dir(workspace: &Path, md: &Path) -> PathBuf {
     workspace.join("documents").join(document_key(md))
 }

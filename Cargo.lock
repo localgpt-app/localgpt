@@ -8320,6 +8320,7 @@ dependencies = [
  "localgpt-world-agent",
  "localgpt-world-bevy",
  "localgpt-world-types",
+ "rfd",
  "ron",
  "serde",
  "serde_json",

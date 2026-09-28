@@ -25,6 +25,7 @@
 mod authoring;
 mod document;
 mod now_playing;
+mod open;
 mod screenshot;
 mod song;
 
@@ -150,28 +151,14 @@ fn main() -> anyhow::Result<()> {
     // A document: MD's pipeline builds the first world (camera included — it
     // places the view once), and the live Document drives every rebuild after.
     let mut live_document = None;
+    let showing;
     let initial_world = if let Some(md) = &args.md {
-        let text = std::fs::read_to_string(md)
-            .map_err(|e| anyhow::anyhow!("reading {}: {e}", md.display()))?;
-        let (doc, world) = document::compile(&text, md);
-        let dir = document::world_dir(&workspace, md);
-        document::write_world(&world, &dir)?;
-        eprintln!(
-            "localgpt-app: {} -> {} ({} entities, {} sections)",
-            md.display(),
-            dir.display(),
-            world.entities.len(),
-            doc.sections.len(),
-        );
-        let mut live = document::Document::new(md.clone(), dir.clone(), text, &doc, &world);
-        // The model authors each section's place in the background; the draft
-        // above is on screen meanwhile, and each build replaces its section's
-        // draft as it lands. Same model as the prompt panel.
-        if !args.no_author {
-            let manifest = localgpt_md::assets::read_manifest_from_disk();
-            live = live.with_authoring(authoring::Worker::spawn(&config, manifest), &doc);
-        }
+        // The model authors each section's place in the background, with the
+        // same model as the prompt panel.
+        let (live, dir) = document::open(md, &workspace, (!args.no_author).then_some(&config))?;
+        eprintln!("localgpt-app: {} -> {}", md.display(), dir.display());
         live_document = Some(live);
+        showing = Some(format!("Document · {}", file_name(md)));
         Some(dir.to_string_lossy().into_owned())
     } else if let Some(track) = &args.song {
         // A song: Verse's analysis (seconds on first open, cached after),
@@ -188,8 +175,14 @@ fn main() -> anyhow::Result<()> {
             soundtrack.and_then(|s| s.artist.as_deref()).unwrap_or("?"),
             soundtrack.map_or(0.0, |s| s.bpm),
         );
+        let title = soundtrack.and_then(|s| s.title.clone());
+        showing = Some(format!(
+            "Song · {}",
+            title.unwrap_or_else(|| file_name(track))
+        ));
         Some(dir.to_string_lossy().into_owned())
     } else {
+        showing = args.world.as_ref().map(|world| format!("World · {world}"));
         args.world.as_ref().map(|world| import(world))
     };
 
@@ -250,6 +243,13 @@ fn main() -> anyhow::Result<()> {
             })
             .disable::<bevy::log::LogPlugin>(),
     );
+    // Opening from the window, as the launch arguments do.
+    app.insert_resource(open::Launch {
+        config: config.clone(),
+        workspace: workspace.clone(),
+        author: !args.no_author,
+    })
+    .insert_resource(open::Showing(showing));
     gen3d::plugin::setup_gen_app(&mut app, channels, workspace, None);
     app.insert_resource(gen3d::plugin::GenInitialWorld {
         path: initial_world,
@@ -262,7 +262,11 @@ fn main() -> anyhow::Result<()> {
             settings_file: localgpt_gen::settings::settings_path(),
         },
     ));
-    app.add_plugins((document::DocumentPlugin, now_playing::NowPlayingPlugin));
+    app.add_plugins((
+        document::DocumentPlugin,
+        now_playing::NowPlayingPlugin,
+        open::OpenPlugin,
+    ));
     if let Some(live) = live_document {
         app.insert_resource(live);
     }
@@ -271,6 +275,12 @@ fn main() -> anyhow::Result<()> {
     }
     app.run();
     Ok(())
+}
+
+fn file_name(path: &std::path::Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 /// The panel-driven agent: one turn per prompt, everything else identical to
