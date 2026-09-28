@@ -22,9 +22,11 @@ env:
   # would double the target directory and overflow the runner's disk and the
   # 10 GB cache on the Bevy builds.
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
-  # Same list as Verse and MD: alsa/udev for bevy_audio and gilrs, wayland for
-  # wayland-sys, xkbcommon for winit, fontconfig for bevy_text (fontique).
-  BEVY_APT_DEPS: libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev libfontconfig1-dev pkg-config
+  # alsa/udev for bevy_audio and gilrs, wayland for wayland-sys, xkbcommon for
+  # winit, fontconfig for bevy_text (fontique), and dbus for kira: its default
+  # `cpal-realtime-dbus` asks RtKit over D-Bus to make the audio thread
+  # real-time, and without it Linux audio runs at normal priority.
+  BEVY_APT_DEPS: libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev libfontconfig1-dev libdbus-1-dev pkg-config
 
 jobs:
   fmt:
@@ -38,7 +40,13 @@ jobs:
           components: rustfmt
       - run: cargo fmt --all -- --check
 
-  # Every crate except the two that need Bevy; those are the `gen` job.
+  # Every crate except the ones that need native audio and windowing headers;
+  # those are the `bevy` job.
+  #
+  # Multi-line commands are literal blocks (`|`). In a plain scalar YAML folds
+  # the line breaks into spaces, so each `\` escaped a space instead of a
+  # newline and cargo rejected " --exclude" — the job failed in seconds from
+  # the day it was split across lines.
   clippy:
     name: Clippy
     if: github.event_name != 'schedule'
@@ -50,9 +58,10 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/onnxruntime
-      - run: cargo clippy --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
-          --exclude localgpt-md --exclude localgpt-verse \
-          --exclude localgpt-world-audio --exclude localgpt-app -- -D warnings
+      - run: |
+          cargo clippy --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
+            --exclude localgpt-md --exclude localgpt-verse \
+            --exclude localgpt-world-audio --exclude localgpt-app -- -D warnings
 
   test:
     name: Test
@@ -63,9 +72,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/onnxruntime
-      - run: cargo test --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
-          --exclude localgpt-md --exclude localgpt-verse \
-          --exclude localgpt-world-audio --exclude localgpt-app
+      - run: |
+          cargo test --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
+            --exclude localgpt-md --exclude localgpt-verse \
+            --exclude localgpt-world-audio --exclude localgpt-app
       # world.schema.json must match the types (tests/schema_snapshot.rs).
       - run: cargo test -p localgpt-world-types --features schema
 
