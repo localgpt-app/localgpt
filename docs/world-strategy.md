@@ -179,7 +179,10 @@ things when a second app needs them.
 
 The pattern is the one Substance uses (`.sbs` source, `.sbsar` compiled) and
 the repository's own three-tier RFC describes: the parametric spec is the
-source; instances and exports are derived and never edited.
+source; instances and exports are derived and never edited. A third tier is
+proposed: publishing world-types plus the session package as a public
+`.world` specification others can implement
+(`docs/rfcs/world/world-format-spec.md`).
 
 ### 5.3 Consistent rendering on Bevy and the web
 
