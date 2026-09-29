@@ -315,6 +315,277 @@ pub struct AddTriggerParams {
     pub requires_item: Option<String>,
 }
 
+/// Put a trigger and its action on an entity: `gen_add_trigger`, and a saved
+/// world's triggers on load.
+pub fn insert_trigger(ec: &mut bevy::ecs::system::EntityCommands, p: &AddTriggerParams) {
+    ec.insert(crate::interaction::InteractionEntity);
+    // Insert trigger component
+    match p.trigger_type {
+        crate::interaction::TriggerType::Proximity => {
+            ec.insert(crate::interaction::ProximityTrigger {
+                radius: p.radius.unwrap_or(5.0),
+                cooldown: p.cooldown.unwrap_or(1.0),
+                last_triggered: 0.0,
+            });
+        }
+        crate::interaction::TriggerType::Click => {
+            ec.insert(crate::interaction::ClickTrigger {
+                max_distance: p.max_distance.unwrap_or(5.0),
+                prompt_text: p.prompt_text.clone(),
+            });
+        }
+        crate::interaction::TriggerType::Timer => {
+            if let Some(interval) = p.interval {
+                ec.insert(crate::interaction::TimerTrigger::new(interval));
+            }
+        }
+        crate::interaction::TriggerType::AreaEnter => {
+            ec.insert((
+                crate::interaction::AreaTrigger { is_enter: true },
+                crate::interaction::AreaInsideTracker::default(),
+            ));
+        }
+        crate::interaction::TriggerType::AreaExit => {
+            ec.insert((
+                crate::interaction::AreaTrigger { is_enter: false },
+                crate::interaction::AreaInsideTracker::default(),
+            ));
+        }
+        crate::interaction::TriggerType::Collision => {
+            ec.insert(crate::interaction::CollisionTrigger {
+                cooldown: p.cooldown.unwrap_or(1.0),
+                ..default()
+            });
+            // Add a sensor collider if the entity doesn't already have one.
+            // Uses the trigger radius as the sensor sphere size.
+            ec.insert(crate::physics::ColliderConfig {
+                shape: crate::physics::ColliderShape::Sphere,
+                size: Some(Vec3::splat(p.radius.unwrap_or(3.0) * 2.0)),
+                offset: Vec3::ZERO,
+                is_trigger: true,
+                visible_in_debug: true,
+            });
+        }
+    }
+    // Insert requires_item component if specified (Gap 2.3)
+    if let Some(ref item_id) = p.requires_item {
+        ec.insert(crate::interaction::RequiresItem {
+            item_id: item_id.clone(),
+        });
+    }
+    // Insert action component
+    match p.action {
+        crate::interaction::TriggerAction::Animate => {
+            ec.insert(crate::interaction::AnimateAction {
+                property: p
+                    .state_key
+                    .clone()
+                    .unwrap_or_else(|| "position".to_string()),
+                to: p.destination.map(|d| d.to_vec()).unwrap_or_default(),
+                duration: p.cooldown.unwrap_or(1.0),
+                progress: 0.0,
+            });
+        }
+        crate::interaction::TriggerAction::Teleport => {
+            if let Some(dest) = p.destination {
+                ec.insert(crate::interaction::TeleportAction {
+                    destination: Vec3::from_array(dest),
+                    effect: crate::interaction::TeleportEffect::None,
+                });
+            }
+        }
+        crate::interaction::TriggerAction::PlaySound => {
+            ec.insert(crate::interaction::PlaySoundAction {
+                sound: p.text.clone().unwrap_or_else(|| "default".to_string()),
+            });
+        }
+        crate::interaction::TriggerAction::ShowText => {
+            if let Some(text) = &p.text {
+                ec.insert(crate::interaction::ShowTextAction {
+                    text: text.clone(),
+                    duration: None,
+                });
+            }
+        }
+        crate::interaction::TriggerAction::ToggleState => {
+            ec.insert(crate::interaction::ToggleStateAction {
+                state_key: p.state_key.clone().unwrap_or_else(|| "active".to_string()),
+                value: p.text.clone(),
+            });
+        }
+        crate::interaction::TriggerAction::Spawn => {
+            ec.insert(crate::interaction::SpawnAction {
+                template: p.text.clone().unwrap_or_default(),
+            });
+        }
+        crate::interaction::TriggerAction::Destroy => {
+            ec.insert(crate::interaction::DestroyAction);
+        }
+        crate::interaction::TriggerAction::AddScore => {
+            ec.insert(crate::interaction::AddScoreAction {
+                amount: p.amount.unwrap_or(1),
+                category: p.category.clone().unwrap_or_else(|| "points".to_string()),
+            });
+        }
+        crate::interaction::TriggerAction::Enable => {
+            ec.insert(crate::interaction::EnableAction);
+        }
+        crate::interaction::TriggerAction::Disable => {
+            ec.insert(crate::interaction::DisableAction);
+        }
+    }
+    // Mark as once-trigger if requested
+    if p.once {
+        ec.insert(crate::interaction::OnceTrigger);
+    }
+}
+
+/// The world-format form of a trigger, for saving (world-types `trigger`).
+pub fn trigger_def(p: &AddTriggerParams) -> localgpt_world_types::TriggerDef {
+    use localgpt_world_types::{TriggerActionDef as A, TriggerEvent as E};
+    let on = match p.trigger_type {
+        TriggerType::Proximity => E::Proximity {
+            radius: p.radius.unwrap_or(5.0),
+        },
+        TriggerType::Click => E::Click {
+            max_distance: p.max_distance.unwrap_or(5.0),
+            prompt: p.prompt_text.clone(),
+        },
+        TriggerType::AreaEnter => E::AreaEnter,
+        TriggerType::AreaExit => E::AreaExit,
+        TriggerType::Collision => E::Collision {
+            radius: p.radius.unwrap_or(3.0),
+        },
+        TriggerType::Timer => E::Timer {
+            interval: p.interval.unwrap_or(1.0),
+        },
+    };
+    let text = || p.text.clone().unwrap_or_default();
+    let action = match p.action {
+        TriggerAction::Animate => A::Animate {
+            property: p
+                .state_key
+                .clone()
+                .unwrap_or_else(|| "position".to_string()),
+            to: p.destination.map(|d| d.to_vec()).unwrap_or_default(),
+            // Gen's animate action takes its duration from `cooldown`.
+            duration: p.cooldown.unwrap_or(1.0),
+        },
+        TriggerAction::Teleport => A::Teleport {
+            destination: p.destination.unwrap_or_default(),
+        },
+        TriggerAction::PlaySound => A::PlaySound {
+            sound: p.text.clone().unwrap_or_else(|| "default".to_string()),
+        },
+        TriggerAction::ShowText => A::ShowText { text: text() },
+        TriggerAction::ToggleState => A::ToggleState {
+            key: p.state_key.clone().unwrap_or_else(|| "active".to_string()),
+            value: p.text.clone(),
+        },
+        TriggerAction::Spawn => A::Spawn { template: text() },
+        TriggerAction::Destroy => A::Destroy,
+        TriggerAction::AddScore => A::AddScore {
+            amount: p.amount.unwrap_or(1),
+            category: p.category.clone().unwrap_or_else(|| "points".to_string()),
+        },
+        TriggerAction::Enable => A::Enable,
+        TriggerAction::Disable => A::Disable,
+    };
+    localgpt_world_types::TriggerDef {
+        on,
+        action,
+        once: p.once,
+        cooldown: p.cooldown,
+        requires_item: p.requires_item.clone(),
+    }
+}
+
+/// The parameters that recreate a saved trigger on `entity`.
+pub fn trigger_params(entity: &str, t: &localgpt_world_types::TriggerDef) -> AddTriggerParams {
+    use localgpt_world_types::{TriggerActionDef as A, TriggerEvent as E};
+    let mut p = AddTriggerParams {
+        entity_id: entity.to_string(),
+        trigger_type: TriggerType::Proximity,
+        action: TriggerAction::Animate,
+        radius: None,
+        cooldown: t.cooldown,
+        interval: None,
+        max_distance: None,
+        prompt_text: None,
+        once: t.once,
+        destination: None,
+        text: None,
+        amount: None,
+        state_key: None,
+        category: None,
+        requires_item: t.requires_item.clone(),
+    };
+    match &t.on {
+        E::Proximity { radius } => p.radius = Some(*radius),
+        E::Click {
+            max_distance,
+            prompt,
+        } => {
+            p.trigger_type = TriggerType::Click;
+            p.max_distance = Some(*max_distance);
+            p.prompt_text = prompt.clone();
+        }
+        E::AreaEnter => p.trigger_type = TriggerType::AreaEnter,
+        E::AreaExit => p.trigger_type = TriggerType::AreaExit,
+        E::Collision { radius } => {
+            p.trigger_type = TriggerType::Collision;
+            p.radius = Some(*radius);
+        }
+        E::Timer { interval } => {
+            p.trigger_type = TriggerType::Timer;
+            p.interval = Some(*interval);
+        }
+    }
+    match &t.action {
+        A::Animate {
+            property,
+            to,
+            duration,
+        } => {
+            p.state_key = Some(property.clone());
+            if to.len() >= 3 {
+                p.destination = Some([to[0], to[1], to[2]]);
+            }
+            p.cooldown = t.cooldown.or(Some(*duration));
+        }
+        A::Teleport { destination } => {
+            p.action = TriggerAction::Teleport;
+            p.destination = Some(*destination);
+        }
+        A::PlaySound { sound } => {
+            p.action = TriggerAction::PlaySound;
+            p.text = Some(sound.clone());
+        }
+        A::ShowText { text } => {
+            p.action = TriggerAction::ShowText;
+            p.text = Some(text.clone());
+        }
+        A::ToggleState { key, value } => {
+            p.action = TriggerAction::ToggleState;
+            p.state_key = Some(key.clone());
+            p.text = value.clone();
+        }
+        A::Spawn { template } => {
+            p.action = TriggerAction::Spawn;
+            p.text = Some(template.clone());
+        }
+        A::Destroy => p.action = TriggerAction::Destroy,
+        A::AddScore { amount, category } => {
+            p.action = TriggerAction::AddScore;
+            p.amount = Some(*amount);
+            p.category = Some(category.clone());
+        }
+        A::Enable => p.action = TriggerAction::Enable,
+        A::Disable => p.action = TriggerAction::Disable,
+    }
+    p
+}
+
 /// Parameters for teleporter.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TeleporterParams {
@@ -1690,6 +1961,28 @@ impl Plugin for InteractionPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saved_triggers_round_trip_through_the_runtime_params() {
+        // Every trigger in the conformance world comes back as it was saved
+        // after passing through Gen's runtime parameters.
+        let text = include_str!("../../../world-types/conformance/triggers.json");
+        let manifest: localgpt_world_types::WorldManifest = serde_json::from_str(text).unwrap();
+        let mut seen = 0;
+        for entity in &manifest.entities {
+            for def in &entity.triggers {
+                let params = trigger_params(entity.name.as_str(), def);
+                let mut back = trigger_def(&params);
+                if let localgpt_world_types::TriggerActionDef::Animate { .. } = def.action {
+                    // Gen's animate action keeps its duration in `cooldown`.
+                    back.cooldown = def.cooldown;
+                }
+                assert_eq!(&back, def, "{}", entity.name);
+                seen += 1;
+            }
+        }
+        assert!(seen >= 10);
+    }
 
     #[test]
     fn test_scoreboard() {

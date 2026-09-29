@@ -844,6 +844,7 @@ pub(crate) fn web_projection_sync(
         parent_query: &parent_query,
         gltf_sources: &gltf_sources,
         material_textures: None,
+        world_extras: None,
         registry: &registry,
     };
 

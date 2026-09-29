@@ -38,6 +38,17 @@ duplicate name rejects the whole batch. `gen_scene_info` reports the scene
 redo, load and clear. Pass it as `expected_revision` to a batch tool and the
 batch is refused if the scene changed after you read it.
 
+## Reusable Creations
+
+| Tool | Description |
+|------|-------------|
+| `gen_define_creation` | Turn entities (and their children) into a reusable creation; the originals become its first instance |
+| `gen_spawn_instance` | Place a copy of a creation, optionally changing single parts |
+
+An instance's parts are named `<instance>/<part>` and can be modified like
+any entity. Saving stores the creation once and, per instance, only what
+differs from it. See [World Skills](/docs/gen/world-skills#reusable-creations).
+
 ## Camera & Environment
 
 | Tool | Description |

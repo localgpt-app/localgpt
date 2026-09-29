@@ -203,3 +203,84 @@ fn fixtures_cover_every_variant() {
         set(&["directional", "point", "spot"])
     );
 }
+
+#[test]
+fn instances_expand_the_same_way_everywhere() {
+    let (_, text) = fixtures()
+        .into_iter()
+        .find(|(name, _)| name == "instances.json")
+        .expect("instances.json");
+    let mut manifest = parse("instances.json", &text);
+    let instances = manifest
+        .entities
+        .iter()
+        .filter(|e| e.instance_of.is_some())
+        .count();
+    let parts = manifest.creations[0].parts.len();
+    let before = manifest.entities.len();
+    assert_eq!(manifest.expand_instances(), instances * parts);
+    assert_eq!(manifest.entities.len(), before + instances * parts);
+
+    // The web viewer's `expandInstances` numbers parts the same way: from
+    // `first_expansion_id`, instance by instance, part by part.
+    let tall_crown = manifest
+        .entities
+        .iter()
+        .find(|e| e.name.as_str() == "tree_tall/crown")
+        .expect("tree_tall/crown");
+    assert_eq!(tall_crown.id.0, 14 + 3 * parts as u64 + 1);
+    assert_eq!(tall_crown.transform.position, [0.0, 2.6, 0.0]);
+    assert_eq!(tall_crown.behaviors.len(), 1);
+    let autumn_top = manifest
+        .entities
+        .iter()
+        .find(|e| e.name.as_str() == "tree_autumn/top")
+        .expect("tree_autumn/top");
+    assert_eq!(
+        autumn_top.material.as_ref().unwrap().color,
+        [0.85, 0.55, 0.1, 1.0]
+    );
+    let issues = wt::validate_manifest(&manifest, &wt::WorldLimits::default());
+    assert!(issues.iter().all(|i| i.severity != wt::Severity::Error));
+}
+
+#[test]
+fn triggers_cover_every_event_and_action() {
+    let mut events = BTreeSet::new();
+    let mut actions = BTreeSet::new();
+    for (name, text) in fixtures() {
+        for e in &parse(&name, &text).entities {
+            for t in &e.triggers {
+                let json = serde_json::to_value(t).unwrap();
+                events.insert(json["on"]["event"].as_str().unwrap().to_string());
+                actions.insert(json["action"]["action"].as_str().unwrap().to_string());
+            }
+        }
+    }
+    assert_eq!(
+        events,
+        set(&[
+            "area_enter",
+            "area_exit",
+            "click",
+            "collision",
+            "proximity",
+            "timer"
+        ])
+    );
+    assert_eq!(
+        actions,
+        set(&[
+            "add_score",
+            "animate",
+            "destroy",
+            "disable",
+            "enable",
+            "play_sound",
+            "show_text",
+            "spawn",
+            "teleport",
+            "toggle_state",
+        ])
+    );
+}

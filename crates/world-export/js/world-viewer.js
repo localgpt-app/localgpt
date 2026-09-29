@@ -3,8 +3,10 @@
 // Input: a `WorldManifest` as JSON (crate `localgpt-world-types`; schema in
 // `crates/world-types/world.schema.json`). Output: a three.js scene that
 // draws it the way the Bevy renderer (`localgpt-world-bevy`) does: colours are
-// linear RGBA, rotations XYZ Euler degrees, directional light intensity in
-// lux, point and spot lights in lumens, spot angles in radians.
+// RGBA in 0..1, sRGB-encoded except `emissive` (linear); rotations XYZ Euler
+// degrees; directional light intensity in lux, point and spot lights in
+// lumens, spot angles in radians. The conventions are stated once, on
+// `WorldManifest` in the schema.
 //
 // This file is embedded verbatim by `localgpt-world-export::html::generate_html`
 // (Gen's `gen_export_html`, MD's `--export x.html`) and served as a module by
@@ -467,6 +469,92 @@ function buildAudioSource(ctx, audio, out) {
 }
 
 // ---------------------------------------------------------------------------
+// Instances (world-types `instance`): one creation, many placements
+// ---------------------------------------------------------------------------
+
+/** Apply an `EntityPatch` (JSON) to a plain entity: a present key replaces the field, `null` clears it. */
+export function applyPatchToDef(def, patch) {
+  for (const [key, value] of Object.entries(patch || {})) def[key] = value;
+  return def;
+}
+
+/** The first id free for expanded parts (`WorldManifest::first_expansion_id`). */
+export function firstExpansionId(manifest) {
+  let max = 0;
+  for (const e of manifest.entities || []) max = Math.max(max, Number(e.id) || 0);
+  return Math.max(Number(manifest.next_entity_id ?? 1), max + 1);
+}
+
+/**
+ * `instance::expand_instances`: each instance followed by copies of its
+ * creation's parts, with fresh ids from `firstId`, names `instance/part`,
+ * the instance (or the parent part's copy) as parent, and the per-instance
+ * overrides applied. Same ids and order as the Rust function, so both
+ * renderers draw the same entities.
+ */
+export function expandInstances(entities, creations, firstId) {
+  const defs = new Map((creations || []).map((c) => [String(c.id), c]));
+  const done = new Set();
+  for (const e of entities || []) if (e.parent != null && e.creation_id != null) done.add(`${e.parent}:${e.creation_id}`);
+  let next = firstId;
+  const out = [];
+  for (const e of entities || []) {
+    out.push(e);
+    const inst = e.instance_of;
+    if (!inst) continue;
+    const def = defs.get(String(inst.creation));
+    if (!def || done.has(`${e.id}:${def.id}`)) continue;
+    const parts = def.parts || [];
+    const ids = new Map();
+    for (const p of parts) ids.set(String(p.id), next++);
+    for (const p of parts) {
+      const x = JSON.parse(JSON.stringify(p));
+      for (const o of inst.overrides || []) {
+        if (o.part !== p.name) continue;
+        const { name, parent, instance_of, ...rest } = o.patch || {};
+        applyPatchToDef(x, rest);
+      }
+      x.id = ids.get(String(p.id));
+      x.name = `${e.name}/${p.name}`;
+      x.parent = p.parent != null && ids.has(String(p.parent)) ? ids.get(String(p.parent)) : e.id;
+      if (e.chunk != null) x.chunk = e.chunk; else delete x.chunk;
+      x.creation_id = def.id;
+      delete x.instance_of;
+      out.push(x);
+    }
+  }
+  return out;
+}
+
+/** The manifest's entities with every instance expanded. */
+export function expandedEntities(manifest) {
+  const entities = manifest.entities || [];
+  if (!entities.some((e) => e.instance_of)) return entities;
+  return expandInstances(entities, manifest.creations, firstExpansionId(manifest));
+}
+
+/**
+ * `MeshAssetRef::node_overrides`: hide or recolour named nodes inside a
+ * loaded glTF scene (the node and everything under it). Materials are
+ * cloned so other placements of the same file keep theirs.
+ */
+export function applyNodeOverrides(root, overrides) {
+  for (const o of overrides || []) {
+    const node = root.getObjectByName(o.node);
+    if (!node) continue;
+    if (o.visible != null) node.visible = !!o.visible;
+    if (o.color) {
+      const color = srgbColor(o.color);
+      const recolor = (m) => { const c = m.clone(); c.color?.copy(color); return c; };
+      node.traverse((m) => {
+        if (!m.isMesh || !m.material) return;
+        m.material = Array.isArray(m.material) ? m.material.map(recolor) : recolor(m.material);
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The viewer
 // ---------------------------------------------------------------------------
 
@@ -478,6 +566,7 @@ function buildAudioSource(ctx, audio, out) {
  *   audioButton  element whose click toggles audio (shown when the world has sound).
  *   tourButton   element whose click starts/stops the first tour (shown when tours exist).
  *   tourCaption  element that shows waypoint descriptions.
+ *   triggerCaption element for `show_text` trigger actions (default: tourCaption).
  *   keyboard     WASD/Space/Shift navigation (default true).
  *   embedApi     postMessage API for a parent frame (default: when framed).
  *   ambientScale override for AMBIENT_SCALE.
@@ -560,6 +649,7 @@ export function createWorldViewer(container, manifest, options = {}) {
           object.remove(placeholder);
           const node = def.mesh_asset.node ? gltf.scene.getObjectByName(def.mesh_asset.node) || gltf.scene : gltf.scene;
           node.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+          applyNodeOverrides(node, def.mesh_asset.node_overrides);
           object.add(node);
         }, undefined, () => { /* keep the placeholder */ });
       }
@@ -608,6 +698,10 @@ export function createWorldViewer(container, manifest, options = {}) {
       if (target === 'scale') rec.resetScale = true;
       rec.mods.push({ def: m, target, s: 0 });
     }
+    // The viewer has no inventory, so triggers that need an item never fire.
+    rec.triggers = (rec.def.triggers || [])
+      .filter((t) => !t.requires_item)
+      .map((def) => ({ def, done: false, inside: false, last: -Infinity, acc: 0 }));
   }
 
   function disposeObject(object) {
@@ -676,6 +770,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     if (rebuild) { rebuildRecord(rec); return; }
     if (patch.behaviors) { def.behaviors = patch.behaviors; initDynamics(rec); }
     if (patch.modulations) { def.modulations = patch.modulations; initDynamics(rec); }
+    if (patch.triggers) { def.triggers = patch.triggers; initDynamics(rec); }
     if (patch.audio !== undefined) def.audio = patch.audio;
   }
 
@@ -749,7 +844,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     }
   }
 
-  for (const def of manifest.entities || []) {
+  for (const def of expandedEntities(manifest)) {
     const rec = buildRecord(def);
     records.push(rec);
     byName.set(def.name, rec);
@@ -953,6 +1048,101 @@ export function createWorldViewer(container, manifest, options = {}) {
     opts.tourButton.addEventListener('click', () => { if (tour.active) stopTour(); else startTour(0); });
   }
 
+  // ---- Triggers (world-types `trigger`) ----
+  // Runs click, proximity, area_enter, area_exit and timer events with the
+  // show_text, enable, disable, destroy and teleport actions; the rest need
+  // Gen's runtime (collision physics, inventory, score, sounds by name).
+  const triggerCaption = opts.triggerCaption || opts.tourCaption || null;
+  let triggerTextTime = 0;
+  function showTriggerText(text) {
+    if (!triggerCaption || !text) return;
+    triggerCaption.textContent = text;
+    triggerCaption.style.display = '';
+    triggerTextTime = 4;
+  }
+  function runAction(rec, action) {
+    switch (action?.action) {
+      case 'show_text': showTriggerText(action.text); break;
+      case 'enable': rec.object.visible = true; break;
+      case 'disable': case 'destroy': rec.object.visible = false; break;
+      case 'teleport': {
+        const d = action.destination || [0, 0, 0];
+        const delta = new THREE.Vector3(d[0], d[1], d[2]).sub(camera.position);
+        camera.position.add(delta);
+        controls.target.add(delta);
+        break;
+      }
+      default: break;
+    }
+  }
+  // Gen's defaults: proximity waits a second between fires, the rest don't.
+  function fireTrigger(rec, trig, defaultCooldown) {
+    if (trig.done || !rec.object.visible && trig.def.action?.action !== 'enable') return;
+    if (elapsed - trig.last < (trig.def.cooldown ?? defaultCooldown)) return;
+    trig.last = elapsed;
+    if (trig.def.once) trig.done = true;
+    runAction(rec, trig.def.action);
+  }
+  const triggerPos = new THREE.Vector3();
+  const triggerBox = new THREE.Box3();
+  function updateTriggers(dt) {
+    if (triggerTextTime > 0) {
+      triggerTextTime -= dt;
+      if (triggerTextTime <= 0 && !tour.active && triggerCaption) triggerCaption.style.display = 'none';
+    }
+    for (const rec of records) {
+      for (const trig of rec.triggers) {
+        const ev = trig.def.on || {};
+        switch (ev.event) {
+          case 'proximity': {
+            const near = rec.object.getWorldPosition(triggerPos).distanceTo(camera.position) <= (ev.radius ?? 5);
+            if (near) fireTrigger(rec, trig, 1);
+            break;
+          }
+          case 'area_enter': case 'area_exit': {
+            triggerBox.setFromObject(rec.object);
+            const inside = !triggerBox.isEmpty() && triggerBox.containsPoint(camera.position);
+            if (inside !== trig.inside && inside === (ev.event === 'area_enter')) fireTrigger(rec, trig, 0);
+            trig.inside = inside;
+            break;
+          }
+          case 'timer': {
+            if (!(ev.interval > 0)) break;
+            trig.acc += dt;
+            if (trig.acc >= ev.interval) { trig.acc -= ev.interval; fireTrigger(rec, trig, 0); }
+            break;
+          }
+          default: break;
+        }
+      }
+    }
+  }
+  // A click (not a drag, which orbits) fires the click triggers of the
+  // nearest hit entity or, failing that, of its nearest ancestor that has
+  // some, so clicking any part of an instance fires the instance's trigger.
+  const raycaster = new THREE.Raycaster();
+  const press = { x: 0, y: 0, down: false };
+  const onPointerDown = (e) => { press.x = e.clientX; press.y = e.clientY; press.down = true; };
+  const onPointerUp = (e) => {
+    if (!press.down) return;
+    press.down = false;
+    if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 5) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    raycaster.setFromCamera(ndc, camera);
+    const hit = raycaster.intersectObjects(scene.children, true).find((h) => h.object.visible);
+    if (!hit) return;
+    for (let o = hit.object; o; o = o.parent) {
+      const rec = records.find((r) => r.object === o);
+      const clicks = rec ? rec.triggers.filter((t) => t.def.on?.event === 'click') : [];
+      if (!clicks.length) continue;
+      for (const trig of clicks) if (hit.distance <= (trig.def.on.max_distance ?? 5)) fireTrigger(rec, trig, 0);
+      break;
+    }
+  };
+  renderer.domElement.addEventListener('pointerdown', onPointerDown);
+  renderer.domElement.addEventListener('pointerup', onPointerUp);
+
   // ---- Frame loop ----
   const clock = new THREE.Clock();
   let elapsed = 0;
@@ -971,6 +1161,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     updateSpatial();
     updateMovement(dt);
     updateTour(dt);
+    updateTriggers(dt);
     controls.update();
     if (camera.aspect !== (container.clientWidth || width) / (container.clientHeight || height)) resize();
     renderer.render(scene, camera);
@@ -991,6 +1182,7 @@ export function createWorldViewer(container, manifest, options = {}) {
       cameraPosition: [camera.position.x, camera.position.y, camera.position.z],
       cameraTarget: [controls.target.x, controls.target.y, controls.target.z],
       tourCount: tours.length,
+      triggerCount: records.reduce((n, r) => n + r.triggers.length, 0),
       audioEnabled: audioState.started,
       viewerVersion: VIEWER_VERSION,
     };
@@ -1019,6 +1211,8 @@ export function createWorldViewer(container, manifest, options = {}) {
     resizeObserver?.disconnect();
     if (typeof document !== 'undefined') { document.removeEventListener('keydown', onKeyDown); document.removeEventListener('keyup', onKeyUp); }
     if (typeof window !== 'undefined') window.removeEventListener('message', onMessage);
+    renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+    renderer.domElement.removeEventListener('pointerup', onPointerUp);
     controls.dispose();
     renderer.dispose();
     renderer.domElement.remove();

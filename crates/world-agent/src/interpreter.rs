@@ -544,10 +544,7 @@ impl SceneInterpreter {
         entity.transform.position = c.position;
         entity.transform.rotation_degrees = c.rotation_degrees;
         entity.transform.scale = [scale, scale, scale];
-        entity.mesh_asset = Some(wt::MeshAssetRef {
-            path: assets::mesh_path(&c.asset),
-            node: None,
-        });
+        entity.mesh_asset = Some(wt::MeshAssetRef::new(assets::mesh_path(&c.asset)));
         let asset = c.asset.clone();
         match self.push(&c.name, entity) {
             Ok(()) => AgentResponse::AssetPlaced {
@@ -600,10 +597,7 @@ impl SceneInterpreter {
             ];
             entity.transform.rotation_degrees = [0.0, assets::rand01(&mut rng) * 360.0, 0.0];
             entity.transform.scale = [scale, scale, scale];
-            entity.mesh_asset = Some(wt::MeshAssetRef {
-                path: assets::mesh_path(file),
-                node: None,
-            });
+            entity.mesh_asset = Some(wt::MeshAssetRef::new(assets::mesh_path(file)));
             if let Err(e) = self.push(&name, entity) {
                 return AgentResponse::Error(e);
             }

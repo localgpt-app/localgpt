@@ -27,6 +27,9 @@ pub fn create_gen_tools(bridge: Arc<GenBridge>) -> Vec<Box<dyn Tool>> {
         Box::new(GenSpawnBatchTool::new(bridge.clone())),
         Box::new(GenModifyBatchTool::new(bridge.clone())),
         Box::new(GenDeleteBatchTool::new(bridge.clone())),
+        // Reusable creations: define once, place many
+        Box::new(GenDefineCreationTool::new(bridge.clone())),
+        Box::new(GenSpawnInstanceTool::new(bridge.clone())),
         Box::new(GenSetCameraTool::new(bridge.clone())),
         Box::new(GenSetLightTool::new(bridge.clone())),
         Box::new(GenSetEnvironmentTool::new(bridge.clone())),
@@ -985,6 +988,147 @@ impl Tool for GenDeleteBatchTool {
                     results.join("\n")
                 ))
             }
+            GenResponse::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            other => Err(anyhow::anyhow!("Unexpected response: {:?}", other)),
+        }
+    }
+}
+
+// ===========================================================================
+// gen_define_creation
+// ===========================================================================
+
+struct GenDefineCreationTool {
+    bridge: Arc<GenBridge>,
+}
+
+impl GenDefineCreationTool {
+    fn new(bridge: Arc<GenBridge>) -> Self {
+        Self { bridge }
+    }
+}
+
+#[async_trait]
+impl Tool for GenDefineCreationTool {
+    fn name(&self) -> &str {
+        "gen_define_creation"
+    }
+
+    fn schema(&self) -> ToolSchema {
+        ToolSchema {
+            name: "gen_define_creation".into(),
+            description: "Make a reusable creation (a tree, a lamp post, a house) from entities you built, \
+                          with everything parented under them. By default the originals become its first \
+                          instance, named <name>_1. Then place more copies with gen_spawn_instance: the world \
+                          stores the definition once, and each copy only its position and changes."
+                .into(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Creation name, e.g. \"oak_tree\""},
+                    "entities": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Entities it is made of; the first one's position becomes the creation's origin"
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "building, vegetation, furniture, vehicle, character, terrain, decoration, light, audio, or your own"
+                    },
+                    "replace": {"type": "boolean", "default": true, "description": "Turn the originals into the first instance"},
+                    "instance_name": {"type": "string", "description": "Name of the first instance (default <name>_1)"}
+                },
+                "required": ["name", "entities"]
+            }),
+        }
+    }
+
+    async fn execute(&self, arguments: &str) -> Result<String> {
+        let cmd: DefineCreationCmd = serde_json::from_str(arguments)?;
+        match self.bridge.send(GenCommand::DefineCreation(cmd)).await? {
+            GenResponse::CreationDefined {
+                name,
+                parts,
+                instance,
+            } => Ok(match instance {
+                Some(instance) => format!(
+                    "Defined creation '{name}' with {} parts ({}). The originals are now \
+                     instance '{instance}'; its parts are named '{instance}/<part>'.",
+                    parts.len(),
+                    parts.join(", ")
+                ),
+                None => format!(
+                    "Defined creation '{name}' with {} parts ({}).",
+                    parts.len(),
+                    parts.join(", ")
+                ),
+            }),
+            GenResponse::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            other => Err(anyhow::anyhow!("Unexpected response: {:?}", other)),
+        }
+    }
+}
+
+// ===========================================================================
+// gen_spawn_instance
+// ===========================================================================
+
+struct GenSpawnInstanceTool {
+    bridge: Arc<GenBridge>,
+}
+
+impl GenSpawnInstanceTool {
+    fn new(bridge: Arc<GenBridge>) -> Self {
+        Self { bridge }
+    }
+}
+
+#[async_trait]
+impl Tool for GenSpawnInstanceTool {
+    fn name(&self) -> &str {
+        "gen_spawn_instance"
+    }
+
+    fn schema(&self) -> ToolSchema {
+        ToolSchema {
+            name: "gen_spawn_instance".into(),
+            description: "Place a copy of a creation made with gen_define_creation. Parts are named \
+                          <name>/<part> and can be modified like any entity; saving keeps only what \
+                          differs from the definition."
+                .into(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "creation": {"type": "string", "description": "Creation name"},
+                    "name": {"type": "string", "description": "Name for this copy, e.g. \"oak_3\""},
+                    "position": {"type": "array", "items": {"type": "number"}, "description": "[x, y, z]"},
+                    "rotation_degrees": {"type": "array", "items": {"type": "number"}, "description": "[x, y, z] Euler degrees"},
+                    "scale": {"type": "array", "items": {"type": "number"}, "description": "[x, y, z], default [1, 1, 1]"},
+                    "overrides": {
+                        "type": "array",
+                        "description": "Changes to single parts of this copy: [{\"part\": \"leaves\", \"patch\": {\"material\": {\"color\": [0.8, 0.2, 0.1, 1]}}}]",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "part": {"type": "string"},
+                                "patch": {"type": "object"}
+                            },
+                            "required": ["part", "patch"]
+                        }
+                    }
+                },
+                "required": ["creation", "name"]
+            }),
+        }
+    }
+
+    async fn execute(&self, arguments: &str) -> Result<String> {
+        let cmd: SpawnInstanceCmd = serde_json::from_str(arguments)?;
+        let creation = cmd.creation.clone();
+        match self.bridge.send(GenCommand::SpawnInstance(cmd)).await? {
+            GenResponse::Spawned { name, entity_id } => Ok(format!(
+                "Placed '{name}' (id {entity_id}), a copy of '{creation}'"
+            )),
             GenResponse::Error { message } => Err(anyhow::anyhow!("{}", message)),
             other => Err(anyhow::anyhow!("Unexpected response: {:?}", other)),
         }

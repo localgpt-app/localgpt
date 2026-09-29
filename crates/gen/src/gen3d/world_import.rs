@@ -91,7 +91,7 @@ pub fn parse_manifest(text: &str, json: bool) -> Result<wt::WorldManifest> {
 /// Every asset file a manifest references, relative to the world's `assets/`.
 pub fn manifest_assets(manifest: &wt::WorldManifest) -> Vec<String> {
     let mut paths = Vec::new();
-    for entity in &manifest.entities {
+    for entity in manifest.all_entities() {
         if let Some(mesh) = &entity.mesh_asset {
             paths.push(mesh.path.clone());
         }
@@ -357,10 +357,7 @@ mod tests {
     fn manifest(name: &str) -> wt::WorldManifest {
         let mut m = wt::WorldManifest::new(name);
         let mut rock = wt::WorldEntity::new(1, "rock");
-        rock.mesh_asset = Some(wt::MeshAssetRef {
-            path: "models/rock.glb".into(),
-            node: None,
-        });
+        rock.mesh_asset = Some(wt::MeshAssetRef::new("models/rock.glb"));
         m.entities.push(rock);
         m.next_entity_id = 2;
         m
@@ -427,10 +424,7 @@ mod tests {
         });
         m.entities.push(drum);
         let mut twin = wt::WorldEntity::new(3, "rock-2");
-        twin.mesh_asset = Some(wt::MeshAssetRef {
-            path: "models/rock.glb".into(),
-            node: None,
-        });
+        twin.mesh_asset = Some(wt::MeshAssetRef::new("models/rock.glb"));
         m.entities.push(twin);
         m.soundtrack = Some(wt::SoundtrackDef {
             path: Some("music/song.mp3".into()),

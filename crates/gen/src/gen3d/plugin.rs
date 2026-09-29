@@ -332,9 +332,12 @@ pub fn setup_gen_app(
         .init_resource::<super::generation_log::GenerationLog>()
         .init_resource::<super::region_dirty::RegionDirtyFlags>()
         .init_resource::<ReferenceBoard>()
+        .init_resource::<super::extras::CreationLibrary>()
         // Worlds that perform a song (Verse's): signal-driven modulation,
         // evaluated as every renderer of the format does.
         .add_plugins(localgpt_world_bevy::modulation::ModulationPlugin)
+        // `MeshAssetRef::node_overrides` on imported meshes.
+        .add_plugins(localgpt_world_bevy::nodes::NodeOverridesPlugin)
         .add_systems(
             Startup,
             (
@@ -576,6 +579,8 @@ struct GenCommandParams<'w, 's> {
     reference_board: ResMut<'w, ReferenceBoard>,
     soundtrack: ResMut<'w, localgpt_world_bevy::modulation::Soundtrack>,
     modulated: Query<'w, 's, &'static localgpt_world_bevy::modulation::Modulated>,
+    world_extras: Query<'w, 's, &'static super::extras::WorldExtras>,
+    creation_library: ResMut<'w, super::extras::CreationLibrary>,
 }
 
 /// Build a `SnapshotQueries` from `GenCommandParams`. Used in many dispatch arms.
@@ -600,6 +605,7 @@ macro_rules! snap_queries {
             parent_query: &$params.parent_query,
             gltf_sources: &$params.gltf_sources,
             material_textures: Some(&$params.material_textures),
+            world_extras: Some(&$params.world_extras),
             registry: &$params.registry,
         }
     };
@@ -790,6 +796,52 @@ fn process_gen_commands(
                     );
                 }
                 resp
+            }
+            GenCommand::DefineCreation(cmd) => {
+                handle_define_creation(cmd, &mut params, &mut commands)
+            }
+            GenCommand::SpawnInstance(cmd) => {
+                let place = wt::WorldTransform {
+                    position: cmd.position,
+                    rotation_degrees: cmd.rotation_degrees,
+                    scale: cmd.scale,
+                    visible: true,
+                };
+                match params.creation_library.by_name(&cmd.creation).cloned() {
+                    None => {
+                        let known: Vec<&str> = params
+                            .creation_library
+                            .creations
+                            .iter()
+                            .map(|c| c.name.as_str())
+                            .collect();
+                        GenResponse::Error {
+                            message: format!(
+                                "No creation named '{}' (defined: {})",
+                                cmd.creation,
+                                if known.is_empty() {
+                                    "none — make one with gen_define_creation".to_string()
+                                } else {
+                                    known.join(", ")
+                                }
+                            ),
+                        }
+                    }
+                    Some(def) => match spawn_instance(
+                        &cmd.name,
+                        &def,
+                        place,
+                        cmd.overrides,
+                        &mut params,
+                        &mut commands,
+                    ) {
+                        Ok(id) => GenResponse::Spawned {
+                            name: cmd.name,
+                            entity_id: id.0,
+                        },
+                        Err(message) => GenResponse::Error { message },
+                    },
+                }
             }
             GenCommand::DeleteEntity { name } => {
                 // Snapshot before delete so we can undo
@@ -1493,6 +1545,8 @@ fn process_gen_commands(
                     &params.npc_memories,
                     &params.modulated,
                     params.soundtrack.def.as_ref(),
+                    &params.world_extras,
+                    &params.creation_library,
                 )
             }
             GenCommand::ExportWorld { format } => handle_export_world(
@@ -1583,6 +1637,10 @@ fn process_gen_commands(
                                 .join(song);
                             params.audio_engine.play_soundtrack(file);
                         }
+
+                        // The world's reusable creations, for saving and
+                        // for placing more instances.
+                        params.creation_library.load(&world_load.creations, clear);
 
                         // Spawn entities directly from WorldManifest data
                         if !world_load.world_entities.is_empty() {
@@ -1903,126 +1961,11 @@ fn process_gen_commands(
                 };
                 let entity_name = p.entity_id.clone();
                 let mut ec = commands.entity(entity);
-                ec.insert(crate::interaction::InteractionEntity);
-                // Insert trigger component
-                match p.trigger_type {
-                    crate::interaction::TriggerType::Proximity => {
-                        ec.insert(crate::interaction::ProximityTrigger {
-                            radius: p.radius.unwrap_or(5.0),
-                            cooldown: p.cooldown.unwrap_or(1.0),
-                            last_triggered: 0.0,
-                        });
-                    }
-                    crate::interaction::TriggerType::Click => {
-                        ec.insert(crate::interaction::ClickTrigger {
-                            max_distance: p.max_distance.unwrap_or(5.0),
-                            prompt_text: p.prompt_text.clone(),
-                        });
-                    }
-                    crate::interaction::TriggerType::Timer => {
-                        if let Some(interval) = p.interval {
-                            ec.insert(crate::interaction::TimerTrigger::new(interval));
-                        }
-                    }
-                    crate::interaction::TriggerType::AreaEnter => {
-                        ec.insert((
-                            crate::interaction::AreaTrigger { is_enter: true },
-                            crate::interaction::AreaInsideTracker::default(),
-                        ));
-                    }
-                    crate::interaction::TriggerType::AreaExit => {
-                        ec.insert((
-                            crate::interaction::AreaTrigger { is_enter: false },
-                            crate::interaction::AreaInsideTracker::default(),
-                        ));
-                    }
-                    crate::interaction::TriggerType::Collision => {
-                        ec.insert(crate::interaction::CollisionTrigger {
-                            cooldown: p.cooldown.unwrap_or(1.0),
-                            ..default()
-                        });
-                        // Add a sensor collider if the entity doesn't already have one.
-                        // Uses the trigger radius as the sensor sphere size.
-                        ec.insert(crate::physics::ColliderConfig {
-                            shape: crate::physics::ColliderShape::Sphere,
-                            size: Some(Vec3::splat(p.radius.unwrap_or(3.0) * 2.0)),
-                            offset: Vec3::ZERO,
-                            is_trigger: true,
-                            visible_in_debug: true,
-                        });
-                    }
-                }
-                // Insert requires_item component if specified (Gap 2.3)
-                if let Some(ref item_id) = p.requires_item {
-                    ec.insert(crate::interaction::RequiresItem {
-                        item_id: item_id.clone(),
-                    });
-                }
-                // Insert action component
-                match p.action {
-                    crate::interaction::TriggerAction::Animate => {
-                        ec.insert(crate::interaction::AnimateAction {
-                            property: p
-                                .state_key
-                                .clone()
-                                .unwrap_or_else(|| "position".to_string()),
-                            to: p.destination.map(|d| d.to_vec()).unwrap_or_default(),
-                            duration: p.cooldown.unwrap_or(1.0),
-                            progress: 0.0,
-                        });
-                    }
-                    crate::interaction::TriggerAction::Teleport => {
-                        if let Some(dest) = p.destination {
-                            ec.insert(crate::interaction::TeleportAction {
-                                destination: Vec3::from_array(dest),
-                                effect: crate::interaction::TeleportEffect::None,
-                            });
-                        }
-                    }
-                    crate::interaction::TriggerAction::PlaySound => {
-                        ec.insert(crate::interaction::PlaySoundAction {
-                            sound: p.text.clone().unwrap_or_else(|| "default".to_string()),
-                        });
-                    }
-                    crate::interaction::TriggerAction::ShowText => {
-                        if let Some(text) = &p.text {
-                            ec.insert(crate::interaction::ShowTextAction {
-                                text: text.clone(),
-                                duration: None,
-                            });
-                        }
-                    }
-                    crate::interaction::TriggerAction::ToggleState => {
-                        ec.insert(crate::interaction::ToggleStateAction {
-                            state_key: p.state_key.clone().unwrap_or_else(|| "active".to_string()),
-                            value: p.text.clone(),
-                        });
-                    }
-                    crate::interaction::TriggerAction::Spawn => {
-                        ec.insert(crate::interaction::SpawnAction {
-                            template: p.text.clone().unwrap_or_default(),
-                        });
-                    }
-                    crate::interaction::TriggerAction::Destroy => {
-                        ec.insert(crate::interaction::DestroyAction);
-                    }
-                    crate::interaction::TriggerAction::AddScore => {
-                        ec.insert(crate::interaction::AddScoreAction {
-                            amount: p.amount.unwrap_or(1),
-                            category: p.category.clone().unwrap_or_else(|| "points".to_string()),
-                        });
-                    }
-                    crate::interaction::TriggerAction::Enable => {
-                        ec.insert(crate::interaction::EnableAction);
-                    }
-                    crate::interaction::TriggerAction::Disable => {
-                        ec.insert(crate::interaction::DisableAction);
-                    }
-                }
-                // Mark as once-trigger if requested
-                if p.once {
-                    ec.insert(crate::interaction::OnceTrigger);
-                }
+                crate::interaction::insert_trigger(&mut ec, &p);
+                // Kept on the entity so a save writes the trigger into the world.
+                let mut extras = params.world_extras.get(entity).cloned().unwrap_or_default();
+                extras.add_trigger(crate::interaction::trigger_def(&p));
+                ec.insert(extras);
                 let _ = channel_res
                     .channels
                     .resp_tx
@@ -5975,6 +5918,150 @@ fn handle_modify_entity(
     GenResponse::Modified { name: cmd.name }
 }
 
+/// `gen_define_creation`: turn named entities, with everything under them,
+/// into a reusable creation; with `replace`, the originals become its first
+/// instance, in the same place.
+fn handle_define_creation(
+    cmd: DefineCreationCmd,
+    params: &mut GenCommandParams,
+    commands: &mut Commands,
+) -> GenResponse {
+    let error = |message: String| GenResponse::Error { message };
+    if params.creation_library.by_name(&cmd.name).is_some() {
+        return error(format!("A creation named '{}' already exists", cmd.name));
+    }
+    if cmd.entities.is_empty() {
+        return error("List the entities the creation is made of".into());
+    }
+    let mut listed = Vec::new();
+    for name in &cmd.entities {
+        match params.registry.get_entity(name) {
+            Some(e) => listed.push(e),
+            None => return error(format!("Entity '{name}' not found")),
+        }
+    }
+    let under_listed = |mut e: Entity| {
+        for _ in 0..64 {
+            let Ok(child_of) = params.parent_query.get(e) else {
+                return false;
+            };
+            e = child_of.parent();
+            if listed.contains(&e) {
+                return true;
+            }
+        }
+        false
+    };
+    // The named entities, then everything under them (by id, so the
+    // definition comes out the same every time).
+    let mut members: Vec<(String, Entity, wt::EntityId)> = Vec::new();
+    for &e in &listed {
+        if let (Some(name), Some(id)) = (params.registry.get_name(e), params.registry.get_id(e))
+            && !members.iter().any(|(_, m, _)| *m == e)
+        {
+            members.push((name.to_string(), e, id));
+        }
+    }
+    let mut below: Vec<(String, Entity, wt::EntityId)> = params
+        .registry
+        .all_names()
+        .filter(|(_, e)| !listed.contains(e) && under_listed(*e))
+        .filter_map(|(name, e)| Some((name.to_string(), e, params.registry.get_id(e)?)))
+        .collect();
+    below.sort_by_key(|(_, _, id)| id.0);
+    members.extend(below);
+    if let Some((name, _, _)) = members.iter().find(|(_, e, _)| {
+        params
+            .world_extras
+            .get(*e)
+            .is_ok_and(|x| x.instance_of.is_some() || x.part_of.is_some())
+    }) {
+        return error(format!(
+            "'{name}' is already an instance or part of one; creations don't nest"
+        ));
+    }
+
+    let snapshots: Vec<wt::WorldEntity> = members
+        .iter()
+        .map(|(name, e, id)| snapshot_entity(name, *e, *id, &snap_queries!(params)))
+        .collect();
+    let id = params.creation_library.next_id();
+    let (def, origin) =
+        super::extras::creation_from(&cmd.name, id, cmd.category.as_deref(), &snapshots);
+    let parts = def.parts.iter().map(|p| p.name.to_string()).collect();
+    params.creation_library.creations.push(def.clone());
+
+    let mut instance = None;
+    if cmd.replace {
+        for (name, _, _) in &members {
+            params.registry.remove_by_name(name);
+        }
+        for &e in listed.iter().filter(|e| !under_listed(**e)) {
+            commands.entity(e).despawn();
+        }
+        let name = cmd
+            .instance_name
+            .unwrap_or_else(|| format!("{}_1", cmd.name));
+        let place = wt::WorldTransform {
+            position: origin,
+            ..Default::default()
+        };
+        if let Err(message) = spawn_instance(&name, &def, place, Vec::new(), params, commands) {
+            return error(message);
+        }
+        instance = Some(name);
+    }
+    GenResponse::CreationDefined {
+        name: cmd.name,
+        parts,
+        instance,
+    }
+}
+
+/// Spawn an instance of `def` named `name`: the instance entity, then its
+/// parts, expanded as every renderer expands them.
+fn spawn_instance(
+    name: &str,
+    def: &wt::CreationDef,
+    place: wt::WorldTransform,
+    overrides: Vec<wt::PartOverride>,
+    params: &mut GenCommandParams,
+    commands: &mut Commands,
+) -> Result<wt::EntityId, String> {
+    if params.registry.contains_name(name) {
+        return Err(format!("An entity named '{name}' already exists"));
+    }
+    let root_id = params.next_entity_id.alloc();
+    let mut root = wt::WorldEntity::new(root_id.0, name);
+    root.transform = place;
+    root.instance_of = Some(wt::InstanceOf {
+        creation: def.id,
+        overrides,
+    });
+    let first = params.next_entity_id.alloc().0;
+    let entities = wt::expand_instances(
+        std::slice::from_ref(&root),
+        std::slice::from_ref(def),
+        first,
+    );
+    params
+        .next_entity_id
+        .ensure_at_least(first + def.parts.len() as u64);
+    spawn_world_entities(
+        &entities,
+        commands,
+        &mut params.meshes,
+        &mut params.materials,
+        &mut params.registry,
+        &mut params.next_entity_id,
+        &mut params.behavior_state,
+        &params.asset_server,
+        &mut params.pending_gltf,
+        params.current_world.path.as_deref(),
+    );
+    Ok(root_id)
+}
+
 fn handle_delete_entity(
     name: &str,
     commands: &mut Commands,
@@ -6268,6 +6355,9 @@ pub(crate) fn spawn_world_entities(
     pending_gltf: &mut ResMut<PendingGltfLoads>,
     world_dir: Option<&Path>,
 ) {
+    // Expanded parts of instances, so saving can fold them back.
+    let part_links = wt::part_links(world_entities);
+
     // First pass: collect world_id → entity name for parent resolution
     let id_to_name: std::collections::HashMap<u64, String> = world_entities
         .iter()
@@ -6362,6 +6452,20 @@ pub(crate) fn spawn_world_entities(
                 ))
                 .id();
             let p = mesh_path.as_path();
+            if p.exists()
+                && mesh_ref.sha256.is_some()
+                && let Some(digest) = super::extras::file_sha256(p)
+                && !mesh_ref.matches_digest(&digest)
+            {
+                tracing::warn!(
+                    "Mesh asset '{}' for entity '{}' is not the file the world was made with \
+                     (sha256 {} expected, {} found)",
+                    mesh_ref.path,
+                    name,
+                    mesh_ref.sha256.as_deref().unwrap_or_default(),
+                    digest
+                );
+            }
             if p.exists() {
                 let asset_path = p.to_string_lossy().trim_start_matches('/').to_string();
                 let handle = asset_server.load::<WorldAsset>(format!("{}#Scene0", asset_path));
@@ -6401,6 +6505,22 @@ pub(crate) fn spawn_world_entities(
         }
 
         registry.insert_with_id(name.clone(), bevy_entity, world_id);
+
+        // Instances, parts, triggers and mesh details the scene components
+        // don't hold: kept for saving, and triggers and node overrides applied.
+        if let Some(extras) = super::extras::WorldExtras::of(we, &part_links) {
+            let mut ec = commands.entity(bevy_entity);
+            for trigger in &extras.triggers {
+                let params = crate::interaction::trigger_params(&name, trigger);
+                crate::interaction::insert_trigger(&mut ec, &params);
+            }
+            if !extras.node_overrides.is_empty() {
+                ec.insert(localgpt_world_bevy::nodes::NodeOverrides(
+                    extras.node_overrides.clone(),
+                ));
+            }
+            ec.insert(extras);
+        }
 
         if let Some(modulated) = localgpt_world_bevy::modulation::modulated(we) {
             commands.entity(bevy_entity).insert(modulated);
@@ -6642,6 +6762,9 @@ pub(crate) struct SnapshotQueries<'a, 'w, 's> {
     /// Texture sources; `None` leaves texture paths out of the snapshot (the
     /// multiplayer host: paths on the host's disk mean nothing to a client).
     pub(crate) material_textures: Option<&'a Query<'w, 's, &'static MaterialTextures>>,
+    /// Instances, parts, triggers and mesh details (`None` leaves them out:
+    /// the multiplayer host sends guests plain, expanded entities).
+    pub(crate) world_extras: Option<&'a Query<'w, 's, &'static super::extras::WorldExtras>>,
     pub(crate) registry: &'a NameRegistry,
 }
 
@@ -6716,10 +6839,7 @@ pub(crate) fn snapshot_entity(
 
     // Mesh asset (imported glTF)
     if let Ok(gltf_src) = sq.gltf_sources.get(entity) {
-        we.mesh_asset = Some(wt::MeshAssetRef {
-            path: gltf_src.path.clone(),
-            node: None,
-        });
+        we.mesh_asset = Some(wt::MeshAssetRef::new(gltf_src.path.clone()));
     }
 
     // Light
@@ -6796,6 +6916,16 @@ pub(crate) fn snapshot_entity(
         && let Some(parent_id) = sq.registry.get_id(child_of.0)
     {
         we.parent = Some(parent_id);
+    }
+
+    // Instance, part, triggers, mesh hash and node overrides
+    if let Some(q) = sq.world_extras
+        && let Ok(extras) = q.get(entity)
+    {
+        extras.write_into(&mut we);
+        if let Some(link) = &extras.part_of {
+            we.creation_id = Some(link.creation);
+        }
     }
 
     we

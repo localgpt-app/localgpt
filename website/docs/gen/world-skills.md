@@ -32,13 +32,13 @@ Example structure (simplified):
     version: 1,
     meta: ( name: "forest-clearing", description: Some("A peaceful clearing") ),
     environment: Some((
-        background_color: Some([0.53, 0.81, 0.92, 1.0]),
+        background_color: Some((0.53, 0.81, 0.92, 1.0)),
         ambient_intensity: Some(0.3),
     )),
-    camera: Some(( position: [0.0, 5.0, 10.0], look_at: [0.0, 0.0, 0.0], fov_degrees: 45.0 )),
+    camera: Some(( position: (0.0, 5.0, 10.0), look_at: (0.0, 0.0, 0.0), fov_degrees: 45.0 )),
     avatar: Some((
-        spawn_position: [0.0, 1.8, 5.0],
-        spawn_look_at: [0.0, 0.0, 0.0],
+        spawn_position: (0.0, 1.8, 5.0),
+        spawn_look_at: (0.0, 0.0, 0.0),
         pov: first_person,
         movement_speed: 5.0,
         height: 1.8,
@@ -50,20 +50,75 @@ Example structure (simplified):
             speed: 3.0,
             mode: fly,
             waypoints: [
-                ( position: [0.0, 3.0, 10.0], look_at: [0.0, 0.0, 0.0], description: Some("Welcome"), pause_duration: 3.0 ),
-                ( position: [10.0, 2.0, 0.0], look_at: [0.0, 1.0, 0.0], description: Some("Main structure"), pause_duration: 5.0 ),
+                ( position: (0.0, 3.0, 10.0), look_at: (0.0, 0.0, 0.0), description: Some("Welcome"), pause_duration: 3.0 ),
+                ( position: (10.0, 2.0, 0.0), look_at: (0.0, 1.0, 0.0), description: Some("Main structure"), pause_duration: 5.0 ),
             ],
         ),
     ],
     entities: [
         (
-            id: (1), name: "ground",
-            shape: Some(plane( x: 50.0, z: 50.0 )),
-            material: Some(( color: [0.2, 0.5, 0.1, 1.0], roughness: 0.9 )),
+            id: (1), name: ("ground"),
+            shape: Some(Plane( x: 50.0, z: 50.0 )),
+            material: Some(( color: (0.2, 0.5, 0.1, 1.0), roughness: 0.9 )),
         ),
     ],
 )
 ```
+
+Numbers follow the conventions stated at the top of the format's JSON Schema
+(`crates/world-types/world.schema.json`): positions in world units with Y up,
+rotations as XYZ Euler degrees, colours as RGBA in `0..=1` (sRGB-encoded,
+except `emissive`, which is linear), directional light in lux, point and spot
+lights in lumens.
+
+### Reusable creations
+
+A creation with `parts` is defined once and placed many times. Each part is
+an entity in the creation's own coordinates; an entity with `instance_of`
+places a copy, and its `overrides` change single parts of that copy only:
+
+```ron
+creations: [
+    (
+        id: (1), name: "tree", semantic_category: Some(vegetation),
+        parts: [
+            ( id: (1), name: ("trunk"), shape: Some(Cylinder( radius: 0.2, height: 2.0 )) ),
+            ( id: (2), name: ("crown"), parent: Some((1)),
+              transform: ( position: (0.0, 1.6, 0.0) ),
+              shape: Some(Sphere( radius: 1.0 )) ),
+        ],
+    ),
+],
+entities: [
+    ( id: (10), name: ("oak_1"), transform: ( position: (-3.0, 0.0, 0.0) ),
+      instance_of: Some(( creation: (1) )) ),
+    ( id: (11), name: ("oak_2"), transform: ( position: (3.0, 0.0, 0.0) ),
+      instance_of: Some(( creation: (1), overrides: [
+          ( part: ("crown"), patch: ( material: Some(Some(( color: (0.8, 0.3, 0.1, 1.0) ))) ) ),
+      ] )) ),
+],
+```
+
+On load, every instance expands into its parts, named `<instance>/<part>`
+(`oak_2/crown`), which you can modify like any entity. Saving writes the
+instance back with only what differs from the definition. Make creations with
+`gen_define_creation` and place them with `gen_spawn_instance`.
+
+### Triggers
+
+`triggers` on an entity pair an event (`click`, `proximity`, `area_enter`,
+`area_exit`, `collision`, `timer`) with an action (`show_text`, `enable`,
+`disable`, `destroy`, `teleport`, `animate`, `play_sound`, `toggle_state`,
+`add_score`, `spawn`). Triggers added with `gen_add_trigger` are saved with
+the world. The web viewer runs `click`, `proximity`, `area_enter`, `area_exit`
+and `timer` with `show_text`, `enable`, `disable`, `destroy` and `teleport`;
+the rest need Gen.
+
+### Imported meshes
+
+A `mesh_asset` can carry the file's `sha256`, which Gen fills in on save and
+checks on load (a mismatch logs a warning), and `node_overrides` that hide or
+recolour named nodes inside the glTF for this entity only.
 
 ## Saving Worlds
 

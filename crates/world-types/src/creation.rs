@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::entity::WorldEntity;
 use crate::identity::{CreationId, EntityId};
 
 /// Semantic category for a creation (aids LLM reasoning and search).
@@ -41,6 +42,12 @@ pub struct CreationDef {
     /// Entity IDs that make up this creation.
     #[serde(default)]
     pub entities: Vec<EntityId>,
+    /// The definition, when the creation is reusable: a tree of entities in
+    /// the creation's own coordinates, with ids and parents local to it.
+    /// Entities place copies of it through `instance_of`
+    /// (see [`crate::instance`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub parts: Vec<WorldEntity>,
 }
 
 #[cfg(test)]
@@ -55,6 +62,7 @@ mod tests {
             semantic_category: Some(SemanticCategory::Decoration),
             bbox_half: [2.0, 1.5, 2.0],
             entities: vec![EntityId(10), EntityId(11), EntityId(12)],
+            parts: Vec::new(),
         };
         let json = serde_json::to_string(&c).unwrap();
         let back: CreationDef = serde_json::from_str(&json).unwrap();

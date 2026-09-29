@@ -5,9 +5,9 @@
 //! through these functions, so a manifest looks the same in every app, and
 //! the web viewer (`localgpt-world-export`) mirrors the same rules:
 //!
-//! - colours are linear RGBA arrays; `color` and light colours go through
-//!   [`srgba`] (Bevy's `Color::srgba`, as the Gen tools have always done),
-//!   `emissive` stays linear ([`linear_rgba`]);
+//! - colours are RGBA arrays in `0..=1`: `color`, light, background, ambient
+//!   and fog colours are sRGB-encoded and go through [`srgba`] (Bevy's
+//!   `Color::srgba`), `emissive` is linear ([`linear_rgba`]);
 //! - rotations are XYZ Euler angles in degrees ([`transform`]);
 //! - directional light intensity is lux, point and spot lights are lumens,
 //!   spot angles are radians ([`insert_light`]);
@@ -21,10 +21,12 @@
 //! Reference scenes for eyeballing all of this live in
 //! `crates/world-types/conformance/`.
 //!
-//! [`modulation`] is the one runtime piece: the signal-driven layer that lets
-//! a world perform its soundtrack, evaluated as the web viewer does.
+//! [`modulation`] is the main runtime piece: the signal-driven layer that
+//! lets a world perform its soundtrack, evaluated as the web viewer does.
+//! [`nodes`] applies `MeshAssetRef::node_overrides` to spawned glTF scenes.
 
 pub mod modulation;
+pub mod nodes;
 
 use std::f32::consts::FRAC_PI_4;
 

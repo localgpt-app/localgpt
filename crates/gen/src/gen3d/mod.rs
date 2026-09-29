@@ -11,6 +11,7 @@ pub mod avatar;
 pub mod behaviors;
 pub mod commands;
 pub mod compat;
+pub mod extras;
 pub mod gallery;
 pub mod gallery_ui;
 pub mod generation_log;

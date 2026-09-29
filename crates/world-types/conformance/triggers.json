@@ -1,0 +1,67 @@
+{
+  "version": 3,
+  "meta": {
+    "name": "conformance-triggers",
+    "description": "Every trigger event and action: click to read a sign, walk up to a lamp, pass through a gate, a timed beacon, and actions for Gen's runtime.",
+    "tags": ["conformance"]
+  },
+  "environment": {
+    "background_color": [0.12, 0.14, 0.2, 1.0],
+    "ambient_intensity": 140.0
+  },
+  "camera": { "position": [0.0, 3.0, 14.0], "look_at": [0.0, 1.0, 0.0], "fov_degrees": 50.0 },
+  "entities": [
+    { "id": 1, "name": "ground",
+      "shape": { "Plane": { "x": 30.0, "z": 30.0 } },
+      "material": { "color": [0.3, 0.3, 0.32, 1.0], "roughness": 0.95 } },
+    { "id": 2, "name": "moon", "transform": { "position": [0.0, 15.0, 0.0] },
+      "light": { "light_type": "directional", "color": [0.8, 0.85, 1.0, 1.0], "intensity": 3000.0, "direction": [0.3, -1.0, -0.4] } },
+
+    { "id": 10, "name": "sign", "transform": { "position": [-4.0, 1.0, 0.0] },
+      "shape": { "Cuboid": { "x": 1.2, "y": 0.8, "z": 0.1 } },
+      "material": { "color": [0.6, 0.45, 0.25, 1.0] },
+      "triggers": [
+        { "on": { "event": "click", "max_distance": 20.0, "prompt": "Read" },
+          "action": { "action": "show_text", "text": "Welcome to the trigger conformance world." } } ] },
+    { "id": 11, "name": "lamp", "transform": { "position": [0.0, 1.0, 0.0] },
+      "shape": { "Sphere": { "radius": 0.4 } },
+      "material": { "color": [1.0, 0.9, 0.6, 1.0], "emissive": [4.0, 3.2, 1.6, 1.0] },
+      "triggers": [
+        { "on": { "event": "proximity", "radius": 4.0 },
+          "action": { "action": "disable" }, "once": true } ] },
+    { "id": 12, "name": "gate", "transform": { "position": [4.0, 1.5, 4.0] },
+      "shape": { "Cuboid": { "x": 3.0, "y": 3.0, "z": 3.0 } },
+      "material": { "color": [0.4, 0.6, 1.0, 0.25], "alpha_mode": "blend" },
+      "triggers": [
+        { "on": { "event": "area_enter" }, "action": { "action": "show_text", "text": "Through the gate." } },
+        { "on": { "event": "area_exit" }, "action": { "action": "teleport", "destination": [0.0, 3.0, 14.0] } } ] },
+    { "id": 13, "name": "beacon", "transform": { "position": [4.0, 0.5, -3.0] },
+      "shape": { "Cone": { "radius": 0.4, "height": 1.0 } },
+      "material": { "color": [0.9, 0.2, 0.2, 1.0] },
+      "triggers": [
+        { "on": { "event": "timer", "interval": 2.0 }, "action": { "action": "toggle_state", "key": "blink" } } ] },
+    { "id": 14, "name": "crate", "transform": { "position": [-4.0, 0.5, -3.0] },
+      "shape": { "Cuboid": { "x": 1.0, "y": 1.0, "z": 1.0 } },
+      "material": { "color": [0.55, 0.4, 0.2, 1.0] },
+      "triggers": [
+        { "on": { "event": "collision", "radius": 1.5 }, "action": { "action": "add_score", "amount": 10 }, "once": true },
+        { "on": { "event": "click", "max_distance": 20.0 }, "action": { "action": "destroy" }, "requires_item": "crowbar" } ] },
+    { "id": 15, "name": "hidden_door", "transform": { "position": [0.0, 1.0, -5.0], "visible": false },
+      "shape": { "Cuboid": { "x": 1.2, "y": 2.0, "z": 0.2 } },
+      "material": { "color": [0.3, 0.2, 0.1, 1.0] },
+      "triggers": [
+        { "on": { "event": "timer", "interval": 5.0 }, "action": { "action": "enable" }, "once": true } ] },
+    { "id": 16, "name": "bell", "transform": { "position": [0.0, 2.5, -3.0] },
+      "shape": { "Torus": { "minor_radius": 0.1, "major_radius": 0.4 } },
+      "material": { "color": [0.8, 0.7, 0.3, 1.0], "metallic": 1.0, "roughness": 0.3 },
+      "triggers": [
+        { "on": { "event": "click", "max_distance": 20.0 }, "action": { "action": "play_sound", "sound": "bell" } },
+        { "on": { "event": "timer", "interval": 3.0 }, "action": { "action": "animate", "property": "rotation", "to": [0.0, 90.0, 0.0], "duration": 1.0 } } ] },
+    { "id": 17, "name": "spawner", "transform": { "position": [-2.0, 0.3, 3.0] },
+      "shape": { "Cuboid": { "x": 0.6, "y": 0.6, "z": 0.6 } },
+      "material": { "color": [0.3, 0.8, 0.4, 1.0] },
+      "triggers": [
+        { "on": { "event": "proximity", "radius": 2.0 }, "action": { "action": "spawn", "template": "crate" }, "cooldown": 5.0 } ] }
+  ],
+  "next_entity_id": 18
+}

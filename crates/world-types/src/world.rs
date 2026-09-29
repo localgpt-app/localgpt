@@ -13,7 +13,13 @@ use crate::soundtrack::SoundtrackDef;
 use crate::tour::TourDef;
 
 /// Current schema version. Increment when making breaking changes.
-pub const WORLD_SCHEMA_VERSION: u32 = 2;
+///
+/// - 2: multi-file worlds (regions, libraries).
+/// - 3: reusable creations and their instances (`CreationDef::parts`,
+///   `WorldEntity::instance_of`), triggers, and mesh node overrides and
+///   hashes. A reader older than 3 would drop instanced parts and triggers
+///   without noticing, so it refuses the file instead.
+pub const WORLD_SCHEMA_VERSION: u32 = 3;
 
 /// Minimum supported version for loading. Update when dropping old format support.
 pub const MIN_SUPPORTED_VERSION: u32 = 1;
@@ -49,6 +55,20 @@ impl fmt::Display for VersionError {
 }
 
 /// Top-level world manifest — everything needed to save/load a world.
+///
+/// Conventions every renderer follows (Bevy through `localgpt-world-bevy`,
+/// three.js through the web viewer):
+///
+/// - positions are world units, Y up;
+/// - rotations are XYZ Euler angles in degrees;
+/// - colours are RGBA in `0..=1`, sRGB-encoded, except `emissive`, which is
+///   linear (values above 1 glow);
+/// - directional light intensity is lux, point and spot lights are lumens,
+///   spot angles are radians;
+/// - asset paths are relative to the world's `assets/` folder.
+///
+/// The format names no engine: which renderer or engine version drew a
+/// world is not part of it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WorldManifest {
@@ -142,13 +162,6 @@ pub struct WorldMeta {
     /// Style name from memory (if applied).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub style_ref: Option<String>,
-    /// Bevy engine version targeted by this world's generated code.
-    #[serde(
-        default = "default_bevy_version",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub bevy_version: Option<String>,
-
     // --- Regulatory compliance metadata ---
     /// Compliance metadata for distribution and regulatory classification.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -272,9 +285,6 @@ fn default_camera_pos() -> [f32; 3] {
 fn default_fov() -> f32 {
     45.0
 }
-fn default_bevy_version() -> Option<String> {
-    Some("0.18".to_string())
-}
 fn default_true() -> bool {
     true
 }
@@ -319,7 +329,6 @@ impl WorldManifest {
                 model: None,
                 generation_duration_ms: None,
                 style_ref: None,
-                bevy_version: default_bevy_version(),
                 compliance: Some(ComplianceMeta::default()),
             },
             environment: None,
@@ -380,6 +389,16 @@ impl WorldManifest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn old_worlds_with_an_engine_version_still_load() {
+        // `meta.bevy_version` was written until schema 3; it is ignored now.
+        let json = r#"{"version": 2, "meta": {"name": "old", "bevy_version": "0.18"}}"#;
+        let m: WorldManifest = serde_json::from_str(json).unwrap();
+        assert_eq!(m.meta.name, "old");
+        assert!(m.check_version().is_ok());
+        assert!(!serde_json::to_string(&m).unwrap().contains("bevy_version"));
+    }
     use crate::entity::WorldEntity;
     use crate::shape::Shape;
 

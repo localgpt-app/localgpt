@@ -38,6 +38,7 @@ pub mod entity;
 pub mod genlog;
 pub mod history;
 pub mod identity;
+pub mod instance;
 pub mod library;
 pub mod light;
 pub mod material;
@@ -49,11 +50,12 @@ pub mod soundtrack;
 pub mod spatial;
 pub mod sync;
 pub mod tour;
+pub mod trigger;
 pub mod validation;
 pub mod world;
 
 // Re-exports for convenience
-pub use asset::MeshAssetRef;
+pub use asset::{MeshAssetRef, NodeOverride};
 pub use audio::{AudioDef, AudioKind, AudioSource, FilterType, Rolloff, WaveformType};
 pub use avatar::{AvatarDef, PointOfView};
 pub use behavior::{BehaviorDef, PathMode};
@@ -61,6 +63,9 @@ pub use creation::{CreationDef, SemanticCategory};
 pub use entity::{EntityPatch, WorldEntity, WorldTransform};
 pub use history::{AmbienceLayerDef, EditHistory, EditOp, WorldEdit};
 pub use identity::{CreationId, EntityId, EntityName, EntityRef};
+pub use instance::{
+    InstanceOf, PartLink, PartOverride, expand_instances, part_links, validate_instances,
+};
 pub use light::{LightDef, LightType};
 pub use material::{AlphaModeDef, MaterialDef, TextureSlot};
 pub use modulation::{ModulationDef, ModulationTarget, SignalSource, StemKind};
@@ -69,6 +74,7 @@ pub use shape::{PrimitiveShapeKind, Shape};
 pub use soundtrack::{SoundtrackDef, StemCurves, curve_at};
 pub use spatial::ChunkCoord;
 pub use tour::{TourDef, TourMode, TourWaypoint};
+pub use trigger::{TriggerActionDef, TriggerDef, TriggerEvent};
 pub use validation::{
     Severity, ValidationIssue, WorldLimits, validate_entities, validate_manifest,
 };

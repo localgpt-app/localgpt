@@ -50,7 +50,7 @@ pub fn prepare(song: &Path, workspace: &Path) -> anyhow::Result<(PathBuf, wt::Wo
     if let Some(soundtrack) = &mut world.soundtrack {
         soundtrack.path = Some(relative);
     }
-    if world.entities.iter().any(|e| e.mesh_asset.is_some()) {
+    if world.all_entities().any(|e| e.mesh_asset.is_some()) {
         let models = localgpt_md::assets::assets_dir().join("models");
         if models.join("manifest.json").is_file() {
             link(&models, &assets.join("models"))?;

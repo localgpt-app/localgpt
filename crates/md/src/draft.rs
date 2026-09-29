@@ -158,7 +158,6 @@ fn meta(doc: &Doc, authored: Option<&'static str>) -> wt::WorldMeta {
         model: None,
         generation_duration_ms: None,
         style_ref: None,
-        bevy_version: Some("0.19".into()),
         compliance: None,
     }
 }

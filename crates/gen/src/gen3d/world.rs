@@ -126,6 +126,8 @@ pub fn handle_save_world(
     npc_memories: &Query<&crate::character::npc_memory::NpcMemory>,
     modulated: &Query<&localgpt_world_bevy::modulation::Modulated>,
     soundtrack: Option<&wt::SoundtrackDef>,
+    world_extras: &Query<&super::extras::WorldExtras>,
+    creations: &super::extras::CreationLibrary,
 ) -> GenResponse {
     // Resolve output directory
     let skill_dir = if let Some(ref path) = cmd.path {
@@ -210,6 +212,12 @@ pub fn handle_save_world(
     // Collect all entities into WorldEntity objects
     let mut world_entities: Vec<wt::WorldEntity> = Vec::new();
     let mut next_id: u64 = 1;
+    // Parts expanded under instances, by instance id: folded back into the
+    // instances' overrides instead of being written.
+    let mut instance_parts: std::collections::HashMap<
+        wt::EntityId,
+        Vec<(wt::EntityName, wt::WorldEntity)>,
+    > = std::collections::HashMap::new();
 
     for (name, bevy_entity) in registry.all_names() {
         // Skip infrastructure entities (camera, default scene objects)
@@ -268,10 +276,7 @@ pub fn handle_save_world(
         // Mesh asset (imported glTF source path — use localized relative path)
         if let Ok(gltf_src) = gltf_sources.get(bevy_entity) {
             let relative_path = path_map.get(&gltf_src.path).unwrap_or(&gltf_src.path);
-            we.mesh_asset = Some(wt::MeshAssetRef {
-                path: relative_path.clone(),
-                node: None,
-            });
+            we.mesh_asset = Some(wt::MeshAssetRef::new(relative_path.clone()));
         }
 
         // Material
@@ -375,8 +380,75 @@ pub fn handle_save_world(
             });
         }
 
+        // Instance, part, triggers, and the mesh's node overrides.
+        if let Ok(extras) = world_extras.get(bevy_entity) {
+            extras.write_into(&mut we);
+            if let Some(mesh) = we.mesh_asset.as_mut() {
+                // Hashed below from the copied file.
+                mesh.sha256 = None;
+            }
+            if let Some(link) = &extras.part_of {
+                instance_parts
+                    .entry(link.instance)
+                    .or_default()
+                    .push((link.part.clone(), we));
+                continue;
+            }
+        }
+
         world_entities.push(we);
     }
+
+    // The reusable creations, with their parts' meshes at the paths this
+    // save copied them to; then every mesh reference gets its file's hash,
+    // and each instance's parts fold back into its overrides.
+    let mut library = creations.clone();
+    for part in library
+        .creations
+        .iter_mut()
+        .flat_map(|c| c.parts.iter_mut())
+    {
+        if let Some(mesh) = part.mesh_asset.as_mut() {
+            if let Some(relative) = path_map.get(&mesh.path) {
+                mesh.path = relative.clone();
+            }
+            mesh.sha256 = None;
+        }
+    }
+    let mut digests: std::collections::HashMap<String, Option<String>> =
+        std::collections::HashMap::new();
+    let mut hash = |mesh: &mut wt::MeshAssetRef| {
+        mesh.sha256 = digests
+            .entry(mesh.path.clone())
+            .or_insert_with(|| {
+                super::extras::file_sha256(&super::plugin::resolve_mesh_asset_path(
+                    Some(&skill_dir),
+                    &mesh.path,
+                ))
+            })
+            .clone();
+    };
+    for we in world_entities
+        .iter_mut()
+        .chain(instance_parts.values_mut().flatten().map(|(_, we)| we))
+        .chain(
+            library
+                .creations
+                .iter_mut()
+                .flat_map(|c| c.parts.iter_mut()),
+        )
+    {
+        if let Some(mesh) = we.mesh_asset.as_mut() {
+            hash(mesh);
+        }
+    }
+    library.fold_parts(&mut world_entities, &instance_parts);
+    // Only creations something still uses are kept.
+    library.creations.retain(|c| {
+        world_entities
+            .iter()
+            .any(|e| e.instance_of.as_ref().is_some_and(|i| i.creation == c.id))
+    });
 
     // Collect ambient audio as root-level entities
     if let Some(ref ambience_cmd) = audio_engine.last_ambience {
@@ -432,7 +504,7 @@ pub fn handle_save_world(
 
     // Build the manifest
     let manifest = wt::WorldManifest {
-        version: 1,
+        version: wt::world::WORLD_SCHEMA_VERSION,
         meta: wt::WorldMeta {
             name: cmd.name.clone(),
             description: cmd.description.clone(),
@@ -446,7 +518,6 @@ pub fn handle_save_world(
             model: None,
             generation_duration_ms: None,
             style_ref: None,
-            bevy_version: Some("0.18".to_string()),
             compliance: Some(wt::ComplianceMeta::default()),
         },
         environment,
@@ -460,13 +531,13 @@ pub fn handle_save_world(
         audio_files: None,
         avatar_file: None,
         entities: world_entities,
-        creations: Vec::new(),
+        creations: library.creations,
         next_entity_id: next_id,
     };
 
     // Validate before saving
     let validation_issues =
-        wt::validation::validate_entities(&manifest.entities, &wt::WorldLimits::default());
+        wt::validation::validate_manifest(&manifest, &wt::WorldLimits::default());
     let warnings: Vec<String> = validation_issues
         .iter()
         .map(|i| i.message.clone())
@@ -617,6 +688,9 @@ pub struct WorldLoadResult {
     /// The song the world performs: curves that drive its modulations, and
     /// the audio file when one ships with the world.
     pub soundtrack: Option<wt::SoundtrackDef>,
+    /// The world's reusable creations; `world_entities` already has their
+    /// instances expanded into parts.
+    pub creations: Vec<wt::CreationDef>,
 }
 
 pub fn handle_load_world(
@@ -641,7 +715,7 @@ pub fn handle_load_world(
 fn load_ron_world(world_dir: &Path, ron_path: &Path) -> Result<WorldLoadResult, String> {
     let ron_str = std::fs::read_to_string(ron_path)
         .map_err(|e| format!("Failed to read world.ron: {}", e))?;
-    let manifest: wt::WorldManifest =
+    let mut manifest: wt::WorldManifest =
         ron::from_str(&ron_str).map_err(|e| format!("Failed to parse world.ron: {}", e))?;
 
     // Check version compatibility
@@ -658,6 +732,9 @@ fn load_ron_world(world_dir: &Path, ron_path: &Path) -> Result<WorldLoadResult, 
     if manifest.region_files.is_some() || manifest.layout_file.is_some() {
         return load_multi_file_world(world_dir, &manifest);
     }
+
+    // Instances of reusable creations spawn as their parts.
+    manifest.expand_instances();
 
     // Extract ambient audio from entities (kind == Ambient, radius == None)
     let mut ambience_layers: Vec<AmbienceLayerDef> = Vec::new();
@@ -748,6 +825,7 @@ fn load_ron_world(world_dir: &Path, ron_path: &Path) -> Result<WorldLoadResult, 
         edit_history,
         npc_data,
         soundtrack: manifest.soundtrack.clone(),
+        creations: manifest.creations.clone(),
     })
 }
 
@@ -835,6 +913,15 @@ fn load_multi_file_world(
 
     // Also include any inline entities (hybrid format)
     all_entities.extend(manifest.entities.clone());
+
+    // Instances of reusable creations spawn as their parts.
+    let first_id = all_entities
+        .iter()
+        .map(|e| e.id.0 + 1)
+        .max()
+        .unwrap_or(1)
+        .max(manifest.next_entity_id);
+    let all_entities = wt::expand_instances(&all_entities, &manifest.creations, first_id);
 
     // Load behavior files (parsed for validation; behaviors are already on entities)
     if let Some(ref behavior_files) = manifest.behavior_files {
@@ -942,6 +1029,7 @@ fn load_multi_file_world(
         edit_history,
         npc_data,
         soundtrack: manifest.soundtrack.clone(),
+        creations: manifest.creations.clone(),
     })
 }
 
@@ -1016,7 +1104,7 @@ pub fn save_multi_file_world(
     // 4. Write root world.ron with file references (empty entities — they're in region files)
     let description = cmd.description.as_deref().unwrap_or("A generated 3D world");
     let manifest = wt::WorldManifest {
-        version: 2,
+        version: wt::world::WORLD_SCHEMA_VERSION,
         meta: wt::WorldMeta {
             name: cmd.name.clone(),
             description: Some(description.to_string()),
@@ -1030,7 +1118,6 @@ pub fn save_multi_file_world(
             model: None,
             generation_duration_ms: None,
             style_ref: None,
-            bevy_version: Some("0.18".to_string()),
             compliance: Some(wt::ComplianceMeta::default()),
         },
         environment,

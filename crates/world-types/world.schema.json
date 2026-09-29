@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "WorldManifest",
-  "description": "Top-level world manifest — everything needed to save/load a world.",
+  "description": "Top-level world manifest — everything needed to save/load a world.\n\nConventions every renderer follows (Bevy through `localgpt-world-bevy`,\nthree.js through the web viewer):\n\n- positions are world units, Y up;\n- rotations are XYZ Euler angles in degrees;\n- colours are RGBA in `0..=1`, sRGB-encoded, except `emissive`, which is\n  linear (values above 1 glow);\n- directional light intensity is lux, point and spot lights are lumens,\n  spot angles are radians;\n- asset paths are relative to the world's `assets/` folder.\n\nThe format names no engine: which renderer or engine version drew a\nworld is not part of it.",
   "type": "object",
   "properties": {
     "audio_files": {
@@ -128,7 +128,7 @@
       "description": "Schema version for forward/backward migration.",
       "type": "integer",
       "format": "uint32",
-      "default": 2,
+      "default": 3,
       "minimum": 0
     }
   },
@@ -1021,6 +1021,13 @@
           "description": "Human-readable name (e.g., \"oak_tree\", \"stone_bridge\").",
           "type": "string"
         },
+        "parts": {
+          "description": "The definition, when the creation is reusable: a tree of entities in\nthe creation's own coordinates, with ids and parents local to it.\nEntities place copies of it through `instance_of`\n(see [`crate::instance`]).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldEntity"
+          }
+        },
         "semantic_category": {
           "description": "Semantic category for search and classification.",
           "anyOf": [
@@ -1053,6 +1060,129 @@
     "EntityName": {
       "description": "Human-readable entity name. Unique within a world but may be renamed.",
       "type": "string"
+    },
+    "EntityPatch": {
+      "description": "Patch for modifying an existing entity.\n\nUses `Option<Option<T>>` semantics:\n- `None` — field not changed\n- `Some(None)` — field removed/cleared\n- `Some(Some(v))` — field set to `v`",
+      "type": "object",
+      "properties": {
+        "audio": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AudioDef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "behaviors": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/BehaviorDef"
+          }
+        },
+        "instance_of": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstanceOf"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "light": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LightDef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "material": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MaterialDef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mesh_asset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MeshAssetRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "modulations": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/ModulationDef"
+          }
+        },
+        "name": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityName"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shape": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Shape"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transform": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorldTransform"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "triggers": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/TriggerDef"
+          }
+        }
+      }
     },
     "EntityRef": {
       "description": "Cross-entity reference — used in behaviors, parenting, audio attachment.\n\nLLMs produce `Name` references; these are resolved to `Id` on ingestion.\nSaved worlds should only contain `Id` references.",
@@ -1135,6 +1265,26 @@
         "lowpass",
         "highpass",
         "bandpass"
+      ]
+    },
+    "InstanceOf": {
+      "description": "What an instance entity places: a reusable creation, with per-part changes.",
+      "type": "object",
+      "properties": {
+        "creation": {
+          "description": "The creation whose `parts` this entity places.",
+          "$ref": "#/$defs/CreationId"
+        },
+        "overrides": {
+          "description": "Changes to single parts of this copy, by part name.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PartOverride"
+          }
+        }
+      },
+      "required": [
+        "creation"
       ]
     },
     "LightDef": {
@@ -1343,9 +1493,23 @@
             "null"
           ]
         },
+        "node_overrides": {
+          "description": "Changes to named nodes inside the asset, for this entity only: hide a\nbranch, recolour a part. Nodes are matched by their glTF name.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NodeOverride"
+          }
+        },
         "path": {
           "description": "Relative path to the asset file within the world's `assets/` directory.",
           "type": "string"
+        },
+        "sha256": {
+          "description": "SHA-256 of the file's bytes, lowercase hex. Names the exact asset a\nworld was made with, so a shared world can be checked for missing or\nchanged files and identical files can be stored once.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1418,6 +1582,57 @@
           "type": "string",
           "const": "offset_y"
         }
+      ]
+    },
+    "NodeOverride": {
+      "description": "A change to one named node inside an imported mesh.\n\nApplies to the node and everything under it.",
+      "type": "object",
+      "properties": {
+        "color": {
+          "description": "Replace the base colour of the node's materials (sRGB RGBA in `0..=1`).",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "node": {
+          "description": "The node's name in the glTF file.",
+          "type": "string"
+        },
+        "visible": {
+          "description": "Show or hide the node.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "node"
+      ]
+    },
+    "PartOverride": {
+      "description": "A change to one part of one instance.\n\n`name`, `parent` and `instance_of` in the patch are ignored: a part's\nplace in the tree comes from the definition.",
+      "type": "object",
+      "properties": {
+        "part": {
+          "description": "The part's name in the definition (`CreationDef::parts`).",
+          "$ref": "#/$defs/EntityName"
+        },
+        "patch": {
+          "description": "The fields this instance changes.",
+          "$ref": "#/$defs/EntityPatch"
+        }
+      },
+      "required": [
+        "part",
+        "patch"
       ]
     },
     "PathMode": {
@@ -2074,6 +2289,346 @@
         "look_at"
       ]
     },
+    "TriggerActionDef": {
+      "description": "The action a trigger runs on its own entity (or on the visitor, for\n`teleport`).",
+      "oneOf": [
+        {
+          "description": "Animate a transform property (`position`, `rotation`, `scale`) to `to`\nover `duration` seconds.",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "animate"
+            },
+            "duration": {
+              "type": "number",
+              "format": "float",
+              "default": 1.0
+            },
+            "property": {
+              "type": "string",
+              "default": "position"
+            },
+            "to": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "description": "Move the visitor to `destination`.",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "teleport"
+            },
+            "destination": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "maxItems": 3,
+              "minItems": 3
+            }
+          },
+          "required": [
+            "action",
+            "destination"
+          ]
+        },
+        {
+          "description": "Play a named sound.",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "play_sound"
+            },
+            "sound": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "sound"
+          ]
+        },
+        {
+          "description": "Show `text` to the visitor.",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "show_text"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "text"
+          ]
+        },
+        {
+          "description": "Flip a named state on the entity (a door's `open`, a lamp's `on`).",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "toggle_state"
+            },
+            "key": {
+              "type": "string"
+            },
+            "value": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "action",
+            "key"
+          ]
+        },
+        {
+          "description": "Spawn a copy of a named template entity.",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "spawn"
+            },
+            "template": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "template"
+          ]
+        },
+        {
+          "description": "Remove the entity.",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "destroy"
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "description": "Add `amount` to the visitor's score in `category`.",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "add_score"
+            },
+            "amount": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "category": {
+              "type": "string",
+              "default": "points"
+            }
+          },
+          "required": [
+            "action",
+            "amount"
+          ]
+        },
+        {
+          "description": "Show the entity.",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "enable"
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "description": "Hide the entity.",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "disable"
+            }
+          },
+          "required": [
+            "action"
+          ]
+        }
+      ]
+    },
+    "TriggerDef": {
+      "description": "One event and the action it runs.",
+      "type": "object",
+      "properties": {
+        "action": {
+          "description": "What the trigger does.",
+          "$ref": "#/$defs/TriggerActionDef"
+        },
+        "cooldown": {
+          "description": "Seconds before the trigger can fire again (proximity and collision).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "on": {
+          "description": "The event that fires the trigger.",
+          "$ref": "#/$defs/TriggerEvent"
+        },
+        "once": {
+          "description": "Fire at most once.",
+          "type": "boolean"
+        },
+        "requires_item": {
+          "description": "An inventory item the visitor must hold for the trigger to fire.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "on",
+        "action"
+      ]
+    },
+    "TriggerEvent": {
+      "description": "The event that fires a trigger.",
+      "oneOf": [
+        {
+          "description": "The visitor clicks the entity from at most `max_distance` away.",
+          "type": "object",
+          "properties": {
+            "event": {
+              "type": "string",
+              "const": "click"
+            },
+            "max_distance": {
+              "type": "number",
+              "format": "float",
+              "default": 5.0
+            },
+            "prompt": {
+              "description": "Hint shown while the entity is in reach (\"Open\").",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "event"
+          ]
+        },
+        {
+          "description": "The visitor comes within `radius` of the entity.",
+          "type": "object",
+          "properties": {
+            "event": {
+              "type": "string",
+              "const": "proximity"
+            },
+            "radius": {
+              "type": "number",
+              "format": "float",
+              "default": 5.0
+            }
+          },
+          "required": [
+            "event"
+          ]
+        },
+        {
+          "description": "The visitor enters the entity's bounds.",
+          "type": "object",
+          "properties": {
+            "event": {
+              "type": "string",
+              "const": "area_enter"
+            }
+          },
+          "required": [
+            "event"
+          ]
+        },
+        {
+          "description": "The visitor leaves the entity's bounds.",
+          "type": "object",
+          "properties": {
+            "event": {
+              "type": "string",
+              "const": "area_exit"
+            }
+          },
+          "required": [
+            "event"
+          ]
+        },
+        {
+          "description": "Something overlaps a sensor sphere of `radius` around the entity.",
+          "type": "object",
+          "properties": {
+            "event": {
+              "type": "string",
+              "const": "collision"
+            },
+            "radius": {
+              "type": "number",
+              "format": "float",
+              "default": 3.0
+            }
+          },
+          "required": [
+            "event"
+          ]
+        },
+        {
+          "description": "Every `interval` seconds.",
+          "type": "object",
+          "properties": {
+            "event": {
+              "type": "string",
+              "const": "timer"
+            },
+            "interval": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "event",
+            "interval"
+          ]
+        }
+      ]
+    },
     "WaveformType": {
       "description": "Waveform type for custom audio synthesis.",
       "type": "string",
@@ -2133,6 +2688,17 @@
         "id": {
           "description": "Stable numeric identifier.",
           "$ref": "#/$defs/EntityId"
+        },
+        "instance_of": {
+          "description": "Places a copy of a reusable creation here, with per-part overrides\n(see [`crate::instance`]).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstanceOf"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "light": {
           "description": "Light source — can coexist with shape (e.g., glowing orb).",
@@ -2221,6 +2787,13 @@
             ],
             "visible": true
           }
+        },
+        "triggers": {
+          "description": "Events and the actions they run (see [`crate::trigger`]).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TriggerDef"
+          }
         }
       },
       "required": [
@@ -2232,14 +2805,6 @@
       "description": "World metadata.",
       "type": "object",
       "properties": {
-        "bevy_version": {
-          "description": "Bevy engine version targeted by this world's generated code.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": "0.18"
-        },
         "biome": {
           "description": "Biome hint for procedural generation.",
           "type": [

@@ -69,11 +69,13 @@ website-world/worlds/assets/
 website-world/worlds/posters/
 website-world/worlds/behaviors.json
 website-world/worlds/hierarchy_tours.json
+website-world/worlds/instances.json
 website-world/worlds/lights.json
 website-world/worlds/materials.json
 website-world/worlds/shapes.json
 website-world/worlds/soundtrack.json
 website-world/worlds/textures.json
+website-world/worlds/triggers.json
 website-world/node_modules/
 # website-md/ is assembled like website-world/: the viewer comes from
 # crates/world-export, three.js and the samples are copied in, and wasm/ is

@@ -160,7 +160,7 @@ pub(crate) fn document_key(md: &Path) -> String {
 /// draft with no meshes needs nothing, and a missing pack only costs the
 /// placeholder boxes Gen already shows for a missing model.
 fn link_asset_pack(world: &wt::WorldManifest, dir: &Path) {
-    if !world.entities.iter().any(|e| e.mesh_asset.is_some()) {
+    if !world.all_entities().any(|e| e.mesh_asset.is_some()) {
         return;
     }
     let pack = localgpt_md::assets::assets_dir();
@@ -181,7 +181,7 @@ fn link_asset_pack(world: &wt::WorldManifest, dir: &Path) {
         }
     }
     #[cfg(not(unix))]
-    for entity in &world.entities {
+    for entity in world.all_entities() {
         let Some(mesh) = &entity.mesh_asset else {
             continue;
         };

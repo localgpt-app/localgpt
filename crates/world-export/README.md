@@ -8,8 +8,9 @@ The distribution side of the LocalGPT world format, with no Bevy dependency:
 - `to_json` / `to_json_pretty` — the manifest as the JSON the viewer reads
   (schema: `crates/world-types/world.schema.json`).
 
-The viewer draws what `localgpt-world-bevy` draws: linear RGBA colours, XYZ
-Euler degrees, lux for directional lights, lumens for point and spot lights.
+The viewer draws what `localgpt-world-bevy` draws: sRGB-encoded colours
+(linear for `emissive`), XYZ Euler degrees, lux for directional lights, lumens
+for point and spot lights.
 The unit calibration lives in two constants at the top of the file
 (`AMBIENT_SCALE`, `DIRECTIONAL_LUX`). Reference scenes:
 `crates/world-types/conformance/`.

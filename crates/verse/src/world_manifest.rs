@@ -182,7 +182,6 @@ pub fn world_manifest(input: &ExportInput<'_>) -> wt::WorldManifest {
     ));
     manifest.meta.tags = Some(vec!["verse".to_string(), mood.id.to_string()]);
     manifest.meta.source = Some("verse".to_string());
-    manifest.meta.bevy_version = Some("0.19".to_string());
 
     manifest.environment = Some(wt::EnvironmentDef {
         background_color: Some(srgba(mood.sky_bottom)),
@@ -275,10 +274,7 @@ fn rule_props(
         e.transform.position = p.pos.to_array();
         e.transform.rotation_degrees = [0.0, p.rot_y.to_degrees(), 0.0];
         e.transform.scale = [p.scale; 3];
-        e.mesh_asset = Some(wt::MeshAssetRef {
-            path: format!("models/{}", p.file),
-            node: None,
-        });
+        e.mesh_asset = Some(wt::MeshAssetRef::new(format!("models/{}", p.file)));
         if p.tier == Tier::Hero {
             // Heroes are monuments: they breathe with the song, never move.
             e.modulations.push(
@@ -464,10 +460,7 @@ fn replay_build(
                 e.transform.rotation_degrees = c.rotation_degrees;
                 let scale = entry.map_or(1.0, |a| a.placement_scale()) * c.scale.max(0.05);
                 e.transform.scale = [scale; 3];
-                e.mesh_asset = Some(wt::MeshAssetRef {
-                    path: format!("models/{}", c.asset),
-                    node: None,
-                });
+                e.mesh_asset = Some(wt::MeshAssetRef::new(format!("models/{}", c.asset)));
                 if entry.is_some_and(|a| a.tier == Tier::Hero) {
                     e.modulations.push(
                         wt::ModulationDef::new(
@@ -512,10 +505,7 @@ fn replay_build(
                     e.transform.position = (base + off).to_array();
                     e.transform.rotation_degrees = [0.0, yaw.to_degrees(), 0.0];
                     e.transform.scale = [scale; 3];
-                    e.mesh_asset = Some(wt::MeshAssetRef {
-                        path: format!("models/{file}"),
-                        node: None,
-                    });
+                    e.mesh_asset = Some(wt::MeshAssetRef::new(format!("models/{file}")));
                     push(&mut by_name, manifest, e);
                 }
                 by_name.insert(c.name.clone(), usize::MAX);

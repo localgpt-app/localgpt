@@ -59,6 +59,10 @@ pub enum GenCommand {
         names: Vec<String>,
         expected_revision: Option<u64>,
     },
+
+    // Reusable creations (world-types `instance`)
+    DefineCreation(DefineCreationCmd),
+    SpawnInstance(SpawnInstanceCmd),
     SetCamera(CameraCmd),
     SetLight(SetLightCmd),
     SetEnvironment(EnvironmentCmd),
@@ -553,6 +557,42 @@ pub enum PrimitiveShape {
     Tetrahedron,
     Icosahedron,
     Wedge,
+}
+
+/// Turn named entities, with their children, into a reusable creation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DefineCreationCmd {
+    /// The creation's name (`oak_tree`).
+    pub name: String,
+    /// The entities it is made of; their children come along.
+    pub entities: Vec<String>,
+    /// Semantic category (`building`, `vegetation`, `furniture`, …).
+    #[serde(default)]
+    pub category: Option<String>,
+    /// Replace the originals with the creation's first instance (default).
+    #[serde(default = "default_true")]
+    pub replace: bool,
+    /// Name of that first instance (default `<name>_1`).
+    #[serde(default)]
+    pub instance_name: Option<String>,
+}
+
+/// Place a copy of a reusable creation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpawnInstanceCmd {
+    /// The creation to place, by name.
+    pub creation: String,
+    /// The instance's name; its parts are named `<name>/<part>`.
+    pub name: String,
+    #[serde(default)]
+    pub position: [f32; 3],
+    #[serde(default)]
+    pub rotation_degrees: [f32; 3],
+    #[serde(default = "default_scale")]
+    pub scale: [f32; 3],
+    /// Changes to single parts of this copy.
+    #[serde(default)]
+    pub overrides: Vec<localgpt_world_types::PartOverride>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1067,6 +1107,14 @@ pub enum GenResponse {
     },
     Deleted {
         name: String,
+    },
+
+    /// A reusable creation was defined (and, with `instance`, its first
+    /// instance put where the originals were).
+    CreationDefined {
+        name: String,
+        parts: Vec<String>,
+        instance: Option<String>,
     },
 
     // Batch results

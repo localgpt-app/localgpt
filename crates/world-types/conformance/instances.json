@@ -1,0 +1,59 @@
+{
+  "version": 3,
+  "meta": {
+    "name": "conformance-instances",
+    "description": "One reusable tree placed four times: as defined, scaled, with red leaves, and with a taller trunk and a spinning crown.",
+    "tags": ["conformance"]
+  },
+  "environment": {
+    "background_color": [0.55, 0.7, 0.9, 1.0],
+    "ambient_intensity": 150.0
+  },
+  "camera": { "position": [0.0, 7.0, 16.0], "look_at": [0.0, 2.0, 0.0], "fov_degrees": 50.0 },
+  "creations": [
+    {
+      "id": 1,
+      "name": "tree",
+      "semantic_category": "vegetation",
+      "bbox_half": [1.2, 2.6, 1.2],
+      "parts": [
+        { "id": 1, "name": "trunk", "transform": { "position": [0.0, 1.0, 0.0] },
+          "shape": { "Cylinder": { "radius": 0.2, "height": 2.0 } },
+          "material": { "color": [0.45, 0.3, 0.18, 1.0], "roughness": 0.9 } },
+        { "id": 2, "name": "crown", "parent": 1, "transform": { "position": [0.0, 1.6, 0.0] },
+          "shape": { "Sphere": { "radius": 1.0 } },
+          "material": { "color": [0.2, 0.55, 0.25, 1.0], "roughness": 0.8 } },
+        { "id": 3, "name": "top", "parent": 2, "transform": { "position": [0.0, 0.9, 0.0] },
+          "shape": { "Cone": { "radius": 0.5, "height": 0.8 } },
+          "material": { "color": [0.25, 0.6, 0.3, 1.0] } }
+      ]
+    }
+  ],
+  "entities": [
+    { "id": 1, "name": "ground",
+      "shape": { "Plane": { "x": 30.0, "z": 30.0 } },
+      "material": { "color": [0.35, 0.42, 0.3, 1.0], "roughness": 0.95 } },
+    { "id": 2, "name": "sun", "transform": { "position": [0.0, 15.0, 0.0] },
+      "light": { "light_type": "directional", "color": [1.0, 0.97, 0.9, 1.0], "intensity": 8000.0, "direction": [-0.4, -1.0, -0.3], "shadows": true } },
+
+    { "id": 10, "name": "tree_plain", "transform": { "position": [-6.0, 0.0, 0.0] },
+      "instance_of": { "creation": 1 } },
+    { "id": 11, "name": "tree_big", "transform": { "position": [-2.0, 0.0, 0.0], "scale": [1.5, 1.5, 1.5] },
+      "instance_of": { "creation": 1 } },
+    { "id": 12, "name": "tree_autumn", "transform": { "position": [2.0, 0.0, 0.0], "rotation_degrees": [0.0, 45.0, 0.0] },
+      "instance_of": { "creation": 1, "overrides": [
+        { "part": "crown", "patch": { "material": { "color": [0.8, 0.3, 0.1, 1.0], "roughness": 0.8 } } },
+        { "part": "top", "patch": { "material": { "color": [0.85, 0.55, 0.1, 1.0] } } }
+      ] } },
+    { "id": 13, "name": "tree_tall", "transform": { "position": [6.0, 0.0, 0.0] },
+      "instance_of": { "creation": 1, "overrides": [
+        { "part": "trunk", "patch": {
+          "transform": { "position": [0.0, 2.0, 0.0] },
+          "shape": { "Cylinder": { "radius": 0.2, "height": 4.0 } } } },
+        { "part": "crown", "patch": {
+          "transform": { "position": [0.0, 2.6, 0.0] },
+          "behaviors": [ { "Spin": { "axis": [0.0, 1.0, 0.0], "speed": 45.0 } } ] } }
+      ] } }
+  ],
+  "next_entity_id": 14
+}

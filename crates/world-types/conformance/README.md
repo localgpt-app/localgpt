@@ -12,6 +12,8 @@ the format must load and draw the same way:
 | `hierarchy_tours.json` | Parent/child transforms, a group entity, an avatar, a fly tour with captions, ambient and spatial procedural audio |
 | `soundtrack.json` | A soundtrack (analysis only, no audio file) and modulations of every target by every signal kind |
 | `textures.json` | Albedo (plain and tinted), metallic-roughness, normal and emissive maps, and all four together; images in `assets/textures/` |
+| `instances.json` | One reusable creation (a three-part tree) placed four times: as defined, scaled, recoloured by part overrides, and with a reshaped trunk and a spinning crown |
+| `triggers.json` | Every trigger event (click, proximity, area enter and exit, collision, timer) and every action; the web viewer runs click, proximity, area and timer with show_text, enable, disable, destroy and teleport |
 
 `tests/conformance.rs` parses each file, checks `validate_manifest` reports no
 errors, and round-trips it through RON and JSON. The web viewer
@@ -20,6 +22,7 @@ errors, and round-trips it through RON and JSON. The web viewer
 `worlds/`. When a renderer changes how it draws something, render these before
 and after.
 
-Numbers are plain JSON: colours are linear RGBA, rotations are XYZ Euler
-degrees, directional light intensity is lux, point and spot are lumens, spot
-angles are radians.
+Numbers are plain JSON, with the conventions stated on `WorldManifest`:
+colours are RGBA in `0..=1`, sRGB-encoded except `emissive` (linear);
+rotations are XYZ Euler degrees; directional light intensity is lux, point
+and spot are lumens; spot angles are radians.

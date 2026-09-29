@@ -9,11 +9,13 @@ use crate::asset::MeshAssetRef;
 use crate::audio::AudioDef;
 use crate::behavior::BehaviorDef;
 use crate::identity::{CreationId, EntityId, EntityName};
+use crate::instance::InstanceOf;
 use crate::light::LightDef;
 use crate::material::MaterialDef;
 use crate::modulation::ModulationDef;
 use crate::shape::Shape;
 use crate::spatial::ChunkCoord;
+use crate::trigger::TriggerDef;
 
 /// Transform in world space (or parent-relative if parented).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -97,6 +99,13 @@ pub struct WorldEntity {
     /// stacked on top of the authored values.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub modulations: Vec<ModulationDef>,
+    /// Places a copy of a reusable creation here, with per-part overrides
+    /// (see [`crate::instance`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instance_of: Option<InstanceOf>,
+    /// Events and the actions they run (see [`crate::trigger`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub triggers: Vec<TriggerDef>,
 }
 
 impl WorldEntity {
@@ -116,6 +125,8 @@ impl WorldEntity {
             audio: None,
             mesh_asset: None,
             modulations: Vec::new(),
+            instance_of: None,
+            triggers: Vec::new(),
         }
     }
 
@@ -191,9 +202,49 @@ pub struct EntityPatch {
     pub mesh_asset: Option<Option<MeshAssetRef>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modulations: Option<Vec<ModulationDef>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instance_of: Option<Option<InstanceOf>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub triggers: Option<Vec<TriggerDef>>,
 }
 
 impl EntityPatch {
+    /// The patch that turns `base` into `target`, field by field, leaving
+    /// out `name` and `parent` (a part's place comes from its definition).
+    /// Numbers within `1e-4` count as equal, so values that went through
+    /// an engine's float conversions (quaternions and back, sRGB and back)
+    /// don't show up as changes.
+    pub fn between(base: &WorldEntity, target: &WorldEntity) -> EntityPatch {
+        fn differs<T: Serialize>(a: &T, b: &T) -> bool {
+            match (serde_json::to_value(a), serde_json::to_value(b)) {
+                (Ok(a), Ok(b)) => !json_close(&a, &b),
+                _ => true,
+            }
+        }
+        fn changed<T: Serialize + Clone>(a: &T, b: &T) -> Option<T> {
+            differs(a, b).then(|| b.clone())
+        }
+        EntityPatch {
+            name: None,
+            parent: None,
+            transform: changed(&base.transform, &target.transform),
+            shape: changed(&base.shape, &target.shape),
+            material: changed(&base.material, &target.material),
+            light: changed(&base.light, &target.light),
+            behaviors: changed(&base.behaviors, &target.behaviors),
+            audio: changed(&base.audio, &target.audio),
+            mesh_asset: changed(&base.mesh_asset, &target.mesh_asset),
+            modulations: changed(&base.modulations, &target.modulations),
+            instance_of: changed(&base.instance_of, &target.instance_of),
+            triggers: changed(&base.triggers, &target.triggers),
+        }
+    }
+
+    /// Whether the patch changes nothing.
+    pub fn is_empty(&self) -> bool {
+        *self == EntityPatch::default()
+    }
+
     /// Apply this patch to a WorldEntity, modifying it in place.
     pub fn apply(&self, entity: &mut WorldEntity) {
         if let Some(ref name) = self.name {
@@ -226,6 +277,33 @@ impl EntityPatch {
         if let Some(ref modulations) = self.modulations {
             entity.modulations = modulations.clone();
         }
+        if let Some(ref instance_of) = self.instance_of {
+            entity.instance_of = instance_of.clone();
+        }
+        if let Some(ref triggers) = self.triggers {
+            entity.triggers = triggers.clone();
+        }
+    }
+}
+
+/// JSON equality with numbers compared to within `1e-4` (relative for large
+/// values).
+fn json_close(a: &serde_json::Value, b: &serde_json::Value) -> bool {
+    use serde_json::Value;
+    match (a, b) {
+        (Value::Number(x), Value::Number(y)) => match (x.as_f64(), y.as_f64()) {
+            (Some(x), Some(y)) => (x - y).abs() <= 1e-4 * x.abs().max(y.abs()).max(1.0),
+            _ => x == y,
+        },
+        (Value::Array(x), Value::Array(y)) => {
+            x.len() == y.len() && x.iter().zip(y).all(|(x, y)| json_close(x, y))
+        }
+        (Value::Object(x), Value::Object(y)) => {
+            x.len() == y.len()
+                && x.iter()
+                    .all(|(k, v)| y.get(k).is_some_and(|w| json_close(v, w)))
+        }
+        _ => a == b,
     }
 }
 
@@ -233,6 +311,33 @@ impl EntityPatch {
 mod tests {
     use super::*;
     use crate::audio::{AudioDef, AudioKind, AudioSource, Rolloff};
+
+    #[test]
+    fn patch_between_ignores_float_noise() {
+        let base = WorldEntity::new(1, "trunk")
+            .with_shape(Shape::Cylinder {
+                radius: 0.3,
+                height: 3.0,
+            })
+            .at([0.0, 1.5, 0.0]);
+        let mut target = base.clone();
+        target.name = EntityName::new("oak_1/trunk");
+        target.parent = Some(EntityId(9));
+        target.transform.position[1] = 1.500_001;
+        target.transform.rotation_degrees[1] = -0.000_02;
+        assert!(EntityPatch::between(&base, &target).is_empty());
+
+        target.shape = Some(Shape::Cylinder {
+            radius: 0.3,
+            height: 4.5,
+        });
+        let patch = EntityPatch::between(&base, &target);
+        assert_eq!(patch.shape, Some(target.shape.clone()));
+        assert!(patch.transform.is_none() && patch.name.is_none());
+        let mut rebuilt = base.clone();
+        patch.apply(&mut rebuilt);
+        assert_eq!(rebuilt.shape, target.shape);
+    }
 
     #[test]
     fn entity_builder() {

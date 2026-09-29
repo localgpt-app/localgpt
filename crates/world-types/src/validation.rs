@@ -147,10 +147,12 @@ pub fn validate_entities(entities: &[WorldEntity], limits: &WorldLimits) -> Vec<
     issues
 }
 
-/// Validate a whole manifest: its entities, plus the soundtrack's numbers
-/// and any modulation that needs a soundtrack the manifest doesn't carry.
+/// Validate a whole manifest: its entities, its reusable creations and the
+/// instances of them, plus the soundtrack's numbers and any modulation that
+/// needs a soundtrack the manifest doesn't carry.
 pub fn validate_manifest(manifest: &WorldManifest, limits: &WorldLimits) -> Vec<ValidationIssue> {
     let mut issues = validate_entities(&manifest.entities, limits);
+    issues.extend(crate::instance::validate_instances(manifest));
 
     match &manifest.soundtrack {
         Some(soundtrack) => {
