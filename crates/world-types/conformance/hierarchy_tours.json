@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "meta": {
     "name": "conformance-hierarchy-tours",
     "description": "A parented cart with nested children, a campfire with light and sound, an avatar, and a guided tour.",

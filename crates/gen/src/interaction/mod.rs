@@ -229,6 +229,7 @@ pub struct EntityState {
 pub enum TriggerType {
     #[default]
     Proximity,
+    Start,
     Click,
     AreaEnter,
     AreaExit,
@@ -251,6 +252,7 @@ pub enum TriggerAction {
     AddScore,
     Enable,
     Disable,
+    Toggle,
 }
 
 /// Teleporter visual effect.
@@ -313,137 +315,23 @@ pub struct AddTriggerParams {
     /// Require the player to have this item in inventory before the trigger fires.
     #[serde(default)]
     pub requires_item: Option<String>,
+    /// Seconds for `animate` and `show_text`.
+    #[serde(default)]
+    pub duration: Option<f32>,
+    /// The area of `area_enter` / `area_exit`, in the entity's own frame
+    /// (default: its shape's box, or a sphere of radius 3).
+    #[serde(default)]
+    pub volume: Option<localgpt_world_types::TriggerVolume>,
 }
 
-/// Put a trigger and its action on an entity: `gen_add_trigger`, and a saved
-/// world's triggers on load.
-pub fn insert_trigger(ec: &mut bevy::ecs::system::EntityCommands, p: &AddTriggerParams) {
-    ec.insert(crate::interaction::InteractionEntity);
-    // Insert trigger component
-    match p.trigger_type {
-        crate::interaction::TriggerType::Proximity => {
-            ec.insert(crate::interaction::ProximityTrigger {
-                radius: p.radius.unwrap_or(5.0),
-                cooldown: p.cooldown.unwrap_or(1.0),
-                last_triggered: 0.0,
-            });
-        }
-        crate::interaction::TriggerType::Click => {
-            ec.insert(crate::interaction::ClickTrigger {
-                max_distance: p.max_distance.unwrap_or(5.0),
-                prompt_text: p.prompt_text.clone(),
-            });
-        }
-        crate::interaction::TriggerType::Timer => {
-            if let Some(interval) = p.interval {
-                ec.insert(crate::interaction::TimerTrigger::new(interval));
-            }
-        }
-        crate::interaction::TriggerType::AreaEnter => {
-            ec.insert((
-                crate::interaction::AreaTrigger { is_enter: true },
-                crate::interaction::AreaInsideTracker::default(),
-            ));
-        }
-        crate::interaction::TriggerType::AreaExit => {
-            ec.insert((
-                crate::interaction::AreaTrigger { is_enter: false },
-                crate::interaction::AreaInsideTracker::default(),
-            ));
-        }
-        crate::interaction::TriggerType::Collision => {
-            ec.insert(crate::interaction::CollisionTrigger {
-                cooldown: p.cooldown.unwrap_or(1.0),
-                ..default()
-            });
-            // Add a sensor collider if the entity doesn't already have one.
-            // Uses the trigger radius as the sensor sphere size.
-            ec.insert(crate::physics::ColliderConfig {
-                shape: crate::physics::ColliderShape::Sphere,
-                size: Some(Vec3::splat(p.radius.unwrap_or(3.0) * 2.0)),
-                offset: Vec3::ZERO,
-                is_trigger: true,
-                visible_in_debug: true,
-            });
-        }
-    }
-    // Insert requires_item component if specified (Gap 2.3)
-    if let Some(ref item_id) = p.requires_item {
-        ec.insert(crate::interaction::RequiresItem {
-            item_id: item_id.clone(),
-        });
-    }
-    // Insert action component
-    match p.action {
-        crate::interaction::TriggerAction::Animate => {
-            ec.insert(crate::interaction::AnimateAction {
-                property: p
-                    .state_key
-                    .clone()
-                    .unwrap_or_else(|| "position".to_string()),
-                to: p.destination.map(|d| d.to_vec()).unwrap_or_default(),
-                duration: p.cooldown.unwrap_or(1.0),
-                progress: 0.0,
-            });
-        }
-        crate::interaction::TriggerAction::Teleport => {
-            if let Some(dest) = p.destination {
-                ec.insert(crate::interaction::TeleportAction {
-                    destination: Vec3::from_array(dest),
-                    effect: crate::interaction::TeleportEffect::None,
-                });
-            }
-        }
-        crate::interaction::TriggerAction::PlaySound => {
-            ec.insert(crate::interaction::PlaySoundAction {
-                sound: p.text.clone().unwrap_or_else(|| "default".to_string()),
-            });
-        }
-        crate::interaction::TriggerAction::ShowText => {
-            if let Some(text) = &p.text {
-                ec.insert(crate::interaction::ShowTextAction {
-                    text: text.clone(),
-                    duration: None,
-                });
-            }
-        }
-        crate::interaction::TriggerAction::ToggleState => {
-            ec.insert(crate::interaction::ToggleStateAction {
-                state_key: p.state_key.clone().unwrap_or_else(|| "active".to_string()),
-                value: p.text.clone(),
-            });
-        }
-        crate::interaction::TriggerAction::Spawn => {
-            ec.insert(crate::interaction::SpawnAction {
-                template: p.text.clone().unwrap_or_default(),
-            });
-        }
-        crate::interaction::TriggerAction::Destroy => {
-            ec.insert(crate::interaction::DestroyAction);
-        }
-        crate::interaction::TriggerAction::AddScore => {
-            ec.insert(crate::interaction::AddScoreAction {
-                amount: p.amount.unwrap_or(1),
-                category: p.category.clone().unwrap_or_else(|| "points".to_string()),
-            });
-        }
-        crate::interaction::TriggerAction::Enable => {
-            ec.insert(crate::interaction::EnableAction);
-        }
-        crate::interaction::TriggerAction::Disable => {
-            ec.insert(crate::interaction::DisableAction);
-        }
-    }
-    // Mark as once-trigger if requested
-    if p.once {
-        ec.insert(crate::interaction::OnceTrigger);
-    }
-}
-
-/// The world-format form of a trigger, for saving (world-types `trigger`).
+/// The world-format trigger `gen_add_trigger` asks for. Gen's own names
+/// map onto the format's core (`enable` → `show`, `disable` → `hide`,
+/// `destroy` → `remove`); score, sounds, entity state and spawning are
+/// `host` actions, run by [`run_host_actions`].
 pub fn trigger_def(p: &AddTriggerParams) -> localgpt_world_types::TriggerDef {
     use localgpt_world_types::{TriggerActionDef as A, TriggerEvent as E};
     let on = match p.trigger_type {
+        TriggerType::Start => E::Start,
         TriggerType::Proximity => E::Proximity {
             radius: p.radius.unwrap_or(5.0),
         },
@@ -451,8 +339,12 @@ pub fn trigger_def(p: &AddTriggerParams) -> localgpt_world_types::TriggerDef {
             max_distance: p.max_distance.unwrap_or(5.0),
             prompt: p.prompt_text.clone(),
         },
-        TriggerType::AreaEnter => E::AreaEnter,
-        TriggerType::AreaExit => E::AreaExit,
+        TriggerType::AreaEnter => E::AreaEnter {
+            volume: p.volume.clone(),
+        },
+        TriggerType::AreaExit => E::AreaExit {
+            volume: p.volume.clone(),
+        },
         TriggerType::Collision => E::Collision {
             radius: p.radius.unwrap_or(3.0),
         },
@@ -460,130 +352,85 @@ pub fn trigger_def(p: &AddTriggerParams) -> localgpt_world_types::TriggerDef {
             interval: p.interval.unwrap_or(1.0),
         },
     };
-    let text = || p.text.clone().unwrap_or_default();
-    let action = match p.action {
-        TriggerAction::Animate => A::Animate {
-            property: p
-                .state_key
-                .clone()
-                .unwrap_or_else(|| "position".to_string()),
-            to: p.destination.map(|d| d.to_vec()).unwrap_or_default(),
-            // Gen's animate action takes its duration from `cooldown`.
-            duration: p.cooldown.unwrap_or(1.0),
+    let host = |name: &str, args: serde_json::Value| A::Host {
+        name: name.to_string(),
+        args: match args {
+            serde_json::Value::Object(map) => map,
+            _ => Default::default(),
         },
-        TriggerAction::Teleport => A::Teleport {
-            destination: p.destination.unwrap_or_default(),
-        },
-        TriggerAction::PlaySound => A::PlaySound {
-            sound: p.text.clone().unwrap_or_else(|| "default".to_string()),
-        },
-        TriggerAction::ShowText => A::ShowText { text: text() },
-        TriggerAction::ToggleState => A::ToggleState {
-            key: p.state_key.clone().unwrap_or_else(|| "active".to_string()),
-            value: p.text.clone(),
-        },
-        TriggerAction::Spawn => A::Spawn { template: text() },
-        TriggerAction::Destroy => A::Destroy,
-        TriggerAction::AddScore => A::AddScore {
-            amount: p.amount.unwrap_or(1),
-            category: p.category.clone().unwrap_or_else(|| "points".to_string()),
-        },
-        TriggerAction::Enable => A::Enable,
-        TriggerAction::Disable => A::Disable,
+    };
+    let (action, cooldown) = match p.action {
+        TriggerAction::Animate => (
+            A::Animate {
+                property: p
+                    .state_key
+                    .clone()
+                    .unwrap_or_else(|| "position".to_string()),
+                to: p.destination.map(|d| d.to_vec()).unwrap_or_default(),
+                duration: p.duration.or(p.cooldown).unwrap_or(1.0),
+            },
+            // Gen's tool used to take the animation's duration from
+            // `cooldown`; with a `duration`, `cooldown` means cooldown again.
+            p.duration.and(p.cooldown),
+        ),
+        TriggerAction::Teleport => (
+            A::Teleport {
+                destination: p.destination.unwrap_or_default(),
+            },
+            p.cooldown,
+        ),
+        TriggerAction::ShowText => (
+            A::ShowText {
+                text: p.text.clone().unwrap_or_default(),
+                seconds: p.duration.unwrap_or(4.0),
+            },
+            p.cooldown,
+        ),
+        TriggerAction::Enable => (A::Show, p.cooldown),
+        TriggerAction::Disable => (A::Hide, p.cooldown),
+        TriggerAction::Toggle => (A::Toggle, p.cooldown),
+        TriggerAction::Destroy => (A::Remove, p.cooldown),
+        TriggerAction::PlaySound => (
+            host(
+                "play_sound",
+                serde_json::json!({ "sound": p.text.clone().unwrap_or_else(|| "default".into()) }),
+            ),
+            p.cooldown,
+        ),
+        TriggerAction::ToggleState => {
+            let mut args = serde_json::json!({
+                "key": p.state_key.clone().unwrap_or_else(|| "active".into())
+            });
+            if let Some(value) = &p.text {
+                args["value"] = serde_json::json!(value);
+            }
+            (host("set_state", args), p.cooldown)
+        }
+        TriggerAction::Spawn => (
+            host(
+                "spawn",
+                serde_json::json!({ "template": p.text.clone().unwrap_or_default() }),
+            ),
+            p.cooldown,
+        ),
+        TriggerAction::AddScore => (
+            host(
+                "add_score",
+                serde_json::json!({
+                    "amount": p.amount.unwrap_or(1),
+                    "category": p.category.clone().unwrap_or_else(|| "points".into()),
+                }),
+            ),
+            p.cooldown,
+        ),
     };
     localgpt_world_types::TriggerDef {
         on,
         action,
         once: p.once,
-        cooldown: p.cooldown,
+        cooldown,
         requires_item: p.requires_item.clone(),
     }
-}
-
-/// The parameters that recreate a saved trigger on `entity`.
-pub fn trigger_params(entity: &str, t: &localgpt_world_types::TriggerDef) -> AddTriggerParams {
-    use localgpt_world_types::{TriggerActionDef as A, TriggerEvent as E};
-    let mut p = AddTriggerParams {
-        entity_id: entity.to_string(),
-        trigger_type: TriggerType::Proximity,
-        action: TriggerAction::Animate,
-        radius: None,
-        cooldown: t.cooldown,
-        interval: None,
-        max_distance: None,
-        prompt_text: None,
-        once: t.once,
-        destination: None,
-        text: None,
-        amount: None,
-        state_key: None,
-        category: None,
-        requires_item: t.requires_item.clone(),
-    };
-    match &t.on {
-        E::Proximity { radius } => p.radius = Some(*radius),
-        E::Click {
-            max_distance,
-            prompt,
-        } => {
-            p.trigger_type = TriggerType::Click;
-            p.max_distance = Some(*max_distance);
-            p.prompt_text = prompt.clone();
-        }
-        E::AreaEnter => p.trigger_type = TriggerType::AreaEnter,
-        E::AreaExit => p.trigger_type = TriggerType::AreaExit,
-        E::Collision { radius } => {
-            p.trigger_type = TriggerType::Collision;
-            p.radius = Some(*radius);
-        }
-        E::Timer { interval } => {
-            p.trigger_type = TriggerType::Timer;
-            p.interval = Some(*interval);
-        }
-    }
-    match &t.action {
-        A::Animate {
-            property,
-            to,
-            duration,
-        } => {
-            p.state_key = Some(property.clone());
-            if to.len() >= 3 {
-                p.destination = Some([to[0], to[1], to[2]]);
-            }
-            p.cooldown = t.cooldown.or(Some(*duration));
-        }
-        A::Teleport { destination } => {
-            p.action = TriggerAction::Teleport;
-            p.destination = Some(*destination);
-        }
-        A::PlaySound { sound } => {
-            p.action = TriggerAction::PlaySound;
-            p.text = Some(sound.clone());
-        }
-        A::ShowText { text } => {
-            p.action = TriggerAction::ShowText;
-            p.text = Some(text.clone());
-        }
-        A::ToggleState { key, value } => {
-            p.action = TriggerAction::ToggleState;
-            p.state_key = Some(key.clone());
-            p.text = value.clone();
-        }
-        A::Spawn { template } => {
-            p.action = TriggerAction::Spawn;
-            p.text = Some(template.clone());
-        }
-        A::Destroy => p.action = TriggerAction::Destroy,
-        A::AddScore { amount, category } => {
-            p.action = TriggerAction::AddScore;
-            p.amount = Some(*amount);
-            p.category = Some(category.clone());
-        }
-        A::Enable => p.action = TriggerAction::Enable,
-        A::Disable => p.action = TriggerAction::Disable,
-    }
-    p
 }
 
 /// Parameters for teleporter.
@@ -1492,6 +1339,7 @@ pub fn entity_link_system(
 ) {
     for event in trigger_events.read() {
         let trigger_name = match event.trigger_type {
+            TriggerType::Start => "start",
             TriggerType::Proximity => "proximity",
             TriggerType::Click => "click",
             TriggerType::AreaEnter => "area_enter",
@@ -1916,6 +1764,166 @@ pub fn collectible_item_system(
 /// Plugin for interaction systems.
 pub struct InteractionPlugin;
 
+// ---------------------------------------------------------------------------
+// World-format triggers: world-bevy's runtime, wired to Gen
+// ---------------------------------------------------------------------------
+
+use localgpt_world_bevy::triggers as wbt;
+
+/// The visitor is the player when one is spawned, else the main camera.
+pub fn sync_visitor(
+    mut commands: Commands,
+    players: Query<Entity, With<crate::character::Player>>,
+    visitors: Query<Entity, With<wbt::Visitor>>,
+    registry: Option<Res<crate::gen3d::registry::NameRegistry>>,
+) {
+    let want = players
+        .iter()
+        .next()
+        .or_else(|| registry.and_then(|r| r.get_entity("main_camera")));
+    for v in &visitors {
+        if Some(v) != want {
+            commands.entity(v).remove::<wbt::Visitor>();
+        }
+    }
+    if let Some(w) = want
+        && !visitors.contains(w)
+    {
+        commands.entity(w).insert(wbt::Visitor);
+    }
+}
+
+/// E uses the nearest entity with a click trigger in reach.
+pub fn activate_on_use_key(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    visitor: Query<&GlobalTransform, With<wbt::Visitor>>,
+    triggers: Query<(Entity, &wbt::Triggers, &GlobalTransform)>,
+    mut activate: MessageWriter<wbt::Activate>,
+) {
+    if !keyboard.just_pressed(KeyCode::KeyE) {
+        return;
+    }
+    let Ok(v) = visitor.single() else {
+        return;
+    };
+    let v = v.translation();
+    let nearest = triggers
+        .iter()
+        .filter_map(|(e, t, g)| {
+            let d = g.translation().distance(v);
+            (d <= t.click_reach()?).then_some((e, d))
+        })
+        .min_by(|a, b| a.1.total_cmp(&b.1));
+    if let Some((entity, _)) = nearest {
+        activate.write(wbt::Activate { entity });
+    }
+}
+
+/// `show_text` actions become notifications.
+pub fn show_trigger_text(mut texts: MessageReader<wbt::TriggerText>, mut commands: Commands) {
+    for t in texts.read() {
+        crate::ui::spawn_notification(
+            &mut commands,
+            &crate::ui::NotificationParams {
+                text: t.text.clone(),
+                duration: t.seconds,
+                ..Default::default()
+            },
+        );
+    }
+}
+
+/// Gen's `host` actions: `add_score`, `play_sound`, `set_state`, `spawn`.
+pub fn run_host_actions(
+    mut actions: MessageReader<wbt::HostAction>,
+    mut score_board: ResMut<ScoreBoard>,
+    mut audio_engine: Option<ResMut<crate::gen3d::audio::AudioEngine>>,
+    positions: Query<&GlobalTransform>,
+    mut states: Query<&mut EntityState>,
+    mut commands: Commands,
+) {
+    for a in actions.read() {
+        let text = |key: &str| a.args.get(key).and_then(|v| v.as_str()).map(str::to_string);
+        match a.name.as_str() {
+            "add_score" => {
+                let amount = a.args.get("amount").and_then(|v| v.as_i64()).unwrap_or(1);
+                let category = text("category").unwrap_or_else(|| "points".into());
+                *score_board.scores.entry(category).or_insert(0) += amount as i32;
+            }
+            "play_sound" => {
+                let (Some(engine), Some(sound)) = (audio_engine.as_deref_mut(), text("sound"))
+                else {
+                    continue;
+                };
+                let at = positions
+                    .get(a.entity)
+                    .map(|g| g.translation())
+                    .unwrap_or_default();
+                engine.play_emitter_at(&sound, at);
+            }
+            "set_state" => {
+                let key = text("key").unwrap_or_else(|| "active".into());
+                let flip = |old: Option<&String>| match text("value") {
+                    Some(value) => value,
+                    None if old.is_some_and(|v| v == "on") => "off".into(),
+                    None => "on".into(),
+                };
+                match states.get_mut(a.entity) {
+                    Ok(mut state) => {
+                        let value = flip(state.states.get(&key));
+                        state.states.insert(key, value);
+                    }
+                    Err(_) => {
+                        let mut state = EntityState::default();
+                        state.states.insert(key, flip(None));
+                        commands.entity(a.entity).insert(state);
+                    }
+                }
+            }
+            other => tracing::debug!("trigger host action '{other}' is not supported by Gen"),
+        }
+    }
+}
+
+/// Keep the runtime's held items in step with the player's inventory.
+pub fn sync_held_items(inventory: Res<PlayerInventory>, mut held: ResMut<wbt::HeldItems>) {
+    if inventory.is_changed() {
+        held.0 = inventory.items.clone();
+    }
+}
+
+/// Entity links (`gen_link_entities`) follow format triggers as they follow
+/// Gen's own.
+pub fn bridge_trigger_fired(
+    mut fired: MessageReader<wbt::TriggerFired>,
+    triggers: Query<&wbt::Triggers>,
+    mut out: MessageWriter<TriggerFired>,
+) {
+    use localgpt_world_types::TriggerEvent as E;
+    for f in fired.read() {
+        let Some(def) = triggers
+            .get(f.entity)
+            .ok()
+            .and_then(|t| t.defs().get(f.index))
+        else {
+            continue;
+        };
+        let trigger_type = match def.on {
+            E::Start => TriggerType::Start,
+            E::Click { .. } => TriggerType::Click,
+            E::Proximity { .. } => TriggerType::Proximity,
+            E::AreaEnter { .. } => TriggerType::AreaEnter,
+            E::AreaExit { .. } => TriggerType::AreaExit,
+            E::Collision { .. } => TriggerType::Collision,
+            E::Timer { .. } => TriggerType::Timer,
+        };
+        out.write(TriggerFired {
+            entity: f.entity,
+            trigger_type,
+        });
+    }
+}
+
 impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ScoreBoard::default())
@@ -1954,6 +1962,18 @@ impl Plugin for InteractionPlugin {
                     dissolve_effect_system,
                     sparkle_particle_system,
                 ),
+            )
+            // Group 3: world-format triggers (world-bevy's runtime)
+            .add_plugins(wbt::TriggerPlugin)
+            .add_systems(
+                Update,
+                (
+                    sync_visitor,
+                    activate_on_use_key.before(wbt::run_triggers),
+                    sync_held_items.before(wbt::run_triggers),
+                    (show_trigger_text, run_host_actions, bridge_trigger_fired)
+                        .after(wbt::run_triggers),
+                ),
             );
     }
 }
@@ -1963,25 +1983,54 @@ mod tests {
     use super::*;
 
     #[test]
-    fn saved_triggers_round_trip_through_the_runtime_params() {
-        // Every trigger in the conformance world comes back as it was saved
-        // after passing through Gen's runtime parameters.
-        let text = include_str!("../../../world-types/conformance/triggers.json");
-        let manifest: localgpt_world_types::WorldManifest = serde_json::from_str(text).unwrap();
-        let mut seen = 0;
-        for entity in &manifest.entities {
-            for def in &entity.triggers {
-                let params = trigger_params(entity.name.as_str(), def);
-                let mut back = trigger_def(&params);
-                if let localgpt_world_types::TriggerActionDef::Animate { .. } = def.action {
-                    // Gen's animate action keeps its duration in `cooldown`.
-                    back.cooldown = def.cooldown;
-                }
-                assert_eq!(&back, def, "{}", entity.name);
-                seen += 1;
-            }
-        }
-        assert!(seen >= 10);
+    fn tool_triggers_map_onto_the_format_core() {
+        use localgpt_world_types::{TriggerActionDef as A, TriggerEvent as E};
+        let params = |trigger_type, action| AddTriggerParams {
+            entity_id: "door".into(),
+            trigger_type,
+            action,
+            radius: None,
+            cooldown: None,
+            interval: None,
+            max_distance: None,
+            prompt_text: None,
+            once: false,
+            destination: None,
+            text: None,
+            amount: None,
+            state_key: None,
+            category: None,
+            requires_item: None,
+            duration: None,
+            volume: None,
+        };
+        let def = trigger_def(&params(TriggerType::Proximity, TriggerAction::Disable));
+        assert_eq!(def.on, E::Proximity { radius: 5.0 });
+        assert_eq!(def.action, A::Hide);
+        assert_eq!(
+            trigger_def(&params(TriggerType::Click, TriggerAction::Destroy)).action,
+            A::Remove
+        );
+        let score = trigger_def(&params(TriggerType::Timer, TriggerAction::AddScore));
+        let A::Host { name, args } = &score.action else {
+            panic!("{score:?}");
+        };
+        assert_eq!(
+            (name.as_str(), &args["amount"]),
+            ("add_score", &serde_json::json!(1))
+        );
+
+        // The old tool took an animation's duration from `cooldown`.
+        let mut old = params(TriggerType::Click, TriggerAction::Animate);
+        old.cooldown = Some(2.0);
+        let def = trigger_def(&old);
+        assert!(matches!(def.action, A::Animate { duration, .. } if duration == 2.0));
+        assert_eq!(def.cooldown, None);
+
+        // Every tool trigger is valid format data.
+        let json = serde_json::to_value(&def).unwrap();
+        let back: localgpt_world_types::TriggerDef = serde_json::from_value(json).unwrap();
+        assert_eq!(back, def);
     }
 
     #[test]
@@ -2082,6 +2131,8 @@ mod tests {
             state_key: None,
             category: Some("coins".to_string()),
             requires_item: None,
+            duration: None,
+            volume: None,
         };
         assert_eq!(params.amount, Some(10));
         assert_eq!(params.category.as_deref(), Some("coins"));
@@ -2105,6 +2156,8 @@ mod tests {
             state_key: None,
             category: None,
             requires_item: Some("gold_key".to_string()),
+            duration: None,
+            volume: None,
         };
         assert_eq!(params.requires_item.as_deref(), Some("gold_key"));
         assert!(params.once);

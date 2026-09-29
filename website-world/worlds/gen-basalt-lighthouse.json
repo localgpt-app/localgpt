@@ -1,9 +1,8 @@
 {
- "version": 1,
+ "version": 3,
  "meta": {
   "name": "Basalt Lighthouse",
   "description": "A lighthouse on a basalt headland at dusk, its beam sweeping a calm sea while gulls circle overhead.",
-  "bevy_version": "0.18",
   "compliance": {
    "steam_code_tool_exempt": true,
    "eu_ai_act_risk_level": "minimal",

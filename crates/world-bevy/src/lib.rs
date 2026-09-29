@@ -23,10 +23,12 @@
 //!
 //! [`modulation`] is the main runtime piece: the signal-driven layer that
 //! lets a world perform its soundtrack, evaluated as the web viewer does.
-//! [`nodes`] applies `MeshAssetRef::node_overrides` to spawned glTF scenes.
+//! [`nodes`] applies `MeshAssetRef::node_overrides` to spawned glTF scenes,
+//! and [`triggers`] runs the format's triggers, as the web viewer does.
 
 pub mod modulation;
 pub mod nodes;
+pub mod triggers;
 
 use std::f32::consts::FRAC_PI_4;
 

@@ -35,7 +35,7 @@ impl Tool for GenAddTriggerTool {
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "gen_add_trigger".to_string(),
-            description: "Add an interaction trigger and action to an entity. Combines triggers (proximity, click, area, collision, timer) with actions (animate, teleport, play sound, show text, toggle state, spawn, destroy, add score, enable, disable).".to_string(),
+            description: "Add an interaction trigger and action to an entity; saved with the world. Combines an event (start, proximity, click, area enter/exit, collision, timer) with an action (show text, show/enable, hide/disable, toggle visibility, remove/destroy, animate, teleport; Gen-only: play sound, toggle state, add score, spawn). A second trigger for the same event on an entity replaces the first.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -45,12 +45,12 @@ impl Tool for GenAddTriggerTool {
                     },
                     "trigger_type": {
                         "type": "string",
-                        "enum": ["proximity", "click", "area_enter", "area_exit", "collision", "timer"],
+                        "enum": ["start", "proximity", "click", "area_enter", "area_exit", "collision", "timer"],
                         "description": "Type of trigger"
                     },
                     "action": {
                         "type": "string",
-                        "enum": ["animate", "teleport", "play_sound", "show_text", "toggle_state", "spawn", "destroy", "add_score", "enable", "disable"],
+                        "enum": ["show_text", "show", "enable", "hide", "disable", "toggle", "remove", "destroy", "animate", "teleport", "play_sound", "toggle_state", "add_score", "spawn"],
                         "description": "Action to perform"
                     },
                     "radius": { "type": "number", "default": 3.0, "description": "Trigger radius" },
@@ -67,7 +67,12 @@ impl Tool for GenAddTriggerTool {
                     "amount": { "type": "integer", "default": 1, "description": "Score amount (add_score action)" },
                     "state_key": { "type": "string", "description": "State key (toggle_state action)" },
                     "category": { "type": "string", "default": "points", "description": "Score category (add_score action)" },
-                    "requires_item": { "type": "string", "description": "Item ID required in player inventory for this trigger to fire" }
+                    "requires_item": { "type": "string", "description": "Item ID required in player inventory for this trigger to fire" },
+                    "duration": { "type": "number", "description": "Seconds for animate and show_text" },
+                    "volume": {
+                        "type": "object",
+                        "description": "Area for area_enter/area_exit, in the entity's own frame: {\"shape\": \"box\", \"half_extents\": [x, y, z]} or {\"shape\": \"sphere\", \"radius\": r}. Default: the entity's shape box, or a sphere of radius 3"
+                    }
                 },
                 "required": ["entity_id", "trigger_type", "action"]
             }),
@@ -88,6 +93,7 @@ impl Tool for GenAddTriggerTool {
                 .as_str()
                 .ok_or_else(|| anyhow::anyhow!("trigger_type is required"))?
             {
+                "start" => interaction::TriggerType::Start,
                 "click" => interaction::TriggerType::Click,
                 "area_enter" => interaction::TriggerType::AreaEnter,
                 "area_exit" => interaction::TriggerType::AreaExit,
@@ -104,10 +110,11 @@ impl Tool for GenAddTriggerTool {
                 "show_text" => interaction::TriggerAction::ShowText,
                 "toggle_state" => interaction::TriggerAction::ToggleState,
                 "spawn" => interaction::TriggerAction::Spawn,
-                "destroy" => interaction::TriggerAction::Destroy,
+                "destroy" | "remove" => interaction::TriggerAction::Destroy,
+                "toggle" => interaction::TriggerAction::Toggle,
                 "add_score" => interaction::TriggerAction::AddScore,
-                "enable" => interaction::TriggerAction::Enable,
-                "disable" => interaction::TriggerAction::Disable,
+                "enable" | "show" => interaction::TriggerAction::Enable,
+                "disable" | "hide" => interaction::TriggerAction::Disable,
                 _ => interaction::TriggerAction::Animate,
             },
             radius: args["radius"].as_f64().map(|v| v as f32),
@@ -128,6 +135,14 @@ impl Tool for GenAddTriggerTool {
             state_key: args["state_key"].as_str().map(|s| s.to_string()),
             category: args["category"].as_str().map(|s| s.to_string()),
             requires_item: args["requires_item"].as_str().map(|s| s.to_string()),
+            duration: args["duration"].as_f64().map(|v| v as f32),
+            volume: match args.get("volume") {
+                None | Some(Value::Null) => None,
+                Some(v) => Some(
+                    serde_json::from_value(v.clone())
+                        .map_err(|e| anyhow::anyhow!("volume: {e}"))?,
+                ),
+            },
         };
 
         let cmd = GenCommand::AddTrigger(params);

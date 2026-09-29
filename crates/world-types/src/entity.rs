@@ -215,14 +215,8 @@ impl EntityPatch {
     /// an engine's float conversions (quaternions and back, sRGB and back)
     /// don't show up as changes.
     pub fn between(base: &WorldEntity, target: &WorldEntity) -> EntityPatch {
-        fn differs<T: Serialize>(a: &T, b: &T) -> bool {
-            match (serde_json::to_value(a), serde_json::to_value(b)) {
-                (Ok(a), Ok(b)) => !json_close(&a, &b),
-                _ => true,
-            }
-        }
         fn changed<T: Serialize + Clone>(a: &T, b: &T) -> Option<T> {
-            differs(a, b).then(|| b.clone())
+            (!values_close(a, b)).then(|| b.clone())
         }
         EntityPatch {
             name: None,
@@ -283,6 +277,16 @@ impl EntityPatch {
         if let Some(ref triggers) = self.triggers {
             entity.triggers = triggers.clone();
         }
+    }
+}
+
+/// Whether two values serialize to the same JSON, with numbers compared to
+/// within `1e-4` (relative for large values): equal up to the float noise of
+/// a round trip through an engine (quaternions and back, sRGB and back).
+pub fn values_close<T: Serialize>(a: &T, b: &T) -> bool {
+    match (serde_json::to_value(a), serde_json::to_value(b)) {
+        (Ok(a), Ok(b)) => json_close(&a, &b),
+        _ => false,
     }
 }
 

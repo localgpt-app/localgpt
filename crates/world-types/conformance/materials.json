@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "meta": {
     "name": "conformance-materials",
     "description": "A metallic-by-roughness grid of spheres, then one entity per material feature.",

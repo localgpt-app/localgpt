@@ -17,12 +17,14 @@ use crate::tour::TourDef;
 /// - 2: multi-file worlds (regions, libraries).
 /// - 3: reusable creations and their instances (`CreationDef::parts`,
 ///   `WorldEntity::instance_of`), triggers, and mesh node overrides and
-///   hashes. A reader older than 3 would drop instanced parts and triggers
-///   without noticing, so it refuses the file instead.
+///   hashes.
 pub const WORLD_SCHEMA_VERSION: u32 = 3;
 
 /// Minimum supported version for loading. Update when dropping old format support.
-pub const MIN_SUPPORTED_VERSION: u32 = 1;
+///
+/// 3, the current version: before launch the format carries no
+/// compatibility with older files; the repo's own worlds are kept current.
+pub const MIN_SUPPORTED_VERSION: u32 = 3;
 
 /// Version compatibility error.
 #[derive(Debug, Clone)]
@@ -391,13 +393,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn old_worlds_with_an_engine_version_still_load() {
-        // `meta.bevy_version` was written until schema 3; it is ignored now.
-        let json = r#"{"version": 2, "meta": {"name": "old", "bevy_version": "0.18"}}"#;
+    fn worlds_before_version_3_are_refused() {
+        let json = r#"{"version": 2, "meta": {"name": "old"}}"#;
         let m: WorldManifest = serde_json::from_str(json).unwrap();
-        assert_eq!(m.meta.name, "old");
-        assert!(m.check_version().is_ok());
-        assert!(!serde_json::to_string(&m).unwrap().contains("bevy_version"));
+        assert!(matches!(
+            m.check_version(),
+            Err(VersionError::TooOld { found: 2, min: 3 })
+        ));
     }
     use crate::entity::WorldEntity;
     use crate::shape::Shape;

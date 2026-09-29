@@ -6,6 +6,15 @@
 **Target crates:** `localgpt-gen`
 **Depends on:** Phase 1 (avatar/physics — complete)
 
+> **Update (2026-09-29):** `gen_add_trigger` no longer uses the Gen-only
+> trigger components below. Its triggers are world-format data
+> (`localgpt-world-types` `trigger`), saved with the world, and run by
+> `localgpt-world-bevy`'s trigger runtime, which the web viewer mirrors. A
+> review found the old path only half-built: `enable`, `disable` and
+> `animate` ran as soon as the trigger was added, `show_text`, `spawn` and
+> `destroy` never ran, and timer and area triggers ran no action. Doors,
+> collectibles and teleporters still use the components described here.
+
 ---
 
 ## 1. Summary

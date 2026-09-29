@@ -1,5 +1,5 @@
 {
- "version": 2,
+ "version": 3,
  "meta": {
   "name": "conformance-soundtrack",
   "description": "A silent soundtrack (analysis only) driving every modulation target by every signal kind.",

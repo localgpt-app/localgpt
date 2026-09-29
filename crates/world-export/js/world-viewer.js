@@ -504,13 +504,22 @@ export function expandInstances(entities, creations, firstId) {
     if (!inst) continue;
     const def = defs.get(String(inst.creation));
     if (!def || done.has(`${e.id}:${def.id}`)) continue;
-    const parts = def.parts || [];
+    // Parts an override removes drop out, with everything under them.
+    const removed = new Set((def.parts || []).filter((p) => (inst.overrides || []).some((o) => o.removed && o.part === p.name)).map((p) => String(p.id)));
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const p of def.parts || []) {
+        if (p.parent != null && removed.has(String(p.parent)) && !removed.has(String(p.id))) { removed.add(String(p.id)); grew = true; }
+      }
+    }
+    const parts = (def.parts || []).filter((p) => !removed.has(String(p.id)));
     const ids = new Map();
     for (const p of parts) ids.set(String(p.id), next++);
     for (const p of parts) {
       const x = JSON.parse(JSON.stringify(p));
       for (const o of inst.overrides || []) {
         if (o.part !== p.name) continue;
+        if (o.removed) continue;
         const { name, parent, instance_of, ...rest } = o.patch || {};
         applyPatchToDef(x, rest);
       }
@@ -524,6 +533,74 @@ export function expandInstances(entities, creations, firstId) {
     }
   }
   return out;
+}
+
+/** `Shape::local_aabb_half`: a shape's box half-extents in its own frame. */
+export function shapeHalfExtents(shape) {
+  const [kind, p] = variant(shape);
+  const a = p || {};
+  switch (kind) {
+    case 'Cuboid': case 'Wedge': return [a.x / 2, a.y / 2, a.z / 2];
+    case 'Sphere': case 'Tetrahedron': case 'Icosahedron': return [a.radius, a.radius, a.radius];
+    case 'Cylinder': case 'Cone': return [a.radius, a.height / 2, a.radius];
+    case 'Capsule': return [a.radius, a.half_length + a.radius, a.radius];
+    case 'Torus': return [a.major_radius + a.minor_radius, a.minor_radius, a.major_radius + a.minor_radius];
+    case 'Plane': return [a.x / 2, 0, a.z / 2];
+    case 'Pyramid': return [a.base_x / 2, a.height / 2, a.base_z / 2];
+    default: return null;
+  }
+}
+
+/** `TriggerDef::area`: the event's volume, else the shape's box, else a sphere of radius 3. */
+export function triggerArea(trigger, entity) {
+  const ev = trigger.on || {};
+  if (ev.event !== 'area_enter' && ev.event !== 'area_exit') return null;
+  if (ev.volume) return ev.volume;
+  const half = entity.shape ? shapeHalfExtents(entity.shape) : null;
+  return half ? { shape: 'box', half_extents: half } : { shape: 'sphere', radius: 3 };
+}
+
+/** `TriggerVolume::contains_local`. */
+export function volumeContains(volume, p) {
+  if (!volume) return false;
+  if (volume.shape === 'box') {
+    const h = volume.half_extents || [0, 0, 0];
+    return Math.abs(p.x) <= h[0] && Math.abs(p.y) <= h[1] && Math.abs(p.z) <= h[2];
+  }
+  const r = volume.radius ?? 0;
+  return p.x * p.x + p.y * p.y + p.z * p.z <= r * r;
+}
+
+/** An `animate` action: move a transform property linearly to `to`. */
+function startAnimation(object, action) {
+  const to = action.to || [];
+  const vec = () => (to.length >= 3 ? new THREE.Vector3(to[0], to[1], to[2]) : null);
+  const duration = Math.max(action.duration ?? 1, 0);
+  switch (action.property || 'position') {
+    case 'position': case 'translation': {
+      const b = vec(); return b && { kind: 'position', a: object.position.clone(), b, duration, t: 0 };
+    }
+    case 'rotation': {
+      const r = vec(); if (!r) return null;
+      const b = new THREE.Quaternion().setFromEuler(new THREE.Euler(THREE.MathUtils.degToRad(r.x), THREE.MathUtils.degToRad(r.y), THREE.MathUtils.degToRad(r.z), 'XYZ'));
+      return { kind: 'rotation', a: object.quaternion.clone(), b, duration, t: 0 };
+    }
+    case 'scale': {
+      const b = to.length === 1 ? new THREE.Vector3(to[0], to[0], to[0]) : vec();
+      return b && { kind: 'scale', a: object.scale.clone(), b, duration, t: 0 };
+    }
+    default: return null;
+  }
+}
+
+/** Advance an animation; true when it has arrived. */
+function stepAnimation(object, anim, dt) {
+  anim.t += dt;
+  const f = anim.duration > 0 ? Math.min(anim.t / anim.duration, 1) : 1;
+  if (anim.kind === 'position') object.position.lerpVectors(anim.a, anim.b, f);
+  else if (anim.kind === 'scale') object.scale.lerpVectors(anim.a, anim.b, f);
+  else object.quaternion.slerpQuaternions(anim.a, anim.b, f);
+  return f >= 1;
 }
 
 /** The manifest's entities with every instance expanded. */
@@ -701,7 +778,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     // The viewer has no inventory, so triggers that need an item never fire.
     rec.triggers = (rec.def.triggers || [])
       .filter((t) => !t.requires_item)
-      .map((def) => ({ def, done: false, inside: false, last: -Infinity, acc: 0 }));
+      .map((def) => ({ def, area: triggerArea(def, rec.def), done: false, inside: false, last: null, acc: 0 }));
   }
 
   function disposeObject(object) {
@@ -1049,22 +1126,32 @@ export function createWorldViewer(container, manifest, options = {}) {
   }
 
   // ---- Triggers (world-types `trigger`) ----
-  // Runs click, proximity, area_enter, area_exit and timer events with the
-  // show_text, enable, disable, destroy and teleport actions; the rest need
-  // Gen's runtime (collision physics, inventory, score, sounds by name).
+  // The same semantics as world-bevy's trigger runtime: the visitor is the
+  // camera; `host` actions (score, inventory, named sounds) are skipped.
   const triggerCaption = opts.triggerCaption || opts.tourCaption || null;
   let triggerTextTime = 0;
-  function showTriggerText(text) {
+  function showTriggerText(text, seconds) {
     if (!triggerCaption || !text) return;
     triggerCaption.textContent = text;
     triggerCaption.style.display = '';
-    triggerTextTime = 4;
+    triggerTextTime = seconds ?? 4;
   }
-  function runAction(rec, action) {
-    switch (action?.action) {
-      case 'show_text': showTriggerText(action.text); break;
-      case 'enable': rec.object.visible = true; break;
-      case 'disable': case 'destroy': rec.object.visible = false; break;
+  function runAction(rec, trig) {
+    const action = trig.def.action || {};
+    switch (action.action) {
+      case 'show_text': showTriggerText(action.text, action.seconds); break;
+      case 'show': rec.object.visible = true; break;
+      case 'hide': rec.object.visible = false; break;
+      case 'toggle': rec.object.visible = !rec.object.visible; break;
+      case 'remove':
+        rec.object.visible = false;
+        for (const t of rec.triggers) t.done = true;
+        break;
+      case 'animate': {
+        const anim = startAnimation(rec.object, action);
+        if (anim) rec.anim = anim;
+        break;
+      }
       case 'teleport': {
         const d = action.destination || [0, 0, 0];
         const delta = new THREE.Vector3(d[0], d[1], d[2]).sub(camera.position);
@@ -1075,16 +1162,19 @@ export function createWorldViewer(container, manifest, options = {}) {
       default: break;
     }
   }
-  // Gen's defaults: proximity waits a second between fires, the rest don't.
-  function fireTrigger(rec, trig, defaultCooldown) {
-    if (trig.done || !rec.object.visible && trig.def.action?.action !== 'enable') return;
-    if (elapsed - trig.last < (trig.def.cooldown ?? defaultCooldown)) return;
+  // Proximity fires again every second while the visitor stays; the rest
+  // have no cooldown unless they set one.
+  function fireTrigger(rec, trig) {
+    if (trig.done) return;
+    const ev = trig.def.on?.event;
+    const cooldown = trig.def.cooldown ?? (ev === 'proximity' ? 1 : 0);
+    if (trig.last != null && elapsed - trig.last < cooldown) return;
     trig.last = elapsed;
     if (trig.def.once) trig.done = true;
-    runAction(rec, trig.def.action);
+    runAction(rec, trig);
   }
   const triggerPos = new THREE.Vector3();
-  const triggerBox = new THREE.Box3();
+  const triggerLocal = new THREE.Vector3();
   function updateTriggers(dt) {
     if (triggerTextTime > 0) {
       triggerTextTime -= dt;
@@ -1094,32 +1184,45 @@ export function createWorldViewer(container, manifest, options = {}) {
       for (const trig of rec.triggers) {
         const ev = trig.def.on || {};
         switch (ev.event) {
+          case 'start':
+            if (!trig.inside) { trig.inside = true; fireTrigger(rec, trig); }
+            break;
           case 'proximity': {
             const near = rec.object.getWorldPosition(triggerPos).distanceTo(camera.position) <= (ev.radius ?? 5);
-            if (near) fireTrigger(rec, trig, 1);
+            if (near) fireTrigger(rec, trig);
             break;
           }
           case 'area_enter': case 'area_exit': {
-            triggerBox.setFromObject(rec.object);
-            const inside = !triggerBox.isEmpty() && triggerBox.containsPoint(camera.position);
-            if (inside !== trig.inside && inside === (ev.event === 'area_enter')) fireTrigger(rec, trig, 0);
+            rec.object.updateWorldMatrix(true, false);
+            triggerLocal.copy(camera.position);
+            rec.object.worldToLocal(triggerLocal);
+            const inside = volumeContains(trig.area, triggerLocal);
+            if (inside !== trig.inside && inside === (ev.event === 'area_enter')) fireTrigger(rec, trig);
+            trig.inside = inside;
+            break;
+          }
+          case 'collision': {
+            const inside = rec.object.getWorldPosition(triggerPos).distanceTo(camera.position) <= (ev.radius ?? 3);
+            if (inside && !trig.inside) fireTrigger(rec, trig);
             trig.inside = inside;
             break;
           }
           case 'timer': {
             if (!(ev.interval > 0)) break;
             trig.acc += dt;
-            if (trig.acc >= ev.interval) { trig.acc -= ev.interval; fireTrigger(rec, trig, 0); }
+            if (trig.acc >= ev.interval) { trig.acc -= ev.interval; fireTrigger(rec, trig); }
             break;
           }
           default: break;
         }
       }
+      if (rec.anim && stepAnimation(rec.object, rec.anim, dt)) rec.anim = null;
     }
   }
   // A click (not a drag, which orbits) fires the click triggers of the
   // nearest hit entity or, failing that, of its nearest ancestor that has
   // some, so clicking any part of an instance fires the instance's trigger.
+  // Reach is measured from the visitor to the entity's origin.
   const raycaster = new THREE.Raycaster();
   const press = { x: 0, y: 0, down: false };
   const onPointerDown = (e) => { press.x = e.clientX; press.y = e.clientY; press.down = true; };
@@ -1136,7 +1239,8 @@ export function createWorldViewer(container, manifest, options = {}) {
       const rec = records.find((r) => r.object === o);
       const clicks = rec ? rec.triggers.filter((t) => t.def.on?.event === 'click') : [];
       if (!clicks.length) continue;
-      for (const trig of clicks) if (hit.distance <= (trig.def.on.max_distance ?? 5)) fireTrigger(rec, trig, 0);
+      const distance = rec.object.getWorldPosition(triggerPos).distanceTo(camera.position);
+      for (const trig of clicks) if (distance <= (trig.def.on.max_distance ?? 5)) fireTrigger(rec, trig);
       break;
     }
   };

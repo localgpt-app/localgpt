@@ -1,5 +1,5 @@
 (
-    version: 2,
+    version: 3,
     meta: (
         name: "space-station",
         description: Some("A modular orbital space station with corridors, control room, airlock, observation deck, and cargo bay"),

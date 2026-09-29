@@ -1,9 +1,8 @@
 {
- "version": 1,
+ "version": 3,
  "meta": {
   "name": "Misty Temple Pool",
   "description": "An overgrown shrine at first light, mist rising from a temple pool while koi circle its stone lantern.",
-  "bevy_version": "0.18",
   "compliance": {
    "steam_code_tool_exempt": true,
    "eu_ai_act_risk_level": "minimal",

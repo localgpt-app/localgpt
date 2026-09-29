@@ -1,9 +1,8 @@
 {
- "version": 1,
+ "version": 3,
  "meta": {
   "name": "Lantern Night Market",
   "description": "A night market under strings of paper lanterns, steam rising from the noodle stalls.",
-  "bevy_version": "0.18",
   "compliance": {
    "steam_code_tool_exempt": true,
    "eu_ai_act_risk_level": "minimal",

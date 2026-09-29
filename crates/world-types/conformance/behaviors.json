@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "meta": {
     "name": "conformance-behaviors",
     "description": "Every behavior type, each on its own entity, around a central hub.",

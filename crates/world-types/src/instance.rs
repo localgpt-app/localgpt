@@ -49,7 +49,17 @@ pub struct PartOverride {
     /// The part's name in the definition (`CreationDef::parts`).
     pub part: EntityName,
     /// The fields this instance changes.
+    #[serde(default, skip_serializing_if = "EntityPatch::is_empty")]
     pub patch: EntityPatch,
+    /// This instance leaves the part out, with everything under it (OpenUSD
+    /// deactivates a prim the same way). Hiding a part is not the same: a
+    /// hidden part still runs its behaviors and triggers.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub removed: bool,
+}
+
+fn is_false(v: &bool) -> bool {
+    !*v
 }
 
 /// The name an expanded part gets: `"<instance>/<part>"`.
@@ -60,7 +70,8 @@ pub fn part_name(instance: &str, part: &str) -> String {
 /// Expand every instance in `entities` into its parts.
 ///
 /// The result is `entities` in order, each instance followed by its parts
-/// (depth-first in definition order). Parts get fresh ids counting up from
+/// (in definition order, less any part an override removes, and what is
+/// under it). Parts get fresh ids counting up from
 /// `first_id`, the name `"<instance>/<part>"`, the instance (or their parent
 /// part) as parent, and `creation_id` set to the definition's id. Instance
 /// entities keep their `instance_of`, which renderers ignore. An instance of
@@ -91,12 +102,13 @@ pub fn expand_instances(
         if expanded.contains(&(entity.id, def.id)) {
             continue;
         }
+        let removed = removed_parts(def, &instance.overrides);
         let mut ids: HashMap<EntityId, EntityId> = HashMap::new();
-        for part in &def.parts {
+        for part in def.parts.iter().filter(|p| !removed.contains(&p.id)) {
             ids.insert(part.id, EntityId(next_id));
             next_id += 1;
         }
-        for part in &def.parts {
+        for part in def.parts.iter().filter(|p| !removed.contains(&p.id)) {
             let mut expanded = part.clone();
             for o in instance.overrides.iter().filter(|o| o.part == part.name) {
                 let mut patch = o.patch.clone();
@@ -174,6 +186,28 @@ pub fn part_links(entities: &[WorldEntity]) -> HashMap<EntityId, PartLink> {
         }
     }
     links
+}
+
+/// The parts of `def` that `overrides` remove, with every part under them.
+fn removed_parts(def: &CreationDef, overrides: &[PartOverride]) -> HashSet<EntityId> {
+    let mut removed: HashSet<EntityId> = def
+        .parts
+        .iter()
+        .filter(|p| overrides.iter().any(|o| o.removed && o.part == p.name))
+        .map(|p| p.id)
+        .collect();
+    // Parents come before or after children in any order: settle to a fixpoint.
+    loop {
+        let before = removed.len();
+        for p in &def.parts {
+            if p.parent.is_some_and(|parent| removed.contains(&parent)) {
+                removed.insert(p.id);
+            }
+        }
+        if removed.len() == before {
+            return removed;
+        }
+    }
 }
 
 impl WorldManifest {
@@ -343,6 +377,7 @@ mod tests {
                 parent: Some(None),
                 ..Default::default()
             },
+            removed: false,
         };
         let entities = vec![
             instance(1, "oak_1", Vec::new()),
@@ -376,6 +411,26 @@ mod tests {
             [0.8, 0.1, 0.1, 1.0]
         );
         assert_eq!(out[5].transform.position, [0.0, 2.0, 0.0]);
+    }
+
+    #[test]
+    fn removed_parts_drop_out_with_their_children() {
+        let removed = PartOverride {
+            part: EntityName::new("trunk"),
+            patch: EntityPatch::default(),
+            removed: true,
+        };
+        let out = expand_instances(&[instance(1, "stump", vec![removed])], &[oak()], 100);
+        assert_eq!(out.len(), 1, "{out:?}");
+        let only_leaves = PartOverride {
+            part: EntityName::new("leaves"),
+            patch: EntityPatch::default(),
+            removed: true,
+        };
+        let out = expand_instances(&[instance(1, "bare", vec![only_leaves])], &[oak()], 100);
+        let names: Vec<&str> = out.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["bare", "bare/trunk"]);
+        assert_eq!(out[1].id, EntityId(100));
     }
 
     #[test]
@@ -438,6 +493,7 @@ mod tests {
             vec![PartOverride {
                 part: EntityName::new("branch"),
                 patch: EntityPatch::default(),
+                removed: false,
             }],
         ));
 

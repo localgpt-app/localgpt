@@ -134,7 +134,7 @@ pub fn handle_save_world(
     npc_memories: &Query<&crate::character::npc_memory::NpcMemory>,
     modulated: &Query<&localgpt_world_bevy::modulation::Modulated>,
     soundtrack: Option<&wt::SoundtrackDef>,
-    world_extras: &Query<&super::extras::WorldExtras>,
+    authored: &Query<&super::extras::Authored>,
     creations: &super::extras::CreationLibrary,
 ) -> GenResponse {
     // Resolve output directory
@@ -288,10 +288,9 @@ pub fn handle_save_world(
             we.shape = Some(param.shape.clone());
         }
 
-        // Mesh asset (imported glTF source path — use localized relative path)
+        // Mesh asset (imported glTF source path; localized below)
         if let Ok(gltf_src) = gltf_sources.get(bevy_entity) {
-            let relative_path = path_map.get(&gltf_src.path).unwrap_or(&gltf_src.path);
-            we.mesh_asset = Some(wt::MeshAssetRef::new(relative_path.clone()));
+            we.mesh_asset = Some(wt::MeshAssetRef::new(gltf_src.path.clone()));
         }
 
         // Material
@@ -395,20 +394,45 @@ pub fn handle_save_world(
             });
         }
 
-        // Instance, part, triggers, and the mesh's node overrides.
-        if let Ok(extras) = world_extras.get(bevy_entity) {
-            extras.write_into(&mut we);
-            if let Some(mesh) = we.mesh_asset.as_mut() {
-                // Hashed below from the copied file.
-                mesh.sha256 = None;
+        // The authored record wins wherever the scene agrees with it
+        // (`extras::reconcile`): exact numbers, and everything the scene's
+        // components can't hold.
+        let mut part_of = None;
+        if let Ok(record) = authored.get(bevy_entity) {
+            let animated = !we.behaviors.is_empty()
+                || !we.modulations.is_empty()
+                || !record.entity.triggers.is_empty();
+            let (out, drifted) = super::extras::reconcile(&record.entity, &we, animated);
+            if !drifted.is_empty() {
+                tracing::debug!(
+                    "Save: '{name}': {} changed without updating its record; saving the scene's",
+                    drifted.join(", ")
+                );
             }
-            if let Some(link) = &extras.part_of {
-                instance_parts
-                    .entry(link.instance)
-                    .or_default()
-                    .push((link.part.clone(), we));
-                continue;
+            we = out;
+            part_of = record.part_of.clone();
+        }
+        // Texture maps copied into the world, meshes at their copied paths
+        // (hashed below).
+        if let (Ok(textures), Some(def)) =
+            (material_textures.get(bevy_entity), we.material.as_mut())
+        {
+            textures.apply_to(def, |source| {
+                localize_texture(source, &assets_dir, &mut texture_map)
+            });
+        }
+        if let Some(mesh) = we.mesh_asset.as_mut() {
+            if let Some(relative) = path_map.get(&mesh.path) {
+                mesh.path = relative.clone();
             }
+            mesh.sha256 = None;
+        }
+        if let Some(link) = part_of {
+            instance_parts
+                .entry(link.instance)
+                .or_default()
+                .push((link.part.clone(), we));
+            continue;
         }
 
         world_entities.push(we);

@@ -29,7 +29,7 @@ Example structure (simplified):
 
 ```ron
 (
-    version: 1,
+    version: 3,
     meta: ( name: "forest-clearing", description: Some("A peaceful clearing") ),
     environment: Some((
         background_color: Some((0.53, 0.81, 0.92, 1.0)),
@@ -106,13 +106,30 @@ instance back with only what differs from the definition. Make creations with
 
 ### Triggers
 
-`triggers` on an entity pair an event (`click`, `proximity`, `area_enter`,
-`area_exit`, `collision`, `timer`) with an action (`show_text`, `enable`,
-`disable`, `destroy`, `teleport`, `animate`, `play_sound`, `toggle_state`,
-`add_score`, `spawn`). Triggers added with `gen_add_trigger` are saved with
-the world. The web viewer runs `click`, `proximity`, `area_enter`, `area_exit`
-and `timer` with `show_text`, `enable`, `disable`, `destroy` and `teleport`;
-the rest need Gen.
+`triggers` on an entity pair an event with an action on that entity. The
+events are `start`, `click`, `proximity`, `area_enter`, `area_exit`,
+`collision` and `timer`. The actions are `show_text`, `show`, `hide`,
+`toggle`, `remove`, `animate`, `teleport` (moves the visitor) and `host`.
+Every renderer runs the same core: Gen through `localgpt-world-bevy`'s trigger
+runtime, localgpt.world through the web viewer. `host` actions are the ones
+only an app understands; Gen runs `add_score`, `play_sound` and `set_state`,
+and other renderers skip them.
+
+An area is a volume in the entity's own frame, so it moves, turns and scales
+with the entity, and it doesn't depend on what the entity looks like:
+
+```ron
+triggers: [
+    (
+        on: ( event: "area_enter", volume: Some(( shape: "box", half_extents: (1.5, 1.5, 1.5) )) ),
+        action: ( action: "show_text", text: "Through the gate.", seconds: 4.0 ),
+    ),
+],
+```
+
+Without a `volume`, the area is the box of the entity's parametric shape, or a
+sphere of radius 3 when it has none. Triggers added with `gen_add_trigger` are
+saved with the world.
 
 ### Imported meshes
 

@@ -1,72 +1,158 @@
-//! What the world format carries that Gen's scene components don't: which
-//! entities are instances of a reusable creation (and which are the parts
-//! expanded under them), the triggers as the format writes them, and an
-//! imported mesh's hash and node overrides. Loading puts a [`WorldExtras`]
-//! on the entity; saving reads it back, so none of these are lost in a
-//! load–save round trip.
+//! The authored record of every scene entity.
+//!
+//! Gen's scene is built from world-format records ([`wt::WorldEntity`]), and
+//! [`Authored`] keeps that record on the entity. It is the source of truth:
+//! saving, undo snapshots and exports read it rather than rebuilding the
+//! entity from Bevy components, which can't hold everything the format does
+//! (a material's extra fields, an emitter's kind, triggers, instances, a
+//! mesh's hash and node overrides) and round-trip numbers through floats.
+//!
+//! Tools that change an entity update its record as they change the scene.
+//! A tool that changes the scene without updating it is caught by
+//! [`reconcile`]: where the live scene disagrees with the record, the live
+//! value is taken and logged, so nothing a tool did is lost.
 
 use bevy::prelude::*;
 use localgpt_world_types as wt;
 use std::collections::HashMap;
 
-/// Format data kept on a scene entity between load and save.
-#[derive(Component, Debug, Clone, Default)]
-pub struct WorldExtras {
-    /// The entity places a copy of a reusable creation.
-    pub instance_of: Option<wt::InstanceOf>,
-    /// The entity is a part expanded under an instance; saving folds it
+/// An entity's world-format record.
+#[derive(Component, Debug, Clone)]
+pub struct Authored {
+    /// The record, as authored. Its `id`, `name` and `parent` follow the
+    /// scene (the registry and hierarchy own those).
+    pub entity: wt::WorldEntity,
+    /// The entity is a part expanded under an instance: saving folds it
     /// back into the instance's overrides instead of writing it.
     pub part_of: Option<wt::PartLink>,
-    /// Triggers in the format's form (the runtime components are separate).
-    pub triggers: Vec<wt::TriggerDef>,
-    /// `MeshAssetRef::sha256` of the entity's imported mesh.
-    pub mesh_sha256: Option<String>,
-    /// `MeshAssetRef::node_overrides` of the entity's imported mesh.
-    pub node_overrides: Vec<wt::NodeOverride>,
 }
 
-impl WorldExtras {
-    /// The extras a loaded entity carries (`None` when it carries none).
-    pub fn of(we: &wt::WorldEntity, links: &HashMap<wt::EntityId, wt::PartLink>) -> Option<Self> {
-        let extras = Self {
-            instance_of: we.instance_of.clone(),
-            part_of: links.get(&we.id).cloned(),
-            triggers: we.triggers.clone(),
-            mesh_sha256: we.mesh_asset.as_ref().and_then(|m| m.sha256.clone()),
-            node_overrides: we
-                .mesh_asset
-                .as_ref()
-                .map(|m| m.node_overrides.clone())
-                .unwrap_or_default(),
-        };
-        (!extras.is_empty()).then_some(extras)
+impl Authored {
+    pub fn new(entity: wt::WorldEntity) -> Self {
+        Self {
+            entity,
+            part_of: None,
+        }
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.instance_of.is_none()
-            && self.part_of.is_none()
-            && self.triggers.is_empty()
-            && self.mesh_sha256.is_none()
-            && self.node_overrides.is_empty()
-    }
-
-    /// Record a trigger. The runtime keeps one trigger per event kind on an
-    /// entity (a second `click` replaces the first), so this does too.
+    /// Record a trigger. A second trigger for the same event replaces the
+    /// first, as `gen_add_trigger` always has.
     pub fn add_trigger(&mut self, trigger: wt::TriggerDef) {
         let kind = std::mem::discriminant(&trigger.on);
-        self.triggers
+        self.entity
+            .triggers
             .retain(|t| std::mem::discriminant(&t.on) != kind);
-        self.triggers.push(trigger);
+        self.entity.triggers.push(trigger);
     }
+}
 
-    /// Write the extras into a saved entity.
-    pub fn write_into(&self, we: &mut wt::WorldEntity) {
-        we.instance_of = self.instance_of.clone();
-        we.triggers = self.triggers.clone();
-        if let Some(mesh) = we.mesh_asset.as_mut() {
-            mesh.sha256 = mesh.sha256.take().or_else(|| self.mesh_sha256.clone());
-            mesh.node_overrides = self.node_overrides.clone();
+/// The record to save for an entity: its authored record, except where the
+/// live scene (`live`, rebuilt from Bevy components) disagrees with it —
+/// there a tool changed the scene without updating the record, and the live
+/// value wins. `animated` entities (behaviors, modulation, triggers) move at
+/// run time, so their live transform is not an edit and the authored one is
+/// kept. Identity and hierarchy always come from the scene.
+///
+/// Returns the record and the fields taken from the scene.
+pub fn reconcile(
+    authored: &wt::WorldEntity,
+    live: &wt::WorldEntity,
+    animated: bool,
+) -> (wt::WorldEntity, Vec<&'static str>) {
+    let mut out = authored.clone();
+    let mut drifted = Vec::new();
+    out.id = live.id;
+    out.name = live.name.clone();
+    out.parent = live.parent;
+
+    if !animated && !wt::values_close(&authored.transform, &live.transform) {
+        out.transform = live.transform.clone();
+        drifted.push("transform");
+    }
+    if !wt::values_close(&authored.shape, &live.shape) {
+        out.shape = live.shape.clone();
+        drifted.push("shape");
+    }
+    if material_core(authored.material.as_ref()) != material_core(live.material.as_ref()) {
+        out.material = live.material.clone();
+        drifted.push("material");
+    }
+    if !light_matches(authored.light.as_ref(), live.light.as_ref()) {
+        out.light = live.light.clone();
+        drifted.push("light");
+    }
+    if !wt::values_close(&authored.behaviors, &live.behaviors) {
+        out.behaviors = live.behaviors.clone();
+        drifted.push("behaviors");
+    }
+    if !audio_matches(authored.audio.as_ref(), live.audio.as_ref()) {
+        out.audio = live.audio.clone();
+        drifted.push("audio");
+    }
+    if authored.mesh_asset.as_ref().map(|m| &m.path) != live.mesh_asset.as_ref().map(|m| &m.path) {
+        out.mesh_asset = live.mesh_asset.clone();
+        drifted.push("mesh_asset");
+    }
+    if !wt::values_close(&authored.modulations, &live.modulations) {
+        out.modulations = live.modulations.clone();
+        drifted.push("modulations");
+    }
+    (out, drifted)
+}
+
+/// The material fields a Bevy `StandardMaterial` holds, normalized, so an
+/// authored material and one rebuilt from the scene compare equal when
+/// nothing changed (texture paths and the rest stay authored).
+fn material_core(m: Option<&wt::MaterialDef>) -> Option<serde_json::Value> {
+    let m = m?;
+    let alpha = match m.alpha_mode.unwrap_or(wt::AlphaModeDef::Opaque) {
+        wt::AlphaModeDef::Opaque => serde_json::json!("opaque"),
+        other => serde_json::to_value(other).ok()?,
+    };
+    let round = |v: f32| (v * 1e4).round() / 1e4;
+    let arr = |a: [f32; 4]| a.map(round);
+    Some(serde_json::json!({
+        "color": arr(m.color),
+        "metallic": round(m.metallic),
+        "roughness": round(m.roughness),
+        "emissive": arr(m.emissive),
+        "alpha": alpha,
+        "unlit": m.unlit.unwrap_or(false),
+        "double_sided": m.double_sided.unwrap_or(false),
+        "reflectance": round(m.reflectance.unwrap_or(0.5)),
+    }))
+}
+
+/// Lights match when what the scene holds matches; optional fields the
+/// author left to the renderer's default (direction, range, cone angles)
+/// are only compared when authored.
+fn light_matches(a: Option<&wt::LightDef>, b: Option<&wt::LightDef>) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(a), Some(b)) => {
+            let opt = |x: Option<f32>, y: Option<f32>| x.is_none() || wt::values_close(&x, &y);
+            a.light_type == b.light_type
+                && wt::values_close(&a.color, &b.color)
+                && wt::values_close(&a.intensity, &b.intensity)
+                && a.shadows == b.shadows
+                && opt(a.range, b.range)
+                && opt(a.outer_angle, b.outer_angle)
+                && opt(a.inner_angle, b.inner_angle)
+                && (a.direction.is_none() || wt::values_close(&a.direction, &b.direction))
         }
+        _ => false,
+    }
+}
+
+/// Audio matches on what the scene holds (source and volume); kind, radius
+/// and rolloff stay authored.
+fn audio_matches(a: Option<&wt::AudioDef>, b: Option<&wt::AudioDef>) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(a), Some(b)) => {
+            wt::values_close(&a.source, &b.source) && wt::values_close(&a.volume, &b.volume)
+        }
+        _ => false,
     }
 }
 
@@ -113,7 +199,8 @@ impl CreationLibrary {
     }
 
     /// Fold the saved parts of each instance back into its overrides: the
-    /// patch from the definition's part to what the part is now. `entities`
+    /// patch from the definition's part to what the part is now, and a
+    /// removal for a part no longer in the scene. `entities`
     /// are the saved instances (and everything else); `parts` maps an
     /// instance id to its saved parts by part name.
     pub fn fold_parts(
@@ -129,11 +216,25 @@ impl CreationLibrary {
                 continue;
             };
             instance.overrides.clear();
-            let Some(saved) = parts.get(&entity.id) else {
-                continue;
-            };
+            let saved = parts.get(&entity.id).map(Vec::as_slice).unwrap_or_default();
+            let present = |name: &wt::EntityName| saved.iter().any(|(n, _)| n == name);
             for part in &def.parts {
                 let Some((_, now)) = saved.iter().find(|(name, _)| *name == part.name) else {
+                    // Deleted from this instance: removed, unless its parent
+                    // is gone too (removing the parent removes it).
+                    let parent_gone = part.parent.is_some_and(|p| {
+                        def.parts
+                            .iter()
+                            .find(|q| q.id == p)
+                            .is_some_and(|q| !present(&q.name))
+                    });
+                    if !parent_gone {
+                        instance.overrides.push(wt::PartOverride {
+                            part: part.name.clone(),
+                            patch: wt::EntityPatch::default(),
+                            removed: true,
+                        });
+                    }
                     continue;
                 };
                 let patch = wt::EntityPatch::between(part, now);
@@ -141,6 +242,7 @@ impl CreationLibrary {
                     instance.overrides.push(wt::PartOverride {
                         part: part.name.clone(),
                         patch,
+                        removed: false,
                     });
                 }
             }
@@ -214,6 +316,79 @@ pub fn creation_from(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn record() -> wt::WorldEntity {
+        let mut e = wt::WorldEntity::new(4, "lamp")
+            .with_shape(wt::Shape::Sphere { radius: 0.5 })
+            .at([1.0, 2.0, 3.0]);
+        e.transform.rotation_degrees = [0.0, 90.0, 0.0];
+        e.material = Some(wt::MaterialDef {
+            color: [0.9, 0.8, 0.2, 1.0],
+            base_color_texture: Some("textures/brass.png".into()),
+            ..Default::default()
+        });
+        e.audio = Some(wt::AudioDef {
+            kind: wt::AudioKind::Ambient,
+            source: wt::AudioSource::Hum {
+                frequency: 60.0,
+                warmth: 0.3,
+            },
+            volume: 0.5,
+            radius: Some(8.0),
+            rolloff: wt::Rolloff::Linear,
+        });
+        e
+    }
+
+    /// What Gen rebuilds from the scene: float noise, no texture paths, and
+    /// an emitter that forgets its kind and rolloff.
+    fn rebuilt(r: &wt::WorldEntity) -> wt::WorldEntity {
+        let mut live = r.clone();
+        live.transform.rotation_degrees = [0.0, 89.999_99, 0.0];
+        live.transform.position[0] += 1e-6;
+        let m = live.material.as_mut().unwrap();
+        m.base_color_texture = None;
+        m.color[0] = 0.900_000_1;
+        let a = live.audio.as_mut().unwrap();
+        a.kind = wt::AudioKind::Sfx;
+        a.rolloff = wt::Rolloff::InverseSquare;
+        live
+    }
+
+    #[test]
+    fn reconcile_keeps_the_record_where_the_scene_agrees() {
+        let record = record();
+        let (out, drifted) = reconcile(&record, &rebuilt(&record), false);
+        assert!(drifted.is_empty(), "{drifted:?}");
+        assert_eq!(
+            out, record,
+            "exact numbers, texture path, emitter kind all kept"
+        );
+    }
+
+    #[test]
+    fn reconcile_takes_what_a_tool_changed_behind_the_record() {
+        let record = record();
+        let mut live = rebuilt(&record);
+        live.transform.position = [5.0, 0.0, 0.0];
+        live.material.as_mut().unwrap().roughness = 0.1;
+        live.parent = Some(wt::EntityId(9));
+        let (out, drifted) = reconcile(&record, &live, false);
+        assert_eq!(drifted, ["transform", "material"]);
+        assert_eq!(out.transform.position, [5.0, 0.0, 0.0]);
+        assert_eq!(out.material.as_ref().unwrap().roughness, 0.1);
+        assert_eq!(
+            out.parent,
+            Some(wt::EntityId(9)),
+            "hierarchy follows the scene"
+        );
+        assert_eq!(out.audio, record.audio);
+
+        // A spinning entity's pose is not an edit.
+        let (out, drifted) = reconcile(&record, &live, true);
+        assert_eq!(drifted, ["material"]);
+        assert_eq!(out.transform, record.transform);
+    }
 
     #[test]
     fn creation_from_members_is_relative_to_the_first() {
@@ -310,27 +485,46 @@ mod tests {
         // Expanding the saved instance gives the edited bulb back.
         let again = wt::expand_instances(&saved, &library.creations, 20);
         assert_eq!(again[2].shape, Some(wt::Shape::Sphere { radius: 0.4 }));
+
+        // Deleting the post from the scene saves it as removed.
+        parts.get_mut(&wt::EntityId(10)).unwrap().remove(0);
+        library.fold_parts(&mut saved, &parts);
+        let overrides = &saved[0].instance_of.as_ref().unwrap().overrides;
+        assert!(
+            overrides
+                .iter()
+                .any(|o| o.part.as_str() == "post" && o.removed)
+        );
+        let again = wt::expand_instances(&saved, &library.creations, 20);
+        let names: Vec<&str> = again.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["lamp_1", "lamp_1/bulb"]);
     }
 
     #[test]
     fn a_second_trigger_of_a_kind_replaces_the_first() {
-        let mut extras = WorldExtras::default();
+        let mut extras = Authored::new(wt::WorldEntity::new(1, "sign"));
         let click = |text: &str| wt::TriggerDef {
             on: wt::TriggerEvent::Click {
                 max_distance: 5.0,
                 prompt: None,
             },
-            action: wt::TriggerActionDef::ShowText { text: text.into() },
+            action: wt::TriggerActionDef::ShowText {
+                text: text.into(),
+                seconds: 4.0,
+            },
             once: false,
             cooldown: None,
             requires_item: None,
         };
         extras.add_trigger(click("a"));
         extras.add_trigger(click("b"));
-        assert_eq!(extras.triggers.len(), 1);
+        assert_eq!(extras.entity.triggers.len(), 1);
         assert_eq!(
-            extras.triggers[0].action,
-            wt::TriggerActionDef::ShowText { text: "b".into() }
+            extras.entity.triggers[0].action,
+            wt::TriggerActionDef::ShowText {
+                text: "b".into(),
+                seconds: 4.0
+            }
         );
     }
 }

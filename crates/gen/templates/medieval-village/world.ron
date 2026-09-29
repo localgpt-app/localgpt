@@ -1,5 +1,5 @@
 (
-    version: 2,
+    version: 3,
     meta: (
         name: "medieval-village",
         description: Some("A rustic medieval village with town square, timber-frame houses, market stalls, church, and surrounding forest"),

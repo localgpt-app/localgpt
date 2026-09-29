@@ -60,7 +60,7 @@ pub use audio::{AudioDef, AudioKind, AudioSource, FilterType, Rolloff, WaveformT
 pub use avatar::{AvatarDef, PointOfView};
 pub use behavior::{BehaviorDef, PathMode};
 pub use creation::{CreationDef, SemanticCategory};
-pub use entity::{EntityPatch, WorldEntity, WorldTransform};
+pub use entity::{EntityPatch, WorldEntity, WorldTransform, values_close};
 pub use history::{AmbienceLayerDef, EditHistory, EditOp, WorldEdit};
 pub use identity::{CreationId, EntityId, EntityName, EntityRef};
 pub use instance::{
@@ -74,7 +74,7 @@ pub use shape::{PrimitiveShapeKind, Shape};
 pub use soundtrack::{SoundtrackDef, StemCurves, curve_at};
 pub use spatial::ChunkCoord;
 pub use tour::{TourDef, TourMode, TourWaypoint};
-pub use trigger::{TriggerActionDef, TriggerDef, TriggerEvent};
+pub use trigger::{TriggerActionDef, TriggerDef, TriggerEvent, TriggerVolume};
 pub use validation::{
     Severity, ValidationIssue, WorldLimits, validate_entities, validate_manifest,
 };

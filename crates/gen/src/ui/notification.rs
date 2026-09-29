@@ -132,6 +132,60 @@ pub struct NotificationQueue {
     pub notifications: Vec<Entity>,
 }
 
+/// Show a notification: `gen_add_notification`, and a trigger's `show_text`.
+/// At most four stay on screen; the oldest goes first.
+pub fn spawn_notification(commands: &mut Commands, p: &NotificationParams) -> Entity {
+    let icon_text = get_notification_icon_text(p.icon);
+    let display_text = if icon_text.is_empty() {
+        p.text.clone()
+    } else {
+        format!("{} {}", icon_text, p.text)
+    };
+    let text_color = super::parse_sign_color(&p.color).unwrap_or(Color::WHITE);
+    let notif_entity = commands
+        .spawn((
+            Name::new("Notification"),
+            Notification {
+                text: p.text.clone(),
+                style: p.style,
+                position: p.position,
+                phase: NotificationPhase::EnterIn,
+                elapsed: 0.0,
+                duration: p.duration,
+                stack_offset: 0.0,
+                alpha: 0.0,
+            },
+            notification_position_node(p.position),
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.7)),
+            Text::new(display_text),
+            TextColor(text_color),
+            TextFont {
+                font_size: FontSize::Px(16.0),
+                ..default()
+            },
+        ))
+        .id();
+    commands.queue(move |world: &mut World| {
+        let mut to_despawn = Vec::new();
+        {
+            let mut queue = world.resource_mut::<NotificationQueue>();
+            queue.notifications.push(notif_entity);
+            while queue.notifications.len() > 4 {
+                if let Some(oldest) = queue.notifications.first().copied() {
+                    queue.notifications.remove(0);
+                    to_despawn.push(oldest);
+                }
+            }
+        }
+        for entity in to_despawn {
+            if let Ok(ec) = world.get_entity_mut(entity) {
+                ec.despawn();
+            }
+        }
+    });
+    notif_entity
+}
+
 /// System to spawn notifications from events.
 pub fn notification_spawn_system(
     mut events: MessageReader<NotificationEvent>,

@@ -1,5 +1,5 @@
 (
-    version: 2,
+    version: 3,
     meta: (
         name: "zen-garden",
         description: Some("A peaceful Japanese zen garden with raked sand, rock arrangements, bridge, pagoda, cherry trees, stone lanterns, and water feature"),

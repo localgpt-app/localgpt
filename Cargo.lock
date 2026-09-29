@@ -8655,6 +8655,7 @@ version = "0.3.6"
 dependencies = [
  "bevy 0.19.0",
  "localgpt-world-types",
+ "serde_json",
 ]
 
 [[package]]

@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "meta": {
     "name": "EMBER FLATS — Amber Drift",
     "description": "A LocalGPT Verse world for \"Amber Drift\" by Reverie",
@@ -8,7 +8,6 @@
       "ember-flats"
     ],
     "source": "verse",
-    "bevy_version": "0.19",
     "compliance": {
       "steam_code_tool_exempt": true,
       "eu_ai_act_risk_level": "minimal",

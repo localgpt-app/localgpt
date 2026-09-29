@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "meta": {
     "name": "conformance-shapes",
     "description": "Every parametric shape in a row, one unit apart, on a ground plane under a sun.",

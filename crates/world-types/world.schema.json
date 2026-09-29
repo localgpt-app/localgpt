@@ -1628,11 +1628,14 @@
         "patch": {
           "description": "The fields this instance changes.",
           "$ref": "#/$defs/EntityPatch"
+        },
+        "removed": {
+          "description": "This instance leaves the part out, with everything under it (OpenUSD\ndeactivates a prim the same way). Hiding a part is not the same: a\nhidden part still runs its behaviors and triggers.",
+          "type": "boolean"
         }
       },
       "required": [
-        "part",
-        "patch"
+        "part"
       ]
     },
     "PathMode": {
@@ -2290,10 +2293,84 @@
       ]
     },
     "TriggerActionDef": {
-      "description": "The action a trigger runs on its own entity (or on the visitor, for\n`teleport`).",
+      "description": "The action a trigger runs on its own entity (or, for `teleport`, on\nthe visitor).",
       "oneOf": [
         {
-          "description": "Animate a transform property (`position`, `rotation`, `scale`) to `to`\nover `duration` seconds.",
+          "description": "Show `text` to the visitor for `seconds`.",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "show_text"
+            },
+            "seconds": {
+              "type": "number",
+              "format": "float",
+              "default": 4.0
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "text"
+          ]
+        },
+        {
+          "description": "Make the entity visible.",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "show"
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "description": "Make the entity invisible (it stays in the world and can be shown).",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "hide"
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "description": "Flip the entity's visibility.",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "toggle"
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "description": "Remove the entity from the running world (a saved world keeps it).",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "remove"
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "description": "Move a transform property (`position`, `rotation` in XYZ Euler\ndegrees, or `scale`; one number scales uniformly) from its current\nvalue to `to`, linearly over `duration` seconds.",
           "type": "object",
           "properties": {
             "action": {
@@ -2346,138 +2423,24 @@
           ]
         },
         {
-          "description": "Play a named sound.",
+          "description": "An action the host app defines (Gen: `add_score`, `play_sound`,\n`set_state`, `spawn`), with its arguments. Renderers that don't know\n`name` skip it.",
           "type": "object",
           "properties": {
             "action": {
               "type": "string",
-              "const": "play_sound"
+              "const": "host"
             },
-            "sound": {
+            "args": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "name": {
               "type": "string"
             }
           },
           "required": [
             "action",
-            "sound"
-          ]
-        },
-        {
-          "description": "Show `text` to the visitor.",
-          "type": "object",
-          "properties": {
-            "action": {
-              "type": "string",
-              "const": "show_text"
-            },
-            "text": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "action",
-            "text"
-          ]
-        },
-        {
-          "description": "Flip a named state on the entity (a door's `open`, a lamp's `on`).",
-          "type": "object",
-          "properties": {
-            "action": {
-              "type": "string",
-              "const": "toggle_state"
-            },
-            "key": {
-              "type": "string"
-            },
-            "value": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "action",
-            "key"
-          ]
-        },
-        {
-          "description": "Spawn a copy of a named template entity.",
-          "type": "object",
-          "properties": {
-            "action": {
-              "type": "string",
-              "const": "spawn"
-            },
-            "template": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "action",
-            "template"
-          ]
-        },
-        {
-          "description": "Remove the entity.",
-          "type": "object",
-          "properties": {
-            "action": {
-              "type": "string",
-              "const": "destroy"
-            }
-          },
-          "required": [
-            "action"
-          ]
-        },
-        {
-          "description": "Add `amount` to the visitor's score in `category`.",
-          "type": "object",
-          "properties": {
-            "action": {
-              "type": "string",
-              "const": "add_score"
-            },
-            "amount": {
-              "type": "integer",
-              "format": "int32"
-            },
-            "category": {
-              "type": "string",
-              "default": "points"
-            }
-          },
-          "required": [
-            "action",
-            "amount"
-          ]
-        },
-        {
-          "description": "Show the entity.",
-          "type": "object",
-          "properties": {
-            "action": {
-              "type": "string",
-              "const": "enable"
-            }
-          },
-          "required": [
-            "action"
-          ]
-        },
-        {
-          "description": "Hide the entity.",
-          "type": "object",
-          "properties": {
-            "action": {
-              "type": "string",
-              "const": "disable"
-            }
-          },
-          "required": [
-            "action"
+            "name"
           ]
         }
       ]
@@ -2491,7 +2454,7 @@
           "$ref": "#/$defs/TriggerActionDef"
         },
         "cooldown": {
-          "description": "Seconds before the trigger can fire again (proximity and collision).",
+          "description": "Seconds before the trigger can fire again. Default: 1 for\n`proximity` (which fires while the visitor stays near), 0 otherwise.",
           "type": [
             "number",
             "null"
@@ -2507,7 +2470,7 @@
           "type": "boolean"
         },
         "requires_item": {
-          "description": "An inventory item the visitor must hold for the trigger to fire.",
+          "description": "An item the visitor must hold. Renderers without an inventory never\nfire a trigger that needs one.",
           "type": [
             "string",
             "null"
@@ -2523,7 +2486,20 @@
       "description": "The event that fires a trigger.",
       "oneOf": [
         {
-          "description": "The visitor clicks the entity from at most `max_distance` away.",
+          "description": "Once, when the world starts.",
+          "type": "object",
+          "properties": {
+            "event": {
+              "type": "string",
+              "const": "start"
+            }
+          },
+          "required": [
+            "event"
+          ]
+        },
+        {
+          "description": "The visitor clicks (or uses) the entity from at most `max_distance`\naway, measured to the entity's origin.",
           "type": "object",
           "properties": {
             "event": {
@@ -2548,7 +2524,7 @@
           ]
         },
         {
-          "description": "The visitor comes within `radius` of the entity.",
+          "description": "The visitor is within `radius` of the entity's origin; fires again\nevery `cooldown` while they stay.",
           "type": "object",
           "properties": {
             "event": {
@@ -2566,12 +2542,22 @@
           ]
         },
         {
-          "description": "The visitor enters the entity's bounds.",
+          "description": "The visitor enters the entity's area.",
           "type": "object",
           "properties": {
             "event": {
               "type": "string",
               "const": "area_enter"
+            },
+            "volume": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TriggerVolume"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -2579,12 +2565,22 @@
           ]
         },
         {
-          "description": "The visitor leaves the entity's bounds.",
+          "description": "The visitor leaves the entity's area.",
           "type": "object",
           "properties": {
             "event": {
               "type": "string",
               "const": "area_exit"
+            },
+            "volume": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TriggerVolume"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -2592,7 +2588,7 @@
           ]
         },
         {
-          "description": "Something overlaps a sensor sphere of `radius` around the entity.",
+          "description": "A body starts overlapping a sphere of `radius` around the entity.\nRenderers without physics treat the visitor as the only body.",
           "type": "object",
           "properties": {
             "event": {
@@ -2625,6 +2621,52 @@
           "required": [
             "event",
             "interval"
+          ]
+        }
+      ]
+    },
+    "TriggerVolume": {
+      "description": "A trigger area, in the entity's own frame.",
+      "oneOf": [
+        {
+          "description": "A box centred on the entity's origin.",
+          "type": "object",
+          "properties": {
+            "half_extents": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "maxItems": 3,
+              "minItems": 3
+            },
+            "shape": {
+              "type": "string",
+              "const": "box"
+            }
+          },
+          "required": [
+            "shape",
+            "half_extents"
+          ]
+        },
+        {
+          "description": "A sphere centred on the entity's origin.",
+          "type": "object",
+          "properties": {
+            "radius": {
+              "type": "number",
+              "format": "float"
+            },
+            "shape": {
+              "type": "string",
+              "const": "sphere"
+            }
+          },
+          "required": [
+            "shape",
+            "radius"
           ]
         }
       ]

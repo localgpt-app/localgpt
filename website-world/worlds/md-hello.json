@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "meta": {
     "name": "A Walk Through LocalGPT MD",
     "description": "Every ## section of this file becomes a place. Press → to walk to the next one. Edit this file while the app is open and the world rebuilds.",
@@ -7,8 +7,7 @@
       "localgpt-md",
       "world"
     ],
-    "source": "localgpt-md draft + llm recipe",
-    "bevy_version": "0.19"
+    "source": "localgpt-md draft + llm recipe"
   },
   "environment": {
     "background_color": [

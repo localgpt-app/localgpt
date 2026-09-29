@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "meta": {
     "name": "conformance-textures",
     "description": "Texture maps: albedo, metallic-roughness, normal and emissive, alone and combined, on a cube, a sphere and a plane. The red checker cell marks UV (0, 0). Images live in assets/textures/.",

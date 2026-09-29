@@ -1,5 +1,5 @@
 (
-    version: 2,
+    version: 3,
     meta: (
         name: "dungeon-crawler",
         description: Some("A classic stone dungeon with interconnected rooms, corridors, treasure chests, pillars, torches, a gate, and stairs"),

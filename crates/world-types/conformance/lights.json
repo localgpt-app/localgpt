@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "meta": {
     "name": "conformance-lights",
     "description": "A dark, foggy room lit by a point light, a spot light and a dim moon.",

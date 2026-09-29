@@ -217,9 +217,16 @@ fn instances_expand_the_same_way_everywhere() {
         .filter(|e| e.instance_of.is_some())
         .count();
     let parts = manifest.creations[0].parts.len();
-    let before = manifest.entities.len();
-    assert_eq!(manifest.expand_instances(), instances * parts);
-    assert_eq!(manifest.entities.len(), before + instances * parts);
+    // `tree_stump` removes its crown, and with it the top above the crown.
+    let removed = 2;
+    assert_eq!(manifest.expand_instances(), instances * parts - removed);
+    let stump: Vec<&str> = manifest
+        .entities
+        .iter()
+        .filter(|e| e.name.as_str().starts_with("tree_stump"))
+        .map(|e| e.name.as_str())
+        .collect();
+    assert_eq!(stump, ["tree_stump", "tree_stump/trunk"]);
 
     // The web viewer's `expandInstances` numbers parts the same way: from
     // `first_expansion_id`, instance by instance, part by part.
@@ -228,7 +235,8 @@ fn instances_expand_the_same_way_everywhere() {
         .iter()
         .find(|e| e.name.as_str() == "tree_tall/crown")
         .expect("tree_tall/crown");
-    assert_eq!(tall_crown.id.0, 14 + 3 * parts as u64 + 1);
+    // The first free id is 15; three instances come before this one.
+    assert_eq!(tall_crown.id.0, 15 + 3 * parts as u64 + 1);
     assert_eq!(tall_crown.transform.position, [0.0, 2.6, 0.0]);
     assert_eq!(tall_crown.behaviors.len(), 1);
     let autumn_top = manifest
@@ -265,22 +273,21 @@ fn triggers_cover_every_event_and_action() {
             "click",
             "collision",
             "proximity",
-            "timer"
+            "start",
+            "timer",
         ])
     );
     assert_eq!(
         actions,
         set(&[
-            "add_score",
             "animate",
-            "destroy",
-            "disable",
-            "enable",
-            "play_sound",
+            "hide",
+            "host",
+            "remove",
+            "show",
             "show_text",
-            "spawn",
             "teleport",
-            "toggle_state",
+            "toggle",
         ])
     );
 }

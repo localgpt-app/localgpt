@@ -1,5 +1,5 @@
 (
-    version: 2,
+    version: 3,
     meta: (
         name: "island-paradise",
         description: Some("A tropical island with sandy beach, palm trees, lagoon, waterfall, hut, campfire, and pier"),

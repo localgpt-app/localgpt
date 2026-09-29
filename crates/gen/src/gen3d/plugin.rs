@@ -579,7 +579,7 @@ struct GenCommandParams<'w, 's> {
     reference_board: ResMut<'w, ReferenceBoard>,
     soundtrack: ResMut<'w, localgpt_world_bevy::modulation::Soundtrack>,
     modulated: Query<'w, 's, &'static localgpt_world_bevy::modulation::Modulated>,
-    world_extras: Query<'w, 's, &'static super::extras::WorldExtras>,
+    authored: Query<'w, 's, &'static super::extras::Authored>,
     creation_library: ResMut<'w, super::extras::CreationLibrary>,
 }
 
@@ -605,7 +605,7 @@ macro_rules! snap_queries {
             parent_query: &$params.parent_query,
             gltf_sources: &$params.gltf_sources,
             material_textures: Some(&$params.material_textures),
-            world_extras: Some(&$params.world_extras),
+            authored: Some(&$params.authored),
             registry: &$params.registry,
         }
     };
@@ -724,6 +724,7 @@ fn process_gen_commands(
                     &mut params.materials,
                     &params.material_handles,
                     &params.transforms,
+                    &params.authored,
                 );
                 // GAP-P0-02/04: Update behavior anchors + NPC wander center
                 // when entity position/scale changes
@@ -835,34 +836,28 @@ fn process_gen_commands(
                         &mut params,
                         &mut commands,
                     ) {
-                        Ok(id) => GenResponse::Spawned {
-                            name: cmd.name,
-                            entity_id: id.0,
-                        },
+                        Ok(added) => {
+                            let entity_id = added[0].id.0;
+                            record_replace(&mut params, Vec::new(), added);
+                            GenResponse::Spawned {
+                                name: cmd.name,
+                                entity_id,
+                            }
+                        }
                         Err(message) => GenResponse::Error { message },
                     },
                 }
             }
-            GenCommand::DeleteEntity { name } => {
-                // Snapshot before delete so we can undo
-                let pre_snapshot = params.registry.get_entity(&name).and_then(|e| {
-                    params
-                        .registry
-                        .get_id(e)
-                        .map(|id| snapshot_entity(&name, e, id, &snap_queries!(params)))
-                });
-                let resp = handle_delete_entity(&name, &mut commands, &mut params.registry);
-                if let GenResponse::Deleted { .. } = &resp
-                    && let Some(we) = pre_snapshot
-                {
-                    let id = we.id;
-                    params.dirty_tracker.mark_dirty(id);
-                    params
-                        .undo_stack
-                        .record(wt::EditOp::delete(id), wt::EditOp::spawn(we), None);
+            GenCommand::DeleteEntity { name } => match params.registry.get_entity(&name) {
+                None => GenResponse::Error {
+                    message: format!("Entity '{}' not found", name),
+                },
+                Some(root) => {
+                    let removed = delete_subtree(root, &mut params, &mut commands);
+                    record_replace(&mut params, removed, Vec::new());
+                    GenResponse::Deleted { name }
                 }
-                resp
-            }
+            },
             GenCommand::SpawnBatch {
                 entities,
                 expected_revision,
@@ -965,6 +960,7 @@ fn process_gen_commands(
                         &mut params.materials,
                         &params.material_handles,
                         &params.transforms,
+                        &params.authored,
                     );
 
                     match &resp {
@@ -1018,52 +1014,17 @@ fn process_gen_commands(
                     break 'batch GenResponse::Error { message };
                 }
                 let mut results = Vec::with_capacity(names.len());
-                let mut deleted_entities = Vec::new();
-
+                let mut removed = Vec::new();
                 for name in names {
-                    // Snapshot before delete
-                    let pre_snapshot = params.registry.get_entity(&name).and_then(|e| {
-                        params
-                            .registry
-                            .get_id(e)
-                            .map(|id| snapshot_entity(&name, e, id, &snap_queries!(params)))
-                    });
-
-                    let resp = handle_delete_entity(&name, &mut commands, &mut params.registry);
-
-                    match &resp {
-                        GenResponse::Deleted { name } => {
-                            results.push(format!("Deleted: {}", name));
-                            if let Some(we) = pre_snapshot {
-                                params.dirty_tracker.mark_dirty(we.id);
-                                deleted_entities.push(we);
-                            }
-                        }
-                        GenResponse::Error { message } => {
-                            results.push(format!("Failed: {} - {}", name, message));
-                        }
-                        _ => {
-                            results.push(format!("Failed: {} - unexpected response", name));
-                        }
-                    }
+                    // Already gone with an entity it was under.
+                    let Some(root) = params.registry.get_entity(&name) else {
+                        results.push(format!("Deleted: {} (with its parent)", name));
+                        continue;
+                    };
+                    removed.extend(delete_subtree(root, &mut params, &mut commands));
+                    results.push(format!("Deleted: {}", name));
                 }
-
-                // Record undo for batch delete (batch spawn to restore)
-                if !deleted_entities.is_empty() {
-                    let ids: Vec<wt::EntityId> = deleted_entities.iter().map(|we| we.id).collect();
-                    params.undo_stack.record(
-                        wt::EditOp::Batch {
-                            ops: deleted_entities
-                                .into_iter()
-                                .map(wt::EditOp::spawn)
-                                .collect(),
-                        },
-                        wt::EditOp::Batch {
-                            ops: ids.into_iter().map(wt::EditOp::delete).collect(),
-                        },
-                        None,
-                    );
-                }
+                record_replace(&mut params, removed, Vec::new());
 
                 GenResponse::BatchResult {
                     results,
@@ -1545,7 +1506,7 @@ fn process_gen_commands(
                     &params.npc_memories,
                     &params.modulated,
                     params.soundtrack.def.as_ref(),
-                    &params.world_extras,
+                    &params.authored,
                     &params.creation_library,
                 )
             }
@@ -1960,12 +1921,28 @@ fn process_gen_commands(
                     continue;
                 };
                 let entity_name = p.entity_id.clone();
+                // The trigger goes into the entity's record (so a save
+                // writes it) and the runtime runs it from there.
+                let mut authored = match params.authored.get(entity) {
+                    Ok(a) => a.clone(),
+                    Err(_) => {
+                        let id = params.registry.get_id(entity).unwrap_or(wt::EntityId(0));
+                        super::extras::Authored::new(snapshot_entity(
+                            &entity_name,
+                            entity,
+                            id,
+                            &snap_queries!(params),
+                        ))
+                    }
+                };
+                authored.add_trigger(crate::interaction::trigger_def(&p));
                 let mut ec = commands.entity(entity);
-                crate::interaction::insert_trigger(&mut ec, &p);
-                // Kept on the entity so a save writes the trigger into the world.
-                let mut extras = params.world_extras.get(entity).cloned().unwrap_or_default();
-                extras.add_trigger(crate::interaction::trigger_def(&p));
-                ec.insert(extras);
+                if let Some(triggers) =
+                    localgpt_world_bevy::triggers::Triggers::of(&authored.entity)
+                {
+                    ec.insert(triggers);
+                }
+                ec.insert(authored);
                 let _ = channel_res
                     .channels
                     .resp_tx
@@ -2541,55 +2518,7 @@ fn process_gen_commands(
             }
             GenCommand::AddNotification(p) => {
                 let text = p.text.clone();
-                let icon_text = crate::ui::get_notification_icon_text(p.icon);
-                let display_text = if icon_text.is_empty() {
-                    p.text.clone()
-                } else {
-                    format!("{} {}", icon_text, p.text)
-                };
-                let text_color = crate::ui::parse_sign_color(&p.color).unwrap_or(Color::WHITE);
-                let notif_entity = commands
-                    .spawn((
-                        Name::new("Notification"),
-                        crate::ui::Notification {
-                            text: p.text.clone(),
-                            style: p.style,
-                            position: p.position,
-                            phase: crate::ui::NotificationPhase::EnterIn,
-                            elapsed: 0.0,
-                            duration: p.duration,
-                            stack_offset: 0.0,
-                            alpha: 0.0,
-                        },
-                        crate::ui::notification_position_node(p.position),
-                        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.7)),
-                        Text::new(display_text),
-                        TextColor(text_color),
-                        TextFont {
-                            font_size: FontSize::Px(16.0),
-                            ..default()
-                        },
-                    ))
-                    .id();
-                // Add to notification queue for stacking/limit management
-                commands.queue(move |world: &mut World| {
-                    let mut to_despawn = Vec::new();
-                    {
-                        let mut queue = world.resource_mut::<crate::ui::NotificationQueue>();
-                        queue.notifications.push(notif_entity);
-                        while queue.notifications.len() > 4 {
-                            if let Some(oldest) = queue.notifications.first().copied() {
-                                queue.notifications.remove(0);
-                                to_despawn.push(oldest);
-                            }
-                        }
-                    }
-                    for entity in to_despawn {
-                        if let Ok(ec) = world.get_entity_mut(entity) {
-                            ec.despawn();
-                        }
-                    }
-                });
+                crate::ui::spawn_notification(&mut commands, &p);
                 let _ = channel_res
                     .channels
                     .resp_tx
@@ -5684,10 +5613,37 @@ fn handle_spawn_primitive(
         scale: Vec3::from_array(cmd.scale),
     };
 
+    let wid = next_id.alloc();
+    // The record this entity is saved from.
+    let mut record = wt::WorldEntity::new(wid.0, &cmd.name);
+    record.transform = wt::WorldTransform {
+        position: cmd.position,
+        rotation_degrees: cmd.rotation_degrees,
+        scale: cmd.scale,
+        visible: true,
+    };
+    record.shape = Some(shape.clone());
+    record.material = Some(wt::MaterialDef {
+        color: cmd.color,
+        metallic: cmd.metallic,
+        roughness: cmd.roughness,
+        emissive: cmd.emissive,
+        alpha_mode: cmd
+            .alpha_mode
+            .as_deref()
+            .map(|s| localgpt_world_bevy::alpha_mode_def(parse_alpha_mode(s))),
+        unlit: cmd.unlit,
+        ..Default::default()
+    });
+    record.parent = cmd
+        .parent
+        .as_deref()
+        .and_then(|p| registry.get_entity(p))
+        .and_then(|p| registry.get_id(p));
+
     // Store the parametric shape so it survives save/load cycles.
     let parametric = ParametricShape { shape };
 
-    let wid = next_id.alloc();
     let entity = commands
         .spawn((
             Mesh3d(mesh),
@@ -5700,6 +5656,7 @@ fn handle_spawn_primitive(
             },
             parametric,
             crate::terrain::TerrainFollower,
+            super::extras::Authored::new(record),
         ))
         .id();
 
@@ -5814,6 +5771,7 @@ fn handle_modify_entity(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     material_handles: &Query<&MeshMaterial3d<StandardMaterial>>,
     transforms: &Query<&Transform>,
+    authored: &Query<&super::extras::Authored>,
 ) -> GenResponse {
     let Some(entity) = registry.get_entity(&cmd.name) else {
         return GenResponse::Error {
@@ -5902,10 +5860,10 @@ fn handle_modify_entity(
     }
 
     // Update parent
-    if let Some(parent_opt) = cmd.parent {
+    if let Some(parent_opt) = &cmd.parent {
         match parent_opt {
             Some(parent_name) => {
-                if let Some(parent_entity) = registry.get_entity(&parent_name) {
+                if let Some(parent_entity) = registry.get_entity(parent_name) {
                     commands.entity(entity).set_parent_in_place(parent_entity);
                 }
             }
@@ -5913,6 +5871,13 @@ fn handle_modify_entity(
                 commands.entity(entity).remove_parent_in_place();
             }
         }
+    }
+
+    // Keep the record in step: saving and undo read it.
+    if let Ok(record) = authored.get(entity) {
+        let mut record = record.clone();
+        apply_modify_to_snapshot(&mut record.entity, &cmd);
+        commands.entity(entity).insert(record);
     }
 
     GenResponse::Modified { name: cmd.name }
@@ -5972,9 +5937,9 @@ fn handle_define_creation(
     members.extend(below);
     if let Some((name, _, _)) = members.iter().find(|(_, e, _)| {
         params
-            .world_extras
+            .authored
             .get(*e)
-            .is_ok_and(|x| x.instance_of.is_some() || x.part_of.is_some())
+            .is_ok_and(|a| a.entity.instance_of.is_some() || a.part_of.is_some())
     }) {
         return error(format!(
             "'{name}' is already an instance or part of one; creations don't nest"
@@ -5993,22 +5958,29 @@ fn handle_define_creation(
 
     let mut instance = None;
     if cmd.replace {
-        for (name, _, _) in &members {
+        let name = cmd
+            .instance_name
+            .unwrap_or_else(|| format!("{}_1", cmd.name));
+        if params.registry.contains_name(&name) && !members.iter().any(|(n, _, _)| *n == name) {
+            return error(format!("An entity named '{name}' already exists"));
+        }
+        for (name, _, id) in &members {
             params.registry.remove_by_name(name);
+            params.dirty_tracker.mark_dirty(*id);
         }
         for &e in listed.iter().filter(|e| !under_listed(**e)) {
             commands.entity(e).despawn();
         }
-        let name = cmd
-            .instance_name
-            .unwrap_or_else(|| format!("{}_1", cmd.name));
         let place = wt::WorldTransform {
             position: origin,
             ..Default::default()
         };
-        if let Err(message) = spawn_instance(&name, &def, place, Vec::new(), params, commands) {
-            return error(message);
-        }
+        let added = match spawn_instance(&name, &def, place, Vec::new(), params, commands) {
+            Ok(added) => added,
+            Err(message) => return error(message),
+        };
+        // Undo puts the originals back (the creation stays defined).
+        record_replace(params, snapshots, added);
         instance = Some(name);
     }
     GenResponse::CreationDefined {
@@ -6027,7 +5999,7 @@ fn spawn_instance(
     overrides: Vec<wt::PartOverride>,
     params: &mut GenCommandParams,
     commands: &mut Commands,
-) -> Result<wt::EntityId, String> {
+) -> Result<Vec<wt::WorldEntity>, String> {
     if params.registry.contains_name(name) {
         return Err(format!("An entity named '{name}' already exists"));
     }
@@ -6059,25 +6031,88 @@ fn spawn_instance(
         &mut params.pending_gltf,
         params.current_world.path.as_deref(),
     );
-    Ok(root_id)
+    Ok(entities)
 }
 
-fn handle_delete_entity(
-    name: &str,
-    commands: &mut Commands,
-    registry: &mut ResMut<NameRegistry>,
-) -> GenResponse {
-    let Some(entity) = registry.remove_by_name(name) else {
-        return GenResponse::Error {
-            message: format!("Entity '{}' not found", name),
-        };
+/// `root` and every registered entity under it, parents before children.
+fn subtree(
+    root: Entity,
+    registry: &NameRegistry,
+    parent_query: &Query<&ChildOf>,
+) -> Vec<(String, Entity, wt::EntityId)> {
+    let (Some(name), Some(id)) = (registry.get_name(root), registry.get_id(root)) else {
+        return Vec::new();
     };
+    let mut below: Vec<(usize, String, Entity, wt::EntityId)> = registry
+        .all_names()
+        .filter_map(|(name, e)| {
+            let mut cursor = e;
+            for depth in 1..=64 {
+                cursor = parent_query.get(cursor).ok()?.parent();
+                if cursor == root {
+                    return Some((depth, name.to_string(), e, registry.get_id(e)?));
+                }
+            }
+            None
+        })
+        .collect();
+    below.sort_by_key(|(depth, _, _, id)| (*depth, id.0));
+    std::iter::once((name.to_string(), root, id))
+        .chain(below.into_iter().map(|(_, n, e, id)| (n, e, id)))
+        .collect()
+}
 
-    commands.entity(entity).despawn();
-
-    GenResponse::Deleted {
-        name: name.to_string(),
+/// Delete `root` with everything under it (names included), returning
+/// their records, parents first, for undo.
+fn delete_subtree(
+    root: Entity,
+    params: &mut GenCommandParams,
+    commands: &mut Commands,
+) -> Vec<wt::WorldEntity> {
+    let members = subtree(root, &params.registry, &params.parent_query);
+    let records: Vec<wt::WorldEntity> = members
+        .iter()
+        .map(|(name, e, id)| snapshot_entity(name, *e, *id, &snap_queries!(params)))
+        .collect();
+    for (name, _, id) in &members {
+        params.registry.remove_by_name(name);
+        params.dirty_tracker.mark_dirty(*id);
     }
+    commands.entity(root).despawn();
+    records
+}
+
+/// Record an edit that took `removed` out of the scene and put `added` in
+/// (each parents first): undo takes `added` out and restores `removed`.
+fn record_replace(
+    params: &mut GenCommandParams,
+    removed: Vec<wt::WorldEntity>,
+    added: Vec<wt::WorldEntity>,
+) {
+    if removed.is_empty() && added.is_empty() {
+        return;
+    }
+    let delete = |records: &[wt::WorldEntity]| {
+        records
+            .iter()
+            .rev()
+            .map(|we| wt::EditOp::delete(we.id))
+            .collect::<Vec<_>>()
+    };
+    let spawn = |records: &[wt::WorldEntity]| {
+        records
+            .iter()
+            .cloned()
+            .map(wt::EditOp::spawn)
+            .collect::<Vec<_>>()
+    };
+    let forward = [delete(&removed), spawn(&added)].concat();
+    let inverse = [delete(&added), spawn(&removed)].concat();
+    params.undo_stack.record(
+        wt::EditOp::Batch { ops: forward },
+        wt::EditOp::Batch { ops: inverse },
+        None,
+    );
 }
 
 fn handle_set_camera(
@@ -6506,20 +6541,28 @@ pub(crate) fn spawn_world_entities(
 
         registry.insert_with_id(name.clone(), bevy_entity, world_id);
 
-        // Instances, parts, triggers and mesh details the scene components
-        // don't hold: kept for saving, and triggers and node overrides applied.
-        if let Some(extras) = super::extras::WorldExtras::of(we, &part_links) {
+        // The record itself, the source of truth for saving and undo; the
+        // format's triggers and mesh node overrides run from it.
+        {
+            let part_of = part_links
+                .get(&we.id)
+                .cloned()
+                .or_else(|| part_link_in_scene(we, registry));
             let mut ec = commands.entity(bevy_entity);
-            for trigger in &extras.triggers {
-                let params = crate::interaction::trigger_params(&name, trigger);
-                crate::interaction::insert_trigger(&mut ec, &params);
+            if let Some(triggers) = localgpt_world_bevy::triggers::Triggers::of(we) {
+                ec.insert(triggers);
             }
-            if !extras.node_overrides.is_empty() {
+            if let Some(mesh) = we.mesh_asset.as_ref()
+                && !mesh.node_overrides.is_empty()
+            {
                 ec.insert(localgpt_world_bevy::nodes::NodeOverrides(
-                    extras.node_overrides.clone(),
+                    mesh.node_overrides.clone(),
                 ));
             }
-            ec.insert(extras);
+            ec.insert(super::extras::Authored {
+                entity: we.clone(),
+                part_of,
+            });
         }
 
         if let Some(modulated) = localgpt_world_bevy::modulation::modulated(we) {
@@ -6545,11 +6588,16 @@ pub(crate) fn spawn_world_entities(
                 });
         }
 
-        // Record deferred parent assignment
-        if let Some(ref parent_id) = we.parent
-            && let Some(parent_name) = id_to_name.get(&parent_id.0)
-        {
-            parent_assignments.push((name, parent_name.clone()));
+        // Record deferred parent assignment: a parent in this batch, else
+        // one already in the scene (undo restoring a child on its own).
+        if let Some(ref parent_id) = we.parent {
+            if let Some(parent_name) = id_to_name.get(&parent_id.0) {
+                parent_assignments.push((name, parent_name.clone()));
+            } else if let Some(parent) = registry.get_entity_by_id(parent_id)
+                && let Some(parent_name) = registry.get_name(parent)
+            {
+                parent_assignments.push((name, parent_name.to_string()));
+            }
         }
     }
 
@@ -6762,9 +6810,9 @@ pub(crate) struct SnapshotQueries<'a, 'w, 's> {
     /// Texture sources; `None` leaves texture paths out of the snapshot (the
     /// multiplayer host: paths on the host's disk mean nothing to a client).
     pub(crate) material_textures: Option<&'a Query<'w, 's, &'static MaterialTextures>>,
-    /// Instances, parts, triggers and mesh details (`None` leaves them out:
-    /// the multiplayer host sends guests plain, expanded entities).
-    pub(crate) world_extras: Option<&'a Query<'w, 's, &'static super::extras::WorldExtras>>,
+    /// Authored records (`None` rebuilds entities from the scene alone: the
+    /// multiplayer host sends guests plain, expanded entities).
+    pub(crate) authored: Option<&'a Query<'w, 's, &'static super::extras::Authored>>,
     pub(crate) registry: &'a NameRegistry,
 }
 
@@ -6918,17 +6966,49 @@ pub(crate) fn snapshot_entity(
         we.parent = Some(parent_id);
     }
 
-    // Instance, part, triggers, mesh hash and node overrides
-    if let Some(q) = sq.world_extras
-        && let Ok(extras) = q.get(entity)
+    // The authored record wins wherever the scene agrees with it.
+    if let Some(q) = sq.authored
+        && let Ok(authored) = q.get(entity)
     {
-        extras.write_into(&mut we);
-        if let Some(link) = &extras.part_of {
-            we.creation_id = Some(link.creation);
+        // Nothing here reads modulations back from the scene.
+        we.modulations = authored.entity.modulations.clone();
+        let animated = !we.behaviors.is_empty()
+            || !we.modulations.is_empty()
+            || !authored.entity.triggers.is_empty();
+        let (mut out, drifted) = super::extras::reconcile(&authored.entity, &we, animated);
+        if !drifted.is_empty() {
+            tracing::debug!(
+                "'{name}': {} changed without updating its record; taking the scene's",
+                drifted.join(", ")
+            );
         }
+        // Texture paths as the scene resolved them, for undo and multiplayer.
+        if let (Some(q), Some(def)) = (sq.material_textures, out.material.as_mut())
+            && let Ok(textures) = q.get(entity)
+        {
+            textures.apply_to(def, str::to_string);
+        }
+        if let Some(link) = &authored.part_of {
+            out.creation_id = Some(link.creation);
+        }
+        return out;
     }
 
     we
+}
+
+/// An expanded part spawned without its instance in the same batch (undo
+/// restoring one part): its name is `<instance>/<part>` and its
+/// `creation_id` is the instance's creation; the instance is in the scene.
+fn part_link_in_scene(we: &wt::WorldEntity, registry: &NameRegistry) -> Option<wt::PartLink> {
+    let creation = we.creation_id?;
+    let (instance, part) = we.name.as_str().rsplit_once('/')?;
+    let instance_entity = registry.get_entity(instance)?;
+    Some(wt::PartLink {
+        instance: registry.get_id(instance_entity)?,
+        creation,
+        part: wt::EntityName::new(part),
+    })
 }
 
 /// Construct the expected post-modify state by applying a `ModifyEntityCmd`
@@ -6952,6 +7032,8 @@ fn apply_modify_to_snapshot(we: &mut wt::WorldEntity, cmd: &ModifyEntityCmd) {
         || cmd.emissive.is_some()
         || cmd.alpha_mode.is_some()
         || cmd.unlit.is_some()
+        || cmd.double_sided.is_some()
+        || cmd.reflectance.is_some()
     {
         let mut mat = we.material.clone().unwrap_or_default();
         if let Some(color) = cmd.color {
@@ -7883,6 +7965,140 @@ fn fly_cam_scroll_speed(
 mod tests {
     use super::*;
     use bevy::ecs::world::CommandQueue;
+
+    /// A loaded world saves with nothing invented: spawn the instances
+    /// conformance world into a real scene, snapshot every entity the way a
+    /// save does (scene rebuilt, then reconciled with its record), fold the
+    /// parts back — and get the file's overrides exactly.
+    #[test]
+    fn loaded_instances_save_their_overrides_unchanged() {
+        use bevy::ecs::system::RunSystemOnce;
+        let text = include_str!("../../../world-types/conformance/instances.json");
+        let original: wt::WorldManifest = serde_json::from_str(text).unwrap();
+        let mut expanded = original.clone();
+        expanded.expand_instances();
+
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            bevy::asset::AssetPlugin {
+                file_path: "/".to_string(),
+                ..default()
+            },
+            bevy::image::ImagePlugin::default(),
+        ))
+        .init_asset::<StandardMaterial>()
+        .init_asset::<Mesh>()
+        .init_asset::<WorldAsset>()
+        .init_resource::<NameRegistry>()
+        .init_resource::<NextEntityId>()
+        .init_resource::<BehaviorState>()
+        .init_resource::<PendingGltfLoads>();
+
+        let entities = expanded.entities.clone();
+        app.world_mut()
+            .run_system_once(
+                move |mut commands: Commands,
+                      mut meshes: ResMut<Assets<Mesh>>,
+                      mut materials: ResMut<Assets<StandardMaterial>>,
+                      mut registry: ResMut<NameRegistry>,
+                      mut next: ResMut<NextEntityId>,
+                      mut behavior_state: ResMut<BehaviorState>,
+                      asset_server: Res<AssetServer>,
+                      mut pending: ResMut<PendingGltfLoads>| {
+                    spawn_world_entities(
+                        &entities,
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        &mut registry,
+                        &mut next,
+                        &mut behavior_state,
+                        &asset_server,
+                        &mut pending,
+                        None,
+                    );
+                },
+            )
+            .unwrap();
+        app.update();
+
+        type Scene<'w, 's> = (
+            Query<'w, 's, &'static Transform>,
+            Query<'w, 's, &'static ParametricShape>,
+            Query<'w, 's, &'static MeshMaterial3d<StandardMaterial>>,
+            Res<'w, Assets<StandardMaterial>>,
+            Query<'w, 's, &'static Visibility>,
+            Query<'w, 's, &'static DirectionalLight>,
+            Query<'w, 's, &'static PointLight>,
+            Query<'w, 's, &'static SpotLight>,
+            Query<'w, 's, &'static EntityBehaviors>,
+            Query<'w, 's, &'static audio::AudioEmitter>,
+            Query<'w, 's, &'static ChildOf>,
+            Query<'w, 's, &'static GltfSource>,
+            Query<'w, 's, &'static MaterialTextures>,
+            Query<'w, 's, &'static super::super::extras::Authored>,
+            Res<'w, NameRegistry>,
+        );
+        let saved = app
+            .world_mut()
+            .run_system_once(|scene: Scene| {
+                let (tr, ps, mh, mats, vis, dl, pl, sl, bq, ae, pq, gs, mt, au, reg) = &scene;
+                let sq = SnapshotQueries {
+                    transforms: tr,
+                    parametric_shapes: ps,
+                    material_handles: mh,
+                    materials: mats,
+                    visibility_query: vis,
+                    directional_lights: dl,
+                    point_lights: pl,
+                    spot_lights: sl,
+                    behaviors_query: bq.as_readonly(),
+                    audio_emitters: ae,
+                    parent_query: pq,
+                    gltf_sources: gs,
+                    material_textures: Some(mt),
+                    authored: Some(au),
+                    registry: reg,
+                };
+                reg.all_names()
+                    .map(|(name, e)| {
+                        let we = snapshot_entity(name, e, reg.get_id(e).unwrap(), &sq);
+                        let part_of = au.get(e).ok().and_then(|a| a.part_of.clone());
+                        (we, part_of)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap();
+
+        let mut roots = Vec::new();
+        let mut parts: std::collections::HashMap<_, Vec<_>> = Default::default();
+        for (we, part_of) in saved {
+            match part_of {
+                Some(link) => parts
+                    .entry(link.instance)
+                    .or_default()
+                    .push((link.part, we)),
+                None => roots.push(we),
+            }
+        }
+        let library = super::super::extras::CreationLibrary {
+            creations: original.creations.clone(),
+        };
+        library.fold_parts(&mut roots, &parts);
+        for want in original.entities.iter().filter(|e| e.instance_of.is_some()) {
+            let got = roots
+                .iter()
+                .find(|e| e.id == want.id)
+                .expect("instance saved");
+            assert_eq!(
+                got.instance_of, want.instance_of,
+                "{}: overrides changed by a load and save",
+                want.name
+            );
+            assert_eq!(got.transform, want.transform, "{}", want.name);
+        }
+    }
 
     fn registry_with(names: &[&str]) -> NameRegistry {
         let mut registry = NameRegistry::default();
