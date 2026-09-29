@@ -1516,33 +1516,37 @@ pub struct ActiveInteractionPrompt {
     pub text: String,
 }
 
-/// System: display a screen-space "Press E" prompt when the player is near a
-/// click-interactable entity.
+/// System: display a screen-space "Press E" prompt when the visitor is near
+/// a click-interactable entity — Gen's own click triggers and the world
+/// format's (`localgpt-world-bevy`'s runtime).
 ///
 /// This renders a centered bottom-screen HUD prompt (not world-space text),
 /// making it easy for the player to discover interactive objects.
 pub fn interaction_prompt_hud_system(
-    player_query: Query<&Transform, With<crate::character::Player>>,
+    visitor: Query<&GlobalTransform, With<wbt::Visitor>>,
     trigger_query: Query<(Entity, &Transform, &ClickTrigger, Option<&RequiresItem>)>,
+    world_triggers: Query<(Entity, &GlobalTransform, &wbt::Triggers)>,
     inventory: Res<PlayerInventory>,
     mut prompt_state: ResMut<ActiveInteractionPrompt>,
     mut hud_query: Query<(Entity, &mut Text, &mut Visibility), With<InteractionPromptHud>>,
     mut commands: Commands,
 ) {
-    let Ok(player_transform) = player_query.single() else {
-        // No player — hide any existing prompt
+    // The visitor is the player when one is spawned, else the camera (the
+    // same one the trigger runtime measures against).
+    let Ok(visitor) = visitor.single() else {
+        // Nobody walking the world — hide any existing prompt
         prompt_state.target = None;
         for (_entity, _text, mut vis) in hud_query.iter_mut() {
             *vis = Visibility::Hidden;
         }
         return;
     };
-    let player_pos = player_transform.translation;
+    let visitor_pos = visitor.translation();
 
     // Find the closest in-range click trigger
     let mut closest: Option<(Entity, f32, String)> = None;
     for (entity, transform, trigger, requires) in trigger_query.iter() {
-        let distance = player_pos.distance(transform.translation);
+        let distance = visitor_pos.distance(transform.translation);
         if distance > trigger.max_distance {
             continue;
         }
@@ -1558,6 +1562,36 @@ pub fn interaction_prompt_hud_system(
                 .clone()
                 .unwrap_or_else(|| "Press E to interact".to_string());
             closest = Some((entity, distance, text));
+        }
+    }
+
+    // The world format's click triggers, with their prompts. A spent
+    // one-shot still prompts (its state is private to the runtime); using
+    // it just does nothing.
+    for (entity, global, triggers) in world_triggers.iter() {
+        let Some(reach) = triggers.click_reach() else {
+            continue;
+        };
+        let distance = visitor_pos.distance(global.translation());
+        if distance > reach {
+            continue;
+        }
+        for def in triggers.defs() {
+            let localgpt_world_types::TriggerEvent::Click { prompt, .. } = &def.on else {
+                continue;
+            };
+            if let Some(item) = &def.requires_item
+                && !inventory.has_item(item)
+            {
+                continue;
+            }
+            if closest.as_ref().is_none_or(|(_, d, _)| distance < *d) {
+                let text = prompt
+                    .clone()
+                    .unwrap_or_else(|| "Press E to interact".to_string());
+                closest = Some((entity, distance, text));
+            }
+            break;
         }
     }
 

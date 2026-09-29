@@ -16,6 +16,8 @@ use bevy::prelude::*;
 use localgpt_world_types as wt;
 use std::collections::HashMap;
 
+use super::commands::{LightType, SetLightCmd};
+
 /// An entity's world-format record.
 #[derive(Component, Debug, Clone)]
 pub struct Authored {
@@ -161,6 +163,74 @@ pub fn file_sha256(path: &std::path::Path) -> Option<String> {
     use sha2::{Digest, Sha256};
     let bytes = std::fs::read(path).ok()?;
     Some(hex::encode(Sha256::digest(&bytes)))
+}
+
+/// The record a `gen_set_light` leaves: what the command authored, with the
+/// transform the handler gives it. An unset direction stays unset, so a
+/// reload uses the renderer's default, where rebuilding from the scene
+/// would bake the handler's `[0, 10, 0]`-looking-at rotation into the file.
+pub fn set_light_record(cmd: &SetLightCmd, id: wt::EntityId) -> wt::WorldEntity {
+    let position = match cmd.light_type {
+        LightType::Directional => [0.0, 10.0, 0.0],
+        _ => cmd.position.unwrap_or([0.0, 5.0, 0.0]),
+    };
+    // The handler aims directional and spot lights along their direction;
+    // point lights keep the identity rotation.
+    let rotation = match (cmd.light_type, cmd.direction) {
+        (LightType::Point, _) | (_, None) => [0.0, 0.0, 0.0],
+        (_, Some(dir)) => {
+            let direction = Vec3::from_array(dir);
+            if direction.length_squared() == 0.0 {
+                [0.0, 0.0, 0.0]
+            } else {
+                let (rx, ry, rz) = Transform::from_translation(Vec3::from_array(position))
+                    .looking_at(Vec3::from_array(position) + direction, Vec3::Y)
+                    .rotation
+                    .to_euler(EulerRot::XYZ);
+                [rx.to_degrees(), ry.to_degrees(), rz.to_degrees()]
+            }
+        }
+    };
+    let mut record = wt::WorldEntity::new(id.0, &cmd.name);
+    record.transform = wt::WorldTransform {
+        position,
+        rotation_degrees: rotation,
+        scale: [1.0, 1.0, 1.0],
+        visible: true,
+    };
+    record.light = Some(wt::LightDef {
+        light_type: match cmd.light_type {
+            LightType::Directional => wt::LightType::Directional,
+            LightType::Point => wt::LightType::Point,
+            LightType::Spot => wt::LightType::Spot,
+        },
+        color: cmd.color,
+        intensity: cmd.intensity,
+        direction: cmd.direction,
+        shadows: cmd.shadows,
+        range: cmd.range,
+        outer_angle: cmd.outer_angle,
+        inner_angle: cmd.inner_angle,
+    });
+    record
+}
+
+/// The audio an emitter tool leaves on a record: what the tool set, keeping
+/// a loaded world's `kind` and `rolloff`, which the scene's rebuild can't
+/// hold (it always reads back `Sfx` and the default rolloff).
+pub fn emitter_audio(
+    existing: Option<&wt::AudioDef>,
+    source: &wt::AudioSource,
+    volume: f32,
+    radius: f32,
+) -> wt::AudioDef {
+    wt::AudioDef {
+        kind: existing.map_or(wt::AudioKind::Sfx, |a| a.kind),
+        source: source.clone(),
+        volume,
+        radius: Some(radius),
+        rolloff: existing.map_or(wt::Rolloff::InverseSquare, |a| a.rolloff),
+    }
 }
 
 /// The reusable creations of the world in the scene (`WorldManifest::creations`).
@@ -353,6 +423,79 @@ mod tests {
         a.kind = wt::AudioKind::Sfx;
         a.rolloff = wt::Rolloff::InverseSquare;
         live
+    }
+
+    #[test]
+    fn set_light_records_what_was_authored() {
+        let cmd = serde_json::from_value::<SetLightCmd>(serde_json::json!({
+            "name": "sun",
+            "light_type": "directional",
+            "color": [1.0, 0.9, 0.8, 1.0],
+            "intensity": 9000.0,
+            "shadows": true
+        }))
+        .unwrap();
+        let record = set_light_record(&cmd, wt::EntityId(3));
+        assert_eq!(record.name.as_str(), "sun");
+        let light = record.light.as_ref().unwrap();
+        assert_eq!(light.light_type, wt::LightType::Directional);
+        // Unset direction stays unset; the transform matches the handler's.
+        assert_eq!(light.direction, None);
+        assert_eq!(record.transform.position, [0.0, 10.0, 0.0]);
+
+        let mut cmd = cmd.clone();
+        cmd.light_type = LightType::Spot;
+        cmd.direction = Some([1.0, -1.0, 0.0]);
+        cmd.position = Some([2.0, 6.0, 1.0]);
+        let record = set_light_record(&cmd, wt::EntityId(4));
+        let light = record.light.as_ref().unwrap();
+        assert_eq!(light.direction, Some([1.0, -1.0, 0.0]));
+        assert_eq!(record.transform.position, [2.0, 6.0, 1.0]);
+        // The handler's own `looking_at` math, as XYZ Euler degrees: aiming
+        // along (+1, -1, 0) is -45° of yaw between two quarter turns.
+        let [rx, ry, rz] = record.transform.rotation_degrees;
+        assert!((ry + 45.0).abs() < 0.5, "{rx} {ry} {rz}");
+        assert!(
+            (rx - -90.0).abs() < 0.5 && (rz - -90.0).abs() < 0.5,
+            "{rx} {ry} {rz}"
+        );
+        // And it survives world-bevy's round trip back to a transform.
+        let back = localgpt_world_bevy::transform(&record.transform);
+        let forward = back.forward().as_vec3();
+        let want = Vec3::new(1.0, -1.0, 0.0).normalize();
+        assert!(
+            forward.distance(want).abs() < 1e-4,
+            "{forward:?} vs {want:?}"
+        );
+    }
+
+    #[test]
+    fn emitter_audio_keeps_kind_and_rolloff() {
+        let authored = wt::AudioDef {
+            kind: wt::AudioKind::Ambient,
+            source: wt::AudioSource::Wind {
+                speed: 0.4,
+                gustiness: 0.3,
+            },
+            volume: 0.5,
+            radius: Some(12.0),
+            rolloff: wt::Rolloff::Linear,
+        };
+        let updated = emitter_audio(
+            Some(&authored),
+            &wt::AudioSource::Ocean { wave_size: 0.7 },
+            0.8,
+            20.0,
+        );
+        // What the tool set changed; what it didn't touch survived.
+        assert_eq!(updated.kind, wt::AudioKind::Ambient);
+        assert_eq!(updated.rolloff, wt::Rolloff::Linear);
+        assert_eq!(updated.volume, 0.8);
+        assert_eq!(updated.radius, Some(20.0));
+
+        let fresh = emitter_audio(None, &wt::AudioSource::Ocean { wave_size: 0.7 }, 0.8, 20.0);
+        assert_eq!(fresh.kind, wt::AudioKind::Sfx);
+        assert_eq!(fresh.rolloff, wt::Rolloff::InverseSquare);
     }
 
     #[test]

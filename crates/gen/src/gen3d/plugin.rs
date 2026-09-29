@@ -1083,6 +1083,7 @@ fn process_gen_commands(
                 resp
             }
             GenCommand::SetLight(cmd) => {
+                let cmd_for_record = cmd.clone();
                 // Snapshot the old light before it gets despawned (for undo)
                 let old_light_snapshot =
                     params.registry.get_entity(&cmd.name).and_then(|old_ent| {
@@ -1101,6 +1102,14 @@ fn process_gen_commands(
                     && let Some(new_ent) = params.registry.get_entity(name)
                     && let Some(new_id) = params.registry.get_id(new_ent)
                 {
+                    // The record of what was authored (an unset direction
+                    // stays unset), so a save doesn't bake the handler's
+                    // spawn-time aim into the file.
+                    commands
+                        .entity(new_ent)
+                        .insert(super::extras::Authored::new(
+                            super::extras::set_light_record(&cmd_for_record, new_id),
+                        ));
                     let new_we = snapshot_entity(name, new_ent, new_id, &snap_queries!(params));
                     params.dirty_tracker.mark_dirty(new_id);
                     if let Some(old_we) = old_light_snapshot {
@@ -1278,13 +1287,23 @@ fn process_gen_commands(
             }
             GenCommand::SpawnAudioEmitter(cmd) => {
                 let name = cmd.name.clone();
-                let audio_def = wt::AudioDef {
-                    kind: wt::AudioKind::Sfx,
-                    source: compat::emitter_sound_to_source(&cmd.sound),
-                    volume: cmd.volume,
-                    radius: Some(cmd.radius),
-                    rolloff: wt::Rolloff::default(),
-                };
+                let cmd_for_record = cmd.clone();
+                // What the tool sets, keeping the target's authored `kind`
+                // and `rolloff` when it had them (attaching to a loaded
+                // entity, say).
+                let existing = cmd
+                    .entity
+                    .as_deref()
+                    .and_then(|e| params.registry.get_entity(e))
+                    .or_else(|| params.registry.get_entity(&name))
+                    .and_then(|e| params.authored.get(e).ok())
+                    .and_then(|a| a.entity.audio.clone());
+                let audio_def = super::extras::emitter_audio(
+                    existing.as_ref(),
+                    &compat::emitter_sound_to_source(&cmd_for_record.sound),
+                    cmd_for_record.volume,
+                    cmd_for_record.radius,
+                );
                 let resp = audio::handle_spawn_audio_emitter(
                     cmd,
                     &mut params.audio_engine,
@@ -1292,6 +1311,24 @@ fn process_gen_commands(
                     &mut params.registry,
                     &mut params.next_entity_id,
                 );
+                // The record: the attached entity's, or the standalone
+                // emitter's own (registered by the handler above).
+                let target = cmd_for_record
+                    .entity
+                    .as_deref()
+                    .and_then(|e| params.registry.get_entity(e))
+                    .or_else(|| params.registry.get_entity(&name));
+                if let Some(entity) = target {
+                    let audio = audio_def.clone();
+                    update_record(&params, &mut commands, entity, move |we| {
+                        we.audio = Some(audio);
+                        if let Some(position) = cmd_for_record.position
+                            && we.transform.position == [0.0, 0.0, 0.0]
+                        {
+                            we.transform.position = position;
+                        }
+                    });
+                }
                 // Push undo: inverse removes the emitter
                 params.undo_stack.record(
                     wt::EditOp::SpawnAudioEmitter {
@@ -1320,6 +1357,11 @@ fn process_gen_commands(
                             radius: Some(meta.radius),
                             rolloff: wt::Rolloff::default(),
                         });
+                let attached_to = params
+                    .audio_engine
+                    .emitter_meta
+                    .get(&cmd.name)
+                    .and_then(|meta| meta.attached_to.clone());
                 let resp =
                     audio::handle_modify_audio_emitter(cmd.clone(), &mut params.audio_engine);
                 // Get new state for redo
@@ -1335,6 +1377,30 @@ fn process_gen_commands(
                             radius: Some(meta.radius),
                             rolloff: wt::Rolloff::default(),
                         });
+                // The record keeps its `kind` and `rolloff`; the engine
+                // holds what the tool set.
+                let entity = attached_to
+                    .as_deref()
+                    .and_then(|e| params.registry.get_entity(e))
+                    .or_else(|| params.registry.get_entity(&cmd.name));
+                if let (Some(entity), Some(meta)) =
+                    (entity, params.audio_engine.emitter_meta.get(&cmd.name))
+                {
+                    let existing = params
+                        .authored
+                        .get(entity)
+                        .ok()
+                        .and_then(|a| a.entity.audio.clone());
+                    let audio = super::extras::emitter_audio(
+                        existing.as_ref(),
+                        &meta.sound,
+                        meta.base_volume,
+                        meta.radius,
+                    );
+                    update_record(&params, &mut commands, entity, move |we| {
+                        we.audio = Some(audio);
+                    });
+                }
                 if let (Some(prev), Some(new)) = (prev_audio, new_audio) {
                     params.undo_stack.record(
                         wt::EditOp::SpawnAudioEmitter {
@@ -1364,7 +1430,22 @@ fn process_gen_commands(
                             radius: Some(meta.radius),
                             rolloff: wt::Rolloff::default(),
                         });
+                let attached_to = params
+                    .audio_engine
+                    .emitter_meta
+                    .get(&name)
+                    .and_then(|meta| meta.attached_to.clone());
                 let resp = audio::handle_remove_audio_emitter(&name, &mut params.audio_engine);
+                // The record drops its audio with the emitter.
+                if prev_audio.is_some() {
+                    let entity = attached_to
+                        .as_deref()
+                        .and_then(|e| params.registry.get_entity(e))
+                        .or_else(|| params.registry.get_entity(&name));
+                    if let Some(entity) = entity {
+                        update_record(&params, &mut commands, entity, |we| we.audio = None);
+                    }
+                }
                 // Push undo: inverse re-spawns the emitter
                 if let Some(prev) = prev_audio {
                     params.undo_stack.record(
@@ -1382,6 +1463,7 @@ fn process_gen_commands(
 
             // Behavior commands
             GenCommand::AddBehavior(cmd) => {
+                let def_for_record = cmd.behavior.clone();
                 // Snapshot before adding behavior for undo
                 let pre_snapshot = params.registry.get_entity(&cmd.entity).and_then(|e| {
                     params
@@ -1398,6 +1480,25 @@ fn process_gen_commands(
                     &params.transforms,
                     &mut params.behaviors_query,
                 );
+                if let GenResponse::BehaviorAdded { .. } = &resp
+                    && let Some(e) = params.registry.get_entity(&entity_name)
+                {
+                    // The handler mutates `EntityBehaviors` in place when the
+                    // entity has the component; the insert path is deferred.
+                    let live: Vec<_> = params
+                        .behaviors_query
+                        .as_readonly()
+                        .get(e)
+                        .map(|eb| {
+                            eb.behaviors
+                                .iter()
+                                .map(|bi| wt::BehaviorDef::from(&bi.def))
+                                .collect()
+                        })
+                        .ok()
+                        .unwrap_or_else(|| vec![wt::BehaviorDef::from(&def_for_record)]);
+                    update_record(&params, &mut commands, e, move |we| we.behaviors = live);
+                }
                 if let GenResponse::BehaviorAdded { .. } = &resp
                     && let Some(old_we) = pre_snapshot
                     && let Some(e) = params.registry.get_entity(&entity_name)
@@ -1434,6 +1535,25 @@ fn process_gen_commands(
                     &params.registry,
                     &mut params.behaviors_query,
                 );
+                if let GenResponse::BehaviorRemoved { count, .. } = &resp
+                    && *count > 0
+                    && let Some(e) = params.registry.get_entity(&entity_name)
+                {
+                    // The handler removed in place; read what's left.
+                    let live: Vec<_> = params
+                        .behaviors_query
+                        .as_readonly()
+                        .get(e)
+                        .map(|eb| {
+                            eb.behaviors
+                                .iter()
+                                .map(|bi| wt::BehaviorDef::from(&bi.def))
+                                .collect()
+                        })
+                        .ok()
+                        .unwrap_or_default();
+                    update_record(&params, &mut commands, e, move |we| we.behaviors = live);
+                }
                 if let GenResponse::BehaviorRemoved { count, .. } = &resp
                     && *count > 0
                     && let Some(old_we) = pre_snapshot
@@ -6080,6 +6200,37 @@ fn delete_subtree(
     }
     commands.entity(root).despawn();
     records
+}
+
+/// Update an entity's authored record through `edit`. An entity without a
+/// record gets one snapshotted from the scene first, then edited — for
+/// changes the snapshot can't see yet (deferred inserts), the edit is the
+/// authority.
+fn update_record(
+    params: &GenCommandParams,
+    commands: &mut Commands,
+    entity: Entity,
+    edit: impl FnOnce(&mut wt::WorldEntity),
+) {
+    let mut record = match params.authored.get(entity) {
+        Ok(authored) => authored.clone(),
+        Err(_) => {
+            let (Some(name), Some(id)) = (
+                params.registry.get_name(entity),
+                params.registry.get_id(entity),
+            ) else {
+                return;
+            };
+            let we = snapshot_entity(name, entity, id, &snap_queries!(params));
+            let part_of = part_link_in_scene(&we, &params.registry);
+            super::extras::Authored {
+                entity: we,
+                part_of,
+            }
+        }
+    };
+    edit(&mut record.entity);
+    commands.entity(entity).insert(record);
 }
 
 /// Record an edit that took `removed` out of the scene and put `added` in
