@@ -364,6 +364,7 @@ impl Plugin for NetHostPlugin {
                     web::web_drain_inbound,
                     web::web_apply_scene_ops,
                     web::web_projection_sync,
+                    web::web_session_history,
                 )
                     .chain()
                     .run_if(|room: Option<Res<web::WebRoom>>| room.is_some()),

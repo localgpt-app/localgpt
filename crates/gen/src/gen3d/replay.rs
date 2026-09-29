@@ -1,4 +1,4 @@
-//! Time-lapse replay of a session's op log (`--replay <ops.jsonl>`).
+//! Time-lapse replay of a session (`--replay <session | package | ops.jsonl>`).
 //!
 //! Opens the normal window with no agent and applies the log's batches on a
 //! timer — the world builds itself again in front of you. The first tick
@@ -8,7 +8,9 @@
 use std::collections::VecDeque;
 
 use bevy::prelude::*;
+use localgpt_world_sync as sync;
 use localgpt_world_sync::OpLogEntry;
+use localgpt_world_types as wt;
 
 use super::ops_apply::OpsApplier;
 
@@ -21,9 +23,20 @@ pub struct ReplayState {
     total: usize,
 }
 
-/// Read an `ops.jsonl` into replay order, skipping unreadable lines.
+/// Read an `ops.jsonl` — or a session package directory, whose base world
+/// becomes the first batch — into replay order, skipping unreadable lines.
+/// A legacy session directory (a log, no metadata) reads its log directly.
 pub fn load_op_log(path: &str) -> anyhow::Result<VecDeque<OpLogEntry>> {
-    let resolved = std::path::PathBuf::from(shellexpand::tilde(path).as_ref());
+    let mut resolved = std::path::PathBuf::from(shellexpand::tilde(path).as_ref());
+    if resolved.is_dir() {
+        match localgpt_world_agent::session::read_package(&resolved, None) {
+            Ok(pkg) => return package_entries(pkg),
+            Err(localgpt_world_agent::session::PackageError::MissingMeta) => {
+                resolved = resolved.join(localgpt_world_agent::session::LOG_FILE);
+            }
+            Err(e) => anyhow::bail!("can't read package {}: {e}", resolved.display()),
+        }
+    }
     let content = std::fs::read_to_string(&resolved)
         .map_err(|e| anyhow::anyhow!("can't read {}: {e}", resolved.display()))?;
     let mut entries = VecDeque::new();
@@ -38,6 +51,46 @@ pub fn load_op_log(path: &str) -> anyhow::Result<VecDeque<OpLogEntry>> {
     }
     if entries.is_empty() {
         anyhow::bail!("no op batches in {}", resolved.display());
+    }
+    Ok(entries)
+}
+
+/// A package's replay order: its base world as the first batch, then the log.
+fn package_entries(
+    pkg: localgpt_world_agent::session::SessionPackage,
+) -> anyhow::Result<VecDeque<OpLogEntry>> {
+    let mut entries = VecDeque::new();
+    let mut base_ops: Vec<sync::SessionOp> = pkg
+        .base
+        .entities
+        .iter()
+        .cloned()
+        .map(|e| sync::SessionOp::Edit(Box::new(wt::EditOp::spawn(e))))
+        .collect();
+    if let Some(env) = pkg.base.environment.clone() {
+        base_ops.push(sync::SessionOp::Edit(Box::new(
+            wt::EditOp::SetEnvironment { env },
+        )));
+    }
+    if let Some(camera) = pkg.base.camera.clone() {
+        base_ops.push(sync::SessionOp::Edit(Box::new(wt::EditOp::SetCamera {
+            camera,
+        })));
+    }
+    if !base_ops.is_empty() {
+        entries.push_back(OpLogEntry {
+            revision: pkg.base_revision,
+            author: sync::Author {
+                peer: None,
+                name: "base".into(),
+            },
+            ops: base_ops,
+            timestamp_ms: 0,
+        });
+    }
+    entries.extend(pkg.entries);
+    if entries.is_empty() {
+        anyhow::bail!("package {} holds no batches", pkg.base.meta.name);
     }
     Ok(entries)
 }
@@ -68,7 +121,7 @@ fn replay_tick(time: Res<Time>, mut state: ResMut<ReplayState>, mut applier: Ops
         return;
     };
     let left = state.entries.len();
-    applier.apply_ops(&entry.ops);
+    applier.apply_ops(&entry.edit_ops());
     if left.is_multiple_of(20) || left == 0 {
         eprintln!(
             "[replay] rev {} · {} batches left",

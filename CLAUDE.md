@@ -367,9 +367,12 @@ runs the native client (`net/ops_client.rs` — the full gen scene driven by
 the room); `--web` adds browser guests via an invite link (`--web-edit`
 gives them the editor role); guests prompt a scene-only agent unless
 `--remote-tools full`. The host projects its scene into ops (~4 Hz), so
-every tool syncs; committed ops apply back into its scene. Sessions keep an
-op log (`<workspace>/sessions/<name>/ops.jsonl`) with per-user `/undo`,
-`--resume`, and `--replay` time-lapse. See `docs/gen/multiplayer.md` and
+every tool syncs; committed ops apply back into its scene. Sessions are
+packages (`<workspace>/sessions/<name>/`: base `world.ron`, the one log
+`ops.jsonl` — edits plus tool/state history — `session.json`, keyframe
+snapshots; see `docs/rfcs/multiplayer/session-package-format.md`) with
+per-user `/undo`, `--resume`, and `--replay` time-lapse. See
+`docs/gen/multiplayer.md` and
 `crates/gen/src/net/`; the SpacetimeDB module carries the cloud-tier
 inference queue (`crates/spacetime/src/jobs.rs`).
 

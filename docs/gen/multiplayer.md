@@ -88,16 +88,23 @@ a guest needs no install and no internet.
 
 ## History, undo & replay
 
-Every session appends committed batches to
-`<workspace>/sessions/<name>/ops.jsonl`.
+Every session is a package: a base world (`world.ron`), the one log
+(`ops.jsonl`), metadata (`session.json`) and keyframe snapshots
+(`snapshots/rev-<N>.ron`), under `<workspace>/sessions/<name>/`. The log
+holds every committed batch and the history around it — the model's tool
+calls, host state such as score changes — because only edits change the
+document; everything else folds to nothing. See
+`docs/rfcs/multiplayer/session-package-format.md`.
 
 - **Undo:** `/undo` undoes your most recent batch — your own edits and
   builds the room's AI made for you (prompt builds are attributed to the
   asker). Undoing an undo redoes it.
 - **Resume:** `--host --web --resume <session>` replays a session's log
-  before guests join, restoring the world and its revision.
-- **Time-lapse:** `localgpt-gen --replay <ops.jsonl> [--replay-speed N]`
-  opens a no-agent window that rebuilds the world batch by batch.
+  before guests join, restoring the world and its revision. `<session>`
+  is a session name, a package directory, or a bare `ops.jsonl`.
+- **Time-lapse:** `localgpt-gen --replay <session> [--replay-speed N]`
+  opens a no-agent window that rebuilds the world batch by batch; it takes
+  the same paths, and a package replays its base world first.
 
 ## Internet guests (`--relay`)
 

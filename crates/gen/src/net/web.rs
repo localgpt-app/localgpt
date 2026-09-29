@@ -12,8 +12,9 @@
 //! that turns the live scene into ops (so every tool, the inspector and
 //! undo/redo sync without per-tool instrumentation).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::net::{IpAddr, Ipv4Addr};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
@@ -47,6 +48,9 @@ pub(crate) const WEB_REQUESTER_OFFSET: u64 = 1 << 40;
 
 /// How often the live scene is projected into the document and diffed.
 const PROJECTION_INTERVAL: Duration = Duration::from_millis(250);
+
+/// Committed revisions between package snapshots (keyframes for seeking).
+const SNAPSHOT_EVERY: u64 = 500;
 
 /// Largest accepted WebSocket message (submit caps at 256 ops; the authority
 /// rejects anything bigger at the document level anyway).
@@ -145,6 +149,12 @@ pub struct WebRoom {
     warned_bad_projection: bool,
     /// The room's build history, appended on every committed batch.
     op_log: Option<OpLog>,
+    /// The session's directory (the package), when its history persists.
+    session_dir: Option<PathBuf>,
+    /// The revision of the newest snapshot written for this session.
+    last_snapshot_rev: u64,
+    /// The score state as last recorded in the log.
+    last_scores: BTreeMap<String, i32>,
     /// A replayed op log is waiting to be spawned into the scene.
     scene_rebuild_pending: bool,
     /// Browser guests join as editors (direct edits) instead of guests.
@@ -171,6 +181,9 @@ impl WebRoom {
             projection_timer: Timer::new(PROJECTION_INTERVAL, TimerMode::Repeating),
             warned_bad_projection: false,
             op_log: None,
+            session_dir: None,
+            last_snapshot_rev: 0,
+            last_scores: BTreeMap::new(),
             scene_rebuild_pending: false,
             web_edit,
             session_pin,
@@ -185,12 +198,118 @@ impl WebRoom {
             Ok(log) => room.op_log = Some(log),
             Err(e) => eprintln!("web session: op log unavailable ({e}) — history won't persist"),
         }
+        // The session is a package: a base world, metadata and snapshots
+        // next to the log (docs/rfcs/multiplayer/session-package-format.md).
+        room.session_dir = Some(session_dir_path(workspace, session_name));
+        room.ensure_package();
         room
     }
 
-    /// Replay a previous session's op log into the authority.
+    /// Make the session directory a package: write the base and metadata
+    /// when they're missing, then refresh the metadata's head revision.
+    ///
+    /// A fresh directory gets the current document as its base. A legacy
+    /// directory (a log, no metadata) keeps its log and gets an empty base
+    /// at revision 0 — exactly what those sessions folded from.
+    fn ensure_package(&mut self) {
+        let Some(dir) = self.session_dir.clone() else {
+            return;
+        };
+        match localgpt_world_agent::session::read_meta(&dir) {
+            Ok(meta) => {
+                self.last_snapshot_rev = meta.base_revision;
+            }
+            Err(_) => {
+                let fresh = !dir.join(localgpt_world_agent::session::LOG_FILE).exists();
+                let base = if fresh {
+                    self.authority.doc().to_manifest()
+                } else {
+                    // History exists; the base is what it started from.
+                    wt::WorldManifest::new(self.authority.doc().name.clone())
+                };
+                let revision = if fresh { self.authority.revision() } else { 0 };
+                match localgpt_world_agent::session::write_base(&dir, &base, "gen", None, revision)
+                {
+                    Ok(_) => {
+                        self.last_snapshot_rev = revision;
+                        eprintln!(
+                            "web session: package base written at revision {revision} ({}), dir {}",
+                            if fresh { "fresh" } else { "legacy log" },
+                            dir.display()
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!("web session: package base unavailable ({e}) — continuing")
+                    }
+                }
+            }
+        }
+        if let Err(e) = localgpt_world_agent::session::refresh_meta(&dir, self.authority.revision())
+        {
+            eprintln!("web session: session metadata unavailable ({e})");
+        }
+    }
+
+    /// Append one history op (a tool call, a state change) to the session
+    /// log at the current revision. History never bumps the revision.
+    fn record_history(&self, op: sync::SessionOp, author: &str) {
+        let Some(log) = &self.op_log else { return };
+        let _ = log.append(&sync::OpLogEntry {
+            revision: self.authority.revision(),
+            author: sync::Author {
+                peer: None,
+                name: author.into(),
+            },
+            ops: vec![op],
+            timestamp_ms: now_ms(),
+        });
+    }
+
+    /// Replay a previous session into the authority: a package directory
+    /// (base + log, folded by the reader), a legacy session directory
+    /// (a log, no metadata), or a bare `ops.jsonl`.
     fn replay_log(&mut self, path: &std::path::Path) {
-        let Ok(content) = std::fs::read_to_string(path) else {
+        let mut path = path.to_path_buf();
+        if path.is_dir() {
+            match localgpt_world_agent::session::read_package(&path, None) {
+                Ok(pkg) => {
+                    let head = pkg
+                        .entries
+                        .last()
+                        .map_or(pkg.base_revision, |e| e.revision.max(pkg.base_revision));
+                    let entities = pkg.doc.len();
+                    if pkg.skipped_lines > 0 {
+                        eprintln!(
+                            "web session: skipped {} unreadable log lines",
+                            pkg.skipped_lines
+                        );
+                    }
+                    self.authority.load_base(pkg.doc, head);
+                    self.scene_rebuild_pending = true;
+                    eprintln!(
+                        "web session: resumed package {} — base revision {}, head revision {}, {} entities",
+                        path.display(),
+                        pkg.base_revision,
+                        head,
+                        entities
+                    );
+                    return;
+                }
+                Err(localgpt_world_agent::session::PackageError::MissingMeta) => {
+                    // A legacy session directory: a log, no metadata. Read
+                    // the log directly, the way the room always did.
+                    path = path.join(localgpt_world_agent::session::LOG_FILE);
+                }
+                Err(e) => eprintln!(
+                    "web session: package at {} unreadable ({e}) — starting fresh",
+                    path.display()
+                ),
+            }
+            if path.is_dir() {
+                return;
+            }
+        }
+        let Ok(content) = std::fs::read_to_string(&path) else {
             eprintln!(
                 "web session: no op log at {} — starting fresh",
                 path.display()
@@ -204,7 +323,7 @@ impl WebRoom {
             }
             match sync::decode_line(line) {
                 Ok(entry) => {
-                    if let Err(e) = self.authority.apply_replay(&entry.ops) {
+                    if let Err(e) = self.authority.apply_replay(&entry.edit_ops()) {
                         eprintln!(
                             "web session: op log line {} no longer applies ({e}) — replay stops here",
                             n + 1
@@ -285,21 +404,23 @@ fn session_slug(name: &str) -> String {
     }
 }
 
-/// Where a session's op log lives.
-fn session_op_log_path(workspace: &std::path::Path, session_name: &str) -> std::path::PathBuf {
-    workspace
-        .join("sessions")
-        .join(session_slug(session_name))
-        .join("ops.jsonl")
+/// Where a session's package lives.
+fn session_dir_path(workspace: &std::path::Path, session_name: &str) -> std::path::PathBuf {
+    workspace.join("sessions").join(session_slug(session_name))
 }
 
-/// Resolve `--resume`: a session name (its standard log path) or an explicit
-/// path to an `ops.jsonl`.
-pub(crate) fn resolve_op_log_path(workspace: &std::path::Path, resume: &str) -> std::path::PathBuf {
-    if resume.ends_with(".jsonl") || resume.contains('/') {
+/// Where a session's op log lives.
+fn session_op_log_path(workspace: &std::path::Path, session_name: &str) -> std::path::PathBuf {
+    session_dir_path(workspace, session_name).join("ops.jsonl")
+}
+
+/// Resolve `--resume` / `--replay`: a session name (its standard directory),
+/// a package directory, or an explicit path to an `ops.jsonl`.
+pub fn resolve_op_log_path(workspace: &std::path::Path, resume: &str) -> std::path::PathBuf {
+    if resume.contains('/') || resume.ends_with(".jsonl") || resume.ends_with(".world") {
         std::path::PathBuf::from(shellexpand::tilde(resume).as_ref())
     } else {
-        session_op_log_path(workspace, resume)
+        session_dir_path(workspace, resume)
     }
 }
 
@@ -549,7 +670,11 @@ pub(crate) fn deliver(room: &WebRoom, out: Vec<Outbound>) {
             let _ = log.append(&sync::OpLogEntry {
                 revision: *revision,
                 author: author.clone(),
-                ops: ops.clone(),
+                ops: ops
+                    .iter()
+                    .cloned()
+                    .map(|op| sync::SessionOp::Edit(Box::new(op)))
+                    .collect(),
                 timestamp_ms: now_ms(),
             });
         }
@@ -616,6 +741,50 @@ pub(crate) fn web_drain_inbound(
             InboundEvent::Message { id, msg } => {
                 handle_client_msg(&mut room, &mut jobs, &mut pending, id, msg)
             }
+        }
+    }
+}
+
+/// Record the session's non-edit history: the model's tool calls, host
+/// state changes, and package snapshots when the revisions pile up.
+/// History entries carry the current revision; they never bump it.
+pub(crate) fn web_session_history(
+    mut room: ResMut<WebRoom>,
+    mut generation_log: ResMut<crate::gen3d::generation_log::GenerationLog>,
+    score: Res<crate::interaction::ScoreBoard>,
+) {
+    for record in generation_log.take_session_records() {
+        room.record_history(sync::SessionOp::Tool(record), "llm");
+    }
+
+    let changed: BTreeMap<String, serde_json::Value> = score
+        .scores
+        .iter()
+        .filter(|(k, v)| room.last_scores.get(*k) != Some(v))
+        .map(|(k, v)| (k.clone(), serde_json::json!(v)))
+        .collect();
+    if !changed.is_empty() {
+        room.last_scores = score.scores.iter().map(|(k, v)| (k.clone(), *v)).collect();
+        room.record_history(
+            sync::SessionOp::State(sync::StateRecord { state: changed }),
+            "host",
+        );
+    }
+
+    let revision = room.authority.revision();
+    if revision >= room.last_snapshot_rev + SNAPSHOT_EVERY {
+        let Some(dir) = room.session_dir.clone() else {
+            return;
+        };
+        let manifest = room.authority.doc().to_manifest();
+        match localgpt_world_agent::session::write_snapshot(&dir, revision, &manifest) {
+            Ok(()) => {
+                room.last_snapshot_rev = revision;
+                if let Err(e) = localgpt_world_agent::session::refresh_meta(&dir, revision) {
+                    eprintln!("web session: session metadata unavailable ({e})");
+                }
+            }
+            Err(e) => eprintln!("web session: snapshot unavailable ({e})"),
         }
     }
 }

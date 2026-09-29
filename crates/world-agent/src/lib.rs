@@ -24,6 +24,7 @@ pub mod interpreter;
 #[cfg(feature = "llm")]
 pub mod localgguf;
 pub mod paths;
+pub mod session;
 
 pub use assets::{
     AssetEntry, AssetManifest, Tier, fold_seed, mesh_path, read_manifest_at, resolve_kind,

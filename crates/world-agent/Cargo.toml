@@ -18,10 +18,14 @@ schema = ["dep:schemars"]
 
 [dependencies]
 localgpt-world-types = { workspace = true }
+localgpt-world-sync = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 schemars = { version = "1.2", optional = true }
+# `session`: the session package on disk (RON base + JSONL log + JSON meta).
+ron = "0.12.1"
+sha2 = "0.11"
 
 mistralrs = { version = "0.8", optional = true }
 tokio = { version = "1", features = ["rt", "time"], optional = true }

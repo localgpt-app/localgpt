@@ -131,15 +131,17 @@ struct Cli {
     #[arg(long, requires = "host")]
     relay: Option<String>,
 
-    /// Replay a previous web session's op log before guests join (with
-    /// --host --web). Pass a session name (reads
-    /// <workspace>/sessions/<name>/ops.jsonl) or a path to an ops.jsonl.
+    /// Replay a previous session before guests join (with --host --web).
+    /// Pass a session name (its package under
+    /// <workspace>/sessions/<name>/), a package directory, or a path to
+    /// an ops.jsonl.
     #[cfg(feature = "multiplayer")]
     #[arg(long, requires = "web")]
     resume: Option<String>,
 
-    /// Replay an op log as a time-lapse in the window: the world rebuilds
-    /// itself batch by batch. No agent, no session. Pass an ops.jsonl path.
+    /// Replay a session as a time-lapse in the window: the world rebuilds
+    /// itself batch by batch. No agent, no session. Pass a session name,
+    /// a package directory, or an ops.jsonl path.
     #[arg(long)]
     replay: Option<String>,
 
@@ -332,13 +334,14 @@ fn main() -> Result<()> {
         settings.tool_profile.as_deref(),
     )?;
 
-    // --replay: time-lapse an op log in the window — no agent, no session.
+    // --replay: time-lapse a session in the window — no agent, no session.
     if let Some(replay_path) = cli.replay.as_deref() {
-        let entries = gen3d::replay::load_op_log(replay_path)?;
+        let resolved = localgpt_gen::net::web::resolve_op_log_path(&workspace, replay_path);
+        let entries = gen3d::replay::load_op_log(resolved.to_string_lossy().as_ref())?;
         eprintln!(
             "[replay] {} batches from {} ({}x speed)",
             entries.len(),
-            replay_path,
+            resolved.display(),
             cli.replay_speed
         );
         let (_bridge, channels) = gen3d::create_gen_channels();
