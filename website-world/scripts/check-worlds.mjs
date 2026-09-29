@@ -47,8 +47,10 @@ const all = (await readdir(join(root, 'worlds'))).filter((f) => f.endsWith('.jso
 // A referenced file that IS present but broken still renders and still fails.
 const skipped = [];
 const worlds = [];
+const manifests = {};
 for (const world of all) {
   const manifest = await readFile(join(root, 'worlds', world), 'utf8');
+  manifests[world] = manifest;
   const refs = [...manifest.matchAll(/"([^"]*\.(?:glb|gltf|mp3|ogg|wav|flac))"/g)].map((m) => m[1]);
   const missing = refs.filter((ref) => !existsSync(join(root, 'worlds/assets', ref)));
   if (missing.length) skipped.push(`${world} (${missing.length} asset(s) absent)`);
@@ -78,12 +80,19 @@ for (const world of worlds) {
     // Reported through `info` below.
   }
   const canvas = await page.evaluate(() => Boolean(document.querySelector('#scene canvas')));
+  // A world with a start → show_text trigger must show it: event, runtime,
+  // action and the caption element, end to end.
+  const startsWithText = (manifests[world] || '').includes('"start"');
+  let triggerOk = true;
+  if (info && info.triggerCount > 0 && startsWithText) {
+    await page.waitForTimeout(300);
+    triggerOk = await page.evaluate(() => document.getElementById('caption').textContent.trim().length > 0);
+  }
   // A world with a proximity trigger fires it: move the visitor (the
   // camera) into range and the lamp's once-trigger hides it — event,
   // runtime, action, scene graph, end to end.
-  let triggerOk = true;
   if (info && info.triggerCount > 0 && world === 'triggers.json') {
-    triggerOk = await page.evaluate(async () => {
+    const lampOk = await page.evaluate(async () => {
       const viewer = window.localgptViewer;
       const lamp = viewer.entities.get('lamp');
       if (!lamp || lamp.object.visible !== true) return false;
@@ -91,6 +100,7 @@ for (const world of worlds) {
       await new Promise((resolve) => setTimeout(resolve, 400));
       return lamp.object.visible === false;
     });
+    triggerOk = triggerOk && lampOk;
   }
   let tourOk = true;
   if (info && info.tourCount > 0) {
