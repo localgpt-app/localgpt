@@ -423,6 +423,37 @@ mod tests {
     }
 
     #[test]
+    fn export_zip_round_trips_the_transport_form() {
+        let dir = TempDir::new();
+        write_base(&dir.0, &manifest_with(2), "gen", None, 0).unwrap();
+        append_entry(&dir.0, &entry(1, "added")).unwrap();
+        let folded = read_package(&dir.0, None).unwrap();
+
+        let zip_path = dir.0.join("test.world");
+        export_zip(&dir.0, &zip_path).unwrap();
+
+        // The archive holds the package's files, stored, under relative names.
+        let file = std::fs::File::open(&zip_path).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        let mut names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().to_string())
+            .collect();
+        names.sort();
+        assert!(names.contains(&"world.ron".to_string()));
+        assert!(names.contains(&"ops.jsonl".to_string()));
+        assert!(names.contains(&"session.json".to_string()));
+
+        // Unzip to a fresh directory; the package folds to the same state.
+        let out = TempDir::new();
+        archive
+            .extract(&out.0)
+            .expect("extract is available with default features");
+        let unzipped = read_package(&out.0, None).unwrap();
+        assert_eq!(unzipped.doc.len(), folded.doc.len());
+        assert!(unzipped.doc.contains(101));
+    }
+
+    #[test]
     fn missing_meta_is_not_a_package() {
         let dir = TempDir::new();
         assert!(matches!(
@@ -430,4 +461,65 @@ mod tests {
             Err(PackageError::MissingMeta)
         ));
     }
+}
+
+// ---------------------------------------------------------------------------
+// The transport form
+// ---------------------------------------------------------------------------
+
+/// Zip a session directory into the transport form: one `.world` file.
+///
+/// Entries are stored (uncompressed): the assets are already compressed
+/// media (GLB, PNG, MP3), and the log stays readable inside the archive.
+/// Walk order is sorted, so the same package zips to the same archive.
+pub fn export_zip(dir: &Path, dest: &Path) -> Result<(), PackageError> {
+    use std::fs::File;
+    use std::io::copy;
+    use zip::CompressionMethod;
+    use zip::ZipWriter;
+    use zip::write::SimpleFileOptions;
+
+    let mut files: Vec<PathBuf> = Vec::new();
+    collect_files(dir, &mut files)?;
+    files.sort();
+
+    let file = File::create(dest)?;
+    let mut zip = ZipWriter::new(file);
+    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+    for path in &files {
+        let name = path
+            .strip_prefix(dir)
+            .map_err(|e| PackageError::Parse {
+                file: "the package",
+                detail: e.to_string(),
+            })?
+            .to_string_lossy()
+            .replace('\\', "/");
+        zip.start_file(name.clone(), options)
+            .map_err(|e| PackageError::Parse {
+                file: "the package",
+                detail: format!("can't start {name}: {e}"),
+            })?;
+        let mut source = File::open(path)?;
+        copy(&mut source, &mut zip)?;
+    }
+    zip.finish().map_err(|e| PackageError::Parse {
+        file: "the package",
+        detail: e.to_string(),
+    })?;
+    Ok(())
+}
+
+/// Every file under `dir`, recursively.
+fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_files(&path, out)?;
+        } else {
+            out.push(path);
+        }
+    }
+    Ok(())
 }

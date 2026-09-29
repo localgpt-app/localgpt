@@ -202,16 +202,22 @@ Neither app changes its source; both can emit and consume the package:
   `fold_log` are the pure reader paths.
 - `world-agent` `session.rs`: the package on disk — `write_base`,
   `append_entry`, `write_snapshot`, `update_meta`, `read_package` (with
-  revision seek and torn-line tolerance), `sha256` integrity helpers.
-  Lives here because Gen, MD and Verse all depend on this crate and none
-  can depend on `localgpt-core`.
+  revision seek and torn-line tolerance), `sha256` integrity helpers,
+  and `export_zip` for the transport form (a `.world` file: stored
+  entries, sorted walk, round-trip tested). Lives here because Gen, MD
+  and Verse all depend on this crate and none can depend on
+  `localgpt-core`.
+- The format is published as the Open World Format
+  (github.com/openworldformat/openworldformat, openworldformat.org): the
+  spec, the schema, this conformance suite and a JS reference fold.
 - Gen: web sessions are packages (base + `session.json` written when the
   room opens, tool calls and score changes land in the log, snapshots
   every 500 committed revisions); `--resume` and `--replay` accept a
   session name, an `ops.jsonl` path, or a package directory.
 - Not yet wired: `input`/`clock` recording (types and fold tolerance are
   in), MD publish, Verse transport logging, the web viewer's scrub
-  controls.
+  controls, and the Gen command that zips a session into a `.world`
+  (`export_zip` is the function; a tool or subcommand wraps it).
 
 ## Related documents
 

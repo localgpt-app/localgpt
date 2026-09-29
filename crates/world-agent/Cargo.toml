@@ -26,6 +26,9 @@ schemars = { version = "1.2", optional = true }
 # `session`: the session package on disk (RON base + JSONL log + JSON meta).
 ron = "0.12.1"
 sha2 = "0.11"
+# `session`: the .world transport form (stored entries — assets are already
+# compressed media, and the log stays inspectable in the archive).
+zip = { version = "6", default-features = false }
 
 mistralrs = { version = "0.8", optional = true }
 tokio = { version = "1", features = ["rt", "time"], optional = true }
