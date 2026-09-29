@@ -530,7 +530,13 @@ pub fn handle_save_world(
         behavior_files: None,
         audio_files: None,
         avatar_file: None,
-        entities: world_entities,
+        // By id, so the same scene saves byte-identically however the name
+        // registry happened to iterate.
+        entities: {
+            let mut entities = world_entities;
+            entities.sort_by_key(|e| e.id.0);
+            entities
+        },
         creations: library.creations,
         next_entity_id: next_id,
     };

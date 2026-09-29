@@ -7907,6 +7907,369 @@ mod tests {
         serde_json::from_value(serde_json::json!({ "name": name })).unwrap()
     }
 
+    /// The full tool path, as an agent drives it: build entities, define a
+    /// creation, place instances (one with a part override), add a trigger,
+    /// save, clear, reload, save again — and the two saves agree, the parts
+    /// are named, and the trigger is back and running.
+    #[test]
+    fn define_instance_trigger_survive_save_and_reload() {
+        use tokio::sync::mpsc;
+
+        fn send(
+            app: &mut App,
+            tx: &mpsc::UnboundedSender<GenCommand>,
+            rx: &mut mpsc::UnboundedReceiver<GenResponse>,
+            cmd: GenCommand,
+        ) -> GenResponse {
+            tx.send(cmd).unwrap();
+            for _ in 0..60 {
+                app.update();
+                if let Ok(resp) = rx.try_recv() {
+                    return resp;
+                }
+            }
+            panic!("the Bevy side never answered");
+        }
+        fn read_world(dir: &Path) -> wt::WorldManifest {
+            let text = std::fs::read_to_string(dir.join("world.ron")).unwrap();
+            let manifest: wt::WorldManifest = ron::from_str(&text).unwrap();
+            manifest.check_version().unwrap();
+            manifest
+        }
+
+        let workspace = std::env::temp_dir().join(format!("gen-smoke-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&workspace);
+        std::fs::create_dir_all(workspace.join("skills")).unwrap();
+
+        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        let (resp_tx, mut resp_rx) = mpsc::unbounded_channel();
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            bevy::asset::AssetPlugin {
+                file_path: "/".to_string(),
+                ..default()
+            },
+            bevy::image::ImagePlugin::default(),
+        ))
+        .init_asset::<StandardMaterial>()
+        .init_asset::<Mesh>()
+        .init_asset::<WorldAsset>()
+        .insert_resource(GenChannelRes::new(GenChannels {
+            cmd_rx,
+            resp_tx,
+            cmd_tx: cmd_tx.clone(),
+        }))
+        .insert_resource(GenWorkspace {
+            path: workspace.clone(),
+        })
+        .insert_resource(GenInitialScene { path: None })
+        .init_resource::<GenInitialWorld>()
+        .init_resource::<NameRegistry>()
+        .init_resource::<NextEntityId>()
+        .init_resource::<DirtyTracker>()
+        .init_resource::<UndoStack>()
+        .init_resource::<PendingScreenshots>()
+        .init_resource::<PendingGltfLoads>()
+        .init_resource::<PendingWorldSetup>()
+        .init_resource::<WorldTours>()
+        .init_resource::<CurrentWorld>()
+        .init_resource::<BehaviorState>()
+        .init_resource::<avatar::CameraMode>()
+        .init_resource::<crate::worldgen::NavMeshOverrides>()
+        .init_resource::<crate::gen3d::asset_gen::AssetGenManager>()
+        .init_resource::<crate::gen3d::pending_writes::PendingWrites>()
+        .init_resource::<crate::gen3d::generation_log::GenerationLog>()
+        .init_resource::<crate::gen3d::region_dirty::RegionDirtyFlags>()
+        .init_resource::<ReferenceBoard>()
+        .init_resource::<crate::gen3d::extras::CreationLibrary>()
+        .init_resource::<localgpt_world_bevy::modulation::Soundtrack>()
+        .init_resource::<crate::gen3d::gallery_ui::PendingGalleryLoad>()
+        .add_systems(Startup, audio::init_audio_engine)
+        .add_systems(Update, process_gen_commands);
+        app.update(); // Startup: the audio engine, if any.
+
+        fn spawn(
+            name: &str,
+            shape: PrimitiveShape,
+            dims: &[(&str, f32)],
+            at: [f32; 3],
+            parent: Option<&str>,
+        ) -> GenCommand {
+            GenCommand::SpawnPrimitive(SpawnPrimitiveCmd {
+                name: name.into(),
+                shape,
+                dimensions: dims.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+                position: at,
+                rotation_degrees: [0.0, 0.0, 0.0],
+                scale: [1.0, 1.0, 1.0],
+                color: [0.5, 0.5, 0.5, 1.0],
+                metallic: 0.0,
+                roughness: 0.8,
+                emissive: [0.0, 0.0, 0.0, 0.0],
+                alpha_mode: None,
+                unlit: None,
+                parent: parent.map(str::to_string),
+            })
+        }
+
+        // Build: ground, a trunk with leaves on it.
+        send(
+            &mut app,
+            &cmd_tx,
+            &mut resp_rx,
+            spawn(
+                "ground",
+                PrimitiveShape::Plane,
+                &[("x", 20.0), ("z", 20.0)],
+                [0.0, 0.0, 0.0],
+                None,
+            ),
+        );
+        send(
+            &mut app,
+            &cmd_tx,
+            &mut resp_rx,
+            spawn(
+                "trunk",
+                PrimitiveShape::Cylinder,
+                &[("radius", 0.2), ("height", 2.0)],
+                [0.0, 1.0, 0.0],
+                None,
+            ),
+        );
+        send(
+            &mut app,
+            &cmd_tx,
+            &mut resp_rx,
+            spawn(
+                "leaves",
+                PrimitiveShape::Sphere,
+                &[("radius", 1.0)],
+                [0.0, 1.5, 0.0],
+                Some("trunk"),
+            ),
+        );
+
+        // Define a creation from the trunk (its child comes along); the
+        // originals become its first instance.
+        let resp = send(
+            &mut app,
+            &cmd_tx,
+            &mut resp_rx,
+            GenCommand::DefineCreation(DefineCreationCmd {
+                name: "tree".into(),
+                entities: vec!["trunk".into()],
+                category: Some("vegetation".into()),
+                replace: true,
+                instance_name: None,
+            }),
+        );
+        let GenResponse::CreationDefined {
+            instance: Some(instance),
+            parts,
+            ..
+        } = resp
+        else {
+            panic!("{resp:?}");
+        };
+        assert_eq!(instance, "tree_1");
+        assert_eq!(parts, ["trunk", "leaves"]);
+
+        // Two more copies: red leaves, and a taller trunk.
+        fn instance_cmd(name: &str, at: [f32; 3], overrides: Vec<wt::PartOverride>) -> GenCommand {
+            GenCommand::SpawnInstance(SpawnInstanceCmd {
+                creation: "tree".into(),
+                name: name.into(),
+                position: at,
+                rotation_degrees: [0.0, 0.0, 0.0],
+                scale: [1.0, 1.0, 1.0],
+                overrides,
+            })
+        }
+        let red = wt::PartOverride {
+            part: wt::EntityName::new("leaves"),
+            patch: wt::EntityPatch {
+                material: Some(Some(wt::MaterialDef {
+                    color: [0.8, 0.2, 0.1, 1.0],
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+        };
+        let tall = wt::PartOverride {
+            part: wt::EntityName::new("trunk"),
+            patch: wt::EntityPatch {
+                transform: Some(wt::WorldTransform {
+                    position: [0.0, 1.5, 0.0],
+                    rotation_degrees: [0.0, 0.0, 0.0],
+                    scale: [1.0, 1.5, 1.0],
+                    visible: true,
+                }),
+                ..Default::default()
+            },
+        };
+        send(
+            &mut app,
+            &cmd_tx,
+            &mut resp_rx,
+            instance_cmd("tree_2", [3.0, 0.0, 0.0], vec![red.clone()]),
+        );
+        send(
+            &mut app,
+            &cmd_tx,
+            &mut resp_rx,
+            instance_cmd("tree_big", [-3.0, 0.0, 0.0], vec![tall.clone()]),
+        );
+
+        // A trigger on one instance.
+        let resp = send(
+            &mut app,
+            &cmd_tx,
+            &mut resp_rx,
+            GenCommand::AddTrigger(crate::interaction::AddTriggerParams {
+                entity_id: "tree_2".into(),
+                trigger_type: crate::interaction::TriggerType::Click,
+                action: crate::interaction::TriggerAction::Disable,
+                radius: None,
+                cooldown: None,
+                interval: None,
+                max_distance: Some(8.0),
+                prompt_text: Some("Chop".into()),
+                once: false,
+                destination: None,
+                text: None,
+                amount: None,
+                state_key: None,
+                category: None,
+                requires_item: None,
+            }),
+        );
+        assert!(matches!(resp, GenResponse::Modified { .. }), "{resp:?}");
+
+        // Save.
+        let resp = send(
+            &mut app,
+            &cmd_tx,
+            &mut resp_rx,
+            GenCommand::SaveWorld(SaveWorldCmd {
+                name: "smoke_a".into(),
+                description: None,
+                path: None,
+            }),
+        );
+        let GenResponse::WorldSaved {
+            path: saved_a,
+            warnings,
+            ..
+        } = resp
+        else {
+            panic!("{resp:?}");
+        };
+        assert!(warnings.is_empty(), "{warnings:?}");
+        let first = read_world(Path::new(&saved_a));
+        assert_eq!(first.creations.len(), 1);
+        assert_eq!(first.creations[0].name, "tree");
+        assert_eq!(first.creations[0].parts.len(), 2);
+        let names: Vec<&str> = first.entities.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(
+            names,
+            ["ground", "tree_1", "tree_2", "tree_big"],
+            "{names:?}"
+        );
+        // Deterministic order: by entity id, whatever the registry iterates.
+        let tree_2 = first
+            .entities
+            .iter()
+            .find(|e| e.name.as_str() == "tree_2")
+            .unwrap();
+        assert_eq!(tree_2.instance_of.as_ref().unwrap().overrides, vec![red]);
+        assert_eq!(tree_2.triggers.len(), 1);
+        let tree_big = first
+            .entities
+            .iter()
+            .find(|e| e.name.as_str() == "tree_big")
+            .unwrap();
+        assert_eq!(tree_big.instance_of.as_ref().unwrap().overrides, vec![tall]);
+
+        // Clear, reload: the parts are named entities, the trigger runs.
+        send(
+            &mut app,
+            &cmd_tx,
+            &mut resp_rx,
+            GenCommand::ClearScene {
+                keep_camera: true,
+                keep_lights: true,
+            },
+        );
+        let resp = send(
+            &mut app,
+            &cmd_tx,
+            &mut resp_rx,
+            GenCommand::LoadWorld {
+                path: saved_a.clone(),
+                clear: true,
+            },
+        );
+        let GenResponse::WorldLoaded { entities, .. } = resp else {
+            panic!("{resp:?}");
+        };
+        // ground + three instances + two parts each.
+        assert_eq!(entities, 10);
+        for _ in 0..3 {
+            app.update();
+        }
+        use bevy::ecs::system::RunSystemOnce;
+        let (parts_named, click_triggers) = app
+            .world_mut()
+            .run_system_once(
+                |registry: Res<NameRegistry>,
+                 clicks: Query<(), With<crate::interaction::ClickTrigger>>| {
+                    (
+                        registry.get_entity("tree_2/leaves").is_some(),
+                        clicks.iter().count(),
+                    )
+                },
+            )
+            .unwrap();
+        assert!(parts_named, "the instance's parts are named entities");
+        assert_eq!(
+            click_triggers, 1,
+            "the reloaded trigger is back on the runtime"
+        );
+
+        // Save again; the world is the same world.
+        let resp = send(
+            &mut app,
+            &cmd_tx,
+            &mut resp_rx,
+            GenCommand::SaveWorld(SaveWorldCmd {
+                name: "smoke_b".into(),
+                description: None,
+                path: None,
+            }),
+        );
+        let GenResponse::WorldSaved { path: saved_b, .. } = resp else {
+            panic!("{resp:?}");
+        };
+        let second = read_world(Path::new(&saved_b));
+        let shape = |m: &wt::WorldManifest| {
+            let mut out: Vec<_> = m
+                .entities
+                .iter()
+                .map(|e| (e.name.clone(), e.instance_of.clone(), e.triggers.clone()))
+                .collect();
+            out.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
+            out
+        };
+        assert_eq!(shape(&first), shape(&second));
+        assert_eq!(first.creations, second.creations);
+        // Each load expands parts at fresh ids, so the counter only grows.
+        assert!(second.next_entity_id >= first.next_entity_id);
+
+        let _ = std::fs::remove_dir_all(&workspace);
+    }
+
     /// The conformance textures load through the asset server the way a
     /// world load asks for them: resolved in `assets/`, colour maps as sRGB
     /// and data maps as linear.
