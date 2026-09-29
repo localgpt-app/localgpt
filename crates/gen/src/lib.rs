@@ -5,6 +5,7 @@
 
 #![allow(clippy::items_after_test_module)]
 
+pub mod agent_loop;
 pub mod character;
 pub mod character_tools;
 pub mod config;

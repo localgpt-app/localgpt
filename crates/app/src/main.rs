@@ -14,6 +14,7 @@
 //! cargo run -p localgpt-app -- --md notes.md --no-author   # rules only, no model
 //! cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
 //! cargo run -p localgpt-app -- --world place.json    # any world manifest
+//! cargo run -p localgpt-app -- --prompt "a quiet harbor at dusk"   # a first prompt
 //! ```
 //!
 //! A song (`--song`) opens as the world Verse's library builds for it, and
@@ -21,7 +22,10 @@
 //! world's modulations follow it. The assistant (chat + memory) is the next
 //! mode; nothing here forecloses it. What this crate deliberately does NOT do
 //! is duplicate Gen's entry path — everything heavy comes from the gen lib,
-//! and this is the thin assembly.
+//! and this is the thin assembly. The prompt panel runs Gen's own agent loop
+//! (`localgpt_gen::agent_loop`): its slash commands and model menu, streamed
+//! turns, the MCP relay a CLI backend reaches the window through
+//! (`localgpt-app mcp-server --connect`), and guests once a session is hosted.
 
 mod authoring;
 mod document;
@@ -31,12 +35,8 @@ mod screenshot;
 mod song;
 
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use bevy::prelude::*;
-use localgpt_core::agent::Agent;
-use localgpt_core::agent::tools::create_safe_tools;
-use localgpt_core::memory::MemoryManager;
 use localgpt_gen::desktop::{self, ChatEvent, PanelSettings};
 use localgpt_gen::gen3d;
 
@@ -53,6 +53,8 @@ struct Args {
     tools: Option<String>,
     /// Build documents from rules and fences only, never asking a model.
     no_author: bool,
+    /// A first prompt for the panel's agent, as `localgpt-gen "<prompt>"`.
+    prompt: Option<String>,
 }
 
 fn parse_args() -> Args {
@@ -65,10 +67,11 @@ fn parse_args() -> Args {
             "--world" => args.world = iter.next(),
             "--tools" => args.tools = iter.next(),
             "--no-author" => args.no_author = true,
+            "--prompt" => args.prompt = iter.next(),
             other => {
                 eprintln!(
                     "localgpt-app: unknown argument {other:?} \
-                     (--md, --song, --world, --tools, --no-author)"
+                     (--md, --song, --world, --tools, --prompt, --no-author)"
                 );
                 std::process::exit(2);
             }
@@ -112,7 +115,32 @@ fn init_logging() {
     }
 }
 
+/// `mcp-server --connect [port]`: what a CLI backend's MCP config runs to
+/// reach the open window (see `agent_loop::uses_cli_backend`). `None` for an
+/// ordinary launch; `Some(None)` means "the port the window advertised".
+fn relay_request(args: &[String]) -> Option<Option<u16>> {
+    match args {
+        [command, flag, rest @ ..] if command == "mcp-server" && flag == "--connect" => {
+            Some(rest.first().and_then(|port| port.parse().ok()))
+        }
+        _ => None,
+    }
+}
+
 fn main() -> anyhow::Result<()> {
+    // A stdio ↔ TCP relay into the running window, spawned by the CLI
+    // backend: no window, and nothing but the protocol on stdout.
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    if let Some(port) = relay_request(&argv) {
+        let port = port
+            .or_else(gen3d::mcp_relay::read_relay_port)
+            .ok_or_else(|| anyhow::anyhow!("no LocalGPT window is running to connect to"))?;
+        return tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?
+            .block_on(localgpt_gen::agent_loop::run_mcp_stdio_relay(port));
+    }
+
     let args = parse_args();
     init_logging();
 
@@ -202,8 +230,21 @@ fn main() -> anyhow::Result<()> {
             std::process::exit(2);
         });
 
-    // The agent on a background thread: Bevy owns the main thread (macOS).
+    // Collaboration, as in Gen's desktop mode: the host plugin is installed
+    // dormant, and the panel's Collaborate section starts a session.
+    let (mut host_options, net_hooks) = localgpt_gen::net::host::create_host_channels();
+    host_options.session_name = localgpt_gen::net::default_session_name();
+
+    // A CLI backend reaches the world's tools through the MCP relay, which
+    // the window serves and `localgpt-app mcp-server --connect` joins.
+    let relay = localgpt_gen::agent_loop::uses_cli_backend(&config);
+
+    // Gen's agent loop on a background thread: Bevy owns the main thread
+    // (macOS). No REPL: the panel is the only local input.
     let agent_config = config.clone();
+    let relay_bridge = bridge.clone();
+    let failure_sink = agent_channels.sink.clone();
+    let first_prompt = args.prompt.clone();
     std::thread::spawn(move || {
         let rt = match tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -211,19 +252,47 @@ fn main() -> anyhow::Result<()> {
         {
             Ok(rt) => rt,
             Err(e) => {
-                agent_channels
-                    .sink
-                    .send(ChatEvent::Failed(format!("no tokio runtime: {e}")));
+                failure_sink.send(ChatEvent::Failed(format!("no tokio runtime: {e}")));
                 return;
             }
         };
-        if let Err(e) = rt.block_on(run_agent(
-            agent_config,
-            bridge,
-            agent_channels,
-            tool_profile,
-        )) {
-            eprintln!("localgpt-app: agent stopped: {e:#}");
+        let outcome = rt.block_on(async move {
+            if relay {
+                match gen3d::mcp_relay::start_mcp_relay(relay_bridge, &agent_config).await {
+                    Ok(port) => tracing::info!("MCP relay on port {port} for the CLI backend"),
+                    Err(e) => tracing::warn!(
+                        "MCP relay failed to start ({e}): the CLI backend can't reach the \
+                         world's tools"
+                    ),
+                }
+            }
+            localgpt_gen::agent_loop::run_agent_loop(
+                bridge,
+                AGENT_ID,
+                first_prompt,
+                agent_config,
+                None,
+                Some(net_hooks),
+                agent_channels,
+                true,
+                tool_profile,
+            )
+            .await
+        });
+        match outcome {
+            // /quit in the panel ends the loop, and the app with it.
+            Ok(()) => {
+                if relay {
+                    gen3d::mcp_relay::cleanup_relay_port();
+                }
+                std::process::exit(0);
+            }
+            // Say what went wrong in the panel, and leave the window open to
+            // read it.
+            Err(e) => {
+                tracing::error!("agent loop stopped: {e:#}");
+                failure_sink.send(ChatEvent::Failed(format!("{e:#}")));
+            }
         }
     });
 
@@ -257,6 +326,9 @@ fn main() -> anyhow::Result<()> {
     app.insert_resource(gen3d::plugin::GenInitialWorld {
         path: initial_world,
     });
+    app.add_plugins(localgpt_gen::net::host::NetHostPlugin {
+        options: std::sync::Mutex::new(Some(host_options)),
+    });
     app.add_plugins(desktop::PromptPanelPlugin::new(
         panel_channels,
         PanelSettings {
@@ -277,6 +349,10 @@ fn main() -> anyhow::Result<()> {
         app.add_plugins(shot);
     }
     app.run();
+    // So a later window doesn't find this one's stale port.
+    if relay {
+        gen3d::mcp_relay::cleanup_relay_port();
+    }
     Ok(())
 }
 
@@ -306,65 +382,28 @@ fn tool_profile(
         .unwrap_or(ToolProfile::Core))
 }
 
-/// The panel-driven agent: one turn per prompt, everything else identical to
-/// Gen's desktop loop in shape (safe tools + memory writes + the gen tools,
-/// filtered by the tool profile). Streaming is folded into a single Delta —
-/// per-token streaming is Gen's refinment to make, not this crate's to
-/// duplicate.
-async fn run_agent(
-    config: localgpt_core::config::Config,
-    bridge: Arc<gen3d::GenBridge>,
-    mut panel: localgpt_gen::desktop::AgentChannels,
-    profile: gen3d::tool_profile::ToolProfile,
-) -> anyhow::Result<()> {
-    // See Gen's run_agent_loop for why new_with_full_config: the agent must
-    // stay in this workspace, not fall back to the assistant's.
-    let memory = Arc::new(MemoryManager::new_with_full_config(
-        &config.memory,
-        Some(&config),
-        AGENT_ID,
-    )?);
-    let mut tools = create_safe_tools(&config, Some(memory.clone()))?;
-    tools.extend(localgpt_core::mcp::memory_tools::create_memory_write_tools(
-        config.workspace_path(),
-    ));
-    tools.extend(gen3d::tools::create_gen_tools(bridge));
-    let tools = gen3d::tool_profile::apply_tool_profile(tools, profile);
-
-    let mut agent = Agent::new_with_tools(config.clone(), AGENT_ID, memory, tools)?;
-    panel.sink.send(ChatEvent::Ready {
-        model: config.agent.default_model.clone(),
-    });
-
-    while let Some(prompt) = panel.prompt_rx.recv().await {
-        if prompt.trim().is_empty() {
-            continue;
-        }
-        panel.sink.send(ChatEvent::Prompt {
-            text: prompt.clone(),
-            from: None,
-        });
-        match agent.chat_saving_session(&prompt, AGENT_ID).await {
-            Ok(reply) => {
-                if !reply.is_empty() {
-                    panel.sink.send(ChatEvent::Delta(reply));
-                }
-                panel.sink.send(ChatEvent::TurnFinished { error: None });
-            }
-            Err(e) => {
-                panel.sink.send(ChatEvent::TurnFinished {
-                    error: Some(format!("{e:#}")),
-                });
-            }
-        }
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use gen3d::tool_profile::ToolProfile;
+
+    #[test]
+    fn a_cli_backend_reaches_the_window_through_mcp_server_connect() {
+        let args = |line: &str| {
+            line.split_whitespace()
+                .map(String::from)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(relay_request(&args("mcp-server --connect")), Some(None));
+        assert_eq!(
+            relay_request(&args("mcp-server --connect 9878")),
+            Some(Some(9878))
+        );
+        // An ordinary launch is not a relay.
+        assert_eq!(relay_request(&args("--md notes.md")), None);
+        assert_eq!(relay_request(&args("")), None);
+        assert_eq!(relay_request(&args("mcp-server")), None);
+    }
 
     #[test]
     fn the_app_opens_with_the_core_toolbelt_unless_told_otherwise() {
