@@ -129,10 +129,10 @@ recipe → draft**, first success wins).
   0.8's grammar-constrained `generate_structured` hangs on GGUF (so no
   `schemars`); the 5 GB Q4_K_M needs `llm-metal` (macOS-only, never in the
   Linux CI job); model discovery is `$LOCALGPT_MD_LLM` → the directory the
-  LocalGPT apps share (`$LOCALGPT_LLM_DIR`, default
-  `~/.local/share/localgpt/models/llm`; `shared_llm_dir` in `src/llm.rs`
-  must match localgpt-core's and Verse's) → `assets/llm` → Verse's
-  `assets/llm`.
+  LocalGPT apps share (`localgpt_world_agent::shared_llm_dir`, the one rule
+  for every app) → `assets/llm`. The load-and-complete plumbing is
+  `localgpt_world_agent::LocalGguf`; this crate keeps the prompt and the
+  parse.
 
 ## Bevy 0.19 notes
 

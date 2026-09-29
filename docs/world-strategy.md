@@ -929,6 +929,23 @@ one mixer. Still open: mapping `AmbienceLayerDef`/`AudioEmitterSpec` from a
 command paths), and `SoundtrackDef` playback as more than Verse's internal
 layer.
 
+**Status (2026-09-28, later): the mistral.rs loaders are one.** The two real
+copies — MD's and Verse's load-a-GGUF-then-complete-with-a-timeout plumbing —
+are `localgpt_world_agent::LocalGguf` behind the crate's existing `llm`
+feature, with each app keeping its directory candidates, prompt and parse (the
+bullet above counted three; Gen's `local_llm.rs` is not a copy but a full
+LLMProvider with tool calls and the model menu, already resolved through
+world-agent's paths). What §13.6 still owes and nothing has started: **the
+iOS parallel format** — `apps/apple/LocalGPT/Models/WorldEntity.swift` (204
+lines) and the two view models around it (1,360) still parse their own
+Codable mirror instead of receiving the format. The path, when it is taken:
+feature-gate `uniffi::Record`/`Enum` derives on the `world-types` structs
+(the crate is serde-only and stays so without the feature), expose
+parse/save of a `WorldManifest` through `crates/mobile-ffi`, then adopt the
+generated Swift types in the view models — RealityKit rendering stays
+Swift's; only the data model crosses. That is a branch of its own, and a
+prerequisite for the iOS/RealityKit tier of §13.7's table.
+
 ### 13.7 Artifacts and delivery channels
 
 Nothing below ships today. The repository carries `ci.yml` and
