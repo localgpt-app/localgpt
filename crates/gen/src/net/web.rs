@@ -265,10 +265,18 @@ impl WebRoom {
         });
     }
 
-    /// Replay a previous session into the authority: a package directory
-    /// (base + log, folded by the reader), a legacy session directory
-    /// (a log, no metadata), or a bare `ops.jsonl`.
+    /// Replay a previous session into the authority: a `.world` archive,
+    /// a package directory (base + log, folded by the reader), a legacy
+    /// session directory (a log, no metadata), or a bare `ops.jsonl`.
     fn replay_log(&mut self, path: &std::path::Path) {
+        // A .world archive: extract to a temp dir and read it as a package.
+        if path.is_file() && path.extension().is_some_and(|e| e == "world") {
+            match localgpt_world_agent::session::extract_zip(path) {
+                Ok(temp) => self.replay_log(temp.path()),
+                Err(e) => eprintln!("web session: {e} — starting fresh"),
+            }
+            return;
+        }
         let mut path = path.to_path_buf();
         if path.is_dir() {
             match localgpt_world_agent::session::read_package(&path, None) {

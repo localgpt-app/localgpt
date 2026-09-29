@@ -105,6 +105,10 @@ document; everything else folds to nothing. See
 - **Time-lapse:** `localgpt-gen --replay <session> [--replay-speed N]`
   opens a no-agent window that rebuilds the world batch by batch; it takes
   the same paths, and a package replays its base world first.
+- **Transport:** `localgpt-gen --export-session <name> [--out x.world]`
+  zips a session's package into the one-file form other software reads
+  (the [Open World Format](https://openworldformat.org)); `--resume` and
+  `--replay` accept those `.world` archives back.
 
 ## Internet guests (`--relay`)
 

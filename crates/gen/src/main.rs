@@ -133,15 +133,25 @@ struct Cli {
 
     /// Replay a previous session before guests join (with --host --web).
     /// Pass a session name (its package under
-    /// <workspace>/sessions/<name>/), a package directory, or a path to
-    /// an ops.jsonl.
+    /// <workspace>/sessions/<name>/), a package directory, an ops.jsonl
+    /// path, or a .world archive.
     #[cfg(feature = "multiplayer")]
     #[arg(long, requires = "web")]
     resume: Option<String>,
 
+    /// Zip a session's package into the transport form (a .world file)
+    /// and exit. Pass a session name or a package directory; --out picks
+    /// the destination (default: <name>.world in the current directory).
+    #[arg(long)]
+    export_session: Option<String>,
+
+    /// Destination for --export-session.
+    #[arg(long, requires = "export_session")]
+    out: Option<PathBuf>,
+
     /// Replay a session as a time-lapse in the window: the world rebuilds
     /// itself batch by batch. No agent, no session. Pass a session name,
-    /// a package directory, or an ops.jsonl path.
+    /// a package directory, an ops.jsonl path, or a .world archive.
     #[arg(long)]
     replay: Option<String>,
 
@@ -333,6 +343,33 @@ fn main() -> Result<()> {
         cli.tools.as_deref(),
         settings.tool_profile.as_deref(),
     )?;
+
+    // --export-session: zip a session's package into the transport form.
+    if let Some(session) = cli.export_session.as_deref() {
+        let dir = localgpt_gen::net::web::resolve_op_log_path(&workspace, session);
+        anyhow::ensure!(
+            dir.is_dir(),
+            "no session package at {} — pass a session name or a package directory",
+            dir.display()
+        );
+        let dest = cli.out.clone().unwrap_or_else(|| {
+            let slug = dir
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "session".into());
+            std::path::PathBuf::from(format!("{slug}.world"))
+        });
+        localgpt_world_agent::session::export_zip(&dir, &dest)?;
+        eprintln!(
+            "exported {} → {} ({} KB)",
+            dir.display(),
+            dest.display(),
+            std::fs::metadata(&dest)
+                .map(|m| m.len() / 1024)
+                .unwrap_or(0)
+        );
+        return Ok(());
+    }
 
     // --replay: time-lapse a session in the window — no agent, no session.
     if let Some(replay_path) = cli.replay.as_deref() {

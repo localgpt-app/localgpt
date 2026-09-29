@@ -451,6 +451,12 @@ mod tests {
         let unzipped = read_package(&out.0, None).unwrap();
         assert_eq!(unzipped.doc.len(), folded.doc.len());
         assert!(unzipped.doc.contains(101));
+
+        // And through extract_zip, the way --resume castle.world reads one.
+        let temp = extract_zip(&zip_path).unwrap();
+        let via_temp = read_package(temp.path(), None).unwrap();
+        assert_eq!(via_temp.doc.len(), folded.doc.len());
+        assert!(via_temp.doc.contains(101));
     }
 
     #[test]
@@ -508,6 +514,46 @@ pub fn export_zip(dir: &Path, dest: &Path) -> Result<(), PackageError> {
         detail: e.to_string(),
     })?;
     Ok(())
+}
+
+/// A temporary directory removed when dropped — what a `.world` archive
+/// extracts into for reading.
+pub struct TempSessionDir(PathBuf);
+
+impl TempSessionDir {
+    /// Where the archive extracted.
+    pub fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TempSessionDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Extract a `.world` archive (the transport form) into a fresh temporary
+/// directory. The package reads from there; the directory goes away when
+/// the guard does.
+pub fn extract_zip(zip_path: &Path) -> Result<TempSessionDir, PackageError> {
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let dir = std::env::temp_dir().join(format!(
+        "localgpt-world-{}-{}",
+        std::process::id(),
+        SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&dir)?;
+    let file = std::fs::File::open(zip_path)?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| PackageError::Parse {
+        file: "the package archive",
+        detail: e.to_string(),
+    })?;
+    archive.extract(&dir).map_err(|e| PackageError::Parse {
+        file: "the package archive",
+        detail: e.to_string(),
+    })?;
+    Ok(TempSessionDir(dir))
 }
 
 /// Every file under `dir`, recursively.

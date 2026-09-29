@@ -25,9 +25,17 @@ pub struct ReplayState {
 
 /// Read an `ops.jsonl` — or a session package directory, whose base world
 /// becomes the first batch — into replay order, skipping unreadable lines.
-/// A legacy session directory (a log, no metadata) reads its log directly.
+/// A legacy session directory (a log, no metadata) reads its log directly,
+/// and a `.world` archive extracts to a temp directory first.
 pub fn load_op_log(path: &str) -> anyhow::Result<VecDeque<OpLogEntry>> {
     let mut resolved = std::path::PathBuf::from(shellexpand::tilde(path).as_ref());
+    if resolved.is_file() && resolved.extension().is_some_and(|e| e == "world") {
+        let temp = localgpt_world_agent::session::extract_zip(&resolved)
+            .map_err(|e| anyhow::anyhow!("can't read {}: {e}", resolved.display()))?;
+        let pkg = localgpt_world_agent::session::read_package(temp.path(), None)
+            .map_err(|e| anyhow::anyhow!("can't read {}: {e}", resolved.display()))?;
+        return package_entries(pkg);
+    }
     if resolved.is_dir() {
         match localgpt_world_agent::session::read_package(&resolved, None) {
             Ok(pkg) => return package_entries(pkg),
@@ -134,5 +142,58 @@ fn replay_tick(time: Res<Time>, mut state: ResMut<ReplayState>, mut applier: Ops
             "[replay] done — {} batches, revision {}",
             state.total, entry.revision
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A `.world` archive extracts and loads as a package: the base world
+    /// becomes the first batch, then the log.
+    #[test]
+    fn a_world_archive_replays() {
+        use localgpt_world_agent::session as pkg;
+        use localgpt_world_sync::{Author, SessionOp};
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static SEQ: AtomicU64 = AtomicU64::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "localgpt-replay-test-{}-{}",
+            std::process::id(),
+            SEQ.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut manifest = wt::WorldManifest::new("archived");
+        manifest.entities.push(wt::WorldEntity::new(1, "keep"));
+        pkg::write_base(&dir, &manifest, "gen", None, 0).unwrap();
+        pkg::append_entry(
+            &dir,
+            &localgpt_world_sync::OpLogEntry {
+                revision: 1,
+                author: Author {
+                    peer: None,
+                    name: "maya".into(),
+                },
+                ops: vec![SessionOp::Edit(Box::new(wt::EditOp::spawn(
+                    wt::WorldEntity::new(2, "lighthouse"),
+                )))],
+                timestamp_ms: 0,
+            },
+        )
+        .unwrap();
+
+        let zip = dir.parent().unwrap().join(format!(
+            "localgpt-replay-{}.world",
+            SEQ.fetch_add(1, Ordering::Relaxed)
+        ));
+        pkg::export_zip(&dir, &zip).unwrap();
+
+        let entries = load_op_log(zip.to_str().unwrap()).unwrap();
+        assert!(entries.len() >= 2); // the base batch, then the spawn
+        assert!(entries.iter().any(|e| e.revision == 1));
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_file(&zip);
     }
 }

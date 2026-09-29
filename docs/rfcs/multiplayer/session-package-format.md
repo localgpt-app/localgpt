@@ -214,10 +214,12 @@ Neither app changes its source; both can emit and consume the package:
   room opens, tool calls and score changes land in the log, snapshots
   every 500 committed revisions); `--resume` and `--replay` accept a
   session name, an `ops.jsonl` path, or a package directory.
+- Gen wraps the transport form: `--export-session <name> [--out x.world]`
+  zips a package, and `--resume`/`--replay` accept `.world` archives back
+  (extracted to a temp dir, read as a package).
 - Not yet wired: `input`/`clock` recording (types and fold tolerance are
   in), MD publish, Verse transport logging, the web viewer's scrub
-  controls, and the Gen command that zips a session into a `.world`
-  (`export_zip` is the function; a tool or subcommand wraps it).
+  controls.
 
 ## Related documents
 
