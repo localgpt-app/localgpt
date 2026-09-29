@@ -21,8 +21,9 @@
 //! never broken by a missing LLM tier.
 //!
 //! # Model
-//! `GgufModelBuilder` loads the first `.gguf` in the model directory LocalGPT's
-//! apps share (`~/.local/share/localgpt/models/llm`, or `$LOCALGPT_LLM_DIR`;
+//! [`localgpt_world_agent::LocalGguf`] (ported out of this module and MD's
+//! twin of it) loads the first `.gguf` in the directory LocalGPT's apps share
+//! (`~/.local/share/localgpt/models/llm`, or `$LOCALGPT_LLM_DIR`;
 //! `assets/llm/` is still read as a fallback), fetched by
 //! `scripts/fetch-bonsai.sh` — Bonsai-8B Q4_K_M by default (Apache-2.0; the
 //! 1-bit Q1_0 quant parses in neither mistral.rs 0.8 nor its llama.cpp, and
@@ -30,26 +31,19 @@
 //! on a 32 GB Mac running the world renderer alongside). Any standard GGUF
 //! (e.g. Qwen2.5-7B) + matching `tokenizer.json` dropped into that directory
 //! is picked up the same way.
-//!
-//! # Async
-//! mistral.rs's `build()` and generation calls are async. This crate is
-//! otherwise sync (the analysis worker is a plain `std::thread`). We run a
-//! dedicated single-threaded tokio runtime per generation inside that thread —
-//! no async pollution of the rest of the app.
-
-use std::path::PathBuf;
 
 use bevy::log::{info, warn};
-use mistralrs::{GgufModelBuilder, TextMessageRole};
+use mistralrs::TextMessageRole;
 
 use crate::analysis::TrackAnalysis;
 use crate::recipe::WorldRecipe;
 use crate::theme::moods;
+use localgpt_world_agent::{CompletionError, LocalGguf};
 
 /// The loaded LLM, ready to author recipes. `None` from `try_load` when the
 /// model file is missing — the caller keeps the rule-derived recipe.
 pub struct RecipeModel {
-    model: mistralrs::Model,
+    gguf: LocalGguf,
 }
 
 impl RecipeModel {
@@ -57,36 +51,20 @@ impl RecipeModel {
     /// (`crate::agent::run_session`) to run tool-calling on the same loaded
     /// model, so we don't pay for two model loads.
     pub fn model_mut(&mut self) -> &mut mistralrs::Model {
-        &mut self.model
+        self.gguf.model_mut()
     }
 
-    /// Load the GGUF under `assets/llm/` if present. Returns `None` (and logs)
-    /// when no model is found — see the module docs for the fallback contract.
-    ///
-    /// Builds a single-threaded tokio runtime on the calling thread: mistral.rs
-    /// is async, and we keep the rest of the app sync.
+    /// Load the GGUF from Verse's candidates: the directory every LocalGPT
+    /// app shares, then the older per-app spot `assets/llm/`. Returns `None`
+    /// (and logs) when no model is found — see the module docs for the
+    /// fallback contract.
     pub fn try_load() -> Option<Self> {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| warn!("llm: can't start tokio runtime: {e}"))
-            .ok()?;
-
-        let (model_id, gguf_file, tokenizer_json) = locate_model()?;
-
-        rt.block_on(async move {
-            // `GgufModelBuilder::new` takes `impl ToString`; pass the directory
-            // and filenames as strings (mistral.rs treats a local path as the
-            // model source, avoiding a HuggingFace fetch).
-            let model_id_str = model_id.to_string_lossy().into_owned();
-            let model = GgufModelBuilder::new(model_id_str, vec![gguf_file.clone()])
-                .with_tokenizer_json(tokenizer_json.clone())
-                .build()
-                .await
-                .map_err(|e| warn!("llm: can't build mistral.rs model: {e}"))
-                .ok()?;
-            info!("llm: recipe model loaded ({gguf_file})");
-            Some(RecipeModel { model })
+        let candidates = [
+            localgpt_world_agent::shared_llm_dir(),
+            Some(crate::world_assets::asset_root().join("llm")),
+        ];
+        Some(Self {
+            gguf: LocalGguf::try_load(&candidates.into_iter().flatten().collect::<Vec<_>>())?,
         })
     }
 
@@ -103,65 +81,41 @@ impl RecipeModel {
     /// has a serde default, [`WorldRecipe::clamped`] bounds the free values,
     /// and a parse failure degrades to the rule recipe.
     pub fn generate(&mut self, analysis: &TrackAnalysis) -> Option<WorldRecipe> {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| warn!("llm: can't start tokio runtime: {e}"))
-            .ok()?;
-
-        rt.block_on(async {
-            let messages = build_prompt(analysis);
-            let text = match tokio::time::timeout(GENERATE_TIMEOUT, async {
-                self.model
-                    .send_chat_request(messages)
-                    .await
-                    .map_err(|e| e.to_string())
-                    .and_then(|response| {
-                        response
-                            .choices
-                            .into_iter()
-                            .next()
-                            .and_then(|c| c.message.content)
-                            .ok_or_else(|| "empty completion".to_string())
-                    })
-            })
-            .await
-            {
-                Ok(Ok(text)) => text,
-                Ok(Err(e)) => {
-                    warn!("llm: recipe generation failed ({e}) — keeping rule recipe");
-                    return None;
-                }
-                Err(_) => {
-                    warn!(
-                        "llm: recipe generation timed out after {}s — keeping rule recipe",
-                        GENERATE_TIMEOUT.as_secs()
-                    );
-                    return None;
-                }
-            };
-
-            match extract_json_object(&text)
-                .and_then(|json| serde_json::from_str::<WorldRecipe>(&json).ok())
-            {
-                Some(recipe) => {
-                    info!(
-                        "llm: recipe for \"{}\" ({} biomes, {} landmarks)",
-                        recipe.world_name,
-                        recipe.biomes.len(),
-                        recipe.landmarks.len()
-                    );
-                    Some(recipe.clamped())
-                }
-                None => {
-                    warn!(
-                        "llm: recipe wasn't valid JSON ({} bytes of prose) — keeping rule recipe",
-                        text.len()
-                    );
-                    None
-                }
+        let text = match self.gguf.complete(build_prompt(analysis), GENERATE_TIMEOUT) {
+            Ok(text) => text,
+            Err(CompletionError::Failed(e)) => {
+                warn!("llm: recipe generation failed ({e}) — keeping rule recipe");
+                return None;
             }
-        })
+            Err(CompletionError::TimedOut(timeout)) => {
+                warn!(
+                    "llm: recipe generation timed out after {}s — keeping rule recipe",
+                    timeout.as_secs()
+                );
+                return None;
+            }
+        };
+
+        match extract_json_object(&text)
+            .and_then(|json| serde_json::from_str::<WorldRecipe>(&json).ok())
+        {
+            Some(recipe) => {
+                info!(
+                    "llm: recipe for \"{}\" ({} biomes, {} landmarks)",
+                    recipe.world_name,
+                    recipe.biomes.len(),
+                    recipe.landmarks.len()
+                );
+                Some(recipe.clamped())
+            }
+            None => {
+                warn!(
+                    "llm: recipe wasn't valid JSON ({} bytes of prose) — keeping rule recipe",
+                    text.len()
+                );
+                None
+            }
+        }
     }
 }
 
@@ -204,43 +158,6 @@ fn extract_json_object(text: &str) -> Option<String> {
         }
     }
     None // unbalanced (truncated) — no usable object
-}
-
-/// Find the recipe model on disk. Returns `(model_id, gguf_file, tokenizer_json)`
-/// as the trio `GgufModelBuilder` needs, or `None` (with a warning) when no
-/// model is present. Looks in the directory every LocalGPT app shares
-/// ([`localgpt_world_agent::shared_llm_dir`], where
-/// `scripts/fetch-bonsai.sh` puts it, so one
-/// download serves Verse, MD and Gen), then in the older per-app spot
-/// `assets/llm/`. Takes the first `.gguf` it finds, so the default (Bonsai 8B)
-/// and the documented standard-GGUF fallback are both discovered
-/// automatically — the user just drops a model in.
-///
-/// `model_id` is the local directory (mistral.rs treats a local path as the
-/// model source, avoiding a HuggingFace fetch); `gguf_file`/`tokenizer_json` are
-/// the bare filenames within that directory.
-fn locate_model() -> Option<(PathBuf, String, String)> {
-    let shared = localgpt_world_agent::shared_llm_dir();
-    let legacy = crate::world_assets::asset_root().join("llm");
-    for dir in shared.iter().chain(std::iter::once(&legacy)) {
-        if let Some(found) = locate_model_in(dir) {
-            info!("llm: using model in {}", dir.display());
-            return Some(found);
-        }
-    }
-    let shared = shared.map_or_else(|| "$LOCALGPT_LLM_DIR".into(), |d| d.display().to_string());
-    warn!(
-        "llm: no model in {shared} or {} — rule recipes only (run scripts/fetch-bonsai.sh)",
-        legacy.display()
-    );
-    None
-}
-
-/// [`locate_model`] over an explicit directory, so the discovery contract is
-/// testable against a temp dir instead of whatever happens to sit in
-/// `assets/llm/` on the dev machine (a fetched model must not flip the test).
-fn locate_model_in(dir: &PathBuf) -> Option<(PathBuf, String, String)> {
-    localgpt_world_agent::paths::locate_model_in(dir)
 }
 
 /// Turn a track's MIR analysis into the system+user prompt for recipe authoring.
@@ -297,56 +214,6 @@ Reply with only the JSON object.",
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// A unique temp dir for model-discovery tests; caller drops it.
-    fn temp_llm_dir(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "verse-llm-test-{tag}-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    #[test]
-    fn locate_model_returns_none_when_no_gguf() {
-        // Empty dir (and, via locate_model, an absent one) → the no-model
-        // graceful-fallback path. Tested against a temp dir so a fetched model
-        // on the dev machine can't flip the result.
-        assert!(locate_model_in(&temp_llm_dir("empty")).is_none());
-        assert!(locate_model_in(&PathBuf::from("/nonexistent/verse-llm")).is_none());
-    }
-
-    #[test]
-    fn locate_model_finds_the_gguf_and_tokenizer() {
-        let dir = temp_llm_dir("full");
-        std::fs::write(dir.join("some-model.gguf"), b"gguf").unwrap();
-        std::fs::write(dir.join("tokenizer.json"), b"{}").unwrap();
-        // A non-gguf file must not win the scan.
-        std::fs::write(dir.join("notes.txt"), b"x").unwrap();
-
-        let (model_id, gguf, tokenizer) = locate_model_in(&dir).expect("model found");
-        assert_eq!(model_id, dir);
-        assert_eq!(gguf, "some-model.gguf");
-        assert_eq!(tokenizer, "tokenizer.json");
-    }
-
-    // The shared model directory's rule is tested where it now lives, in
-    // `localgpt_world_agent::paths`.
-
-    #[test]
-    fn locate_model_defaults_the_tokenizer_name_when_absent() {
-        // A bare GGUF still resolves; mistral.rs reports the missing file at
-        // build time (the fetch script's note covers this).
-        let dir = temp_llm_dir("no-tok");
-        std::fs::write(dir.join("m.gguf"), b"gguf").unwrap();
-        let (_, gguf, tokenizer) = locate_model_in(&dir).expect("model found");
-        assert_eq!(gguf, "m.gguf");
-        assert_eq!(tokenizer, "tokenizer.json");
-    }
 
     /// Manual runtime probe for the recipe tier — the load-bearing question
     /// "does this model + mistral.rs actually generate, and at what speed?"

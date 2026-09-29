@@ -8490,7 +8490,6 @@ version = "0.3.6"
 dependencies = [
  "bevy 0.19.0",
  "blake3",
- "etcetera",
  "localgpt-world-agent",
  "localgpt-world-bevy",
  "localgpt-world-export",
@@ -8500,7 +8499,6 @@ dependencies = [
  "ron",
  "serde",
  "serde_json",
- "tokio",
  "tracing",
 ]
 
@@ -8605,7 +8603,6 @@ dependencies = [
  "blake3",
  "dirs",
  "ebur128",
- "etcetera",
  "kira",
  "localgpt-world-agent",
  "localgpt-world-audio",

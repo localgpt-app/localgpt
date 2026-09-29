@@ -21,6 +21,8 @@
 
 pub mod assets;
 pub mod interpreter;
+#[cfg(feature = "llm")]
+pub mod localgguf;
 pub mod paths;
 
 pub use assets::{
@@ -36,3 +38,5 @@ pub use paths::{shared_llm_dir, world_pack_dir};
 
 #[cfg(feature = "llm")]
 pub use interpreter::run_session;
+#[cfg(feature = "llm")]
+pub use localgguf::{CompletionError, LocalGguf};

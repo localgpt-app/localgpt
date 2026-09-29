@@ -80,10 +80,12 @@ ml = ["dep:ort", "dep:rubato", "dep:stem-splitter-core", "dep:tokenizers"]
 # optional features, off by default), and the GGUF model is a separate ~4–5 GB
 # download (scripts/fetch-bonsai.sh, or a standard-Q4_K_M fallback). Without the
 # feature (or the model file) the app keeps the rule-derived recipe (today's
-# path). `schemars` must match mistralrs's internal version (derive path) and
-# its `JsonSchema` bound on `generate_structured`; `tokio` drives the worker
-# thread's block_on runtime (mistralrs's build()/generate are async).
-llm = ["dep:mistralrs", "dep:schemars", "dep:tokio", "dep:etcetera", "localgpt-world-agent/schema"]
+# path). The load-and-complete plumbing is world-agent's `LocalGguf`; this
+# crate keeps its prompt, its lenient parse and the agent tier's channels
+# (`tokio` drives those and the generation probe's runtime). `schemars` must
+# match mistralrs's internal version (derive path) and its `JsonSchema` bound
+# for the probe that documents the `generate_structured` GGUF hang.
+llm = ["dep:mistralrs", "dep:schemars", "dep:tokio", "localgpt-world-agent/llm", "localgpt-world-agent/schema"]
 # Apple-Silicon acceleration for the LLM tiers (PLAN.md M7): runs the GGUF on
 # the Metal GPU — unified memory makes the 5 GB Q4_K_M fit comfortably (the
 # CPU device map saw only ~7.6 GB free and refused) and generation is an order
@@ -129,13 +131,8 @@ optional = true
 version = "1"
 optional = true
 
-# Resolves the model directory LocalGPT's apps share
-# (`~/.local/share/localgpt/models/llm`, see src/llm.rs) the same way
-# localgpt-core does.
-[dependencies.etcetera]
-version = "0.11"
-optional = true
-
+# Drives the agent tier's channels and the generation probe's runtime
+# (mistral.rs is async; the app is sync).
 [dependencies.tokio]
 version = "1"
 features = ["rt", "time"]
