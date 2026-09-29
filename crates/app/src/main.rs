@@ -126,6 +126,12 @@ fn main() -> anyhow::Result<()> {
         unsafe { std::env::set_var("PATH", merged) };
     }
 
+    // `gguf/<name>` models run in-process (Gen's local_llm): registered before
+    // any agent or authoring worker asks for a provider, as Gen's main does.
+    // Without the feature the model menu says the build has no in-process LLM.
+    #[cfg(feature = "local-llm")]
+    localgpt_gen::local_llm::register();
+
     // Gen's in-memory config, not Config::load(): a desktop app must open on a
     // machine with nothing on disk and must not write the assistant's
     // config.toml or read its workspace. Same path as `localgpt-gen`.

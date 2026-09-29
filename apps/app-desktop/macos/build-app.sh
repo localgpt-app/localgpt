@@ -17,6 +17,12 @@
 #       store-credentials`; implies --dmg, submits the .dmg for notarization,
 #       waits, and staples the ticket to it.
 #
+# Local models. On Apple Silicon the app is built with `local-llm-metal`, so
+# the bundle runs a GGUF from the shared model folder in-process on the GPU
+# (docs/world-strategy.md §13.3, the third tier). Intel Macs build without it:
+# the CPU path can't hold the ~5 GB model beside the renderer. APP_FEATURES
+# overrides the feature list (comma-separated; empty for none).
+#
 # Output goes to apps/app-desktop/dist/.
 set -euo pipefail
 
@@ -42,12 +48,20 @@ OUT="$ROOT/apps/app-desktop/dist"
 APP="$OUT/LocalGPT.app"
 ICON_SVG="$ROOT/website/static/logo/localgpt-icon.svg"
 
-echo "==> cargo build ($PROFILE)"
+if [ -z "${APP_FEATURES+set}" ]; then
+  if [ "$(uname -m)" = arm64 ]; then APP_FEATURES=local-llm-metal; else APP_FEATURES=""; fi
+fi
+# One word, so it expands safely unquoted (macOS bash 3.2 has no safe empty
+# arrays under `set -u`).
+FEATURE_FLAG=""
+[ -z "$APP_FEATURES" ] || FEATURE_FLAG="--features=$APP_FEATURES"
+
+echo "==> cargo build ($PROFILE${APP_FEATURES:+, features: $APP_FEATURES})"
 cd "$ROOT"
 if [ "$PROFILE" = release ]; then
-  cargo build --release -p localgpt-app
+  cargo build --release -p localgpt-app $FEATURE_FLAG
 else
-  cargo build -p localgpt-app
+  cargo build -p localgpt-app $FEATURE_FLAG
 fi
 BIN="${CARGO_TARGET_DIR:-$ROOT/target}/$PROFILE/localgpt-app"
 

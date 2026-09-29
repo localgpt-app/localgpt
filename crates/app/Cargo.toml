@@ -3,9 +3,18 @@ name = "localgpt-app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "The LocalGPT desktop app — one window, every mode: today the creator shell (Gen) with Markdown worlds (MD); Verse and the assistant follow"
+description = "The LocalGPT desktop app — one window, every mode: worlds from a prompt (Gen), a document (MD) or a song (Verse); the assistant follows"
 repository.workspace = true
 keywords = ["localgpt", "desktop", "world", "bevy"]
+
+[features]
+# In-process GGUF models (`gguf/<name>`, from the model folder every LocalGPT
+# app shares) for the prompt panel and document authoring, through Gen's
+# mistral.rs provider. Off by default: mistral.rs is a large build.
+local-llm = ["localgpt-gen/local-llm"]
+# The Apple-Silicon GPU path for local-llm — what the macOS bundle builds
+# with (apps/app-desktop). macOS only: never in the Linux CI job.
+local-llm-metal = ["local-llm", "localgpt-gen/local-llm-metal"]
 
 [dependencies]
 localgpt-core = { workspace = true }
