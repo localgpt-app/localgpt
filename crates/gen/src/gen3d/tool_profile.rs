@@ -6,9 +6,9 @@
 //! model's window before it sees a word of the conversation. Profiles trade
 //! capability for context:
 //!
-//! - **core** — 22 scene-editing essentials, ~15KB / ~3.8k tokens: spawn,
-//!   modify, delete, query, camera/environment/light, behaviors, undo, world
-//!   save/load/clear. No CLI tools (shell/files), no
+//! - **core** — 24 scene-editing essentials, ~17KB / ~4.3k tokens: spawn,
+//!   modify, delete, reusable creations, query, camera/environment/light,
+//!   behaviors, undo, world save/load/clear. No CLI tools (shell/files), no
 //!   avatar/terrain/ui/physics/multifile/WorldGen modules. For small local
 //!   models (e.g. a 27B at 32k context) that mostly drive spawn/modify.
 //! - **standard** — 49 tools, ~37KB / ~9.4k tokens: core + the rest of
@@ -45,6 +45,9 @@ const CORE_GEN_TOOLS: &[&str] = &[
     "gen_modify_batch",
     "gen_delete_entity",
     "gen_delete_batch",
+    // reusable creations — the cheap way to a forest on a small context
+    "gen_define_creation",
+    "gen_spawn_instance",
     // query — screenshot included so small models keep a visual feedback loop
     "gen_scene_info",
     "gen_entity_info",
@@ -235,6 +238,8 @@ mod tests {
     fn core_keeps_essentials_and_safe_tools() {
         let p = ToolProfile::Core;
         assert!(p.allows("gen_spawn_primitive"));
+        assert!(p.allows("gen_define_creation"));
+        assert!(p.allows("gen_spawn_instance"));
         assert!(p.allows("gen_screenshot"));
         assert!(p.allows("gen_undo"));
         // Non-scoped tools (safe tools, spawn_agent) pass at every profile.

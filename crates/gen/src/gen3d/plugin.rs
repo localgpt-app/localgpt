@@ -7907,42 +7907,14 @@ mod tests {
         serde_json::from_value(serde_json::json!({ "name": name })).unwrap()
     }
 
-    /// The full tool path, as an agent drives it: build entities, define a
-    /// creation, place instances (one with a part override), add a trigger,
-    /// save, clear, reload, save again — and the two saves agree, the parts
-    /// are named, and the trigger is back and running.
-    #[test]
-    fn define_instance_trigger_survive_save_and_reload() {
-        use tokio::sync::mpsc;
+    /// The Bevy side with its command channel, on a workspace dir, ready to
+    /// drive with [`send`]. No default scene, no window: only what
+    /// `process_gen_commands` needs.
+    use tokio::sync::mpsc;
 
-        fn send(
-            app: &mut App,
-            tx: &mpsc::UnboundedSender<GenCommand>,
-            rx: &mut mpsc::UnboundedReceiver<GenResponse>,
-            cmd: GenCommand,
-        ) -> GenResponse {
-            tx.send(cmd).unwrap();
-            for _ in 0..60 {
-                app.update();
-                if let Ok(resp) = rx.try_recv() {
-                    return resp;
-                }
-            }
-            panic!("the Bevy side never answered");
-        }
-        fn read_world(dir: &Path) -> wt::WorldManifest {
-            let text = std::fs::read_to_string(dir.join("world.ron")).unwrap();
-            let manifest: wt::WorldManifest = ron::from_str(&text).unwrap();
-            manifest.check_version().unwrap();
-            manifest
-        }
-
-        let workspace = std::env::temp_dir().join(format!("gen-smoke-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&workspace);
-        std::fs::create_dir_all(workspace.join("skills")).unwrap();
-
+    fn command_app(workspace: &Path) -> (App, CommandLink) {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let (resp_tx, mut resp_rx) = mpsc::unbounded_channel();
+        let (resp_tx, resp_rx) = mpsc::unbounded_channel();
         let mut app = App::new();
         app.add_plugins((
             MinimalPlugins,
@@ -7961,7 +7933,7 @@ mod tests {
             cmd_tx: cmd_tx.clone(),
         }))
         .insert_resource(GenWorkspace {
-            path: workspace.clone(),
+            path: workspace.to_path_buf(),
         })
         .insert_resource(GenInitialScene { path: None })
         .init_resource::<GenInitialWorld>()
@@ -7988,6 +7960,52 @@ mod tests {
         .add_systems(Startup, audio::init_audio_engine)
         .add_systems(Update, process_gen_commands);
         app.update(); // Startup: the audio engine, if any.
+        (
+            app,
+            CommandLink {
+                tx: cmd_tx,
+                rx: resp_rx,
+            },
+        )
+    }
+
+    /// A command channel into a [`command_app`].
+    struct CommandLink {
+        tx: mpsc::UnboundedSender<GenCommand>,
+        rx: mpsc::UnboundedReceiver<GenResponse>,
+    }
+
+    impl CommandLink {
+        fn send(&mut self, app: &mut App, cmd: GenCommand) -> GenResponse {
+            self.tx.send(cmd).unwrap();
+            for _ in 0..60 {
+                app.update();
+                if let Ok(resp) = self.rx.try_recv() {
+                    return resp;
+                }
+            }
+            panic!("the Bevy side never answered");
+        }
+    }
+
+    /// The full tool path, as an agent drives it: build entities, define a
+    /// creation, place instances (one with a part override), add a trigger,
+    /// save, clear, reload, save again — and the two saves agree, the parts
+    /// are named, and the trigger is back and running.
+    #[test]
+    fn define_instance_trigger_survive_save_and_reload() {
+        fn read_world(dir: &Path) -> wt::WorldManifest {
+            let text = std::fs::read_to_string(dir.join("world.ron")).unwrap();
+            let manifest: wt::WorldManifest = ron::from_str(&text).unwrap();
+            manifest.check_version().unwrap();
+            manifest
+        }
+
+        let workspace = std::env::temp_dir().join(format!("gen-smoke-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&workspace);
+        std::fs::create_dir_all(workspace.join("skills")).unwrap();
+
+        let (mut app, mut link) = command_app(&workspace);
 
         fn spawn(
             name: &str,
@@ -8014,10 +8032,8 @@ mod tests {
         }
 
         // Build: ground, a trunk with leaves on it.
-        send(
+        link.send(
             &mut app,
-            &cmd_tx,
-            &mut resp_rx,
             spawn(
                 "ground",
                 PrimitiveShape::Plane,
@@ -8026,10 +8042,8 @@ mod tests {
                 None,
             ),
         );
-        send(
+        link.send(
             &mut app,
-            &cmd_tx,
-            &mut resp_rx,
             spawn(
                 "trunk",
                 PrimitiveShape::Cylinder,
@@ -8038,10 +8052,8 @@ mod tests {
                 None,
             ),
         );
-        send(
+        link.send(
             &mut app,
-            &cmd_tx,
-            &mut resp_rx,
             spawn(
                 "leaves",
                 PrimitiveShape::Sphere,
@@ -8053,10 +8065,8 @@ mod tests {
 
         // Define a creation from the trunk (its child comes along); the
         // originals become its first instance.
-        let resp = send(
+        let resp = link.send(
             &mut app,
-            &cmd_tx,
-            &mut resp_rx,
             GenCommand::DefineCreation(DefineCreationCmd {
                 name: "tree".into(),
                 entities: vec!["trunk".into()],
@@ -8109,24 +8119,18 @@ mod tests {
                 ..Default::default()
             },
         };
-        send(
+        link.send(
             &mut app,
-            &cmd_tx,
-            &mut resp_rx,
             instance_cmd("tree_2", [3.0, 0.0, 0.0], vec![red.clone()]),
         );
-        send(
+        link.send(
             &mut app,
-            &cmd_tx,
-            &mut resp_rx,
             instance_cmd("tree_big", [-3.0, 0.0, 0.0], vec![tall.clone()]),
         );
 
         // A trigger on one instance.
-        let resp = send(
+        let resp = link.send(
             &mut app,
-            &cmd_tx,
-            &mut resp_rx,
             GenCommand::AddTrigger(crate::interaction::AddTriggerParams {
                 entity_id: "tree_2".into(),
                 trigger_type: crate::interaction::TriggerType::Click,
@@ -8148,10 +8152,8 @@ mod tests {
         assert!(matches!(resp, GenResponse::Modified { .. }), "{resp:?}");
 
         // Save.
-        let resp = send(
+        let resp = link.send(
             &mut app,
-            &cmd_tx,
-            &mut resp_rx,
             GenCommand::SaveWorld(SaveWorldCmd {
                 name: "smoke_a".into(),
                 description: None,
@@ -8193,19 +8195,15 @@ mod tests {
         assert_eq!(tree_big.instance_of.as_ref().unwrap().overrides, vec![tall]);
 
         // Clear, reload: the parts are named entities, the trigger runs.
-        send(
+        link.send(
             &mut app,
-            &cmd_tx,
-            &mut resp_rx,
             GenCommand::ClearScene {
                 keep_camera: true,
                 keep_lights: true,
             },
         );
-        let resp = send(
+        let resp = link.send(
             &mut app,
-            &cmd_tx,
-            &mut resp_rx,
             GenCommand::LoadWorld {
                 path: saved_a.clone(),
                 clear: true,
@@ -8239,10 +8237,8 @@ mod tests {
         );
 
         // Save again; the world is the same world.
-        let resp = send(
+        let resp = link.send(
             &mut app,
-            &cmd_tx,
-            &mut resp_rx,
             GenCommand::SaveWorld(SaveWorldCmd {
                 name: "smoke_b".into(),
                 description: None,
@@ -8268,6 +8264,96 @@ mod tests {
         assert!(second.next_entity_id >= first.next_entity_id);
 
         let _ = std::fs::remove_dir_all(&workspace);
+    }
+
+    /// Every conformance world spawns in Gen, through the same path a world
+    /// load uses: parse, expand instances, spawn — and the scene holds
+    /// exactly those entities. The web viewer renders these worlds in CI;
+    /// this holds the Bevy side to the same files.
+    #[test]
+    fn conformance_worlds_spawn_in_gen() {
+        use bevy::ecs::system::RunSystemOnce;
+        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../world-types/conformance")
+            .canonicalize()
+            .unwrap();
+        let mut files: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.extension().is_some_and(|x| x == "json"))
+            .collect();
+        files.sort();
+        assert!(
+            files.len() >= 9,
+            "no conformance worlds in {}",
+            dir.display()
+        );
+
+        for file in files {
+            let name = file.file_name().unwrap().to_string_lossy().into_owned();
+            let text = std::fs::read_to_string(&file).unwrap();
+            let mut manifest: wt::WorldManifest =
+                serde_json::from_str(&text).unwrap_or_else(|e| panic!("{name}: {e}"));
+            manifest.expand_instances();
+            let expected: std::collections::BTreeSet<String> = manifest
+                .entities
+                .iter()
+                .map(|e| e.name.as_str().to_string())
+                .collect();
+            let entities = manifest.entities.clone();
+            let world_dir = dir.clone();
+
+            let workspace = std::env::temp_dir().join(format!("gen-conf-{}", std::process::id()));
+            std::fs::create_dir_all(&workspace).unwrap();
+            let (mut app, _link) = command_app(&workspace);
+            app.world_mut()
+                .run_system_once(
+                    move |mut commands: Commands,
+                          mut meshes: ResMut<Assets<Mesh>>,
+                          mut materials: ResMut<Assets<StandardMaterial>>,
+                          mut registry: ResMut<NameRegistry>,
+                          mut next: ResMut<NextEntityId>,
+                          mut behavior_state: ResMut<BehaviorState>,
+                          asset_server: Res<AssetServer>,
+                          mut pending: ResMut<PendingGltfLoads>| {
+                        spawn_world_entities(
+                            &entities,
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            &mut registry,
+                            &mut next,
+                            &mut behavior_state,
+                            &asset_server,
+                            &mut pending,
+                            Some(&world_dir),
+                        );
+                    },
+                )
+                .unwrap();
+            for _ in 0..3 {
+                app.update();
+            }
+            let names: std::collections::BTreeSet<String> = app
+                .world_mut()
+                .run_system_once(
+                    |registry: Res<NameRegistry>| -> std::collections::BTreeSet<String> {
+                        registry.all_names().map(|(n, _)| n.to_string()).collect()
+                    },
+                )
+                .unwrap();
+            assert_eq!(names, expected, "{name}");
+            if name == "triggers.json" {
+                let clicks = app
+                    .world_mut()
+                    .run_system_once(|q: Query<(), With<crate::interaction::ClickTrigger>>| {
+                        q.iter().count()
+                    })
+                    .unwrap();
+                assert!(clicks >= 1, "the runtime trigger components came back");
+            }
+            let _ = std::fs::remove_dir_all(&workspace);
+        }
     }
 
     /// The conformance textures load through the asset server the way a
