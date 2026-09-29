@@ -78,6 +78,20 @@ for (const world of worlds) {
     // Reported through `info` below.
   }
   const canvas = await page.evaluate(() => Boolean(document.querySelector('#scene canvas')));
+  // A world with a proximity trigger fires it: move the visitor (the
+  // camera) into range and the lamp's once-trigger hides it — event,
+  // runtime, action, scene graph, end to end.
+  let triggerOk = true;
+  if (info && info.triggerCount > 0 && world === 'triggers.json') {
+    triggerOk = await page.evaluate(async () => {
+      const viewer = window.localgptViewer;
+      const lamp = viewer.entities.get('lamp');
+      if (!lamp || lamp.object.visible !== true) return false;
+      viewer.camera.position.set(0.0, 1.5, 2.0);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return lamp.object.visible === false;
+    });
+  }
   let tourOk = true;
   if (info && info.tourCount > 0) {
     const caption = await page.evaluate(() => {
@@ -86,11 +100,12 @@ for (const world of worlds) {
     });
     tourOk = caption.trim().length > 0;
   }
-  const ok = Boolean(info) && canvas && tourOk && errors.length === 0;
+  const ok = Boolean(info) && canvas && tourOk && triggerOk && errors.length === 0;
   if (!ok) failed += 1;
   console.log(
     `${ok ? 'ok  ' : 'FAIL'} ${world}: entities=${info?.entityCount ?? 0}`
-    + ` tours=${info?.tourCount ?? 0} canvas=${canvas} tour=${tourOk} errors=${errors.length}`,
+    + ` tours=${info?.tourCount ?? 0} canvas=${canvas} tour=${tourOk}`
+    + ` triggers=${info?.triggerCount ?? 0}${triggerOk ? '' : '!'} errors=${errors.length}`,
   );
   for (const error of errors) console.log(`      ${error.slice(0, 300)}`);
 }
