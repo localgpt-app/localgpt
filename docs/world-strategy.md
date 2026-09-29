@@ -438,10 +438,10 @@ stays the guarantee that a world renders the same everywhere (§5.3).
 | localgpt.md | No longer a 301 to `md.localgpt.app`. It becomes a zero-install, no-model utility ([§13.4](#134-localgptmd-the-developer-wedge)), reversing §12.1. |
 | Multiplayer in v1 | Out. A shared link carries most of the social value of a shared room at a fraction of the cost; `world-sync` and `localgpt-relay` ship after. |
 | Live SpacetimeDB plots in v1 | Out. Static R2 snapshots plus posters prove the loop first (§3). |
-| The assistant stack inside Worlds | Absent, not gated: no memory, dreaming, cron, heartbeat, bridges, MCP or POLICY. |
-| Verse's `ml` tier in a paid build | Out. LAION CLAP is CC-BY-NC-4.0, so the tier it powers — semantic moods and asset-selection ranking — ships only while Worlds is free. HT-Demucs (MIT) is **not** a substitute: it separates stems, it cannot tell that a track sounds aggressive. Without `ml` the rule-derived mood stands, which §13.3 already calls a finished world for a song. |
+| The assistant inside the desktop app | **Revised (2026-09-28): a mode.** The one app is `localgpt-app` (`LocalGPT.app`); there is no separate Worlds binary, so "absent from Worlds" no longer describes anything. Its assistant mode is the assistant itself: chat over the assistant's own `config.toml`, memory workspace, POLICY and MCP servers, one turn at a time under the workspace lock like `localgpt chat`. The autonomous half — heartbeat, cron, dreaming, bridges, the HTTP server — stays in `localgpt daemon`; the app does not run it. The world modes keep Gen's own settings and workspace, so nothing from the assistant's memory reaches a world or a share link unless the user puts it there. |
+| Verse's `ml` tier in a paid build | Out. LAION CLAP is CC-BY-NC-4.0, so the tier it powers — semantic moods and asset-selection ranking — ships only while the app is free. HT-Demucs (MIT) is **not** a substitute: it separates stems, it cannot tell that a track sounds aggressive. Without `ml` the rule-derived mood stands, which §13.3 already calls a finished world for a song. |
 | Android renderer | The web viewer in a WebView. One renderer per tier: Bevy on desktop, RealityKit on iOS, three.js on Android and web. |
-| A desktop "hub" app that downloads and launches the others | **Rejected** (2026-09-28). Worlds' door picker is the hub; downloads live on localgpt.app. See below. |
+| A desktop "hub" app that downloads and launches the others | **Rejected** (2026-09-28). The one app's Open… is the hub; downloads live on localgpt.app. See below. |
 
 **Why no hub app.** Four use cases (assistant, Gen, MD, Verse) producing four
 desktop things is a real problem, and the launcher is the one answer that
@@ -525,14 +525,49 @@ agent loop — assembled from the gen lib, with documents and songs as inputs:
 - Two Gen bugs this surfaced, both fixed: reloading a world kept the old
   lights and skipped the new ones, and every mesh asset of a loaded world
   landed at the origin (gallery and saved worlds included).
+- **The panel runs Gen's own agent loop** (`localgpt_gen::agent_loop`, moved
+  out of `localgpt-gen`'s main): the model menu and `/model` remembering
+  through Gen's settings, streamed turns with tool calls shown, the MCP relay
+  a CLI backend reaches the window through, and hosting and joining
+  collaborative sessions from the Collaborate section — all in the app, none
+  of it duplicated. `--prompt "…"` starts a turn at launch.
 
-Still to do: the assistant mode (the chat surface over the assistant's own
-memory — which needs a decision about the assistant's config and workspace,
-since the app deliberately reads neither today) and the release pipeline of
-§13.7. Modes switch in the window: an "Open…" button takes a document, a
-song or a world, as the launch arguments do.
+Still to do: the assistant mode and the release pipeline of §13.7. Modes
+switch in the window: an "Open…" button takes a document, a song or a world,
+as the launch arguments do.
+
+**Settled the same day, so the app has one shape to build toward:**
+
+- *The one app is `localgpt-app`, and it includes the assistant.* The
+  consumer app §13.2 called Worlds and the creator app it called Gen are
+  both this binary; the table above records what the assistant mode reads.
+  Only that mode reads the assistant's config and workspace — the world
+  modes keep Gen's own settings (`gen-settings.json`) and `gen-workspace`,
+  and each agent keeps its own CLI conversation (a Gen turn used to resume
+  and overwrite the assistant's).
+- *`LocalGPT.app` supersedes `LocalGPT Gen.app`.* `apps/gen-desktop/` is
+  retired; `apps/app-desktop/` is the one bundler, with the Linux launcher
+  beside it. `localgpt-gen` stays as a binary — the MCP server, headless
+  generation, `--host`/`--join` — and `cargo install localgpt-gen` keeps
+  working; there is no second desktop bundle. Nothing was lost to users:
+  Gen's bundle was only ever ad-hoc signed. Gen's agent loop is
+  `localgpt_gen::agent_loop` now, so the app's panel has everything Gen's
+  had — slash commands, the model menu, the MCP relay a CLI backend needs,
+  and hosting and joining from the window.
+- *The app's toolbelt default is `core`* (§13.2), unless `--tools` or
+  Gen's settings pick another; Gen alone keeps `full`.
 
 ### 13.2 The two names
+
+**Superseded in part (2026-09-28): one app, one name.** There is one desktop
+app, **LocalGPT** — the house mark on one product, which the trademark
+reasoning below favours anyway. Gen, MD and Verse are its modes and remain
+the names of their crates and binaries (`localgpt-gen` is still the MCP
+server and headless generator). *Worlds* no longer names an app;
+`localgpt.world` stays the gallery and share-link domain. What carries over
+from the table is the consumer default: the app opens with the core tool
+profile and a deterministic first world. The table is the two-app plan it
+replaces:
 
 | App | Name | Is | Lives at |
 |---|---|---|---|
@@ -896,23 +931,24 @@ layer.
 
 ### 13.7 Artifacts and delivery channels
 
-Nothing below ships today. The three repositories carry `ci.yml` and (in
-`localgpt`) `deploy-website.yml` — there is **no release workflow anywhere**,
-and every artifact that exists is hand-built: `apps/gen-desktop/macos/build-app.sh`
-produces an ad-hoc-signed `LocalGPT Gen.app` and an optional `.dmg`, and
-`localgpt-verse/scripts/bundle.sh` assembles a portable `dist/`. Both say in
-their own comments what is missing — a Developer ID signature and
-notarization. The one app's bundler, `apps/app-desktop/macos/build-app.sh`
-(2026-09-28), builds `LocalGPT.app` and does both when given the
-credentials (`APPLE_SIGNING_IDENTITY`, `APPLE_NOTARY_PROFILE`); only its
-ad-hoc path has been run, since no Developer ID is set up here. One workspace (§13.6) also means one release pipeline instead of
-three.
+Nothing below ships today. The repository carries `ci.yml` and
+`deploy-website.yml` — there is **no release workflow**, and every artifact
+that exists is hand-built. `apps/app-desktop/macos/build-app.sh` builds
+`LocalGPT.app` (2026-09-28): ad-hoc signed by default, and with a Developer
+ID signature, hardened runtime and notarization when given the credentials
+(`APPLE_SIGNING_IDENTITY`, `APPLE_NOTARY_PROFILE`) — only its ad-hoc path
+has been run, since no Developer ID is set up here. It builds with
+`local-llm-metal` on Apple Silicon, so the bundle runs a GGUF from the
+shared model folder (§13.3's third tier). It replaced
+`apps/gen-desktop/`, whose `LocalGPT Gen.app` it supersedes, and
+`crates/verse/scripts/bundle.sh` still assembles a portable `dist/`. One
+workspace (§13.6) also means one release pipeline instead of three.
 
-**Worlds — the consumer app**
+**LocalGPT — the one desktop app** (the Worlds and Gen apps of §13.2, merged)
 
 | Platform | Artifact | Channel |
 |---|---|---|
-| macOS (Apple Silicon) | notarized `.app` in a `.dmg` | direct download from localgpt.world; Homebrew cask for developers |
+| macOS (Apple Silicon) | notarized `.app` in a `.dmg` | direct download from localgpt.app and localgpt.world; Homebrew cask for developers |
 | Windows | signed `.msi` | direct download; winget |
 | Linux | AppImage | direct download; Flatpak later (`bundle.sh` already anticipates it via `VERSE_ASSET_ROOT`) |
 | macOS / Windows | the same build as a Steam app | Steam |
@@ -920,12 +956,15 @@ three.
 | visionOS | `.ipa` | App Store — the Swift views already branch on `os(visionOS)` |
 | Android | `.aab` | Play Store |
 
-**Gen — the creator app**
+The local-GGUF tier on the desktop: `local-llm-metal` is macOS-only, so the
+Windows and Linux artifacts need `local-llm` (CPU) or a GPU backend of
+mistral.rs chosen per platform — undecided, and nothing builds them yet.
+
+**Gen as a binary**
 
 | Platform | Artifact | Channel |
 |---|---|---|
-| macOS, Windows, Linux | the same three desktop artifacts | direct download from gen.localgpt.app; itch.io; Steam if Worlds proves the channel |
-| any | the binary itself | `cargo install localgpt-gen` — already true, and the audience that wants Gen has cargo |
+| any | `localgpt-gen` — MCP server, headless generation, session host | `cargo install localgpt-gen`, already true; the MCP container image (`Dockerfile.gen`) for registries |
 
 **LocalGPT — the assistant**
 

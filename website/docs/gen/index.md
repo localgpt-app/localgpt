@@ -72,7 +72,7 @@ You don't need to keep a terminal beside the window. Press **F2** in the Gen win
 localgpt-gen --desktop
 ```
 
-Gen switches to desktop mode on its own when it isn't started from a terminal, for example as a macOS app built with `apps/gen-desktop/macos/build-app.sh` from the repository.
+Gen switches to desktop mode on its own when it isn't started from a terminal. The same shell is the LocalGPT desktop app, which also opens documents and songs as worlds; build its macOS bundle with `apps/app-desktop/macos/build-app.sh` from the repository.
 
 | Key | What it does |
 |-----|--------------|
@@ -81,7 +81,7 @@ Gen switches to desktop mode on its own when it isn't started from a terminal, f
 | **Shift+Enter** | Start a new line |
 | **Esc** | Leave the prompt box so WASD moves you again |
 
-- **Model menu:** lists the models this machine can use right now, meaning installed CLI backends (Claude CLI, Gemini CLI, Codex) and models pulled into a local Ollama. A switch lasts for the session; set `agent.default_model` in `config.toml` to change the default. A CLI backend only appears if Gen started on that backend, because its tool connection is set up at startup.
+- **Model menu:** lists the models this machine can use right now, meaning installed CLI backends (Claude CLI, Gemini CLI, Codex), models pulled into a local Ollama, and — in a build with `local-llm` or `local-llm-metal` — every GGUF in the shared model folder (`~/.local/share/localgpt/models/llm`). A switch is remembered in Gen's own settings (`~/.local/state/localgpt/gen-settings.json`); Gen reads no `config.toml`. A CLI backend only appears if Gen started on that backend, because its tool connection is set up at startup.
 - **Slash commands:** `/model <name>`, `/new`, `/clear`, and `/quit` work in the panel. The other commands print their results in the terminal.
 - **First run:** if your model is a CLI backend that isn't installed, the panel says so instead of failing silently. Opened from Finder, Gen reads your login shell's `PATH`, so `claude`, `gemini`, and `codex` installed with Homebrew, npm, or into `~/.local/bin` are found.
 - **Logs:** desktop mode has no terminal, so it logs to `~/.local/state/localgpt/logs/gen-desktop.log`.

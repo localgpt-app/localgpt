@@ -114,8 +114,7 @@ bridges/          # Standalone bridge binaries (depend on core + bridge)
 apps/             # Native client projects
 ├── apple/        # iOS/macOS (Swift)
 ├── android/      # Android (Kotlin)
-├── gen-desktop/  # macOS .app bundler for Gen
-├── app-desktop/  # macOS .app bundler for the one app (Developer ID + notarization when given)
+├── app-desktop/  # LocalGPT.app bundler for the one app (Developer ID + notarization when given; replaced gen-desktop)
 └── web/          # Web client
 
 scripts/          # The shared downloads, fetched once for every app

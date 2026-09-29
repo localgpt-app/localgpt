@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=LocalGPT
+GenericName=3D Worlds
+Comment=Open a document, a song or a world and walk into it
+Exec=localgpt-app
+Icon=localgpt
+Terminal=false
+Categories=Graphics;3DGraphics;
+Keywords=3D;world;AI;Markdown;music;Bevy;

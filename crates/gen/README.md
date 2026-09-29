@@ -24,8 +24,9 @@ Claude CLI, Gemini CLI, or Codex, and local Ollama models).
 Started without a terminal (for example as a macOS app) or with `--desktop`,
 Gen runs in **desktop mode**: the panel opens at startup and replaces the
 terminal. **Enter** jumps from the 3D view to the prompt box and **Esc**
-leaves it. To build a macOS app bundle, see `apps/gen-desktop/` in the
-repository.
+leaves it. Gen's desktop shell is also the LocalGPT app's (`crates/app`),
+which opens documents and songs as worlds too; its macOS bundle is built by
+`apps/app-desktop/` in the repository.
 
 ## MCP Server Setup
 
