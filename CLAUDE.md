@@ -38,6 +38,13 @@ cargo run -p localgpt-gen -- -v                    # Verbose logging
 cargo run -p localgpt-gen -- --host                # Host a collaborative session (mDNS, UDP 9879)
 cargo run -p localgpt-gen -- --join 192.168.1.5    # Join a session (or --join to browse)
 
+# The one desktop app — Gen's shell, documents and songs as modes
+cargo run -p localgpt-app                          # reopens what was opened last
+cargo run -p localgpt-app -- --md notes.md         # edit a document, the world rebuilds
+cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
+cargo run -p localgpt-app -- --prompt "a quiet harbor at dusk"
+cargo run -p localgpt-app --features local-llm-metal -- --md doc.md   # in-process GGUF
+
 # MD — a Markdown file as a walkable world
 cargo run -p localgpt-md                           # samples/hello.md
 cargo run -p localgpt-md -- path/to/doc.md         # any file (rebuilds on save)
