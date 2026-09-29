@@ -26,6 +26,7 @@ pub mod diff;
 pub mod doc;
 pub mod oplog;
 pub mod protocol;
+pub mod session;
 pub mod undo;
 
 pub use authority::{
@@ -38,5 +39,9 @@ pub use oplog::{OpLogEntry, decode_line, encode_line};
 pub use protocol::{
     Author, ChatKind, ClientKind, ClientMsg, JobInfo, JobState, PROTOCOL_VERSION, PeerId, PeerInfo,
     Presence, Role, ServerMsg, SessionInfo,
+};
+pub use session::{
+    ClockRecord, ClockState, InputRecord, InputSample, SESSION_FORMAT_VERSION, SessionMeta,
+    SessionOp, StateRecord, ToolRecord, fold_log,
 };
 pub use undo::compute_inverse;

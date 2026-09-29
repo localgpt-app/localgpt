@@ -562,6 +562,15 @@ impl Authority {
         Ok(self.revision)
     }
 
+    /// Load a document wholesale at the given revision — a session
+    /// package's base, already folded. Undo history is cleared: the room
+    /// starts fresh from the base.
+    pub fn load_base(&mut self, doc: WorldDoc, revision: u64) {
+        self.doc = doc;
+        self.revision = revision;
+        self.undo_stacks.clear();
+    }
+
     /// Undo the caller's most recent batch. The inverse applies like any
     /// other commit: everyone sees it, and it can itself be undone.
     pub fn undo(&mut self, id: PeerId) -> Vec<Outbound> {
