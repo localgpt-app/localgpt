@@ -46,6 +46,14 @@ pub struct EnvironmentSnapshot {
 /// Copy a texture into the world's `assets/textures/` (once per source) and
 /// return its manifest path, relative to `assets/`. A texture already inside
 /// `assets/` keeps its place; one that can't be copied keeps its source path.
+/// Whether two files have the same bytes (false when either can't be read).
+fn files_equal(a: &Path, b: &Path) -> bool {
+    match (std::fs::read(a), std::fs::read(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
+}
+
 fn localize_texture(
     source: &str,
     assets_dir: &std::path::Path,
@@ -165,8 +173,12 @@ pub fn handle_save_world(
         if let Some(resolved) = resolved {
             if let Some(filename) = resolved.file_name() {
                 let filename_str = filename.to_string_lossy().into_owned();
+                // The same asset localized by an earlier save is reused, not
+                // renamed: a name is only taken by *different* content.
+                let same_content = meshes_dir.join(&filename_str).is_file()
+                    && files_equal(&resolved, &meshes_dir.join(&filename_str));
                 // Generate unique filename if there's a conflict
-                let unique_filename = if meshes_dir.join(&filename_str).exists() {
+                let unique_filename = if meshes_dir.join(&filename_str).exists() && !same_content {
                     // Add a unique suffix based on path hash to avoid collisions
                     use std::collections::hash_map::DefaultHasher;
                     use std::hash::{Hash, Hasher};
@@ -186,7 +198,10 @@ pub fn handle_save_world(
                     filename_str
                 };
 
-                if let Err(e) = std::fs::copy(&resolved, meshes_dir.join(&unique_filename)) {
+                if same_content {
+                    let relative_path = format!("assets/meshes/{}", unique_filename);
+                    path_map.insert(original_path.clone(), relative_path);
+                } else if let Err(e) = std::fs::copy(&resolved, meshes_dir.join(&unique_filename)) {
                     tracing::warn!("Failed to copy mesh asset '{}': {}", original_path, e);
                     // Keep original path if copy fails
                     path_map.insert(original_path.clone(), original_path);

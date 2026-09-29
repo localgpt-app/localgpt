@@ -8266,6 +8266,87 @@ mod tests {
         let _ = std::fs::remove_dir_all(&workspace);
     }
 
+    /// A save localizes an imported mesh into `assets/meshes/`; a second
+    /// save of the same scene reuses that copy instead of adding another
+    /// under a suffixed name (which used to rename the mesh on every save).
+    #[test]
+    fn saving_twice_keeps_one_mesh_copy() {
+        use bevy::ecs::system::RunSystemOnce;
+        let workspace = std::env::temp_dir().join(format!("gen-mesh-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&workspace);
+        std::fs::create_dir_all(workspace.join("imports")).unwrap();
+        std::fs::write(
+            workspace.join("imports/rock.glb"),
+            b"not a real glb, only bytes",
+        )
+        .unwrap();
+        let rock = workspace
+            .join("imports/rock.glb")
+            .to_string_lossy()
+            .into_owned();
+
+        let (mut app, mut link) = command_app(&workspace);
+        let rock = rock.clone(); // moved into the system, cloned out per run
+        app.world_mut()
+            .run_system_once(
+                move |mut commands: Commands,
+                      mut registry: ResMut<NameRegistry>,
+                      mut next: ResMut<NextEntityId>| {
+                    let id = next.alloc();
+                    let entity = commands
+                        .spawn((
+                            Transform::from_translation(Vec3::new(2.0, 0.5, 0.0)),
+                            Name::new("rock"),
+                            GenEntity {
+                                entity_type: GenEntityType::Mesh,
+                                world_id: id,
+                            },
+                            GltfSource { path: rock.clone() },
+                        ))
+                        .id();
+                    registry.insert_with_id("rock".into(), entity, id);
+                },
+            )
+            .unwrap();
+        app.update();
+
+        let read_mesh = |dir: &Path| -> String {
+            let text = std::fs::read_to_string(dir.join("world.ron")).unwrap();
+            let manifest: wt::WorldManifest = ron::from_str(&text).unwrap();
+            manifest
+                .entities
+                .iter()
+                .find(|e| e.name.as_str() == "rock")
+                .unwrap()
+                .mesh_asset
+                .as_ref()
+                .unwrap()
+                .path
+                .clone()
+        };
+        for name in ["smoke_a", "smoke_b"] {
+            let resp = link.send(
+                &mut app,
+                GenCommand::SaveWorld(SaveWorldCmd {
+                    name: name.into(),
+                    description: None,
+                    path: None,
+                }),
+            );
+            let GenResponse::WorldSaved { path, .. } = resp else {
+                panic!("{resp:?}");
+            };
+            assert_eq!(read_mesh(Path::new(&path)), "assets/meshes/rock.glb");
+            let meshes: Vec<_> = std::fs::read_dir(Path::new(&path).join("assets/meshes"))
+                .unwrap()
+                .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().into_owned()))
+                .collect();
+            assert_eq!(meshes, ["rock.glb"], "one copy, one name");
+        }
+
+        let _ = std::fs::remove_dir_all(&workspace);
+    }
+
     /// Every conformance world spawns in Gen, through the same path a world
     /// load uses: parse, expand instances, spawn — and the scene holds
     /// exactly those entities. The web viewer renders these worlds in CI;
