@@ -51,6 +51,10 @@ pub struct PanelSettings {
     /// Gen's own settings file, offered in the help section. Gen keeps its
     /// settings here rather than in the assistant's config.toml.
     pub settings_file: Option<PathBuf>,
+    /// The Collaborate host form's remembered values, if the binary read
+    /// them from the settings file.
+    #[cfg(feature = "multiplayer")]
+    pub collab: Option<crate::settings::CollabSettings>,
 }
 
 /// Adds the prompt panel. Add it after the gen app so the egui plugin the
@@ -151,10 +155,29 @@ enum ToolState {
 
 impl PromptPanel {
     fn new(settings: &PanelSettings) -> Self {
+        #[cfg(feature = "multiplayer")]
+        let collab = settings
+            .collab
+            .clone()
+            .map_or_else(Default::default, |saved| {
+                let port = saved
+                    .port
+                    .map_or_else(Default::default, |port| port.to_string());
+                super::collab::CollabState {
+                    host_form: super::collab::HostForm {
+                        session_name: saved.session_name,
+                        port,
+                        open: saved.open,
+                    },
+                    ..Default::default()
+                }
+            });
         Self {
             open: settings.open,
             focus_input: settings.open && settings.focus_input,
             settings_file: settings.settings_file.clone(),
+            #[cfg(feature = "multiplayer")]
+            collab,
             ..Default::default()
         }
     }
@@ -416,6 +439,19 @@ fn prompt_panel_ui(
                 && let Some(control) = host_control.as_deref_mut()
             {
                 *control = crate::net::host::HostControl::StartRequested(request);
+                // The form is worth remembering exactly when it worked: the
+                // next session is usually the same name, port and openness.
+                let form = &panel.collab.host_form;
+                let remembered = crate::settings::CollabSettings {
+                    session_name: form.session_name.clone(),
+                    port: form.port.parse().ok(),
+                    open: form.open,
+                };
+                if let Err(e) = crate::settings::update(|settings| {
+                    settings.collab = remembered;
+                }) {
+                    tracing::warn!("couldn't save the host form: {e}");
+                }
             }
         });
 }

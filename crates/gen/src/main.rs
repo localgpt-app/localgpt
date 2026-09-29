@@ -575,6 +575,7 @@ fn main() -> Result<()> {
                     open: desktop,
                     focus_input: desktop,
                     settings_file: localgpt_gen::settings::settings_path(),
+                    collab: Some(settings.collab.clone()),
                 },
             ));
 

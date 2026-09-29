@@ -170,7 +170,8 @@ fn main() -> anyhow::Result<()> {
     // compiled in-process. Both land in the same place — GenInitialWorld —
     // and `--md x --world y` prefers the document (the more specific ask).
     // A failure to import falls back to the raw path so the reason shows up
-    // in the window's log rather than killing the launch.
+    // in the window's log rather than killing the launch. With none of the
+    // three given, the app reopens what it opened last.
     let import_rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
@@ -187,14 +188,21 @@ fn main() -> anyhow::Result<()> {
     // places the view once), and the live Document drives every rebuild after.
     let mut live_document = None;
     let showing;
-    let initial_world = if let Some(md) = &args.md {
+    let initial_world;
+    // What to remember for the next bare launch, and what a bare launch
+    // fell back to (not remembered again — it already is).
+    let mut remember: Option<localgpt_gen::settings::LastOpened> = None;
+    if let Some(md) = &args.md {
         // The model authors each section's place in the background, with the
         // same model as the prompt panel.
         let (live, dir) = document::open(md, &workspace, (!args.no_author).then_some(&config))?;
         eprintln!("localgpt-app: {} -> {}", md.display(), dir.display());
         live_document = Some(live);
         showing = Some(format!("Document · {}", file_name(md)));
-        Some(dir.to_string_lossy().into_owned())
+        initial_world = Some(dir.to_string_lossy().into_owned());
+        remember = Some(localgpt_gen::settings::LastOpened::Document {
+            path: md.to_string_lossy().into_owned(),
+        });
     } else if let Some(track) = &args.song {
         // A song: Verse's analysis (seconds on first open, cached after),
         // then its world, which Gen loads and plays.
@@ -215,11 +223,52 @@ fn main() -> anyhow::Result<()> {
             "Song · {}",
             title.unwrap_or_else(|| file_name(track))
         ));
-        Some(dir.to_string_lossy().into_owned())
+        let dir = dir.to_string_lossy().into_owned();
+        remember = Some(localgpt_gen::settings::LastOpened::World { dir: dir.clone() });
+        initial_world = Some(dir);
+    } else if let Some(world) = &args.world {
+        showing = Some(format!("World · {world}"));
+        let dir = import(world);
+        remember = Some(localgpt_gen::settings::LastOpened::World { dir: dir.clone() });
+        initial_world = Some(dir);
     } else {
-        showing = args.world.as_ref().map(|world| format!("World · {world}"));
-        args.world.as_ref().map(|world| import(world))
+        // Reopen where the user left off: a document with its editor again,
+        // anything else as its world (a song's plays on its own). Gone is
+        // gone — an empty world, as a first run.
+        match settings.last_opened {
+            Some(localgpt_gen::settings::LastOpened::Document { path })
+                if std::path::Path::new(&path).is_file() =>
+            {
+                let md = PathBuf::from(&path);
+                let (live, dir) =
+                    document::open(&md, &workspace, (!args.no_author).then_some(&config))?;
+                eprintln!(
+                    "localgpt-app: reopened {} ({})",
+                    md.display(),
+                    dir.display()
+                );
+                live_document = Some(live);
+                showing = Some(format!("Document · {}", file_name(&md)));
+                initial_world = Some(dir.to_string_lossy().into_owned());
+            }
+            Some(localgpt_gen::settings::LastOpened::World { dir })
+                if std::path::Path::new(&dir).join("world.ron").is_file() =>
+            {
+                eprintln!("localgpt-app: reopened {}", dir);
+                showing = Some(format!("World · {}", file_name(std::path::Path::new(&dir))));
+                initial_world = Some(dir);
+            }
+            _ => {
+                showing = None;
+                initial_world = None;
+            }
+        }
     };
+    if let Some(opened) = remember
+        && let Err(e) = localgpt_gen::settings::update(|saved| saved.last_opened = Some(opened))
+    {
+        eprintln!("localgpt-app: couldn't remember what it opened: {e}");
+    }
 
     let (bridge, channels) = gen3d::create_gen_channels();
     let (panel_channels, agent_channels) = desktop::create_chat_channels();
@@ -335,6 +384,7 @@ fn main() -> anyhow::Result<()> {
             open: true,
             focus_input: true,
             settings_file: localgpt_gen::settings::settings_path(),
+            collab: Some(settings.collab.clone()),
         },
     ));
     app.add_plugins((

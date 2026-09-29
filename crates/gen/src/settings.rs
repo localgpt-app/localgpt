@@ -48,6 +48,39 @@ pub struct GenSettings {
     /// `Some(false)`: never — keyword search only.
     #[serde(default)]
     pub embeddings: Option<bool>,
+
+    /// The Collaborate host form's last values, so a session is easy to
+    /// restart. Seeded into the prompt panel; saved when Start is clicked.
+    #[serde(default)]
+    pub collab: CollabSettings,
+
+    /// What the app opened last, so a bare launch reopens where the user
+    /// left off — a document with its editor, anything else as its world
+    /// (a song's world plays again on its own).
+    #[serde(default)]
+    pub last_opened: Option<LastOpened>,
+}
+
+/// What the app opened, as Gen remembers it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum LastOpened {
+    /// The Markdown file's path; reopening it rebuilds the live document.
+    Document { path: String },
+    /// A world folder's path (an imported world, or a song's world).
+    World { dir: String },
+}
+
+/// The Collaborate host form, as Gen remembers it.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CollabSettings {
+    #[serde(default)]
+    pub session_name: String,
+    /// `None` is the default port (also what an unparseable field becomes).
+    #[serde(default)]
+    pub port: Option<u16>,
+    #[serde(default)]
+    pub open: bool,
 }
 
 fn default_version() -> u32 {
@@ -61,6 +94,8 @@ impl Default for GenSettings {
             default_model: None,
             tool_profile: None,
             embeddings: None,
+            collab: CollabSettings::default(),
+            last_opened: None,
         }
     }
 }
@@ -157,12 +192,22 @@ mod tests {
             default_model: Some("gguf/bonsai".into()),
             tool_profile: Some("core".into()),
             embeddings: Some(false),
+            collab: CollabSettings {
+                session_name: "harbor".into(),
+                port: Some(9900),
+                open: true,
+            },
+            last_opened: Some(LastOpened::Document {
+                path: "/tmp/notes.md".into(),
+            }),
         };
         let json = serde_json::to_string_pretty(&settings).unwrap();
         assert_eq!(
             serde_json::from_str::<GenSettings>(&json).unwrap(),
             settings
         );
+        // And the tagged enum reads as its own object, not a tuple.
+        assert!(json.contains("\"kind\": \"document\""), "{json}");
     }
 
     /// A file from a future Gen is ignored rather than half-read.

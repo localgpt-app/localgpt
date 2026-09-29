@@ -127,6 +127,14 @@ fn open_later(time: Res<Time>, mut later: ResMut<OpenLater>, opener: Res<Opener>
     }
 }
 
+/// Remember what was opened, so a bare launch reopens it. A settings write
+/// is not why anyone opens a file, so failures are a log line, nothing more.
+fn remember(opened: localgpt_gen::settings::LastOpened) {
+    if let Err(e) = localgpt_gen::settings::update(|saved| saved.last_opened = Some(opened)) {
+        warn!("couldn't remember what was opened: {e}");
+    }
+}
+
 fn open_bar(mut contexts: EguiContexts, opener: Res<Opener>, showing: Res<Showing>) {
     let Ok(ctx) = contexts.ctx_mut() else {
         return;
@@ -206,7 +214,9 @@ fn receive(
                 // Leaving document mode, if it was on: the pane and its model
                 // requests go with the resource.
                 commands.remove_resource::<Document>();
-                initial_world.path = Some(dir.to_string_lossy().into_owned());
+                let dir = dir.to_string_lossy().into_owned();
+                remember(localgpt_gen::settings::LastOpened::World { dir: dir.clone() });
+                initial_world.path = Some(dir);
                 showing.0 = Some(what);
             }
             Opened::Failed(why) => {
@@ -238,6 +248,9 @@ fn open(
                     commands.insert_resource(document);
                     initial_world.path = Some(dir.to_string_lossy().into_owned());
                     showing.0 = Some(format!("Document · {name}"));
+                    remember(localgpt_gen::settings::LastOpened::Document {
+                        path: path.to_string_lossy().into_owned(),
+                    });
                     opener.status = None;
                 }
                 Err(e) => opener.status = Some(format!("Could not open {name}: {e}")),
