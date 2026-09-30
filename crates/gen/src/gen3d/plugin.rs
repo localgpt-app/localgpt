@@ -8466,6 +8466,7 @@ mod tests {
         }
         let red = wt::PartOverride {
             part: wt::EntityName::new("leaves"),
+            removed: false,
             patch: wt::EntityPatch {
                 material: Some(Some(wt::MaterialDef {
                     color: [0.8, 0.2, 0.1, 1.0],
@@ -8476,6 +8477,7 @@ mod tests {
         };
         let tall = wt::PartOverride {
             part: wt::EntityName::new("trunk"),
+            removed: false,
             patch: wt::EntityPatch {
                 transform: Some(wt::WorldTransform {
                     position: [0.0, 1.5, 0.0],
@@ -8513,6 +8515,8 @@ mod tests {
                 amount: None,
                 state_key: None,
                 category: None,
+                duration: None,
+                volume: None,
                 requires_item: None,
             }),
         );
