@@ -8593,7 +8593,7 @@ mod tests {
             .world_mut()
             .run_system_once(
                 |registry: Res<NameRegistry>,
-                 clicks: Query<(), With<crate::interaction::ClickTrigger>>| {
+                 clicks: Query<(), With<localgpt_world_bevy::triggers::Triggers>>| {
                     (
                         registry.get_entity("tree_2/leaves").is_some(),
                         clicks.iter().count(),
@@ -8798,9 +8798,11 @@ mod tests {
             if name == "triggers.json" {
                 let clicks = app
                     .world_mut()
-                    .run_system_once(|q: Query<(), With<crate::interaction::ClickTrigger>>| {
-                        q.iter().count()
-                    })
+                    .run_system_once(
+                        |q: Query<(), With<localgpt_world_bevy::triggers::Triggers>>| {
+                            q.iter().count()
+                        },
+                    )
                     .unwrap();
                 assert!(clicks >= 1, "the runtime trigger components came back");
             }
