@@ -1,0 +1,11 @@
+{
+  "comment": "Outcome assertions for conformance/physics.json — the ext-physics extension's conformance is what the world does, not what it renders. Run by the reference solver in CI (viewer/test/physics.test.mjs via runOutcomes); any engine may run the same predicates. Assertion kinds: contact [a, b] within within_s; rest {body, near, tolerance}; bounces {body, min} (impacts above 0.5 m/s).",
+  "world": "conformance/physics.json",
+  "options": { "dt_s": 0.008333333333333333, "sample_dt_s": 0.1 },
+  "simulate_s": 6.0,
+  "expect": [
+    { "contact": ["ball", "pedestal"], "within_s": 2.0 },
+    { "rest": { "body": "ball", "near": [0.0, 1.3, 0.0], "tolerance": 0.15 } },
+    { "bounces": { "body": "bouncy_ball", "min": 4 } }
+  ]
+}

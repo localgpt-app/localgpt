@@ -1,0 +1,40 @@
+{
+  "version": 3,
+  "meta": {
+    "name": "conformance-physics",
+    "description": "The ext-physics extension: a ball dropped onto a pedestal switch (contact, rest, a score through a collision trigger) and a high-restitution ball (bounces). Renderers without the extension draw the world at rest; conformance for the extension itself is the outcome assertions in outcomes/physics.json, not pixels.",
+    "tags": ["conformance"]
+  },
+  "environment": {
+    "background_color": [0.1, 0.12, 0.18, 1.0],
+    "ambient_intensity": 200.0,
+    "ext-physics": { "gravity": [0.0, -9.81, 0.0] }
+  },
+  "camera": { "position": [5.0, 3.5, 10.0], "look_at": [1.0, 1.0, 0.0], "fov_degrees": 50.0 },
+  "entities": [
+    { "id": 1, "name": "ground",
+      "shape": { "Plane": { "x": 40.0, "z": 40.0 } },
+      "material": { "color": [0.3, 0.32, 0.36, 1.0], "roughness": 0.95 },
+      "ext-physics": { "body": "static" } },
+    { "id": 2, "name": "sun", "transform": { "position": [6.0, 15.0, 4.0] },
+      "light": { "light_type": "directional", "color": [1.0, 0.96, 0.9, 1.0], "intensity": 12000.0, "direction": [-0.35, -1.0, -0.3] } },
+    { "id": 3, "name": "pedestal", "transform": { "position": [0.0, 0.5, 0.0] },
+      "shape": { "Cuboid": { "x": 2.0, "y": 1.0, "z": 2.0 } },
+      "material": { "color": [0.55, 0.55, 0.6, 1.0], "roughness": 0.6 },
+      "ext-physics": { "body": "static" },
+      "triggers": [
+        { "on": { "event": "collision" },
+          "action": { "action": "host", "name": "add_score", "args": { "amount": 10 } }, "once": true },
+        { "on": { "event": "collision" },
+          "action": { "action": "show_text", "text": "The ball found the switch." }, "once": true } ] },
+    { "id": 4, "name": "ball", "transform": { "position": [0.0, 5.0, 0.0] },
+      "shape": { "Sphere": { "radius": 0.3 } },
+      "material": { "color": [0.9, 0.55, 0.15, 1.0], "roughness": 0.4 },
+      "ext-physics": { "body": "dynamic", "mass": 2.0, "collider": "shape", "restitution": 0.3, "friction": 0.4 } },
+    { "id": 5, "name": "bouncy_ball", "transform": { "position": [4.0, 2.5, 0.0] },
+      "shape": { "Sphere": { "radius": 0.25 } },
+      "material": { "color": [0.2, 0.75, 0.5, 1.0], "roughness": 0.3 },
+      "ext-physics": { "body": "dynamic", "mass": 0.5, "collider": "shape", "restitution": 0.75, "friction": 0.05 } }
+  ],
+  "next_entity_id": 6
+}

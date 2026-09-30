@@ -266,6 +266,8 @@ mod tests {
             ambient_color: None,
             fog_density: None,
             fog_color: None,
+
+            extra: ::std::collections::BTreeMap::new(),
         };
         let ops = diff_scene(&doc, &[], Some(&env));
         assert_eq!(ops.len(), 1);

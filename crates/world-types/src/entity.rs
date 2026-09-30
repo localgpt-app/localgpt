@@ -4,6 +4,7 @@
 //! and behaviors, one entity can have **any combination** of component slots.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 use crate::asset::MeshAssetRef;
 use crate::audio::AudioDef;
@@ -106,6 +107,13 @@ pub struct WorldEntity {
     /// Events and the actions they run (see [`crate::trigger`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub triggers: Vec<TriggerDef>,
+    /// Extension fields (`ext-*`), namespaced and must-ignored: what a
+    /// reader doesn't understand rides along unchanged (the physics
+    /// extension's body component lives here today). The typed fields
+    /// above are the contract; this map is the sanctioned room around
+    /// them. An empty map serializes to nothing.
+    #[serde(default, flatten)]
+    pub extra: BTreeMap<String, serde_json::Value>,
 }
 
 impl WorldEntity {
@@ -127,6 +135,7 @@ impl WorldEntity {
             modulations: Vec::new(),
             instance_of: None,
             triggers: Vec::new(),
+            extra: BTreeMap::new(),
         }
     }
 
@@ -179,33 +188,197 @@ impl WorldEntity {
 /// - `None` — field not changed
 /// - `Some(None)` — field removed/cleared
 /// - `Some(Some(v))` — field set to `v`
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+///
+/// Serialize/Deserialize are hand-written (not derived) because the
+/// derived form has no room for extension keys: an `ext-*` key in a
+/// patch sets (or clears, on `null`) the entity's [`WorldEntity::extra`]
+/// entry, exactly as the fold's core fields patch — and `serde(flatten)`
+/// can't be used here, since flattening collapses an explicit `null`
+/// into an absent key and would erase the clear-field semantics above.
+#[derive(Debug, Clone, Default, PartialEq)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EntityPatch {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<EntityName>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transform: Option<WorldTransform>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<Option<EntityId>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shape: Option<Option<Shape>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub material: Option<Option<MaterialDef>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub light: Option<Option<LightDef>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub behaviors: Option<Vec<BehaviorDef>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audio: Option<Option<AudioDef>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mesh_asset: Option<Option<MeshAssetRef>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modulations: Option<Vec<ModulationDef>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub instance_of: Option<Option<InstanceOf>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub triggers: Option<Vec<TriggerDef>>,
+    /// Extension fields (`ext-*`) this patch sets — or clears, on `None`.
+    /// Other unknown keys are dropped, matching the reference fold.
+    pub extra: BTreeMap<String, Option<serde_json::Value>>,
+}
+
+impl Serialize for EntityPatch {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        // A set slot writes its value; a clearing slot writes its inner
+        // `None` — `null` in JSON, `None` in RON — so the format, not
+        // this code, spells the clear.
+        fn slot<M, T>(
+            map: &mut M,
+            key: &'static str,
+            value: &Option<Option<T>>,
+        ) -> Result<(), M::Error>
+        where
+            M: SerializeMap,
+            T: Serialize,
+        {
+            if let Some(inner) = value {
+                map.serialize_entry(key, inner)?;
+            }
+            Ok(())
+        }
+        let set = [
+            self.name.is_some(),
+            self.transform.is_some(),
+            self.parent.is_some(),
+            self.shape.is_some(),
+            self.material.is_some(),
+            self.light.is_some(),
+            self.behaviors.is_some(),
+            self.audio.is_some(),
+            self.mesh_asset.is_some(),
+            self.modulations.is_some(),
+            self.instance_of.is_some(),
+            self.triggers.is_some(),
+        ]
+        .into_iter()
+        .filter(|s| *s)
+        .count();
+        let mut map = serializer.serialize_map(Some(set + self.extra.len()))?;
+        if let Some(name) = &self.name {
+            map.serialize_entry("name", name)?;
+        }
+        if let Some(transform) = &self.transform {
+            map.serialize_entry("transform", transform)?;
+        }
+        slot(&mut map, "parent", &self.parent)?;
+        slot(&mut map, "shape", &self.shape)?;
+        slot(&mut map, "material", &self.material)?;
+        slot(&mut map, "light", &self.light)?;
+        slot(&mut map, "audio", &self.audio)?;
+        slot(&mut map, "mesh_asset", &self.mesh_asset)?;
+        slot(&mut map, "instance_of", &self.instance_of)?;
+        if let Some(behaviors) = &self.behaviors {
+            map.serialize_entry("behaviors", behaviors)?;
+        }
+        if let Some(modulations) = &self.modulations {
+            map.serialize_entry("modulations", modulations)?;
+        }
+        if let Some(triggers) = &self.triggers {
+            map.serialize_entry("triggers", triggers)?;
+        }
+        for (key, value) in &self.extra {
+            match value {
+                Some(value) => map.serialize_entry(key, value)?,
+                // A clearing entry must survive the round trip: absent
+                // means "not in the patch", null means "clear it".
+                None => map.serialize_entry(key, &serde_json::Value::Null)?,
+            }
+        }
+        map.end()
+    }
+}
+
+/// One slot value as the patch reads it: a clear (`null` in JSON, `None`
+/// in RON) or a set. The distinction `Option<Option<T>>` carries, read
+/// format-agnostically — serde's own `Option` eats the clear.
+enum NullOr<T> {
+    /// Clear the slot.
+    Null,
+    /// Set the slot.
+    Value(T),
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for NullOr<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visitor<T>(std::marker::PhantomData<T>);
+        impl<'de, T: Deserialize<'de>> serde::de::Visitor<'de> for Visitor<T> {
+            type Value = NullOr<T>;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a value or a clear")
+            }
+            fn visit_none<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+                Ok(NullOr::Null)
+            }
+            fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+                Ok(NullOr::Null)
+            }
+            fn visit_some<D: serde::Deserializer<'de>>(
+                self,
+                deserializer: D,
+            ) -> Result<Self::Value, D::Error> {
+                T::deserialize(deserializer).map(NullOr::Value)
+            }
+        }
+        deserializer.deserialize_option(Visitor(std::marker::PhantomData))
+    }
+}
+
+impl<'de> Deserialize<'de> for EntityPatch {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = EntityPatch;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("an entity patch")
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<EntityPatch, A::Error> {
+                let mut patch = EntityPatch::default();
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "name" => patch.name = Some(map.next_value()?),
+                        "transform" => patch.transform = Some(map.next_value()?),
+                        "parent" => patch.parent = map.next_value::<NullOr<_>>()?.into(),
+                        "shape" => patch.shape = map.next_value::<NullOr<_>>()?.into(),
+                        "material" => patch.material = map.next_value::<NullOr<_>>()?.into(),
+                        "light" => patch.light = map.next_value::<NullOr<_>>()?.into(),
+                        "audio" => patch.audio = map.next_value::<NullOr<_>>()?.into(),
+                        "mesh_asset" => {
+                            patch.mesh_asset = map.next_value::<NullOr<_>>()?.into();
+                        }
+                        "instance_of" => {
+                            patch.instance_of = map.next_value::<NullOr<_>>()?.into();
+                        }
+                        "behaviors" => patch.behaviors = Some(map.next_value()?),
+                        "modulations" => patch.modulations = Some(map.next_value()?),
+                        "triggers" => patch.triggers = Some(map.next_value()?),
+                        // Extension keys patch like the core ones;
+                        // everything else unknown is dropped, matching
+                        // the reference fold.
+                        _ if key.starts_with("ext-") => {
+                            let value: Option<serde_json::Value> = map.next_value()?;
+                            patch.extra.insert(key, value);
+                        }
+                        _ => {
+                            let _ = map.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                Ok(patch)
+            }
+        }
+        deserializer.deserialize_map(Visitor)
+    }
+}
+
+impl<T> From<NullOr<T>> for Option<Option<T>> {
+    fn from(value: NullOr<T>) -> Self {
+        match value {
+            NullOr::Null => Some(None),
+            NullOr::Value(value) => Some(Some(value)),
+        }
+    }
 }
 
 impl EntityPatch {
@@ -231,6 +404,7 @@ impl EntityPatch {
             modulations: changed(&base.modulations, &target.modulations),
             instance_of: changed(&base.instance_of, &target.instance_of),
             triggers: changed(&base.triggers, &target.triggers),
+            extra: diff_extra(&base.extra, &target.extra),
         }
     }
 
@@ -277,7 +451,42 @@ impl EntityPatch {
         if let Some(ref triggers) = self.triggers {
             entity.triggers = triggers.clone();
         }
+        for (key, slot) in &self.extra {
+            match slot {
+                Some(value) => {
+                    entity.extra.insert(key.clone(), value.clone());
+                }
+                None => {
+                    entity.extra.remove(key);
+                }
+            }
+        }
     }
+}
+
+/// The `ext-*` diff between two extra maps: present on the target sets,
+/// absent on the target clears. Non-extension keys never patch.
+fn diff_extra(
+    base: &BTreeMap<String, serde_json::Value>,
+    target: &BTreeMap<String, serde_json::Value>,
+) -> BTreeMap<String, Option<serde_json::Value>> {
+    let mut diff = BTreeMap::new();
+    for key in base.keys().chain(target.keys()) {
+        if !key.starts_with("ext-") {
+            continue;
+        }
+        match target.get(key) {
+            Some(value) => {
+                if base.get(key) != Some(value) {
+                    diff.insert(key.clone(), Some(value.clone()));
+                }
+            }
+            None => {
+                diff.insert(key.clone(), None);
+            }
+        }
+    }
+    diff
 }
 
 /// Whether two values serialize to the same JSON, with numbers compared to

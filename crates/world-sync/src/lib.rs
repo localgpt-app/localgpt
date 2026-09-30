@@ -41,7 +41,7 @@ pub use protocol::{
     Presence, Role, ServerMsg, SessionInfo,
 };
 pub use session::{
-    ClockRecord, ClockState, InputRecord, InputSample, MergeRecord, SESSION_FORMAT_VERSION,
-    SessionMeta, SessionOp, StateRecord, ToolRecord, fold_log, fold_path,
+    ClockRecord, ClockState, ExtensionRecord, InputRecord, InputSample, MergeRecord,
+    SESSION_FORMAT_VERSION, SessionMeta, SessionOp, StateRecord, ToolRecord, fold_log, fold_path,
 };
 pub use undo::compute_inverse;

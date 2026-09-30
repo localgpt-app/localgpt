@@ -1062,7 +1062,7 @@
       "type": "string"
     },
     "EntityPatch": {
-      "description": "Patch for modifying an existing entity.\n\nUses `Option<Option<T>>` semantics:\n- `None` — field not changed\n- `Some(None)` — field removed/cleared\n- `Some(Some(v))` — field set to `v`",
+      "description": "Patch for modifying an existing entity.\n\nUses `Option<Option<T>>` semantics:\n- `None` — field not changed\n- `Some(None)` — field removed/cleared\n- `Some(Some(v))` — field set to `v`\n\nSerialize/Deserialize are hand-written (not derived) because the\nderived form has no room for extension keys: an `ext-*` key in a\npatch sets (or clears, on `null`) the entity's [`WorldEntity::extra`]\nentry, exactly as the fold's core fields patch — and `serde(flatten)`\ncan't be used here, since flattening collapses an explicit `null`\ninto an absent key and would erase the clear-field semantics above.",
       "type": "object",
       "properties": {
         "audio": {
@@ -1083,6 +1083,11 @@
           "items": {
             "$ref": "#/$defs/BehaviorDef"
           }
+        },
+        "extra": {
+          "description": "Extension fields (`ext-*`) this patch sets — or clears, on `None`.\nOther unknown keys are dropped, matching the reference fold.",
+          "type": "object",
+          "additionalProperties": true
         },
         "instance_of": {
           "anyOf": [
@@ -1182,7 +1187,10 @@
             "$ref": "#/$defs/TriggerDef"
           }
         }
-      }
+      },
+      "required": [
+        "extra"
+      ]
     },
     "EntityRef": {
       "description": "Cross-entity reference — used in behaviors, parenting, audio attachment.\n\nLLMs produce `Name` references; these are resolved to `Id` on ingestion.\nSaved worlds should only contain `Id` references.",
@@ -1256,7 +1264,8 @@
           ],
           "format": "float"
         }
-      }
+      },
+      "additionalProperties": true
     },
     "FilterType": {
       "description": "Audio filter type.",
@@ -2838,6 +2847,7 @@
           }
         }
       },
+      "additionalProperties": true,
       "required": [
         "id",
         "name"

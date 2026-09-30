@@ -1153,6 +1153,8 @@ fn process_gen_commands(
                         ambient_color,
                         fog_density: None,
                         fog_color: None,
+
+                        extra: ::std::collections::BTreeMap::new(),
                     }
                 };
                 // Build new env from the command (can't read resources after
@@ -1163,6 +1165,8 @@ fn process_gen_commands(
                     ambient_color: cmd.ambient_color,
                     fog_density: None,
                     fog_color: None,
+
+                    extra: ::std::collections::BTreeMap::new(),
                 };
                 let resp = handle_set_environment(cmd, &mut commands);
                 if let GenResponse::EnvironmentSet = &resp {

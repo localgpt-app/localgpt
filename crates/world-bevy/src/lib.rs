@@ -643,6 +643,8 @@ mod tests {
             ambient_color: Some([0.9, 0.9, 1.0, 1.0]),
             fog_density: Some(0.02),
             fog_color: None,
+
+            extra: ::std::collections::BTreeMap::new(),
         };
         let ambient = ambient_light(Some(&env));
         assert_eq!(ambient.brightness, 350.0);

@@ -217,6 +217,8 @@ mod tests {
                 ambient_color: Some([1.0, 1.0, 0.9, 1.0]),
                 fog_density: Some(0.02),
                 fog_color: None,
+
+                extra: ::std::collections::BTreeMap::new(),
             },
         };
         let json = serde_json::to_string(&op).unwrap();
@@ -252,6 +254,8 @@ mod tests {
                         ambient_color: None,
                         fog_density: None,
                         fog_color: None,
+
+                        extra: ::std::collections::BTreeMap::new(),
                     },
                 },
             ],

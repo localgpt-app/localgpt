@@ -41,6 +41,54 @@ pub enum SessionOp {
     /// Merge provenance: this batch came from a branch. Folds to
     /// nothing, like `Tool`; the merged edits are ordinary edit ops.
     Merge(MergeRecord),
+    /// An extension op (`{"ext-physics": {...}}`): namespaced history
+    /// owned by an extension, not the core. Folds to nothing for the
+    /// document, like every history kind; readers that don't know the
+    /// extension keep reading the log (the must-ignore rule).
+    Extension(ExtensionRecord),
+}
+
+/// One extension op: the namespace key and its body, verbatim.
+///
+/// Serialize/Deserialize are hand-written because the shape is "one key
+/// from the `ext-*` namespace" — a derived struct can't express that,
+/// and a failed match must fall through (untagged) rather than reject
+/// the line.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExtensionRecord {
+    /// The extension's namespace (`"ext-physics"`).
+    pub name: String,
+    /// The op's body, verbatim.
+    pub body: serde_json::Value,
+}
+
+impl Serialize for ExtensionRecord {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serde_json::Map::new();
+        map.insert(self.name.clone(), self.body.clone());
+        map.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ExtensionRecord {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let map = serde_json::Map::<String, serde_json::Value>::deserialize(deserializer)?;
+        let mut iter = map.into_iter();
+        let (name, body) = iter.next().ok_or_else(|| {
+            <D::Error as serde::de::Error>::custom("an extension op holds one key")
+        })?;
+        if iter.next().is_some() {
+            return Err(<D::Error as serde::de::Error>::custom(
+                "an extension op holds exactly one key",
+            ));
+        }
+        if !name.starts_with("ext-") {
+            return Err(<D::Error as serde::de::Error>::custom(format!(
+                "'{name}' is not an extension namespace (ext-…)"
+            )));
+        }
+        Ok(ExtensionRecord { name, body })
+    }
 }
 
 /// Where a merged batch came from.

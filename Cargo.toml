@@ -16,6 +16,7 @@ members = [
     "crates/world-bevy",
     "crates/world-audio",
     "crates/world-sync",
+    "crates/world-physics",
     "crates/world-agent",
     "crates/relay",
     "crates/bridge",

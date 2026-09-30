@@ -1,0 +1,14 @@
+[package]
+name = "localgpt-world-physics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The ext-physics reference implementation (Rust): bodies from declarations, a deterministic minimal solver, trajectory playback, and the conformance outcome runner"
+keywords = ["localgpt", "world", "physics", "3d", "format"]
+
+[dependencies]
+localgpt-world-types = { path = "../world-types" }
+localgpt-world-sync = { path = "../world-sync" }
+serde = { workspace = true }
+serde_json = { workspace = true }

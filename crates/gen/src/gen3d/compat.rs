@@ -739,6 +739,7 @@ impl From<&EnvironmentCmd> for wt::EnvironmentDef {
             ambient_color: e.ambient_color,
             fog_density: None,
             fog_color: None,
+            extra: ::std::collections::BTreeMap::new(),
         }
     }
 }

@@ -120,6 +120,8 @@ pub fn compile_with(doc: &Doc, store: &RecipeStore) -> wt::WorldManifest {
             ambient_color: Some([0.85, 0.88, 1.0, 1.0]),
             fog_density: Some(0.012),
             fog_color: Some(SKY),
+
+            extra: ::std::collections::BTreeMap::new(),
         }),
         camera,
         avatar: None,

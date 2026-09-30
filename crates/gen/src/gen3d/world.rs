@@ -536,6 +536,8 @@ pub fn handle_save_world(
                 ambient_color: env_snapshot.ambient_color,
                 fog_density: None,
                 fog_color: None,
+
+                extra: ::std::collections::BTreeMap::new(),
             })
         } else {
             None
@@ -1524,6 +1526,8 @@ mod tests {
             ambient_color: None,
             fog_density: None,
             fog_color: None,
+
+            extra: ::std::collections::BTreeMap::new(),
         });
         manifest.camera = Some(wt::CameraDef::default());
         manifest.avatar = Some(wt::AvatarDef::default());

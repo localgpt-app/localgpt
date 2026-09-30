@@ -248,6 +248,12 @@ pub struct EnvironmentDef {
     /// unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fog_color: Option<[f32; 4]>,
+    /// Extension fields (`ext-*`), namespaced and must-ignored: what a
+    /// reader doesn't understand rides along unchanged (the physics
+    /// extension's gravity lives here today). An empty map serializes to
+    /// nothing.
+    #[serde(default, flatten)]
+    pub extra: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
 /// Camera definition.
@@ -433,6 +439,7 @@ mod tests {
             ambient_color: None,
             fog_density: None,
             fog_color: None,
+            extra: std::collections::BTreeMap::new(),
         });
         m.camera = Some(CameraDef::default());
         m.avatar = Some(AvatarDef::default());

@@ -1066,6 +1066,8 @@ pub(crate) fn web_projection_sync(
         }),
         fog_density: doc_env.as_ref().and_then(|e| e.fog_density),
         fog_color: doc_env.and_then(|e| e.fog_color),
+
+        extra: ::std::collections::BTreeMap::new(),
     };
 
     let ops = sync::diff_scene(room.authority.doc(), &projection, Some(&env));

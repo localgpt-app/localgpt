@@ -189,6 +189,8 @@ pub fn world_manifest(input: &ExportInput<'_>) -> wt::WorldManifest {
         ambient_color: Some(srgba(mood.ambient)),
         fog_density: Some(0.012),
         fog_color: Some(srgba(mood.fog)),
+
+        extra: ::std::collections::BTreeMap::new(),
     });
     manifest.camera = Some(wt::CameraDef {
         position: [0.0, 6.0, 22.0],
@@ -599,6 +601,8 @@ fn replay_build(
                     ambient_color: Some(c.ambient_light),
                     fog_density: manifest.environment.as_ref().and_then(|e| e.fog_density),
                     fog_color: Some(c.background_color),
+
+                    extra: ::std::collections::BTreeMap::new(),
                 });
             }
         }
