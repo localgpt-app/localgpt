@@ -262,6 +262,8 @@ impl WebRoom {
             },
             ops: vec![op],
             timestamp_ms: now_ms(),
+            id: None,
+            parent: None,
         });
     }
 
@@ -684,6 +686,8 @@ pub(crate) fn deliver(room: &WebRoom, out: Vec<Outbound>) {
                     .map(|op| sync::SessionOp::Edit(Box::new(op)))
                     .collect(),
                 timestamp_ms: now_ms(),
+                id: None,
+                parent: None,
             });
         }
         let close = matches!(o.msg, ServerMsg::Error { .. });

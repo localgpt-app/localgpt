@@ -38,6 +38,16 @@ pub enum SessionOp {
     State(StateRecord),
     /// A performance clock: Verse's song transport, a tour's clock.
     Clock(ClockRecord),
+    /// Merge provenance: this batch came from a branch. Folds to
+    /// nothing, like `Tool`; the merged edits are ordinary edit ops.
+    Merge(MergeRecord),
+}
+
+/// Where a merged batch came from.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MergeRecord {
+    /// The merged branch's name (a ref in the source package).
+    pub branch: String,
 }
 
 /// A tool invocation, as the old generation log recorded it.
@@ -128,6 +138,10 @@ pub struct SessionMeta {
     /// SHA-256 of `ops.jsonl` as of `head_revision`, hex.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub log_sha256: Option<String>,
+    /// When this package began as a fork: which package, at which entry
+    /// or revision (a string like `castle-build@42`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forked_from: Option<String>,
     /// When the package was last written, milliseconds since the epoch.
     #[serde(default)]
     pub updated_ms: u64,
@@ -145,6 +159,7 @@ impl SessionMeta {
             seed: None,
             world_sha256: None,
             log_sha256: None,
+            forked_from: None,
             updated_ms: 0,
         }
     }
@@ -177,6 +192,94 @@ impl OpLogEntry {
     pub fn is_history_only(&self) -> bool {
         self.ops.iter().all(|op| !matches!(op, SessionOp::Edit(_)))
     }
+}
+
+/// The history of a log with entry identity applied: every entry gets an
+/// id (its own, or `line-<n>`) and a parent (its own, or the previous
+/// entry). A log with no ids is a chain in file order.
+/// One entry of a log with its identity applied.
+struct Identified<'a> {
+    entry: &'a OpLogEntry,
+    id: String,
+    parent: Option<String>,
+}
+
+fn with_identity(entries: &[OpLogEntry]) -> Result<Vec<Identified<'_>>, ApplyError> {
+    let mut out: Vec<Identified<'_>> = Vec::with_capacity(entries.len());
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut previous: Option<String> = None;
+    for (n, entry) in entries.iter().enumerate() {
+        let id = entry.id.clone().unwrap_or_else(|| format!("line-{n}"));
+        if !seen.insert(id.clone()) {
+            return Err(ApplyError::Invalid(format!("duplicate entry id '{id}'")));
+        }
+        if let Some(parent) = entry.parent.clone().or_else(|| previous.clone())
+            && !seen.contains(&parent)
+        {
+            return Err(ApplyError::Invalid(format!(
+                "entry '{id}' names parent '{parent}', which isn't in the log yet"
+            )));
+        }
+        let parent = entry.parent.clone().or_else(|| previous.clone());
+        out.push(Identified {
+            entry,
+            id: id.clone(),
+            parent,
+        });
+        previous = Some(id);
+    }
+    Ok(out)
+}
+
+/// Fold one path of a branching history: the document at `tip` (an entry
+/// id; `None` folds the last entry in file order), plus the ids of the
+/// path folded. Entries without ids chain in file order, so a linear log
+/// is the degenerate branch.
+pub fn fold_path(
+    base: &WorldDoc,
+    entries: &[OpLogEntry],
+    tip: Option<&str>,
+) -> Result<(WorldDoc, Vec<String>), ApplyError> {
+    let identified = with_identity(entries)?;
+    let target = match tip {
+        Some(id) => identified
+            .iter()
+            .find(|e| e.id == id)
+            .map(|e| e.id.clone())
+            .ok_or_else(|| ApplyError::Invalid(format!("no entry '{id}' in this log")))?,
+        None => identified
+            .last()
+            .ok_or_else(|| ApplyError::Invalid("the log is empty".into()))?
+            .id
+            .clone(),
+    };
+    // Walk parent links tip → base, then fold the chain forward.
+    let by_id: std::collections::HashMap<&str, usize> = identified
+        .iter()
+        .enumerate()
+        .map(|(i, e)| (e.id.as_str(), i))
+        .collect();
+    let mut chain_idx = Vec::new();
+    let mut cursor = Some(target);
+    while let Some(id) = cursor {
+        let idx = *by_id
+            .get(id.as_str())
+            .ok_or_else(|| ApplyError::Invalid(format!("no entry '{}' in this log", id)))?;
+        let parent = identified[idx].parent.clone();
+        chain_idx.push(idx);
+        cursor = parent;
+    }
+    chain_idx.reverse();
+    let chain: Vec<OpLogEntry> = chain_idx
+        .iter()
+        .map(|&i| identified[i].entry.clone())
+        .collect();
+    let path: Vec<String> = chain_idx
+        .iter()
+        .map(|&i| identified[i].id.clone())
+        .collect();
+    let doc = fold_log(base, &chain)?;
+    Ok((doc, path))
 }
 
 /// Fold log entries onto a base document: the state at the last entry.
@@ -259,6 +362,8 @@ mod tests {
                 }),
             ],
             timestamp_ms: 9,
+            id: None,
+            parent: None,
         };
         let line = crate::encode_line(&entry).unwrap();
         let back: OpLogEntry = crate::decode_line(&line).unwrap();
@@ -267,6 +372,102 @@ mod tests {
         assert!(back.is_history_only());
         assert!(entry.is_history_only());
         assert!(entry.edit_ops().is_empty());
+    }
+
+    fn branched_entries() -> Vec<OpLogEntry> {
+        // A trunk (1→2→3) and a fork from 2 (4→5, where 5 is a merge
+        // record): two tips, like examples/forked-exploration.
+        let mk = |id: Option<&str>, parent: Option<&str>, rev: u64, name: &str| OpLogEntry {
+            revision: rev,
+            author: Author {
+                peer: None,
+                name: "maya".into(),
+            },
+            ops: vec![SessionOp::Edit(Box::new(EditOp::spawn(entity(
+                100 + rev,
+                name,
+            ))))],
+            timestamp_ms: rev,
+            id: id.map(Into::into),
+            parent: parent.map(Into::into),
+        };
+        vec![
+            mk(Some("e1"), None, 1, "keep"),
+            mk(Some("e2"), Some("e1"), 2, "wall"),
+            mk(Some("e3"), Some("e2"), 3, "garden"),
+            mk(Some("e4"), Some("e2"), 3, "moat"),
+            OpLogEntry {
+                revision: 4,
+                author: Author {
+                    peer: None,
+                    name: "host".into(),
+                },
+                ops: vec![SessionOp::Merge(MergeRecord {
+                    branch: "moat-variant".into(),
+                })],
+                timestamp_ms: 4,
+                id: Some("e5".into()),
+                parent: Some("e4".into()),
+            },
+        ]
+    }
+
+    #[test]
+    fn fold_path_folds_each_tip_of_a_branch() {
+        let base = WorldDoc::new("base");
+        let entries = branched_entries();
+
+        let (trunk, path) = fold_path(&base, &entries, Some("e3")).unwrap();
+        assert_eq!(path, vec!["e1", "e2", "e3"]);
+        assert!(trunk.get_by_name("garden").is_some());
+        assert!(trunk.get_by_name("moat").is_none());
+
+        // The merge record folds to nothing: e5's document is e4's.
+        let (variant, path) = fold_path(&base, &entries, Some("e5")).unwrap();
+        assert_eq!(path, vec!["e1", "e2", "e4", "e5"]);
+        assert!(variant.get_by_name("moat").is_some());
+        assert!(variant.get_by_name("garden").is_none());
+        assert_eq!(
+            variant.len(),
+            fold_path(&base, &entries, Some("e4")).unwrap().0.len()
+        );
+
+        // No tip: the last entry in file order; unknown tips refuse.
+        let (last, _) = fold_path(&base, &entries, None).unwrap();
+        assert!(last.get_by_name("moat").is_some());
+        assert!(fold_path(&base, &entries, Some("e99")).is_err());
+    }
+
+    #[test]
+    fn entries_without_ids_chain_in_file_order() {
+        let base = WorldDoc::new("base");
+        let entries = vec![
+            OpLogEntry {
+                revision: 1,
+                author: Author {
+                    peer: None,
+                    name: "t".into(),
+                },
+                ops: vec![SessionOp::Edit(Box::new(EditOp::spawn(entity(1, "a"))))],
+                timestamp_ms: 0,
+                id: None,
+                parent: None,
+            },
+            OpLogEntry {
+                revision: 2,
+                author: Author {
+                    peer: None,
+                    name: "t".into(),
+                },
+                ops: vec![SessionOp::Edit(Box::new(EditOp::spawn(entity(2, "b"))))],
+                timestamp_ms: 1,
+                id: None,
+                parent: None,
+            },
+        ];
+        let (doc, path) = fold_path(&base, &entries, None).unwrap();
+        assert_eq!(doc.len(), 2);
+        assert_eq!(path, vec!["line-0", "line-1"]);
     }
 
     #[test]
@@ -281,6 +482,8 @@ mod tests {
                 },
                 ops: vec![SessionOp::Edit(Box::new(EditOp::spawn(entity(1, "a"))))],
                 timestamp_ms: 0,
+                id: None,
+                parent: None,
             },
             OpLogEntry {
                 revision: 1,
@@ -296,6 +499,8 @@ mod tests {
                     timestamp_ms: None,
                 })],
                 timestamp_ms: 1,
+                id: None,
+                parent: None,
             },
             OpLogEntry {
                 revision: 2,
@@ -305,6 +510,8 @@ mod tests {
                 },
                 ops: vec![SessionOp::Edit(Box::new(EditOp::spawn(entity(2, "b"))))],
                 timestamp_ms: 2,
+                id: None,
+                parent: None,
             },
         ];
         let doc = fold_log(&base, &entries).unwrap();
@@ -319,6 +526,8 @@ mod tests {
             },
             ops: vec![SessionOp::Edit(Box::new(EditOp::delete(wt::EntityId(99))))],
             timestamp_ms: 3,
+            id: None,
+            parent: None,
         }];
         assert!(fold_log(&base, &broken).is_err());
     }

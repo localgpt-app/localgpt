@@ -306,6 +306,132 @@ pub fn read_package(dir: &Path, at: Option<u64>) -> Result<SessionPackage, Packa
     })
 }
 
+// ---------------------------------------------------------------------------
+// The transport form
+// ---------------------------------------------------------------------------
+
+/// Zip a session directory into the transport form: one `.world` file.
+///
+/// Entries are stored (uncompressed): the assets are already compressed
+/// media (GLB, PNG, MP3), and the log stays readable inside the archive.
+/// Walk order is sorted, so the same package zips to the same archive.
+pub fn export_zip(dir: &Path, dest: &Path) -> Result<(), PackageError> {
+    use std::fs::File;
+    use std::io::copy;
+    use zip::CompressionMethod;
+    use zip::ZipWriter;
+    use zip::write::SimpleFileOptions;
+
+    let mut files: Vec<PathBuf> = Vec::new();
+    collect_files(dir, &mut files)?;
+    files.sort();
+
+    let file = File::create(dest)?;
+    let mut zip = ZipWriter::new(file);
+    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+    for path in &files {
+        let name = path
+            .strip_prefix(dir)
+            .map_err(|e| PackageError::Parse {
+                file: "the package",
+                detail: e.to_string(),
+            })?
+            .to_string_lossy()
+            .replace('\\', "/");
+        zip.start_file(name.clone(), options)
+            .map_err(|e| PackageError::Parse {
+                file: "the package",
+                detail: format!("can't start {name}: {e}"),
+            })?;
+        let mut source = File::open(path)?;
+        copy(&mut source, &mut zip)?;
+    }
+    zip.finish().map_err(|e| PackageError::Parse {
+        file: "the package",
+        detail: e.to_string(),
+    })?;
+    Ok(())
+}
+
+/// A temporary directory removed when dropped — what a `.world` archive
+/// extracts into for reading.
+pub struct TempSessionDir(PathBuf);
+
+impl TempSessionDir {
+    /// Where the archive extracted.
+    pub fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TempSessionDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Fork a package: a new package whose base is the source folded to
+/// `at` (a revision; `None` is head), with the source recorded as
+/// provenance and an empty log of its own.
+///
+/// The copy form of a fork (spec/rfcs/branching-histories.md): the new
+/// package folds independently and shares nothing but its history's
+/// meaning.
+pub fn fork_package(
+    from: &Path,
+    to: &Path,
+    at: Option<u64>,
+    app: &str,
+) -> Result<SessionMeta, PackageError> {
+    let source = read_package(from, at)?;
+    let revision = at.unwrap_or_else(|| {
+        source.entries.last().map_or(source.base_revision, |e| {
+            e.revision.max(source.base_revision)
+        })
+    });
+    let mut meta = write_base(to, &source.doc.to_manifest(), app, None, revision)?;
+    meta.forked_from = Some(format!("{}@{}", source.meta.name, revision));
+    write_meta(to, &meta)?;
+    Ok(meta)
+}
+
+/// Extract a `.world` archive (the transport form) into a fresh temporary
+/// directory. The package reads from there; the directory goes away when
+/// the guard does.
+pub fn extract_zip(zip_path: &Path) -> Result<TempSessionDir, PackageError> {
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let dir = std::env::temp_dir().join(format!(
+        "localgpt-world-{}-{}",
+        std::process::id(),
+        SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&dir)?;
+    let file = std::fs::File::open(zip_path)?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| PackageError::Parse {
+        file: "the package archive",
+        detail: e.to_string(),
+    })?;
+    archive.extract(&dir).map_err(|e| PackageError::Parse {
+        file: "the package archive",
+        detail: e.to_string(),
+    })?;
+    Ok(TempSessionDir(dir))
+}
+
+/// Every file under `dir`, recursively.
+fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_files(&path, out)?;
+        } else {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -354,6 +480,8 @@ mod tests {
                 wt::WorldEntity::new(100 + revision, name),
             )))],
             timestamp_ms: revision,
+            id: None,
+            parent: None,
         }
     }
 
@@ -460,6 +588,30 @@ mod tests {
     }
 
     #[test]
+    fn fork_package_folds_independently_with_provenance() {
+        let src = TempDir::new();
+        write_base(&src.0, &manifest_with(2), "gen", None, 0).unwrap();
+        append_entry(&src.0, &entry(1, "added")).unwrap();
+        append_entry(&src.0, &entry(2, "also")).unwrap();
+
+        let dst = TempDir::new();
+        let meta = fork_package(&src.0, &dst.0, Some(1), "gen").unwrap();
+        assert_eq!(meta.base_revision, 1);
+        assert_eq!(meta.forked_from.as_deref(), Some("test-world@1"));
+
+        // The fork holds the base plus revision 1's spawn — not revision
+        // 2's — and an empty log of its own.
+        let forked = read_package(&dst.0, None).unwrap();
+        assert_eq!(forked.doc.len(), 3); // 2 base + 1 spawned
+        assert!(forked.doc.contains(101));
+        assert!(!forked.doc.contains(102));
+        assert!(forked.entries.is_empty());
+
+        // The source is unchanged: still 2 base + 2 spawned.
+        assert_eq!(read_package(&src.0, None).unwrap().doc.len(), 4);
+    }
+
+    #[test]
     fn missing_meta_is_not_a_package() {
         let dir = TempDir::new();
         assert!(matches!(
@@ -467,105 +619,4 @@ mod tests {
             Err(PackageError::MissingMeta)
         ));
     }
-}
-
-// ---------------------------------------------------------------------------
-// The transport form
-// ---------------------------------------------------------------------------
-
-/// Zip a session directory into the transport form: one `.world` file.
-///
-/// Entries are stored (uncompressed): the assets are already compressed
-/// media (GLB, PNG, MP3), and the log stays readable inside the archive.
-/// Walk order is sorted, so the same package zips to the same archive.
-pub fn export_zip(dir: &Path, dest: &Path) -> Result<(), PackageError> {
-    use std::fs::File;
-    use std::io::copy;
-    use zip::CompressionMethod;
-    use zip::ZipWriter;
-    use zip::write::SimpleFileOptions;
-
-    let mut files: Vec<PathBuf> = Vec::new();
-    collect_files(dir, &mut files)?;
-    files.sort();
-
-    let file = File::create(dest)?;
-    let mut zip = ZipWriter::new(file);
-    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
-    for path in &files {
-        let name = path
-            .strip_prefix(dir)
-            .map_err(|e| PackageError::Parse {
-                file: "the package",
-                detail: e.to_string(),
-            })?
-            .to_string_lossy()
-            .replace('\\', "/");
-        zip.start_file(name.clone(), options)
-            .map_err(|e| PackageError::Parse {
-                file: "the package",
-                detail: format!("can't start {name}: {e}"),
-            })?;
-        let mut source = File::open(path)?;
-        copy(&mut source, &mut zip)?;
-    }
-    zip.finish().map_err(|e| PackageError::Parse {
-        file: "the package",
-        detail: e.to_string(),
-    })?;
-    Ok(())
-}
-
-/// A temporary directory removed when dropped — what a `.world` archive
-/// extracts into for reading.
-pub struct TempSessionDir(PathBuf);
-
-impl TempSessionDir {
-    /// Where the archive extracted.
-    pub fn path(&self) -> &Path {
-        &self.0
-    }
-}
-
-impl Drop for TempSessionDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-/// Extract a `.world` archive (the transport form) into a fresh temporary
-/// directory. The package reads from there; the directory goes away when
-/// the guard does.
-pub fn extract_zip(zip_path: &Path) -> Result<TempSessionDir, PackageError> {
-    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let dir = std::env::temp_dir().join(format!(
-        "localgpt-world-{}-{}",
-        std::process::id(),
-        SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-    ));
-    std::fs::create_dir_all(&dir)?;
-    let file = std::fs::File::open(zip_path)?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| PackageError::Parse {
-        file: "the package archive",
-        detail: e.to_string(),
-    })?;
-    archive.extract(&dir).map_err(|e| PackageError::Parse {
-        file: "the package archive",
-        detail: e.to_string(),
-    })?;
-    Ok(TempSessionDir(dir))
-}
-
-/// Every file under `dir`, recursively.
-fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
-    for entry in std::fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            collect_files(&path, out)?;
-        } else {
-            out.push(path);
-        }
-    }
-    Ok(())
 }

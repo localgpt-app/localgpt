@@ -28,6 +28,14 @@ pub struct OpLogEntry {
     /// Milliseconds since the Unix epoch (0 when the writer didn't clock).
     #[serde(default)]
     pub timestamp_ms: u64,
+    /// The entry's identity, for branching histories (a reader treats it
+    /// as opaque). Absent on linear logs, where file order is the chain.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// The entry this one builds on; absent means the previous line (or
+    /// the base, for the first). A branch is a second child of one parent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
 }
 
 /// One log line (no trailing newline).
@@ -57,6 +65,8 @@ mod tests {
                 wt::WorldEntity::new(1, "lighthouse"),
             )))],
             timestamp_ms: 1_700_000_000_000,
+            id: None,
+            parent: None,
         };
         let line = encode_line(&entry).unwrap();
         assert!(!line.contains('\n'));

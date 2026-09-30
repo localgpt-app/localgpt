@@ -94,6 +94,8 @@ fn package_entries(
             },
             ops: base_ops,
             timestamp_ms: 0,
+            id: None,
+            parent: None,
         });
     }
     entries.extend(pkg.entries);
@@ -179,6 +181,8 @@ mod tests {
                     wt::WorldEntity::new(2, "lighthouse"),
                 )))],
                 timestamp_ms: 0,
+                id: None,
+                parent: None,
             },
         )
         .unwrap();
