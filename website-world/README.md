@@ -19,7 +19,7 @@ here; everything else is copied in, and `.gitignore` keeps the copies out.
 
 | Copied in | From | When |
 |---|---|---|
-| `viewer/world-viewer.js` | `crates/world-export/js/` | always |
+| `viewer/world-viewer.js` | `crates/world-export/js/` (itself vendored from the `openworldformat` npm package by `scripts/sync-viewer.sh`) | always |
 | `worlds/{shapes,materials,lights,behaviors,hierarchy_tours,soundtrack,textures}.json` | `crates/world-types/conformance/` | always |
 | `worlds/assets/textures/` | `crates/world-types/conformance/assets/` | always |
 | `worlds/assets/models/`, `worlds/assets/music/` | the assets checkout's `web/` | `--all` |

@@ -3,7 +3,10 @@
 The distribution side of the LocalGPT world format, with no Bevy dependency:
 
 - `js/world-viewer.js` — the one web renderer of a `WorldManifest` (three.js
-  0.170). localgpt.world serves it as a module; Gen and MD embed it.
+  0.170). localgpt.world serves it as a module; Gen and MD embed it. A
+  verbatim snapshot of the `openworldformat` npm package —
+  `scripts/sync-viewer.sh` vendors it (CI checks it); edit the renderer
+  upstream, never here.
 - `generate_html(&manifest)` — a self-contained page: viewer + manifest JSON.
 - `to_json` / `to_json_pretty` — the manifest as the JSON the viewer reads
   (schema: `crates/world-types/world.schema.json`).

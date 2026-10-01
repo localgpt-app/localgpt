@@ -15,7 +15,9 @@ the plan for the site.
 - **This directory is assembled.** `npm run assemble` copies the viewer in from
   `crates/world-export/js/world-viewer.js` and the conformance scenes from
   `crates/world-types/conformance/`. Those copies are gitignored. Change them
-  **upstream in the crate** and re-assemble; never edit them here. The whole
+  **upstream in the crate** (which vendors the renderer from the
+  `openworldformat` npm package via `scripts/sync-viewer.sh`) and re-assemble;
+  never edit them here. The whole
   reason this folded in is that the same copies used to cross a repository
   boundary and drifted 185 lines without failing anything.
 - **The curated worlds' GLBs, music and posters are not tracked here.** They are

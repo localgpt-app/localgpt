@@ -19,7 +19,7 @@ page itself and the scripts are tracked.
 
 | Copied in | From |
 |---|---|
-| `viewer/world-viewer.js` | `crates/world-export/js/` — same commit, cannot drift |
+| `viewer/world-viewer.js` | `crates/world-export/js/` — same commit, cannot drift (that file is itself vendored from the `openworldformat` npm package) |
 | `vendor/three/` | `website-world/vendor/` (the no-third-party-requests rule) |
 | `samples/*.md` | `crates/md/samples/` |
 | `wasm/` | `crates/md-web` via `wasm-pack --target web` (~546 KB) |

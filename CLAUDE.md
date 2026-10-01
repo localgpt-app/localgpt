@@ -179,7 +179,8 @@ source format (serde-only; `schema` feature writes `world.schema.json`);
 `localgpt-world-bevy` is the only place a `Shape`, `MaterialDef`, `LightDef`
 or `EnvironmentDef` becomes Bevy components — Gen, MD and Verse all call it;
 `localgpt-world-export` holds the only web renderer
-(`js/world-viewer.js`) and `generate_html`. Reference scenes live in
+(`js/world-viewer.js`, a vendored snapshot of the `openworldformat` npm
+package — `scripts/sync-viewer.sh`) and `generate_html`. Reference scenes live in
 `crates/world-types/conformance/`; render them before and after changing a
 mapping. Add fields to world-types, never a parallel format.
 
@@ -499,7 +500,9 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
   renderer. It is **assembled** — `npm run assemble` copies
   `crates/world-export/js/world-viewer.js` and the `crates/world-types`
   conformance scenes in, and those copies are gitignored, so edit them in the
-  crate and re-assemble. Its `npm run check` (CI job `viewer`) is the only
+  crate and re-assemble (the crate file itself is vendored from the
+  `openworldformat` npm package via `scripts/sync-viewer.sh` — the renderer's
+  upstream is that repository). Its `npm run check` (CI job `viewer`) is the only
   automated check on that renderer; it lived in a separate repository until the
   copy there drifted 185 lines behind. The curated worlds' shrunk GLBs and
   music are LFS objects in `localgpt-world-assets` under `web/`, not tracked

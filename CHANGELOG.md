@@ -12,6 +12,7 @@ All notable changes to LocalGPT are documented in this file.
 
 ### Changed
 
+- **The web renderer moves upstream** — `js/world-viewer.js` is now a verbatim vendored snapshot of the [`openworldformat`](https://www.npmjs.com/package/openworldformat) npm package (0.2.0), synced by `scripts/sync-viewer.sh` from the registry tarball and drift-gated in the `viewer` CI job. Renderer logic changes ship in the openworldformat repository, release on npm, then flow back — this repo stops being the place the renderer is edited. The 0.2.0 sync brings: `mesh_asset.fallback` placeholders that render the declared shape with the entity's material while the mesh loads (and keep it on failure), a punctual-light budget (16, least-priority hidden, ties in document order), and null guards on fog density and audio bins. Embedded HTML grows ~11 kB, almost entirely JSDoc.
 - **The collaborative spec is v2** — `docs/rfcs/multiplayer/collaborative-world-engine-architecture.md` now describes the op-based document model (sync the world format, one authority per room, WebSocket baseline, browser guests) with phases through relay, persistence and guest editing, replacing the ECS-replication-first plan.
 
 - **Cloud rooms in the SpacetimeDB module** — `submit_ops` and `undo` reducers apply committed ops to the `world_entity` table through the same `localgpt-world-sync` document and validation as a LAN host, with an op log (`world_op` table) and per-author undo stacks. Native-tested and wasm-verified; client SDK wiring is next.

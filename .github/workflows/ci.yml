@@ -176,6 +176,10 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-pack
+      # The renderer is the published openworldformat one, vendored — a hand
+      # edit or a forgotten sync fails here before anything renders.
+      - name: Viewer is the published openworldformat renderer
+        run: ./scripts/sync-viewer.sh --check
       # The one web renderer, gated on the crates that own it.
       - name: world-viewer conformance render
         working-directory: website-world

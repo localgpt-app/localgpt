@@ -1,4 +1,10 @@
-// world-viewer.js — the one web renderer of LocalGPT world manifests.
+// world-viewer.js — the Open World Format reference 3D renderer.
+//
+// Provenance: copied verbatim from
+// localgpt/crates/world-export/js/world-viewer.js (Apache-2.0), which drew
+// the conformance suite in production before this repository existed. When
+// this copy becomes the upstream, the LocalGPT apps consume it from the
+// openworldformat npm package instead of keeping a second copy.
 //
 // Input: a `WorldManifest` as JSON (crate `localgpt-world-types`; schema in
 // `crates/world-types/world.schema.json`). Output: a three.js scene that
@@ -13,6 +19,9 @@
 // localgpt.world. Keep it dependency-free beyond `three` and its addons, and
 // never write the string "</" followed by "script" in it.
 //
+// Types: JSDoc (checked by `npm run build:types`); three's declarations come
+// from @types/three at check time only — not a runtime dependency.
+//
 // Usage:
 //   import { createWorldViewer } from './world-viewer.js';
 //   const viewer = createWorldViewer(container, manifest, { assetBase: 'assets/' });
@@ -20,6 +29,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+/** @typedef {import('./index.js').Vec3} Vec3 */
+/** @typedef {import('./index.js').WorldEntity} WorldEntity */
+/** @typedef {import('./index.js').WorldManifest} WorldManifest */
+/** @typedef {import('./index.js').WorldTransform} WorldTransform */
+/** @typedef {import('./index.js').EnvironmentDef} EnvironmentDef */
+/** @typedef {import('./index.js').Shape} Shape */
 
 export const VIEWER_VERSION = '0.1.0';
 
@@ -33,9 +49,72 @@ export const AMBIENT_SCALE = 0.0012;
 export const DIRECTIONAL_LUX = 10000;
 const LIGHT_EXPOSURE = 1 / DIRECTIONAL_LUX;
 
+/** @type {{position: Vec3, look_at: Vec3, fov_degrees: number}} */
 const DEFAULT_CAMERA = { position: [5, 5, 5], look_at: [0, 0, 0], fov_degrees: 45 };
 const DEFAULT_MATERIAL = { color: [0.8, 0.8, 0.8, 1.0], metallic: 0.0, roughness: 0.5, emissive: [0, 0, 0, 0] };
 const TAU = Math.PI * 2;
+
+/**
+ * Options for createWorldViewer.
+ * @typedef {object} ViewerOptions
+ * @property {string} [assetBase] URL prefix for mesh assets and the soundtrack file ('' = none: placeholders, silent)
+ * @property {HTMLElement} [audioButton] element whose click toggles audio (shown when the world has sound)
+ * @property {HTMLElement} [tourButton] element whose click starts/stops the first tour (shown when tours exist)
+ * @property {HTMLElement} [tourCaption] element that shows waypoint descriptions
+ * @property {HTMLElement} [triggerCaption] element for `show_text` trigger actions (default: tourCaption)
+ * @property {boolean} [keyboard] WASD/Space/Shift navigation (default true)
+ * @property {boolean} [embedApi] postMessage API for a parent frame (default: when framed)
+ * @property {number} [ambientScale] override for AMBIENT_SCALE
+ * @property {boolean} [preserveDrawingBuffer] keep the canvas readable after render
+ */
+
+/**
+ * One entity as the viewer holds it: the definition it was built from,
+ * its scene object, and its runtime state.
+ * @typedef {object} EntityRecord
+ * @property {WorldEntity} def
+ * @property {THREE.Object3D} object
+ * @property {THREE.Material|null} material
+ * @property {THREE.Light|null} light
+ * @property {{position: THREE.Vector3, scale: THREE.Vector3,
+ *             emissive: THREE.Color|null, emissiveIntensity: number,
+ *             lightIntensity: number, opacity: number}} base
+ * @property {((dt: number, t: number) => void)[]} behaviors
+ * @property {{def: any, target: string, s: number}[]} mods
+ * @property {boolean} resetPosition
+ * @property {boolean} resetScale
+ * @property {TriggerState[]} triggers
+ * @property {ViewerAnimation|null} [anim]
+ */
+
+/**
+ * One trigger, as the runtime tracks it.
+ * @typedef {object} TriggerState
+ * @property {any} def
+ * @property {any} area
+ * @property {boolean} done
+ * @property {boolean} inside
+ * @property {number|null} last
+ * @property {number} acc
+ */
+
+/**
+ * An `animate` action in flight: lerp/slerp from a to b over duration.
+ * @typedef {{kind: "position"|"scale", a: THREE.Vector3, b: THREE.Vector3, duration: number, t: number}
+ *          |{kind: "rotation", a: THREE.Quaternion, b: THREE.Quaternion, duration: number, t: number}} ViewerAnimation
+ */
+
+/**
+ * The viewer's audio state (null until the visitor turns sound on).
+ * @typedef {object} AudioState
+ * @property {AudioContext|null} ctx
+ * @property {boolean} started
+ * @property {(() => void)[]} stops
+ * @property {HTMLAudioElement|null} element
+ * @property {AnalyserNode|null} analyser
+ * @property {Uint8Array<ArrayBuffer>|null} bins
+ * @property {{rec: EntityRecord, gain: GainNode, volume: number}[]} spatial
+ */
 
 // ---------------------------------------------------------------------------
 // Pure helpers (mirrors of the Rust ones in localgpt-world-types)
@@ -45,19 +124,26 @@ const TAU = Math.PI * 2;
  * Colour conventions, the same as the Bevy mapping: `color`, light colours,
  * background, fog and ambient are sRGB-encoded (what Gen's tools take and
  * `Color::srgba` reads); `emissive` is linear (`LinearRgba::new`).
+ * @param {Vec3} [c]
+ * @returns {THREE.Color}
  */
 export function srgbColor(c) {
-  const [r, g, b] = c || [1, 1, 1, 1];
+  const [r, g, b] = c || [1, 1, 1];
   return new THREE.Color().setRGB(r, g, b, THREE.SRGBColorSpace);
 }
 
-/** Linear RGBA array → three Color (three's working space is linear). */
+/** Linear RGBA array → three Color (three's working space is linear).
+ * @param {Vec3} [c]
+ * @returns {THREE.Color} */
 export function linearColor(c) {
-  const [r, g, b] = c || [1, 1, 1, 1];
+  const [r, g, b] = c || [1, 1, 1];
   return new THREE.Color(r, g, b);
 }
 
-/** `SoundtrackDef::energy_at` / `curve_at`: per-second curve, linear interpolation. */
+/** `SoundtrackDef::energy_at` / `curve_at`: per-second curve, linear interpolation.
+ * @param {number[]|null} curve
+ * @param {number} t
+ * @returns {number} */
 export function curveAt(curve, t) {
   if (!curve || curve.length === 0) return 0;
   const n = curve.length;
@@ -69,7 +155,10 @@ export function curveAt(curve, t) {
   return clamp01(curve[i] + (curve[i + 1] - curve[i]) * f);
 }
 
-/** `SoundtrackDef::beat_at`: 1 on a beat, decaying to 0 at the next. */
+/** `SoundtrackDef::beat_at`: 1 on a beat, decaying to 0 at the next.
+ * @param {any} soundtrack
+ * @param {number} t
+ * @returns {number} */
 export function beatAt(soundtrack, t) {
   const bpm = soundtrack?.bpm || 0;
   if (!(bpm > 0)) return 0;
@@ -78,7 +167,10 @@ export function beatAt(soundtrack, t) {
   return 1 - since / period;
 }
 
-/** `SoundtrackDef::section_at`. */
+/** `SoundtrackDef::section_at`.
+ * @param {any} soundtrack
+ * @param {number} t
+ * @returns {number} */
 export function sectionAt(soundtrack, t) {
   const sections = soundtrack?.sections || [];
   if (!(soundtrack?.duration > 0) || sections.length === 0) return 0;
@@ -88,16 +180,26 @@ export function sectionAt(soundtrack, t) {
   return idx;
 }
 
-/** `ModulationDef::factor`. */
+/** `ModulationDef::factor`.
+ * @param {any} def
+ * @param {number} signal
+ * @returns {number} */
 export function modulationFactor(def, signal) {
   const [a, b] = def.range || [1, 1];
   return a + (b - a) * clamp01(signal);
 }
 
+/** @param {number} v @returns {number} */
 function clamp01(v) { return Math.min(1, Math.max(0, v)); }
+/** @param {number} a @param {number} n @returns {number} */
 function mod(a, n) { return ((a % n) + n) % n; }
+/**
+ * Externally tagged enum, unpacked: "energy" → ["energy", null];
+ * {stem: "drums"} → ["stem", "drums"].
+ * @param {any} v
+ * @returns {[string|null, any]}
+ */
 function variant(v) {
-  // Externally tagged enum: "energy" → ["energy", null]; {stem: "drums"} → ["stem", "drums"].
   if (typeof v === 'string') return [v, null];
   if (v && typeof v === 'object') { const k = Object.keys(v)[0]; return [k, v[k]]; }
   return [null, null];
@@ -107,6 +209,8 @@ function variant(v) {
 // Geometry
 // ---------------------------------------------------------------------------
 
+/** @param {number[][][]} triangles
+ *  @returns {THREE.BufferGeometry} */
 function flatGeometry(triangles) {
   const positions = new Float32Array(triangles.length * 9);
   let o = 0;
@@ -117,7 +221,9 @@ function flatGeometry(triangles) {
   return geo;
 }
 
-/** A square-based pyramid centered on the origin: base at -h/2, apex at +h/2. */
+/** A square-based pyramid centered on the origin: base at -h/2, apex at +h/2.
+ * @param {number} bx @param {number} bz @param {number} h
+ * @returns {THREE.BufferGeometry} */
 function pyramidGeometry(bx, bz, h) {
   const hx = bx / 2, hz = bz / 2, hy = h / 2;
   const a = [-hx, -hy, -hz], b = [hx, -hy, -hz], c = [hx, -hy, hz], d = [-hx, -hy, hz], apex = [0, hy, 0];
@@ -125,7 +231,9 @@ function pyramidGeometry(bx, bz, h) {
   return flatGeometry([[b, a, apex], [c, b, apex], [d, c, apex], [a, d, apex], [a, b, d], [b, c, d]]);
 }
 
-/** A ramp: right-triangle profile in XY (vertical face at -x, slope down toward +x), extruded along Z. */
+/** A ramp: right-triangle profile in XY (vertical face at -x, slope down toward +x), extruded along Z.
+ * @param {number} x @param {number} y @param {number} z
+ * @returns {THREE.BufferGeometry} */
 function wedgeGeometry(x, y, z) {
   const hx = x / 2, hy = y / 2, hz = z / 2;
   // Front (z = +hz) and back (z = -hz) triangles: A bottom-left, B bottom-right, C top-left.
@@ -140,6 +248,8 @@ function wedgeGeometry(x, y, z) {
   ]);
 }
 
+/** @param {Shape} [shape]
+ *  @returns {THREE.BufferGeometry} */
 export function createGeometry(shape) {
   const [kind, p] = variant(shape);
   switch (kind) {
@@ -167,14 +277,17 @@ export function createGeometry(shape) {
 // metallic in blue of one metallic-roughness image), multiplied by the scalar
 // factors as in the Bevy mapping (an emissive map shows only where `emissive`
 // is non-zero). Without an `assetBase` they are skipped.
+/** @type {[string, string[], boolean][]} */
 const TEXTURE_SLOTS = [
   ['base_color_texture', ['map'], true],
   ['metallic_roughness_texture', ['roughnessMap', 'metalnessMap'], false],
   ['normal_map_texture', ['normalMap'], false],
   ['emissive_texture', ['emissiveMap'], true],
 ];
+/** @type {THREE.TextureLoader|null} */
 let textureLoader = null;
 
+/** @param {THREE.Material} material @param {any} mat @param {string|null} assetBase */
 function applyTextures(material, mat, assetBase) {
   if (!assetBase) return;
   for (const [key, props, srgb] of TEXTURE_SLOTS) {
@@ -185,10 +298,11 @@ function applyTextures(material, mat, assetBase) {
     const texture = textureLoader.load(assetBase + path, () => { material.needsUpdate = true; });
     texture.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    for (const p of props) material[p] = texture;
+    for (const p of props) (/** @type {any} */ (material))[p] = texture;
   }
 }
 
+/** @param {any} def @param {string|null} [assetBase] @returns {THREE.MeshBasicMaterial|THREE.MeshStandardMaterial} */
 export function createMaterial(def, assetBase = null) {
   const mat = { ...DEFAULT_MATERIAL, ...(def || {}) };
   const color = srgbColor(mat.color);
@@ -221,6 +335,8 @@ export function createMaterial(def, assetBase = null) {
   return material;
 }
 
+/** @param {any} def @param {Vec3} position
+ *  @returns {THREE.DirectionalLight|THREE.PointLight|THREE.SpotLight} */
 function createLight(def, position) {
   const color = srgbColor(def.color);
   const type = def.light_type || 'directional';
@@ -251,7 +367,7 @@ function createLight(def, position) {
   }
   if (direction) {
     // Bevy aims the light along `direction`; three aims it at `target`.
-    light.target.position.set(position[0] + direction[0], position[1] + direction[1], position[2] + direction[2]);
+    (/** @type {any} */ (light)).target.position.set(position[0] + direction[0], position[1] + direction[1], position[2] + direction[2]);
   }
   return light;
 }
@@ -260,6 +376,12 @@ function createLight(def, position) {
 // Behaviors (all seven, evaluated from the entity's authored transform)
 // ---------------------------------------------------------------------------
 
+/**
+ * @param {any} def
+ * @param {EntityRecord} rec
+ * @param {Map<string, EntityRecord>} byName
+ * @returns {((dt: number, t: number) => void)|null}
+ */
 function makeBehavior(def, rec, byName) {
   const [kind, p] = variant(def);
   const obj = rec.object;
@@ -362,6 +484,9 @@ function makeBehavior(def, rec, byName) {
 // Procedural audio (Web Audio), one graph per AudioDef
 // ---------------------------------------------------------------------------
 
+/** @param {AudioContext} ctx @param {number} seconds
+ *  @param {(d: Float32Array, sampleRate: number) => void} fill
+ *  @returns {AudioBuffer} */
 function noiseBuffer(ctx, seconds, fill) {
   const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * seconds), ctx.sampleRate);
   const d = buf.getChannelData(0);
@@ -369,27 +494,35 @@ function noiseBuffer(ctx, seconds, fill) {
   return buf;
 }
 
+/** @param {AudioContext} ctx @param {number} [seconds] @param {number} [gain] @returns {AudioBuffer} */
 function whiteNoise(ctx, seconds = 2, gain = 1) {
   return noiseBuffer(ctx, seconds, (d) => { for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * gain; });
 }
 
+/** @param {AudioContext} ctx @param {AudioBuffer} buffer @returns {AudioBufferSourceNode} */
 function loopSource(ctx, buffer) {
   const src = ctx.createBufferSource(); src.buffer = buffer; src.loop = true; return src;
 }
 
+/** @param {AudioContext} ctx @param {BiquadFilterType} type @param {number} frequency
+ *  @param {number} [q] @returns {BiquadFilterNode} */
 function filterNode(ctx, type, frequency, q) {
   const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = frequency; if (q != null) f.Q.value = q; return f;
 }
 
-/** Builds the graph for one audio source into `out`; returns a stop function. */
+/** Builds the graph for one audio source into `out`; returns a stop function.
+ * @param {AudioContext} ctx @param {any} audio @param {AudioNode} out
+ * @returns {() => void} */
 function buildAudioSource(ctx, audio, out) {
   const [kind, p] = variant(audio.source);
-  const stops = [];
+  /** @type {(() => void)[]} */ const stops = [];
+  /** @param {any} src @param {...any} nodes */
   const chain = (src, ...nodes) => {
     let prev = src; for (const n of nodes) { prev.connect(n); prev = n; } prev.connect(out);
     if (src.start) { src.start(); stops.push(() => { try { src.stop(); } catch (_) { /* already stopped */ } }); }
   };
-  const timers = [];
+  /** @type {number[]} */ const timers = [];
+  /** @param {() => void} fn @param {number} ms @returns {number} */
   const schedule = (fn, ms) => { const id = setTimeout(fn, ms); timers.push(id); return id; };
   stops.push(() => timers.forEach(clearTimeout));
   switch (kind) {
@@ -452,7 +585,7 @@ function buildAudioSource(ctx, audio, out) {
     case 'WindEmitter': chain(loopSource(ctx, whiteNoise(ctx)), filterNode(ctx, 'bandpass', (p.pitch ?? 1) * 500, 3)); break;
     case 'Custom': {
       const wave = p.waveform || 'Sine';
-      const ftype = String(p.filter_type || 'lowpass').toLowerCase();
+      const ftype = /** @type {BiquadFilterType} */ (String(p.filter_type || 'lowpass').toLowerCase());
       const cutoff = p.filter_cutoff ?? 1000;
       if (/noise/i.test(wave)) chain(loopSource(ctx, whiteNoise(ctx)), filterNode(ctx, ftype, cutoff));
       else {
@@ -472,13 +605,15 @@ function buildAudioSource(ctx, audio, out) {
 // Instances (world-types `instance`): one creation, many placements
 // ---------------------------------------------------------------------------
 
-/** Apply an `EntityPatch` (JSON) to a plain entity: a present key replaces the field, `null` clears it. */
+/** Apply an `EntityPatch` (JSON) to a plain entity: a present key replaces the field, `null` clears it.
+ * @param {any} def @param {any} patch */
 export function applyPatchToDef(def, patch) {
   for (const [key, value] of Object.entries(patch || {})) def[key] = value;
   return def;
 }
 
-/** The first id free for expanded parts (`WorldManifest::first_expansion_id`). */
+/** The first id free for expanded parts (`WorldManifest::first_expansion_id`).
+ * @param {WorldManifest} manifest @returns {number} */
 export function firstExpansionId(manifest) {
   let max = 0;
   for (const e of manifest.entities || []) max = Math.max(max, Number(e.id) || 0);
@@ -491,6 +626,10 @@ export function firstExpansionId(manifest) {
  * the instance (or the parent part's copy) as parent, and the per-instance
  * overrides applied. Same ids and order as the Rust function, so both
  * renderers draw the same entities.
+ * @param {WorldEntity[]} entities
+ * @param {any[]|null|undefined} creations
+ * @param {number} firstId
+ * @returns {WorldEntity[]}
  */
 export function expandInstances(entities, creations, firstId) {
   const defs = new Map((creations || []).map((c) => [String(c.id), c]));
@@ -505,15 +644,15 @@ export function expandInstances(entities, creations, firstId) {
     const def = defs.get(String(inst.creation));
     if (!def || done.has(`${e.id}:${def.id}`)) continue;
     // Parts an override removes drop out, with everything under them.
-    const removed = new Set((def.parts || []).filter((p) => (inst.overrides || []).some((o) => o.removed && o.part === p.name)).map((p) => String(p.id)));
+    const removed = new Set((def.parts || []).filter((/** @type {any} */ p) => (inst.overrides || []).some((/** @type {any} */ o) => o.removed && o.part === p.name)).map((/** @type {any} */ p) => String(p.id)));
     for (let grew = true; grew;) {
       grew = false;
       for (const p of def.parts || []) {
         if (p.parent != null && removed.has(String(p.parent)) && !removed.has(String(p.id))) { removed.add(String(p.id)); grew = true; }
       }
     }
-    const parts = (def.parts || []).filter((p) => !removed.has(String(p.id)));
-    const ids = new Map();
+    const parts = (def.parts || []).filter((/** @type {any} */ p) => !removed.has(String(p.id)));
+    /** @type {Map<string, number>} */ const ids = new Map();
     for (const p of parts) ids.set(String(p.id), next++);
     for (const p of parts) {
       const x = JSON.parse(JSON.stringify(p));
@@ -535,7 +674,8 @@ export function expandInstances(entities, creations, firstId) {
   return out;
 }
 
-/** `Shape::local_aabb_half`: a shape's box half-extents in its own frame. */
+/** `Shape::local_aabb_half`: a shape's box half-extents in its own frame.
+ * @param {Shape} shape @returns {Vec3|null} */
 export function shapeHalfExtents(shape) {
   const [kind, p] = variant(shape);
   const a = p || {};
@@ -551,7 +691,8 @@ export function shapeHalfExtents(shape) {
   }
 }
 
-/** `TriggerDef::area`: the event's volume, else the shape's box, else a sphere of radius 3. */
+/** `TriggerDef::area`: the event's volume, else the shape's box, else a sphere of radius 3.
+ * @param {any} trigger @param {WorldEntity} entity */
 export function triggerArea(trigger, entity) {
   const ev = trigger.on || {};
   if (ev.event !== 'area_enter' && ev.event !== 'area_exit') return null;
@@ -560,7 +701,8 @@ export function triggerArea(trigger, entity) {
   return half ? { shape: 'box', half_extents: half } : { shape: 'sphere', radius: 3 };
 }
 
-/** `TriggerVolume::contains_local`. */
+/** `TriggerVolume::contains_local`.
+ * @param {any} volume @param {THREE.Vector3} p @returns {boolean} */
 export function volumeContains(volume, p) {
   if (!volume) return false;
   if (volume.shape === 'box') {
@@ -571,7 +713,9 @@ export function volumeContains(volume, p) {
   return p.x * p.x + p.y * p.y + p.z * p.z <= r * r;
 }
 
-/** An `animate` action: move a transform property linearly to `to`. */
+/** An `animate` action: move a transform property linearly to `to`.
+ * @param {THREE.Object3D} object @param {any} action
+ * @returns {ViewerAnimation|null} */
 function startAnimation(object, action) {
   const to = action.to || [];
   const vec = () => (to.length >= 3 ? new THREE.Vector3(to[0], to[1], to[2]) : null);
@@ -593,17 +737,20 @@ function startAnimation(object, action) {
   }
 }
 
-/** Advance an animation; true when it has arrived. */
+/** Advance an animation; true when it has arrived.
+ * @param {THREE.Object3D} object @param {ViewerAnimation} anim @param {number} dt
+ * @returns {boolean} */
 function stepAnimation(object, anim, dt) {
   anim.t += dt;
   const f = anim.duration > 0 ? Math.min(anim.t / anim.duration, 1) : 1;
   if (anim.kind === 'position') object.position.lerpVectors(anim.a, anim.b, f);
   else if (anim.kind === 'scale') object.scale.lerpVectors(anim.a, anim.b, f);
-  else object.quaternion.slerpQuaternions(anim.a, anim.b, f);
+  else object.quaternion.slerpQuaternions(/** @type {THREE.Quaternion} */ (anim.a), /** @type {THREE.Quaternion} */ (anim.b), f);
   return f >= 1;
 }
 
-/** The manifest's entities with every instance expanded. */
+/** The manifest's entities with every instance expanded.
+ * @param {WorldManifest} manifest @returns {WorldEntity[]} */
 export function expandedEntities(manifest) {
   const entities = manifest.entities || [];
   if (!entities.some((e) => e.instance_of)) return entities;
@@ -614,6 +761,7 @@ export function expandedEntities(manifest) {
  * `MeshAssetRef::node_overrides`: hide or recolour named nodes inside a
  * loaded glTF scene (the node and everything under it). Materials are
  * cloned so other placements of the same file keep theirs.
+ * @param {THREE.Object3D} root @param {any[]|null} [overrides]
  */
 export function applyNodeOverrides(root, overrides) {
   for (const o of overrides || []) {
@@ -622,8 +770,8 @@ export function applyNodeOverrides(root, overrides) {
     if (o.visible != null) node.visible = !!o.visible;
     if (o.color) {
       const color = srgbColor(o.color);
-      const recolor = (m) => { const c = m.clone(); c.color?.copy(color); return c; };
-      node.traverse((m) => {
+      const recolor = (/** @type {any} */ m) => { const c = m.clone(); c.color?.copy(color); return c; };
+      node.traverse((/** @type {any} */ m) => {
         if (!m.isMesh || !m.material) return;
         m.material = Array.isArray(m.material) ? m.material.map(recolor) : recolor(m.material);
       });
@@ -638,7 +786,7 @@ export function applyNodeOverrides(root, overrides) {
 /**
  * Render `manifest` into `container`.
  *
- * options:
+ * options (see ViewerOptions):
  *   assetBase    URL prefix for mesh assets and the soundtrack file ('' = none: placeholders, silent).
  *   audioButton  element whose click toggles audio (shown when the world has sound).
  *   tourButton   element whose click starts/stops the first tour (shown when tours exist).
@@ -647,19 +795,23 @@ export function applyNodeOverrides(root, overrides) {
  *   keyboard     WASD/Space/Shift navigation (default true).
  *   embedApi     postMessage API for a parent frame (default: when framed).
  *   ambientScale override for AMBIENT_SCALE.
+ *
+ * @param {HTMLElement} container
+ * @param {WorldManifest} manifest
+ * @param {ViewerOptions} [options]
  */
 export function createWorldViewer(container, manifest, options = {}) {
   const opts = { keyboard: true, embedApi: typeof window !== 'undefined' && window.parent !== window, ...options };
   const assetBase = opts.assetBase ? String(opts.assetBase).replace(/\/?$/, '/') : '';
-  const env = manifest.environment || {};
+  const env = /** @type {EnvironmentDef} */ (manifest.environment || {});
 
   // ---- Scene, camera, renderer ----
   const scene = new THREE.Scene();
   if (env.background_color) scene.background = srgbColor(env.background_color);
-  if (env.fog_density > 0) {
+  if ((env.fog_density ?? 0) > 0) {
     // Bevy: exponential fog in `fog_density`, coloured by the fog colour, else the background.
     const fogColor = env.fog_color || env.background_color;
-    scene.fog = new THREE.Fog(fogColor ? srgbColor(fogColor) : new THREE.Color(1, 1, 1), 1, 100 / Math.max(env.fog_density, 0.01));
+    scene.fog = new THREE.Fog(fogColor ? srgbColor(fogColor) : new THREE.Color(1, 1, 1), 1, 100 / Math.max(env.fog_density ?? 0.01, 0.01));
   }
   const ambient = new THREE.AmbientLight(env.ambient_color ? srgbColor(env.ambient_color) : new THREE.Color(1, 1, 1),
     (env.ambient_intensity ?? 80) * (opts.ambientScale ?? AMBIENT_SCALE));
@@ -671,7 +823,7 @@ export function createWorldViewer(container, manifest, options = {}) {
   const width = container.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 800);
   const height = container.clientHeight || (typeof window !== 'undefined' ? window.innerHeight : 600);
   const camera = new THREE.PerspectiveCamera(cam.fov_degrees ?? DEFAULT_CAMERA.fov_degrees, width / height, 0.1, 1000);
-  camera.position.set(...(cam.position || DEFAULT_CAMERA.position));
+  camera.position.set(...(/** @type {Vec3} */ (cam.position || DEFAULT_CAMERA.position)));
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: !!opts.preserveDrawingBuffer });
   renderer.setPixelRatio(Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 2));
@@ -682,7 +834,7 @@ export function createWorldViewer(container, manifest, options = {}) {
   container.appendChild(renderer.domElement);
 
   const controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(...(cam.look_at || DEFAULT_CAMERA.look_at));
+  controls.target.set(...(/** @type {Vec3} */ (cam.look_at || DEFAULT_CAMERA.look_at)));
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
   controls.update();
@@ -700,18 +852,21 @@ export function createWorldViewer(container, manifest, options = {}) {
   resizeObserver?.observe(container);
 
   // ---- Entities ----
-  const records = [];
-  const byName = new Map();
-  const byId = new Map();
+  /** @type {EntityRecord[]} */ const records = [];
+  /** @type {Map<string, EntityRecord>} */ const byName = new Map();
+  /** @type {Map<string, EntityRecord>} */ const byId = new Map();
   const gltfLoader = assetBase ? new GLTFLoader() : null;
 
   // Build one entity's scene object and record (no parent attach, no
   // dynamics) — shared by initial load and live ops.
+  /** @param {WorldEntity} def @returns {EntityRecord} */
   function buildRecord(def) {
-    const t = def.transform || {};
-    const position = t.position || [0, 0, 0];
+    const t = /** @type {WorldTransform} */ (def.transform || {});
+    const position = /** @type {Vec3} */ (t.position || [0, 0, 0]);
     const hasShape = !!def.shape, hasLight = !!def.light;
-    let object, material = null, light = null;
+    let object = /** @type {THREE.Object3D|null} */ (null);
+    let material = /** @type {THREE.Material|null} */ (null);
+    let light = /** @type {THREE.Light|null} */ (null);
     if (hasShape) {
       material = createMaterial(def.material, assetBase);
       object = new THREE.Mesh(createGeometry(def.shape), material);
@@ -719,16 +874,26 @@ export function createWorldViewer(container, manifest, options = {}) {
       object.receiveShadow = true;
     } else if (def.mesh_asset) {
       object = new THREE.Group();
-      const placeholder = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x888888, wireframe: true }));
+      // Capability tiers (rfcs/capability-tiers.md): a mesh may name its
+      // cheaper sibling — a parametric `fallback` shape. It draws while
+      // the mesh loads, and stays when the mesh can't (or the renderer
+      // won't): the declared silhouette instead of a wireframe guess.
+      const fallbackShape = def.mesh_asset.fallback;
+      const placeholder = fallbackShape
+        ? new THREE.Mesh(createGeometry(fallbackShape), createMaterial(def.material, assetBase))
+        : new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x888888, wireframe: true }));
+      placeholder.castShadow = Boolean(fallbackShape);
+      placeholder.receiveShadow = Boolean(fallbackShape);
       object.add(placeholder);
       if (gltfLoader) {
         gltfLoader.load(assetBase + def.mesh_asset.path, (gltf) => {
-          object.remove(placeholder);
+          const obj = /** @type {THREE.Object3D} */ (object);
+          obj.remove(placeholder);
           const node = def.mesh_asset.node ? gltf.scene.getObjectByName(def.mesh_asset.node) || gltf.scene : gltf.scene;
-          node.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+          node.traverse((/** @type {any} */ o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
           applyNodeOverrides(node, def.mesh_asset.node_overrides);
-          object.add(node);
-        }, undefined, () => { /* keep the placeholder */ });
+          obj.add(node);
+        }, undefined, () => { /* keep the fallback (or the wireframe) */ });
       }
     } else if (!hasLight) {
       object = new THREE.Group();
@@ -736,33 +901,41 @@ export function createWorldViewer(container, manifest, options = {}) {
     if (hasLight) {
       light = createLight(def.light, position);
       if (object) object.add(light); else object = light;
-      if (light.target) scene.add(light.target);
+      const target = /** @type {any} */ (light).target;
+      if (target) scene.add(target);
     }
-    object.position.set(...position);
-    const rot = t.rotation_degrees || [0, 0, 0];
-    object.rotation.set(THREE.MathUtils.degToRad(rot[0]), THREE.MathUtils.degToRad(rot[1]), THREE.MathUtils.degToRad(rot[2]));
-    object.scale.set(...(t.scale || [1, 1, 1]));
-    if (t.visible === false) object.visible = false;
-    object.name = def.name;
+    // Every path above assigns `object` (shape, mesh, group, or light); the
+    // alias just lets the type say so.
+    const obj = /** @type {THREE.Object3D} */ (object);
+    obj.position.set(...position);
+    const rot = /** @type {Vec3} */ (t.rotation_degrees || [0, 0, 0]);
+    obj.rotation.set(THREE.MathUtils.degToRad(rot[0]), THREE.MathUtils.degToRad(rot[1]), THREE.MathUtils.degToRad(rot[2]));
+    obj.scale.set(...(/** @type {Vec3} */ (t.scale || [1, 1, 1])));
+    if (t.visible === false) obj.visible = false;
+    obj.name = def.name;
+    const std = /** @type {any} */ (material);
     return {
-      def, object, material, light,
+      def, object: obj, material, light,
       base: {
-        position: object.position.clone(),
-        scale: object.scale.clone(),
-        emissive: material?.emissive ? material.emissive.clone() : null,
-        emissiveIntensity: material?.emissiveIntensity ?? 0,
+        position: obj.position.clone(),
+        scale: obj.scale.clone(),
+        emissive: std?.emissive ? std.emissive.clone() : null,
+        emissiveIntensity: std?.emissiveIntensity ?? 0,
         lightIntensity: light?.intensity ?? 0,
-        opacity: material?.opacity ?? 1,
+        opacity: std?.opacity ?? 1,
       },
       behaviors: [], mods: [], resetPosition: false, resetScale: false,
+      triggers: [], anim: null,
     };
   }
 
+  /** @param {EntityRecord} rec */
   function attachRecord(rec) {
     const parent = rec.def.parent != null ? byId.get(String(rec.def.parent)) : null;
     (parent ? parent.object : scene).add(rec.object);
   }
 
+  /** @param {EntityRecord} rec */
   function initDynamics(rec) {
     rec.behaviors = [];
     rec.mods = [];
@@ -773,24 +946,27 @@ export function createWorldViewer(container, manifest, options = {}) {
       const [target] = variant(m.target);
       if (target === 'offset_y') rec.resetPosition = true;
       if (target === 'scale') rec.resetScale = true;
-      rec.mods.push({ def: m, target, s: 0 });
+      rec.mods.push({ def: m, target: /** @type {string} */ (target), s: 0 });
     }
     // The viewer has no inventory, so triggers that need an item never fire.
     rec.triggers = (rec.def.triggers || [])
-      .filter((t) => !t.requires_item)
-      .map((def) => ({ def, area: triggerArea(def, rec.def), done: false, inside: false, last: null, acc: 0 }));
+      .filter((/** @type {any} */ t) => !t.requires_item)
+      .map((/** @type {any} */ def) => ({ def, area: triggerArea(def, rec.def), done: false, inside: false, last: null, acc: 0 }));
   }
 
+  /** @param {THREE.Object3D} object */
   function disposeObject(object) {
-    object.traverse((o) => {
+    object.traverse((/** @type {any} */ o) => {
       o.geometry?.dispose?.();
-      if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose?.());
+      if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((/** @type {any} */ m) => m.dispose?.());
     });
   }
 
+  /** @param {EntityRecord} rec */
   function removeRecord(rec) {
     rec.object.removeFromParent();
-    if (rec.light?.target) rec.light.target.removeFromParent();
+    const target = /** @type {any} */ (rec.light)?.target;
+    if (target) target.removeFromParent();
     disposeObject(rec.object);
     byName.delete(rec.def.name);
     byId.delete(String(rec.def.id));
@@ -800,6 +976,7 @@ export function createWorldViewer(container, manifest, options = {}) {
 
   // Replace an entity's object (shape/material/light/mesh changes), keeping
   // its children attached.
+  /** @param {EntityRecord} rec */
   function rebuildRecord(rec) {
     const id = rec.def.id;
     const children = records.filter((r) => r.def.parent != null && String(r.def.parent) === String(id));
@@ -814,6 +991,7 @@ export function createWorldViewer(container, manifest, options = {}) {
   }
 
   // Apply an EntityPatch to a live record.
+  /** @param {number|string} id @param {any} patch */
   function applyEntityPatch(id, patch) {
     const rec = byId.get(String(id));
     if (!rec) return;
@@ -827,10 +1005,10 @@ export function createWorldViewer(container, manifest, options = {}) {
     if (patch.transform) {
       def.transform = patch.transform;
       const t = patch.transform;
-      rec.object.position.set(...(t.position || [0, 0, 0]));
+      rec.object.position.set(...(/** @type {Vec3} */ (t.position || [0, 0, 0])));
       const rot = t.rotation_degrees || [0, 0, 0];
       rec.object.rotation.set(THREE.MathUtils.degToRad(rot[0]), THREE.MathUtils.degToRad(rot[1]), THREE.MathUtils.degToRad(rot[2]));
-      rec.object.scale.set(...(t.scale || [1, 1, 1]));
+      rec.object.scale.set(...(/** @type {Vec3} */ (t.scale || [1, 1, 1])));
       rec.object.visible = t.visible !== false;
       rec.base.position.copy(rec.object.position);
       rec.base.scale.copy(rec.object.scale);
@@ -852,6 +1030,7 @@ export function createWorldViewer(container, manifest, options = {}) {
   }
 
   // Scene-wide environment changes (background, fog, ambient light).
+  /** @param {any} envDef */
   function applyEnvironment(envDef) {
     if (!envDef) return;
     if (envDef.background_color) scene.background = srgbColor(envDef.background_color);
@@ -869,6 +1048,7 @@ export function createWorldViewer(container, manifest, options = {}) {
   // Apply committed world ops (world-types EditOp in serde's externally
   // tagged JSON form). Used by collaborative sessions; the document on the
   // authority guarantees order and validity.
+  /** @param {any[]|null} [ops] */
   function applyOps(ops) {
     for (const op of ops || []) {
       const entry = Object.entries(op)[0];
@@ -927,14 +1107,29 @@ export function createWorldViewer(container, manifest, options = {}) {
     byName.set(def.name, rec);
     byId.set(String(def.id), rec);
   }
+  // Capability tiers (rfcs/capability-tiers.md): lights carry an optional
+  // `priority`; over this renderer's punctual-light budget, the least
+  // important are hidden — dropped from the tail, never rejected.
+  // Document order breaks ties; a world without priorities is unchanged.
+  {
+    const budget = 16; // three.js shader cost grows per light
+    const lights = records.filter((r) => r.light)
+      .map((r) => ({ record: r, priority: r.def.light?.priority ?? 0 }));
+    if (lights.length > budget) {
+      lights.sort((a, b) => b.priority - a.priority); // stable: ties keep document order
+      for (const { record } of lights.slice(budget)) (/** @type {THREE.Light} */ (record.light)).visible = false;
+    }
+  }
   for (const rec of records) attachRecord(rec);
   for (const rec of records) initDynamics(rec);
 
   // ---- Soundtrack and signals ----
   const soundtrack = manifest.soundtrack || null;
+  /** @type {AudioState} */
   const audioState = { ctx: null, started: false, stops: [], element: null, analyser: null, bins: null, spatial: [] };
   const live = { bass: 0, highs: 0 };
 
+  /** @param {number} elapsed @returns {number} */
   function soundtrackTime(elapsed) {
     if (audioState.element && !audioState.element.paused) return audioState.element.currentTime;
     return soundtrack && soundtrack.duration > 0 ? mod(elapsed, soundtrack.duration) : elapsed;
@@ -942,7 +1137,7 @@ export function createWorldViewer(container, manifest, options = {}) {
 
   function updateLive() {
     const a = audioState.analyser;
-    if (!a) return;
+    if (!a || !audioState.bins) return;
     a.getByteFrequencyData(audioState.bins);
     const bins = audioState.bins;
     let bass = 0, highs = 0, nb = 0, nh = 0;
@@ -952,6 +1147,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     live.highs = nh ? Math.min(1, (highs / nh / 255) * 2.5) : 0;
   }
 
+  /** @param {any} sig @param {number} t @param {boolean} playing @returns {number|null} */
   function signalValue(sig, t, playing) {
     const [kind, arg] = variant(sig);
     switch (kind) {
@@ -968,7 +1164,10 @@ export function createWorldViewer(container, manifest, options = {}) {
 
   // Several modulations on one target combine: factors multiply, offsets
   // add (the format's rule; world-bevy's `modulation` does the same).
+  /** @param {EntityRecord} rec @param {number} dt @param {number} t @param {boolean} playing */
   function applyModulations(rec, dt, t, playing) {
+    const mat = /** @type {any} */ (rec.material);
+    /** @type {Record<string, number>} */
     const combined = { emissive: 1, scale: 1, light_intensity: 1, opacity: 1, offset_y: 0 };
     const driven = new Set();
     for (const m of rec.mods) {
@@ -986,17 +1185,17 @@ export function createWorldViewer(container, manifest, options = {}) {
       if (m.target === 'offset_y') combined.offset_y += factor;
       else combined[m.target] *= factor;
     }
-    if (driven.has('emissive') && rec.material?.emissive) rec.material.emissiveIntensity = rec.base.emissiveIntensity * combined.emissive;
+    if (driven.has('emissive') && mat?.emissive) mat.emissiveIntensity = rec.base.emissiveIntensity * combined.emissive;
     if (driven.has('scale')) rec.object.scale.multiplyScalar(combined.scale);
     if (driven.has('light_intensity') && rec.light) rec.light.intensity = rec.base.lightIntensity * combined.light_intensity;
-    if (driven.has('opacity') && rec.material) { rec.material.opacity = rec.base.opacity * combined.opacity; rec.material.transparent = true; }
+    if (driven.has('opacity') && mat) { mat.opacity = rec.base.opacity * combined.opacity; mat.transparent = true; }
     if (driven.has('offset_y')) rec.object.position.y += combined.offset_y;
   }
 
   // ---- Audio control ----
   const hasAudio = records.some((r) => r.def.audio) || !!(soundtrack && soundtrack.path);
   function startAudio() {
-    const AudioCtx = typeof window !== 'undefined' ? (window.AudioContext || window.webkitAudioContext) : null;
+    const AudioCtx = typeof window !== 'undefined' ? (window.AudioContext || /** @type {any} */ (window).webkitAudioContext) : null;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
     const master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination);
@@ -1049,14 +1248,17 @@ export function createWorldViewer(container, manifest, options = {}) {
   }
 
   // ---- Keyboard navigation ----
-  const keys = {};
+  /** @type {Record<string, boolean>} */ const keys = {};
   const moveSpeed = manifest.avatar?.movement_speed ?? 5;
+  /** @param {KeyboardEvent} e */
   const onKeyDown = (e) => { keys[e.code] = true; };
+  /** @param {KeyboardEvent} e */
   const onKeyUp = (e) => { keys[e.code] = false; };
   if (opts.keyboard && typeof document !== 'undefined') {
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
   }
+  /** @param {number} dt */
   function updateMovement(dt) {
     if (typeof document !== 'undefined' && /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '')) return;
     const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
@@ -1073,18 +1275,21 @@ export function createWorldViewer(container, manifest, options = {}) {
 
   // ---- Guided tours ----
   const tours = (manifest.tours || []).filter((t) => t.waypoints && t.waypoints.length > 0);
+  /** @type {{active: any, idx: number, frac: number, paused: number}} */
   const tour = { active: null, idx: 0, frac: 0, paused: 0 };
+  /** @param {string|null} text */
   function showCaption(text) {
     if (!opts.tourCaption) return;
     if (text) { opts.tourCaption.textContent = text; opts.tourCaption.style.display = ''; } else opts.tourCaption.style.display = 'none';
   }
+  /** @param {number} [index] */
   function startTour(index = 0) {
     const t = tours[index]; if (!t) return;
     tour.active = t; tour.idx = 0; tour.frac = 0; tour.paused = 0;
     controls.enabled = false;
     if (opts.tourButton) opts.tourButton.textContent = 'Stop Tour';
     const wp0 = t.waypoints[0];
-    if (t.mode === 'teleport') { camera.position.set(...wp0.position); camera.lookAt(...wp0.look_at); }
+    if (t.mode === 'teleport') { camera.position.set(.../** @type {Vec3} */ (wp0.position)); camera.lookAt(.../** @type {Vec3} */ (wp0.look_at)); }
     showCaption(wp0.description);
   }
   function stopTour() {
@@ -1093,6 +1298,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     if (opts.tourButton) opts.tourButton.textContent = 'Start Tour';
     showCaption(null);
   }
+  /** @param {number} dt */
   function updateTour(dt) {
     const t = tour.active; if (!t) return;
     const wp = t.waypoints;
@@ -1101,7 +1307,7 @@ export function createWorldViewer(container, manifest, options = {}) {
       tour.idx++;
       if (tour.idx >= wp.length - 1) { if (t.loop_tour) tour.idx = 0; else { stopTour(); return; } }
       const next = wp[tour.idx];
-      camera.position.set(...next.position); camera.lookAt(...next.look_at);
+      camera.position.set(.../** @type {Vec3} */ (next.position)); camera.lookAt(.../** @type {Vec3} */ (next.look_at));
       tour.paused = next.pause_duration || 0; tour.frac = 0;
       showCaption(next.description);
       return;
@@ -1130,12 +1336,14 @@ export function createWorldViewer(container, manifest, options = {}) {
   // camera; `host` actions (score, inventory, named sounds) are skipped.
   const triggerCaption = opts.triggerCaption || opts.tourCaption || null;
   let triggerTextTime = 0;
+  /** @param {string|null|undefined} text @param {number|null|undefined} [seconds] */
   function showTriggerText(text, seconds) {
     if (!triggerCaption || !text) return;
     triggerCaption.textContent = text;
     triggerCaption.style.display = '';
     triggerTextTime = seconds ?? 4;
   }
+  /** @param {EntityRecord} rec @param {TriggerState} trig */
   function runAction(rec, trig) {
     const action = trig.def.action || {};
     switch (action.action) {
@@ -1164,6 +1372,7 @@ export function createWorldViewer(container, manifest, options = {}) {
   }
   // Proximity fires again every second while the visitor stays; the rest
   // have no cooldown unless they set one.
+  /** @param {EntityRecord} rec @param {TriggerState} trig */
   function fireTrigger(rec, trig) {
     if (trig.done) return;
     const ev = trig.def.on?.event;
@@ -1175,6 +1384,7 @@ export function createWorldViewer(container, manifest, options = {}) {
   }
   const triggerPos = new THREE.Vector3();
   const triggerLocal = new THREE.Vector3();
+  /** @param {number} dt */
   function updateTriggers(dt) {
     if (triggerTextTime > 0) {
       triggerTextTime -= dt;
@@ -1225,7 +1435,9 @@ export function createWorldViewer(container, manifest, options = {}) {
   // Reach is measured from the visitor to the entity's origin.
   const raycaster = new THREE.Raycaster();
   const press = { x: 0, y: 0, down: false };
+  /** @param {PointerEvent} e */
   const onPointerDown = (e) => { press.x = e.clientX; press.y = e.clientY; press.down = true; };
+  /** @param {PointerEvent} e */
   const onPointerUp = (e) => {
     if (!press.down) return;
     press.down = false;
@@ -1235,10 +1447,10 @@ export function createWorldViewer(container, manifest, options = {}) {
     raycaster.setFromCamera(ndc, camera);
     const hit = raycaster.intersectObjects(scene.children, true).find((h) => h.object.visible);
     if (!hit) return;
-    for (let o = hit.object; o; o = o.parent) {
+    for (let o = /** @type {THREE.Object3D|null} */ (hit.object); o; o = o.parent) {
       const rec = records.find((r) => r.object === o);
       const clicks = rec ? rec.triggers.filter((t) => t.def.on?.event === 'click') : [];
-      if (!clicks.length) continue;
+      if (!rec || !clicks.length) continue;
       const distance = rec.object.getWorldPosition(triggerPos).distanceTo(camera.position);
       for (const trig of clicks) if (distance <= (trig.def.on.max_distance ?? 5)) fireTrigger(rec, trig);
       break;
@@ -1251,6 +1463,7 @@ export function createWorldViewer(container, manifest, options = {}) {
   const clock = new THREE.Clock();
   let elapsed = 0;
   let running = true;
+  /** @param {number} dt */
   function tick(dt) {
     elapsed += dt;
     for (const rec of records) {
@@ -1291,6 +1504,7 @@ export function createWorldViewer(container, manifest, options = {}) {
       viewerVersion: VIEWER_VERSION,
     };
   }
+  /** @param {MessageEvent} event */
   const onMessage = (event) => {
     const msg = event.data;
     if (!msg || typeof msg !== 'object' || !msg.action) return;
@@ -1298,9 +1512,9 @@ export function createWorldViewer(container, manifest, options = {}) {
       case 'startTour': startTour(msg.index || 0); break;
       case 'stopTour': stopTour(); break;
       case 'toggleAudio': toggleAudio(); break;
-      case 'setCameraPosition': if (Array.isArray(msg.position) && msg.position.length === 3) camera.position.set(...msg.position); break;
-      case 'setCameraTarget': if (Array.isArray(msg.target) && msg.target.length === 3) { controls.target.set(...msg.target); controls.update(); } break;
-      case 'getSceneInfo': event.source?.postMessage(sceneInfo(), event.origin !== 'null' ? event.origin : '*'); break;
+      case 'setCameraPosition': if (Array.isArray(msg.position) && msg.position.length === 3) camera.position.set(.../** @type {Vec3} */ (msg.position)); break;
+      case 'setCameraTarget': if (Array.isArray(msg.target) && msg.target.length === 3) { controls.target.set(.../** @type {Vec3} */ (msg.target)); controls.update(); } break;
+      case 'getSceneInfo': (/** @type {Window|null} */ (event.source))?.postMessage(sceneInfo(), event.origin !== 'null' ? event.origin : '*'); break;
       default: break;
     }
   };
