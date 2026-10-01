@@ -79,7 +79,7 @@ pub struct SessionInfo {
 }
 
 /// Who authored an `ops` message or a chat line.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Author {
     /// The peer, when the author is connected (None for the host app itself).
     #[serde(default, skip_serializing_if = "Option::is_none")]

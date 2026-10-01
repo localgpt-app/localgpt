@@ -967,7 +967,7 @@
         "generation_tool": {
           "description": "Tool name and version that produced this world (e.g. \"LocalGPT Gen v0.3.5\").",
           "type": "string",
-          "default": "LocalGPT Gen v0.3.6"
+          "default": "LocalGPT Gen"
         },
         "human_modifiable": {
           "description": "Whether the output can be meaningfully edited by a human.\n\n`true` for LocalGPT Gen because the canonical format is RON text with\nparametric shapes -- users can open, read, and modify every dimension,\nmaterial, and behavior by hand.",

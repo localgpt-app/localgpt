@@ -300,7 +300,10 @@ fn default_risk_level() -> String {
     "minimal".to_string()
 }
 fn default_generation_tool() -> String {
-    format!("LocalGPT Gen v{}", env!("CARGO_PKG_VERSION"))
+    // A literal, deliberately: the published schema's default must not
+    // churn with the generating crate's version (the snapshot tests on
+    // both sides hold the two generators to one schema).
+    "LocalGPT Gen".to_string()
 }
 fn default_generation_method() -> String {
     "code-generation".to_string()
@@ -510,7 +513,7 @@ mod tests {
         assert!(c.steam_code_tool_exempt);
         assert_eq!(c.eu_ai_act_risk_level, "minimal");
         assert!(c.no_gen_ai_compatible);
-        assert!(c.generation_tool.starts_with("LocalGPT Gen v"));
+        assert!(c.generation_tool.starts_with("LocalGPT Gen")); // a literal now — the schema must not churn with crate versions
         assert_eq!(c.generation_method, "code-generation");
         assert!(c.human_modifiable);
     }

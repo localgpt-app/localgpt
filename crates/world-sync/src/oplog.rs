@@ -23,6 +23,10 @@ pub struct OpLogEntry {
     /// The document revision after these ops applied. Only edits bump it;
     /// history-only entries carry the current revision.
     pub revision: u64,
+    /// Who or what wrote the entry. The spec's own example logs omit it
+    /// on some lines (the JS fold reads them); a missing author is an
+    /// unnamed one, never a broken log.
+    #[serde(default)]
     pub author: Author,
     pub ops: Vec<SessionOp>,
     /// Milliseconds since the Unix epoch (0 when the writer didn't clock).
