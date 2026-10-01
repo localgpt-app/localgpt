@@ -10,9 +10,10 @@ keywords = ["localgpt", "world", "3d", "types"]
 [features]
 # JSON Schema for the manifest (`examples/schema.rs` writes world.schema.json).
 # Off by default: the crate stays serde-only for the mobile targets.
-schema = ["dep:schemars"]
+schema = ["dep:schemars", "openworldformat/schema"]
 
 [dependencies]
+openworldformat = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 schemars = { version = "1.2", optional = true }

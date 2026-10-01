@@ -17,6 +17,9 @@ pub const PROTOCOL_VERSION: u32 = 1;
 /// connection; reused never (a rejoin gets a new id).
 pub type PeerId = u64;
 
+/// The log's author, shared with the crate (see lib.rs).
+pub use openworldformat::author::Author;
+
 /// What a peer may do. Assigned by the transport at join (the host decides
 /// who may edit); the authority only enforces it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,14 +82,6 @@ pub struct SessionInfo {
 }
 
 /// Who authored an `ops` message or a chat line.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Author {
-    /// The peer, when the author is connected (None for the host app itself).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub peer: Option<PeerId>,
-    pub name: String,
-}
-
 /// A prompt job as clients see it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct JobInfo {

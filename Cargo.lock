@@ -8686,20 +8686,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "localgpt-world-physics"
-version = "0.3.6"
-dependencies = [
- "localgpt-world-sync",
- "localgpt-world-types",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "localgpt-world-sync"
 version = "0.3.6"
 dependencies = [
  "localgpt-world-types",
+ "openworldformat",
  "serde",
  "serde_json",
 ]
@@ -8708,6 +8699,7 @@ dependencies = [
 name = "localgpt-world-types"
 version = "0.3.6"
 dependencies = [
+ "openworldformat",
  "ron",
  "schemars 1.2.2",
  "serde",
@@ -10532,6 +10524,15 @@ dependencies = [
  "percent-encoding",
  "rand 0.9.5",
  "thiserror 2.0.19",
+]
+
+[[package]]
+name = "openworldformat"
+version = "0.1.1"
+dependencies = [
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

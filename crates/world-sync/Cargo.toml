@@ -9,5 +9,6 @@ keywords = ["localgpt", "world", "3d", "collaboration", "sync"]
 
 [dependencies]
 localgpt-world-types = { workspace = true }
+openworldformat = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

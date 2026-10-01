@@ -1241,6 +1241,11 @@
           "maxItems": 4,
           "minItems": 4
         },
+        "extra": {
+          "description": "Extension fields (`ext-*`), namespaced and must-ignored: what a\nreader doesn't understand rides along unchanged (the physics\nextension's gravity lives here today). An empty map serializes to\nnothing.",
+          "type": "object",
+          "additionalProperties": true
+        },
         "fog_color": {
           "description": "Fog color, sRGB-encoded RGBA in `0..=1`; the background color when\nunset.",
           "type": [
@@ -1263,7 +1268,9 @@
           "format": "float"
         }
       },
-      "additionalProperties": true
+      "required": [
+        "extra"
+      ]
     },
     "FilterType": {
       "description": "Audio filter type.",
@@ -2734,6 +2741,11 @@
             }
           ]
         },
+        "extra": {
+          "description": "Extension fields (`ext-*`), namespaced and must-ignored: what a\nreader doesn't understand rides along unchanged (the physics\nextension's body component lives here today). The typed fields\nabove are the contract; this map is the sanctioned room around\nthem. An empty map serializes to nothing.",
+          "type": "object",
+          "additionalProperties": true
+        },
         "id": {
           "description": "Stable numeric identifier.",
           "$ref": "#/$defs/EntityId"
@@ -2817,25 +2829,7 @@
         },
         "transform": {
           "description": "Spatial transform.",
-          "$ref": "#/$defs/WorldTransform",
-          "default": {
-            "position": [
-              0.0,
-              0.0,
-              0.0
-            ],
-            "rotation_degrees": [
-              0.0,
-              0.0,
-              0.0
-            ],
-            "scale": [
-              1.0,
-              1.0,
-              1.0
-            ],
-            "visible": true
-          }
+          "$ref": "#/$defs/WorldTransform"
         },
         "triggers": {
           "description": "Events and the actions they run (see [`crate::trigger`]).",
@@ -2845,10 +2839,14 @@
           }
         }
       },
-      "additionalProperties": true,
       "required": [
         "id",
-        "name"
+        "name",
+        "transform",
+        "behaviors",
+        "modulations",
+        "triggers",
+        "extra"
       ]
     },
     "WorldMeta": {

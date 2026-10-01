@@ -1,47 +1,46 @@
 //! # localgpt-world-sync
 //!
-//! Collaborative sessions over the LocalGPT world format. A world is a shared
-//! document; every change to it is a world-types [`EditOp`]; one
-//! [`Authority`] per room checks, orders and fans out those ops. See
-//! `docs/rfcs/multiplayer/collaborative-world-engine-architecture.md`.
+//! Collaborative sessions over the LocalGPT world format. The format's
+//! own surface — the document fold, the op log, the session op
+//! vocabulary — is re-exported from the `openworldformat` crate (the
+//! Rust reference this code was extracted into). What stays here is the
+//! room around the fold: the authority that orders ops, the wire
+//! protocol, scene diffing, and undo.
 //!
-//! - [`doc::WorldDoc`] — the document: entities by id plus the scene-wide
-//!   settings, with atomic, validated op application.
-//! - [`diff::diff_scene`] — the ops that turn a document into a fresh
-//!   projection of a live scene (how Gen's host captures edits from ~100
-//!   tools without instrumenting them).
-//! - [`protocol`] — the JSON wire messages ([`ClientMsg`], [`ServerMsg`]).
-//! - [`authority::Authority`] — peers, roles, revisions, presence, chat and
-//!   the prompt queue: the room's bookkeeping, returning the messages to
-//!   send and to whom.
+//! See `docs/rfcs/multiplayer/collaborative-world-engine-architecture.md`.
 //!
-//! No Bevy, no async runtime, no sockets: the transport (Gen's session HTTP
-//! server today; a relay, a headless server or a SpacetimeDB module later)
-//! feeds messages in and delivers what comes out.
-//!
-//! [`EditOp`]: localgpt_world_types::EditOp
+//! No Bevy, no async runtime, no sockets: the transport (Gen's session
+//! HTTP server today; a relay, a headless server or a SpacetimeDB
+//! module later) feeds messages in and delivers what comes out.
 
 pub mod authority;
 pub mod diff;
-pub mod doc;
-pub mod oplog;
 pub mod protocol;
-pub mod session;
 pub mod undo;
+
+// The format's session surface — modules re-exported so `crate::doc`
+// and friends keep resolving for the room machinery above.
+pub use openworldformat::doc;
+pub use openworldformat::oplog;
+pub use openworldformat::session;
 
 pub use authority::{
     Authority, AuthorityEvent, Limits, Outbound, Recipients, sanitize_name, undo_key_for_local,
     undo_key_for_peer,
 };
 pub use diff::{diff_entities, diff_scene};
-pub use doc::{ApplyError, WorldDoc};
-pub use oplog::{OpLogEntry, decode_line, encode_line};
-pub use protocol::{
-    Author, ChatKind, ClientKind, ClientMsg, JobInfo, JobState, PROTOCOL_VERSION, PeerId, PeerInfo,
-    Presence, Role, ServerMsg, SessionInfo,
-};
-pub use session::{
+pub use openworldformat::doc::{ApplyError, WorldDoc};
+pub use openworldformat::oplog::{OpLogEntry, decode_line, encode_line};
+pub use openworldformat::session::{
     ClockRecord, ClockState, ExtensionRecord, InputRecord, InputSample, MergeRecord,
     SESSION_FORMAT_VERSION, SessionMeta, SessionOp, StateRecord, ToolRecord, fold_log, fold_path,
 };
+pub use protocol::{
+    ChatKind, ClientKind, ClientMsg, JobInfo, JobState, PROTOCOL_VERSION, PeerId, PeerInfo,
+    Presence, Role, ServerMsg, SessionInfo,
+};
 pub use undo::compute_inverse;
+
+// The protocol speaks the same Author as the log: one type, from the
+// crate, re-exported through the module that used to define it.
+pub use openworldformat::author::Author;

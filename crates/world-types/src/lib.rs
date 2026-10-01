@@ -1,88 +1,54 @@
 //! # localgpt-world-types
 //!
-//! Unified world data model for LocalGPT Gen.
+//! The format's document types, re-exported from the `openworldformat`
+//! crate — the Rust reference extracted from this very code and now
+//! published on crates.io. What stays here is LocalGPT's own surface:
+//! NPCs, the generation log, behavior libraries, regions, and the sync
+//! drift machinery — the app-flavored leaves that were never part of
+//! the format's schema.
 //!
-//! This crate defines the canonical types for 3D worlds: entities, shapes,
-//! materials, lights, behaviors, audio, tours, and more.  It has **zero
-//! dependencies on Bevy or SpacetimeDB** — only `serde` and `serde_json`.
+//! Downstream crates see no difference: `wt::Shape`, `wt::entity::WorldEntity`,
+//! `wt::WorldManifest` all resolve, now to the crate's types. When the
+//! format changes, the crate releases first and this workspace bumps —
+//! the spec leads, the apps follow, which is the point of the spin-out.
 //!
-//! The same types serialize to RON files for local saves and can be mapped
-//! to SpacetimeDB rows for multiplayer via a thin adapter layer.
-//!
-//! ## Core Types
-//!
-//! - [`WorldManifest`] — top-level world definition with schema versioning
-//! - [`WorldEntity`] — composable entity with optional shape, material,
-//!   light, behaviors, and audio components
-//! - [`Shape`] — parametric shapes that never lose dimension info
-//! - [`BehaviorDef`] — all 7 declarative animation types
-//! - [`AudioDef`] + [`AudioSource`] — unified audio taxonomy
-//! - [`EditHistory`] — undo/redo support
-//!
-//! ## Design Principles
-//!
-//! 1. **Parametric shapes** — `Shape::Cuboid { x: 4, y: 3, z: 5 }` never
-//!    degrades to raw triangles
-//! 2. **Composable entities** — a campfire is one entity with shape + light +
-//!    audio + pulse behavior
-//! 3. **Dual identity** — stable `EntityId` for storage, human-readable
-//!    `EntityName` for LLM interaction
-//! 4. **Serde-only** — compiles for native, WASM, iOS, Android
+//! The same types serialize to RON for local saves and to JSON for the
+//! web viewer; `schema_for!(WorldManifest)` (feature `schema`) still
+//! generates `world.schema.json`, byte-identical to the published one.
 
-pub mod asset;
-pub mod audio;
-pub mod avatar;
-pub mod behavior;
-pub mod creation;
-pub mod entity;
-pub mod genlog;
-pub mod history;
-pub mod identity;
-pub mod instance;
-pub mod library;
-pub mod light;
-pub mod material;
-pub mod modulation;
-pub mod npc;
-pub mod region;
-pub mod shape;
-pub mod soundtrack;
-pub mod spatial;
-pub mod sync;
-pub mod tour;
-pub mod trigger;
-pub mod validation;
-pub mod world;
-
-// Re-exports for convenience
-pub use asset::{MeshAssetRef, NodeOverride};
-pub use audio::{AudioDef, AudioKind, AudioSource, FilterType, Rolloff, WaveformType};
-pub use avatar::{AvatarDef, PointOfView};
-pub use behavior::{BehaviorDef, PathMode};
-pub use creation::{CreationDef, SemanticCategory};
-pub use entity::{EntityPatch, WorldEntity, WorldTransform, values_close};
-pub use history::{AmbienceLayerDef, EditHistory, EditOp, WorldEdit};
-pub use identity::{CreationId, EntityId, EntityName, EntityRef};
-pub use instance::{
-    InstanceOf, PartLink, PartOverride, expand_instances, part_links, validate_instances,
-};
-pub use light::{LightDef, LightType};
-pub use material::{AlphaModeDef, MaterialDef, TextureSlot};
-pub use modulation::{ModulationDef, ModulationTarget, SignalSource, StemKind};
-pub use npc::{NpcBrainDef, NpcDataCollection, NpcDef, NpcMemoryDef, NpcMemoryEntryDef};
-pub use shape::{PrimitiveShapeKind, Shape};
-pub use soundtrack::{SoundtrackDef, StemCurves, curve_at};
-pub use spatial::ChunkCoord;
-pub use tour::{TourDef, TourMode, TourWaypoint};
-pub use trigger::{TriggerActionDef, TriggerDef, TriggerEvent, TriggerVolume};
-pub use validation::{
+// The format's document: modules and the flat re-export surface, both
+// from the crate, so module paths (`wt::entity::…`) and root paths
+// (`wt::WorldEntity`) keep working.
+pub use openworldformat::validation::{
     Severity, ValidationIssue, WorldLimits, validate_entities, validate_manifest,
 };
-pub use world::{CameraDef, ComplianceMeta, EnvironmentDef, WorldManifest, WorldMeta};
+pub use openworldformat::world::WORLD_SCHEMA_VERSION;
+pub use openworldformat::{
+    AlphaModeDef, AmbienceLayerDef, AudioDef, AudioKind, AudioSource, AvatarDef, BehaviorDef,
+    CameraDef, ChunkCoord, ComplianceMeta, CreationDef, CreationId, EditHistory, EditOp, EntityId,
+    EntityName, EntityPatch, EntityRef, EnvironmentDef, FilterType, InstanceOf, LightDef,
+    LightType, MaterialDef, MeshAssetRef, ModulationDef, ModulationTarget, NodeOverride, PartLink,
+    PartOverride, PathMode, PointOfView, PrimitiveShapeKind, Rolloff, SemanticCategory, Shape,
+    SignalSource, SoundtrackDef, StemCurves, StemKind, TextureSlot, TourDef, TourMode,
+    TourWaypoint, TriggerActionDef, TriggerDef, TriggerEvent, TriggerVolume, WaveformType,
+    WorldEdit, WorldEntity, WorldManifest, WorldMeta, WorldTransform, curve_at, expand_instances,
+    part_links, validate_instances, values_close,
+};
+pub use openworldformat::{
+    asset, audio, avatar, behavior, creation, entity, history, identity, instance, light, material,
+    modulation, shape, soundtrack, spatial, tour, trigger, validation, world,
+};
 
-// Multi-file world types (v2)
+// LocalGPT's own leaves — never part of the format's schema.
+pub mod genlog;
+pub mod library;
+pub mod npc;
+pub mod region;
+pub mod sync;
+
 pub use genlog::GenLogEntry;
 pub use library::{AudioEmitterSpec, AudioSpec, BehaviorLibrary};
+pub use npc::{NpcBrainDef, NpcDataCollection, NpcDef, NpcMemoryDef, NpcMemoryEntryDef};
 pub use region::{RegionBounds, RegionEntities};
 pub use sync::{
     ClaimExtractionError, DiffType, DomainDrift, DriftReport, StructuralClaim, StructuralDiff,
