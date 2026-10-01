@@ -212,6 +212,12 @@ pub struct EntityPatch {
     pub triggers: Option<Vec<TriggerDef>>,
     /// Extension fields (`ext-*`) this patch sets — or clears, on `None`.
     /// Other unknown keys are dropped, matching the reference fold.
+    //
+    // Not an `Option`, so schemars would call it required — but the
+    // hand-written `Serialize` omits it when empty, and a patch that
+    // touches no `ext-*` field (the common case) carries no `extra`.
+    // `default` tells the schema what the serializer already does.
+    #[cfg_attr(feature = "schema", schemars(default))]
     pub extra: BTreeMap<String, Option<serde_json::Value>>,
 }
 

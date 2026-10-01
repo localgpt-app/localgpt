@@ -1087,7 +1087,8 @@
         "extra": {
           "description": "Extension fields (`ext-*`) this patch sets — or clears, on `None`.\nOther unknown keys are dropped, matching the reference fold.",
           "type": "object",
-          "additionalProperties": true
+          "additionalProperties": true,
+          "default": {}
         },
         "instance_of": {
           "anyOf": [
@@ -1187,10 +1188,7 @@
             "$ref": "#/$defs/TriggerDef"
           }
         }
-      },
-      "required": [
-        "extra"
-      ]
+      }
     },
     "EntityRef": {
       "description": "Cross-entity reference — used in behaviors, parenting, audio attachment.\n\nLLMs produce `Name` references; these are resolved to `Id` on ingestion.\nSaved worlds should only contain `Id` references.",
