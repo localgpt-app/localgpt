@@ -21,6 +21,7 @@
 
 pub mod assets;
 pub mod interpreter;
+pub mod live;
 #[cfg(feature = "llm")]
 pub mod localgguf;
 pub mod paths;

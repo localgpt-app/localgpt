@@ -158,6 +158,13 @@ struct Cli {
     /// Replay pace in batches per second (with --replay).
     #[arg(long, requires = "replay", default_value_t = 4.0)]
     replay_speed: f32,
+
+    /// Open a folder holding a world's manifest.json as a live canvas
+    /// (proof of concept): agents change it from outside through ops sent
+    /// to a local API, as the folder's AGENTS.md describes. No agent runs
+    /// in the window.
+    #[arg(long)]
+    live: Option<PathBuf>,
 }
 
 /// Tool access for prompts from collaborative clients (`--remote-tools`).
@@ -389,7 +396,14 @@ fn main() -> Result<()> {
             None,
             None,
             Some((entries, cli.replay_speed)),
+            None,
         );
+    }
+
+    // --live: a canvas for a world agents change from outside — no agent here.
+    if let Some(dir) = cli.live.clone() {
+        let (_bridge, channels) = gen3d::create_gen_channels();
+        return run_bevy_app(channels, workspace, None, None, None, None, Some(dir));
     }
 
     // Multiplayer client mode (--join): slim viewer app, no gen subsystems.
@@ -587,6 +601,7 @@ fn main() -> Result<()> {
                     initial_world,
                     None,
                     None,
+                    None,
                 )
             }
         }
@@ -743,6 +758,7 @@ fn main() -> Result<()> {
                 initial_world,
                 panel,
                 None,
+                None,
             );
 
             // Clean up relay port file so stale ports aren't discovered
@@ -809,6 +825,7 @@ fn run_bevy_app(
         std::collections::VecDeque<localgpt_world_sync::OpLogEntry>,
         f32,
     )>,
+    live: Option<PathBuf>,
 ) -> Result<()> {
     use bevy::prelude::*;
 
@@ -839,6 +856,9 @@ fn run_bevy_app(
     });
     if let Some((entries, speed)) = replay {
         gen3d::replay::setup_replay(&mut app, entries, speed);
+    }
+    if let Some(dir) = live {
+        gen3d::live::setup_live(&mut app, &dir)?;
     }
     add_prompt_panel(&mut app, panel);
 
