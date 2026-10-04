@@ -730,7 +730,7 @@ fn referenced_assets(manifest: &WorldManifest) -> Vec<String> {
     paths
 }
 
-/// JSON merge patch (RFC 7386) of `change` over `current`: objects merge
+/// JSON merge patch (RFC 7396) of `change` over `current`: objects merge
 /// key by key, `null` removes, anything else replaces.
 fn merged(current: &Value, change: &Value) -> Value {
     match (current, change) {

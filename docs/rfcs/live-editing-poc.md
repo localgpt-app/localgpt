@@ -1,7 +1,10 @@
 # Live editing — proof of concept
 
-**Branch:** `poc/live-editing`. **Status:** a proof of concept, not a
-proposal yet. Nothing here changes the Open World Format repository.
+**Branch:** `poc/live-editing`. **Status:** a proof of concept. The
+decisions it fed are now normative — spec draft 0.3, the accepted
+live-authoring RFC in the spec repository (`spec/rfcs/live-authoring.md`,
+branch `rfc/live-authoring`). The code here predates them; see
+*Catching up to draft 0.3*.
 
 The question: can Gen be the *canvas* of a `.world` that agents change from
 outside — Claude Code, Codex, `localgpt`, a script — with no agent
@@ -17,13 +20,19 @@ undoable entry in the log.
    a reason per op.
 2. **Assets are files.** Agents write meshes and textures into `assets/`
    under any name. An op that references one stores an immutable copy at
-   `assets/<sha256>.<ext>` and points the world there. A new version is new
-   bytes referenced again; old versions stay for the history that used them.
-3. **The package is head-first.** `manifest.json` is the world now, written
-   only by the committer (a direct write is put back). `fold(base, log) ==
-   manifest.json` is checkable at any time.
-4. **In a git repository, every batch is a commit** authored by whoever sent
-   it, and replay walks the commits as keyframes.
+   `assets/<sha256>.<ext>` and points the world there — content
+   addressing that keeps the `.world` a self-contained, portable
+   database even on devices without git (mobile included). A new version
+   is new bytes referenced again; old versions stay for the history that
+   used them.
+3. **The package is head-first.** `manifest.json` is the world now,
+   written only by the committer (a direct write is put back).
+   `fold(base, log) == manifest.json` is checkable at any time.
+4. **In a git repository, every batch is a commit** authored by whoever
+   sent it, and replay walks the commits as keyframes.
+
+Where the code differs from the draft-0.3 decisions below, the decisions
+win and the catch-up list says so.
 
 ## Run it
 
@@ -80,36 +89,95 @@ API:
 ## What it found for the format
 
 - **Patches replace whole structs.** `ModifyEntity` with only a `position`
-  resets rotation and scale; a material patch with only a texture drops the
-  color. Agents send partial changes by nature. The proof of concept merges
-  `transform`, `material`, `light` and `SetEnvironment` at ingestion (JSON
-  merge patch); the spec should say which, or define merge for struct
-  fields.
-- **No op reaches meta, avatar, tours, soundtrack or creations.** Through an
-  ops-only API an agent cannot change them at all. A `ModifyWorld` op closes
-  it.
-- **Names at ingestion are right.** Binding names to ids (and allocating ids
-  for spawns) at ingestion is what made the ops writable by an agent — the
-  spec's rule, validated.
-- **Strict mode belongs to the authoring API.** Must-ignore would have kept
-  the `colour` typo silently; refusing it with a pointer is what lets an
-  agent correct itself.
-- **Content addressing and git overlap.** Hash-named copies keep a package
-  self-contained without git (a zip of one revision still verifies). In a
-  repository, git already versions the bytes, so working names could be
-  referenced directly; the two models need one answer.
-- **What git takes over, and what it doesn't.** Commits gave history,
-  authorship, diff, revert, branches and transport for free, and replay
-  became walking keyframes. It does not give op-level intent (the log
-  still does), real-time collaboration, or a semantic merge: `manifest.json`
-  merges need a driver that merges by entity and field (`ops.jsonl` uses
-  `merge=union`).
+  resets rotation and scale; a material patch with only a texture drops
+  the color. Agents send partial changes by nature. The proof of concept
+  merges `transform`, `material`, `light` and `SetEnvironment` at
+  ingestion (JSON Merge Patch, RFC 7396). *Decided:* the spec adopts that
+  merge for the Authoring profile, at ingestion — the committed op
+  carries the merged whole value, so the fold itself never merges and
+  the log's patch semantics are unchanged.
+- **No op reaches meta, avatar, tours, soundtrack or creations.** Through
+  an ops-only API an agent cannot change them at all. *Decided:* one op —
+  `ModifyWorld`, patching those fields the way `ModifyEntity` patches an
+  entity — not per-field ops.
+- **Names at ingestion are right.** Binding names to ids (and allocating
+  ids for spawns) at ingestion is what made the ops writable by an agent —
+  the spec's rule, validated, and extended to op addresses: a string
+  where an entity id goes is a name.
+- **Strict mode belongs to the authoring API.** Must-ignore would have
+  kept the `colour` typo silently; refusing it with a pointer is what
+  lets an agent correct itself. *Decided:* the Authoring profile MUST
+  read the batches it is sent strictly.
+- **Portability first; git as an extension.** Platforms like mobile have
+  no git, so the package must be fully self-contained: hash-named asset
+  copies plus the append-only ops log are a portable, dependency-free
+  history — a `.world` is its own database anywhere. Git stays strictly
+  optional, an optimization for desktop workflows (batches as commits,
+  keyframe replay), never a mandatory dependency. *Decided:* content
+  addressing is the baseline everywhere. Even under git the immutable
+  copies cost almost nothing — identical bytes are one git blob, so only
+  genuinely new versions add to the object store, which any history
+  would. The spec's allowance of logical names under git (`MAY`,
+  spec/package.md) is there for repositories that want readable asset
+  diffs; it is not this project's default.
+- **What git takes over, and what it doesn't.** When enabled, commits
+  give history, authorship, diff, revert, branches and transport for
+  free, and replay becomes walking keyframes. It does not give op-level
+  intent (the log still does), real-time collaboration, or a semantic
+  merge. *Decided:* deterministic serialization first — the canonical
+  text (members sorted, entities by id, plain arrays inline) makes
+  ordinary textual merges of `manifest.json` clean; a semantic merge
+  driver stays open (`ops.jsonl` uses `merge=union` either way).
+
+## Decided since (spec draft 0.3)
+
+Beyond the findings above, from the review of this proof of concept:
+
+- **A checkout is not a direct write.** When `manifest.json` changes to
+  bytes `package.json` names (`world_sha256`), something moved the whole
+  package — a `git checkout`, a pull, a sync client — and the authority
+  reopens it and shows the new head. Any other change is still refused.
+  Reloading on *any* outside change would quietly accept direct writes
+  again; the hash match is the line.
+- **A read-only `manifest.json` is a hint, not a guard.** An authority
+  MAY clear the file's write permission while it holds the package, so
+  an ordinary write fails at once with the OS's own error. A writer that
+  saves by renaming a temp file over the target — or that makes the file
+  writable again — gets through it, so the authority still checks every
+  change and refuses what isn't a checkout.
+- **Entries carry a `message`** — a commit message, part of the entry's
+  identity — instead of this proof of concept's tool-record workaround.
+- **MCP is an equal way in, not a replacement.** A stdio MCP server is
+  started by the agent, so it is a shim that reads
+  `.live/endpoint.json` and calls the same local HTTP API; an MCP server
+  over HTTP on localhost needs the token for the same reason the API
+  does — a web page in the browser can post to localhost.
+
+## Catching up to draft 0.3
+
+The code here still builds on the 0.1 crate and predates the decisions:
+
+- move to openworldformat 0.3, and send `ModifyWorld` through the API;
+- carry the batch's message as the entry's `message` field;
+- write `manifest.json` with the crate's `manifest_text` (the canonical
+  text) instead of preserving the previous entity order;
+- reopen on a checkout — bytes matching `world_sha256` — instead of
+  restoring, and make `manifest.json` read-only while held, as the hint;
+- keep hash-named asset copies everywhere (portability first); git
+  stays the optional layer it is here.
 
 ## Not done
 
-A cold test with a fresh agent that has only `AGENTS.md`; an MCP wrapper
-over the same endpoints; a semantic git merge driver; switching git branches
-under an open app (the guard would put `manifest.json` back — a checkout
-should reopen instead); redo and per-author undo; mesh, audio and camera
-changes in the open scene (`OpsApplier` doesn't apply them); telling the
-agent, not only the app's log, when its direct write was put back.
+- A cold test with a fresh agent that has only `AGENTS.md`.
+- An MCP wrapper over the same endpoints.
+- Switching git branches under an open app.
+- Replay reading assets at the replayed commit: replay walks commits'
+  `manifest.json`, but loads asset files from the working tree, so an
+  old commit would show today's bytes for a changed asset — the canvas
+  must load them from that commit (`git show <commit>:assets/…`).
+- Redo, and per-author undo.
+- Mesh, audio and camera changes in the open scene (`OpsApplier`
+  doesn't apply them).
+- Telling the agent, not only the app's log, when its direct write was
+  refused — the read-only hint makes ordinary writes fail fast, but the
+  authority's refusal stays the source of truth.
