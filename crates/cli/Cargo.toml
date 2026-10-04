@@ -25,6 +25,8 @@ localgpt-core = { workspace = true }
 localgpt-server = { workspace = true }
 localgpt-sandbox = { workspace = true }
 localgpt-cli-tools = { workspace = true }
+# The world authority, for `localgpt world`. Bevy-free, so the CLI stays light.
+localgpt-world-agent = { workspace = true }
 
 tokio = { workspace = true }
 serde = { workspace = true }

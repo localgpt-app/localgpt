@@ -21,6 +21,7 @@
 
 pub mod agent_cli;
 pub mod assets;
+pub mod headless;
 pub mod interpreter;
 pub mod live;
 #[cfg(feature = "llm")]

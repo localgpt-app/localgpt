@@ -21,6 +21,7 @@ pub mod search;
 pub mod session;
 pub mod tool;
 pub mod tui;
+pub mod world;
 
 use clap::{Parser, Subcommand};
 
@@ -72,6 +73,12 @@ pub enum Commands {
 
     /// Launch 3D scene generation mode (delegates to localgpt-gen)
     Gen(gen3d::GenArgs),
+
+    /// Work on a `.world` package: commit batches, read the log, verify
+    World {
+        #[command(subcommand)]
+        command: world::WorldCommands,
+    },
 
     /// Manage the daemon
     Daemon(daemon::DaemonArgs),

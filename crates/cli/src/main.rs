@@ -85,6 +85,7 @@ async fn async_main(cli: Cli) -> Result<()> {
         #[cfg(feature = "desktop")]
         Commands::Desktop(args) => crate::cli::desktop::run(args, &cli.agent),
         Commands::Gen(_) => unreachable!("Gen is handled before tokio runtime starts"),
+        Commands::World { command } => crate::cli::world::run(command),
         Commands::Daemon(args) => crate::cli::daemon::run(args, &cli.agent).await,
         Commands::Memory(args) => crate::cli::memory::run(args, &cli.agent).await,
         Commands::Config(args) => crate::cli::config::run(args).await,
