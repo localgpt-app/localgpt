@@ -1,5 +1,11 @@
 # Unified World Data Model: `localgpt-world-types`
 
+**Status:** implemented, then moved upstream. `localgpt-world-types` shipped as
+this RFC describes and is still the workspace's world data model — but the
+format itself is now the published `openworldformat` crate, which this
+workspace consumes. Change the format there, never here.
+
+
 ## Problem
 
 LocalGPT Gen had two representations of 3D worlds that didn't talk to each other:

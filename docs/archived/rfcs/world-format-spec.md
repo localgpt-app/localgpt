@@ -1,6 +1,12 @@
 # The `.world` format as a public specification
 
-**Status:** proposed. Nothing here changes the formats — world-types (schema
+**Status:** Implemented (Archived 2026-10-04). The specification exists: the
+`openworldformat` repository, openworldformat.org, draft 0.3 with a normative
+JSON Schema, five reference implementations (npm, PyPI, crates.io, SwiftPM,
+Kotlin) and a conformance suite. This workspace now *consumes* it — the
+`openworldformat` crate from crates.io — rather than owning the format.
+
+**Original status:** proposed. Nothing here changes the formats — world-types (schema
 3) and the session package are the substance; this RFC is about *freezing
 and publishing* them as a specification other software can implement, and
 about what that commitment costs. See

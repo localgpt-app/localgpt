@@ -1,5 +1,8 @@
 # Designing a world package format for LocalGPT Gen
 
+**Status:** research, 2026-03-25. A landscape survey, not a proposal — kept for the reasoning behind decisions already made. It informed the package format. Superseded in substance: its tool-call-log half by `multiplayer/session-package-format.md`, and its "single shareable archive" idea explicitly rejected by the published spec in favour of a small core plus profiles. The landscape survey stays useful.
+
+
 > **Note:** This document consolidates research from the former "World packaging formats for AI-driven 3D creation.md" (deleted as ~85% duplicate). The landscape survey content from that doc is preserved below where unique.
 
 **A local-first, AI-generated 3D world needs a format that bundles scene data, deterministic tool call logs, audio, and sandboxed behaviors into a single shareable archive.** No existing format does all of this. But glTF's extension model, ComfyUI's reproducible DAG serialization, OpenClaw's progressive-disclosure skill packaging, and Godot's human-readable TSCN scenes collectively provide a proven design vocabulary. This report distills research across five domains into actionable architecture guidance for a Bevy/Rust world package format.

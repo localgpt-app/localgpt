@@ -1,6 +1,6 @@
 # Not Yet Specced (and Why)
 
-Items identified in the [AI world generation research](../research/AI%20world%20generation%20research%20and%20what%20it%20means%20for%20LocalGPT%20Gen.md) that were deliberately not turned into TODO specs.
+Items identified in the AI world generation research (no longer in this repository) that were deliberately not turned into TODO specs.
 
 ---
 

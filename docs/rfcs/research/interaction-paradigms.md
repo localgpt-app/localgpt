@@ -1,5 +1,8 @@
 # Interaction paradigms from an alien civilization's playbook
 
+**Status:** research, 2026-03-25. A landscape survey, not a proposal — kept for the reasoning behind decisions already made. It informed the design frontier for persistent AI worlds. Nothing here is scheduled.
+
+
 **The most transformative idea in this design space is not any single feature but a convergence: a persistent world where AI civilizations autonomously evolve cultures, languages, and mythologies while players navigate time itself to witness that evolution unfold.** No game, social platform, or creative tool has shipped anything close to this. The research shows every component is approaching feasibility — artificial life produces emergent parasitism and symbiosis, multi-agent RL yields spontaneous languages and economies, and SpacetimeDB's commit-log architecture already stores the raw material for temporal world navigation. What follows is a comprehensive map of the design frontier, organized from proven building blocks to genuinely unprecedented experiences, with concrete paths to implementation on the existing Bevy/SpacetimeDB/MCP stack.
 
 ---

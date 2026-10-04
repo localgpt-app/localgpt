@@ -6,11 +6,14 @@ Internal specs, RFCs, research, and roadmap tracking. For **user-facing document
 
 ```
 docs/
-├── rfcs/                    # Active/future design proposals
-│   ├── multiplayer/         # SpacetimeDB, MMO, collaborative worlds
-│   ├── worldgen/            # World generation pipeline, formats, data model
-│   ├── agent/               # Multi-agent architecture, notifications
-│   └── gen/                 # Gen mode vision and technical foundations
+├── rfcs/                    # Design proposals — see rfcs/README.md for the
+│   │                        #   index; every RFC carries a **Status:** line
+│   ├── authoring/           # The live-editing arc: POC, agents outside the
+│   │                        #   window, the non-linear editor stack
+│   ├── multiplayer/         # Collaborative rooms: one parent spec + 3 deep-dives
+│   ├── worldgen/            # The world data model
+│   ├── agent/               # Notifications
+│   └── research/            # Landscape surveys that informed decisions
 ├── architecture/            # Current system architecture docs
 │   └── plugin/              # Plugin lifecycle reviews (apply/unapply without restart)
 ├── gen/                     # Gen mode reference (audio, MCP tools, UX)
@@ -34,7 +37,7 @@ docs/
 - **World systems**: `roadmap/world/TODO-START.md` (92% complete, 76/83 specs done)
 - **Headless pipeline**: `roadmap/headless/TODO-START.md` (81% complete, 25/31 specs done)
 - **Security roadmap**: `security/SECURITY-TODO.md` (consolidated comparison + TODO)
-- **Active RFCs**: `rfcs/` subdirectories by domain
+- **RFC index**: `rfcs/README.md` — every RFC with its status, what supersedes what, and how to write one
 
 ## Relationship to Website Docs
 

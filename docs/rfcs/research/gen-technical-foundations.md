@@ -1,5 +1,8 @@
 # LocalGPT Gen: technical foundations for an AI-driven explorable world creator
 
+**Status:** research, 2026-03-25. A landscape survey, not a proposal — kept for the reasoning behind decisions already made. It informed the dual-artifact pattern (an editable specification plus a concrete output) that became `world-types` and the `.world` package.
+
+
 **An AI-powered tool that generates explorable 3D worlds from text, images, and sketches is now architecturally feasible — but requires careful design decisions at every layer.** The field has moved rapidly: Google DeepMind's Genie generates interactive worlds frame-by-frame from images, World Labs ships commercial 3D world generation via API, and Tencent's open-source HunyuanWorld produces navigable environments with mesh export. The critical insight for LocalGPT Gen is that none of these systems implement the dual-artifact pattern (editable specification + concrete output) that makes professional creative tools powerful. By combining LLM-driven specification generation with procedural and AI-based world construction on Bevy's ECS architecture, LocalGPT Gen can occupy a unique position: the first tool where worlds have "source code" that creators can version, branch, and evolve.
 
 ---

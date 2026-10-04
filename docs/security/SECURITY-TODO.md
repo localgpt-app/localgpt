@@ -58,7 +58,7 @@ Security considerations for enterprise deployment of LocalGPT.
 
 ### 5. Prompt Injection Defenses
 
-**Status**: At parity with OpenClaw. See [SECURITY-COMPARISON.md](./SECURITY-COMPARISON.md) for details.
+**Status**: At parity with OpenClaw. See [SECURITY-COMPARISON.md](../archived/security/SECURITY-COMPARISON.md) for details.
 
 **Implemented** (in `localgpt/src/agent/sanitize.rs`):
 - [x] Marker stripping (12+ LLM injection formats) ✅

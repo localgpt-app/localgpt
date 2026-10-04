@@ -1,5 +1,13 @@
 # Collaborative World Engine: Architecture Specification (v2)
 
+**Status:** implemented in part — the parent spec for collaborative rooms, with its own [phase table](#phases) and
+[implementation status](#implementation-status) as the authority on what is done.
+Phases 1–4 and 7 are shipped (`world-sync`, presence, browser guests, the
+relay, one op protocol for every client); phase 8's SpacetimeDB module is
+done but not yet joined from a client. Three deep-dives name this document
+as their parent.
+
+
 Gen's collaboration is built around one idea: **a world is a shared
 document, and every change to it is an op.** People and AI agents author
 ops; one authority checks and orders them; every client renders the same
@@ -39,7 +47,7 @@ physics didn't replicate, so guests saw a different world than the host.
    any renderer that reads the world format can join: Gen (world-bevy), a
    browser (world-export's three.js viewer), later others.
 2. **Every change is an op.** The vocabulary is world-types'
-   [`EditOp`](../../../crates/world-types/src/history.rs): spawn, delete,
+   [`EditOp`](../../../crates/world-sync/src/lib.rs) (the `openworldformat` crate's, re-exported): spawn, delete,
    modify (an `EntityPatch`), set environment, set camera, ambience, audio
    emitters, and an all-or-nothing `Batch`. Tool calls, human edits,
    imports, undo and redo all end up as ops.

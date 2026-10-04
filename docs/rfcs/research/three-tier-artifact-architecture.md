@@ -1,5 +1,8 @@
 # Three-tier artifact architecture for AI-driven 3D world creation
 
+**Status:** research, 2026-03-25. A landscape survey, not a proposal — kept for the reasoning behind decisions already made. It informed the Prompt / WorldSpec / WorldInstance split. The spec half shipped as `world-types`; the bidirectional-sync problem it surveys is settled differently — see `authoring/world-editor-stack.md`, where the ECS is a one-way projection of a fold.
+
+
 **No existing system has fully solved the bidirectional sync problem between freeform creative intent and formal specifications—but a compelling architecture emerges from combining lens theory, constrained LLM decoding, content-addressable caching, and Bevy's ECS change detection.** The core insight across all seven research areas is that the Prompt ↔ WorldSpec ↔ WorldInstance pipeline maps directly onto patterns already proven in tools like Substance Designer (node graphs as specs), ComfyUI (JSON DAG workflows), and Terraform (plan/apply for infrastructure changes). What makes LocalGPT Gen unique is that it must solve all of these simultaneously in a local-first, single-binary Rust application—a constraint that eliminates cloud-dependent solutions but enables powerful content-addressed caching and embedded version control.
 
 ---

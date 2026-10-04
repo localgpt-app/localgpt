@@ -4,7 +4,9 @@
 decisions it fed are now normative — spec draft 0.3, the accepted
 live-authoring RFC in the spec repository (`spec/rfcs/live-authoring.md`,
 branch `rfc/live-authoring`). The code here predates them; see
-*Catching up to draft 0.3*.
+*Catching up to draft 0.3*. What it did not answer — where the person
+types once Gen has no agent of its own — is
+[agents-outside-the-window.md](agents-outside-the-window.md).
 
 The question: can Gen be the *canvas* of a `.world` that agents change from
 outside — Claude Code, Codex, `localgpt`, a script — with no agent

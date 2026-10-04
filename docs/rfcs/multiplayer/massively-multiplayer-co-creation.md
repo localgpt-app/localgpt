@@ -1,5 +1,12 @@
 # Architecture for a massively multiplayer AI-driven 3D world co-creation platform
 
+**Status:** deferred, 2026-03-22. A §2 deep-dive on spatial interest management and the asynchronous AI inference pool under
+[collaborative-world-engine-architecture.md](collaborative-world-engine-architecture.md).
+Nothing here is scheduled: the parent's phase 8 (cloud rooms) is where this
+work would land, and `crates/spacetime` is still a standalone crate excluded
+from the main build.
+
+
 > **Parent spec:** [3D Collaborative World Engine: Architecture Specification](collaborative-world-engine-architecture.md) — this document is the deep-dive on Spatial Interest Management and the Asynchronous AI Inference Pool (§2).
 
 **SpacetimeDB combined with Bevy and LLM-powered content generation can deliver an MMO-scale co-creation platform, but the architecture requires careful spatial sharding, a multi-stage AI pipeline, and Figma-style conflict resolution rather than full CRDTs.** The critical insight from BitCraft Online — the flagship SpacetimeDB MMO — is that infinite-world scale demands multiple SpacetimeDB instances partitioned spatially, since each instance holds all data in memory on a single machine. This report provides concrete data models, pipeline designs, and trade-off analysis across all six architectural areas, grounded in how SpacetimeDB actually works (reducer pattern, subscription queries, WASM modules) and what real systems like BitCraft, Figma, Roblox, and SpatialOS have proven at scale.

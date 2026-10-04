@@ -1,5 +1,8 @@
 # Multi-agent before multi-user: a LocalGPT architecture strategy
 
+**Status:** research, 2026-03-25. A landscape survey, not a proposal — kept for the reasoning behind decisions already made. It informed the decision to ship hierarchical subagent spawning before multi-user. Implemented: `spawn_agent` is in core's safe tool set.
+
+
 **LocalGPT should prioritize multi-agent orchestration over multi-user support, and it can do so while staying under 20MB.** The competitive landscape shows that single-level hierarchical subagent spawning (the pattern Claude Code uses) delivers the highest developer productivity gains, while multi-user features primarily serve enterprise sales motions that are premature for a single-binary local tool. Rust's actor ecosystem—particularly Kameo or raw Tokio channels—adds only **200–400KB** to binary size while enabling full agent orchestration. The recommended path: ship lightweight subagent spawning in the next release cycle, defer multi-user to a later enterprise-oriented milestone, and use MCP as the primary extensibility layer rather than building custom agent-to-agent protocols.
 
 This analysis draws on architectural patterns from OpenClaw's gateway system, Claude Code's subagent model, seven major multi-agent frameworks, five AI coding tools, and Rust's actor framework ecosystem to build a concrete implementation roadmap.

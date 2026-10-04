@@ -182,7 +182,8 @@ the repository's own three-tier RFC describes: the parametric spec is the
 source; instances and exports are derived and never edited. A third tier is
 proposed: publishing world-types plus the session package as a public
 `.world` specification others can implement
-(`docs/rfcs/world/world-format-spec.md`).
+(`docs/archived/rfcs/world-format-spec.md`, implemented — the spec is now
+the `openworldformat` repository).
 
 ### 5.3 Consistent rendering on Bevy and the web
 

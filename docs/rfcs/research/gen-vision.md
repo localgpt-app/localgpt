@@ -1,5 +1,8 @@
 # LocalGPT Gen: from AI assistant to 3D world platform
 
+**Status:** research, 2026-03-25. A landscape survey, not a proposal — kept for the reasoning behind decisions already made. It informed Gen's direction. Its snapshot of the code — "roughly 11 LLM tool calls spawning geometric primitives" — is long overtaken: Gen now has 40+ tools, a shared world format, audio, physics and collaborative rooms.
+
+
 **LocalGPT Gen exists today as an early proof-of-concept — roughly 11 LLM tool calls spawning geometric primitives in Bevy — inside a well-built Rust AI assistant.** The vision described in this task (SpacetimeDB multiplayer, three-tier WorldSpec architecture, audio generation, procedural worlds) represents an ambitious roadmap with zero code evidence in the repository. This gap matters because the technical choices ahead will determine whether LocalGPT Gen becomes a credible alternative to Meta Horizon Worlds and Roblox's AI tools, or remains a toy demo. The good news: the Rust/Bevy ecosystem has matured enough to support most of the planned architecture, and the local-first positioning creates genuine differentiation against cloud-dependent competitors.
 
 ## What the codebase actually contains versus the roadmap
