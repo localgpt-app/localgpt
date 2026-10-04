@@ -76,5 +76,30 @@ for crate in crates/verse crates/md; do
   fi
 done
 
+# The four CC0 "Starter Worlds" tracks, beside the pack. Two megabytes
+# against the pack's 522, and they are what the desktop app opens on a cold
+# start — a song is the one input whose model-free world is a finished world
+# (docs/world-strategy.md §13.3), so a build without them has no first frame.
+# Resolved by localgpt-world-agent's `paths::starter_music_dir`, which looks
+# for music/music.json beside models/manifest.json.
+MUSIC_SRC="$SRC/music"
+MUSIC_OUT="$(dirname "$OUT")/music"
+if [ -d "$MUSIC_SRC" ]; then
+  mkdir -p "$MUSIC_OUT"
+  copied=0
+  for f in "$MUSIC_SRC"/*; do
+    [ -f "$f" ] || continue
+    dst="$MUSIC_OUT/$(basename "$f")"
+    if [ ! -f "$dst" ]; then
+      cp "$f" "$dst"
+      copied=$((copied + 1))
+    fi
+  done
+  echo "starter music -> $MUSIC_OUT ($copied copied)"
+else
+  echo "  no music/ in the assets repo — the app will have no cold-start song"
+fi
+
 echo "done -> $OUT"
-echo "license: the pack is Poly Haven CC0 (see the assets repo's LICENSE)"
+echo "license: the pack is Poly Haven CC0 (see the assets repo's LICENSE);"
+echo "         the starter tracks are CC0 originals (see music/NOTICE)"

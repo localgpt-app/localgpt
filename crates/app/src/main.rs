@@ -33,6 +33,7 @@ mod now_playing;
 mod open;
 mod screenshot;
 mod song;
+mod starter;
 
 use std::path::PathBuf;
 
@@ -259,8 +260,34 @@ fn main() -> anyhow::Result<()> {
                 initial_world = Some(dir);
             }
             _ => {
-                showing = None;
-                initial_world = None;
+                // A true cold start: nothing asked for, nothing remembered.
+                // Lead with a song (`docs/world-strategy.md` §13.3). Of the
+                // inputs this app takes it is the only one whose model-free
+                // world is a *finished* world rather than a draft, so it is
+                // what someone with no key, no model and no download sees in
+                // the first frame. An empty window was the honest thing to
+                // show before there was a starter track; it is not a
+                // welcome.
+                match starter::open(&workspace) {
+                    Ok(Some((title, dir))) => {
+                        eprintln!("localgpt-app: starting with {title}");
+                        showing = Some(format!("Song · {title}"));
+                        // Deliberately not remembered: the starter is where a
+                        // cold start begins, not somewhere the user chose to
+                        // be, and remembering it would make the second launch
+                        // look like a choice they made.
+                        initial_world = Some(dir);
+                    }
+                    Ok(None) => {
+                        showing = None;
+                        initial_world = None;
+                    }
+                    Err(e) => {
+                        eprintln!("localgpt-app: no starter world ({e})");
+                        showing = None;
+                        initial_world = None;
+                    }
+                }
             }
         }
     };

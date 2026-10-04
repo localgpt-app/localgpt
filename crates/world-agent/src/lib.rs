@@ -26,6 +26,7 @@ pub mod live;
 pub mod localgguf;
 pub mod paths;
 pub mod session;
+pub mod starter;
 
 pub use assets::{
     AssetEntry, AssetManifest, Tier, fold_seed, mesh_path, read_manifest_at, resolve_kind,

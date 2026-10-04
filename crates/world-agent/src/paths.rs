@@ -18,8 +18,12 @@ use std::path::{Path, PathBuf};
 pub const LOCALGPT_LLM_DIR: &str = "LOCALGPT_LLM_DIR";
 /// `$LOCALGPT_WORLD_ASSETS` — an override for the asset pack directory.
 pub const LOCALGPT_WORLD_ASSETS: &str = "LOCALGPT_WORLD_ASSETS";
+/// `$LOCALGPT_STARTER_MUSIC` — an override for the starter-track directory.
+pub const LOCALGPT_STARTER_MUSIC: &str = "LOCALGPT_STARTER_MUSIC";
 /// The pack is the directory that holds this file.
 const PACK_MARKER: &str = "models/manifest.json";
+/// The starter music is the directory that holds this file.
+const MUSIC_MARKER: &str = "music/music.json";
 
 /// The local-LLM model directory every LocalGPT app shares, so one GGUF
 /// download serves Gen, MD and Verse: `$LOCALGPT_LLM_DIR`, else
@@ -63,13 +67,65 @@ pub fn world_pack_dir_with<F>(app_candidates: &[PathBuf], exists: F) -> Option<P
 where
     F: Fn(&Path) -> bool,
 {
+    shared_asset_dir(
+        LOCALGPT_WORLD_ASSETS,
+        PACK_MARKER,
+        "pack",
+        app_candidates,
+        exists,
+    )
+}
+
+/// The CC0 starter-track directory — the one whose `music/music.json` exists.
+///
+/// These four tracks ("Starter Worlds", CC0-1.0) are what the desktop app
+/// opens when it has nothing else: a song is the one input whose model-free
+/// world is a *finished* world rather than a draft, so it is what a person
+/// with no key, no model and no download sees in the first frame
+/// (`docs/world-strategy.md` §13.3).
+///
+/// Probed in the same order as [`world_pack_dir`], and separately from it:
+/// the tracks are two megabytes against the pack's 522, so a build may carry
+/// the music and fetch the pack later. `None` means no starter track is
+/// present, which an app treats as "open nothing" rather than as an error.
+pub fn starter_music_dir(app_candidates: &[PathBuf]) -> Option<PathBuf> {
+    starter_music_dir_with(app_candidates, |p| p.is_file())
+}
+
+/// [`starter_music_dir`] with an injected existence check, for tests.
+pub fn starter_music_dir_with<F>(app_candidates: &[PathBuf], exists: F) -> Option<PathBuf>
+where
+    F: Fn(&Path) -> bool,
+{
+    shared_asset_dir(
+        LOCALGPT_STARTER_MUSIC,
+        MUSIC_MARKER,
+        "pack",
+        app_candidates,
+        exists,
+    )
+}
+
+/// The probe every shared asset directory uses: an env override, the
+/// caller's own roots, the shared download directory, then a sibling
+/// checkout of the asset repository under its current and former names.
+fn shared_asset_dir<F>(
+    env_key: &str,
+    marker: &str,
+    shared_leaf: &str,
+    app_candidates: &[PathBuf],
+    exists: F,
+) -> Option<PathBuf>
+where
+    F: Fn(&Path) -> bool,
+{
     let mut candidates: Vec<PathBuf> = Vec::new();
-    if let Some(over) = std::env::var_os(LOCALGPT_WORLD_ASSETS) {
+    if let Some(over) = std::env::var_os(env_key) {
         candidates.push(PathBuf::from(over));
     }
     candidates.extend(app_candidates.iter().cloned());
     if let Some(shared) = shared_data_dir() {
-        candidates.push(shared.join("models").join("pack"));
+        candidates.push(shared.join("models").join(shared_leaf));
     }
     // A sibling checkout of the asset repository. `localgpt-verse-assets` is
     // the former name, kept because three apps read that pack and a rename
@@ -77,9 +133,7 @@ where
     for sibling in ["../localgpt-world-assets", "../localgpt-verse-assets"] {
         candidates.push(PathBuf::from(sibling));
     }
-    candidates
-        .into_iter()
-        .find(|dir| exists(&dir.join(PACK_MARKER)))
+    candidates.into_iter().find(|dir| exists(&dir.join(marker)))
 }
 
 /// The `.gguf` files in `dir`, sorted so "the first one" is stable.
@@ -237,6 +291,43 @@ mod tests {
     fn pack_is_none_when_no_candidate_has_a_manifest() {
         assert_eq!(
             world_pack_dir_with(&[PathBuf::from("/nope")], |_| false),
+            None
+        );
+    }
+
+    #[test]
+    fn starter_music_prefers_an_app_candidate_over_the_shared_download() {
+        let app = PathBuf::from("/app/assets");
+        let found = starter_music_dir_with(std::slice::from_ref(&app), |p| p.starts_with("/app/"));
+        assert_eq!(found, Some(app));
+    }
+
+    #[test]
+    fn starter_music_falls_back_to_a_sibling_asset_checkout() {
+        let found = starter_music_dir_with(&[], |p| p.starts_with("../localgpt-world-assets"));
+        assert_eq!(found, Some(PathBuf::from("../localgpt-world-assets")));
+    }
+
+    #[test]
+    fn starter_music_looks_for_its_own_marker_not_the_packs() {
+        // Two megabytes of music and 522 MB of models are separate
+        // downloads, so a tree with one must not be mistaken for the other.
+        let music_only = |p: &Path| p.ends_with(MUSIC_MARKER);
+        let pack_only = |p: &Path| p.ends_with(PACK_MARKER);
+        let candidates = [PathBuf::from("/only/music")];
+
+        assert_eq!(
+            starter_music_dir_with(&candidates, music_only),
+            Some(PathBuf::from("/only/music"))
+        );
+        assert_eq!(world_pack_dir_with(&candidates, music_only), None);
+        assert_eq!(starter_music_dir_with(&candidates, pack_only), None);
+    }
+
+    #[test]
+    fn starter_music_is_none_when_nothing_has_the_manifest() {
+        assert_eq!(
+            starter_music_dir_with(&[PathBuf::from("/nope")], |_| false),
             None
         );
     }

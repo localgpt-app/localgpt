@@ -109,8 +109,15 @@ thing that makes a branch rail honest about convergence.
 ## Chrome: Bevy's own widgets, not egui
 
 This is where "fully utilize Bevy" has recently become the right answer rather
-than the loyal one. Bevy 0.19 ships an editor-widget toolkit, and it is
-already in this workspace's lockfile:
+than the loyal one. Bevy 0.19 ships an editor-widget toolkit.
+
+**It is one feature flag away, not already present.** `bevy_feathers` and
+`bevy_ui_widgets` are pinned in `Cargo.lock`, so adopting them resolves
+nothing new — but they are **not** default Bevy features and nothing in the
+workspace depends on them today (`cargo tree -i bevy_feathers` finds
+nothing). Using them means adding the `bevy_feathers` feature to the `bevy`
+dependency, which also pulls `bevy_ui_widgets`. Cheap, but a step, and this
+RFC previously implied they were available as-is:
 
 - **`bevy_ui_widgets` 0.19** — headless widget behaviour: `button`,
   `checkbox`, `list`, `menu`, `popover`, `radio`, `scrollarea`, `scrollbar`,
