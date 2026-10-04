@@ -9,19 +9,31 @@
 //!
 //! ## What bounds this, and it is not the cache
 //!
-//! `WorldDoc::apply_entry` is O(document size) per entry: it clones the
-//! document for atomicity, calls `apply_all` which clones it *again*, then
-//! `resolve_refs` clones the whole name map to dodge a borrow. Three O(n)
-//! clones per entry make any fold O(n²) — a 10,000-entry session folds whole
-//! in about 11 seconds on an M-series laptop, around 1.1 ms per entry, and
-//! that figure is flat against this cache's cadence because the cost is in
-//! the applies, not the snapshots.
+//! Building this crate found the fold itself to be quadratic:
+//! `WorldDoc::apply_entry` cloned the document for atomicity, called
+//! `apply_all` which cloned it *again*, and `resolve_refs` cloned the whole
+//! name map to dodge a borrow — three O(n) clones per entry, so a
+//! 10,000-entry session folded whole in about 11 seconds, a figure that was
+//! flat against this cache's cadence because the cost was in the applies and
+//! not the snapshots.
 //!
-//! So the cache is not a workaround for a slow fold; it is what keeps a
-//! *seek* off that curve. It cannot help the first open of a long session,
-//! which is upstream work: collapsing the nested clone in `apply_entry` and
-//! borrowing `names` instead of cloning it would take the fold from O(n²)
-//! toward O(n), and is worth raising against the format crate.
+//! **Fixed upstream** in `openworldformat` 0.3.1: two copies removed
+//! outright, and `fold_log` now uses a new `apply_entry_in_place` — a fold
+//! owns its document and drops it on error, so the per-entry transactional
+//! copy protected nothing. The fold is linear now, about a microsecond per
+//! entry, and 16,000 entries went from 31.3 s to 10.7 ms.
+//!
+//! Two consequences for this crate, both pending that release reaching
+//! crates.io (the workspace is on 0.3.0):
+//!
+//! - [`FoldCache::doc_at`] should call `apply_entry_in_place` for the same
+//!   reason `fold_log` does — it folds into a scratch it owns.
+//! - the ignored ten-thousand-entry gate in `tests/scrub_budget.rs` can come
+//!   back, because it will no longer take eleven seconds.
+//!
+//! None of that changes why the cache exists. A linear fold still costs the
+//! whole path on every seek; the cache is what keeps a *seek* proportional
+//! to the distance moved rather than to the history's length.
 //!
 //! The cache keeps a folded document for some entries and, asked for a tip,
 //! walks back along the path until it finds one, then folds forward only the

@@ -211,14 +211,14 @@ child fixes it, because those are exactly the entries two branches share: a
 instead of 1,050. This is a cache rule the format's branching RFC does not
 imply and a reader would not guess.
 
-**The fold is O(n²), and it is upstream.** This is the real finding, and it
-moves where the work is. `WorldDoc::apply_entry` clones the document for
-atomicity, calls `apply_all` which clones it *again*, then calls
-`resolve_refs`, which clones the whole name map to dodge a borrow — three
+**The fold was O(n²), upstream — now fixed.** This was the real finding, and
+it moved where the work was. `WorldDoc::apply_entry` cloned the document for
+atomicity, called `apply_all` which cloned it *again*, then called
+`resolve_refs`, which cloned the whole name map to dodge a borrow — three
 O(n) clones per entry. Measured over a 10,000-entry session, folding whole
-takes about **11 seconds**, roughly 1.1 ms per entry, and that figure is
-*flat against the snapshot cadence*, which is what proves the cost is in the
-applies rather than the snapshots:
+took about **11 seconds**, roughly 1.1 ms per entry, and that figure was
+*flat against the snapshot cadence*, which is what proved the cost was in
+the applies rather than the snapshots:
 
 | cadence | snapshots kept | cold seek |
 |---|---|---|
@@ -228,20 +228,41 @@ applies rather than the snapshots:
 | 2048 | 4 | 880 ms |
 | none | 1 | 2.6 s |
 
-Two conclusions. First, the cache earns its place: a cold seek is 150×
-faster with snapshots than without, a drag along a branch costs exactly one
-entry, and cadence 128 is the knee — a quarter of the snapshots of cadence
-32 for the same seek, so those are the defaults. Second, **scrubbing is
-solved and opening is not.** No caching strategy helps the first fold of a
-long session, so the branch rail is not what needs the next optimization;
-the format crate's apply path is. Collapsing the nested clone and borrowing
-`names` instead of cloning it should take the fold from O(n²) toward O(n),
-and it belongs in the `openworldformat` repository rather than here.
+The cache earns its place regardless: a cold seek is 150× faster with
+snapshots than without, a drag along a branch costs exactly one entry, and
+cadence 128 is the knee — a quarter of the snapshots of cadence 32 for the
+same seek, so those are the defaults.
 
-That reorders the plan: the scrub budget below is met at interactive rates
-and the gate is passed, but step 2 has an upstream dependency it did not
-know about, and a world of ten thousand entities cannot be opened at all
-until that lands.
+**The upstream fix landed** as `openworldformat` 0.3.1 (`perf(rust): a
+linear fold, from three document copies per entry to none`). Two copies went
+outright, and `fold_log` now uses a new `apply_entry_in_place`: a fold owns
+its document and returns `Err` without it, so the per-entry transactional
+copy was protecting a document nobody could observe. Name binding is
+untouched — an entry is still the unit of ingestion even where it is no
+longer the unit of rollback — and three tests pin that. The fold is linear
+now, roughly a microsecond per entry:
+
+| entries | before | after |
+|---|---|---|
+| 1,000 | 128.7 ms | 0.55 ms |
+| 4,000 | 1.9 s | 2.5 ms |
+| 8,000 | 7.6 s | 6.6 ms |
+| 16,000 | 31.3 s | 10.7 ms |
+
+Two things follow once 0.3.1 reaches crates.io, which the workspace needs
+before it sees any of this. `FoldCache::doc_at` should call
+`apply_entry_in_place` for the same reason `fold_log` does, and the ignored
+ten-thousand-entry gate can come back.
+
+**And the same bug is in the JavaScript reference.** `freshTrial` in
+`js/src/index.js` deep-clones every entity and rebuilds three maps per
+entry, inside `foldLog`'s loop, which throws without its state exactly as
+the Rust fold did — so the copy protects nothing there either. That matters
+more than it sounds: that fold is the renderer behind localgpt.world and the
+`openworldformat` npm package. It is not a drive-by fix, though —
+`freshTrial` has six call sites and several genuinely need value semantics
+(batch atomicity, and inverses computed against a running copy), so it wants
+its own verification pass.
 
 ## Order of work
 
@@ -249,9 +270,9 @@ until that lands.
 2. **The history store.** Mostly done: snapshots on a cadence, at fork
    points and at the tip, with LRU eviction that never drops the snapshot
    the next step needs, and the scrub budget proven on a synthetic session.
-   What remains is persistence — entries by content hash (`history/<sha>`
-   objects, `oplog::compute_entry_id`) — and **the upstream fold fix above**,
-   without which a long world cannot be opened.
+   The upstream fold fix is done; what remains is persistence — entries by
+   content hash (`history/<sha>` objects, `oplog::compute_entry_id`) — plus
+   publishing 0.3.1 so the workspace can use `apply_entry_in_place`.
 3. **The reconciler.** Document delta → minimal ECS mutation, asset cache
    keyed by sha256. Delete the scene→ops projection in the same change; they
    cannot both exist.
