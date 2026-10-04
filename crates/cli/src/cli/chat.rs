@@ -247,6 +247,14 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
     }
     let mut pending_attachments: Vec<Attachment> = Vec::new();
 
+    // If we are in a Herdr pane, tell it what we are doing rather than let it
+    // infer our state from the shape of our output. Outside Herdr this is
+    // `None` and every call below is a no-op.
+    let herdr = localgpt_core::herdr::Herdr::detect();
+    if let Some(h) = &herdr {
+        h.report(localgpt_core::herdr::State::Idle, None);
+    }
+
     loop {
         let readline = rl.readline("You: ");
 
@@ -449,6 +457,9 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
         stdout.flush()?;
 
         let _lock_guard = workspace_lock.acquire()?;
+        if let Some(h) = &herdr {
+            h.report(localgpt_core::herdr::State::Working, None);
+        }
         match agent.chat_stream_with_images(&message, images).await {
             Ok(mut stream) => {
                 let mut full_response = String::new();
@@ -488,6 +499,16 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
                         }
 
                         if agent.requires_approval(&tc.name) {
+                            // Waiting on a person is precisely Herdr's
+                            // `blocked`, and the reason is what makes its
+                            // notification worth reading.
+                            if let Some(h) = &herdr {
+                                let what = detail
+                                    .as_deref()
+                                    .map(|d| format!("approve {}: {d}", tc.name))
+                                    .unwrap_or_else(|| format!("approve {}", tc.name));
+                                h.report(localgpt_core::herdr::State::Blocked, Some(&what));
+                            }
                             // Prompt for approval
                             print!("Execute {}? [y/N]: ", tc.name);
                             stdout.flush()?;
@@ -495,6 +516,9 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
                             let mut input = String::new();
                             std::io::stdin().read_line(&mut input)?;
                             let input = input.trim().to_lowercase();
+                            if let Some(h) = &herdr {
+                                h.report(localgpt_core::herdr::State::Working, None);
+                            }
 
                             if input == "y" || input == "yes" {
                                 approved_calls.push(tc);
@@ -562,14 +586,26 @@ pub async fn run(args: ChatArgs, agent_id: &str) -> Result<()> {
                 if let Err(e) = agent.auto_save_session() {
                     eprintln!("Warning: Failed to auto-save session: {}", e);
                 }
+                if let Some(h) = &herdr {
+                    h.report(localgpt_core::herdr::State::Idle, None);
+                }
                 println!("\n");
             }
             Err(e) => {
                 eprintln!("Error: {}\n", e);
+                // A failed turn still ends it: leaving the pane marked
+                // working would strand `herdr agent wait` forever.
+                if let Some(h) = &herdr {
+                    h.report(localgpt_core::herdr::State::Idle, None);
+                }
             }
         }
     }
 
+    // Stop attributing the pane to us on the way out.
+    if let Some(h) = &herdr {
+        h.release();
+    }
     println!("Goodbye!");
     Ok(())
 }

@@ -11,6 +11,7 @@ pub mod config;
 pub mod cron;
 pub mod env;
 pub mod heartbeat;
+pub mod herdr;
 pub mod hooks;
 pub mod mcp;
 pub mod media;
