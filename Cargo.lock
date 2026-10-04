@@ -8646,6 +8646,7 @@ name = "localgpt-world-agent"
 version = "0.3.6"
 dependencies = [
  "etcetera",
+ "localgpt-world-editor",
  "localgpt-world-sync",
  "localgpt-world-types",
  "mistralrs",

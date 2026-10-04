@@ -108,6 +108,14 @@ pub struct Committed {
     pub stored: BTreeMap<String, String>,
     /// Things worth knowing that didn't stop the batch.
     pub warnings: Vec<String>,
+    /// The log entry as appended.
+    ///
+    /// For a view that follows the authority rather than re-reading the log:
+    /// `localgpt-world-editor`'s `Editor::committed` takes this and returns
+    /// the ops that move a renderer to the new tip. Handing it over is what
+    /// keeps the view from having to assume a commit appended exactly one
+    /// entry.
+    pub entry: OpLogEntry,
 }
 
 /// A batch the world refused; nothing changed.
@@ -173,6 +181,16 @@ impl LiveWorld {
     /// The head revision.
     pub fn revision(&self) -> u64 {
         self.meta.head_revision
+    }
+
+    /// The state the log folds from.
+    ///
+    /// With [`Self::entries`], this is everything a non-linear view needs:
+    /// `Editor::open(live.base().clone(), live.entries().to_vec())` gives a
+    /// view that can seek to any tip, fork, and say what changed — while this
+    /// stays the only thing that commits.
+    pub fn base(&self) -> &WorldDoc {
+        &self.base
     }
 
     /// The world now.
@@ -277,7 +295,7 @@ impl LiveWorld {
             json!({"via": "ops", "message": message}),
             &committed,
         );
-        self.commit(entry, ingest.trial, next)
+        self.commit(entry.clone(), ingest.trial, next)
             .map_err(|e| Rejected::one(format!("couldn't write the package: {e}")))?;
         Ok(Committed {
             revision,
@@ -285,6 +303,7 @@ impl LiveWorld {
             spawned: ingest.spawned,
             stored: ingest.stored,
             warnings,
+            entry,
         })
     }
 
@@ -316,7 +335,7 @@ impl LiveWorld {
             json!({"via": "undo", "of": target}),
             &inverse,
         );
-        self.commit(entry, trial, next)
+        self.commit(entry.clone(), trial, next)
             .map_err(|e| Rejected::one(format!("couldn't write the package: {e}")))?;
         Ok(Committed {
             revision,
@@ -324,6 +343,7 @@ impl LiveWorld {
             spawned: BTreeMap::new(),
             stored: BTreeMap::new(),
             warnings: vec![format!("undid revision {target}")],
+            entry,
         })
     }
 
