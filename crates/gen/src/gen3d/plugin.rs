@@ -7444,6 +7444,50 @@ fn apply_edit_op(
                 "main_camera not found".to_string()
             }
         }
+        wt::EditOp::ModifyWorld { patch } => {
+            // The scene-wide settings the live scene keeps resources for:
+            // environment and camera apply like their Set* counterparts;
+            // the rest is document state, re-read on reload.
+            let mut applied = Vec::new();
+            if let Some(Some(env)) = &patch.environment {
+                if let Some(color) = env.background_color {
+                    commands.insert_resource(ClearColor(Color::srgba(
+                        color[0], color[1], color[2], color[3],
+                    )));
+                }
+                if let Some(intensity) = env.ambient_intensity {
+                    let color = env
+                        .ambient_color
+                        .map(|c| Color::srgba(c[0], c[1], c[2], c[3]))
+                        .unwrap_or(Color::WHITE);
+                    commands.insert_resource(GlobalAmbientLight {
+                        color,
+                        brightness: intensity,
+                        affects_lightmapped_meshes: true,
+                    });
+                }
+                applied.push("environment");
+            }
+            if let Some(Some(camera)) = &patch.camera
+                && let Some(cam_entity) = registry.get_entity("main_camera")
+            {
+                let transform = Transform::from_translation(Vec3::from_array(camera.position))
+                    .looking_at(Vec3::from_array(camera.look_at), Vec3::Y);
+                commands.entity(cam_entity).insert(transform);
+                commands.entity(cam_entity).insert(Projection::Perspective(
+                    PerspectiveProjection {
+                        fov: camera.fov_degrees.to_radians(),
+                        ..default()
+                    },
+                ));
+                applied.push("camera");
+            }
+            if applied.is_empty() {
+                "modified world settings".to_string()
+            } else {
+                format!("restored {}", applied.join(" and "))
+            }
+        }
         wt::EditOp::Batch { ops } => {
             let descriptions: Vec<String> = ops
                 .iter()

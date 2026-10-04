@@ -482,6 +482,7 @@ mod tests {
             timestamp_ms: revision,
             id: None,
             parent: None,
+            message: None,
         }
     }
 

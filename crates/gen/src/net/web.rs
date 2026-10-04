@@ -264,6 +264,7 @@ impl WebRoom {
             timestamp_ms: now_ms(),
             id: None,
             parent: None,
+            message: None,
         });
     }
 
@@ -688,6 +689,7 @@ pub(crate) fn deliver(room: &WebRoom, out: Vec<Outbound>) {
                 timestamp_ms: now_ms(),
                 id: None,
                 parent: None,
+                message: None,
             });
         }
         let close = matches!(o.msg, ServerMsg::Error { .. });

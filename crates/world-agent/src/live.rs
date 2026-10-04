@@ -861,6 +861,7 @@ fn entry(revision: u64, author: &str, intent: Value, ops: &[EditOp]) -> OpLogEnt
         timestamp_ms: now_ms(),
         id: None,
         parent: None,
+        message: None,
     }
 }
 

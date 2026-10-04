@@ -37,7 +37,7 @@ tag-name = "v{{version}}"
 rate-limit.new-packages = 10
 
 [workspace.dependencies]
-openworldformat = "0.1"
+openworldformat = "0.3"
 
 # Async runtime
 tokio = { version = "1.50", features = ["full"] }
@@ -99,7 +99,7 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-# Dev window until 0.1.2 publishes: the local checkout. Remove after
-# `cargo publish` (the registry then serves the same bytes).
+# Dev window until openworldformat 0.3.0 publishes: the local checkout.
+# Remove after `cargo publish` (the registry then serves the same bytes).
 [patch.crates-io]
 openworldformat = { path = "../openworldformat/rust" }

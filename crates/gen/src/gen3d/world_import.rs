@@ -82,7 +82,10 @@ pub fn parse_manifest(text: &str, json: bool) -> Result<wt::WorldManifest> {
         ron::from_str(text).context("not a LocalGPT world (RON)")?
     };
     manifest.check_version().map_err(anyhow::Error::msg)?;
-    if manifest.region_files.is_some() || manifest.layout_file.is_some() {
+    // A multi-file skill embeds its references in the manifest text
+    // (draft 0.3 took the fields out of the format); importing from the
+    // manifest alone would drop its entities, so refuse as before.
+    if crate::gen3d::world::split_file_refs(text).is_multi_file() {
         bail!("a multi-file world can't be imported from its manifest alone; open its folder");
     }
     Ok(manifest)

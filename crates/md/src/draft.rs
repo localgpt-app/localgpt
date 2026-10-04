@@ -127,11 +127,7 @@ pub fn compile_with(doc: &Doc, store: &RecipeStore) -> wt::WorldManifest {
         avatar: None,
         tours,
         soundtrack: None,
-        layout_file: None,
-        region_files: None,
-        behavior_files: None,
-        audio_files: None,
-        avatar_file: None,
+        ambience: Vec::new(),
         entities,
         creations: Vec::new(),
         next_entity_id,
@@ -147,7 +143,6 @@ fn meta(doc: &Doc, authored: Option<&'static str>) -> wt::WorldMeta {
     wt::WorldMeta {
         name: doc.title.clone(),
         description: doc.intro.lines().next().map(str::to_string),
-        biome: None,
         time_of_day: None,
         tags: Some(vec!["localgpt-md".into(), doc.genre().to_string()]),
         source: Some(match authored {
@@ -156,11 +151,9 @@ fn meta(doc: &Doc, authored: Option<&'static str>) -> wt::WorldMeta {
         }),
         variation_group: None,
         variation: None,
-        prompt: None,
-        model: None,
-        generation_duration_ms: None,
         style_ref: None,
         compliance: None,
+        ext_provenance: None,
     }
 }
 

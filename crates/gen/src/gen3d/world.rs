@@ -549,28 +549,21 @@ pub fn handle_save_world(
         meta: wt::WorldMeta {
             name: cmd.name.clone(),
             description: cmd.description.clone(),
-            biome: None,
             time_of_day: None,
             tags: None,
             source: None,
             variation_group: None,
             variation: None,
-            prompt: None,
-            model: None,
-            generation_duration_ms: None,
             style_ref: None,
             compliance: Some(wt::ComplianceMeta::default()),
+            ext_provenance: None,
         },
         environment,
         camera: camera_def,
         avatar: avatar.map(|a| a.into()),
         tours: tours.iter().map(|t| t.into()).collect(),
         soundtrack: soundtrack.cloned(),
-        layout_file: None,
-        region_files: None,
-        behavior_files: None,
-        audio_files: None,
-        avatar_file: None,
+        ambience: Vec::new(),
         // By id, so the same scene saves byte-identically however the name
         // registry happened to iterate.
         entities: {
@@ -774,10 +767,12 @@ fn load_ron_world(world_dir: &Path, ron_path: &Path) -> Result<WorldLoadResult, 
         ));
     }
 
-    // v2 multi-file detection: if region_files or layout_file are present,
-    // load entities from separate files instead of inline
-    if manifest.region_files.is_some() || manifest.layout_file.is_some() {
-        return load_multi_file_world(world_dir, &manifest);
+    // Multi-file detection: references live beside the manifest
+    // (files.ron) or, legacy, inside its text — either way, entities
+    // load from separate files instead of inline.
+    let refs = file_refs_for(world_dir, &ron_str);
+    if refs.is_multi_file() {
+        return load_multi_file_world(world_dir, &manifest, &refs);
     }
 
     // Instances of reusable creations spawn as their parts.
@@ -940,14 +935,98 @@ fn load_npc_data(path: &std::path::Path) -> Vec<wt::NpcDef> {
 // ---------------------------------------------------------------------------
 
 /// Load a world from the multi-file format where entities are in separate region files.
+/// Gen's multi-file skill convention. Draft 0.3 took file references
+/// out of the world manifest (a package is one directory, entities
+/// inline); the region/behavior/audio/avatar files a large skill splits
+/// into are named here instead — beside `world.ron` in `files.ron`, or
+/// (legacy skills) embedded in `world.ron` itself, read by scanning the
+/// raw text before the manifest parse drops them.
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+pub struct GenFileRefs {
+    pub layout_file: Option<String>,
+    pub region_files: Option<Vec<String>>,
+    pub behavior_files: Option<Vec<String>>,
+    pub audio_files: Option<Vec<String>>,
+    pub avatar_file: Option<String>,
+}
+
+impl GenFileRefs {
+    /// True when any reference is present (the multi-file case).
+    pub fn is_multi_file(&self) -> bool {
+        self.layout_file.is_some()
+            || self.region_files.is_some()
+            || self.behavior_files.is_some()
+            || self.audio_files.is_some()
+            || self.avatar_file.is_some()
+    }
+
+    /// The sidecar's set references win over legacy embedded ones.
+    pub fn overlay(&mut self, other: GenFileRefs) {
+        fn set<T>(mine: &mut Option<T>, theirs: Option<T>) {
+            if theirs.is_some() {
+                *mine = theirs;
+            }
+        }
+        let GenFileRefs {
+            layout_file,
+            region_files,
+            behavior_files,
+            audio_files,
+            avatar_file,
+        } = other;
+        set(&mut self.layout_file, layout_file);
+        set(&mut self.region_files, region_files);
+        set(&mut self.behavior_files, behavior_files);
+        set(&mut self.audio_files, audio_files);
+        set(&mut self.avatar_file, avatar_file);
+    }
+}
+
+/// Pull the five legacy reference keys out of a raw manifest text (RON
+/// or JSON); the manifest parses from what remains, its own serde
+/// dropping keys it no longer carries.
+pub fn split_file_refs(raw: &str) -> GenFileRefs {
+    let mut value: serde_json::Value = ron::from_str(raw)
+        .or_else(|_| serde_json::from_str(raw))
+        .unwrap_or_default();
+    let mut taken = serde_json::Map::new();
+    if let serde_json::Value::Object(map) = &mut value {
+        for key in [
+            "layout_file",
+            "region_files",
+            "behavior_files",
+            "audio_files",
+            "avatar_file",
+        ] {
+            if let Some(v) = map.remove(key) {
+                taken.insert(key.to_string(), v);
+            }
+        }
+    }
+    serde_json::from_value(serde_json::Value::Object(taken)).unwrap_or_default()
+}
+
+/// A skill's file references: the sidecar (`files.ron`) when present,
+/// overlaid on whatever a legacy manifest text embedded.
+fn file_refs_for(world_dir: &Path, raw_manifest: &str) -> GenFileRefs {
+    let mut refs = split_file_refs(raw_manifest);
+    if let Ok(text) = std::fs::read_to_string(world_dir.join("files.ron"))
+        && let Ok(sidecar) = ron::from_str::<GenFileRefs>(&text)
+    {
+        refs.overlay(sidecar);
+    }
+    refs
+}
+
 fn load_multi_file_world(
     world_dir: &Path,
     manifest: &wt::WorldManifest,
+    refs: &GenFileRefs,
 ) -> Result<WorldLoadResult, String> {
     let mut all_entities: Vec<wt::WorldEntity> = Vec::new();
 
     // Load entities from region files
-    if let Some(ref region_files) = manifest.region_files {
+    if let Some(ref region_files) = refs.region_files {
         for rel_path in region_files {
             let path = world_dir.join(rel_path);
             let ron_str = std::fs::read_to_string(&path)
@@ -971,7 +1050,7 @@ fn load_multi_file_world(
     let all_entities = wt::expand_instances(&all_entities, &manifest.creations, first_id);
 
     // Load behavior files (parsed for validation; behaviors are already on entities)
-    if let Some(ref behavior_files) = manifest.behavior_files {
+    if let Some(ref behavior_files) = refs.behavior_files {
         for rel_path in behavior_files {
             let path = world_dir.join(rel_path);
             let ron_str = std::fs::read_to_string(&path)
@@ -983,7 +1062,7 @@ fn load_multi_file_world(
     }
 
     // Load audio files
-    if let Some(ref audio_files) = manifest.audio_files {
+    if let Some(ref audio_files) = refs.audio_files {
         for rel_path in audio_files {
             let path = world_dir.join(rel_path);
             let ron_str = std::fs::read_to_string(&path)
@@ -1155,45 +1234,47 @@ pub fn save_multi_file_world(
         meta: wt::WorldMeta {
             name: cmd.name.clone(),
             description: Some(description.to_string()),
-            biome: None,
             time_of_day: None,
             tags: None,
             source: None,
             variation_group: None,
             variation: None,
-            prompt: None,
-            model: None,
-            generation_duration_ms: None,
             style_ref: None,
             compliance: Some(wt::ComplianceMeta::default()),
+            ext_provenance: None,
         },
         environment,
         camera: camera_def,
         avatar: avatar.clone(),
         tours: tours.clone(),
         soundtrack: None,
-        layout_file: if skill_dir.join("layout/blockout.ron").exists() {
-            Some("layout/blockout.ron".to_string())
-        } else {
-            None
-        },
-        region_files: Some(region_paths.clone()),
-        behavior_files: None,
-        audio_files: None,
-        avatar_file: if avatar.is_some() {
-            Some("avatar/player.ron".to_string())
-        } else {
-            None
-        },
+        ambience: Vec::new(),
         entities: vec![], // Entities are in region files
         creations: Vec::new(),
         next_entity_id: next_id,
+    };
+    // Draft 0.3 took file references out of the manifest; the skill's
+    // split lives in files.ron beside it (the loader reads legacy
+    // embedded references from old world.ron texts too).
+    let file_refs = GenFileRefs {
+        layout_file: skill_dir
+            .join("layout/blockout.ron")
+            .exists()
+            .then(|| "layout/blockout.ron".to_string()),
+        region_files: Some(region_paths.clone()),
+        behavior_files: None,
+        audio_files: None,
+        avatar_file: avatar.is_some().then(|| "avatar/player.ron".to_string()),
     };
 
     let ron_str = ron::ser::to_string_pretty(&manifest, ron::ser::PrettyConfig::default())
         .map_err(|e| format!("RON serialization failed: {}", e))?;
     std::fs::write(skill_dir.join("world.ron"), &ron_str)
         .map_err(|e| format!("Failed to write world.ron: {}", e))?;
+    let refs_str = ron::ser::to_string_pretty(&file_refs, ron::ser::PrettyConfig::default())
+        .map_err(|e| format!("RON serialization failed: {}", e))?;
+    std::fs::write(skill_dir.join("files.ron"), &refs_str)
+        .map_err(|e| format!("Failed to write files.ron: {}", e))?;
 
     // 5. Write rich SKILL.md
     let regions_info: Vec<(String, u32)> = region_groups

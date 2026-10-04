@@ -4,14 +4,11 @@
   "description": "Top-level world manifest — everything needed to save/load a world.\n\nConventions every renderer follows (Bevy through `localgpt-world-bevy`,\nthree.js through the web viewer):\n\n- positions are world units, Y up;\n- rotations are XYZ Euler angles in degrees;\n- colours are RGBA in `0..=1`, sRGB-encoded, except `emissive`, which is\n  linear (values above 1 glow);\n- directional light intensity is lux, point and spot lights are lumens,\n  spot angles are radians;\n- asset paths are relative to the world's `assets/` folder.\n\nThe format names no engine: which renderer or engine version drew a\nworld is not part of it.",
   "type": "object",
   "properties": {
-    "audio_files": {
-      "description": "Paths to audio spec files.",
-      "type": [
-        "array",
-        "null"
-      ],
+    "ambience": {
+      "description": "The ambient soundscape: layered procedural or sampled sound with\nno position. `SetAmbience` replaces it; it is part of the\ndocument so the fold's state is always a manifest.",
+      "type": "array",
       "items": {
-        "type": "string"
+        "$ref": "#/$defs/AmbienceLayerDef"
       }
     },
     "avatar": {
@@ -24,23 +21,6 @@
           "type": "null"
         }
       ]
-    },
-    "avatar_file": {
-      "description": "Path to an avatar definition file.",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "behavior_files": {
-      "description": "Paths to behavior library files.",
-      "type": [
-        "array",
-        "null"
-      ],
-      "items": {
-        "type": "string"
-      }
     },
     "camera": {
       "description": "Default camera position/orientation.",
@@ -78,33 +58,16 @@
         }
       ]
     },
-    "layout_file": {
-      "description": "Path to a separate layout file (blockout regions, spatial graph).",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "meta": {
-      "description": "World metadata (name, description, biome, etc.).",
+      "description": "World metadata (name, description, tags, …).",
       "$ref": "#/$defs/WorldMeta"
     },
     "next_entity_id": {
-      "description": "Next entity ID to allocate.",
+      "description": "Next entity ID to allocate, bounded by\n[`MAX_ENTITY_ID`](crate::MAX_ENTITY_ID) (2^53 − 1) so ids stay\nJSON-safe in every reader.",
       "type": "integer",
-      "format": "uint64",
       "default": 1,
+      "maximum": 9007199254740991,
       "minimum": 0
-    },
-    "region_files": {
-      "description": "Paths to per-region entity files.",
-      "type": [
-        "array",
-        "null"
-      ],
-      "items": {
-        "type": "string"
-      }
     },
     "soundtrack": {
       "description": "The song this world performs to, with the analysis that drives\nentity modulations.",
@@ -125,14 +88,14 @@
       }
     },
     "version": {
-      "description": "Schema version for forward/backward migration.",
+      "description": "Schema version for forward/backward migration. Required: a\nworld that doesn't say which schema it speaks is refused, not\nguessed at (spec/versioning.md — the version gates parsing).",
       "type": "integer",
       "format": "uint32",
-      "default": 3,
       "minimum": 0
     }
   },
   "required": [
+    "version",
     "meta"
   ],
   "$defs": {
@@ -161,6 +124,30 @@
             "mask"
           ]
         }
+      ]
+    },
+    "AmbienceLayerDef": {
+      "description": "A single ambient audio layer.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Layer name (e.g., \"wind\", \"rain\").",
+          "type": "string"
+        },
+        "source": {
+          "description": "The sound source.",
+          "$ref": "#/$defs/AudioSource"
+        },
+        "volume": {
+          "description": "Volume (0.0–1.0).",
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "required": [
+        "name",
+        "source",
+        "volume"
       ]
     },
     "AudioDef": {
@@ -1046,15 +1033,15 @@
       ]
     },
     "CreationId": {
-      "description": "Unique identifier for a compound creation (group of entities).",
+      "description": "Unique identifier for a compound creation (group of entities).\n\nCarries the same JSON-safe ceiling as [`EntityId`].",
       "type": "integer",
-      "format": "uint64",
+      "maximum": 9007199254740991,
       "minimum": 0
     },
     "EntityId": {
-      "description": "Stable, monotonically increasing entity identifier.",
+      "description": "Stable, monotonically increasing entity identifier.\n\nBounded by [`MAX_ENTITY_ID`] (2^53 − 1) on the wire: the format's\ncontract with JSON-safe integers, so a world written by a 64-bit\nallocator never overflows the references that read it.",
       "type": "integer",
-      "format": "uint64",
+      "maximum": 9007199254740991,
       "minimum": 0
     },
     "EntityName": {
@@ -1244,7 +1231,8 @@
         "extra": {
           "description": "Extension fields (`ext-*`), namespaced and must-ignored: what a\nreader doesn't understand rides along unchanged (the physics\nextension's gravity lives here today). An empty map serializes to\nnothing.",
           "type": "object",
-          "additionalProperties": true
+          "additionalProperties": true,
+          "default": {}
         },
         "fog_color": {
           "description": "Fog color, sRGB-encoded RGBA in `0..=1`; the background color when\nunset.",
@@ -1267,10 +1255,7 @@
           ],
           "format": "float"
         }
-      },
-      "required": [
-        "extra"
-      ]
+      }
     },
     "FilterType": {
       "description": "Audio filter type.",
@@ -2715,6 +2700,7 @@
         "behaviors": {
           "description": "Behaviors stack — multiple can be active simultaneously.",
           "type": "array",
+          "default": [],
           "items": {
             "$ref": "#/$defs/BehaviorDef"
           }
@@ -2744,7 +2730,8 @@
         "extra": {
           "description": "Extension fields (`ext-*`), namespaced and must-ignored: what a\nreader doesn't understand rides along unchanged (the physics\nextension's body component lives here today). The typed fields\nabove are the contract; this map is the sanctioned room around\nthem. An empty map serializes to nothing.",
           "type": "object",
-          "additionalProperties": true
+          "additionalProperties": true,
+          "default": {}
         },
         "id": {
           "description": "Stable numeric identifier.",
@@ -2797,6 +2784,7 @@
         "modulations": {
           "description": "Signal-driven modulations (soundtrack energy, beat, oscillators)\nstacked on top of the authored values.",
           "type": "array",
+          "default": [],
           "items": {
             "$ref": "#/$defs/ModulationDef"
           }
@@ -2829,11 +2817,30 @@
         },
         "transform": {
           "description": "Spatial transform.",
-          "$ref": "#/$defs/WorldTransform"
+          "$ref": "#/$defs/WorldTransform",
+          "default": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_degrees": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "visible": true
+          }
         },
         "triggers": {
           "description": "Events and the actions they run (see [`crate::trigger`]).",
           "type": "array",
+          "default": [],
           "items": {
             "$ref": "#/$defs/TriggerDef"
           }
@@ -2841,25 +2848,13 @@
       },
       "required": [
         "id",
-        "name",
-        "transform",
-        "behaviors",
-        "modulations",
-        "triggers",
-        "extra"
+        "name"
       ]
     },
     "WorldMeta": {
-      "description": "World metadata.",
+      "description": "World metadata.\n\nThe LLM lineage fields (`prompt`, `model`,\n`generation_duration_ms`, `biome`, `semantic_category`) moved to\nthe [`ext-provenance`](crate::ext_provenance) extension — the core\nschema is governed independently of any single producer\n(spec/extensions/provenance.md).",
       "type": "object",
       "properties": {
-        "biome": {
-          "description": "Biome hint for procedural generation.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "compliance": {
           "description": "Compliance metadata for distribution and regulatory classification.",
           "anyOf": [
@@ -2878,32 +2873,12 @@
             "null"
           ]
         },
-        "generation_duration_ms": {
-          "description": "Generation duration in milliseconds.",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0
-        },
-        "model": {
-          "description": "LLM model used for generation.",
-          "type": [
-            "string",
-            "null"
-          ]
+        "ext-provenance": {
+          "description": "LLM lineage, under the `ext-provenance` extension's namespace —\nthe one extension the core types carry, because generation tools\nwere already writing these fields and must not silently lose\nthem in the move. In the generated core schema the block is\nfree-form (`true`): an extension's shape belongs to its registry\nentry, not the core."
         },
         "name": {
           "description": "World name (used as skill name / directory name).",
           "type": "string"
-        },
-        "prompt": {
-          "description": "Original prompt used to generate this world.",
-          "type": [
-            "string",
-            "null"
-          ]
         },
         "source": {
           "description": "Generation source: \"interactive\", \"headless\", \"experiment\", \"mcp\".",

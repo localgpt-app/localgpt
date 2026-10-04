@@ -126,6 +126,25 @@ impl OpsApplier<'_, '_> {
                     }
                 }
             }
+            // Scene-wide settings the live scene re-reads on reload;
+            // environment is applied where it already had a hook above.
+            wt::EditOp::ModifyWorld { patch } => {
+                if let Some(Some(env)) = &patch.environment {
+                    if let (Some(bg), Some(clear)) =
+                        (env.background_color, self.clear_color.as_deref_mut())
+                    {
+                        clear.0 = Color::srgba(bg[0], bg[1], bg[2], bg[3]);
+                    }
+                    if let Some(ambient) = self.ambient_light.as_deref_mut() {
+                        if let Some(intensity) = env.ambient_intensity {
+                            ambient.brightness = intensity;
+                        }
+                        if let Some(color) = env.ambient_color {
+                            ambient.color = Color::srgba(color[0], color[1], color[2], color[3]);
+                        }
+                    }
+                }
+            }
             // The host keeps its own camera; audio follows the scene's own
             // emitter components (audio ops matter for other clients).
             wt::EditOp::SetCamera { .. }

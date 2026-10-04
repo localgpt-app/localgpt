@@ -96,6 +96,7 @@ fn package_entries(
             timestamp_ms: 0,
             id: None,
             parent: None,
+            message: None,
         });
     }
     entries.extend(pkg.entries);
@@ -183,6 +184,7 @@ mod tests {
                 timestamp_ms: 0,
                 id: None,
                 parent: None,
+                message: None,
             },
         )
         .unwrap();

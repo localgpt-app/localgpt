@@ -94,7 +94,11 @@ pub fn scan_world_gallery(workspace: &Path) -> Vec<WorldGalleryEntry> {
                 .source
                 .clone()
                 .unwrap_or_else(|| "interactive".to_string()),
-            prompt: manifest.meta.prompt.clone(),
+            prompt: manifest
+                .meta
+                .ext_provenance
+                .as_ref()
+                .and_then(|p| p.prompt.clone()),
         });
     }
 

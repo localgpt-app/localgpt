@@ -34,6 +34,9 @@ fn inverse_of(doc: &WorldDoc, op: &EditOp) -> Vec<EditOp> {
             .get(id.0)
             .map(|old| vec![EditOp::modify(*id, invert_patch(old, patch))])
             .unwrap_or_default(),
+        EditOp::ModifyWorld { patch } => vec![EditOp::ModifyWorld {
+            patch: Box::new(inverse_world_patch(patch, doc)),
+        }],
         EditOp::SetEnvironment { .. } => vec![EditOp::SetEnvironment {
             env: doc.environment.clone().unwrap_or_default(),
         }],
@@ -106,6 +109,28 @@ fn invert_patch(old: &wt::WorldEntity, patch: &EntityPatch) -> EntityPatch {
         inverse.modulations = Some(old.modulations.clone());
     }
     inverse
+}
+
+/// The scene-wide counterpart of `invert_patch`: each field the patch
+/// touched comes back as the document's current value for it (absent
+/// stays absent — a setting that didn't exist returns to not existing).
+/// Mirrors the crate's `inverse_world_patch`; it lands here when the
+/// workspace's own undo keeps its own match.
+fn inverse_world_patch(
+    patch: &openworldformat::world_patch::WorldPatch,
+    doc: &WorldDoc,
+) -> openworldformat::world_patch::WorldPatch {
+    use openworldformat::world_patch::WorldPatch;
+    WorldPatch {
+        meta: patch.meta.as_ref().map(|_| doc.meta()),
+        environment: patch.environment.as_ref().map(|_| doc.environment.clone()),
+        camera: patch.camera.as_ref().map(|_| doc.camera.clone()),
+        avatar: patch.avatar.as_ref().map(|_| doc.avatar.clone()),
+        tours: patch.tours.as_ref().map(|_| doc.tours.clone()),
+        soundtrack: patch.soundtrack.as_ref().map(|_| doc.soundtrack.clone()),
+        ambience: patch.ambience.as_ref().map(|_| doc.ambience.clone()),
+        creations: patch.creations.as_ref().map(|_| doc.creations.clone()),
+    }
 }
 
 #[cfg(test)]
