@@ -18,18 +18,11 @@
 //! not the snapshots.
 //!
 //! **Fixed upstream** in `openworldformat` 0.3.1: two copies removed
-//! outright, and `fold_log` now uses a new `apply_entry_in_place` — a fold
-//! owns its document and drops it on error, so the per-entry transactional
-//! copy protected nothing. The fold is linear now, about a microsecond per
-//! entry, and 16,000 entries went from 31.3 s to 10.7 ms.
-//!
-//! Two consequences for this crate, both pending that release reaching
-//! crates.io (the workspace is on 0.3.0):
-//!
-//! - [`FoldCache::doc_at`] should call `apply_entry_in_place` for the same
-//!   reason `fold_log` does — it folds into a scratch it owns.
-//! - the ignored ten-thousand-entry gate in `tests/scrub_budget.rs` can come
-//!   back, because it will no longer take eleven seconds.
+//! outright, and `fold_log` now uses `apply_entry_in_place` — a fold owns
+//! its document and drops it on error, so the per-entry transactional copy
+//! protected nothing. The fold is linear now, about a microsecond per entry,
+//! and 16,000 entries went from 31.3 s to 10.7 ms. [`FoldCache::doc_at`]
+//! uses the same call for the same reason: it folds into a scratch it owns.
 //!
 //! None of that changes why the cache exists. A linear fold still costs the
 //! whole path on every seek; the cache is what keeps a *seek* proportional
@@ -214,7 +207,11 @@ impl FoldCache {
             let entry = history
                 .get(id)
                 .ok_or_else(|| HistoryError::NoSuchEntry((*id).to_string()))?;
-            doc.apply_entry(&entry.entry.edit_ops())?;
+            // In place, not transactionally: `doc` is a scratch this cache
+            // owns and discards on error, which is the same reason
+            // `fold_log` does it — and the transactional form copies the
+            // document per entry.
+            doc.apply_entry_in_place(&entry.entry.edit_ops())?;
             self.applied += 1;
             // `offset` is 0-based along the path, so position 1 is the
             // first entry. Pin a cadence position, and pin every fork point

@@ -249,20 +249,39 @@ now, roughly a microsecond per entry:
 | 8,000 | 7.6 s | 6.6 ms |
 | 16,000 | 31.3 s | 10.7 ms |
 
-Two things follow once 0.3.1 reaches crates.io, which the workspace needs
-before it sees any of this. `FoldCache::doc_at` should call
-`apply_entry_in_place` for the same reason `fold_log` does, and the ignored
-ten-thousand-entry gate can come back.
+0.3.1 is published and the workspace is on it: `FoldCache::doc_at` uses
+`apply_entry_in_place` for the same reason `fold_log` does, and the
+ten-thousand-entry gate is back and no longer ignored — the whole scrub
+budget file now runs in 0.84 s.
 
-**And the same bug is in the JavaScript reference.** `freshTrial` in
-`js/src/index.js` deep-clones every entity and rebuilds three maps per
-entry, inside `foldLog`'s loop, which throws without its state exactly as
-the Rust fold did — so the copy protects nothing there either. That matters
-more than it sounds: that fold is the renderer behind localgpt.world and the
-`openworldformat` npm package. It is not a drive-by fix, though —
-`freshTrial` has six call sites and several genuinely need value semantics
-(batch atomicity, and inverses computed against a running copy), so it wants
-its own verification pass.
+**It was not Rust's bug.** Every reference paid the same cost, for the same
+two reasons, so folding a long log was quadratic in all five:
+
+| reference | before | after | at |
+|---|---|---|---|
+| Rust | 31.3 s | 10.7 ms | 16,000 entries |
+| JavaScript | 8.8 s | 4.0 ms | 4,000 entries |
+| Python | 4.2 s | 7.4 ms | 2,000 entries |
+| Swift | 1.21 s | 6.2 ms | 2,000 entries |
+| Kotlin | 4.14 s | 0.62 s | 16,000 entries |
+
+The per-entry trial copy was redundant in all five, and Swift and Kotlin
+additionally rebuilt an `id -> entity` map and a name set inside *every
+edit*, both carrying a comment that worlds are tens of entities. Swift
+needed two maintained indexes to actually go linear, because its entities
+are an array of structs holding a `String` and a dictionary — so even an
+id scan is ARC traffic per element. It now carries the `nameToId` the other
+references always had.
+
+Kotlin is 6.6× better and still superlinear, and the remainder is
+structural: its state is an immutable data class, so `entities + entity`
+rebuilds the list on every spawn. Going fully linear there needs a
+persistent list or a mutable fold-internal builder — a design decision about
+that reference, not a bug.
+
+That the JavaScript one mattered most is worth saying: that fold is the
+renderer behind localgpt.world and the `openworldformat` npm package, and it
+was the slowest of the five.
 
 ## Order of work
 

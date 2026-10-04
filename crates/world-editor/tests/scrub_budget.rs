@@ -11,12 +11,12 @@
 //! a timing test would be flaky on shared CI and would not say why it got
 //! slow. Entries applied is the thing that actually scales, and it is exact.
 //!
-//! The session here is 2,000 entries rather than 10,000 because the fold
-//! itself is quadratic upstream — `WorldDoc::apply_entry` makes three O(n)
-//! clones per entry — so a 10,000-entry fold takes about 11 seconds and four
-//! of them do not belong in a workspace test run. The shape of every claim
-//! below is independent of the length; `a_ten_thousand_entry_session` keeps
-//! the original gate behind `--ignored`, with the measured numbers.
+//! The session is 10,000 entries, the figure the editor stack's plan names
+//! as the gate. It was briefly 2,000: building this crate found the fold
+//! itself quadratic upstream — `WorldDoc::apply_entry` made three O(n)
+//! clones per entry, so 10,000 entries took about 11 seconds — and that is
+//! fixed in `openworldformat` 0.3.1, which folds the same log in 10.7 ms.
+//! The whole file runs in well under a second again.
 
 use localgpt_world_editor::{Editor, FoldCache, History};
 use openworldformat::author::Author;
@@ -26,8 +26,7 @@ use openworldformat::history::EditOp;
 use openworldformat::oplog::OpLogEntry;
 use openworldformat::session::SessionOp;
 
-const SESSION: u64 = 2_000;
-const LONG_SESSION: u64 = 10_000;
+const SESSION: u64 = 10_000;
 
 fn base() -> WorldDoc {
     WorldDoc::new("scrub")
@@ -56,27 +55,12 @@ fn long_session(n: u64) -> Vec<OpLogEntry> {
 }
 
 #[test]
-fn a_long_session_opens_and_folds_whole() {
+fn a_ten_thousand_entry_session_opens_and_folds_whole() {
     let editor = Editor::open(base(), long_session(SESSION)).expect("opens");
     assert_eq!(editor.history().len(), SESSION as usize);
     assert_eq!(editor.doc().len(), SESSION as usize);
     assert_eq!(editor.tip(), Some(format!("e{SESSION}").as_str()));
     assert_eq!(editor.tips(), vec![format!("e{SESSION}")]);
-}
-
-/// The original gate: ten thousand entries, folded whole.
-///
-/// Ignored by default because it takes about eleven seconds, and the reason
-/// is the finding: `WorldDoc::apply_entry` clones the document twice and the
-/// name map once *per entry*, so the fold is O(n²) and opening a long
-/// session — not scrubbing it — is what needs upstream work. Run it with
-/// `cargo test -p localgpt-world-editor -- --ignored`.
-#[test]
-#[ignore = "about 11s: the fold is O(n^2) upstream, see the module docs"]
-fn a_ten_thousand_entry_session_opens_and_folds_whole() {
-    let editor = Editor::open(base(), long_session(LONG_SESSION)).expect("opens");
-    assert_eq!(editor.history().len(), LONG_SESSION as usize);
-    assert_eq!(editor.doc().len(), LONG_SESSION as usize);
 }
 
 #[test]
@@ -86,12 +70,12 @@ fn dragging_a_playhead_costs_one_entry_per_step() {
 
     // Land once in the middle — this one pays for the path, as any cold
     // seek must.
-    cache.doc_at(&history, Some("e1000")).unwrap();
+    cache.doc_at(&history, Some("e5000")).unwrap();
     let warm = cache.entries_applied();
-    assert_eq!(warm, 1_000);
+    assert_eq!(warm, 5_000);
 
     // Then drag forward 200 entries, the way a playhead moves.
-    for i in 1_001..=1_200 {
+    for i in 5_001..=5_200 {
         cache.doc_at(&history, Some(&format!("e{i}"))).unwrap();
     }
 
@@ -99,7 +83,7 @@ fn dragging_a_playhead_costs_one_entry_per_step() {
     assert_eq!(
         dragged, 200,
         "200 steps should apply 200 entries; folding from the base would be \
-         over a hundred thousand"
+         over a million"
     );
 }
 
@@ -138,16 +122,16 @@ fn a_cold_seek_is_bounded_by_the_snapshot_cadence() {
 #[test]
 fn seeking_between_two_long_branches_costs_the_branches_not_the_trunk() {
     // A 5,000-entry trunk, then two 50-entry branches off its end.
-    let mut log = long_session(1_000);
+    let mut log = long_session(5_000);
     for i in 1..=50u64 {
         for (side, offset) in [("left", 10_000u64), ("right", 20_000u64)] {
             let parent = if i == 1 {
-                "e1000".to_string()
+                "e5000".to_string()
             } else {
                 format!("{side}-{}", i - 1)
             };
             log.push(OpLogEntry {
-                revision: 1_000 + i,
+                revision: 5_000 + i,
                 author: Author {
                     peer: None,
                     name: side.into(),
@@ -164,12 +148,12 @@ fn seeking_between_two_long_branches_costs_the_branches_not_the_trunk() {
     }
 
     let history = History::open(log).unwrap();
-    assert!(history.is_fork_point("e1000"));
+    assert!(history.is_fork_point("e5000"));
 
     let mut cache = FoldCache::new(base());
     cache.doc_at(&history, Some("left-50")).unwrap();
     let after_left = cache.entries_applied();
-    assert_eq!(after_left, 1_050);
+    assert_eq!(after_left, 5_050);
 
     // The fork point is pinned on the way past it, so the other branch
     // starts there rather than at the base.
@@ -178,7 +162,7 @@ fn seeking_between_two_long_branches_costs_the_branches_not_the_trunk() {
     assert_eq!(
         crossing, 50,
         "crossing to the sibling should cost its 50 entries, not the \
-         trunk's 1,000"
+         trunk's 5,000"
     );
 
     // And the two branches really do hold different worlds.
@@ -198,7 +182,7 @@ fn an_editor_seek_reports_only_what_changed() {
     let delta = editor.goto(Some(&format!("e{}", SESSION - 1))).unwrap();
     assert_eq!(delta.len(), 1, "one step back is one delete");
 
-    // Back a hundred: a hundred deletes, and not a rebuild of the session.
+    // Back a hundred: a hundred deletes, and not a rebuild of ten thousand.
     let delta = editor.goto(Some(&format!("e{}", SESSION - 101))).unwrap();
     assert_eq!(delta.len(), 100);
 }
