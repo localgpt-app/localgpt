@@ -86,7 +86,7 @@ mobile, and includes a Bevy-based 3D world generator.
 
 ### Workspace
 
-`Cargo.toml` defines 20 members. **MD and Verse are members**, not separate
+`Cargo.toml` defines 21 members. **MD and Verse are members**, not separate
 repositories — they were folded in so the world format cannot drift between
 apps (see `docs/world-strategy.md` §13.6). `crates/spacetime` is a **standalone** crate
 (its own `[workspace]`) excluded from the main build because it targets
@@ -110,6 +110,7 @@ crates/
 ├── world-audio/  # localgpt-world-audio — the one mapping of the format's audio (kira + FunDSP)
 ├── world-export/ # localgpt-world-export — web viewer (three.js) + HTML export, no Bevy
 ├── world-sync/   # localgpt-world-sync — room authority: shared doc, EditOps, presence
+├── world-editor/ # localgpt-world-editor — the non-linear editing model: tips, forks, folds, deltas (no engine, no I/O)
 ├── world-agent/  # localgpt-world-agent — tool-call protocol, interpreter, shared paths
 ├── relay/        # localgpt-relay — internet reach for collaborative rooms
 ├── bridge/       # localgpt-bridge — secure IPC protocol for bridge daemons

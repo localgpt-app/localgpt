@@ -8679,6 +8679,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "localgpt-world-editor"
+version = "0.3.6"
+dependencies = [
+ "localgpt-world-sync",
+ "openworldformat",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "localgpt-world-export"
 version = "0.3.6"
 dependencies = [

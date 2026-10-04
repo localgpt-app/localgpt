@@ -1,0 +1,15 @@
+[package]
+name = "localgpt-world-editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The non-linear editing model for the Open World Format: tips, forks, folds and deltas — no engine, no I/O"
+keywords = ["localgpt", "world", "3d", "editor", "history"]
+categories = ["data-structures"]
+
+[dependencies]
+openworldformat = { workspace = true }
+localgpt-world-sync = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

@@ -16,6 +16,7 @@ members = [
     "crates/world-bevy",
     "crates/world-audio",
     "crates/world-sync",
+    "crates/world-editor",
     "crates/world-agent",
     "crates/relay",
     "crates/bridge",
@@ -80,6 +81,7 @@ localgpt-world-export = { version = "0.3.6", path = "crates/world-export" }
 localgpt-world-bevy = { version = "0.3.6", path = "crates/world-bevy" }
 localgpt-world-audio = { version = "0.3.6", path = "crates/world-audio" }
 localgpt-world-sync = { version = "0.3.6", path = "crates/world-sync" }
+localgpt-world-editor = { version = "0.3.6", path = "crates/world-editor" }
 localgpt-world-agent = { version = "0.3.6", path = "crates/world-agent" }
 localgpt-cli-tools = { version = "0.3.6", path = "crates/cli-tools" }
 
