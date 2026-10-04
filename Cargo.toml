@@ -99,7 +99,3 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-# Dev window until openworldformat 0.3.0 publishes: the local checkout.
-# Remove after `cargo publish` (the registry then serves the same bytes).
-[patch.crates-io]
-openworldformat = { path = "../openworldformat/rust" }

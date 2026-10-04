@@ -42,7 +42,8 @@ fn run(command: &str, dir: &Path, rest: &[String]) -> Result<(), Box<dyn std::er
             .parse::<std::net::SocketAddr>()
             .ok()
             .and_then(|addr| {
-                std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(300)).ok()
+                std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(300))
+                    .ok()
             })
             .is_some();
         if answers {

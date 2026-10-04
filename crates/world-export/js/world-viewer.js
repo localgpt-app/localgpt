@@ -1,10 +1,12 @@
 // world-viewer.js — the Open World Format reference 3D renderer.
 //
-// Provenance: copied verbatim from
-// localgpt/crates/world-export/js/world-viewer.js (Apache-2.0), which drew
-// the conformance suite in production before this repository existed. When
-// this copy becomes the upstream, the LocalGPT apps consume it from the
-// openworldformat npm package instead of keeping a second copy.
+// Provenance: born as localgpt's crates/world-export/js/world-viewer.js
+// (Apache-2.0), which drew the conformance suite in production before this
+// repository existed. This file is upstream now — the LocalGPT apps vendor
+// it from the published package (their scripts/sync-viewer.sh, byte-checked
+// in their CI) and songworld assembles it from the tarball; renderer
+// changes release here first, on npm, and flow out. Keep it that way: one
+// renderer, released once, consumed everywhere.
 //
 // Input: a `WorldManifest` as JSON (crate `localgpt-world-types`; schema in
 // `crates/world-types/world.schema.json`). Output: a three.js scene that
@@ -37,14 +39,17 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 /** @typedef {import('./index.js').EnvironmentDef} EnvironmentDef */
 /** @typedef {import('./index.js').Shape} Shape */
 
-export const VIEWER_VERSION = '0.1.0';
+export const VIEWER_VERSION = '0.3.0';
 
 /// Calibration between Bevy's light units and three.js', in one place.
 /// Bevy renders physical units through an exposure; three's lights are
 /// unitless, so one exposure applies to every light: a directional light of
-/// DIRECTIONAL_LUX lux is intensity 1.0, and point/spot lights go
-/// lumens → candela (÷ 4π) → ÷ DIRECTIONAL_LUX. Bevy's
-/// `GlobalAmbientLight.brightness` (default 80) scales by AMBIENT_SCALE.
+/// DIRECTIONAL_LUX lux is intensity 1.0; point lights go lumens → candela
+/// through the full sphere (÷ 4π); spot lights go lumens → candela through
+/// the cone their outer angle sweeps (÷ 2π·(1 − cos(θ/2)), the conversion
+/// spec/world.md "Conventions" asks renderers to make at draw time); then
+/// ÷ DIRECTIONAL_LUX. Bevy's `GlobalAmbientLight.brightness` (default 80)
+/// scales by AMBIENT_SCALE.
 export const AMBIENT_SCALE = 0.0012;
 export const DIRECTIONAL_LUX = 10000;
 const LIGHT_EXPOSURE = 1 / DIRECTIONAL_LUX;
@@ -361,7 +366,13 @@ function createLight(def, position) {
     const outer = def.outer_angle ?? 0.5;
     const inner = def.inner_angle ?? 0;
     const penumbra = outer > 0 ? Math.max(0, 1 - inner / outer) : 0;
-    light = new THREE.SpotLight(color, ((def.intensity ?? 800) / (4 * Math.PI)) * LIGHT_EXPOSURE, range, outer, penumbra, 2);
+    // Lumens → candela through the cone's solid angle, not the sphere's
+    // 4π (spec/world.md "Conventions": renderers SHOULD convert by the
+    // cone angle): Ω = 2π·(1 − cos(θ/2)) for the outer angle θ handed to
+    // SpotLight below. A degenerate cone clamps to a small positive
+    // solid angle rather than dividing by zero.
+    const solidAngle = Math.max(2 * Math.PI * (1 - Math.cos(outer / 2)), 1e-6);
+    light = new THREE.SpotLight(color, ((def.intensity ?? 800) / solidAngle) * LIGHT_EXPOSURE, range, outer, penumbra, 2);
     light.castShadow = def.shadows !== false;
     direction = def.direction || [0, -1, 0];
   }
@@ -380,9 +391,10 @@ function createLight(def, position) {
  * @param {any} def
  * @param {EntityRecord} rec
  * @param {Map<string, EntityRecord>} byName
+ * @param {Map<string, EntityRecord>} byId
  * @returns {((dt: number, t: number) => void)|null}
  */
-function makeBehavior(def, rec, byName) {
+function makeBehavior(def, rec, byName, byId) {
   const [kind, p] = variant(def);
   const obj = rec.object;
   const base = rec.base;
@@ -402,7 +414,12 @@ function makeBehavior(def, rec, byName) {
       };
     }
     case 'Orbit': {
-      const centerRec = p.center != null ? byName.get(typeof p.center === 'string' ? p.center : String(p.center)) : null;
+      // Numeric refs resolve by id, name refs by name (spec/world.md
+      // "Identity"): saved worlds hold ids — the fold resolves names at
+      // ingestion — while an unfolded manifest may still name its center.
+      const centerRec = p.center != null
+        ? (typeof p.center === 'string' ? byName.get(p.center) : byId.get(String(p.center)))
+        : null;
       const cp = centerRec ? centerRec.base.position : new THREE.Vector3(...(p.center_point || [0, 0, 0]));
       const speed = THREE.MathUtils.degToRad(p.speed ?? 36);
       const phase = THREE.MathUtils.degToRad(p.phase ?? 0);
@@ -473,8 +490,13 @@ function makeBehavior(def, rec, byName) {
       };
     }
     case 'LookAt': {
-      const name = typeof p.target === 'string' ? p.target : String(p.target);
-      return () => { const tgt = byName.get(name); if (tgt) obj.lookAt(tgt.object.getWorldPosition(new THREE.Vector3())); };
+      // Same rule as Orbit's center: ids by id, names by name, resolved
+      // at tick time so entities spawned later are seen either way.
+      const target = p.target;
+      return () => {
+        const tgt = typeof target === 'string' ? byName.get(target) : byId.get(String(target));
+        if (tgt) obj.lookAt(tgt.object.getWorldPosition(new THREE.Vector3()));
+      };
     }
     default: return null;
   }
@@ -909,7 +931,10 @@ export function createWorldViewer(container, manifest, options = {}) {
     const obj = /** @type {THREE.Object3D} */ (object);
     obj.position.set(...position);
     const rot = /** @type {Vec3} */ (t.rotation_degrees || [0, 0, 0]);
-    obj.rotation.set(THREE.MathUtils.degToRad(rot[0]), THREE.MathUtils.degToRad(rot[1]), THREE.MathUtils.degToRad(rot[2]));
+    // Rotations are intrinsic XYZ Euler degrees (spec/world.md
+    // "Conventions"); three's 'XYZ' order composes R = Rx·Ry·Rz, which
+    // is exactly intrinsic XYZ — stated so nobody "fixes" it to 'ZYX'.
+    obj.rotation.set(THREE.MathUtils.degToRad(rot[0]), THREE.MathUtils.degToRad(rot[1]), THREE.MathUtils.degToRad(rot[2]), 'XYZ');
     obj.scale.set(...(/** @type {Vec3} */ (t.scale || [1, 1, 1])));
     if (t.visible === false) obj.visible = false;
     obj.name = def.name;
@@ -941,7 +966,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     rec.mods = [];
     rec.resetPosition = false;
     rec.resetScale = false;
-    for (const b of rec.def.behaviors || []) { const fn = makeBehavior(b, rec, byName); if (fn) rec.behaviors.push(fn); }
+    for (const b of rec.def.behaviors || []) { const fn = makeBehavior(b, rec, byName, byId); if (fn) rec.behaviors.push(fn); }
     for (const m of rec.def.modulations || []) {
       const [target] = variant(m.target);
       if (target === 'offset_y') rec.resetPosition = true;
@@ -1007,7 +1032,8 @@ export function createWorldViewer(container, manifest, options = {}) {
       const t = patch.transform;
       rec.object.position.set(...(/** @type {Vec3} */ (t.position || [0, 0, 0])));
       const rot = t.rotation_degrees || [0, 0, 0];
-      rec.object.rotation.set(THREE.MathUtils.degToRad(rot[0]), THREE.MathUtils.degToRad(rot[1]), THREE.MathUtils.degToRad(rot[2]));
+      // Intrinsic XYZ, as above — the live patch composes like the load.
+      rec.object.rotation.set(THREE.MathUtils.degToRad(rot[0]), THREE.MathUtils.degToRad(rot[1]), THREE.MathUtils.degToRad(rot[2]), 'XYZ');
       rec.object.scale.set(...(/** @type {Vec3} */ (t.scale || [1, 1, 1])));
       rec.object.visible = t.visible !== false;
       rec.base.position.copy(rec.object.position);

@@ -20,7 +20,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-OWF_VERSION="${OWF_VERSION:-0.2.0}"
+OWF_VERSION="${OWF_VERSION:-0.3.0}"
 DEST="crates/world-export/js/world-viewer.js"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
