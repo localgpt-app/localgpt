@@ -21,6 +21,15 @@
 //!    document on screen and the document at this tip" as ordered ops, which
 //!    is the only thing a renderer needs in order to move.
 //!
+//! ## Not an authority
+//!
+//! `world-agent`'s `LiveWorld` owns the package and the commit: ingestion
+//! through the Authoring profile, all-or-nothing batches, undo as an appended
+//! inverse, `manifest.json` and its guard, the git commit, `verify`. This
+//! crate deliberately has none of that — it had two of them briefly, which was
+//! one too many — and follows instead: the authority commits, hands the entry
+//! to [`Editor::committed`], and the view says what changed.
+//!
 //! ## The rule this crate exists to enforce
 //!
 //! **Ops → document → fold → delta → renderer. One direction, always.**
@@ -49,6 +58,6 @@ mod history;
 mod test_support;
 
 pub use delta::{Delta, delta_between};
-pub use editor::{Committed, Editor, Refusal};
+pub use editor::{Editor, EditorError};
 pub use fold::FoldCache;
 pub use history::{EntryId, EntryRef, History, HistoryError};

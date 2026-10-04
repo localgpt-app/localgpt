@@ -1,71 +1,36 @@
-//! The editor core: a tip, a document, a selection, and the four things that
-//! change them — submit, undo, goto, fork.
+//! The editor's view of a world: a tip, the document it folds to, a
+//! selection, and the ability to seek.
 //!
-//! No engine and no I/O. An `Editor` is opened from a base document and a log
-//! its caller read; every entry it appends is handed back for the caller to
-//! persist. That is what makes the whole non-linear model testable without a
-//! window, and reusable by every renderer over this format — Bevy here,
-//! RealityKit and Compose in `worldwalk`, egui in `worldprobe`, three.js on
-//! the web.
+//! **This is a view, not an authority.** `world-agent`'s `LiveWorld` owns the
+//! package: it ingests a batch through the Authoring profile, commits it whole
+//! or refuses it with a reason per op, appends an inverse for undo, writes
+//! `manifest.json`, guards it, makes the git commit and can `verify` that the
+//! fold still equals the head. All of that existed before this crate, and a
+//! second implementation of commit would be the drift this workspace has paid
+//! for before (`docs/rfcs/authoring/world-editor-stack.md`).
 //!
-//! ## Submitting is ingestion, not application
+//! What the authority does not have is the non-linear half, which is this:
+//! a branch index over the log, a fold cache fast enough to drag a playhead,
+//! the delta between where the view is and where it is going, and a
+//! selection that survives a seek only where its entities do.
 //!
-//! A batch arrives as JSON, the way an agent sends it, and goes through
-//! [`openworldformat::authoring::ingest`] — the Authoring profile: names bind
-//! to ids against the fold so far, spawns get ids, partial `transform` and
-//! `material` changes merge into whole values, and an unknown field is
-//! *refused with a pointer* rather than ignored. The op committed to the log
-//! is the ingested one, so the fold never merges and the log's patch
-//! semantics stay exactly what the format says they are.
+//! So the flow is one-directional on both axes. The authority commits and
+//! hands the entry to [`Editor::committed`]; the view follows and says what
+//! changed. The view never appends.
 //!
-//! A refusal is per-op and whole-batch: nothing is applied, the log is
-//! untouched, and the reasons go back to the author so it can correct itself.
+//! No I/O and no engine: an `Editor` is opened from a base document and a log
+//! its caller read, and what it emits is ops for a renderer to apply.
 
 use std::collections::BTreeSet;
 
-use openworldformat::author::Author;
 use openworldformat::doc::WorldDoc;
-use openworldformat::history::EditOp;
 use openworldformat::oplog::OpLogEntry;
-use openworldformat::session::SessionOp;
-use serde_json::Value;
 
 use crate::delta::{Delta, delta_between};
 use crate::fold::{FoldCache, FoldError};
 use crate::history::{EntryId, History, HistoryError};
 
-/// What a submitted batch produced.
-#[derive(Debug, Clone)]
-pub struct Committed {
-    /// The entry's id — the new tip.
-    pub id: EntryId,
-    /// The entry as it was appended, for the caller to persist.
-    pub entry: OpLogEntry,
-    /// The ops that move a renderer from the previous document to this one.
-    pub delta: Delta,
-    /// Ids allocated to entities the batch spawned by name, so the author can
-    /// refer to them next time.
-    pub spawned: std::collections::BTreeMap<String, u64>,
-    /// Anything the ingestion wanted to say that was not fatal.
-    pub warnings: Vec<String>,
-}
-
-/// Why a submission was refused, whole.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Refusal {
-    /// One reason per problem, each naming where it is.
-    pub errors: Vec<String>,
-}
-
-impl std::fmt::Display for Refusal {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "the batch was refused: {}", self.errors.join("; "))
-    }
-}
-
-impl std::error::Error for Refusal {}
-
-/// What went wrong doing something other than submitting.
+/// What went wrong seeking, or following a commit.
 #[derive(Debug)]
 pub enum EditorError {
     /// The log's shape, or a tip that is not in it.
@@ -187,98 +152,26 @@ impl Editor {
         self.selection.clear();
     }
 
-    /// Submit a batch, the way an agent does: JSON, read strictly, ingested
-    /// against the document on screen, committed whole or refused whole.
+    /// Follow a commit the authority just made: take its entry as the new
+    /// tip and return the ops that move a renderer there.
     ///
-    /// The new entry's parent is the current tip, so submitting while
-    /// scrubbed back is a fork rather than a rewrite — history is never
-    /// destroyed by editing in the middle of it.
-    pub fn submit(&mut self, batch: &Value) -> Result<Committed, Refusal> {
-        let ingested =
-            openworldformat::authoring::ingest(&self.doc, batch).map_err(|refused| Refusal {
-                errors: refused.errors,
-            })?;
-
-        let author = batch
-            .get("author")
-            .and_then(Value::as_str)
-            .map(|name| Author {
-                peer: None,
-                name: name.to_string(),
-            })
-            .unwrap_or_default();
-        let message = batch
-            .get("message")
-            .and_then(Value::as_str)
-            .map(str::to_string);
-
-        let entry = self.append(ingested.ops, author, message);
-        let committed = self.commit(entry, ingested.doc);
-        Ok(Committed {
-            spawned: ingested.spawned,
-            warnings: ingested.warnings,
-            ..committed
-        })
-    }
-
-    /// Undo the most recent edit on this branch — appending its inverse, not
-    /// removing anything. The log only ever grows, which is what makes undo
-    /// survive a save, a fork and another client.
+    /// The entry is appended exactly as given, so its `parent` is what the
+    /// authority decided — which is how a commit made while the view was
+    /// scrubbed back becomes a fork rather than a rewrite.
     ///
-    /// With `author`, undoes that author's most recent edit instead, so one
-    /// person's undo does not take back someone else's work.
-    pub fn undo(&mut self, author: Option<&str>) -> Result<Committed, EditorError> {
-        let path = match self.tip.as_deref() {
-            Some(tip) => self.history.path_to(tip)?,
-            None => return Err(EditorError::NothingToUndo),
-        };
-
-        // Walk back along this branch for the newest entry that still has an
-        // edit to take back, replaying the path so each candidate's inverse
-        // is computed against the document as it was *before* that entry.
-        for (position, id) in path.iter().enumerate().rev() {
-            let entry = self
-                .history
-                .get(id)
-                .ok_or_else(|| HistoryError::NoSuchEntry((*id).to_string()))?;
-            if let Some(name) = author
-                && entry.entry.author.name != name
-            {
-                continue;
-            }
-            let ops = entry.entry.edit_ops();
-            if ops.is_empty() {
-                continue;
-            }
-
-            let before = if position == 0 {
-                self.cache.base().clone()
-            } else {
-                let parent = path[position - 1];
-                self.cache.doc_at(&self.history, Some(parent))?
-            };
-
-            let inverses = inverse_ops(&before, &ops);
-            if inverses.is_empty() {
-                continue;
-            }
-
-            let undo_author = Author {
-                peer: None,
-                name: author
-                    .map(str::to_string)
-                    .unwrap_or_else(|| entry.entry.author.name.clone()),
-            };
-            let message = Some(format!("undo {id}"));
-            let mut doc = self.doc.clone();
-            if doc.apply_entry(&inverses).is_err() {
-                continue;
-            }
-            let appended = self.append(inverses, undo_author, message);
-            return Ok(self.commit(appended, doc));
-        }
-
-        Err(EditorError::NothingToUndo)
+    /// This is the only way the log grows here. The view has no `submit`
+    /// and no `undo`: both are `LiveWorld`'s, because both have to touch the
+    /// package.
+    pub fn committed(&mut self, entry: OpLogEntry) -> Result<Delta, EditorError> {
+        let revision = entry.revision;
+        let id = self.history.push(entry)?;
+        let doc = self.cache.doc_at(&self.history, Some(&id))?;
+        let delta = delta_between(&self.doc, &doc);
+        self.doc = doc;
+        self.tip = Some(id);
+        self.revision = revision;
+        self.selection.retain(|id| self.doc.contains(*id));
+        Ok(delta)
     }
 
     /// Show the document at `tip` — a scrub. Returns the ops that move a
@@ -318,83 +211,18 @@ impl Editor {
     pub fn tips(&self) -> Vec<&str> {
         self.history.tips()
     }
-
-    /// Append an entry built from ops the caller has already ingested.
-    fn append(&mut self, ops: Vec<EditOp>, author: Author, message: Option<String>) -> OpLogEntry {
-        OpLogEntry {
-            revision: self.revision + 1,
-            author,
-            ops: ops
-                .into_iter()
-                .map(|op| SessionOp::Edit(Box::new(op)))
-                .collect(),
-            timestamp_ms: 0,
-            // Identity is left to the caller's log: an id here would have to
-            // be a content hash over the entry, and `oplog::compute_entry_id`
-            // is the format's own, so the caller that persists can set it
-            // without this crate guessing a scheme.
-            id: None,
-            parent: self.tip.clone(),
-            message,
-        }
-    }
-
-    /// Commit an appended entry: it becomes the tip, and the document it
-    /// produces becomes what is on screen.
-    fn commit(&mut self, entry: OpLogEntry, doc: WorldDoc) -> Committed {
-        let revision = entry.revision;
-        let id = self
-            .history
-            .push(entry.clone())
-            .expect("an appended entry's parent is the tip it was built on");
-        let delta = delta_between(&self.doc, &doc);
-        self.doc = doc;
-        self.tip = Some(id.clone());
-        self.revision = revision;
-        self.selection.retain(|id| self.doc.contains(*id));
-        Committed {
-            id,
-            entry,
-            delta,
-            spawned: Default::default(),
-            warnings: Vec::new(),
-        }
-    }
-}
-
-/// The ops that take back `ops`, newest first, computed against the document
-/// as it was before they applied.
-fn inverse_ops(before: &WorldDoc, ops: &[EditOp]) -> Vec<EditOp> {
-    let mut doc = before.clone();
-    let mut inverses = Vec::with_capacity(ops.len());
-    for op in ops {
-        // Each inverse is taken against the state its op was about to
-        // change, so a batch undoes as a batch rather than as a sequence of
-        // inverses computed against the wrong document.
-        match op.compute_inverse(&doc) {
-            Ok(inverse) => inverses.push(inverse),
-            Err(_) => break,
-        }
-        if doc.apply(op).is_err() {
-            break;
-        }
-    }
-    inverses.reverse();
-    inverses
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::{linear_log, world_with_cube};
-    use serde_json::json;
+    use crate::test_support::{linear_log, spawn_entry, world_with_cube};
+    use openworldformat::history::EditOp;
 
-    fn spawn_batch(name: &str, author: &str) -> Value {
-        json!({
-            "author": author,
-            "message": format!("spawn {name}"),
-            "ops": [{"SpawnEntity": {"entity": {"name": name}}}]
-        })
+    /// An entry as the authority would hand it over: ops already ingested,
+    /// a parent the authority chose.
+    fn entry(id: &str, parent: Option<&str>, revision: u64) -> OpLogEntry {
+        spawn_entry(id, parent, revision)
     }
 
     #[test]
@@ -415,110 +243,71 @@ mod tests {
     }
 
     #[test]
-    fn submitting_binds_a_name_to_a_new_id_and_reports_it() {
+    fn following_a_commit_moves_the_tip_and_says_what_changed() {
         let mut editor = Editor::new(world_with_cube());
-        let committed = editor.submit(&spawn_batch("lamp", "claude")).unwrap();
+        let delta = editor.committed(entry("e1", None, 1)).unwrap();
 
-        assert_eq!(committed.spawned.len(), 1);
-        let id = committed.spawned["lamp"];
-        assert!(editor.doc().get(id).is_some());
-        assert_eq!(editor.doc().get_by_name("lamp").map(|e| e.id.0), Some(id));
-        assert_eq!(committed.entry.author.name, "claude");
-        assert_eq!(committed.entry.message.as_deref(), Some("spawn lamp"));
-        assert_eq!(editor.tip(), Some(committed.id.as_str()));
+        assert_eq!(editor.tip(), Some("e1"));
         assert_eq!(editor.revision(), 1);
-    }
-
-    #[test]
-    fn a_submission_produces_a_delta_that_describes_the_change() {
-        let mut editor = Editor::new(world_with_cube());
-        let committed = editor.submit(&spawn_batch("lamp", "claude")).unwrap();
-        assert_eq!(committed.delta.len(), 1);
-        assert!(matches!(committed.delta.ops[0], EditOp::SpawnEntity { .. }));
-    }
-
-    #[test]
-    fn an_unknown_field_is_refused_whole_and_nothing_is_written() {
-        let mut editor = Editor::new(world_with_cube());
-        let before = editor.doc().len();
-
-        let batch = json!({
-            "author": "claude",
-            "ops": [
-                {"SpawnEntity": {"entity": {"name": "good"}}},
-                {"ModifyEntity": {"id": 1, "patch": {"colour": "red"}}}
-            ]
-        });
-        let refusal = editor.submit(&batch).unwrap_err();
-
-        assert!(!refusal.errors.is_empty());
-        assert!(
-            refusal.errors.iter().any(|e| e.contains("colour")),
-            "the reason should name the field: {:?}",
-            refusal.errors
-        );
-        assert_eq!(editor.doc().len(), before, "the valid op must not apply");
-        assert_eq!(editor.tip(), None, "the log must be untouched");
-        assert!(editor.history().is_empty());
-    }
-
-    #[test]
-    fn an_empty_batch_is_refused() {
-        let mut editor = Editor::new(world_with_cube());
-        assert!(editor.submit(&json!({"ops": []})).is_err());
-        assert!(editor.submit(&json!("not a batch")).is_err());
-    }
-
-    #[test]
-    fn undo_appends_an_inverse_rather_than_removing_anything() {
-        let mut editor = Editor::new(world_with_cube());
-        editor.submit(&spawn_batch("lamp", "claude")).unwrap();
         assert_eq!(editor.doc().len(), 2);
-
-        let undone = editor.undo(None).unwrap();
-        assert_eq!(editor.doc().len(), 1, "the spawn is taken back");
-        assert_eq!(
-            editor.history().len(),
-            2,
-            "the log grew; undo removed no entry"
-        );
-        assert!(matches!(
-            undone.delta.ops.first(),
-            Some(EditOp::DeleteEntity { .. })
-        ));
-        assert_eq!(undone.entry.message.as_deref(), Some("undo line-0"));
+        assert_eq!(delta.len(), 1);
+        assert!(matches!(delta.ops[0], EditOp::SpawnEntity { .. }));
     }
 
     #[test]
-    fn undo_by_author_skips_someone_elses_edit() {
-        let mut editor = Editor::new(world_with_cube());
-        editor.submit(&spawn_batch("yi-lamp", "yi")).unwrap();
-        editor
-            .submit(&spawn_batch("claude-lamp", "claude"))
-            .unwrap();
-        assert_eq!(editor.doc().len(), 3);
-
-        editor.undo(Some("yi")).unwrap();
-        assert!(
-            editor.doc().get_by_name("claude-lamp").is_some(),
-            "claude's work must survive yi's undo"
-        );
-        assert!(
-            editor.doc().get_by_name("yi-lamp").is_none(),
-            "yi's own entity should be gone"
-        );
+    fn the_view_never_appends_on_its_own() {
+        // The whole point of the split: commits are the authority's, so the
+        // log only grows when it hands one over.
+        let mut editor = Editor::open(world_with_cube(), linear_log(3)).unwrap();
+        let before = editor.history().len();
+        editor.goto(Some("e1")).unwrap();
+        editor.goto(None).unwrap();
+        editor.fork_from("e2").unwrap();
+        editor.select([1]);
+        assert_eq!(editor.history().len(), before);
     }
 
     #[test]
-    fn undo_with_nothing_to_take_back_says_so() {
-        let mut editor = Editor::new(world_with_cube());
-        assert!(matches!(editor.undo(None), Err(EditorError::NothingToUndo)));
+    fn a_commit_made_while_scrubbed_back_forks_instead_of_rewriting() {
+        let mut editor = Editor::open(world_with_cube(), linear_log(3)).unwrap();
+        editor.fork_from("e1").unwrap();
 
-        editor.submit(&spawn_batch("lamp", "claude")).unwrap();
-        assert!(matches!(
-            editor.undo(Some("nobody")),
-            Err(EditorError::NothingToUndo)
-        ));
+        // The authority decided this entry's parent; the view appends it as
+        // given, which is what makes the branch appear.
+        editor.committed(entry("variant", Some("e1"), 4)).unwrap();
+
+        assert!(editor.history().is_fork_point("e1"));
+        let mut tips = editor.tips();
+        tips.sort_unstable();
+        assert_eq!(tips, vec!["e3", "variant"], "the trunk's tip survives");
+
+        editor.goto(Some("e3")).unwrap();
+        assert_eq!(editor.doc().len(), 4);
+    }
+
+    #[test]
+    fn two_branches_hold_different_worlds_at_the_same_time() {
+        let mut editor = Editor::new(world_with_cube());
+        editor.committed(entry("root", None, 1)).unwrap();
+        editor.committed(entry("left", Some("root"), 2)).unwrap();
+        editor.fork_from("root").unwrap();
+        editor.committed(entry("right", Some("root"), 3)).unwrap();
+
+        editor.goto(Some("left")).unwrap();
+        let left = editor.doc().len();
+        editor.goto(Some("right")).unwrap();
+        assert_eq!(editor.doc().len(), left, "each branch holds one spawn");
+        assert_eq!(editor.history().children_of("root").len(), 2);
+    }
+
+    #[test]
+    fn a_commit_whose_parent_is_not_in_the_log_is_refused() {
+        let mut editor = Editor::new(world_with_cube());
+        let err = editor
+            .committed(entry("orphan", Some("nowhere"), 1))
+            .unwrap_err();
+        assert!(matches!(err, EditorError::History(_)), "{err:?}");
+        assert!(editor.history().is_empty(), "nothing was appended");
     }
 
     #[test]
@@ -553,73 +342,17 @@ mod tests {
     }
 
     #[test]
-    fn a_seek_writes_nothing() {
-        let mut editor = Editor::open(world_with_cube(), linear_log(3)).unwrap();
-        let before = editor.history().len();
-        editor.goto(Some("e1")).unwrap();
-        editor.goto(None).unwrap();
-        editor.goto(Some("e3")).unwrap();
-        assert_eq!(editor.history().len(), before);
-    }
-
-    #[test]
-    fn submitting_from_an_earlier_tip_forks_instead_of_rewriting() {
-        let mut editor = Editor::open(world_with_cube(), linear_log(3)).unwrap();
-        editor.fork_from("e1").unwrap();
-
-        let committed = editor.submit(&spawn_batch("variant", "yi")).unwrap();
-
-        assert_eq!(committed.entry.parent.as_deref(), Some("e1"));
-        assert!(editor.history().is_fork_point("e1"));
-
-        let mut tips = editor.tips();
-        tips.sort_unstable();
-        assert_eq!(
-            tips,
-            vec!["e3", committed.id.as_str()],
-            "the trunk's tip survives the fork"
-        );
-
-        // The trunk is still foldable and still has what it had.
-        editor.goto(Some("e3")).unwrap();
-        assert_eq!(editor.doc().len(), 4);
-        assert!(editor.doc().get_by_name("variant").is_none());
-    }
-
-    #[test]
-    fn two_branches_hold_different_worlds_at_the_same_time() {
-        let mut editor = Editor::new(world_with_cube());
-        let root = editor.submit(&spawn_batch("shared", "yi")).unwrap().id;
-
-        let left = editor.submit(&spawn_batch("left", "yi")).unwrap().id;
-        editor.fork_from(&root).unwrap();
-        let right = editor.submit(&spawn_batch("right", "yi")).unwrap().id;
-
-        editor.goto(Some(&left)).unwrap();
-        assert!(editor.doc().get_by_name("left").is_some());
-        assert!(editor.doc().get_by_name("right").is_none());
-        assert!(editor.doc().get_by_name("shared").is_some());
-
-        editor.goto(Some(&right)).unwrap();
-        assert!(editor.doc().get_by_name("right").is_some());
-        assert!(editor.doc().get_by_name("left").is_none());
-        assert!(editor.doc().get_by_name("shared").is_some());
-    }
-
-    #[test]
     fn selection_drops_entities_a_seek_removed() {
-        let mut editor = Editor::new(world_with_cube());
-        let committed = editor.submit(&spawn_batch("lamp", "yi")).unwrap();
-        let lamp = committed.spawned["lamp"];
-
-        editor.select([1, lamp]);
-        assert_eq!(editor.selection().len(), 2);
+        let mut editor = Editor::open(world_with_cube(), linear_log(1)).unwrap();
+        let spawned: Vec<u64> = editor.doc().entities().map(|e| e.id.0).collect();
+        editor.select(spawned.clone());
+        assert_eq!(editor.selection().len(), spawned.len());
 
         editor.goto(None).unwrap();
         assert_eq!(
             editor.selection().iter().copied().collect::<Vec<_>>(),
             vec![1],
-            "the lamp does not exist at the base, so it leaves the selection"
+            "only the base's entity exists at the base"
         );
     }
 
@@ -628,15 +361,8 @@ mod tests {
         let mut editor = Editor::new(world_with_cube());
         editor.select([9_999]);
         assert!(editor.selection().is_empty());
-    }
-
-    #[test]
-    fn every_appended_entry_names_the_tip_it_was_built_on() {
-        let mut editor = Editor::new(world_with_cube());
-        let first = editor.submit(&spawn_batch("one", "yi")).unwrap();
-        assert_eq!(first.entry.parent, None, "the first builds on the base");
-
-        let second = editor.submit(&spawn_batch("two", "yi")).unwrap();
-        assert_eq!(second.entry.parent.as_deref(), Some(first.id.as_str()));
+        editor.select([1]);
+        editor.deselect_all();
+        assert!(editor.selection().is_empty());
     }
 }
