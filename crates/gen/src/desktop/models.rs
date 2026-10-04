@@ -2,7 +2,6 @@
 //! menu: installed CLI backends, whatever a local Ollama server has pulled,
 //! and (with the `local-llm` feature) the GGUF models Gen can run itself.
 
-use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// CLI backends by executable name, and the model strings that select them
@@ -96,38 +95,11 @@ fn gguf_size_gb(model_id: &str) -> Option<f32> {
 }
 
 /// Find `program` on `PATH` (trying `.exe` and `.cmd` on Windows).
-pub fn find_on_path(program: &str) -> Option<PathBuf> {
-    let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path).find_map(|dir| executable_in(&dir, program))
-}
-
-fn executable_in(dir: &Path, program: &str) -> Option<PathBuf> {
-    #[cfg(windows)]
-    let names = [
-        format!("{program}.exe"),
-        format!("{program}.cmd"),
-        program.to_string(),
-    ];
-    #[cfg(not(windows))]
-    let names = [program.to_string()];
-    names
-        .into_iter()
-        .map(|name| dir.join(name))
-        .find(|candidate| is_executable(candidate))
-}
-
-#[cfg(unix)]
-fn is_executable(path: &Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    path.metadata()
-        .map(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
-        .unwrap_or(false)
-}
-
-#[cfg(not(unix))]
-fn is_executable(path: &Path) -> bool {
-    path.is_file()
-}
+///
+/// The rule lives in `localgpt-world-agent` now: launching an agent into a
+/// world needs the same lookup, and that crate is the one every world app
+/// already depends on — the same reason `paths` moved there.
+pub use localgpt_world_agent::agent_cli::find_on_path;
 
 /// Models worth offering: `current` first, then installed CLI backends, then
 /// local Ollama models, then in-process GGUF models. Never fails; missing

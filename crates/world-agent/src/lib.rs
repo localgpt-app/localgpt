@@ -19,6 +19,7 @@
 //! adds the Apple-Silicon GPU path. Grammar-constrained generation is never
 //! used (it hangs on GGUF with mistral.rs 0.8).
 
+pub mod agent_cli;
 pub mod assets;
 pub mod interpreter;
 pub mod live;
