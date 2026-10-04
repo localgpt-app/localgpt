@@ -22,6 +22,7 @@ pub mod session;
 pub mod tool;
 pub mod tui;
 pub mod world;
+pub mod world_mcp;
 
 use clap::{Parser, Subcommand};
 

@@ -62,6 +62,11 @@ pub enum WorldCommands {
         /// The world folder
         dir: PathBuf,
     },
+    /// Serve the open world's tools to any MCP agent (stdio)
+    Mcp {
+        /// The world folder. Defaults to the working directory
+        dir: Option<PathBuf>,
+    },
     /// The git history, when the world is in git
     History {
         /// The world folder
@@ -72,7 +77,12 @@ pub enum WorldCommands {
 }
 
 /// Run a `localgpt world` subcommand.
-pub fn run(command: WorldCommands) -> Result<()> {
+pub async fn run(command: WorldCommands) -> Result<()> {
+    // The shim is not a command against a closed package: it serves the open
+    // app's API, so it never reaches the headless authority.
+    if let WorldCommands::Mcp { dir } = command {
+        return crate::cli::world_mcp::run(dir).await;
+    }
     let (dir, command) = translate(command)?;
     match headless::run(&dir, command) {
         Ok(report) => {
@@ -128,5 +138,6 @@ fn translate(command: WorldCommands) -> Result<(PathBuf, WorldCommand)> {
         WorldCommands::Log { dir } => (dir, WorldCommand::Log),
         WorldCommands::Verify { dir } => (dir, WorldCommand::Verify),
         WorldCommands::History { dir, rev } => (dir, WorldCommand::History { rev }),
+        WorldCommands::Mcp { .. } => unreachable!("handled before translate"),
     })
 }
