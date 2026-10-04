@@ -43,13 +43,39 @@ pub enum ChatEvent {
 }
 
 /// Sending half of the event channel, held by the agent loop.
+///
+/// Also where this app's state reaches Herdr, when it is running in one. Every
+/// event the loop reports passes through [`ChatSink::send`], so mirroring the
+/// turn boundaries here covers every way a prompt arrives — the panel, the
+/// REPL, a collaborative guest, the MCP relay — instead of each path
+/// remembering to report for itself.
 #[derive(Clone, Debug)]
-pub struct ChatSink(mpsc::UnboundedSender<ChatEvent>);
+pub struct ChatSink {
+    events: mpsc::UnboundedSender<ChatEvent>,
+    /// `None` outside Herdr, which is the common case and costs nothing.
+    herdr: Option<std::sync::Arc<localgpt_core::herdr::Herdr>>,
+}
 
 impl ChatSink {
     /// Report an event. Never blocks; ignored once the panel is gone.
     pub fn send(&self, event: ChatEvent) {
-        let _ = self.0.send(event);
+        if let Some(herdr) = &self.herdr {
+            use localgpt_core::herdr::State;
+            // Only the boundaries. Deltas and tool calls are a turn's
+            // middle, and a multiplexer wants to know working from waiting,
+            // not every token.
+            match &event {
+                ChatEvent::Prompt { .. } => herdr.report(State::Working, None),
+                // A turn that ended in an error still ended: a pane left
+                // marked working would strand `herdr agent wait` forever.
+                ChatEvent::TurnFinished { .. } | ChatEvent::Ready { .. } => {
+                    herdr.report(State::Idle, None)
+                }
+                ChatEvent::Failed(why) => herdr.report(State::Idle, Some(why)),
+                _ => {}
+            }
+        }
+        let _ = self.events.send(event);
     }
 }
 
@@ -69,6 +95,7 @@ pub struct AgentChannels {
 pub fn create_chat_channels() -> (PanelChannels, AgentChannels) {
     let (prompt_tx, prompt_rx) = mpsc::unbounded_channel();
     let (event_tx, events_rx) = mpsc::unbounded_channel();
+    let herdr = localgpt_core::herdr::Herdr::detect().map(std::sync::Arc::new);
     (
         PanelChannels {
             prompt_tx,
@@ -76,7 +103,10 @@ pub fn create_chat_channels() -> (PanelChannels, AgentChannels) {
         },
         AgentChannels {
             prompt_rx,
-            sink: ChatSink(event_tx),
+            sink: ChatSink {
+                events: event_tx,
+                herdr,
+            },
         },
     )
 }
