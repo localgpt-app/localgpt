@@ -171,7 +171,6 @@ The code here still builds on the 0.1 crate and predates the decisions:
 ## Not done
 
 - A cold test with a fresh agent that has only `AGENTS.md`.
-- An MCP wrapper over the same endpoints.
 - Switching git branches under an open app.
 - Replay reading assets at the replayed commit: replay walks commits'
   `manifest.json`, but loads asset files from the working tree, so an

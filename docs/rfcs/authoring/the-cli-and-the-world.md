@@ -1,8 +1,9 @@
 # What the CLI is for, once the world is the product
 
-**Status:** decided 2026-10-04, partly built. `localgpt world` exists
-(`crates/cli/src/cli/world.rs` over `world-agent::headless`); the MCP shim and
-the world-shaped autonomy below do not.
+**Status:** decided 2026-10-04, partly built. `localgpt world` and
+`localgpt world mcp` exist (`crates/cli/src/cli/`, over
+`world-agent::headless` and the open app's API); the world-shaped autonomy
+below does not.
 
 ## The question
 
@@ -53,14 +54,17 @@ workspace has paid for before — and a write refuses while an app answers at
 the folder's endpoint, because one authority at a time is the rule the whole
 live-editing design rests on.
 
-### 2. `localgpt world mcp` — the shim (next, and the cheapest big win)
+### 2. `localgpt world mcp` — the shim (built)
 
 A stdio MCP server that reads `.live/endpoint.json` and offers the open
 world's tools. It makes Claude Code a first-class editor of a live world with
 no emulator, no pane and no new protocol, which is the conclusion the terminal
 and ACP investigations both arrived at from opposite directions. It has been
-in the live-editing POC's *Not done* list since the beginning, and
-`mcp_server.rs` is 251 lines that already do most of it.
+in the live-editing POC's *Not done* list since the beginning. Six tools —
+submit, undo, log, verify, screenshot, selection — each one HTTP call, with a
+refusal handed back verbatim so the agent can correct the batch, and the
+world's own `AGENTS.md` named in the submit description so an agent that has
+never heard of the format can find the rules from the tool list.
 
 ### 3. Point memory, heartbeat and cron at worlds
 
