@@ -290,6 +290,50 @@ That the JavaScript one mattered most is worth saying: that fold is the
 renderer behind localgpt.world and the `openworldformat` npm package, and it
 was the slowest of the five.
 
+## Decided: the package is the only document
+
+**No backwards compatibility** (2026-10-04). `world.ron` stops being a
+document format; an openworldformat package is the one the desktop app opens,
+edits and saves. That is 87 references across eight crates, concentrated in
+three files — `gen3d/world.rs` (30), `gen3d/world_import.rs` (11),
+`gen3d/plugin.rs` (11) — so it is a sequence, not a commit. The sequence
+starts by making the package the document rather than by deleting the old
+one: once the app opens and edits packages, `world.ron` falls out
+unreferenced and removing it is mechanical.
+
+### And `world-editor` duplicated the authority
+
+Worth recording because it is the drift class this workspace has paid for
+before. `world-agent`'s `LiveWorld` already does the package half, and more
+of the editing half than this RFC credited it with:
+
+| | `LiveWorld` | `world-editor::Editor` |
+|---|---|---|
+| package read/write, `manifest.json` guard | yes | no, deliberately pure |
+| `submit` (ingest, commit whole or refuse) | **yes** | **yes** |
+| `undo` (appended inverse, per author) | **yes** | **yes** |
+| git commits, `verify` fold == manifest | yes | no |
+| tips, forks, scrub to any tip | no | yes |
+| a fold cache fast enough to drag | no | yes |
+| delta between two documents | no | yes |
+| selection | no | yes |
+
+Two implementations of submit and undo is one too many, and the fix is cheap
+only while nothing depends on the new crate — which is now.
+
+**Resolution: one authority, one view.** `LiveWorld` keeps everything that
+touches the package — persistence, the manifest guard, git, `verify`, and
+committing — because it is the thing the live API, the headless example and
+the app already go through. `world-editor` keeps the non-linear half it
+actually added: the branch index, the fold cache, deltas and selection. Its
+own `submit`/`undo` go, in favour of the authority's; what remains is the
+view that can seek, fork and say what changed.
+
+That also settles the layering: the adapter needs `LiveWorld`'s base
+document, which it does not expose yet (`entries()`, `head()` and
+`revision()` are public; `base()` is not), and the wiring belongs in the
+crate that can see both — gen, which does not depend on `world-editor` yet.
+
 ## Order of work
 
 1. ~~**`editor core`, headless.**~~ **Done** — `crates/world-editor`.
