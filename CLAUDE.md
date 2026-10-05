@@ -43,6 +43,9 @@ cargo run -p localgpt-app                          # reopens what was opened las
 cargo run -p localgpt-app -- --md notes.md         # edit a document, the world rebuilds
 cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
 cargo run -p localgpt-app -- --prompt "a quiet harbor at dusk"
+cargo run -p localgpt-app -- --world harbour.world  # a .world package opens as a live canvas:
+                                                   # agents edit through its API, the history
+                                                   # rail shows branches ([ ] to step)
 cargo run -p localgpt-app --features local-llm-metal -- --md doc.md   # in-process GGUF
 
 # MD — a Markdown file as a walkable world
@@ -348,7 +351,10 @@ Aliases resolve first (e.g. `opus` → `anthropic/claude-opus-4-6`, `sonnet`,
 `config`, `policy` (POLICY.md management; alias `md`), `paths`, `sandbox`,
 `search`, `init`, `bridge`, `doctor`, `tool`/`plugin` (MCP servers),
 `completion`, `cron`, `hooks`, `mcp-server` (run as stdio MCP server
-exposing memory), `session`, `cert`.
+exposing memory), `session`, `cert`, `world` (a `.world` package's command
+line — init, submit, undo, log, tips, verify, history — and `world mcp`, a
+stdio MCP server over an app's open canvas; `crates/cli/src/cli/world.rs` over
+`world-agent::headless`, which is shared with the `live` example).
 
 ### Gen (3D Scene Generation with Audio + Multiplayer)
 

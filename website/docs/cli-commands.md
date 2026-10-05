@@ -78,6 +78,7 @@ Options:
 | `mcp-server` | Run as an MCP server (stdio) exposing memory tools |
 | `session` | Manage sessions (list, branch, compaction checkpoints) |
 | `cert` | Manage TLS certificates (info, regenerate) |
+| `world` | Work on a `.world` package: commit batches, read the log and its branch ends, verify; serve an open world to MCP agents |
 
 ## Examples
 
@@ -160,7 +161,24 @@ localgpt mcp-server
 # Manage TLS certificates for the HTTP server
 localgpt cert info                # Show certificate expiry, SANs, and paths
 localgpt cert regenerate          # Force certificate regeneration
+
+# Work on a .world package (an Open World Format folder)
+localgpt world init harbour.world             # Make a folder a package (seeds a manifest if empty)
+localgpt world submit harbour.world \
+  '{"ops": [{"SpawnEntity": {"entity": {"name": "lamp"}}}]}' \
+  --author me -m "hang a lamp"                # Commit a batch: whole, or refused with a reason per op
+localgpt world log harbour.world              # Every batch, with the id a branch tip uses
+localgpt world tips harbour.world             # Every branch end; the head is marked
+localgpt world verify harbour.world           # fold(base, log) == manifest.json; assets match their hashes
+localgpt world undo harbour.world             # Take back the newest edit (appends its inverse)
+
+# Let an MCP agent (Claude Code, Codex…) edit a world an app has open
+localgpt-app --world harbour.world            # Opens the package as a live canvas
+localgpt world mcp harbour.world              # Stdio MCP server over that canvas's API
 ```
+
+While an app has a package open, `localgpt world submit` and `undo` refuse and
+name the app's API instead — one authority at a time.
 
 ## Built-in Chat Commands
 
