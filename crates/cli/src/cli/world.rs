@@ -178,7 +178,7 @@ fn log_lines(dir: &std::path::Path) -> Result<Vec<String>> {
         .into_iter()
         .enumerate()
         .map(|(n, line)| match history.id_at(n) {
-            Some(id) => format!("{id:<8} {line}"),
+            Some(id) => format!("{id} {line}"),
             None => line,
         })
         .collect())
@@ -262,6 +262,10 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    fn first_word(line: &str) -> &str {
+        line.split_whitespace().next().unwrap_or_default()
+    }
+
     #[test]
     fn a_linear_history_has_one_tip_and_it_is_the_head() {
         let dir = package("linear");
@@ -269,7 +273,7 @@ mod tests {
         submit(&dir, "jetty");
         let lines = tips_lines(&dir).unwrap();
         assert_eq!(lines.len(), 1, "{lines:?}");
-        assert!(lines[0].starts_with("line-1  r2"), "{lines:?}");
+        assert!(lines[0].contains(" r2"), "{lines:?}");
         assert!(lines[0].ends_with("← head"), "{lines:?}");
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -281,12 +285,24 @@ mod tests {
         submit(&dir, "jetty");
         let lines = log_lines(&dir).unwrap();
         assert_eq!(lines.len(), 2, "{lines:?}");
-        assert!(lines[0].starts_with("line-0 "), "{lines:?}");
-        assert!(lines[1].starts_with("line-1 "), "{lines:?}");
+        // The authority writes the format's content hash as each new
+        // entry's id — `sha256:` and 64 hex characters — different per entry.
+        for line in &lines {
+            let id = first_word(line);
+            let hex = id
+                .strip_prefix("sha256:")
+                .unwrap_or_else(|| panic!("{line}"));
+            assert_eq!(hex.len(), 64, "{line}");
+            assert!(hex.chars().all(|c| c.is_ascii_hexdigit()), "{line}");
+        }
+        assert_ne!(first_word(&lines[0]), first_word(&lines[1]));
         // The id a tip reports is the id the log shows for the same entry.
         let tip = tips_lines(&dir).unwrap();
-        let tip_id = tip[0].split_whitespace().next().unwrap();
-        assert!(lines[1].starts_with(tip_id), "{tip_id} vs {lines:?}");
+        assert_eq!(
+            first_word(&tip[0]),
+            first_word(&lines[1]),
+            "{tip:?} vs {lines:?}"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 }

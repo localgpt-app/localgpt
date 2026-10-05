@@ -307,7 +307,8 @@ impl LiveWorld {
             json!({"via": "ops", "message": message}),
             &committed,
         );
-        self.commit(entry.clone(), ingest.trial, next)
+        let entry = self
+            .commit(entry, ingest.trial, next)
             .map_err(|e| Rejected::one(format!("couldn't write the package: {e}")))?;
         Ok(Committed {
             revision,
@@ -347,7 +348,8 @@ impl LiveWorld {
             json!({"via": "undo", "of": target}),
             &inverse,
         );
-        self.commit(entry.clone(), trial, next)
+        let entry = self
+            .commit(entry, trial, next)
             .map_err(|e| Rejected::one(format!("couldn't write the package: {e}")))?;
         Ok(Committed {
             revision,
@@ -445,15 +447,36 @@ impl LiveWorld {
     /// a reader in another process that sees the new manifest also sees
     /// the entry and the metadata that explain it. In a git repository the
     /// batch is then a commit too, authored by whoever sent it.
+    ///
+    /// Every entry gets its identity here, before it is appended: an
+    /// explicit `parent` when the entry it builds on has a real id, and an
+    /// `id` that is the format's content hash (`compute_entry_id`: canonical
+    /// JSON of every field but `id`, `message` included). Branching needs
+    /// both — a ref MUST name an entry id, never a line number — and they are
+    /// what make an entry the same entry across forks and copies. A previous
+    /// entry with no id (a log from before this) keeps the implicit chain,
+    /// which for an append is exactly right.
+    ///
+    /// Returns the entry as written, because that — not what the caller
+    /// built — is what a view following the authority must append.
     fn commit(
         &mut self,
-        entry: OpLogEntry,
+        mut entry: OpLogEntry,
         head: WorldDoc,
         manifest: WorldManifest,
-    ) -> Result<(), LiveError> {
+    ) -> Result<OpLogEntry, LiveError> {
+        if entry.parent.is_none() {
+            entry.parent = self.entries.last().and_then(|e| e.id.clone());
+        }
+        if entry.id.is_none() {
+            entry.id = Some(
+                openworldformat::oplog::compute_entry_id(&entry)
+                    .map_err(|e| LiveError(format!("couldn't hash the entry: {e}")))?,
+            );
+        }
         append(&self.dir, &entry)?;
         let (author, subject, body) = describe_entry(&entry);
-        self.entries.push(entry);
+        self.entries.push(entry.clone());
         self.head = head;
         self.head_manifest = manifest;
         self.meta.head_revision = self.entries.last().map_or(0, |e| e.revision);
@@ -461,7 +484,7 @@ impl LiveWorld {
         if self.is_git() {
             git_commit(&self.dir, &author, &subject, &body)?;
         }
-        Ok(())
+        Ok(entry)
     }
 
     /// Whether the package is a git repository (each batch a commit).
@@ -875,6 +898,11 @@ fn release(
 }
 
 fn entry(revision: u64, author: &str, intent: Value, ops: &[EditOp]) -> OpLogEntry {
+    let message = intent
+        .get("message")
+        .and_then(Value::as_str)
+        .filter(|m| !m.is_empty())
+        .map(str::to_string);
     let mut session_ops = vec![SessionOp::Tool(ToolRecord {
         tool: "live".into(),
         args: intent,
@@ -893,7 +921,10 @@ fn entry(revision: u64, author: &str, intent: Value, ops: &[EditOp]) -> OpLogEnt
         timestamp_ms: now_ms(),
         id: None,
         parent: None,
-        message: None,
+        // Draft 0.3: an entry carries its commit message, and the message is
+        // part of the entry's identity. The tool record keeps the intent as
+        // history; this is the field readers and the content hash use.
+        message,
     }
 }
 

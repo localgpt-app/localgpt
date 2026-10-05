@@ -157,3 +157,53 @@ fn a_view_reopened_from_the_package_sees_what_the_authority_wrote() {
     assert_eq!(view.tips().len(), 1, "a linear log has one tip");
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn every_new_entry_carries_its_content_hash_parent_and_message() {
+    let dir = temp("identity");
+    let mut live = LiveWorld::open(&dir).expect("open");
+    let mut view = view_of(&live);
+
+    let first = live
+        .submit(&spawn("lighthouse"), "test", Some("light the coast"))
+        .unwrap();
+    let second = live.submit(&spawn("jetty"), "test", None).unwrap();
+
+    let (a, b) = (&first.entry, &second.entry);
+    // The id is the format's content hash of the entry as written — so
+    // recomputing it from the entry gives the same answer.
+    for e in [a, b] {
+        let id = e.id.as_deref().expect("an id on every new entry");
+        assert!(id.starts_with("sha256:"), "{id}");
+        assert_eq!(
+            Some(id.to_string()),
+            openworldformat::oplog::compute_entry_id(e).ok(),
+            "the id is not the content hash of the entry"
+        );
+    }
+    // The chain is explicit: the second names the first.
+    assert_eq!(
+        b.parent, a.id,
+        "the parent should be the previous entry's id"
+    );
+    assert_eq!(a.parent, None, "the first builds on the base");
+    // Draft 0.3: the message is the entry's own field.
+    assert_eq!(a.message.as_deref(), Some("light the coast"));
+    assert_eq!(b.message, None, "no message given, none invented");
+
+    // The bug class this guards: what the authority hands over must be what
+    // it wrote, or the view would name entries differently from the file.
+    view.committed(first.entry.clone()).unwrap();
+    view.committed(second.entry.clone()).unwrap();
+    let on_disk: Vec<_> = LiveWorld::open(&dir)
+        .unwrap()
+        .entries()
+        .iter()
+        .map(|e| e.id.clone())
+        .collect();
+    let in_view: Vec<_> = (0..view.history().len())
+        .map(|n| view.history().id_at(n).map(str::to_string))
+        .collect();
+    assert_eq!(on_disk, in_view, "the view and the file disagree on ids");
+    std::fs::remove_dir_all(&dir).ok();
+}
