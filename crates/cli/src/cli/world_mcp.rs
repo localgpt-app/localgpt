@@ -44,7 +44,7 @@ pub async fn run(dir: Option<PathBuf>) -> Result<()> {
     let endpoint = Endpoint::read(&dir).map_err(|e| {
         anyhow::anyhow!(
             "no open world at {} ({e})\n\
-             Open it first: localgpt-gen --live {}",
+             Open it first: localgpt-app --world {}",
             dir.display(),
             dir.display()
         )
@@ -55,6 +55,8 @@ pub async fn run(dir: Option<PathBuf>) -> Result<()> {
         Box::new(SubmitTool(api.clone())),
         Box::new(UndoTool(api.clone())),
         Box::new(LogTool(api.clone())),
+        Box::new(TipsTool(api.clone())),
+        Box::new(GotoTool(api.clone())),
         Box::new(VerifyTool(api.clone())),
         Box::new(ScreenshotTool(api.clone())),
         Box::new(SelectionTool(api)),
@@ -145,9 +147,16 @@ macro_rules! simple_tool {
 simple_tool!(
     LogTool,
     "world_log",
-    "Every batch committed to this world, oldest first: revision, author, message and the ops.",
+    "Every batch committed to this world, oldest first: its id, the entry it builds on (parent), revision, author, message and changes — and which entry is the head.",
     GET,
     "/log"
+);
+simple_tool!(
+    TipsTool,
+    "world_tips",
+    "Where this world's history ends: every branch tip, which one is the head (what manifest.json holds, where a batch lands by default), and which entry the window is showing (`current`). Pass an id from here as world_submit's `at` to build on it.",
+    GET,
+    "/tips"
 );
 simple_tool!(
     VerifyTool,
@@ -205,6 +214,10 @@ impl Tool for SubmitTool {
                     "author": {
                         "type": "string",
                         "description": "Who is making the change. Defaults to the agent's own name."
+                    },
+                    "at": {
+                        "type": "string",
+                        "description": "The id of the entry to build on (from world_tips or world_log); leave it out to build on the head. An earlier entry starts a branch and leaves the head as it was; the reply's `id` is the branch's new tip, to pass as `at` next time."
                     }
                 },
                 "required": ["ops"]
@@ -223,7 +236,7 @@ impl Tool for SubmitTool {
         let mut body = json!({"ops": ops});
         // The author rides in the batch, as the API expects; the app decides
         // what to do with it and the git commit carries it.
-        for key in ["author", "message"] {
+        for key in ["author", "message", "at"] {
             if let Some(value) = args.get(key).and_then(Value::as_str) {
                 body[key] = json!(value);
             }
@@ -243,7 +256,7 @@ impl Tool for UndoTool {
     fn schema(&self) -> ToolSchema {
         ToolSchema {
             name: "world_undo".to_string(),
-            description: "Take back the newest edit by appending its inverse. \
+            description: "Take back the head's newest edit by appending its inverse. \
                  The log never rewinds, so an undo is itself a committed batch."
                 .to_string(),
             parameters: json!({
@@ -251,7 +264,7 @@ impl Tool for UndoTool {
                 "properties": {
                     "author": {
                         "type": "string",
-                        "description": "Whose edit to take back. Defaults to the newest by anyone."
+                        "description": "Who is undoing — recorded as the undo's author."
                     }
                 }
             }),
@@ -265,6 +278,47 @@ impl Tool for UndoTool {
             .and_then(Value::as_str)
             .map(|author| json!({"author": author}));
         self.0.call(reqwest::Method::POST, "/undo", body).await
+    }
+}
+
+struct GotoTool(Api);
+
+#[async_trait]
+impl Tool for GotoTool {
+    fn name(&self) -> &str {
+        "world_goto"
+    }
+
+    fn schema(&self) -> ToolSchema {
+        ToolSchema {
+            name: "world_goto".to_string(),
+            description: "Show an entry of this world's history in the app's window — the person \
+                 sees it. Nothing is written: this moves the view, not the world. Use it to \
+                 show a branch you made, or to look at an earlier state before a screenshot."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "tip": {
+                        "type": ["string", "null"],
+                        "description": "The entry's id (from world_tips or world_log), or null for the world before any entry."
+                    }
+                },
+                "required": ["tip"]
+            }),
+        }
+    }
+
+    async fn execute(&self, arguments: &str) -> Result<String> {
+        let args: Value = serde_json::from_str(arguments)
+            .map_err(|e| anyhow::anyhow!("the arguments aren't JSON: {e}"))?;
+        let tip = match args.get("tip") {
+            Some(tip @ (Value::String(_) | Value::Null)) => tip.clone(),
+            _ => anyhow::bail!("`tip` is an entry id, or null for the base"),
+        };
+        self.0
+            .call(reqwest::Method::POST, "/goto", Some(json!({"tip": tip})))
+            .await
     }
 }
 
@@ -294,6 +348,8 @@ mod tests {
             Box::new(SubmitTool(api())),
             Box::new(UndoTool(api())),
             Box::new(LogTool(api())),
+            Box::new(TipsTool(api())),
+            Box::new(GotoTool(api())),
             Box::new(VerifyTool(api())),
             Box::new(ScreenshotTool(api())),
             Box::new(SelectionTool(api())),
@@ -303,10 +359,12 @@ mod tests {
         assert_eq!(
             names,
             [
+                "world_goto",
                 "world_log",
                 "world_screenshot",
                 "world_selection",
                 "world_submit",
+                "world_tips",
                 "world_undo",
                 "world_verify"
             ]
@@ -349,7 +407,7 @@ mod tests {
         let text = err.to_string();
         assert!(text.contains("no open world"), "{text}");
         assert!(
-            text.contains("--live"),
+            text.contains("localgpt-app --world"),
             "it should say how to open one: {text}"
         );
     }

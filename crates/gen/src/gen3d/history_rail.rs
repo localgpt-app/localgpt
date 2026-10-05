@@ -3,17 +3,19 @@
 //! A canvas holds a `.world` package open and agents change it from outside,
 //! so until now the only way to move through its history was the API's
 //! `POST /goto`. The rail puts the same thing in the window: the log as rows,
-//! newest at the top, the entry the canvas shows highlighted and branch ends
-//! marked. Click a row to show that point; `[` and `]` step back and forward
-//! through entries in the order they were written. The base — the world
-//! before any entry — is the bottom row.
+//! newest at the top, the entry the canvas shows highlighted (`>`), the head
+//! — main's tip, what `manifest.json` holds — marked `@` as git writes HEAD,
+//! and other branch ends `*`. Click a row to show that point; `[` and `]`
+//! step back and forward through entries in the order they were written.
+//! The base — the world before any entry — is the bottom row.
 //!
 //! The rail owns no history. It draws `live::LiveHistory`, a snapshot the
 //! canvas publishes when something changes, and asks for seeks with
 //! `live::SeekTo`, which the canvas serves through the same `seek` as the
 //! API — so a person and an agent moving through history cannot behave
-//! differently. A seek is a view move: nothing is written, and commits keep
-//! landing on the head.
+//! differently. A seek is a view move: nothing is written. An agent that
+//! builds on the entry on screen (`"at"` the canvas's `current`) starts a
+//! branch there, and the canvas follows it.
 //!
 //! Plain `bevy_ui`, deliberately: the rail is the first surface of the
 //! editor-stack RFC that a person touches, and it should not drag egui into
@@ -224,30 +226,41 @@ fn short_id(id: &str) -> String {
     }
 }
 
+/// Two marks, so being here never hides what the entry is: `>` where the
+/// canvas is, then `@` for the head or `*` for another branch's end.
 fn row_label(row: &HistoryRow, current: bool) -> String {
-    let mark = match (current, row.tip) {
-        (true, _) => '>',
+    let here = if current { '>' } else { ' ' };
+    let kind = match (row.head, row.tip) {
+        (true, _) => '@',
         (false, true) => '*',
         (false, false) => ' ',
     };
     format!(
-        "{mark} r{:<3} {:<8} {:<9} {}",
+        "{here}{kind} r{:<3} {:<8} {:<9} {}",
         row.revision,
         short_id(&row.id),
         clip(&row.author, 9),
-        clip(&row.summary, 34)
+        clip(&row.summary, 33)
     )
 }
 
 fn base_label(current: bool) -> String {
-    format!("{} -- the base --", if current { '>' } else { ' ' })
+    format!("{}  -- the base --", if current { '>' } else { ' ' })
 }
 
 fn title(history: &LiveHistory) -> String {
     let tips = history.rows.iter().filter(|r| r.tip).count();
-    let at = match current_index(history) {
-        Some(i) => format!("r{}", history.rows[i].revision),
-        None => "the base".to_string(),
+    let current = current_index(history);
+    let head = history.rows.iter().position(|r| r.head);
+    let at = match (current, head) {
+        (Some(i), Some(h)) if i == h => format!("r{} (head)", history.rows[i].revision),
+        (Some(i), Some(h)) => format!(
+            "r{} · head r{}",
+            history.rows[i].revision, history.rows[h].revision
+        ),
+        (Some(i), None) => format!("r{}", history.rows[i].revision),
+        (None, Some(h)) => format!("the base · head r{}", history.rows[h].revision),
+        (None, None) => "the base".to_string(),
     };
     match tips {
         0 | 1 => format!("History · {} entries · at {at}", history.rows.len()),
@@ -281,12 +294,24 @@ mod tests {
             author: "claude".into(),
             summary: format!("spawn #{revision}"),
             tip,
+            head: false,
         }
     }
 
+    fn head(mut row: HistoryRow) -> HistoryRow {
+        row.head = true;
+        row
+    }
+
+    /// A linear log: its one tip is the head.
     fn linear(n: u64, current: Option<&str>) -> LiveHistory {
         LiveHistory {
-            rows: (1..=n).map(|i| row(&format!("e{i}"), i, i == n)).collect(),
+            rows: (1..=n)
+                .map(|i| {
+                    let r = row(&format!("e{i}"), i, i == n);
+                    if i == n { head(r) } else { r }
+                })
+                .collect(),
             current: current.map(str::to_string),
         }
     }
@@ -346,22 +371,41 @@ mod tests {
 
     #[test]
     fn a_row_marks_where_the_canvas_is_and_where_branches_end() {
-        assert!(row_label(&row("e1", 1, false), true).starts_with('>'));
-        assert!(row_label(&row("e2", 2, true), false).starts_with('*'));
-        assert!(row_label(&row("e3", 3, false), false).starts_with(' '));
-        // Current wins over tip, so the highlight is never ambiguous.
-        assert!(row_label(&row("e4", 4, true), true).starts_with('>'));
+        assert!(row_label(&row("e1", 1, false), true).starts_with(">  "));
+        assert!(row_label(&row("e2", 2, true), false).starts_with(" * "));
+        assert!(row_label(&row("e3", 3, false), false).starts_with("   "));
+        assert!(row_label(&head(row("e4", 4, true)), false).starts_with(" @ "));
+        // Being here never hides what the entry is.
+        assert!(row_label(&head(row("e4", 4, true)), true).starts_with(">@ "));
+        assert!(row_label(&row("e5", 5, true), true).starts_with(">* "));
     }
 
     #[test]
-    fn the_title_counts_branches_only_when_there_are_several() {
-        assert_eq!(title(&linear(3, Some("e3"))), "History · 3 entries · at r3");
+    fn the_title_counts_branches_and_says_where_the_head_is() {
+        assert_eq!(
+            title(&linear(3, Some("e3"))),
+            "History · 3 entries · at r3 (head)"
+        );
+        assert_eq!(
+            title(&linear(3, Some("e1"))),
+            "History · 3 entries · at r1 · head r3"
+        );
         let forked = LiveHistory {
-            rows: vec![row("e1", 1, false), row("e2", 2, true), row("e3", 3, true)],
+            rows: vec![
+                row("e1", 1, false),
+                row("e2", 2, true),
+                head(row("e3", 3, true)),
+            ],
             current: Some("e2".into()),
         };
-        assert_eq!(title(&forked), "History · 3 entries · 2 branches · at r2");
-        assert_eq!(title(&linear(2, None)), "History · 2 entries · at the base");
+        assert_eq!(
+            title(&forked),
+            "History · 3 entries · 2 branches · at r2 · head r3"
+        );
+        assert_eq!(
+            title(&linear(2, None)),
+            "History · 2 entries · at the base · head r2"
+        );
     }
 
     #[test]

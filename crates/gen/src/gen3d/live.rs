@@ -9,6 +9,13 @@
 //! was committed. The same API takes screenshots, reports what the person
 //! has selected, undoes, and replays the world's git history commit by
 //! commit. The folder's `AGENTS.md` tells an agent all of this.
+//!
+//! The history is non-linear. The canvas can show any point in it (the
+//! rail, `POST /goto`), and a batch that names an earlier entry (`"at"`)
+//! starts a branch there while the head — `manifest.json`, main's tip —
+//! stays where it was. The canvas follows a commit when it continues what is
+//! on screen and otherwise only grows the rail, so an agent working on main
+//! never yanks a person off the point they chose.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -108,6 +115,8 @@ pub struct HistoryRow {
     pub summary: String,
     /// Nothing builds on this entry: the end of a branch.
     pub tip: bool,
+    /// Main's tip — the entry whose world `manifest.json` holds.
+    pub head: bool,
 }
 
 /// Ask the canvas to show a point in its history (`None`: the base).
@@ -178,8 +187,14 @@ pub fn setup_live(app: &mut App, dir: &Path) -> anyhow::Result<()> {
         dir.display()
     );
 
-    let view = localgpt_world_editor::Editor::open(world.base().clone(), world.entries().to_vec())
-        .map_err(|e| anyhow::anyhow!("the history doesn't open as a tree: {e}"))?;
+    // At main's tip, which is what the scene is built from — once a branch
+    // has been committed, the last line is a branch's.
+    let view = localgpt_world_editor::Editor::open_at(
+        world.base().clone(),
+        world.entries().to_vec(),
+        world.main_tip().as_deref(),
+    )
+    .map_err(|e| anyhow::anyhow!("the history doesn't open as a tree: {e}"))?;
     app.insert_resource(Live {
         camera: world.head_manifest().camera.clone(),
         world,
@@ -203,9 +218,10 @@ pub fn setup_live(app: &mut App, dir: &Path) -> anyhow::Result<()> {
 }
 
 /// Move the canvas to `tip` (`None`: the base) — the one seek path, used by
-/// `POST /goto` and the rail alike. A view move: nothing is written, and
-/// commits keep landing on the head; the canvas shows history, it does not
-/// rewrite it. Returns what changed, for whoever asked.
+/// `POST /goto` and the rail alike. A view move: nothing is written, and a
+/// batch still lands on the head unless it names where it builds (`"at"`);
+/// the canvas shows history, it does not rewrite it. Returns what changed,
+/// for whoever asked.
 fn seek(
     live: &mut Live,
     applier: &mut OpsApplier<'_, '_>,
@@ -224,9 +240,37 @@ fn seek(
     Ok(changes)
 }
 
+/// Take a commit into the view, and into the scene if the canvas follows
+/// it — when it builds on the entry on screen. Returns whether it did.
+///
+/// The delta comes from the view, not from the batch's ops: the canvas may
+/// be scrubbed back, and what moves it from what it shows to the new entry
+/// is not what the batch carried. If the view cannot take the entry at all
+/// (a log it could not open as a tree), a commit on main falls back to the
+/// batch's own ops — right while the canvas sits at the head, the only place
+/// it can be without the view — and a branch is not drawn.
+fn follow(live: &mut Live, applier: &mut OpsApplier<'_, '_>, done: &live::Committed) -> bool {
+    live.history_dirty = true;
+    let ops = match live.view.observe(done.entry.clone()) {
+        Ok(Some(delta)) => delta.ops,
+        Ok(None) => return false,
+        Err(e) => {
+            eprintln!("[live] the view could not follow: {e}");
+            if done.forked {
+                return false;
+            }
+            done.ops.clone()
+        }
+    };
+    applier.apply_ops(&for_scene(&ops, live.world.dir()));
+    live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
+    true
+}
+
 /// The rail's snapshot of the history, from the view.
 fn publish(live: &Live) -> LiveHistory {
     let tips: std::collections::HashSet<&str> = live.view.tips().into_iter().collect();
+    let head = live.world.main_tip();
     LiveHistory {
         rows: live
             .view
@@ -238,6 +282,7 @@ fn publish(live: &Live) -> LiveHistory {
                 author: e.entry.author.name.clone(),
                 summary: live::describe_ops(&e.entry.edit_ops()).join(" · "),
                 tip: tips.contains(e.id),
+                head: head.as_deref() == Some(e.id),
             })
             .collect(),
         current: live.view.tip().map(str::to_string),
@@ -248,12 +293,19 @@ const ENDPOINTS: &[(&str, &str)] = &[
     ("GET /world", "the world now (manifest.json)"),
     (
         "POST /ops",
-        "a batch of edit ops: [op, ...] or {\"ops\": [...], \"author\": ..., \"message\": ...}",
+        "a batch of edit ops: [op, ...] or {\"ops\": [...], \"author\": ..., \"message\": ..., \"at\": ...} — \"at\" names the entry to build on (default: the head); an earlier one starts a branch",
     ),
-    ("POST /undo", "undo the newest change (appends its inverse)"),
+    (
+        "POST /undo",
+        "undo the head's newest change (appends its inverse)",
+    ),
     (
         "GET /log",
-        "the history: revision, author, message, changes",
+        "the history: id, parent, revision, author, message, changes — and which entry is the head",
+    ),
+    (
+        "GET /verify",
+        "check that the head's fold equals manifest.json and every asset its hash",
     ),
     (
         "GET /screenshot",
@@ -266,11 +318,11 @@ const ENDPOINTS: &[(&str, &str)] = &[
     ),
     (
         "GET /tips",
-        "every branch end in the history, and which one the canvas is on",
+        "every branch end in the history, which one is the head, and where the canvas is",
     ),
     (
         "POST /goto",
-        "move the canvas to a tip ({\"tip\": \"id\"}, or null for the base) — a view move; commits keep landing on the head",
+        "move the canvas to an entry ({\"tip\": \"id\"}, or null for the base) — a view move; nothing is written",
     ),
 ];
 
@@ -324,44 +376,41 @@ fn live_world(
                 Reply::ok(serde_json::to_value(live.world.head_manifest()).unwrap_or_default())
             }
             ("GET", "/log") => Reply::ok(history(&live.world, live.view.history())),
+            ("GET", "/verify") => {
+                let problems = live.world.verify();
+                Reply::ok(json!({"ok": problems.is_empty(), "problems": problems}))
+            }
             ("POST", "/ops") => match serde_json::from_slice::<Value>(&call.body) {
                 Err(e) => Reply::status(
                     400,
                     json!({"result": "rejected", "errors": [format!("not JSON: {e}")]}),
                 ),
-                Ok(batch) => match live.world.submit(
+                Ok(batch) => match live.world.submit_at(
+                    param(&call.query, "at").as_deref(),
                     &batch,
                     &param(&call.query, "author").unwrap_or("agent".into()),
                     None,
                 ) {
                     Ok(done) => {
-                        // The delta from the view, not the batch's ops: the
-                        // canvas may be sought back, and the ops that move it
-                        // from what it shows to the new head are not the ops
-                        // the batch carried.
-                        // If the view cannot follow (a log it could not
-                        // open as a tree), fall back to the batch's own ops:
-                        // right while the canvas sits at the head, which is
-                        // the only place it can be without the view.
-                        let ops = live
-                            .view
-                            .committed(done.entry.clone())
-                            .map(|delta| delta.ops)
-                            .unwrap_or_else(|e| {
-                                eprintln!("[live] the view could not follow: {e}");
-                                done.ops.clone()
-                            });
-                        applier.apply_ops(&for_scene(&ops, live.world.dir()));
-                        live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
-                        live.history_dirty = true;
+                        let on_screen = follow(live, &mut applier, &done);
                         eprintln!(
-                            "[live] revision {} · {}",
+                            "[live] revision {}{} · {}",
                             done.revision,
+                            if done.forked { " (a branch)" } else { "" },
                             live::describe_ops(&done.ops).join(" · ")
                         );
                         Reply::ok(json!({
                             "result": "committed",
                             "revision": done.revision,
+                            "id": done.entry.id,
+                            "parent": done.entry.parent,
+                            // A branch leaves the head where it was.
+                            "branch": done.forked,
+                            "head": live.world.main_tip(),
+                            // Whether the canvas shows it: not when the person
+                            // is looking elsewhere in the history, which is
+                            // also what a screenshot would show.
+                            "on_screen": on_screen,
                             "changes": live::describe_ops(&done.ops),
                             "spawned": done.spawned,
                             "stored": done.stored,
@@ -374,22 +423,25 @@ fn live_world(
                     }
                 },
             },
-            ("POST", "/undo") => match live
-                .world
-                .undo(&param(&call.query, "author").unwrap_or("you".into()))
-            {
+            ("POST", "/undo") => match live.world.undo(
+                &param(&call.query, "author")
+                    .or_else(|| {
+                        // The MCP shim sends {"author": ...}; a query wins.
+                        serde_json::from_slice::<Value>(&call.body)
+                            .ok()?
+                            .get("author")?
+                            .as_str()
+                            .map(str::to_string)
+                    })
+                    .unwrap_or("you".into()),
+            ) {
                 Ok(done) => {
-                    let ops = live
-                        .view
-                        .committed(done.entry.clone())
-                        .map(|d| d.ops)
-                        .unwrap_or_else(|_| done.ops.clone());
-                    applier.apply_ops(&for_scene(&ops, live.world.dir()));
-                    live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
-                    live.history_dirty = true;
+                    let on_screen = follow(live, &mut applier, &done);
                     Reply::ok(json!({
                         "result": "committed",
                         "revision": done.revision,
+                        "id": done.entry.id,
+                        "on_screen": on_screen,
                         "changes": live::describe_ops(&done.ops),
                         "warnings": done.warnings,
                     }))
@@ -433,6 +485,10 @@ fn live_world(
             }
             ("GET", "/tips") => Reply::ok(json!({
                 "tips": live.view.tips(),
+                // Main's tip: what manifest.json holds, and where a batch
+                // without "at" lands.
+                "head": live.world.main_tip(),
+                // What the canvas shows — "at" this to build on it.
                 "current": live.view.tip(),
                 "revision": live.view.revision(),
             })),
@@ -570,17 +626,26 @@ fn live_view(
                 .join(format!("shot-{}.png", live.shot_count));
             let _ = std::fs::remove_file(&path);
             live.shots.push(path.clone());
+            // What the picture shows, which is the view's entry — not the
+            // head's, when the person is looking elsewhere in the history.
             Reply {
                 status: 200,
-                body: json!({"path": path, "revision": live.world.revision()}),
+                body: json!({
+                    "path": path,
+                    "revision": live.view.revision(),
+                    "tip": live.view.tip(),
+                    "at_head": live.view.tip().map(str::to_string) == live.world.main_tip(),
+                }),
                 wait_for: Some(path),
             }
         } else {
+            // The entity as the person sees it: on a branch, the head may
+            // not have it at all.
             let picked = selection
                 .as_ref()
                 .and_then(|s| s.entity)
                 .and_then(|e| gen_entities.get(e).ok())
-                .and_then(|g| live.world.head().get(g.world_id.0).cloned());
+                .and_then(|g| live.view.doc().get(g.world_id.0).cloned());
             Reply::ok(json!({ "selected": picked }))
         };
         let _ = call.reply.send(reply);
@@ -604,10 +669,14 @@ fn history(world: &LiveWorld, ids: &localgpt_world_editor::History) -> Value {
                 localgpt_world_sync::SessionOp::Tool(t) if t.tool == "live" => Some(t.args.clone()),
                 _ => None,
             });
+            let id = ids.id_at(n);
             json!({
                 // The id a tip names — the log's own when it carries one, the
                 // synthesized `line-<n>` when file order is the chain.
-                "id": ids.id_at(n),
+                "id": id,
+                // What it builds on; null for the base. Branches are entries
+                // whose parent already has a child.
+                "parent": id.and_then(|id| ids.parent_of(id)),
                 "revision": entry.revision,
                 "author": entry.author.name,
                 "intent": intent,
@@ -615,7 +684,11 @@ fn history(world: &LiveWorld, ids: &localgpt_world_editor::History) -> Value {
             })
         })
         .collect();
-    json!({ "revision": world.revision(), "entries": entries })
+    json!({
+        "revision": world.revision(),
+        "head": world.main_tip(),
+        "entries": entries,
+    })
 }
 
 /// Ops as the scene needs them: asset paths made absolute, since the
@@ -683,8 +756,30 @@ fn absolute(path: &str, dir: &Path) -> String {
 fn param(query: &str, key: &str) -> Option<String> {
     query.split('&').find_map(|pair| {
         let (k, v) = pair.split_once('=')?;
-        (k == key).then(|| v.replace('+', " "))
+        (k == key).then(|| percent_decode(&v.replace('+', " ")))
     })
+}
+
+/// `%3A` → `:` and the like, so an entry id survives a client that encodes
+/// its query string. A malformed escape is kept as written.
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%'
+            && let Some(byte) = s
+                .get(i + 1..i + 3)
+                .and_then(|hex| u8::from_str_radix(hex, 16).ok())
+        {
+            out.push(byte);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// The API thread: accept, check the token, hand the call to the app,
@@ -783,5 +878,25 @@ fn wait_for_file(path: &Path, limit: Duration) {
         }
         last = size;
         std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_query_parameter_reads_back_as_the_client_meant_it() {
+        // An entry id through a client that encodes its query string.
+        assert_eq!(
+            param("at=sha256%3Aabc&author=claude", "at").as_deref(),
+            Some("sha256:abc")
+        );
+        assert_eq!(param("author=a+b", "author").as_deref(), Some("a b"));
+        assert_eq!(param("author=a%2Bb", "author").as_deref(), Some("a+b"));
+        // Malformed escapes are kept, not dropped.
+        assert_eq!(param("x=100%", "x").as_deref(), Some("100%"));
+        assert_eq!(param("x=%zz", "x").as_deref(), Some("%zz"));
+        assert_eq!(param("y=1", "x"), None);
     }
 }
