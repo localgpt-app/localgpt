@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if page %}{{ page.title }} — {{ config.title }} Docs{% elif section %}{{ section.title }} — {{ config.title }} Docs{% endif %}
+{% endblock title %}
+
+{% block description %}
+  {% if page %}{{ page.description | default(value=config.description) }}{% elif section %}{{ section.description | default(value=config.description) }}{% endif %}
+{% endblock description %}
+
+{% block content %}
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <div class="sidebar-category">
+      <div class="sidebar-category-title">Introduction</div>
+      <ul class="sidebar-list">
+        <li><a href="/docs/intro/" class="sidebar-link {% if current_path == '/docs/intro/' %}active{% endif %}">Introduction</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-category">
+      <div class="sidebar-category-title">Getting Started</div>
+      <ul class="sidebar-list">
+        <li><a href="/docs/installation/" class="sidebar-link {% if current_path == '/docs/installation/' %}active{% endif %}">Installation</a></li>
+        <li><a href="/docs/quick-start/" class="sidebar-link {% if current_path == '/docs/quick-start/' %}active{% endif %}">Quick Start</a></li>
+        <li><a href="/docs/openclaw-compatibility/" class="sidebar-link {% if current_path == '/docs/openclaw-compatibility/' %}active{% endif %}">OpenClaw Compatibility</a></li>
+        <li><a href="/docs/upgrade-v0.2/" class="sidebar-link {% if current_path == '/docs/upgrade-v0.2/' %}active{% endif %}">Upgrade to v0.2</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-category">
+      <div class="sidebar-category-title">CLI Commands</div>
+      <ul class="sidebar-list">
+        <li><a href="/docs/cli-commands/" class="sidebar-link {% if current_path == '/docs/cli-commands/' %}active{% endif %}">CLI Reference</a></li>
+        <li><a href="/docs/cli-chat/" class="sidebar-link {% if current_path == '/docs/cli-chat/' %}active{% endif %}">Chat</a></li>
+        <li><a href="/docs/cli-ask/" class="sidebar-link {% if current_path == '/docs/cli-ask/' %}active{% endif %}">Ask</a></li>
+        <li><a href="/docs/cli-daemon/" class="sidebar-link {% if current_path == '/docs/cli-daemon/' %}active{% endif %}">Daemon</a></li>
+        <li><a href="/docs/cli-memory/" class="sidebar-link {% if current_path == '/docs/cli-memory/' %}active{% endif %}">Memory</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-category">
+      <div class="sidebar-category-title">Core Features</div>
+      <ul class="sidebar-list">
+        <li><a href="/docs/memory-system/" class="sidebar-link {% if current_path == '/docs/memory-system/' %}active{% endif %}">Memory System</a></li>
+        <li><a href="/docs/heartbeat/" class="sidebar-link {% if current_path == '/docs/heartbeat/' %}active{% endif %}">Heartbeat</a></li>
+        <li><a href="/docs/tools/" class="sidebar-link {% if current_path == '/docs/tools/' %}active{% endif %}">Agent Tools</a></li>
+        <li><a href="/docs/skills/" class="sidebar-link {% if current_path == '/docs/skills/' %}active{% endif %}">Skills System</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-category">
+      <div class="sidebar-category-title">LocalGPT Gen</div>
+      <ul class="sidebar-list">
+        <li><a href="/docs/gen/" class="sidebar-link {% if current_path == '/docs/gen/' %}active{% endif %}">Overview</a></li>
+        <li><a href="/docs/gen/tools/" class="sidebar-link {% if current_path == '/docs/gen/tools/' %}active{% endif %}">Tools Reference</a></li>
+        <li><a href="/docs/gen/worldgen/" class="sidebar-link {% if current_path == '/docs/gen/worldgen/' %}active{% endif %}">WorldGen Pipeline</a></li>
+        <li><a href="/docs/gen/behaviors/" class="sidebar-link {% if current_path == '/docs/gen/behaviors/' %}active{% endif %}">Behaviors</a></li>
+        <li><a href="/docs/gen/audio/" class="sidebar-link {% if current_path == '/docs/gen/audio/' %}active{% endif %}">Audio</a></li>
+        <li><a href="/docs/gen/world-skills/" class="sidebar-link {% if current_path == '/docs/gen/world-skills/' %}active{% endif %}">World Skills</a></li>
+        <li><a href="/docs/gen/multiplayer/" class="sidebar-link {% if current_path == '/docs/gen/multiplayer/' %}active{% endif %}">Collaborative Sessions</a></li>
+        <li><a href="/docs/gen/export/" class="sidebar-link {% if current_path == '/docs/gen/export/' %}active{% endif %}">Export &amp; HTML</a></li>
+        <li><a href="/docs/gen/mcp-server/" class="sidebar-link {% if current_path == '/docs/gen/mcp-server/' %}active{% endif %}">MCP Server</a></li>
+        <li><a href="/docs/gen/cli-mode/" class="sidebar-link {% if current_path == '/docs/gen/cli-mode/' %}active{% endif %}">CLI Mode</a></li>
+        <li><a href="/docs/gen/headless/" class="sidebar-link {% if current_path == '/docs/gen/headless/' %}active{% endif %}">Headless &amp; Queue</a></li>
+        <li><a href="/docs/gen/external-services/" class="sidebar-link {% if current_path == '/docs/gen/external-services/' %}active{% endif %}">External Services</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-category">
+      <div class="sidebar-category-title">LocalGPT Verse</div>
+      <ul class="sidebar-list">
+        <li><a href="/docs/verse/" class="sidebar-link {% if current_path == '/docs/verse/' %}active{% endif %}">Overview</a></li>
+        <li><a href="/docs/verse/controls/" class="sidebar-link {% if current_path == '/docs/verse/controls/' %}active{% endif %}">Controls &amp; HUD</a></li>
+        <li><a href="/docs/verse/worlds/" class="sidebar-link {% if current_path == '/docs/verse/worlds/' %}active{% endif %}">Worlds &amp; Moods</a></li>
+        <li><a href="/docs/verse/analysis/" class="sidebar-link {% if current_path == '/docs/verse/analysis/' %}active{% endif %}">Music Analysis</a></li>
+        <li><a href="/docs/verse/development/" class="sidebar-link {% if current_path == '/docs/verse/development/' %}active{% endif %}">Development</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-category">
+      <div class="sidebar-category-title">LocalGPT MD</div>
+      <ul class="sidebar-list">
+        <li><a href="/docs/md/" class="sidebar-link {% if current_path == '/docs/md/' %}active{% endif %}">Overview</a></li>
+        <li><a href="/docs/md/llm/" class="sidebar-link {% if current_path == '/docs/md/llm/' %}active{% endif %}">LLM Tier</a></li>
+        <li><a href="/docs/md/how-it-works/" class="sidebar-link {% if current_path == '/docs/md/how-it-works/' %}active{% endif %}">How It Works</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-category">
+      <div class="sidebar-category-title">Security &amp; Policy</div>
+      <ul class="sidebar-list">
+        <li><a href="/docs/sandbox/" class="sidebar-link {% if current_path == '/docs/sandbox/' %}active{% endif %}">Shell Sandbox</a></li>
+        <li><a href="/docs/policy/" class="sidebar-link {% if current_path == '/docs/policy/' %}active{% endif %}">POLICY.md</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-category">
+      <div class="sidebar-category-title">Reference</div>
+      <ul class="sidebar-list">
+        <li><a href="/docs/architecture/" class="sidebar-link {% if current_path == '/docs/architecture/' %}active{% endif %}">Architecture</a></li>
+        <li><a href="/docs/configuration/" class="sidebar-link {% if current_path == '/docs/configuration/' %}active{% endif %}">Configuration</a></li>
+        <li><a href="/docs/http-api/" class="sidebar-link {% if current_path == '/docs/http-api/' %}active{% endif %}">HTTP API</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-category">
+      <div class="sidebar-category-title">Ecosystem</div>
+      <ul class="sidebar-list">
+        <li><a href="/docs/ecosystem/" class="sidebar-link {% if current_path == '/docs/ecosystem/' %}active{% endif %}">Ecosystem</a></li>
+        <li><a href="/docs/claw/" class="sidebar-link {% if current_path == '/docs/claw/' %}active{% endif %}">Claw Parity Matrix</a></li>
+        <li><a href="/docs/worlds/" class="sidebar-link {% if current_path == '/docs/worlds/' %}active{% endif %}">Explorable Worlds</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <article class="docs-main">
+    <div class="docs-container prose">
+      {% if page %}
+        <h1>{{ page.title }}</h1>
+        {{ page.content | safe }}
+      {% elif section %}
+        <h1>{{ section.title }}</h1>
+        {{ section.content | safe }}
+        {% if section.pages %}
+        <ul style="margin-top: 1.5rem;">
+          {% for p in section.pages %}
+          <li><a href="{{ p.permalink }}">{{ p.title }}</a></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      {% endif %}
+    </div>
+  </article>
+
+  {% if page and page.toc %}
+  <aside class="docs-toc">
+    <div class="toc-title">On this page</div>
+    <ul class="toc-list">
+      {% for h1 in page.toc %}
+      <li>
+        <a href="{{ h1.permalink | safe }}">{{ h1.title }}</a>
+        {% if h1.children %}
+        <ul style="padding-left: 0.75rem; list-style: none; margin-top: 0.25rem;">
+          {% for h2 in h1.children %}
+          <li><a href="{{ h2.permalink | safe }}">{{ h2.title }}</a></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </aside>
+  {% endif %}
+</div>
+{% endblock content %}

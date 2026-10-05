@@ -1,13 +1,7 @@
 .firebase
-# Dependencies
-/node_modules
-
-# Production
+# Generated build output
+public/
 /build
-
-# Generated files
-.docusaurus
-.cache-loader
 
 # Misc
 .DS_Store
@@ -15,7 +9,3 @@
 .env.development.local
 .env.test.local
 .env.production.local
-
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*

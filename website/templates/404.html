@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Page Not Found — {{ config.title }}{% endblock title %}
+
+{% block content %}
+<div class="container" style="text-align: center; padding: 6rem 1.5rem 8rem;">
+  <h1 style="font-size: 3.5rem; font-weight: 800; color: var(--primary); margin-bottom: 1rem;">404</h1>
+  <p style="font-size: 1.25rem; color: var(--text-muted); margin-bottom: 2rem;">This page doesn't exist or has moved.</p>
+  <a href="/" class="btn btn-primary">Back to Home</a>
+</div>
+{% endblock content %}

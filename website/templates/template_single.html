@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.title }} — {{ config.title }} Templates{% endblock title %}
+{% block description %}{{ page.description }}{% endblock description %}
+
+{% block content %}
+<section class="template-hero">
+  <div class="container">
+    <span class="template-cat" style="font-size: 0.85rem; letter-spacing: 0.1em;">{{ page.extra.category | upper }} TEMPLATE</span>
+    <h1>{{ page.title }}</h1>
+    <p class="template-hero-sub">{{ page.description }}</p>
+
+    <div class="preview-box">
+      <span>Interactive 3D Preview (Launch via <code>cargo install localgpt-gen</code>)</span>
+    </div>
+
+    <div class="hero-buttons" style="justify-content: center;">
+      <a href="/docs/gen/" class="btn btn-primary">Open in Gen Editor</a>
+      <a href="/docs/intro/" class="btn btn-secondary">Documentation</a>
+    </div>
+  </div>
+</section>
+
+<div class="template-content">
+  <div class="template-section">
+    <h2>Overview</h2>
+    <div class="prose">
+      {{ page.content | safe }}
+    </div>
+  </div>
+
+  {% if page.extra.features %}
+  <div class="template-section">
+    <h2>Features</h2>
+    <div class="features-grid">
+      {% for feat in page.extra.features %}
+      <div class="feature-card">
+        <h3>{{ feat }}</h3>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if page.extra.customization %}
+  <div class="template-section">
+    <h2>How to Customize This World</h2>
+    <div class="customization-box">
+      <ol>
+        {% for step in page.extra.customization %}
+        <li>{{ step }}</li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if page.extra.faq %}
+  <div class="template-section">
+    <h2>Frequently Asked Questions</h2>
+    {% for item in page.extra.faq %}
+    <div class="faq-item">
+      <h3>{{ item.question }}</h3>
+      <p>{{ item.answer }}</p>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="template-section" style="border-top: 1px solid var(--border); padding-top: 2rem;">
+    <h2>Explore More Templates</h2>
+    <div class="templates-grid">
+      {% set templates_section = get_section(path="templates/_index.md") %}
+      {% for t in templates_section.pages | slice(end=3) %}
+        {% if t.permalink != page.permalink %}
+        <a href="{{ t.permalink }}" class="template-card">
+          <span class="template-cat">{{ t.extra.category }}</span>
+          <h4 class="template-title">{{ t.title }}</h4>
+          <p class="template-desc">{{ t.description | truncate(length=80) }}</p>
+        </a>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock content %}

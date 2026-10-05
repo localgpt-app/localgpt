@@ -218,10 +218,10 @@ localgpt paths                  # Show resolved paths
 
 Full CLI reference: [`website/docs/cli-commands.md`](website/docs/cli-commands.md)
 
-## Blog
+## Devlog
 
-- [Explorable World as Agent Skill](https://localgpt.app/blog/world-as-skill)
-- [Why I Built LocalGPT in 4 Nights](https://localgpt.app/blog/why-i-built-localgpt-in-4-nights)
+- [Explorable World as Agent Skill](https://localgpt.rs/world-as-skill/)
+- [Why I Built LocalGPT in 4 Nights](https://localgpt.rs/why-i-built-localgpt-in-4-nights/)
 
 ## Built With
 

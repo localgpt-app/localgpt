@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <div class="container hero-grid">
+    <div class="hero-left">
+      <div class="hero-logos">
+        <img src="{{ get_url(path='logo/localgpt-icon.svg') }}" alt="LocalGPT Icon" class="hero-icon" width="120" height="120">
+        <img src="{{ get_url(path='logo/localgpt-gear.gif') }}" alt="LocalGPT Gear" class="hero-gear" width="320">
+      </div>
+
+      <div class="install-wrap">
+        <div class="install-row">
+          <span class="install-label">World Building</span>
+          <span class="install-code">cargo install localgpt-gen</span>
+          <button class="copy-btn" onclick="copyCmd(this, 'cargo install localgpt-gen')">Copy</button>
+        </div>
+        <div class="install-row">
+          <span class="install-label">AI Assistant</span>
+          <span class="install-code">cargo install localgpt</span>
+          <button class="copy-btn" onclick="copyCmd(this, 'cargo install localgpt')">Copy</button>
+        </div>
+      </div>
+
+      <p class="hero-subtitle">
+        A local AI assistant with persistent memory, and apps that turn words, songs, and notes into explorable 3D worlds.
+        <br>
+        Open source, runs locally.
+      </p>
+
+      <div class="hero-buttons">
+        <a href="/docs/gen/" class="btn btn-primary">Start Building</a>
+        <a href="/docs/intro/" class="btn btn-secondary">Documentation</a>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="video-wrapper">
+        <iframe
+          src="https://www.youtube.com/embed/R__tg7YY0T8?si=pvVW7eIVyNgXjJb0"
+          title="LocalGPT Demo"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen>
+        </iframe>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features Grid -->
+<section class="section-features">
+  <div class="container">
+    <h2 class="section-title">Built for Local-First Creation</h2>
+    <p class="section-subtitle">Everything runs directly on your machine without cloud dependencies or telemetry.</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <h3>Build Worlds with Language</h3>
+        <p>Describe a scene in natural language and watch it come to life. Spawn primitives, load glTF models, apply materials, set lighting, and position the camera — all through conversational prompts.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Procedural Audio</h3>
+        <p>Add ambient soundscapes (wind, rain, forest, ocean, cave, stream) and spatial audio emitters attached to entities. Real-time synthesis — no audio files required.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Data-Driven Behaviors</h3>
+        <p>Animate entities without scripting: orbit, spin, bob, look_at, pulse, path_follow, and bounce. Stack multiple behaviors on a single entity for complex motion.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Build Together</h3>
+        <p>Host a world on your network and let friends join with a PIN. Everyone explores in their own window and asks your AI to build where they're looking — joiners can only edit the scene, never your machine. <a href="/docs/gen/multiplayer/">Learn more &rarr;</a></p>
+      </div>
+      <div class="feature-card">
+        <h3>World Skills</h3>
+        <p>Save complete worlds as reusable skills — scene geometry, behaviors, audio configuration, camera tours. Load them instantly or share with others. Export to glTF for use in other engines.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Local &amp; Private</h3>
+        <p>Single Rust binary. All data stays on your machine — no cloud storage, no telemetry. Works with Claude CLI, Anthropic API, OpenAI, Ollama, and GLM. Just <code>cargo install localgpt-gen</code>.</p>
+      </div>
+      <div class="feature-card">
+        <h3>MCP Server</h3>
+        <p>Run standalone or as an MCP server to integrate with Claude Desktop, Codex Desktop/CLI, Gemini CLI, and MCP-compatible editors. Drive the 3D window from your favorite AI coding assistant.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Persistent Memory</h3>
+        <p>Markdown-based memory with hybrid search — SQLite FTS5 plus local vector embeddings. Your AI remembers context across sessions and can reference previous world-building decisions.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Family Apps -->
+<section class="section-apps">
+  <div class="container">
+    <h2 class="section-title">The LocalGPT Family</h2>
+    <p class="section-subtitle">Open source apps that turn what you type, write, and listen to into places you can explore — all running locally.</p>
+    <div class="apps-grid">
+      <a href="/docs/gen/" class="app-card">
+        <span class="app-tagline">Worlds from words</span>
+        <h3 class="app-name">LocalGPT Gen</h3>
+        <p class="app-desc">Describe a place and walk into it — geometry, materials, lighting, behaviors, and sound. Build alone or host a session and build with friends.</p>
+        <span class="app-cta">Start building &rarr;</span>
+      </a>
+      <a href="https://verse.localgpt.app/" class="app-card" target="_blank" rel="noopener">
+        <span class="app-tagline">A world for every song</span>
+        <h3 class="app-name">LocalGPT Verse</h3>
+        <p class="app-desc">Listens to your music and imagines a living 3D world for each track — analyzed, staged, and performed entirely on your machine.</p>
+        <span class="app-cta">verse.localgpt.app ↗</span>
+      </a>
+      <a href="https://md.localgpt.app/" class="app-card" target="_blank" rel="noopener">
+        <span class="app-tagline">Walk through your notes</span>
+        <h3 class="app-name">LocalGPT MD</h3>
+        <p class="app-desc">Open a Markdown file as a 3D world. Every section becomes a place, and saving the file rebuilds the world while you watch.</p>
+        <span class="app-cta">md.localgpt.app ↗</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Templates Preview -->
+<section class="section-templates">
+  <div class="container">
+    <h2 class="section-title">World Templates</h2>
+    <p class="section-subtitle">Jumpstart your project with production-ready environments. Fully explorable, customizable, and free.</p>
+    <div class="templates-grid">
+      {% set templates_section = get_section(path="templates/_index.md") %}
+      {% for t in templates_section.pages | slice(end=8) %}
+      <a href="{{ t.permalink }}" class="template-card">
+        <span class="template-cat">{{ t.extra.category | default(value="World") }}</span>
+        <h4 class="template-title">{{ t.title }}</h4>
+        <p class="template-desc">{{ t.description | truncate(length=90) }}</p>
+      </a>
+      {% endfor %}
+    </div>
+    <div style="text-align: center; margin-top: 2.5rem;">
+      <a href="/templates/" class="btn btn-secondary">Browse All Templates &rarr;</a>
+    </div>
+  </div>
+</section>
+{% endblock content %}

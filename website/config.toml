@@ -1,0 +1,52 @@
+base_url = "https://localgpt.app"
+title = "LocalGPT"
+description = "A local AI assistant with persistent memory, and apps that turn words, songs, and notes into explorable 3D worlds."
+compile_sass = false
+build_search_index = true
+generate_feeds = false
+
+[markdown]
+smart_punctuation = true
+bottom_footnotes = true
+github_alerts = true
+insert_anchor_links = "right"
+
+[markdown.highlighting]
+theme = "dracula"
+
+[extra]
+github = "https://github.com/localgpt-app/localgpt"
+discord = "https://discord.gg/spKRr6mRyp"
+twitter = "https://x.com/localgpt"
+youtube = "https://www.youtube.com/@localgpt-app"
+youtube_gen = "https://www.youtube.com/@localgpt-gen"
+
+[[extra.family]]
+name = "LocalGPT"
+url = "https://localgpt.app"
+blurb = "A local AI assistant with persistent memory."
+
+[[extra.family]]
+name = "LocalGPT Gen"
+url = "https://gen.localgpt.app"
+blurb = "Worlds from words."
+
+[[extra.family]]
+name = "LocalGPT Verse"
+url = "https://verse.localgpt.app"
+blurb = "A 3D world for every song."
+
+[[extra.family]]
+name = "LocalGPT MD"
+url = "https://md.localgpt.app"
+blurb = "Walk through your notes as a world."
+
+[[extra.family]]
+name = "localgpt.world"
+url = "https://localgpt.world"
+blurb = "Worlds from every app, in your browser."
+
+[[extra.family]]
+name = "localgpt.rs"
+url = "https://localgpt.rs"
+blurb = "The devlog: building it all in Rust."
