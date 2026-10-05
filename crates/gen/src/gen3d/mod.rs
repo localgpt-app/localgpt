@@ -17,6 +17,7 @@ pub mod gallery_ui;
 pub mod generation_log;
 pub mod gltf_export;
 pub mod headless;
+pub mod history_rail;
 pub mod live;
 pub mod mcp_relay;
 pub mod model_server;

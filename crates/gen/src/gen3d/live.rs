@@ -82,7 +82,40 @@ struct Live {
     deferred: Vec<Call>,
     camera: Option<wt::CameraDef>,
     replay: Option<Replay>,
+    /// Set whenever the history or the canvas's place in it changes, so the
+    /// rail's snapshot is rebuilt once rather than every frame.
+    history_dirty: bool,
 }
+
+/// What the history rail draws: the log as rows, and where the canvas is.
+///
+/// Published by `live_world` whenever the history or the canvas's place in it
+/// changes, so the rail draws from a snapshot and never reaches into the
+/// authority or the view. Rows are in file order.
+#[derive(Resource, Debug, Clone, Default, PartialEq)]
+pub struct LiveHistory {
+    pub rows: Vec<HistoryRow>,
+    /// The entry the canvas shows, or `None` for the base.
+    pub current: Option<String>,
+}
+
+/// One entry of the log, as the rail shows it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HistoryRow {
+    pub id: String,
+    pub revision: u64,
+    pub author: String,
+    pub summary: String,
+    /// Nothing builds on this entry: the end of a branch.
+    pub tip: bool,
+}
+
+/// Ask the canvas to show a point in its history (`None`: the base).
+///
+/// The rail sends these, and `POST /goto` takes the same path — [`seek`] —
+/// so a person and an agent moving through history cannot behave differently.
+#[derive(Message, Debug, Clone)]
+pub struct SeekTo(pub Option<String>);
 
 /// A replay of the git history: keyframes shown one after another.
 struct Replay {
@@ -159,10 +192,56 @@ pub fn setup_live(app: &mut App, dir: &Path) -> anyhow::Result<()> {
         shot_count: 0,
         deferred: Vec::new(),
         replay: None,
+        history_dirty: true,
     })
     .insert_resource(Endpoint(endpoint))
+    .init_resource::<LiveHistory>()
+    .add_message::<SeekTo>()
+    .add_plugins(super::history_rail::HistoryRailPlugin)
     .add_systems(Update, (live_world, live_view).chain());
     Ok(())
+}
+
+/// Move the canvas to `tip` (`None`: the base) — the one seek path, used by
+/// `POST /goto` and the rail alike. A view move: nothing is written, and
+/// commits keep landing on the head; the canvas shows history, it does not
+/// rewrite it. Returns what changed, for whoever asked.
+fn seek(
+    live: &mut Live,
+    applier: &mut OpsApplier<'_, '_>,
+    tip: Option<&str>,
+) -> Result<Vec<String>, String> {
+    let delta = live.view.goto(tip).map_err(|e| e.to_string())?;
+    applier.apply_ops(&for_scene(&delta.ops, live.world.dir()));
+    live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
+    live.history_dirty = true;
+    let changes = live::describe_ops(&delta.ops);
+    eprintln!(
+        "[live] sought {} · {}",
+        live.view.tip().unwrap_or("the base"),
+        changes.join(" · ")
+    );
+    Ok(changes)
+}
+
+/// The rail's snapshot of the history, from the view.
+fn publish(live: &Live) -> LiveHistory {
+    let tips: std::collections::HashSet<&str> = live.view.tips().into_iter().collect();
+    LiveHistory {
+        rows: live
+            .view
+            .history()
+            .iter()
+            .map(|e| HistoryRow {
+                id: e.id.to_string(),
+                revision: e.entry.revision,
+                author: e.entry.author.name.clone(),
+                summary: live::describe_ops(&e.entry.edit_ops()).join(" · "),
+                tip: tips.contains(e.id),
+            })
+            .collect(),
+        current: live.view.tip().map(str::to_string),
+    }
 }
 
 const ENDPOINTS: &[(&str, &str)] = &[
@@ -205,7 +284,13 @@ fn endpoints() -> Value {
 }
 
 /// The world side: first build, ops, undo, replays, guarding manifest.json.
-fn live_world(time: Res<Time>, mut live: ResMut<Live>, mut applier: OpsApplier) {
+fn live_world(
+    time: Res<Time>,
+    mut live: ResMut<Live>,
+    mut applier: OpsApplier,
+    mut snapshot: ResMut<LiveHistory>,
+    mut seeks: MessageReader<SeekTo>,
+) {
     let live = &mut *live;
     if !live.started {
         live.started = true;
@@ -268,6 +353,7 @@ fn live_world(time: Res<Time>, mut live: ResMut<Live>, mut applier: OpsApplier) 
                             });
                         applier.apply_ops(&for_scene(&ops, live.world.dir()));
                         live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
+                        live.history_dirty = true;
                         eprintln!(
                             "[live] revision {} · {}",
                             done.revision,
@@ -300,6 +386,7 @@ fn live_world(time: Res<Time>, mut live: ResMut<Live>, mut applier: OpsApplier) 
                         .unwrap_or_else(|_| done.ops.clone());
                     applier.apply_ops(&for_scene(&ops, live.world.dir()));
                     live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
+                    live.history_dirty = true;
                     Reply::ok(json!({
                         "result": "committed",
                         "revision": done.revision,
@@ -378,29 +465,14 @@ fn live_world(time: Res<Time>, mut live: ResMut<Live>, mut applier: OpsApplier) 
                     ));
                     continue;
                 };
-                // A seek is a view move: nothing is written, and commits keep
-                // landing on the head — the canvas shows history, it does not
-                // rewrite it.
-                match live.view.goto(asked.as_deref()) {
-                    Ok(delta) => {
-                        applier.apply_ops(&for_scene(&delta.ops, live.world.dir()));
-                        live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
-                        eprintln!(
-                            "[live] sought {} · {}",
-                            live.view.tip().unwrap_or("the base"),
-                            live::describe_ops(&delta.ops).join(" · ")
-                        );
-                        Reply::ok(json!({
-                            "result": "sought",
-                            "tip": live.view.tip(),
-                            "revision": live.view.revision(),
-                            "changes": live::describe_ops(&delta.ops),
-                        }))
-                    }
-                    Err(e) => Reply::status(
-                        404,
-                        json!({"result": "rejected", "errors": [e.to_string()]}),
-                    ),
+                match seek(live, &mut applier, asked.as_deref()) {
+                    Ok(changes) => Reply::ok(json!({
+                        "result": "sought",
+                        "tip": live.view.tip(),
+                        "revision": live.view.revision(),
+                        "changes": changes,
+                    })),
+                    Err(e) => Reply::status(404, json!({"result": "rejected", "errors": [e]})),
                 }
             }
             ("GET", "/screenshot" | "/selection") => {
@@ -413,6 +485,18 @@ fn live_world(time: Res<Time>, mut live: ResMut<Live>, mut applier: OpsApplier) 
             ),
         };
         let _ = call.reply.send(reply);
+    }
+
+    // The rail's requests, through the same seek the API uses.
+    let asked: Vec<Option<String>> = seeks.read().map(|s| s.0.clone()).collect();
+    for tip in asked {
+        if let Err(e) = seek(live, &mut applier, tip.as_deref()) {
+            eprintln!("[live] can't seek: {e}");
+        }
+    }
+    if live.history_dirty {
+        live.history_dirty = false;
+        snapshot.set_if_neq(publish(live));
     }
 
     // A replay steps keyframe to keyframe, then returns to the head.
