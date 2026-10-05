@@ -1,10 +1,11 @@
 # LocalGPT Website (Zola) - GEMINI.md
 
-This directory contains the source code for the [LocalGPT](https://localgpt.app) documentation website and templates showcase, built with **Zola**.
+This directory contains the source code for the [LocalGPT](https://localgpt.app) documentation website and templates showcase, built with **Zola** and deployed to Cloudflare Workers.
 
 ## Project Overview
 
 - **Core Technology:** Zola (Rust-based static site generator).
+- **Deployment:** Cloudflare Workers (static assets).
 - **Purpose:** Central documentation hub for LocalGPT, a local-first, privacy-focused AI assistant built in Rust.
 - **Key Features:**
   - Fast, single-binary compilation with zero Node.js / npm dependencies.
@@ -19,6 +20,7 @@ This directory contains the source code for the [LocalGPT](https://localgpt.app)
 zola serve             # Local development server at http://127.0.0.1:1111
 zola build             # Production build into public/
 zola check             # Verify internal and external links
+./deploy.sh            # Build and deploy to Cloudflare Workers
 ```
 
 ## Project Structure
@@ -28,4 +30,5 @@ zola check             # Verify internal and external links
 - `templates/`: Tera templates (`base.html`, `index.html`, `docs_page.html`, `template_single.html`, `templates_index.html`).
 - `static/`: Static assets (CSS, logos, icons, updater manifests).
 - `config.toml`: Central Zola configuration.
-- `firebase.json`: Hosting configuration (serves `public`).
+- `wrangler.toml`: Cloudflare Workers configuration (serves `./public`).
+- `deploy.sh`: Deployment script.

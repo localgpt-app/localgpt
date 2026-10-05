@@ -1,4 +1,5 @@
-.firebase
+.wrangler
+
 # Generated build output
 public/
 /build
