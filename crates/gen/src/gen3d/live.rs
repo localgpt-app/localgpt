@@ -66,6 +66,10 @@ impl Reply {
 #[derive(Resource)]
 struct Live {
     world: LiveWorld,
+    /// The non-linear view over the same log: seeks, tips, and the delta
+    /// between what the canvas shows and where it is going. The authority
+    /// commits; this follows — one document, two halves of the reconciler.
+    view: localgpt_world_editor::Editor,
     calls: Mutex<Receiver<Call>>,
     started: bool,
     guard: Timer,
@@ -141,9 +145,12 @@ pub fn setup_live(app: &mut App, dir: &Path) -> anyhow::Result<()> {
         dir.display()
     );
 
+    let view = localgpt_world_editor::Editor::open(world.base().clone(), world.entries().to_vec())
+        .map_err(|e| anyhow::anyhow!("the history doesn't open as a tree: {e}"))?;
     app.insert_resource(Live {
         camera: world.head_manifest().camera.clone(),
         world,
+        view,
         calls: Mutex::new(rx),
         started: false,
         guard: Timer::from_seconds(0.5, TimerMode::Repeating),
@@ -177,6 +184,14 @@ const ENDPOINTS: &[(&str, &str)] = &[
     (
         "POST /replay",
         "replay the git history commit by commit (?rev=branch&seconds=0.8)",
+    ),
+    (
+        "GET /tips",
+        "every branch end in the history, and which one the canvas is on",
+    ),
+    (
+        "POST /goto",
+        "move the canvas to a tip ({\"tip\": \"id\"}, or null for the base) — a view move; commits keep landing on the head",
     ),
 ];
 
@@ -223,7 +238,7 @@ fn live_world(time: Res<Time>, mut live: ResMut<Live>, mut applier: OpsApplier) 
             ("GET", "/world") => {
                 Reply::ok(serde_json::to_value(live.world.head_manifest()).unwrap_or_default())
             }
-            ("GET", "/log") => Reply::ok(history(&live.world)),
+            ("GET", "/log") => Reply::ok(history(&live.world, live.view.history())),
             ("POST", "/ops") => match serde_json::from_slice::<Value>(&call.body) {
                 Err(e) => Reply::status(
                     400,
@@ -235,7 +250,23 @@ fn live_world(time: Res<Time>, mut live: ResMut<Live>, mut applier: OpsApplier) 
                     None,
                 ) {
                     Ok(done) => {
-                        applier.apply_ops(&for_scene(&done.ops, live.world.dir()));
+                        // The delta from the view, not the batch's ops: the
+                        // canvas may be sought back, and the ops that move it
+                        // from what it shows to the new head are not the ops
+                        // the batch carried.
+                        // If the view cannot follow (a log it could not
+                        // open as a tree), fall back to the batch's own ops:
+                        // right while the canvas sits at the head, which is
+                        // the only place it can be without the view.
+                        let ops = live
+                            .view
+                            .committed(done.entry.clone())
+                            .map(|delta| delta.ops)
+                            .unwrap_or_else(|e| {
+                                eprintln!("[live] the view could not follow: {e}");
+                                done.ops.clone()
+                            });
+                        applier.apply_ops(&for_scene(&ops, live.world.dir()));
                         live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
                         eprintln!(
                             "[live] revision {} · {}",
@@ -262,7 +293,12 @@ fn live_world(time: Res<Time>, mut live: ResMut<Live>, mut applier: OpsApplier) 
                 .undo(&param(&call.query, "author").unwrap_or("you".into()))
             {
                 Ok(done) => {
-                    applier.apply_ops(&for_scene(&done.ops, live.world.dir()));
+                    let ops = live
+                        .view
+                        .committed(done.entry.clone())
+                        .map(|d| d.ops)
+                        .unwrap_or_else(|_| done.ops.clone());
+                    applier.apply_ops(&for_scene(&ops, live.world.dir()));
                     live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
                     Reply::ok(json!({
                         "result": "committed",
@@ -306,6 +342,65 @@ fn live_world(time: Res<Time>, mut live: ResMut<Live>, mut applier: OpsApplier) 
                         }
                         Err(e) => Reply::status(400, json!({"error": e.to_string()})),
                     }
+                }
+            }
+            ("GET", "/tips") => Reply::ok(json!({
+                "tips": live.view.tips(),
+                "current": live.view.tip(),
+                "revision": live.view.revision(),
+            })),
+            ("POST", "/goto") => {
+                let body: Value = serde_json::from_slice(&call.body).unwrap_or_else(|_| json!({}));
+                let asked = if let Some(t) = param(&call.query, "tip") {
+                    // `?tip=null` is how a query string says the base.
+                    (t != "null").then_some(t)
+                } else if let Some(t) = body.get("tip") {
+                    if t.is_null() {
+                        None
+                    } else {
+                        match t.as_str() {
+                            Some(t) => Some(t.to_string()),
+                            None => {
+                                let _ = call.reply.send(Reply::status(
+                                    400,
+                                    json!({"result": "rejected",
+                                           "errors": ["\"tip\" is an entry id, or null for the base"]}),
+                                ));
+                                continue;
+                            }
+                        }
+                    }
+                } else {
+                    let _ = call.reply.send(Reply::status(
+                        400,
+                        json!({"result": "rejected",
+                               "errors": ["name a tip, or send null for the base"]}),
+                    ));
+                    continue;
+                };
+                // A seek is a view move: nothing is written, and commits keep
+                // landing on the head — the canvas shows history, it does not
+                // rewrite it.
+                match live.view.goto(asked.as_deref()) {
+                    Ok(delta) => {
+                        applier.apply_ops(&for_scene(&delta.ops, live.world.dir()));
+                        live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
+                        eprintln!(
+                            "[live] sought {} · {}",
+                            live.view.tip().unwrap_or("the base"),
+                            live::describe_ops(&delta.ops).join(" · ")
+                        );
+                        Reply::ok(json!({
+                            "result": "sought",
+                            "tip": live.view.tip(),
+                            "revision": live.view.revision(),
+                            "changes": live::describe_ops(&delta.ops),
+                        }))
+                    }
+                    Err(e) => Reply::status(
+                        404,
+                        json!({"result": "rejected", "errors": [e.to_string()]}),
+                    ),
                 }
             }
             ("GET", "/screenshot" | "/selection") => {
@@ -415,16 +510,20 @@ fn live_view(
 }
 
 /// The history as the API reports it.
-fn history(world: &LiveWorld) -> Value {
+fn history(world: &LiveWorld, ids: &localgpt_world_editor::History) -> Value {
     let entries: Vec<Value> = world
         .entries()
         .iter()
-        .map(|entry| {
+        .enumerate()
+        .map(|(n, entry)| {
             let intent = entry.ops.iter().find_map(|op| match op {
                 localgpt_world_sync::SessionOp::Tool(t) if t.tool == "live" => Some(t.args.clone()),
                 _ => None,
             });
             json!({
+                // The id a tip names — the log's own when it carries one, the
+                // synthesized `line-<n>` when file order is the chain.
+                "id": ids.id_at(n),
                 "revision": entry.revision,
                 "author": entry.author.name,
                 "intent": intent,

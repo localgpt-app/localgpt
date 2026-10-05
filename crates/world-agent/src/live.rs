@@ -1280,7 +1280,12 @@ the op again — that makes a new version, and the old one stays for history.
   Look at it after a change.
 - `GET $URL/selection` — what the person has selected; "this" means it.
 - `POST $URL/undo` — undoes the newest change by appending its inverse.
-- `GET $URL/log` — the history: revision, author, message.
+- `GET $URL/log` — the history: each entry's id, revision, author, message.
+- `GET $URL/tips` — every branch end in the history, and which one the window
+  is showing.
+- `POST $URL/goto -d '{"tip": "<id>"}'` — move the window to any point in the
+  history (`null` for before it began). Nothing is written and your commits
+  still land on the head; this is how you look at an earlier state.
 - `.live/preview.png` refreshes by itself after every change.
 
 Everything you send is recorded in `ops.jsonl` under your author name.
@@ -1340,7 +1345,10 @@ mod tests {
         assert!(!is_package(&dir), "an empty folder is not a package yet");
         std::fs::write(dir.join(MANIFEST), b"{\"version\": 3}").unwrap();
         assert!(is_package(&dir), "a manifest makes it one, log or no log");
-        assert!(!is_package(dir.join(MANIFEST).as_path()), "a file is not a package");
+        assert!(
+            !is_package(dir.join(MANIFEST).as_path()),
+            "a file is not a package"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

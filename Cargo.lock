@@ -8479,6 +8479,7 @@ dependencies = [
  "localgpt-world-agent",
  "localgpt-world-audio",
  "localgpt-world-bevy",
+ "localgpt-world-editor",
  "localgpt-world-export",
  "localgpt-world-sync",
  "localgpt-world-types",

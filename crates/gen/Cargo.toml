@@ -23,6 +23,9 @@ localgpt-world-bevy = { workspace = true }
 # rule, which MD and Verse read from here too. Not optional — `local-llm`
 # needs it, and nothing in this crate is cheaper without it.
 localgpt-world-agent = { workspace = true }
+# The non-linear view over a live package's log — the canvas's seeks and
+# tips. Bevy-free, like world-agent.
+localgpt-world-editor = { workspace = true }
 # The one audio mapping: kira owns the device, FunDSP graphs are sources.
 # Gen's hand-rolled cpal engine and its per-frame attenuation moved here.
 localgpt-world-audio = { workspace = true }
