@@ -336,24 +336,36 @@ crate that can see both — gen, which does not depend on `world-editor` yet.
 
 ## Order of work
 
-1. ~~**`editor core`, headless.**~~ **Done** — `crates/world-editor`.
+1. ~~**`editor core`, headless.**~~ **Done** — `crates/world-editor`, then
+   collapsed to a view over the one authority: `LiveWorld` commits,
+   `Editor::committed` follows, and `tests/authority_and_view.rs` pins that
+   they never disagree.
 2. **The history store.** Mostly done: snapshots on a cadence, at fork
    points and at the tip, with LRU eviction that never drops the snapshot
    the next step needs, and the scrub budget proven on a synthetic session.
-   The upstream fold fix is done; what remains is persistence — entries by
-   content hash (`history/<sha>` objects, `oplog::compute_entry_id`) — plus
-   publishing 0.3.1 so the workspace can use `apply_entry_in_place`.
-3. **The reconciler.** Document delta → minimal ECS mutation, asset cache
+   The upstream fold fix is done and taken; what remains is persistence —
+   entries by content hash (`history/<sha>` objects,
+   `oplog::compute_entry_id`).
+3. ~~**The app opens a package natively.**~~ **Done, launch-time.**
+   `localgpt-app --world <package>` — and a bare relaunch of a remembered
+   package — opens the folder as a live canvas: the authority, its ops API
+   and the canvas, with no in-window agent, because the outside agents are
+   the editors (`localgpt world`, a terminal, `localgpt world mcp`).
+   Runtime switching of an open world arrives with the reconciler, when
+   loading becomes a switch instead of a build-time shape.
+4. **The reconciler.** Document delta → minimal ECS mutation, asset cache
    keyed by sha256. Delete the scene→ops projection in the same change; they
-   cannot both exist.
-4. **The viewport.** `bevy_picking` + `bevy_gizmos`, with every manipulation
+   cannot both exist. `Editor::goto` → `Delta` → `OpsApplier` is the path —
+   all three pieces exist, unwired.
+5. **The viewport.** `bevy_picking` + `bevy_gizmos`, with every manipulation
    emitting one op per intent — one op per drag, not per frame.
-5. **The branch rail.** Render-target thumbnails, scrub, fork, tip switching.
-   First surface to exercise steps 1–3 for real.
-6. **Chrome.** Outliner, inspector, asset shelf, log on
+6. **The branch rail.** Render-target thumbnails, scrub, fork, tip switching.
+   First surface to exercise steps 1–4 for real.
+7. **Chrome.** Outliner, inspector, asset shelf, log on
    `bevy_ui_widgets`/`feathers`, with a hand-rolled tree.
-7. **Agents.** External terminal, then the MCP shim, then ACP, then — only if
-   wanted — the in-window pane.
+8. **Agents.** The launch layer (`world-agent::agent_cli`) and the MCP shim
+   (`localgpt world mcp`) are built. ACP and an in-window pane remain, only
+   if wanted.
 
 ## What would change the answer
 
