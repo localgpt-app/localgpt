@@ -35,7 +35,7 @@ mod screenshot;
 mod song;
 mod starter;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use bevy::prelude::*;
 use localgpt_gen::desktop::{self, ChatEvent, PanelSettings};
@@ -188,6 +188,9 @@ fn main() -> anyhow::Result<()> {
     // A document: MD's pipeline builds the first world (camera included — it
     // places the view once), and the live Document drives every rebuild after.
     let mut live_document = None;
+    // A package opened as a live canvas: the window holds the authority and
+    // serves the ops API, and there is no in-window agent.
+    let mut live_canvas: Option<PathBuf> = None;
     let showing;
     let initial_world;
     // What to remember for the next bare launch, and what a bare launch
@@ -228,10 +231,26 @@ fn main() -> anyhow::Result<()> {
         remember = Some(localgpt_gen::settings::LastOpened::World { dir: dir.clone() });
         initial_world = Some(dir);
     } else if let Some(world) = &args.world {
-        showing = Some(format!("World · {world}"));
-        let dir = import(world);
-        remember = Some(localgpt_gen::settings::LastOpened::World { dir: dir.clone() });
-        initial_world = Some(dir);
+        // A package folder is the document now (`docs/rfcs/authoring/
+        // world-editor-stack.md`): open it as a live canvas — the app holds
+        // the authority, serves the ops API, and agents change the world
+        // from outside — rather than importing its manifest to `world.ron`.
+        let world_path = Path::new(world);
+        if localgpt_world_agent::live::is_package(world_path) {
+            eprintln!(
+                "localgpt-app: {} is a world package — opening it live",
+                world_path.display()
+            );
+            showing = Some(format!("World · {}", file_name(world_path)));
+            live_canvas = Some(world_path.to_path_buf());
+            remember = Some(localgpt_gen::settings::LastOpened::World { dir: world.clone() });
+            initial_world = None;
+        } else {
+            showing = Some(format!("World · {world}"));
+            let dir = import(world);
+            remember = Some(localgpt_gen::settings::LastOpened::World { dir: dir.clone() });
+            initial_world = Some(dir);
+        }
     } else {
         // Reopen where the user left off: a document with its editor again,
         // anything else as its world (a song's plays on its own). Gone is
@@ -253,11 +272,17 @@ fn main() -> anyhow::Result<()> {
                 initial_world = Some(dir.to_string_lossy().into_owned());
             }
             Some(localgpt_gen::settings::LastOpened::World { dir })
-                if std::path::Path::new(&dir).join("world.ron").is_file() =>
+                if std::path::Path::new(&dir).join("world.ron").is_file()
+                    || localgpt_world_agent::live::is_package(std::path::Path::new(&dir)) =>
             {
                 eprintln!("localgpt-app: reopened {}", dir);
                 showing = Some(format!("World · {}", file_name(std::path::Path::new(&dir))));
-                initial_world = Some(dir);
+                if localgpt_world_agent::live::is_package(std::path::Path::new(&dir)) {
+                    live_canvas = Some(PathBuf::from(&dir));
+                    initial_world = None;
+                } else {
+                    initial_world = Some(dir);
+                }
             }
             _ => {
                 // A true cold start: nothing asked for, nothing remembered.
@@ -300,11 +325,15 @@ fn main() -> anyhow::Result<()> {
     let (bridge, channels) = gen3d::create_gen_channels();
     let (panel_channels, agent_channels) = desktop::create_chat_channels();
 
-    let tool_profile = tool_profile(args.tools.as_deref(), settings.tool_profile.as_deref())
-        .unwrap_or_else(|e| {
-            eprintln!("localgpt-app: {e}");
-            std::process::exit(2);
-        });
+    // **Canvas mode.** A package opened live makes the window the authority's
+    // canvas: no in-window agent, no prompt panel, no collaboration host and
+    // no open bar — agents change the world from outside, through the ops API
+    // this window serves, from a terminal (`localgpt world`, herdr, Claude
+    // Code over `localgpt world mcp`). That is the shape gen's `--live`
+    // proved, and it is why nothing here may mutate the scene except ops.
+    // The reconciler is what later lets a panel return, its tools emitting
+    // ops instead of touching the ECS.
+    let canvas = live_canvas.is_some();
 
     // Collaboration, as in Gen's desktop mode: the host plugin is installed
     // dormant, and the panel's Collaborate section starts a session.
@@ -313,64 +342,73 @@ fn main() -> anyhow::Result<()> {
 
     // A CLI backend reaches the world's tools through the MCP relay, which
     // the window serves and `localgpt-app mcp-server --connect` joins.
-    let relay = localgpt_gen::agent_loop::uses_cli_backend(&config);
+    let mut relay = false;
+    if !canvas {
+        relay = localgpt_gen::agent_loop::uses_cli_backend(&config);
 
-    // Gen's agent loop on a background thread: Bevy owns the main thread
-    // (macOS). No REPL: the panel is the only local input.
-    let agent_config = config.clone();
-    let relay_bridge = bridge.clone();
-    let failure_sink = agent_channels.sink.clone();
-    let first_prompt = args.prompt.clone();
-    std::thread::spawn(move || {
-        let rt = match tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-        {
-            Ok(rt) => rt,
-            Err(e) => {
-                failure_sink.send(ChatEvent::Failed(format!("no tokio runtime: {e}")));
-                return;
-            }
-        };
-        let outcome = rt.block_on(async move {
-            if relay {
-                match gen3d::mcp_relay::start_mcp_relay(relay_bridge, &agent_config).await {
-                    Ok(port) => tracing::info!("MCP relay on port {port} for the CLI backend"),
-                    Err(e) => tracing::warn!(
-                        "MCP relay failed to start ({e}): the CLI backend can't reach the \
-                         world's tools"
-                    ),
+        let tool_profile = tool_profile(args.tools.as_deref(), settings.tool_profile.as_deref())
+            .unwrap_or_else(|e| {
+                eprintln!("localgpt-app: {e}");
+                std::process::exit(2);
+            });
+
+        // Gen's agent loop on a background thread: Bevy owns the main thread
+        // (macOS). No REPL: the panel is the only local input.
+        let agent_config = config.clone();
+        let relay_bridge = bridge.clone();
+        let failure_sink = agent_channels.sink.clone();
+        let first_prompt = args.prompt.clone();
+        std::thread::spawn(move || {
+            let rt = match tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(rt) => rt,
+                Err(e) => {
+                    failure_sink.send(ChatEvent::Failed(format!("no tokio runtime: {e}")));
+                    return;
                 }
-            }
-            localgpt_gen::agent_loop::run_agent_loop(
-                bridge,
-                AGENT_ID,
-                first_prompt,
-                agent_config,
-                None,
-                Some(net_hooks),
-                agent_channels,
-                true,
-                tool_profile,
-            )
-            .await
-        });
-        match outcome {
-            // /quit in the panel ends the loop, and the app with it.
-            Ok(()) => {
+            };
+            let outcome = rt.block_on(async move {
                 if relay {
-                    gen3d::mcp_relay::cleanup_relay_port();
+                    match gen3d::mcp_relay::start_mcp_relay(relay_bridge, &agent_config).await {
+                        Ok(port) => tracing::info!("MCP relay on port {port} for the CLI backend"),
+                        Err(e) => tracing::warn!(
+                            "MCP relay failed to start ({e}): the CLI backend can't reach the \
+                         world's tools"
+                        ),
+                    }
                 }
-                std::process::exit(0);
+                localgpt_gen::agent_loop::run_agent_loop(
+                    bridge,
+                    AGENT_ID,
+                    first_prompt,
+                    agent_config,
+                    None,
+                    Some(net_hooks),
+                    agent_channels,
+                    true,
+                    tool_profile,
+                )
+                .await
+            });
+            match outcome {
+                // /quit in the panel ends the loop, and the app with it.
+                Ok(()) => {
+                    if relay {
+                        gen3d::mcp_relay::cleanup_relay_port();
+                    }
+                    std::process::exit(0);
+                }
+                // Say what went wrong in the panel, and leave the window open to
+                // read it.
+                Err(e) => {
+                    tracing::error!("agent loop stopped: {e:#}");
+                    failure_sink.send(ChatEvent::Failed(format!("{e:#}")));
+                }
             }
-            // Say what went wrong in the panel, and leave the window open to
-            // read it.
-            Err(e) => {
-                tracing::error!("agent loop stopped: {e:#}");
-                failure_sink.send(ChatEvent::Failed(format!("{e:#}")));
-            }
-        }
-    });
+        });
+    }
 
     let mut app = App::new();
     app.add_plugins(
@@ -399,26 +437,34 @@ fn main() -> anyhow::Result<()> {
     })
     .insert_resource(open::Showing(showing));
     gen3d::plugin::setup_gen_app(&mut app, channels, workspace, None);
+    // A canvas starts from the package's own log — the live plugin builds the
+    // scene from it — so there is no initial world to load. Any startup
+    // defaults would collide with the ids the log reuses, the same reason a
+    // replay clears the scene first.
     app.insert_resource(gen3d::plugin::GenInitialWorld {
-        path: initial_world,
+        path: if canvas { None } else { initial_world },
     });
-    app.add_plugins(localgpt_gen::net::host::NetHostPlugin {
-        options: std::sync::Mutex::new(Some(host_options)),
-    });
-    app.add_plugins(desktop::PromptPanelPlugin::new(
-        panel_channels,
-        PanelSettings {
-            open: true,
-            focus_input: true,
-            settings_file: localgpt_gen::settings::settings_path(),
-            collab: Some(settings.collab.clone()),
-        },
-    ));
-    app.add_plugins((
-        document::DocumentPlugin,
-        now_playing::NowPlayingPlugin,
-        open::OpenPlugin,
-    ));
+    if let Some(dir) = &live_canvas {
+        localgpt_gen::gen3d::live::setup_live(&mut app, dir)?;
+    } else {
+        app.add_plugins(localgpt_gen::net::host::NetHostPlugin {
+            options: std::sync::Mutex::new(Some(host_options)),
+        });
+        app.add_plugins(desktop::PromptPanelPlugin::new(
+            panel_channels,
+            PanelSettings {
+                open: true,
+                focus_input: true,
+                settings_file: localgpt_gen::settings::settings_path(),
+                collab: Some(settings.collab.clone()),
+            },
+        ));
+        app.add_plugins((
+            document::DocumentPlugin,
+            now_playing::NowPlayingPlugin,
+            open::OpenPlugin,
+        ));
+    }
     if let Some(live) = live_document {
         app.insert_resource(live);
     }

@@ -1,17 +1,29 @@
----
-slug: why-i-built-localgpt-in-4-nights
-title: Why I Built LocalGPT in 4 Nights
-authors: [yi]
-tags: [rust, ai, open-source, development, openclaw, localgpt]
----
+#!/bin/bash
+set -e
 
-# Why I Built LocalGPT in 4 Nights
+# Create target directories
+mkdir -p ../localgpt-rs/content
+mkdir -p ../localgpt-rs/static/img
 
+# Move the image
+cp website/static/img/desert-pyramids-ufo-screenshot.png ../localgpt-rs/static/img/
+
+# File 1
+cat << 'FILE1' > ../localgpt-rs/content/2026-02-07-why-i-built-localgpt-in-4-nights.md
++++
+title = "Why I Built LocalGPT in 4 Nights"
+description = "I'm a data engineer by day. At night, I've been building side projects. I kept running into the same problem: context. Every time I started a new AI chat session, I had to re-explain my projects, my preferences, my decisions. The AI had amnesia. Then I discovered OpenClaw."
+date = 2026-02-07
+draft = false
+authors = ["Yi"]
+
+[taxonomies]
+tags = ["rust", "ai", "open-source", "development", "openclaw"]
+projects = ["localgpt"]
++++
 I'm a data engineer by day. At night, I've been building side projects — apps, games, the usual fun stuff. I kept running into the same problem: context. Every time I started a new AI chat session, I had to re-explain my projects, my preferences, my decisions. The AI had amnesia.
 
 Then I discovered OpenClaw.
-
-<!-- truncate -->
 
 ### The OpenClaw Pattern
 
@@ -236,3 +248,52 @@ Here's a quick demo — "create a heart outline with spheres and cubes" using Lo
 | 83 | `6bd21a3` | Feb 6 02:10 | feat: add streaming tool details and slash commands to egui/web UIs |
 | 84 | `9c91931` | Feb 7 15:36 | fix: resolve UTF-8 boundary panics in memory search snippets and simplify indexing |
 | 85 | `6f4ea95` | Feb 7 21:06 | docs: rewrite README and update crate metadata for v0.1.2 |
+FILE1
+
+# File 2
+cat << 'FILE2' > ../localgpt-rs/content/2026-03-09-world-as-skill.md
++++
+title = "Explorable World as Agent Skill"
+description = "LocalGPT Gen v0.3.2 introduces a new concept: treating complete 3D worlds as reusable skills that agents can save, load, and share."
+date = 2026-03-09
+draft = false
+authors = ["Yi"]
+
+[taxonomies]
+tags = ["3d", "architecture", "skills", "world"]
+projects = ["localgpt", "gen"]
++++
+![desert-pyramids-ufo-screenshot.png](/img/desert-pyramids-ufo-screenshot.png)
+
+**LocalGPT Gen** v0.3.2 introduces a new concept: treating complete 3D worlds as reusable skills that agents can save, load, and share.
+
+`localgpt-gen` now saves complete worlds as skill directories containing:
+
+*   **Scene geometry** — All entities, meshes, and transforms
+*   **Behaviors** — Animations like orbit, spin, bob, path following
+*   **Audio configuration** — Ambient soundscapes and spatial emitters
+
+The skill folder structure:
+
+```
+skills/my-world/
+├── SKILL.md          # Description and usage
+├── world.ron         # World manifest with entities preserves parametric shapes
+└── export/
+    └── scene.glb     # glTF export (generated on demand)
+```
+
+This is inspired by [blender-mcp](https://github.com/ahujasid/blender-mcp) and [bevy_brp](https://github.com/natepiano/bevy_brp), and may shrink the software supply chain from intent to result a little bit more.
+
+LocalGPT Gen is closer to the domain of tools for [Explorable World](https://localgpt.app/docs/worlds) like Genie 3, SIMA 2, Marble, Intangible and Artcraft.
+
+**Showcases:**
+- [localgpt-gen-workspace](https://github.com/localgpt-app/localgpt-gen-workspace) — "World as skill" examples: complete explorable worlds saved as reusable, shareable skills
+- [proofof.video](https://proofof.video/) — Video gallery comparing world generations across different models using the same or similar prompts
+
+Many players are advancing the [Claw Ecosystem](https://localgpt.app/docs/claw) so the agent memory and orchestration will improve automatically.
+FILE2
+
+# Remove blog files from website
+rm -rf website/blog
+

@@ -29,10 +29,7 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/localgpt-app/localgpt/tree/main/website/',
         },
-        blog: {
-          showReadingTime: true,
-          editUrl: 'https://github.com/localgpt-app/localgpt/tree/main/website/',
-        },
+        blog: false,
         theme: {
           customCss: './src/css/custom.css',
         },
@@ -85,7 +82,7 @@ const config: Config = {
           position: 'left',
           label: 'Docs',
         },
-        {to: '/blog', label: 'Blog', position: 'left'},
+        {href: 'https://localgpt.rs/', label: 'Devlog', position: 'left'},
         {to: '/templates', label: 'Templates', position: 'left'},
         {
           type: 'dropdown',
@@ -226,8 +223,8 @@ const config: Config = {
               href: 'https://x.com/localgpt',
             },
             {
-              label: 'Blog',
-              to: '/blog',
+              label: 'Devlog',
+              href: 'https://localgpt.rs/',
             },
           ],
         },

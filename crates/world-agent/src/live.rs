@@ -60,6 +60,18 @@ pub const AGENTS: &str = "AGENTS.md";
 /// The open app's files: its endpoint, previews, screenshots.
 pub const LIVE: &str = ".live";
 
+/// True when `dir` is a `.world` package — a folder holding its
+/// `manifest.json`, whether or not a log has grown yet.
+///
+/// The format's own marker, so an app asked to open a folder can tell a
+/// package from a Gen `world.ron` folder or a loose manifest file: those
+/// describe a world, while this *is* one, log and all. A folder that only
+/// holds `manifest.json` still counts — `LiveWorld::open` completes the
+/// package on first write.
+pub fn is_package(dir: &Path) -> bool {
+    dir.is_dir() && dir.join(MANIFEST).is_file()
+}
+
 /// Largest asset one op may bring in.
 const MAX_ASSET_BYTES: u64 = 256 << 20;
 
@@ -1313,6 +1325,23 @@ mod tests {
 
     fn on_disk(dir: &Path) -> WorldManifest {
         read_json(dir, MANIFEST).unwrap()
+    }
+
+    #[test]
+    fn a_folder_with_a_manifest_is_a_package_however_empty() {
+        let dir = std::env::temp_dir().join(format!(
+            "lga-is-package-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        assert!(!is_package(&dir), "an empty folder is not a package yet");
+        std::fs::write(dir.join(MANIFEST), b"{\"version\": 3}").unwrap();
+        assert!(is_package(&dir), "a manifest makes it one, log or no log");
+        assert!(!is_package(dir.join(MANIFEST).as_path()), "a file is not a package");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -72,6 +72,11 @@ enum Kind {
     Document,
     Song,
     World,
+    /// A `.world` package folder — `manifest.json` and its log. It opens as
+    /// a live canvas, which is a launch-time shape: the authority, its API
+    /// server and the canvas systems are built with the app, not swapped in
+    /// while it runs.
+    Package,
 }
 
 const DOCUMENTS: &[&str] = &["md", "markdown"];
@@ -79,6 +84,12 @@ const SONGS: &[&str] = &["mp3", "flac", "ogg", "wav", "m4a", "aac", "aif", "aiff
 const WORLDS: &[&str] = &["ron", "json", "glb", "gltf"];
 
 fn kind(path: &Path) -> Option<Kind> {
+    // A package folder first: `harbour.world/` has extension `world`, which
+    // would otherwise classify it as a world file and hand it to the
+    // `world.ron` importer.
+    if localgpt_world_agent::live::is_package(path) {
+        return Some(Kind::Package);
+    }
     let ext = path.extension()?.to_string_lossy().to_lowercase();
     if DOCUMENTS.contains(&ext.as_str()) {
         Some(Kind::Document)
@@ -310,6 +321,16 @@ fn open(
                 });
             });
         }
+        // A package is a document you open, not import — but the live canvas
+        // is assembled with the app, so until the reconciler makes world
+        // loading a runtime switch, say so instead of failing in the
+        // importer with a message about `world.ron`.
+        Some(Kind::Package) => {
+            opener.status = Some(format!(
+                "{name} is a world package — it opens at launch: localgpt-app --world {}",
+                path.display()
+            ));
+        }
         None => opener.status = Some(format!("{name}: not a document, a song or a world")),
     }
 }
@@ -328,5 +349,26 @@ mod tests {
         assert_eq!(kind(Path::new("scene.glb")), Some(Kind::World));
         assert_eq!(kind(Path::new("photo.png")), None);
         assert_eq!(kind(Path::new("no-extension")), None);
+    }
+
+    #[test]
+    fn a_package_folder_is_a_package_not_a_world_file() {
+        let dir = std::env::temp_dir().join(format!(
+            "lga-kind-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // The trap this exists for: the folder's name ends in `.world`, so
+        // by extension alone it would be classified a world file.
+        let pkg = dir.join("harbour.world");
+        std::fs::create_dir_all(&pkg).unwrap();
+        assert_eq!(kind(&pkg), None, "no manifest yet: not a package");
+        std::fs::write(pkg.join("manifest.json"), b"{\"version\": 3}").unwrap();
+        assert_eq!(kind(&pkg), Some(Kind::Package));
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
