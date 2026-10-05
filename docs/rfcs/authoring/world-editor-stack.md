@@ -358,7 +358,8 @@ crate that can see both — gen, which does not depend on `world-editor` yet.
    batch's ops — those differ after a seek, and conflating them was the
    desync the one-direction rule exists to prevent), and `GET /tips` /
    `POST /goto` move the canvas through history over the API, branches
-   included. What remains is the other direction: the panel's tools emitting
+   included; a batch that names `"at"` forks there (below). What remains is
+   the other direction: the panel's tools emitting
    ops through the authority instead of mutating the ECS, the asset cache
    keyed by sha256, and deleting the scene→ops projection in the same
    change — they cannot both exist.
@@ -368,8 +369,10 @@ crate that can see both — gen, which does not depend on `world-editor` yet.
    (`gen3d/history_rail.rs`): the log as rows, current and branch ends
    marked, click or `[`/`]` to seek, the base as a row — plain `bevy_ui`,
    drawing a snapshot the canvas publishes and seeking through the same path
-   as `POST /goto`. Not yet: render-target thumbnails, and forking from the
-   rail, which waits on the authority being able to fork (below).
+   as `POST /goto`, with the head marked `@`. The authority forks now, so a
+   person forks by seeking and asking an agent to build `"at"` the canvas's
+   `current`. Not yet: render-target thumbnails, and a person forking with no
+   agent, which waits on in-window edits going through ops (step 4).
 7. **Chrome.** Outliner, inspector, asset shelf, log on
    `bevy_ui_widgets`/`feathers`, with a hand-rolled tree.
 8. **Agents.** The launch layer (`world-agent::agent_cli`) and the MCP shim
@@ -406,7 +409,53 @@ first. But `SessionMeta` in openworldformat 0.3.1 has no `refs` and no
 catch-all, so an authority reading `package.json` dropped refs and, rewriting
 it on every commit, destroyed them. Fixed upstream in 0.3.2 (`refs`, an
 `extra` catch-all for must-ignore round-tripping, and `main_tip` stating the
-head rule); the fork through the authority lands once 0.3.2 is published.
+head rule).
+
+## Forking through the authority
+
+With 0.3.2 published, the authority forks. A batch names the entry it builds
+on the way it names its author — `"at"` in the batch, `?at=` on `POST /ops`,
+`--at` on `localgpt world submit` — and leaves it out to build on the head.
+An earlier entry starts a branch; a branch's tip extends it. Decisions, each
+pinned by a test in `world-agent/tests/authority_and_view.rs`:
+
+- **A branch leaves the head alone.** It is ingested against the fold of its
+  own path, appended with `at` as its parent, and `manifest.json` is not
+  touched: it is main's, and main did not move. The git commit (in a git
+  package) says `off main — builds on <id>`, and replay skips it because the
+  manifest did not change.
+- **`refs.main` is written before the first branch entry,** naming main's tip
+  — the trap above. Once named it moves with every commit on main, and every
+  reader (the authority on reopen, `localgpt world tips`, the canvas's view)
+  takes the head from the crate's `main_tip`. Removing the pin fails four
+  tests, which is how the tests were checked.
+- **A commit on main builds on main's tip, not on the last line.** They stop
+  being the same entry the moment a branch lands.
+- **Revisions stay one total order across branches** — one past the highest
+  anywhere, not past the head's — because undo names what it undid by
+  revision, and a reused number would make it take back the wrong entry.
+- **Entity ids are never minted twice, on any branch.** The next id is above
+  every spawn in the log, not just the head's, so two branches of one
+  authority never collide and a later merge has nothing to reallocate.
+- **A parent or a ref never names a line number.** A fork from an entry
+  written before ids, or off a main whose tip is one, is refused with the way
+  out (commit once on main, then branch), rather than written wrong.
+
+The view had to learn two things. It opens where the package says the head
+is (`Editor::open_at`, given `LiveWorld::main_tip`), because the last line
+may be a branch's. And it follows a commit only when the commit continues
+the entry on screen (`Editor::observe`) — a terminal's rule for output: keep
+up only if you were already at the end. An agent working on main no longer
+yanks a person off a branch they chose; the rail grows a row instead. The
+reply says `on_screen`, because an agent that commits and then screenshots
+would otherwise be looking at a picture without its change, and the
+screenshot's own reply now names the entry it shows rather than the head's
+revision.
+
+Doing it end to end through the app found two older bugs in the MCP shim's
+path: `world_verify` called `GET /verify`, which the canvas never served, and
+`world_undo` sent its author in a body the canvas ignored. Both fixed; the
+shim gained `world_tips`, `world_goto` and `at` on `world_submit`.
 
 ## What would change the answer
 

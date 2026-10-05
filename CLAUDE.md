@@ -44,8 +44,9 @@ cargo run -p localgpt-app -- --md notes.md         # edit a document, the world 
 cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
 cargo run -p localgpt-app -- --prompt "a quiet harbor at dusk"
 cargo run -p localgpt-app -- --world harbour.world  # a .world package opens as a live canvas:
-                                                   # agents edit through its API, the history
-                                                   # rail shows branches ([ ] to step)
+                                                   # agents edit through its API ("at" an
+                                                   # earlier entry forks), the history rail
+                                                   # shows branches, head @ ([ ] to step)
 cargo run -p localgpt-app --features local-llm-metal -- --md doc.md   # in-process GGUF
 
 # MD — a Markdown file as a walkable world
@@ -352,9 +353,12 @@ Aliases resolve first (e.g. `opus` → `anthropic/claude-opus-4-6`, `sonnet`,
 `search`, `init`, `bridge`, `doctor`, `tool`/`plugin` (MCP servers),
 `completion`, `cron`, `hooks`, `mcp-server` (run as stdio MCP server
 exposing memory), `session`, `cert`, `world` (a `.world` package's command
-line — init, submit, undo, log, tips, verify, history — and `world mcp`, a
-stdio MCP server over an app's open canvas; `crates/cli/src/cli/world.rs` over
-`world-agent::headless`, which is shared with the `live` example).
+line — init, submit (`--at <id>` forks), undo, log, tips, verify, history — and
+`world mcp`, a stdio MCP server over an app's open canvas;
+`crates/cli/src/cli/world.rs` over `world-agent::headless`, which is shared with
+the `live` example). The head is `refs.main` (else the last entry): read it
+with `LiveWorld::main_tip`, never as "the last line" — a branch commit is
+always the last line.
 
 ### Gen (3D Scene Generation with Audio + Multiplayer)
 

@@ -168,9 +168,11 @@ localgpt world submit harbour.world \
   '{"ops": [{"SpawnEntity": {"entity": {"name": "lamp"}}}]}' \
   --author me -m "hang a lamp"                # Commit a batch: whole, or refused with a reason per op
 localgpt world log harbour.world              # Every batch, with the id a branch tip uses
+localgpt world submit harbour.world batch.json \
+  --at sha256:3411b0e4…                      # Build on an earlier entry: starts a branch, the head stays put
 localgpt world tips harbour.world             # Every branch end; the head is marked
 localgpt world verify harbour.world           # fold(base, log) == manifest.json; assets match their hashes
-localgpt world undo harbour.world             # Take back the newest edit (appends its inverse)
+localgpt world undo harbour.world             # Take back the head's newest edit (appends its inverse)
 
 # Let an MCP agent (Claude Code, Codex…) edit a world an app has open
 localgpt-app --world harbour.world            # Opens the package as a live canvas
