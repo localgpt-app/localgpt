@@ -207,3 +207,75 @@ fn every_new_entry_carries_its_content_hash_parent_and_message() {
     assert_eq!(on_disk, in_view, "the view and the file disagree on ids");
     std::fs::remove_dir_all(&dir).ok();
 }
+
+/// A package whose log branches: e1 spawns A, then e2 (spawning B) and e3
+/// (spawning C) both build on e1. The head is the last entry, e3, and the
+/// world there is A and C — never B, which lives only on the other branch.
+fn branched(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("lga-branched-{}-{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("snapshots")).unwrap();
+    let base = r#"{"version": 3, "meta": {"name": "branched"}, "entities": []}"#;
+    std::fs::write(dir.join("manifest.json"), base).unwrap();
+    std::fs::write(dir.join("snapshots/base.json"), base).unwrap();
+    let entry = |id: &str, parent: Option<&str>, rev: u64, name: &str, eid: u64| {
+        let mut e = json!({"revision": rev, "author": {"name": "test"}, "timestamp_ms": rev,
+            "id": id, "ops": [{"SpawnEntity": {"entity": {"id": eid, "name": name}}}]});
+        if let Some(p) = parent {
+            e["parent"] = json!(p);
+        }
+        e.to_string()
+    };
+    let log = [
+        entry("e1", None, 1, "A", 1),
+        entry("e2", Some("e1"), 2, "B", 2),
+        entry("e3", Some("e1"), 3, "C", 3),
+    ]
+    .join("\n");
+    std::fs::write(dir.join("ops.jsonl"), log + "\n").unwrap();
+    std::fs::write(
+        dir.join("package.json"),
+        r#"{"format_version": 2, "name": "branched", "base_revision": 0, "head_revision": 3}"#,
+    )
+    .unwrap();
+    dir
+}
+
+#[test]
+fn on_a_branched_log_the_head_is_the_fold_of_its_path_not_of_every_line() {
+    // The bug this pins: folding every line in file order gives A, B and C —
+    // a world that never existed on any branch — and the canvas drew it.
+    let dir = branched("head");
+    let live = LiveWorld::open(&dir).expect("open");
+    let view = view_of(&live);
+
+    assert_eq!(names(live.head()), ["A", "C"], "the authority's head");
+    assert_eq!(names(view.doc()), ["A", "C"], "the view's head");
+    assert_eq!(view.tip(), Some("e3"));
+
+    // And what `open` wrote to manifest.json is that same world.
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dir.join("manifest.json")).unwrap()).unwrap();
+    let mut written: Vec<&str> = manifest["entities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|e| e["name"].as_str())
+        .collect();
+    written.sort();
+    assert_eq!(written, ["A", "C"], "manifest.json");
+    assert!(live.verify().is_empty(), "{:?}", live.verify());
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn on_a_branched_log_undo_takes_back_the_heads_newest_not_the_files() {
+    // e2 is on the other branch; undoing it would apply B's inverse to a
+    // world that has no B.
+    let dir = branched("undo");
+    let mut live = LiveWorld::open(&dir).expect("open");
+    let undone = live.undo("test").expect("undo on the head's path");
+    assert_eq!(undone.warnings, ["undid revision 3"], "it took back e3");
+    assert_eq!(names(live.head()), ["A"]);
+    std::fs::remove_dir_all(&dir).ok();
+}

@@ -40,7 +40,9 @@ use std::path::{Component, Path, PathBuf};
 use localgpt_world_sync as sync;
 use localgpt_world_types as wt;
 use serde_json::{Value, json};
-use sync::{Author, OpLogEntry, SessionMeta, SessionOp, ToolRecord, WorldDoc, fold_log};
+use sync::{
+    ApplyError, Author, OpLogEntry, SessionMeta, SessionOp, ToolRecord, WorldDoc, fold_log,
+};
 use wt::{EditOp, WorldEntity, WorldManifest};
 
 use crate::session::sha256_hex;
@@ -169,7 +171,7 @@ impl LiveWorld {
         let base = WorldDoc::from_manifest(&base_manifest)
             .map_err(|e| LiveError(format!("{BASE} doesn't load: {e}")))?;
         let entries = read_log(dir);
-        let head = fold_log(&base, &entries)
+        let (head, _) = fold_head(&base, &entries)
             .map_err(|e| LiveError(format!("{LOG} no longer folds: {e}")))?;
         let mut world = Self {
             dir: dir.to_path_buf(),
@@ -323,17 +325,27 @@ impl LiveWorld {
     /// Undo the newest batch nobody has undone, by appending its inverse —
     /// the log never rewinds. Undo entries themselves aren't undone (no
     /// redo in this proof of concept).
+    ///
+    /// Only the head's own path counts: on a branched log the newest line in
+    /// the file may belong to another branch, and taking it back would apply
+    /// an inverse to a world that never held what it undoes.
     pub fn undo(&mut self, author: &str) -> Result<Committed, Rejected> {
-        let undone: HashSet<u64> = self.entries.iter().filter_map(undo_of).collect();
-        let Some(index) = self.entries.iter().rposition(|e| {
+        let (_, path) = fold_head(&self.base, &self.entries)
+            .map_err(|e| Rejected::one(format!("the history no longer folds: {e}")))?;
+        let on_path: Vec<&OpLogEntry> = path.iter().map(|&i| &self.entries[i]).collect();
+        let undone: HashSet<u64> = on_path.iter().copied().filter_map(undo_of).collect();
+        let Some(k) = on_path.iter().rposition(|e| {
             !e.edit_ops().is_empty() && undo_of(e).is_none() && !undone.contains(&e.revision)
         }) else {
             return Err(Rejected::one("nothing to undo"));
         };
-        let target = self.entries[index].revision;
-        let before = fold_log(&self.base, &self.entries[..index])
+        let target = on_path[k].revision;
+        // The path is a chain, so folding its prefix is the state just
+        // before the target — which is what an inverse is computed against.
+        let prefix: Vec<OpLogEntry> = on_path[..k].iter().map(|e| (*e).clone()).collect();
+        let before = fold_log(&self.base, &prefix)
             .map_err(|e| Rejected::one(format!("the history no longer folds: {e}")))?;
-        let inverse = sync::compute_inverse(&before, &self.entries[index].edit_ops());
+        let inverse = sync::compute_inverse(&before, &on_path[k].edit_ops());
         let mut trial = self.head.clone();
         trial.apply_all(&inverse).map_err(|e| {
             Rejected::one(format!(
@@ -388,8 +400,8 @@ impl LiveWorld {
             Ok(m) => m,
             Err(e) => return vec![e.0],
         };
-        let folded = match fold_log(&self.base, &read_log(&self.dir)) {
-            Ok(doc) => doc,
+        let folded = match fold_head(&self.base, &read_log(&self.dir)) {
+            Ok((doc, _)) => doc,
             Err(e) => return vec![format!("{LOG} no longer folds: {e}")],
         };
         let in_file: HashSet<u64> = manifest.entities.iter().map(|e| e.id.0).collect();
@@ -895,6 +907,42 @@ fn release(
     for child in waiting.remove(&entity.id.0).unwrap_or_default() {
         release(child, written, waiting, out);
     }
+}
+
+/// The id the format gives entry `n`: its own, or `line-<n>` when it has
+/// none (spec/session.md, "Entry identity").
+fn entry_id(n: usize, e: &OpLogEntry) -> String {
+    e.id.clone().unwrap_or_else(|| format!("line-{n}"))
+}
+
+/// The head, and the indices of the entries on the path to it, base-first.
+///
+/// spec/package.md's head rule: `manifest.json` is the fold of the *path* to
+/// main's tip — `refs.main`, else the log's last entry — never a fold of
+/// every line in file order. On a linear log the two are the same, which is
+/// why folding every line went unnoticed; on a branched one it produces a
+/// world that never existed on any branch (both variants at once), and that
+/// is what the canvas drew and what `manifest.json` was written as.
+///
+/// `fold_path` with no tip walks parents from the last entry, which is the
+/// rule minus `refs`. Taking `refs.main` needs openworldformat 0.3.2, whose
+/// `SessionMeta` keeps refs and whose `main_tip` states the rule; until then
+/// the last entry is main's tip, which is also all 0.3.1 can represent.
+fn fold_head(
+    base: &WorldDoc,
+    entries: &[OpLogEntry],
+) -> Result<(WorldDoc, Vec<usize>), ApplyError> {
+    if entries.is_empty() {
+        return Ok((base.clone(), Vec::new()));
+    }
+    let (doc, ids) = openworldformat::fold_path(base, entries, None)?;
+    let index: HashMap<String, usize> = entries
+        .iter()
+        .enumerate()
+        .map(|(n, e)| (entry_id(n, e), n))
+        .collect();
+    let path = ids.iter().filter_map(|id| index.get(id).copied()).collect();
+    Ok((doc, path))
 }
 
 fn entry(revision: u64, author: &str, intent: Value, ops: &[EditOp]) -> OpLogEntry {
