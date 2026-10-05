@@ -27,6 +27,9 @@ localgpt-sandbox = { workspace = true }
 localgpt-cli-tools = { workspace = true }
 # The world authority, for `localgpt world`. Bevy-free, so the CLI stays light.
 localgpt-world-agent = { workspace = true }
+# The view, for `localgpt world tips` and the ids in `world log`: the CLI
+# composes authority and view, because the authority must not know its viewers.
+localgpt-world-editor = { workspace = true }
 
 tokio = { workspace = true }
 serde = { workspace = true }

@@ -19,6 +19,8 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Subcommand;
 use localgpt_world_agent::headless::{self, Command as WorldCommand};
+use localgpt_world_agent::live::LiveWorld;
+use localgpt_world_editor::{Editor, History};
 
 #[derive(Subcommand)]
 pub enum WorldCommands {
@@ -57,6 +59,11 @@ pub enum WorldCommands {
         /// The world folder
         dir: PathBuf,
     },
+    /// Every branch end in the history — what a branch rail would draw
+    Tips {
+        /// The world folder
+        dir: PathBuf,
+    },
     /// Check that the fold still equals the head, and the assets their hashes
     Verify {
         /// The world folder
@@ -83,6 +90,25 @@ pub async fn run(command: WorldCommands) -> Result<()> {
     if let WorldCommands::Mcp { dir } = command {
         return crate::cli::world_mcp::run(dir).await;
     }
+    // Tips and ids are the *view's* vocabulary, so they are composed here —
+    // the authority (`world-agent`) deliberately does not depend on its
+    // viewers, and `world-editor::History` is the workspace's one
+    // implementation of the format's id rule.
+    match &command {
+        WorldCommands::Tips { dir } => {
+            for line in tips_lines(dir)? {
+                println!("{line}");
+            }
+            return Ok(());
+        }
+        WorldCommands::Log { dir } => {
+            for line in log_lines(dir)? {
+                println!("{line}");
+            }
+            return Ok(());
+        }
+        _ => {}
+    }
     let (dir, command) = translate(command)?;
     match headless::run(&dir, command) {
         Ok(report) => {
@@ -101,6 +127,61 @@ pub async fn run(command: WorldCommands) -> Result<()> {
         }
         Err(e) => Err(anyhow::anyhow!("{e}")),
     }
+}
+
+/// Every branch end, with its revision, the head marked.
+///
+/// "Head" is the format's: the last entry in file order, which is what a
+/// fold names when no tip is given. A CLI has no canvas, so there is no
+/// "current" beyond that.
+fn tips_lines(dir: &std::path::Path) -> Result<Vec<String>> {
+    let live = LiveWorld::open(dir).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let view = Editor::open(live.base().clone(), live.entries().to_vec())
+        .map_err(|e| anyhow::anyhow!("the history doesn't open as a tree: {e}"))?;
+    let tips = view.tips();
+    if tips.is_empty() {
+        return Ok(vec![
+            "no history yet — the base is the whole world".to_string(),
+        ]);
+    }
+    let head = view.tip();
+    Ok(tips
+        .iter()
+        .map(|tip| {
+            let revision = view
+                .history()
+                .get(tip)
+                .map(|e| e.entry.revision)
+                .unwrap_or(0);
+            let marker = if Some(*tip) == head { "  ← head" } else { "" };
+            format!("{tip}  r{revision}{marker}")
+        })
+        .collect())
+}
+
+/// The authority's log, each line prefixed with the entry's id — the name a
+/// tip, a `POST /goto` and a person all use for a point in the history.
+///
+/// The lines are `headless`'s own (one per entry, in file order) and the ids
+/// come from `History` by the same index, so there is one formatter and one
+/// copy of the id rule. A log that will not open as a tree — a dangling
+/// parent, say — still prints, without ids: reading history should degrade,
+/// not fail.
+fn log_lines(dir: &std::path::Path) -> Result<Vec<String>> {
+    let report = headless::run(dir, WorldCommand::Log).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let live = LiveWorld::open(dir).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let Ok(history) = History::open(live.entries().to_vec()) else {
+        return Ok(report.lines);
+    };
+    Ok(report
+        .lines
+        .into_iter()
+        .enumerate()
+        .map(|(n, line)| match history.id_at(n) {
+            Some(id) => format!("{id:<8} {line}"),
+            None => line,
+        })
+        .collect())
 }
 
 /// Clap's shape into the authority's.
@@ -138,6 +219,74 @@ fn translate(command: WorldCommands) -> Result<(PathBuf, WorldCommand)> {
         WorldCommands::Log { dir } => (dir, WorldCommand::Log),
         WorldCommands::Verify { dir } => (dir, WorldCommand::Verify),
         WorldCommands::History { dir, rev } => (dir, WorldCommand::History { rev }),
-        WorldCommands::Mcp { .. } => unreachable!("handled before translate"),
+        WorldCommands::Mcp { .. } | WorldCommands::Tips { .. } => {
+            unreachable!("handled before translate")
+        }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn package(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "lg-world-cli-{}-{name}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        headless::run(&dir, WorldCommand::Init { git: false }).expect("init");
+        dir
+    }
+
+    fn submit(dir: &std::path::Path, name: &str) {
+        headless::run(
+            dir,
+            WorldCommand::Submit {
+                batch: json!({"ops": [{"SpawnEntity": {"entity": {"name": name}}}]}),
+                author: "test".into(),
+                message: None,
+            },
+        )
+        .expect(name);
+    }
+
+    #[test]
+    fn an_empty_history_says_the_base_is_the_world() {
+        let dir = package("empty");
+        let lines = tips_lines(&dir).unwrap();
+        assert_eq!(lines, ["no history yet — the base is the whole world"]);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_linear_history_has_one_tip_and_it_is_the_head() {
+        let dir = package("linear");
+        submit(&dir, "lighthouse");
+        submit(&dir, "jetty");
+        let lines = tips_lines(&dir).unwrap();
+        assert_eq!(lines.len(), 1, "{lines:?}");
+        assert!(lines[0].starts_with("line-1  r2"), "{lines:?}");
+        assert!(lines[0].ends_with("← head"), "{lines:?}");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn the_log_names_each_entry_by_the_id_a_tip_would_use() {
+        let dir = package("log");
+        submit(&dir, "lighthouse");
+        submit(&dir, "jetty");
+        let lines = log_lines(&dir).unwrap();
+        assert_eq!(lines.len(), 2, "{lines:?}");
+        assert!(lines[0].starts_with("line-0 "), "{lines:?}");
+        assert!(lines[1].starts_with("line-1 "), "{lines:?}");
+        // The id a tip reports is the id the log shows for the same entry.
+        let tip = tips_lines(&dir).unwrap();
+        let tip_id = tip[0].split_whitespace().next().unwrap();
+        assert!(lines[1].starts_with(tip_id), "{tip_id} vs {lines:?}");
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }
