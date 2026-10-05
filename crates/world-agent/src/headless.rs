@@ -41,6 +41,9 @@ pub enum Command {
         batch: Value,
         author: String,
         message: Option<String>,
+        /// The entry to build on; `None` is the head. An earlier entry
+        /// starts a branch, and leaves the head where it is.
+        at: Option<String>,
     },
     /// Take back the newest edit by appending its inverse.
     Undo { author: String },
@@ -195,9 +198,27 @@ pub fn run(dir: &Path, command: Command) -> Result<Report, HeadlessError> {
             batch,
             author,
             message,
+            at,
         } => {
             let mut world = LiveWorld::open(dir)?;
-            match world.submit(&batch, &author, message.as_deref()) {
+            match world.submit_at(at.as_deref(), &batch, &author, message.as_deref()) {
+                Ok(done) if done.forked => Ok(Report {
+                    lines: vec![
+                        format!(
+                            "committed revision {} on a branch: {}",
+                            done.revision,
+                            live::describe_ops(&done.ops).join(" · ")
+                        ),
+                        // The id is what continues the branch; main is
+                        // untouched, so say so.
+                        format!(
+                            "its tip is {} (from {}); the head is still revision {}",
+                            done.entry.id.as_deref().unwrap_or("?"),
+                            done.entry.parent.as_deref().unwrap_or("the base"),
+                            world.revision()
+                        ),
+                    ],
+                }),
                 Ok(done) => Ok(Report::one(format!(
                     "committed revision {}: {}",
                     done.revision,
@@ -305,6 +326,7 @@ mod tests {
                 batch,
                 author: "test".into(),
                 message: Some("hang a lamp".into()),
+                at: None,
             },
         )
         .expect("the batch commits");
@@ -330,6 +352,7 @@ mod tests {
                 batch,
                 author: "test".into(),
                 message: None,
+                at: None,
             },
         )
         .expect_err("refused");
@@ -358,6 +381,7 @@ mod tests {
                 batch: json!({"ops": [{"SpawnEntity": {"entity": {"name": "lamp"}}}]}),
                 author: "test".into(),
                 message: None,
+                at: None,
             },
         )
         .unwrap();
@@ -376,6 +400,7 @@ mod tests {
                 batch: json!({"ops": [{"SpawnEntity": {"entity": {"name": "lamp"}}}]}),
                 author: "test".into(),
                 message: None,
+                at: None,
             },
         )
         .unwrap();
@@ -398,7 +423,8 @@ mod tests {
             Command::Submit {
                 batch: json!([]),
                 author: "a".into(),
-                message: None
+                message: None,
+                at: None,
             }
             .writes()
         );
@@ -439,6 +465,7 @@ mod tests {
                 batch: json!({"ops": [{"SpawnEntity": {"entity": {"name": "lamp"}}}]}),
                 author: "test".into(),
                 message: None,
+                at: None,
             },
         )
         .expect("writing works once the stale endpoint is gone");

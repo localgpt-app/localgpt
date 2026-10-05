@@ -38,7 +38,9 @@ tag-name = "v{{version}}"
 rate-limit.new-packages = 10
 
 [workspace.dependencies]
-openworldformat = "0.3"
+# 0.3.2: `package.json` keeps its `refs` (0.3.1 dropped them on every
+# rewrite) and `main_tip` states the head rule that forking depends on.
+openworldformat = "0.3.2"
 
 # Async runtime
 tokio = { version = "1.50", features = ["full"] }

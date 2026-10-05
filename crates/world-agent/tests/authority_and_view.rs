@@ -279,3 +279,274 @@ fn on_a_branched_log_undo_takes_back_the_heads_newest_not_the_files() {
     assert_eq!(names(live.head()), ["A"]);
     std::fs::remove_dir_all(&dir).ok();
 }
+
+/// `package.json`'s `refs.main`, as written.
+fn main_ref(dir: &std::path::Path) -> Option<String> {
+    let package: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dir.join("package.json")).unwrap()).unwrap();
+    package["refs"]["main"].as_str().map(str::to_string)
+}
+
+/// The authority's head as a view would open it: at main's tip, which once a
+/// branch exists is not the last line.
+fn view_at_head(live: &LiveWorld) -> Editor {
+    Editor::open_at(
+        live.base().clone(),
+        live.entries().to_vec(),
+        live.main_tip().as_deref(),
+    )
+    .expect("the view opens at the head")
+}
+
+#[test]
+fn a_batch_at_an_earlier_entry_starts_a_branch_and_leaves_the_head_alone() {
+    let dir = temp("fork");
+    let mut live = LiveWorld::open(&dir).expect("open");
+    let first = live.submit(&spawn("lighthouse"), "test", None).unwrap();
+    let second = live.submit(&spawn("jetty"), "test", None).unwrap();
+    let (e1, e2) = (first.entry.id.unwrap(), second.entry.id.unwrap());
+    assert_eq!(main_ref(&dir), None, "a linear log needs no ref");
+    let manifest_before = std::fs::read(dir.join("manifest.json")).unwrap();
+
+    let fork = live
+        .submit_at(Some(&e1), &spawn("buoy"), "test", Some("a buoy instead"))
+        .expect("a batch at an earlier entry");
+
+    assert!(fork.forked);
+    assert_eq!(fork.entry.parent.as_deref(), Some(e1.as_str()));
+    assert_eq!(
+        fork.revision, 3,
+        "revisions stay the authority's total order"
+    );
+    // The head did not move: main is still e2, on disk and in memory.
+    assert_eq!(names(live.head()), ["jetty", "lighthouse"]);
+    assert_eq!(live.revision(), 2);
+    assert_eq!(live.main_tip().as_deref(), Some(e2.as_str()));
+    assert_eq!(
+        std::fs::read(dir.join("manifest.json")).unwrap(),
+        manifest_before,
+        "manifest.json is main's, and main did not move"
+    );
+    // The trap: the branch entry is the last line, so without a ref the
+    // format's fallback would make it main.
+    assert_eq!(main_ref(&dir).as_deref(), Some(e2.as_str()));
+
+    // Both worlds exist: the view sees two tips, each its own world.
+    let mut view = view_at_head(&live);
+    let mut tips: Vec<String> = view.tips().into_iter().map(str::to_string).collect();
+    tips.sort();
+    let mut expected = vec![e2.clone(), fork.entry.id.clone().unwrap()];
+    expected.sort();
+    assert_eq!(tips, expected);
+    assert_eq!(names(view.doc()), ["jetty", "lighthouse"]);
+    view.goto(fork.entry.id.as_deref()).unwrap();
+    assert_eq!(names(view.doc()), ["buoy", "lighthouse"]);
+
+    assert!(live.verify().is_empty(), "{:?}", live.verify());
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn a_commit_on_main_after_a_branch_builds_on_main_and_moves_its_ref() {
+    let dir = temp("main-after-fork");
+    let mut live = LiveWorld::open(&dir).expect("open");
+    let e1 = live
+        .submit(&spawn("lighthouse"), "test", None)
+        .unwrap()
+        .entry
+        .id
+        .unwrap();
+    let e2 = live
+        .submit(&spawn("jetty"), "test", None)
+        .unwrap()
+        .entry
+        .id
+        .unwrap();
+    let fork = live
+        .submit_at(Some(&e1), &spawn("buoy"), "test", None)
+        .unwrap();
+
+    let main = live.submit(&spawn("pier"), "test", None).unwrap();
+
+    assert!(!main.forked);
+    assert_eq!(
+        main.entry.parent.as_deref(),
+        Some(e2.as_str()),
+        "main builds on main's tip, not on the last line (the branch's)"
+    );
+    let e4 = main.entry.id.clone().unwrap();
+    assert_eq!(
+        main_ref(&dir).as_deref(),
+        Some(e4.as_str()),
+        "the ref moved"
+    );
+    assert_eq!(names(live.head()), ["jetty", "lighthouse", "pier"]);
+    let revisions: Vec<u64> = live.entries().iter().map(|e| e.revision).collect();
+    assert_eq!(revisions, [1, 2, 3, 4], "no revision taken twice");
+    // One authority never mints an entity id twice, on any branch.
+    assert_ne!(
+        fork.spawned["buoy"], main.spawned["pier"],
+        "two branches spawned the same id"
+    );
+
+    // Undo takes back main's newest, never the branch's.
+    let undone = live.undo("test").unwrap();
+    assert_eq!(undone.warnings, ["undid revision 4"]);
+    assert_eq!(names(live.head()), ["jetty", "lighthouse"]);
+    assert_eq!(undone.revision, 5);
+    assert!(live.verify().is_empty(), "{:?}", live.verify());
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn reopening_a_package_whose_last_line_is_a_branch_keeps_main_as_the_head() {
+    // On the fixture, main is e3 (the last line, no ref yet). Extend the
+    // other branch, e2: its entry becomes the last line.
+    let dir = branched("reopen-fork");
+    {
+        let mut live = LiveWorld::open(&dir).expect("open");
+        let fork = live
+            .submit_at(Some("e2"), &spawn("D"), "test", None)
+            .unwrap();
+        assert!(fork.forked);
+        assert_eq!(main_ref(&dir).as_deref(), Some("e3"));
+    }
+    let live = LiveWorld::open(&dir).expect("reopen");
+    assert_eq!(live.main_tip().as_deref(), Some("e3"));
+    assert_eq!(
+        names(live.head()),
+        ["A", "C"],
+        "main, not the newest branch"
+    );
+    let view = view_at_head(&live);
+    assert_eq!(names(view.doc()), names(live.head()));
+    assert!(live.verify().is_empty(), "{:?}", live.verify());
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn a_batch_names_where_it_builds_as_it_names_its_author() {
+    let dir = temp("at-in-body");
+    let mut live = LiveWorld::open(&dir).expect("open");
+    let e1 = live
+        .submit(&spawn("lighthouse"), "test", None)
+        .unwrap()
+        .entry
+        .id
+        .unwrap();
+    live.submit(&spawn("jetty"), "test", None).unwrap();
+
+    let body = json!({"at": e1, "ops": [{"SpawnEntity": {"entity": {"name": "buoy"}}}]});
+    let fork = live.submit(&body, "test", None).unwrap();
+    assert!(fork.forked);
+    assert_eq!(fork.entry.parent.as_deref(), Some(e1.as_str()));
+
+    // Null is the head said out loud; naming main's tip is the same.
+    let body = json!({"at": null, "ops": [{"SpawnEntity": {"entity": {"name": "pier"}}}]});
+    assert!(!live.submit(&body, "test", None).unwrap().forked);
+    let tip = live.main_tip().unwrap();
+    let on_tip = live
+        .submit_at(Some(&tip), &spawn("crane"), "test", None)
+        .unwrap();
+    assert!(!on_tip.forked);
+    assert_eq!(names(live.head()), ["crane", "jetty", "lighthouse", "pier"]);
+
+    let refused = live
+        .submit(
+            &json!({"at": 7, "ops": [{"SpawnEntity": {"entity": {"name": "x"}}}]}),
+            "test",
+            None,
+        )
+        .unwrap_err();
+    assert!(refused.errors[0].contains("\"at\""), "{:?}", refused.errors);
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn a_branch_from_nowhere_or_from_an_entry_without_an_id_is_refused() {
+    let dir = temp("refuse-fork");
+    let mut live = LiveWorld::open(&dir).expect("open");
+    live.submit(&spawn("lighthouse"), "test", None).unwrap();
+    let refused = live
+        .submit_at(Some("sha256:nope"), &spawn("buoy"), "test", None)
+        .unwrap_err();
+    assert!(
+        refused.errors[0].contains("no entry"),
+        "{:?}",
+        refused.errors
+    );
+    std::fs::remove_dir_all(&dir).ok();
+
+    // A log from before ids: e1 carries one, the line after it does not, so
+    // main's tip is the synthesized `line-1`, which a ref cannot name.
+    let dir = branched("legacy");
+    let log = std::fs::read_to_string(dir.join("ops.jsonl")).unwrap();
+    let first = log.lines().next().unwrap();
+    let legacy = r#"{"revision": 2, "author": {"name": "test"}, "timestamp_ms": 2, "ops": [{"SpawnEntity": {"entity": {"id": 2, "name": "B"}}}]}"#;
+    std::fs::write(dir.join("ops.jsonl"), format!("{first}\n{legacy}\n")).unwrap();
+    std::fs::write(
+        dir.join("package.json"),
+        r#"{"format_version": 2, "name": "legacy", "base_revision": 0, "head_revision": 2}"#,
+    )
+    .unwrap();
+    let mut live = LiveWorld::open(&dir).expect("open");
+    assert_eq!(live.main_tip().as_deref(), Some("line-1"));
+
+    let refused = live.submit_at(Some("line-1"), &spawn("C"), "test", None);
+    // `line-1` is main's tip, so naming it is a commit on main — allowed.
+    assert!(!refused.unwrap().forked);
+    let fresh = live.main_tip().unwrap();
+    assert!(
+        fresh.starts_with("sha256:"),
+        "the new entry has an id: {fresh}"
+    );
+
+    // The id-less line is now history: no branch may name it as a parent.
+    let refused = live
+        .submit_at(Some("line-1"), &spawn("D"), "test", None)
+        .unwrap_err();
+    assert!(
+        refused.errors[0].contains("has no id"),
+        "{:?}",
+        refused.errors
+    );
+
+    // e1 has an id and main's tip now does too: the branch is fine.
+    let fork = live
+        .submit_at(Some("e1"), &spawn("D"), "test", None)
+        .unwrap();
+    assert!(fork.forked);
+    assert_eq!(main_ref(&dir).as_deref(), Some(fresh.as_str()));
+    assert_eq!(names(live.head()), ["A", "B", "C"]);
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn a_view_at_the_head_does_not_jump_to_a_branch_it_was_not_on() {
+    let dir = temp("observe");
+    let mut live = LiveWorld::open(&dir).expect("open");
+    let mut view = view_of(&live);
+    let first = live.submit(&spawn("lighthouse"), "test", None).unwrap();
+    view.observe(first.entry.clone()).unwrap();
+    let second = live.submit(&spawn("jetty"), "test", None).unwrap();
+    view.observe(second.entry).unwrap();
+
+    let e1 = first.entry.id.unwrap();
+    let fork = live
+        .submit_at(Some(&e1), &spawn("buoy"), "test", None)
+        .unwrap();
+    assert!(
+        view.observe(fork.entry.clone()).unwrap().is_none(),
+        "stayed put"
+    );
+    assert_eq!(names(view.doc()), names(live.head()));
+
+    // From the fork point, the person sees the branch they asked for.
+    view.goto(Some(&e1)).unwrap();
+    let more = live
+        .submit_at(Some(&e1), &spawn("bell"), "test", None)
+        .unwrap();
+    assert!(view.observe(more.entry).unwrap().is_some(), "followed");
+    assert_eq!(names(view.doc()), ["bell", "lighthouse"]);
+    std::fs::remove_dir_all(&dir).ok();
+}

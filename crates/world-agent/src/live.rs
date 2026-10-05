@@ -111,7 +111,8 @@ impl From<std::io::Error> for LiveError {
 /// A batch the world took.
 #[derive(Debug, Clone)]
 pub struct Committed {
-    /// The head revision it made.
+    /// The revision it made: the authority's order across every branch, and
+    /// the head's revision unless `forked`.
     pub revision: u64,
     /// The ops as committed — names bound to ids, assets to their copies —
     /// which is also what a canvas applies to its scene.
@@ -130,6 +131,9 @@ pub struct Committed {
     /// keeps the view from having to assume a commit appended exactly one
     /// entry.
     pub entry: OpLogEntry,
+    /// True when the batch started or extended a branch rather than main —
+    /// the head did not move, and `manifest.json` is unchanged.
+    pub forked: bool,
 }
 
 /// A batch the world refused; nothing changed.
@@ -171,7 +175,7 @@ impl LiveWorld {
         let base = WorldDoc::from_manifest(&base_manifest)
             .map_err(|e| LiveError(format!("{BASE} doesn't load: {e}")))?;
         let entries = read_log(dir);
-        let (head, _) = fold_head(&base, &entries)
+        let (head, _) = fold_head(&base, &entries, &meta)
             .map_err(|e| LiveError(format!("{LOG} no longer folds: {e}")))?;
         let mut world = Self {
             dir: dir.to_path_buf(),
@@ -243,12 +247,44 @@ impl LiveWorld {
         author: &str,
         message: Option<&str>,
     ) -> Result<Committed, Rejected> {
-        let (ops, author, message) = match input {
-            Value::Array(ops) => (ops.clone(), author.to_string(), message.map(str::to_string)),
+        self.submit_at(None, input, author, message)
+    }
+
+    /// Commit a batch on top of entry `at` — or of main's tip when `at` is
+    /// `None` or names it. Anywhere else, the batch starts a **branch** (or
+    /// extends one, when `at` is a branch's tip). An object batch's own
+    /// `"at"` wins over the argument, as its author and message do.
+    ///
+    /// A branch commit is ingested against the world at `at` (the fold of
+    /// its path), appended with `at` as its parent, and leaves the head
+    /// alone: `manifest.json` is main's fold, and main has not moved. Before
+    /// the first branch entry lands, `refs.main` is written to name main's
+    /// tip — the log is append-only, so a branch entry is always the last
+    /// line, and under the head rule's "else the last entry" fallback it
+    /// would otherwise become main.
+    ///
+    /// A ref and a parent may only name a real id, never a line number (a
+    /// compaction renumbers lines), so a fork from an entry written before
+    /// entries carried ids — or off a main whose tip is one — is refused
+    /// rather than written wrong.
+    pub fn submit_at(
+        &mut self,
+        at: Option<&str>,
+        input: &Value,
+        author: &str,
+        message: Option<&str>,
+    ) -> Result<Committed, Rejected> {
+        let (ops, author, message, at) = match input {
+            Value::Array(ops) => (
+                ops.clone(),
+                author.to_string(),
+                message.map(str::to_string),
+                at.map(str::to_string),
+            ),
             Value::Object(body) => {
                 let Some(Value::Array(ops)) = body.get("ops") else {
                     return Err(Rejected::one(
-                        "send a JSON array of ops, or {\"ops\": [...], \"author\": ..., \"message\": ...}",
+                        "send a JSON array of ops, or {\"ops\": [...], \"author\": ..., \"message\": ..., \"at\": ...}",
                     ));
                 };
                 let author = body
@@ -261,9 +297,27 @@ impl LiveWorld {
                     .and_then(Value::as_str)
                     .map(str::to_string)
                     .or(message.map(str::to_string));
-                (ops.clone(), author, message)
+                let at = match body.get("at") {
+                    None => at.map(str::to_string),
+                    // Null is main's tip, said out loud.
+                    Some(Value::Null) => None,
+                    Some(Value::String(id)) => Some(id.clone()),
+                    Some(_) => {
+                        return Err(Rejected::one(
+                            "\"at\" is the id of the entry to build on (null: the head)",
+                        ));
+                    }
+                };
+                (ops.clone(), author, message, at)
             }
             _ => return Err(Rejected::one("send a JSON array of ops")),
+        };
+        // Naming main's tip is committing on main.
+        let branch_from = at.filter(|at| Some(at.as_str()) != self.main_tip().as_deref());
+        // The world the batch is read against: the head, or the fork point.
+        let start = match &branch_from {
+            None => self.head.clone(),
+            Some(at) => self.fork_point(at)?,
         };
         if ops.is_empty() {
             return Err(Rejected::one("the batch holds no ops"));
@@ -271,8 +325,8 @@ impl LiveWorld {
 
         let mut ingest = Ingest {
             dir: self.dir.clone(),
-            trial: self.head.clone(),
-            next_id: self.head_manifest.next_entity_id.max(self.head.next_id()),
+            next_id: self.next_entity_id().max(start.next_id()),
+            trial: start,
             spawned: BTreeMap::new(),
             stored: BTreeMap::new(),
         };
@@ -302,16 +356,22 @@ impl LiveWorld {
             return Err(Rejected { errors });
         }
 
-        let revision = self.meta.head_revision + 1;
-        let entry = entry(
+        let revision = self.next_revision();
+        let mut entry = entry(
             revision,
             &author,
             json!({"via": "ops", "message": message}),
             &committed,
         );
-        let entry = self
-            .commit(entry, ingest.trial, next)
-            .map_err(|e| Rejected::one(format!("couldn't write the package: {e}")))?;
+        let forked = branch_from.is_some();
+        let entry = match branch_from {
+            None => self.commit(entry, ingest.trial, next),
+            Some(at) => {
+                entry.parent = Some(at);
+                self.commit_branch(entry)
+            }
+        }
+        .map_err(|e| Rejected::one(format!("couldn't write the package: {e}")))?;
         Ok(Committed {
             revision,
             ops: committed,
@@ -319,7 +379,79 @@ impl LiveWorld {
             stored: ingest.stored,
             warnings,
             entry,
+            forked,
         })
+    }
+
+    /// The tip whose fold is the head — spec/package.md's rule, stated once
+    /// in the format crate: `refs.main`, else the log's last entry, else
+    /// `None` for the base.
+    pub fn main_tip(&self) -> Option<String> {
+        openworldformat::main_tip(&self.meta, &self.entries)
+    }
+
+    /// The next revision. Revisions are the authority's total order across
+    /// every branch, so this is one past the highest anywhere in the log —
+    /// not past the head's, which a branch entry may already have taken.
+    /// `undo` names what it undid by revision, so a collision would make it
+    /// take back the wrong entry.
+    fn next_revision(&self) -> u64 {
+        self.entries
+            .iter()
+            .map(|e| e.revision)
+            .max()
+            .unwrap_or(self.meta.base_revision)
+            .max(self.meta.head_revision)
+            + 1
+    }
+
+    /// The next entity id nobody has used on any branch. One authority
+    /// never mints the same id twice, so two branches' spawns never collide
+    /// — the collision a merge would otherwise have to reallocate. Every
+    /// spawn in the log counts, not only those on the head's path.
+    fn next_entity_id(&self) -> u64 {
+        let spawned = self
+            .entries
+            .iter()
+            .flat_map(|e| e.ops.iter().filter_map(SessionOp::as_edit))
+            .flat_map(spawned_ids)
+            .max()
+            .map_or(0, |id| id + 1);
+        self.head_manifest
+            .next_entity_id
+            .max(self.head.next_id())
+            .max(spawned)
+    }
+
+    /// The world at entry `at`, for a batch that branches from there — or
+    /// why there can be no branch there.
+    fn fork_point(&self, at: &str) -> Result<WorldDoc, Rejected> {
+        if !self.entries.iter().any(|e| e.id.as_deref() == Some(at)) {
+            let synthesized = self
+                .entries
+                .iter()
+                .enumerate()
+                .any(|(n, e)| entry_id(n, e) == at);
+            return Err(Rejected::one(if synthesized {
+                format!(
+                    "entry '{at}' has no id (it predates ids), and a branch's parent must \
+                     name one — branch from a newer entry"
+                )
+            } else {
+                format!("no entry '{at}' in this log to branch from")
+            }));
+        }
+        if let Some(tip) = self.main_tip()
+            && tip.starts_with("line-")
+        {
+            return Err(Rejected::one(format!(
+                "main's tip ('{tip}') has no id (it predates ids), and refs.main may only \
+                 name one — commit once on main, then branch"
+            )));
+        }
+        openworldformat::fold_path(&self.base, &self.entries, Some(at))
+            .map(|(doc, _)| doc)
+            .map_err(|e| Rejected::one(format!("the history doesn't fold to '{at}': {e}")))
     }
 
     /// Undo the newest batch nobody has undone, by appending its inverse —
@@ -330,7 +462,7 @@ impl LiveWorld {
     /// the file may belong to another branch, and taking it back would apply
     /// an inverse to a world that never held what it undoes.
     pub fn undo(&mut self, author: &str) -> Result<Committed, Rejected> {
-        let (_, path) = fold_head(&self.base, &self.entries)
+        let (_, path) = fold_head(&self.base, &self.entries, &self.meta)
             .map_err(|e| Rejected::one(format!("the history no longer folds: {e}")))?;
         let on_path: Vec<&OpLogEntry> = path.iter().map(|&i| &self.entries[i]).collect();
         let undone: HashSet<u64> = on_path.iter().copied().filter_map(undo_of).collect();
@@ -353,7 +485,7 @@ impl LiveWorld {
             ))
         })?;
         let next = compose(&self.head_manifest, &trial);
-        let revision = self.meta.head_revision + 1;
+        let revision = self.next_revision();
         let entry = entry(
             revision,
             author,
@@ -370,6 +502,7 @@ impl LiveWorld {
             stored: BTreeMap::new(),
             warnings: vec![format!("undid revision {target}")],
             entry,
+            forked: false,
         })
     }
 
@@ -400,7 +533,7 @@ impl LiveWorld {
             Ok(m) => m,
             Err(e) => return vec![e.0],
         };
-        let folded = match fold_head(&self.base, &read_log(&self.dir)) {
+        let folded = match fold_head(&self.base, &read_log(&self.dir), &self.meta) {
             Ok((doc, _)) => doc,
             Err(e) => return vec![format!("{LOG} no longer folds: {e}")],
         };
@@ -478,25 +611,69 @@ impl LiveWorld {
         manifest: WorldManifest,
     ) -> Result<OpLogEntry, LiveError> {
         if entry.parent.is_none() {
-            entry.parent = self.entries.last().and_then(|e| e.id.clone());
+            // Main's tip, not the last line: once branches exist they are
+            // not the same entry. A synthesized `line-<n>` stays implicit —
+            // for an append onto the last line, file order already says it.
+            entry.parent = self.main_tip().filter(|t| !t.starts_with("line-"));
         }
-        if entry.id.is_none() {
-            entry.id = Some(
-                openworldformat::oplog::compute_entry_id(&entry)
-                    .map_err(|e| LiveError(format!("couldn't hash the entry: {e}")))?,
-            );
-        }
+        self.stamp(&mut entry)?;
         append(&self.dir, &entry)?;
         let (author, subject, body) = describe_entry(&entry);
         self.entries.push(entry.clone());
         self.head = head;
         self.head_manifest = manifest;
-        self.meta.head_revision = self.entries.last().map_or(0, |e| e.revision);
+        self.meta.head_revision = entry.revision;
+        // Once main is named, it moves with every commit to it.
+        if self.meta.refs.contains_key("main")
+            && let Some(id) = &entry.id
+        {
+            self.meta.refs.insert("main".into(), id.clone());
+        }
         self.write_head()?;
         if self.is_git() {
             git_commit(&self.dir, &author, &subject, &body)?;
         }
         Ok(entry)
+    }
+
+    /// Append an entry that starts or extends a branch. The head does not
+    /// move; `refs.main` is written first if it isn't yet, so the new last
+    /// line cannot be mistaken for main.
+    fn commit_branch(&mut self, mut entry: OpLogEntry) -> Result<OpLogEntry, LiveError> {
+        if !self.meta.refs.contains_key("main")
+            && let Some(tip) = self.main_tip()
+        {
+            // `fork_point` refused a main tip without an id, which a ref
+            // cannot name. (An empty log has no fork point to branch from.)
+            self.meta.refs.insert("main".into(), tip);
+        }
+        self.stamp(&mut entry)?;
+        append(&self.dir, &entry)?;
+        let (author, subject, body) = describe_entry(&entry);
+        let body = match &entry.parent {
+            Some(parent) => format!("{body}\n\noff main — builds on {parent}"),
+            None => body,
+        };
+        self.entries.push(entry.clone());
+        // package.json names the refs and the log's new hash; manifest.json
+        // is main's and is rewritten with the same bytes.
+        self.write_head()?;
+        if self.is_git() {
+            git_commit(&self.dir, &author, &subject, &body)?;
+        }
+        Ok(entry)
+    }
+
+    /// Give an entry its content-hash id (the format's `compute_entry_id`:
+    /// canonical JSON of every field but `id`, `message` included).
+    fn stamp(&self, entry: &mut OpLogEntry) -> Result<(), LiveError> {
+        if entry.id.is_none() {
+            entry.id = Some(
+                openworldformat::oplog::compute_entry_id(entry)
+                    .map_err(|e| LiveError(format!("couldn't hash the entry: {e}")))?,
+            );
+        }
+        Ok(())
     }
 
     /// Whether the package is a git repository (each batch a commit).
@@ -924,18 +1101,19 @@ fn entry_id(n: usize, e: &OpLogEntry) -> String {
 /// world that never existed on any branch (both variants at once), and that
 /// is what the canvas drew and what `manifest.json` was written as.
 ///
-/// `fold_path` with no tip walks parents from the last entry, which is the
-/// rule minus `refs`. Taking `refs.main` needs openworldformat 0.3.2, whose
-/// `SessionMeta` keeps refs and whose `main_tip` states the rule; until then
-/// the last entry is main's tip, which is also all 0.3.1 can represent.
+/// Which tip is main's is the format crate's `main_tip` — the rule stated
+/// once, so this and every other reader agree once branches exist and the
+/// last line is no longer main's.
 fn fold_head(
     base: &WorldDoc,
     entries: &[OpLogEntry],
+    meta: &SessionMeta,
 ) -> Result<(WorldDoc, Vec<usize>), ApplyError> {
     if entries.is_empty() {
         return Ok((base.clone(), Vec::new()));
     }
-    let (doc, ids) = openworldformat::fold_path(base, entries, None)?;
+    let tip = openworldformat::main_tip(meta, entries);
+    let (doc, ids) = openworldformat::fold_path(base, entries, tip.as_deref())?;
     let index: HashMap<String, usize> = entries
         .iter()
         .enumerate()
@@ -1183,6 +1361,15 @@ pub fn diff_manifests(from: &WorldManifest, to: &WorldManifest) -> Vec<EditOp> {
     ops
 }
 
+/// The entity ids an op spawns, nested batches included.
+fn spawned_ids(op: &EditOp) -> Vec<u64> {
+    match op {
+        EditOp::SpawnEntity { entity } => vec![entity.id.0],
+        EditOp::Batch { ops } => ops.iter().flat_map(spawned_ids).collect(),
+        _ => Vec::new(),
+    }
+}
+
 /// The revision an undo entry undid.
 fn undo_of(entry: &OpLogEntry) -> Option<u64> {
     entry.ops.iter().find_map(|op| match op {
@@ -1308,8 +1495,8 @@ fn now_ms() -> u64 {
 pub const AGENTS_GUIDE: &str = r#"# This folder is a live world
 
 `manifest.json` is the world as it is now, in the Open World Format
-(https://openworldformat.org). LocalGPT Gen shows it live while it's open
-(`localgpt-gen --live <this folder>`). Read `manifest.json` freely, but don't
+(https://openworldformat.org). LocalGPT shows it live while it's open
+(`localgpt-app --world <this folder>`). Read `manifest.json` freely, but don't
 write it: the app does, and puts it back if anything else does.
 
 ## Change the world by sending ops
@@ -1358,14 +1545,30 @@ the op again — that makes a new version, and the old one stays for history.
 - `GET $URL/screenshot` — renders the view now and replies with the PNG's path.
   Look at it after a change.
 - `GET $URL/selection` — what the person has selected; "this" means it.
-- `POST $URL/undo` — undoes the newest change by appending its inverse.
-- `GET $URL/log` — the history: each entry's id, revision, author, message.
-- `GET $URL/tips` — every branch end in the history, and which one the window
-  is showing.
-- `POST $URL/goto -d '{"tip": "<id>"}'` — move the window to any point in the
-  history (`null` for before it began). Nothing is written and your commits
-  still land on the head; this is how you look at an earlier state.
+- `POST $URL/undo` — undoes the head's newest change by appending its inverse.
 - `.live/preview.png` refreshes by itself after every change.
+
+## History is a tree
+
+Every entry in `ops.jsonl` has an `id` and builds on a `parent`. The head —
+what `manifest.json` holds — is main's tip, and a batch lands there unless it
+says otherwise.
+
+- `GET $URL/log` — the history: each entry's id, parent, revision, author,
+  message, and which entry is the `head`.
+- `GET $URL/tips` — every branch end, which one is the `head`, and which entry
+  the window is showing (`current`).
+- `POST $URL/goto -d '{"tip": "<id>"}'` — show any entry in the window (`null`
+  for before it began). Nothing is written; this is how you look at an
+  earlier state.
+- Add `"at": "<id>"` to a batch to build on that entry instead of the head.
+  From an earlier entry this starts a branch: main and `manifest.json` stay as
+  they were, and the reply's `id` is the branch's new tip — send the next
+  batch `"at"` it to keep going. To try an alternative from what the person
+  is looking at, build `"at"` the `current` from `/tips`.
+- A reply's `on_screen` says whether the window shows your change. It doesn't
+  when the person is looking at another point in the history, and then a
+  screenshot won't show it either.
 
 Everything you send is recorded in `ops.jsonl` under your author name.
 "#;

@@ -58,6 +58,8 @@ fn parse(command: &str, rest: &[String]) -> Result<Command, Box<dyn std::error::
                 batch: serde_json::from_str(&text)?,
                 author: rest.get(1).map_or("cli", String::as_str).to_string(),
                 message: None,
+                // A batch object's own "at" still branches.
+                at: None,
             }
         }
         "undo" => Command::Undo {

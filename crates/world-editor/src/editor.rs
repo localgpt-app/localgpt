@@ -15,8 +15,8 @@
 //! selection that survives a seek only where its entities do.
 //!
 //! So the flow is one-directional on both axes. The authority commits and
-//! hands the entry to [`Editor::committed`]; the view follows and says what
-//! changed. The view never appends.
+//! hands the entry to [`Editor::observe`] (or [`Editor::committed`]); the
+//! view follows and says what changed. The view never appends on its own.
 //!
 //! No I/O and no engine: an `Editor` is opened from a base document and a log
 //! its caller read, and what it emits is ops for a renderer to apply.
@@ -85,11 +85,34 @@ pub struct Editor {
 
 impl Editor {
     /// Open a world: a base document and the log over it, folded to the last
-    /// entry in file order.
+    /// entry in file order — the head while no ref names another.
     pub fn open(base: WorldDoc, entries: Vec<OpLogEntry>) -> Result<Self, EditorError> {
+        let last = entries
+            .len()
+            .checked_sub(1)
+            .map(|n| entries[n].id.clone().unwrap_or_else(|| format!("line-{n}")));
+        Self::open_at(base, entries, last.as_deref())
+    }
+
+    /// Open a world showing `tip` (`None`: the base).
+    ///
+    /// Which tip is the head is `package.json`'s to say (`refs.main`), and a
+    /// view reads no files, so a caller holding the package passes it —
+    /// `LiveWorld::main_tip()`. Once a branch has been committed the last
+    /// line is a branch's, and [`Self::open`] would show that instead.
+    pub fn open_at(
+        base: WorldDoc,
+        entries: Vec<OpLogEntry>,
+        tip: Option<&str>,
+    ) -> Result<Self, EditorError> {
         let history = History::open(entries)?;
+        if let Some(id) = tip
+            && history.get(id).is_none()
+        {
+            return Err(HistoryError::NoSuchEntry(id.to_string()).into());
+        }
         let mut cache = FoldCache::new(base);
-        let tip = history.last_id().map(str::to_string);
+        let tip = tip.map(str::to_string);
         let doc = cache.doc_at(&history, tip.as_deref())?;
         let revision = tip
             .as_deref()
@@ -172,6 +195,26 @@ impl Editor {
         self.revision = revision;
         self.selection.retain(|id| self.doc.contains(*id));
         Ok(delta)
+    }
+
+    /// Take a commit the authority made, and follow it only if it continues
+    /// the entry on screen.
+    ///
+    /// Someone looking at the entry a commit builds on is watching that line
+    /// of history, so the view moves with it and returns the delta. A commit
+    /// anywhere else — on main while the view is scrubbed back, or on a
+    /// branch it is not on — grows the history (a new row, a new tip) and
+    /// leaves the document on screen alone: `None`. A terminal's rule for
+    /// output: keep up only if you were already at the end.
+    ///
+    /// [`Self::committed`] is the unconditional form, for a caller that
+    /// always wants to see the newest commit.
+    pub fn observe(&mut self, entry: OpLogEntry) -> Result<Option<Delta>, EditorError> {
+        let id = self.history.push(entry)?;
+        if self.history.parent_of(&id) != self.tip.as_deref() {
+            return Ok(None);
+        }
+        self.goto(Some(&id)).map(Some)
     }
 
     /// Show the document at `tip` — a scrub. Returns the ops that move a
@@ -283,6 +326,60 @@ mod tests {
 
         editor.goto(Some("e3")).unwrap();
         assert_eq!(editor.doc().len(), 4);
+    }
+
+    #[test]
+    fn observing_a_commit_follows_it_only_from_the_entry_it_builds_on() {
+        let mut editor = Editor::open(world_with_cube(), linear_log(2)).unwrap();
+
+        // At the end of main: a commit on main is followed.
+        let delta = editor.observe(entry("e3", Some("e2"), 3)).unwrap();
+        assert!(delta.is_some_and(|d| d.len() == 1));
+        assert_eq!(editor.tip(), Some("e3"));
+
+        // Scrubbed back: a commit on main grows the history, and the
+        // document on screen stays the one the person chose.
+        editor.goto(Some("e1")).unwrap();
+        let on_screen = editor.doc().len();
+        assert!(
+            editor
+                .observe(entry("e4", Some("e3"), 4))
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(editor.tip(), Some("e1"));
+        assert_eq!(editor.revision(), 1);
+        assert_eq!(editor.doc().len(), on_screen);
+        assert_eq!(editor.tips(), vec!["e4"]);
+
+        // A branch from the entry on screen is what the person is looking
+        // at: followed.
+        assert!(
+            editor
+                .observe(entry("b1", Some("e1"), 5))
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(editor.tip(), Some("b1"));
+        let mut tips = editor.tips();
+        tips.sort_unstable();
+        assert_eq!(tips, vec!["b1", "e4"]);
+    }
+
+    #[test]
+    fn opening_at_a_tip_shows_that_tip_not_the_last_line() {
+        // The last line is a branch's once one has been committed after main
+        // moved; the head is whatever the package's ref says.
+        let mut log = linear_log(2);
+        log.push(entry("b1", Some("e1"), 3));
+        let editor = Editor::open_at(world_with_cube(), log.clone(), Some("e2")).unwrap();
+        assert_eq!(editor.tip(), Some("e2"));
+        assert_eq!(editor.revision(), 2);
+        assert_eq!(
+            Editor::open(world_with_cube(), log.clone()).unwrap().tip(),
+            Some("b1")
+        );
+        assert!(Editor::open_at(world_with_cube(), log, Some("nowhere")).is_err());
     }
 
     #[test]

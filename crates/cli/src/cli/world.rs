@@ -45,6 +45,10 @@ pub enum WorldCommands {
         /// What the batch is for — a commit message
         #[arg(long, short)]
         message: Option<String>,
+        /// The entry to build on (an id from `log` or `tips`) instead of the
+        /// head. An earlier entry starts a branch; the head stays where it is
+        #[arg(long)]
+        at: Option<String>,
     },
     /// Take back the newest edit, by appending its inverse
     Undo {
@@ -131,9 +135,9 @@ pub async fn run(command: WorldCommands) -> Result<()> {
 
 /// Every branch end, with its revision, the head marked.
 ///
-/// "Head" is the format's: the last entry in file order, which is what a
-/// fold names when no tip is given. A CLI has no canvas, so there is no
-/// "current" beyond that.
+/// "Head" is the format's: `refs.main`, else the last entry — the authority's
+/// `main_tip`, since once a branch is committed the last line is a branch's.
+/// A CLI has no canvas, so there is no "current" beyond that.
 fn tips_lines(dir: &std::path::Path) -> Result<Vec<String>> {
     let live = LiveWorld::open(dir).map_err(|e| anyhow::anyhow!("{e}"))?;
     let view = Editor::open(live.base().clone(), live.entries().to_vec())
@@ -144,7 +148,7 @@ fn tips_lines(dir: &std::path::Path) -> Result<Vec<String>> {
             "no history yet — the base is the whole world".to_string(),
         ]);
     }
-    let head = view.tip();
+    let head = live.main_tip();
     Ok(tips
         .iter()
         .map(|tip| {
@@ -153,7 +157,11 @@ fn tips_lines(dir: &std::path::Path) -> Result<Vec<String>> {
                 .get(tip)
                 .map(|e| e.entry.revision)
                 .unwrap_or(0);
-            let marker = if Some(*tip) == head { "  ← head" } else { "" };
+            let marker = if Some(*tip) == head.as_deref() {
+                "  ← head"
+            } else {
+                ""
+            };
             format!("{tip}  r{revision}{marker}")
         })
         .collect())
@@ -178,10 +186,26 @@ fn log_lines(dir: &std::path::Path) -> Result<Vec<String>> {
         .into_iter()
         .enumerate()
         .map(|(n, line)| match history.id_at(n) {
-            Some(id) => format!("{id} {line}"),
+            // File order is not the chain once a log branches: say what an
+            // entry builds on wherever it is not the line above.
+            Some(id) => match history.parent_of(id) {
+                Some(parent) if n > 0 && history.id_at(n - 1) != Some(parent) => {
+                    format!("{id} {line}  (builds on {})", short(parent))
+                }
+                _ => format!("{id} {line}"),
+            },
             None => line,
         })
         .collect())
+}
+
+/// An id short enough to read in a line: a content hash's first 12 hex
+/// digits, anything else as it is.
+fn short(id: &str) -> &str {
+    match id.strip_prefix("sha256:") {
+        Some(hex) if hex.len() > 12 => &id[..7 + 12],
+        _ => id,
+    }
 }
 
 /// Clap's shape into the authority's.
@@ -193,6 +217,7 @@ fn translate(command: WorldCommands) -> Result<(PathBuf, WorldCommand)> {
             batch,
             author,
             message,
+            at,
         } => {
             let text = if batch == "-" {
                 let mut s = String::new();
@@ -212,6 +237,7 @@ fn translate(command: WorldCommands) -> Result<(PathBuf, WorldCommand)> {
                         .map_err(|e| anyhow::anyhow!("the batch isn't JSON: {e}"))?,
                     author,
                     message,
+                    at,
                 },
             )
         }
@@ -249,6 +275,7 @@ mod tests {
                 batch: json!({"ops": [{"SpawnEntity": {"entity": {"name": name}}}]}),
                 author: "test".into(),
                 message: None,
+                at: None,
             },
         )
         .expect(name);
@@ -275,6 +302,46 @@ mod tests {
         assert_eq!(lines.len(), 1, "{lines:?}");
         assert!(lines[0].contains(" r2"), "{lines:?}");
         assert!(lines[0].ends_with("← head"), "{lines:?}");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_branch_committed_with_at_is_a_tip_and_the_head_stays_on_main() {
+        let dir = package("branch");
+        submit(&dir, "lighthouse");
+        submit(&dir, "jetty");
+        let log = log_lines(&dir).unwrap();
+        let (first, second) = (first_word(&log[0]), first_word(&log[1]));
+
+        let report = headless::run(
+            &dir,
+            WorldCommand::Submit {
+                batch: json!([{"SpawnEntity": {"entity": {"name": "buoy"}}}]),
+                author: "test".into(),
+                message: None,
+                at: Some(first.to_string()),
+            },
+        )
+        .expect("a branch");
+        assert!(report.lines[0].contains("on a branch"), "{report:?}");
+        assert!(
+            report.lines[1].contains("head is still revision 2"),
+            "{report:?}"
+        );
+
+        let tips = tips_lines(&dir).unwrap();
+        assert_eq!(tips.len(), 2, "{tips:?}");
+        let head: Vec<&String> = tips.iter().filter(|l| l.ends_with("← head")).collect();
+        assert_eq!(head.len(), 1, "{tips:?}");
+        assert_eq!(first_word(head[0]), second, "main's tip, not the last line");
+
+        // The log says where the branch builds, since file order no longer does.
+        let log = log_lines(&dir).unwrap();
+        assert!(
+            log[2].ends_with(&format!("(builds on {})", short(first))),
+            "{log:?}"
+        );
+        assert!(!log[1].contains("builds on"), "{log:?}");
         std::fs::remove_dir_all(&dir).ok();
     }
 

@@ -10573,9 +10573,9 @@ dependencies = [
 
 [[package]]
 name = "openworldformat"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e58955b801f9033d46e3d47d7c50c1bffbe57f9fa53cce278c4c357daf3bf15"
+checksum = "a47ab30a37802549a0d9561b34b4fcaf22baa2e7c5fa79e621dd5a6b7c86d517"
 dependencies = [
  "schemars 1.2.2",
  "serde",
