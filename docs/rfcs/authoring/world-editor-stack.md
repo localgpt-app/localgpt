@@ -364,13 +364,49 @@ crate that can see both — gen, which does not depend on `world-editor` yet.
    change — they cannot both exist.
 5. **The viewport.** `bevy_picking` + `bevy_gizmos`, with every manipulation
    emitting one op per intent — one op per drag, not per frame.
-6. **The branch rail.** Render-target thumbnails, scrub, fork, tip switching.
-   First surface to exercise steps 1–4 for real.
+6. **The branch rail.** A first rail is in the live canvas
+   (`gen3d/history_rail.rs`): the log as rows, current and branch ends
+   marked, click or `[`/`]` to seek, the base as a row — plain `bevy_ui`,
+   drawing a snapshot the canvas publishes and seeking through the same path
+   as `POST /goto`. Not yet: render-target thumbnails, and forking from the
+   rail, which waits on the authority being able to fork (below).
 7. **Chrome.** Outliner, inspector, asset shelf, log on
    `bevy_ui_widgets`/`feathers`, with a hand-rolled tree.
 8. **Agents.** The launch layer (`world-agent::agent_cli`) and the MCP shim
    (`localgpt world mcp`) are built. ACP and an in-window pane remain, only
    if wanted.
+
+## Branches found two bugs, and one dependency
+
+Building the rail was the first time a *branched* history reached the
+screen, and it surfaced what linear logs had hidden.
+
+**The authority folded every line, not its head's path.** `LiveWorld`
+computed its head with `fold_log` over the whole log in file order, and the
+guard wrote that to `manifest.json`. On a linear log that is the head; on a
+branched one it applies both variants at once — a world that never existed on
+any branch. The canvas drew all three blocks at a head whose rail correctly
+said `r3`. `undo` had the same flaw (it took back the newest *line*, which
+may belong to another branch) and `verify` would have passed the wrong head.
+Fixed by folding the path (`fold_head`, over the crate's `fold_path`).
+**The lesson is about the tests:** `authority_and_view` claimed the two
+halves never disagree, and every history it tried was linear. Branched
+fixtures are now part of it.
+
+**Entries had no identity.** The authority wrote `id: None`, so the only
+names a history had were synthesized `line-<n>` — which spec/package.md says
+a ref may never be. Every new entry now carries its content hash, an explicit
+parent and its message.
+
+**Forking needs `refs.main` — and the reference crate dropped it.**
+`ops.jsonl` is append-only, so a branch entry always lands on the last line,
+and under the head rule's "else the log's last entry" fallback that silently
+makes the branch `main`. An authority that forks must write `refs.main`
+first. But `SessionMeta` in openworldformat 0.3.1 has no `refs` and no
+catch-all, so an authority reading `package.json` dropped refs and, rewriting
+it on every commit, destroyed them. Fixed upstream in 0.3.2 (`refs`, an
+`extra` catch-all for must-ignore round-tripping, and `main_tip` stating the
+head rule); the fork through the authority lands once 0.3.2 is published.
 
 ## What would change the answer
 
