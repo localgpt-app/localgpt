@@ -353,10 +353,15 @@ crate that can see both — gen, which does not depend on `world-editor` yet.
    the editors (`localgpt world`, a terminal, `localgpt world mcp`).
    Runtime switching of an open world arrives with the reconciler, when
    loading becomes a switch instead of a build-time shape.
-4. **The reconciler.** Document delta → minimal ECS mutation, asset cache
-   keyed by sha256. Delete the scene→ops projection in the same change; they
-   cannot both exist. `Editor::goto` → `Delta` → `OpsApplier` is the path —
-   all three pieces exist, unwired.
+4. **The reconciler.** The view half is wired: the live canvas carries the
+   `Editor` beside the authority, commits apply the view's delta (not the
+   batch's ops — those differ after a seek, and conflating them was the
+   desync the one-direction rule exists to prevent), and `GET /tips` /
+   `POST /goto` move the canvas through history over the API, branches
+   included. What remains is the other direction: the panel's tools emitting
+   ops through the authority instead of mutating the ECS, the asset cache
+   keyed by sha256, and deleting the scene→ops projection in the same
+   change — they cannot both exist.
 5. **The viewport.** `bevy_picking` + `bevy_gizmos`, with every manipulation
    emitting one op per intent — one op per drag, not per frame.
 6. **The branch rail.** Render-target thumbnails, scrub, fork, tip switching.
