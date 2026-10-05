@@ -37,6 +37,7 @@ const ROW_HOVER: Color = Color::srgba(1.0, 1.0, 1.0, 0.08);
 const ROW_CURRENT: Color = Color::srgba(0.22, 0.45, 0.85, 0.55);
 const INK: Color = Color::srgb(0.92, 0.94, 0.97);
 const INK_MUTED: Color = Color::srgb(0.58, 0.64, 0.72);
+const REFUSED: Color = Color::srgb(0.95, 0.6, 0.35);
 
 pub struct HistoryRailPlugin;
 
@@ -95,6 +96,14 @@ fn redraw_rail(history: Res<LiveHistory>, rail: Query<Entity, With<Rail>>, mut c
     commands.entity(rail).despawn_children();
     commands.entity(rail).with_children(|panel| {
         panel.spawn(text(&title(&history), 14.0, INK));
+        if let Some(status) = &history.status {
+            let color = if status.starts_with("refused") {
+                REFUSED
+            } else {
+                INK_MUTED
+            };
+            panel.spawn(text(&clip(status, 64), 12.0, color));
+        }
         if hidden_newer > 0 {
             panel.spawn(text(&format!("  … {hidden_newer} newer"), 12.0, INK_MUTED));
         }
@@ -115,7 +124,12 @@ fn redraw_rail(history: Res<LiveHistory>, rail: Query<Entity, With<Rail>>, mut c
         // The base is a real place to stand: the world before any entry.
         let at_base = history.current.is_none();
         spawn_row(panel, None, &base_label(at_base), at_base);
-        panel.spawn(text("[ ] step   click to show", 11.0, INK_MUTED));
+        panel.spawn(text("[ ] step   click a row to show it", 11.0, INK_MUTED));
+        panel.spawn(text(
+            "click select  drag move  , . turn  - = scale  Del  Cmd+D copy  Cmd+Z undo",
+            11.0,
+            INK_MUTED,
+        ));
     });
 }
 
@@ -313,6 +327,7 @@ mod tests {
                 })
                 .collect(),
             current: current.map(str::to_string),
+            status: None,
         }
     }
 
@@ -397,6 +412,7 @@ mod tests {
                 head(row("e3", 3, true)),
             ],
             current: Some("e2".into()),
+            status: None,
         };
         assert_eq!(
             title(&forked),

@@ -30,6 +30,7 @@ use localgpt_world_agent::live::{self, LiveWorld};
 use localgpt_world_types as wt;
 use serde_json::{Value, json};
 
+use super::canvas_edit::PersonIntent;
 use super::ops_apply::OpsApplier;
 use super::plugin::FlyCam;
 use super::registry::GenEntity;
@@ -92,6 +93,8 @@ struct Live {
     /// Set whenever the history or the canvas's place in it changes, so the
     /// rail's snapshot is rebuilt once rather than every frame.
     history_dirty: bool,
+    /// The newest thing that happened, for the rail: a commit, or a refusal.
+    status: Option<String>,
 }
 
 /// What the history rail draws: the log as rows, and where the canvas is.
@@ -104,6 +107,8 @@ pub struct LiveHistory {
     pub rows: Vec<HistoryRow>,
     /// The entry the canvas shows, or `None` for the base.
     pub current: Option<String>,
+    /// The newest commit or refusal, in one line.
+    pub status: Option<String>,
 }
 
 /// One entry of the log, as the rail shows it.
@@ -208,12 +213,21 @@ pub fn setup_live(app: &mut App, dir: &Path) -> anyhow::Result<()> {
         deferred: Vec::new(),
         replay: None,
         history_dirty: true,
+        status: None,
     })
     .insert_resource(Endpoint(endpoint))
     .init_resource::<LiveHistory>()
     .add_message::<SeekTo>()
-    .add_plugins(super::history_rail::HistoryRailPlugin)
-    .add_systems(Update, (live_world, live_view).chain());
+    .add_plugins((
+        super::history_rail::HistoryRailPlugin,
+        super::canvas_edit::CanvasEditPlugin,
+    ))
+    .add_systems(
+        Update,
+        (live_world, live_view)
+            .chain()
+            .after(super::canvas_edit::PersonEdits),
+    );
     Ok(())
 }
 
@@ -267,6 +281,248 @@ fn follow(live: &mut Live, applier: &mut OpsApplier<'_, '_>, done: &live::Commit
     true
 }
 
+/// The person at the keyboard, as the history names them.
+fn person() -> String {
+    std::env::var("USER")
+        .ok()
+        .filter(|u| !u.is_empty())
+        .unwrap_or_else(|| "you".into())
+}
+
+/// One line for the rail about a commit.
+fn status_line(done: &live::Committed, what: &str) -> String {
+    format!(
+        "r{} · {} · {}{}",
+        done.revision,
+        done.entry.author.name,
+        what,
+        if done.forked { " (a branch)" } else { "" }
+    )
+}
+
+/// Commit a person's intent at the entry on screen — so an edit while the
+/// canvas shows an earlier point starts a branch there — and follow it.
+/// A refused gesture is put back from the document.
+fn person_edit(
+    live: &mut Live,
+    applier: &mut OpsApplier<'_, '_>,
+    selection: Option<&mut InspectorSelection>,
+    intent: PersonIntent,
+) {
+    live.history_dirty = true;
+    let restore = match &intent {
+        PersonIntent::Transform { id, .. } => Some(*id),
+        _ => None,
+    };
+    let refuse = |live: &mut Live, applier: &mut OpsApplier<'_, '_>, why: String| {
+        if let Some(entity) = restore.and_then(|id| live.view.doc().get(id)) {
+            applier.apply_ops(&[wt::EditOp::ModifyEntity {
+                id: entity.id,
+                patch: wt::EntityPatch {
+                    transform: Some(entity.transform.clone()),
+                    ..Default::default()
+                },
+            }]);
+        }
+        eprintln!("[live] refused: {why}");
+        live.status = Some(format!("refused: {why}"));
+    };
+    if live.replay.is_some() {
+        return refuse(
+            live,
+            applier,
+            "a replay is running; edits wait for it".into(),
+        );
+    }
+    let at = live.view.tip().map(str::to_string);
+    if at.is_none() && !live.world.entries().is_empty() {
+        // An entry always builds on an entry once there is history; the
+        // format has no way to say "on the base" after the first line.
+        return refuse(
+            live,
+            applier,
+            "the base can't take an edit once there is history; step to an entry first".into(),
+        );
+    }
+    let author = person();
+    let submit = |live: &mut Live, ops: Value, what: &str| {
+        let batch = json!({"ops": ops, "message": what});
+        live.world
+            .submit_at(at.as_deref(), &batch, &author, None)
+            .map_err(|r| r.errors.join("; "))
+    };
+    let mut select_name = None;
+    let (outcome, what) = match intent {
+        PersonIntent::Transform {
+            id,
+            name,
+            position,
+            yaw_degrees,
+            scale_by,
+        } => {
+            let Some(current) = live.view.doc().get(id).map(|e| e.transform.clone()) else {
+                return refuse(
+                    live,
+                    applier,
+                    format!("{name} is not in the world on screen"),
+                );
+            };
+            let patch = gesture_patch(&current, position, yaw_degrees, scale_by);
+            if patch.is_empty() {
+                // A drag that ended where it began.
+                return;
+            }
+            let what = format!("{} {name}", gesture_verbs(&patch));
+            let ops = json!([{"ModifyEntity": {"id": id, "patch": {"transform": patch}}}]);
+            (submit(live, ops, &what), what)
+        }
+        PersonIntent::Delete { id, name } => {
+            let what = format!("delete {name}");
+            (
+                submit(live, json!([{"DeleteEntity": {"id": id}}]), &what),
+                what,
+            )
+        }
+        PersonIntent::Duplicate { id } => {
+            let Some(original) = live.view.doc().get(id).cloned() else {
+                return refuse(
+                    live,
+                    applier,
+                    "that entity is not in the world on screen".into(),
+                );
+            };
+            let doc = live.view.doc();
+            let name = copy_name(&original.name.0, |n| doc.get_by_name(n).is_some());
+            let mut entity = serde_json::to_value(&original).unwrap_or_default();
+            if let Some(object) = entity.as_object_mut() {
+                object.remove("id");
+                object.insert("name".into(), json!(name));
+            }
+            let mut position = original.transform.position;
+            position[0] += 1.0;
+            entity["transform"]["position"] = json!(position);
+            let what = format!("duplicate {}", original.name.0);
+            select_name = Some(name);
+            (
+                submit(live, json!([{"SpawnEntity": {"entity": entity}}]), &what),
+                what,
+            )
+        }
+        PersonIntent::Undo => (
+            live.world
+                .undo_at(at.as_deref(), &author)
+                .map_err(|r| r.errors.join("; ")),
+            "undo".to_string(),
+        ),
+    };
+    match outcome {
+        Ok(done) => {
+            follow(live, applier, &done);
+            let what = match done.warnings.first() {
+                Some(w) if what == "undo" => w.clone(),
+                _ => what,
+            };
+            live.status = Some(status_line(&done, &what));
+            eprintln!("[live] {}", live.status.as_deref().unwrap_or_default());
+            if let (Some(name), Some(selection)) = (select_name, selection) {
+                selection.entity = done
+                    .spawned
+                    .get(&name)
+                    .and_then(|id| applier.entity_of(*id));
+            }
+        }
+        Err(why) => refuse(live, applier, why),
+    }
+}
+
+/// The transform patch a gesture makes, from the document's current value:
+/// the position the canvas left it at, a turn about the vertical, a uniform
+/// scale. Only what changed, rounded so the log reads (mm, 0.01°).
+fn gesture_patch(
+    current: &wt::WorldTransform,
+    position: Option<[f32; 3]>,
+    yaw_degrees: f32,
+    scale_by: f32,
+) -> serde_json::Map<String, Value> {
+    // Rounded, then read as the f32's shortest decimal — widening an f32
+    // to JSON's f64 directly writes 2.122999906539917 for 2.123.
+    let round = |v: f32, by: f32| -> f64 {
+        let r = (v * by).round() / by;
+        r.to_string().parse().unwrap_or(f64::from(r))
+    };
+    let mut patch = serde_json::Map::new();
+    if let Some(p) = position {
+        let p = p.map(|v| round(v, 1000.0));
+        if p.iter()
+            .zip(current.position)
+            .any(|(a, b)| (a - f64::from(b)).abs() > 1e-4)
+        {
+            patch.insert("position".into(), json!(p));
+        }
+    }
+    if yaw_degrees.rem_euclid(360.0).abs() > 1e-3
+        && (yaw_degrees.rem_euclid(360.0) - 360.0).abs() > 1e-3
+    {
+        patch.insert(
+            "rotation_degrees".into(),
+            json!(turned(current.rotation_degrees, yaw_degrees).map(|v| round(v, 100.0))),
+        );
+    }
+    if (scale_by - 1.0).abs() > 1e-4 {
+        patch.insert(
+            "scale".into(),
+            json!(current.scale.map(|s| round(s * scale_by, 1000.0))),
+        );
+    }
+    patch
+}
+
+/// Turn XYZ angles about the vertical. Without a tilt that is the yaw plus
+/// the turn, kept in (-180, 180]; with one, the rotations are composed and
+/// read back as the format's XYZ angles — what the canvas previewed.
+fn turned(rotation: [f32; 3], yaw: f32) -> [f32; 3] {
+    let wrap = |d: f32| {
+        let w = (d + 180.0).rem_euclid(360.0) - 180.0;
+        if w == -180.0 { 180.0 } else { w }
+    };
+    if rotation[0].abs() < 1e-3 && rotation[2].abs() < 1e-3 {
+        return [rotation[0], wrap(rotation[1] + yaw), rotation[2]];
+    }
+    let [x, y, z] = rotation.map(f32::to_radians);
+    let q = Quat::from_rotation_y(yaw.to_radians()) * Quat::from_euler(EulerRot::XYZ, x, y, z);
+    let (x, y, z) = q.to_euler(EulerRot::XYZ);
+    [x, y, z].map(f32::to_degrees)
+}
+
+fn gesture_verbs(patch: &serde_json::Map<String, Value>) -> String {
+    let verbs: Vec<&str> = [
+        ("position", "move"),
+        ("rotation_degrees", "turn"),
+        ("scale", "scale"),
+    ]
+    .iter()
+    .filter(|(key, _)| patch.contains_key(*key))
+    .map(|(_, verb)| *verb)
+    .collect();
+    verbs.join(" and ")
+}
+
+/// A free name for a copy: `lighthouse` → `lighthouse 2`, `lighthouse 2` →
+/// `lighthouse 3`, skipping any taken.
+fn copy_name(name: &str, taken: impl Fn(&str) -> bool) -> String {
+    let (base, first) = match name.rsplit_once(' ') {
+        Some((base, n)) => match n.parse::<u32>() {
+            Ok(n) => (base, n + 1),
+            Err(_) => (name, 2),
+        },
+        None => (name, 2),
+    };
+    (first..)
+        .map(|n| format!("{base} {n}"))
+        .find(|candidate| !taken(candidate))
+        .unwrap_or_else(|| format!("{name} copy"))
+}
+
 /// The rail's snapshot of the history, from the view.
 fn publish(live: &Live) -> LiveHistory {
     let tips: std::collections::HashSet<&str> = live.view.tips().into_iter().collect();
@@ -286,6 +542,7 @@ fn publish(live: &Live) -> LiveHistory {
             })
             .collect(),
         current: live.view.tip().map(str::to_string),
+        status: live.status.clone(),
     }
 }
 
@@ -297,7 +554,7 @@ const ENDPOINTS: &[(&str, &str)] = &[
     ),
     (
         "POST /undo",
-        "undo the head's newest change (appends its inverse)",
+        "undo the head's newest change (appends its inverse); {\"at\": id} undoes on that entry's path instead",
     ),
     (
         "GET /log",
@@ -342,6 +599,8 @@ fn live_world(
     mut applier: OpsApplier,
     mut snapshot: ResMut<LiveHistory>,
     mut seeks: MessageReader<SeekTo>,
+    mut intents: MessageReader<PersonIntent>,
+    mut selection: Option<ResMut<InspectorSelection>>,
 ) {
     let live = &mut *live;
     if !live.started {
@@ -393,6 +652,10 @@ fn live_world(
                 ) {
                     Ok(done) => {
                         let on_screen = follow(live, &mut applier, &done);
+                        live.status = Some(status_line(
+                            &done,
+                            &live::describe_ops(&done.ops).join(" · "),
+                        ));
                         eprintln!(
                             "[live] revision {}{} · {}",
                             done.revision,
@@ -423,7 +686,16 @@ fn live_world(
                     }
                 },
             },
-            ("POST", "/undo") => match live.world.undo(
+            ("POST", "/undo") => match live.world.undo_at(
+                param(&call.query, "at")
+                    .or_else(|| {
+                        serde_json::from_slice::<Value>(&call.body)
+                            .ok()?
+                            .get("at")?
+                            .as_str()
+                            .map(str::to_string)
+                    })
+                    .as_deref(),
                 &param(&call.query, "author")
                     .or_else(|| {
                         // The MCP shim sends {"author": ...}; a query wins.
@@ -541,6 +813,12 @@ fn live_world(
             ),
         };
         let _ = call.reply.send(reply);
+    }
+
+    // A person's edits, committed at the entry on screen.
+    let asked: Vec<PersonIntent> = intents.read().cloned().collect();
+    for intent in asked {
+        person_edit(live, &mut applier, selection.as_deref_mut(), intent);
     }
 
     // The rail's requests, through the same seek the API uses.
@@ -884,6 +1162,61 @@ fn wait_for_file(path: &Path, limit: Duration) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn transform(rotation: [f32; 3]) -> wt::WorldTransform {
+        wt::WorldTransform {
+            position: [1.0, 0.5, -2.0],
+            rotation_degrees: rotation,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_gesture_patches_only_what_it_changed() {
+        let t = transform([0.0, 170.0, 0.0]);
+        // A drag that came back to where it began changes nothing.
+        assert!(gesture_patch(&t, Some([1.00001, 0.5, -2.0]), 0.0, 1.0).is_empty());
+        let moved = gesture_patch(&t, Some([2.12345, 0.5, -2.0]), 0.0, 1.0);
+        assert_eq!(moved.get("position"), Some(&json!([2.123, 0.5, -2.0])));
+        assert_eq!(moved.len(), 1);
+        // Turning past 180 wraps, keeping the angles' form.
+        let turn = gesture_patch(&t, None, 15.0, 1.0);
+        assert_eq!(
+            turn.get("rotation_degrees"),
+            Some(&json!([0.0, -175.0, 0.0]))
+        );
+        // A full circle is no turn.
+        assert!(gesture_patch(&t, None, 360.0, 1.0).is_empty());
+        let scaled = gesture_patch(&t, None, 0.0, 1.21);
+        assert_eq!(scaled.get("scale"), Some(&json!([1.21, 1.21, 1.21])));
+        assert_eq!(gesture_verbs(&moved), "move");
+        let mut both = moved.clone();
+        both.extend(turn);
+        assert_eq!(gesture_verbs(&both), "move and turn");
+    }
+
+    #[test]
+    fn a_tilted_turn_is_the_rotation_the_canvas_previewed() {
+        let tilted = [20.0, 30.0, -10.0];
+        let angles = turned(tilted, 45.0);
+        let rad = |a: [f32; 3]| a.map(f32::to_radians);
+        let [x, y, z] = rad(angles);
+        let [a, b, c] = rad(tilted);
+        let got = Quat::from_euler(EulerRot::XYZ, x, y, z);
+        let want =
+            Quat::from_rotation_y(45f32.to_radians()) * Quat::from_euler(EulerRot::XYZ, a, b, c);
+        assert!(got.angle_between(want) < 1e-3, "{angles:?}");
+    }
+
+    #[test]
+    fn a_copy_takes_the_next_free_name() {
+        let taken = ["lighthouse", "lighthouse 2"];
+        let free = |n: &str| taken.contains(&n);
+        assert_eq!(copy_name("lighthouse", free), "lighthouse 3");
+        assert_eq!(copy_name("lighthouse 2", free), "lighthouse 3");
+        assert_eq!(copy_name("jetty", |_| false), "jetty 2");
+        assert_eq!(copy_name("pier 9b", |_| false), "pier 9b 2");
+    }
 
     #[test]
     fn a_query_parameter_reads_back_as_the_client_meant_it() {

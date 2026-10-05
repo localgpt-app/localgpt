@@ -1575,7 +1575,8 @@ the op again — that makes a new version, and the old one stays for history.
 - `GET $URL/screenshot` — renders the view now and replies with the PNG's path.
   Look at it after a change.
 - `GET $URL/selection` — what the person has selected; "this" means it.
-- `POST $URL/undo` — undoes the head's newest change by appending its inverse.
+- `POST $URL/undo` — undoes the head's newest change by appending its inverse
+  (`{"at": "<id>"}`: the newest on that entry's path instead, as a branch).
 - `.live/preview.png` refreshes by itself after every change.
 
 ## History is a tree

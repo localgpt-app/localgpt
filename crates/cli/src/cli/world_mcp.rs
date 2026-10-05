@@ -265,6 +265,10 @@ impl Tool for UndoTool {
                     "author": {
                         "type": "string",
                         "description": "Who is undoing — recorded as the undo's author."
+                    },
+                    "at": {
+                        "type": "string",
+                        "description": "Undo on the path to this entry (from world_tips) instead of the head's. Off main the undo is a branch commit; the head stays."
                     }
                 }
             }),
@@ -273,11 +277,15 @@ impl Tool for UndoTool {
 
     async fn execute(&self, arguments: &str) -> Result<String> {
         let args: Value = serde_json::from_str(arguments).unwrap_or(json!({}));
-        let body = args
-            .get("author")
-            .and_then(Value::as_str)
-            .map(|author| json!({"author": author}));
-        self.0.call(reqwest::Method::POST, "/undo", body).await
+        let mut body = json!({});
+        for key in ["author", "at"] {
+            if let Some(value) = args.get(key).and_then(Value::as_str) {
+                body[key] = json!(value);
+            }
+        }
+        self.0
+            .call(reqwest::Method::POST, "/undo", Some(body))
+            .await
     }
 }
 

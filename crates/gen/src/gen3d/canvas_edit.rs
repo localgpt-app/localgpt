@@ -246,10 +246,7 @@ fn flush_unless(
     scene: &Scene,
     intents: &mut MessageWriter<PersonIntent>,
 ) {
-    if gesture
-        .0
-        .as_ref()
-        .is_some_and(|g| Some(g.entity) != entity)
+    if gesture.0.as_ref().is_some_and(|g| Some(g.entity) != entity)
         && let Some(done) = gesture.0.take()
     {
         intents.write(done.finish(&scene.transforms));
@@ -420,7 +417,7 @@ fn key_edits(
     // Typing into a panel is not editing the world.
     let typing = egui
         .ctx_mut()
-        .is_ok_and(|ctx| ctx.wants_keyboard_input());
+        .is_ok_and(|ctx| ctx.egui_wants_keyboard_input());
     if !typing {
         let command = keys.any_pressed([
             KeyCode::SuperLeft,
