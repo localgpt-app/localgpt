@@ -46,6 +46,11 @@ pub struct OpsApplier<'w, 's> {
 }
 
 impl OpsApplier<'_, '_> {
+    /// The scene entity holding world entity `id`, if it is in the scene.
+    pub fn entity_of(&self, id: u64) -> Option<Entity> {
+        self.registry.get_entity_by_id(&wt::EntityId(id))
+    }
+
     /// Replace the whole scene with a document's entities (used after
     /// replaying an op log). Clears first — merging into the startup scene
     /// would collide world ids and names with the replayed entities.

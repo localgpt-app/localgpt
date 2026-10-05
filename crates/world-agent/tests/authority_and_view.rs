@@ -550,3 +550,50 @@ fn a_view_at_the_head_does_not_jump_to_a_branch_it_was_not_on() {
     assert_eq!(names(view.doc()), ["bell", "lighthouse"]);
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn undo_at_a_branch_takes_back_the_branchs_newest_and_leaves_the_head() {
+    let dir = temp("undo-at");
+    let mut live = LiveWorld::open(&dir).expect("open");
+    let e1 = live
+        .submit(&spawn("lighthouse"), "test", None)
+        .unwrap()
+        .entry
+        .id
+        .unwrap();
+    live.submit(&spawn("jetty"), "test", None).unwrap();
+    let b1 = live
+        .submit_at(Some(&e1), &spawn("buoy"), "test", None)
+        .unwrap();
+    let b1_id = b1.entry.id.clone().unwrap();
+    let head_before = names(live.head());
+
+    let undone = live
+        .undo_at(Some(&b1_id), "test")
+        .expect("undo on the branch");
+    assert!(undone.forked, "off main, an undo is a branch commit");
+    assert_eq!(undone.warnings, [format!("undid revision {}", b1.revision)]);
+    assert_eq!(undone.entry.parent.as_deref(), Some(b1_id.as_str()));
+    assert_eq!(names(live.head()), head_before, "the head did not move");
+
+    // The branch's world is back to its fork point's.
+    let mut view = view_at_head(&live);
+    view.goto(undone.entry.id.as_deref()).unwrap();
+    assert_eq!(names(view.doc()), ["lighthouse"]);
+
+    // Undo again on the branch: the buoy's undo is not undone, and the
+    // lighthouse (shared with main) is next.
+    let again = live.undo_at(undone.entry.id.as_deref(), "test").unwrap();
+    assert_eq!(again.warnings, ["undid revision 1"]);
+    view.observe(again.entry.clone()).unwrap();
+    assert!(names(view.doc()).is_empty(), "{:?}", names(view.doc()));
+    assert_eq!(names(live.head()), head_before, "main still has both");
+
+    // At main's tip, undo_at is plain undo.
+    let tip = live.main_tip();
+    let on_main = live.undo_at(tip.as_deref(), "test").unwrap();
+    assert!(!on_main.forked);
+    assert_eq!(names(live.head()), ["lighthouse"]);
+    assert!(live.verify().is_empty(), "{:?}", live.verify());
+    std::fs::remove_dir_all(&dir).ok();
+}

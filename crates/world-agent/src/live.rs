@@ -317,7 +317,7 @@ impl LiveWorld {
         // The world the batch is read against: the head, or the fork point.
         let start = match &branch_from {
             None => self.head.clone(),
-            Some(at) => self.fork_point(at)?,
+            Some(at) => self.fork_point(at)?.0,
         };
         if ops.is_empty() {
             return Err(Rejected::one("the batch holds no ops"));
@@ -425,7 +425,7 @@ impl LiveWorld {
 
     /// The world at entry `at`, for a batch that branches from there — or
     /// why there can be no branch there.
-    fn fork_point(&self, at: &str) -> Result<WorldDoc, Rejected> {
+    fn fork_point(&self, at: &str) -> Result<(WorldDoc, Vec<usize>), Rejected> {
         if !self.entries.iter().any(|e| e.id.as_deref() == Some(at)) {
             let synthesized = self
                 .entries
@@ -449,9 +449,9 @@ impl LiveWorld {
                  name one — commit once on main, then branch"
             )));
         }
-        openworldformat::fold_path(&self.base, &self.entries, Some(at))
-            .map(|(doc, _)| doc)
-            .map_err(|e| Rejected::one(format!("the history doesn't fold to '{at}': {e}")))
+        let (doc, ids) = openworldformat::fold_path(&self.base, &self.entries, Some(at))
+            .map_err(|e| Rejected::one(format!("the history doesn't fold to '{at}': {e}")))?;
+        Ok((doc, path_indices(&self.entries, &ids)))
     }
 
     /// Undo the newest batch nobody has undone, by appending its inverse —
@@ -462,8 +462,26 @@ impl LiveWorld {
     /// the file may belong to another branch, and taking it back would apply
     /// an inverse to a world that never held what it undoes.
     pub fn undo(&mut self, author: &str) -> Result<Committed, Rejected> {
-        let (_, path) = fold_head(&self.base, &self.entries, &self.meta)
-            .map_err(|e| Rejected::one(format!("the history no longer folds: {e}")))?;
+        self.undo_at(None, author)
+    }
+
+    /// Undo on the path to entry `at` — main's when `at` is `None` or names
+    /// main's tip. The newest batch on that path nobody has undone is taken
+    /// back by appending its inverse as `at`'s child, so off main the undo is
+    /// a branch commit like any other: the head stays where it was. This is
+    /// what a person looking at a branch means by undo.
+    pub fn undo_at(&mut self, at: Option<&str>, author: &str) -> Result<Committed, Rejected> {
+        let branch_at = at
+            .filter(|at| Some(*at) != self.main_tip().as_deref())
+            .map(str::to_string);
+        let (start, path) = match &branch_at {
+            None => {
+                let (_, path) = fold_head(&self.base, &self.entries, &self.meta)
+                    .map_err(|e| Rejected::one(format!("the history no longer folds: {e}")))?;
+                (self.head.clone(), path)
+            }
+            Some(at) => self.fork_point(at)?,
+        };
         let on_path: Vec<&OpLogEntry> = path.iter().map(|&i| &self.entries[i]).collect();
         let undone: HashSet<u64> = on_path.iter().copied().filter_map(undo_of).collect();
         let Some(k) = on_path.iter().rposition(|e| {
@@ -478,23 +496,31 @@ impl LiveWorld {
         let before = fold_log(&self.base, &prefix)
             .map_err(|e| Rejected::one(format!("the history no longer folds: {e}")))?;
         let inverse = sync::compute_inverse(&before, &on_path[k].edit_ops());
-        let mut trial = self.head.clone();
+        let mut trial = start;
         trial.apply_all(&inverse).map_err(|e| {
             Rejected::one(format!(
                 "revision {target} can't be undone: later changes depend on it ({e})"
             ))
         })?;
-        let next = compose(&self.head_manifest, &trial);
         let revision = self.next_revision();
-        let entry = entry(
+        let mut entry = entry(
             revision,
             author,
             json!({"via": "undo", "of": target}),
             &inverse,
         );
-        let entry = self
-            .commit(entry, trial, next)
-            .map_err(|e| Rejected::one(format!("couldn't write the package: {e}")))?;
+        let forked = branch_at.is_some();
+        let entry = match branch_at {
+            None => {
+                let next = compose(&self.head_manifest, &trial);
+                self.commit(entry, trial, next)
+            }
+            Some(at) => {
+                entry.parent = Some(at);
+                self.commit_branch(entry)
+            }
+        }
+        .map_err(|e| Rejected::one(format!("couldn't write the package: {e}")))?;
         Ok(Committed {
             revision,
             ops: inverse,
@@ -502,7 +528,7 @@ impl LiveWorld {
             stored: BTreeMap::new(),
             warnings: vec![format!("undid revision {target}")],
             entry,
-            forked: false,
+            forked,
         })
     }
 
@@ -1114,13 +1140,17 @@ fn fold_head(
     }
     let tip = openworldformat::main_tip(meta, entries);
     let (doc, ids) = openworldformat::fold_path(base, entries, tip.as_deref())?;
+    Ok((doc, path_indices(entries, &ids)))
+}
+
+/// The log indices of a path's entry ids, base-first.
+fn path_indices(entries: &[OpLogEntry], ids: &[String]) -> Vec<usize> {
     let index: HashMap<String, usize> = entries
         .iter()
         .enumerate()
         .map(|(n, e)| (entry_id(n, e), n))
         .collect();
-    let path = ids.iter().filter_map(|id| index.get(id).copied()).collect();
-    Ok((doc, path))
+    ids.iter().filter_map(|id| index.get(id).copied()).collect()
 }
 
 fn entry(revision: u64, author: &str, intent: Value, ops: &[EditOp]) -> OpLogEntry {

@@ -8085,6 +8085,15 @@ fn fly_cam_movement(
     let Ok(mut transform) = query.single_mut() else {
         return;
     };
+    // Cmd/Ctrl + a letter is a command (Cmd+D duplicates), not a step.
+    if keys.any_pressed([
+        KeyCode::SuperLeft,
+        KeyCode::SuperRight,
+        KeyCode::ControlLeft,
+        KeyCode::ControlRight,
+    ]) {
+        return;
+    }
 
     let forward = transform.forward().as_vec3();
     let right = transform.right().as_vec3();

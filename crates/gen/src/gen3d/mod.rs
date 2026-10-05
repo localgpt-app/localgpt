@@ -9,6 +9,7 @@ pub mod asset_gen;
 pub mod audio;
 pub mod avatar;
 pub mod behaviors;
+pub mod canvas_edit;
 pub mod commands;
 pub mod compat;
 pub mod extras;

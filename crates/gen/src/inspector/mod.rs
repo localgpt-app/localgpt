@@ -116,6 +116,11 @@ impl Plugin for InspectorPlugin {
         // Start the WebSocket inspector server
         ws_server::start_ws_server(app);
 
+        // Mesh picking is not in DefaultPlugins: without it no mesh is ever
+        // hit, and clicking the viewport selects nothing.
+        if !app.is_plugin_added::<MeshPickingPlugin>() {
+            app.add_plugins(MeshPickingPlugin);
+        }
         app.add_plugins(EguiPlugin::default())
             // NOTE: do NOT enable enable_absorb_bevy_input_system — it clears
             // ButtonInput<KeyCode> when egui has focus, killing WASD player controls.
