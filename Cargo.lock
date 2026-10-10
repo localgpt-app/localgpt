@@ -8545,6 +8545,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "localgpt-previs"
+version = "0.3.6"
+dependencies = [
+ "base64 0.22.1",
+ "localgpt-world-export",
+ "localgpt-world-types",
+ "openworldformat",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "localgpt-relay"
 version = "0.3.6"
 dependencies = [

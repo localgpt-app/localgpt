@@ -1,0 +1,38 @@
+[package]
+name = "localgpt-previs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "LocalGPT Previs — a Fountain screenplay in, per-scene .world packages with set/cast/coverage, a printable board and a shot-list CSV out. Deterministic: no model, no network, no renderer"
+keywords = ["localgpt", "previs", "screenplay", "fountain", "storyboard"]
+
+[lib]
+name = "localgpt_previs"
+path = "src/lib.rs"
+
+[[bin]]
+name = "localgpt-previs"
+path = "src/main.rs"
+
+[dependencies]
+# The shared LocalGPT world format: `WorldManifest`, `WorldEntity` (the
+# `ext-cinematography` blocks ride its `extra` map), the canonical
+# `manifest_text_of` for `manifest.json`, `sha256_hex` for `package.json`,
+# and `fold_log`/`WorldDoc` for the package round-trip test.
+localgpt-world-types = { workspace = true }
+# world-types re-exports the document types but not the package/fold/hash
+# machinery (`manifest_text_of`, `fold_log`, `sha256_hex`, `WorldDoc`) —
+# the .world writer and the package round-trip test use those directly.
+openworldformat = { workspace = true }
+# The vendored three.js + world viewer the board drives (`WORLD_VIEWER_JS`
+# and friends as string constants — copied next to board.html, offline).
+localgpt-world-export = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# three.js rides the board's import map as base64 `data:` URLs (browsers
+# refuse ES-module imports over file://; this keeps board.html one
+# offline file).
+base64 = { workspace = true }

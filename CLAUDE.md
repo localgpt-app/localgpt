@@ -109,6 +109,7 @@ crates/
 ├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
 ├── md-web/       # localgpt-md-web — MD's lib as WASM for the localgpt.md page
 ├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin; `song_world`)
+├── previs/       # localgpt-previs — Fountain screenplay → per-scene .world with set/cast/coverage + board (deterministic)
 ├── world-types/  # localgpt-world-types — serde-only world data model (no Bevy/SpacetimeDB)
 ├── world-bevy/   # localgpt-world-bevy — the one Bevy mapping of the format (Gen, MD, Verse)
 ├── world-audio/  # localgpt-world-audio — the one mapping of the format's audio (kira + FunDSP)
