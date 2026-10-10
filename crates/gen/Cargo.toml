@@ -19,6 +19,11 @@ localgpt-world-types = { workspace = true }
 localgpt-world-export = { workspace = true }
 localgpt-world-sync = { workspace = true, optional = true }
 localgpt-world-bevy = { workspace = true }
+# The shot list with the derived lens data (`shots::shot_list`), the
+# normative camera math (via world-types) and the board pages the live
+# authority's `GET /board` serves — the previs crate is deterministic
+# (no model, no renderer), so the canvas can depend on it.
+localgpt-previs = { workspace = true }
 # For `paths`: the shared model directory and the GGUF/tokenizer discovery
 # rule, which MD and Verse read from here too. Not optional — `local-llm`
 # needs it, and nothing in this crate is cheaper without it.

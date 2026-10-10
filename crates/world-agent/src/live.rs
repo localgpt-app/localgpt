@@ -1570,6 +1570,64 @@ by its SHA-256 and points the world at that. Stored copies never change: to
 change a texture, write new bytes (to the same working name is fine) and send
 the op again — that makes a new version, and the old one stays for history.
 
+## Cameras and shots (ext-cinematography)
+
+An entity carrying `ext-cinematography.camera` is a camera; one also carrying
+`ext-cinematography.shot` is a setup in the shot list. The entity's transform
+places it; the entity's name is the shot's name ("12A"). Everything is an
+ordinary entity op — revising a shot is a `ModifyEntity` patch, no special op
+kind.
+
+`camera` fields: `sensor_mm` `[w, h]` (default `[24.89, 18.66]`, Super 35),
+`focal_length_mm` (default 35), `aspect_ratio` (the frame crop; default the
+sensor's), `squeeze` (default 1), `aim` `[x, y, z]` (look at this world
+point, +Y up; absent: the entity's local −Z). `shot` fields: `scene`,
+`order` (integer sort key; ties break by entity id), `in_s`/`out_s` (seconds
+on the clock), `size` (EWS, WS, MS, MCU, CU, ECU, INSERT, OTS, POV, TWO),
+`description`.
+
+An `ext-*` patch replaces the whole extension value, so a revision sends the
+full block back with its change. Read the entity from `manifest.json` first
+(the fold at the tip you're building on), change the fields, send it:
+
+- **"a 50"** — the lens is `focal_length_mm`:
+
+  ```json
+  {"ModifyEntity": {"id": "1B", "patch": {"ext-cinematography": {
+    "camera": {"focal_length_mm": 50, "aspect_ratio": 2.39, "aim": [0.7, 1.6, 0.0]},
+    "shot": {"scene": "1", "order": 2, "in_s": 0.5, "out_s": 1.5,
+             "size": "MCU", "description": "her"}}}}}
+  ```
+
+- **"eye level"** — the camera's height is its transform position's y; 1.6 m
+  is a standing eye, ~1.2 m sitting. The transform merges, so send just the
+  position:
+
+  ```json
+  {"ModifyEntity": {"id": "1B", "patch": {"transform": {"position": [0.7, 1.6, 2.0]}}}}
+  ```
+
+- **"from the doorway"** — put the camera where the doorway is and aim it at
+  the subject (find both from `manifest.json`):
+
+  ```json
+  {"ModifyEntity": {"id": "1B", "patch": {
+    "transform": {"position": [3.0, 1.6, 4.5]},
+    "ext-cinematography": {
+      "camera": {"focal_length_mm": 35, "aspect_ratio": 2.39, "aim": [0.0, 1.0, 0.0]},
+      "shot": {"scene": "1", "order": 2, "in_s": 0.5, "out_s": 1.5,
+               "size": "MCU", "description": "her, from the doorway"}}}}}
+  ```
+
+Reorder the shot list by patching `shot.order` the same way. To try a
+treatment without touching main, send the revision batch `"at"` the entry it
+builds on — the branch is the treatment.
+
+- `GET $URL/board` — the previs board of the entry on screen as a printable
+  page (`?tip=<id>` for any entry, `?tip=head` for main's tip). Add
+  `&vs=<id>` to put two tips' boards side by side, changed shots marked —
+  how two treatments get compared.
+
 ## See and ask
 
 - `GET $URL/screenshot` — renders the view now and replies with the PNG's path.

@@ -8477,6 +8477,7 @@ dependencies = [
  "libc",
  "localgpt-cli-tools",
  "localgpt-core",
+ "localgpt-previs",
  "localgpt-world-agent",
  "localgpt-world-audio",
  "localgpt-world-bevy",

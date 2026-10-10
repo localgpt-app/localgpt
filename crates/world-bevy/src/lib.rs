@@ -25,7 +25,10 @@
 //! lets a world perform its soundtrack, evaluated as the web viewer does.
 //! [`nodes`] applies `MeshAssetRef::node_overrides` to spawned glTF scenes,
 //! and [`triggers`] runs the format's triggers, as the web viewer does.
+//! [`camera`] maps a camera *entity* (`ext-cinematography.camera`) to a
+//! Bevy camera, where [`perspective`] maps the scene-wide `CameraDef`.
 
+pub mod camera;
 pub mod modulation;
 pub mod nodes;
 pub mod triggers;

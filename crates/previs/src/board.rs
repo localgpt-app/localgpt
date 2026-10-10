@@ -87,81 +87,115 @@ fn script_safe(value: &serde_json::Value) -> String {
         .replace("</", "<\\/")
 }
 
-/// The board page: a card per shot, frames rendered by the vendored
-/// viewer stepping through each scene's cameras.
-pub fn board_html(title: &str, scenes: &[SceneBoard]) -> String {
+/// One shot's card, and the payload the viewer steps it from. `badge`
+/// marks a card on a compare board (`("changed", "changed")`).
+fn card_html(
+    si: usize,
+    i: usize,
+    shot: &ShotRow,
+    covers: &[String],
+    badge: Option<&str>,
+) -> (String, serde_json::Value) {
+    let aspect = {
+        let s = format!("{:.4}", shot.frame_aspect);
+        s.trim_end_matches('0').trim_end_matches('.').to_string()
+    };
+    let lens = format!(
+        "{} mm on Super&nbsp;35 ({:.2}&times;{:.2})",
+        crate::shots::focal(shot.focal_length_mm),
+        shot.sensor_mm[0],
+        shot.sensor_mm[1]
+    );
+    let lines_html = covers
+        .iter()
+        .map(|l| format!("<li>{}</li>", html_escape(l)))
+        .collect::<String>();
+    let badge_html = badge
+        .map(|b| {
+            format!(
+                " <span class=\"badge {}\">{}</span>",
+                html_escape(b),
+                html_escape(b)
+            )
+        })
+        .unwrap_or_default();
+    let html = format!(
+        "<div class=\"card{}\">\n\
+         <div class=\"frame\" style=\"aspect-ratio:{a}\"><img id=\"f-{si}-{i}\" alt=\"{shot} frame\"></div>\n\
+         <div class=\"meta\">\n\
+         <h3>{shot} <span class=\"size\">{size}</span>{badge_html}</h3>\n\
+         <p>{lens} &middot; {a}:1<br>\n\
+         height {h:.2} m &middot; subject {d:.2} m<br>\n\
+         {t0}&ndash;{t1} s</p>\n\
+         <p class=\"desc\">{desc}</p>\n\
+         <ul class=\"lines\">{lines_html}</ul>\n\
+         </div>\n</div>\n",
+        if badge.is_some() { " marked" } else { "" },
+        a = aspect,
+        si = si,
+        i = i,
+        shot = html_escape(&shot.shot),
+        size = html_escape(&shot.size),
+        badge_html = badge_html,
+        lens = lens,
+        h = shot.height_m,
+        d = shot.distance_m,
+        t0 = shot.in_s,
+        t1 = shot.out_s,
+        desc = html_escape(&shot.description),
+        lines_html = lines_html,
+    );
+    let payload = json!({
+        "shot": shot.shot,
+        "position": shot.position,
+        "aim": shot.aim,
+        "vfov": shot.vfov_degrees,
+        "frame_aspect": shot.frame_aspect,
+    });
+    (html, payload)
+}
+
+/// One scene's section — heading and grid of cards — and its viewer
+/// payload. `marks` badges cards by shot name (the compare board).
+fn section_html(
+    si: usize,
+    scene: &SceneBoard,
+    marks: &std::collections::BTreeMap<String, String>,
+) -> (String, serde_json::Value) {
     let mut cards = String::new();
-    let mut payload_scenes = Vec::new();
-    let total_shots: usize = scenes.iter().map(|s| s.shots.len()).sum();
-
-    for (si, scene) in scenes.iter().enumerate() {
-        cards.push_str(&format!(
-            "<section class=\"scene\">\n<h2>Scene {} &middot; {} <a href=\"{}/\">{}.world/</a></h2>\n<div class=\"grid\">\n",
-            html_escape(&scene.scene),
-            html_escape(&scene.heading),
-            html_escape(&scene.package_dir),
-            html_escape(&scene.scene),
-        ));
-        let mut payload_shots = Vec::new();
-        for (i, shot) in scene.shots.iter().enumerate() {
-            let covers = scene.covers.get(i).cloned().unwrap_or_default();
-            let aspect = {
-                let s = format!("{:.4}", shot.frame_aspect);
-                s.trim_end_matches('0').trim_end_matches('.').to_string()
-            };
-            let lens = format!(
-                "{} mm on Super&nbsp;35 ({:.2}&times;{:.2})",
-                crate::shots::focal(shot.focal_length_mm),
-                shot.sensor_mm[0],
-                shot.sensor_mm[1]
-            );
-            let lines_html = covers
-                .iter()
-                .map(|l| format!("<li>{}</li>", html_escape(l)))
-                .collect::<String>();
-            cards.push_str(&format!(
-                "<div class=\"card\">\n\
-                 <div class=\"frame\" style=\"aspect-ratio:{a}\"><img id=\"f-{si}-{i}\" alt=\"{shot} frame\"></div>\n\
-                 <div class=\"meta\">\n\
-                 <h3>{shot} <span class=\"size\">{size}</span></h3>\n\
-                 <p>{lens} &middot; {a}:1<br>\n\
-                 height {h:.2} m &middot; subject {d:.2} m<br>\n\
-                 {t0}&ndash;{t1} s</p>\n\
-                 <p class=\"desc\">{desc}</p>\n\
-                 <ul class=\"lines\">{lines_html}</ul>\n\
-                 </div>\n</div>\n",
-                a = aspect,
-                si = si,
-                i = i,
-                shot = html_escape(&shot.shot),
-                size = html_escape(&shot.size),
-                lens = lens,
-                h = shot.height_m,
-                d = shot.distance_m,
-                t0 = shot.in_s,
-                t1 = shot.out_s,
-                desc = html_escape(&shot.description),
-                lines_html = lines_html,
-            ));
-            payload_shots.push(json!({
-                "shot": shot.shot,
-                "position": shot.position,
-                "aim": shot.aim,
-                "vfov": shot.vfov_degrees,
-                "frame_aspect": shot.frame_aspect,
-            }));
-        }
-        cards.push_str("</div>\n</section>\n");
-        payload_scenes.push(json!({
-            "index": si,
-            "manifest": serde_json::to_value(&scene.manifest)
-                .expect("a manifest serializes"),
-            "shots": payload_shots,
-        }));
+    let mut payload_shots = Vec::new();
+    cards.push_str(&format!(
+        "<section class=\"scene\">\n<h2>Scene {} &middot; {} <a href=\"{}/\">{}.world/</a></h2>\n<div class=\"grid\">\n",
+        html_escape(&scene.scene),
+        html_escape(&scene.heading),
+        html_escape(&scene.package_dir),
+        html_escape(&scene.scene),
+    ));
+    for (i, shot) in scene.shots.iter().enumerate() {
+        let covers = scene.covers.get(i).cloned().unwrap_or_default();
+        let (card, payload) = card_html(
+            si,
+            i,
+            shot,
+            &covers,
+            marks.get(&shot.shot).map(String::as_str),
+        );
+        cards.push_str(&card);
+        payload_shots.push(payload);
     }
+    cards.push_str("</div>\n</section>\n");
+    let payload = json!({
+        "index": si,
+        "manifest": serde_json::to_value(&scene.manifest)
+            .expect("a manifest serializes"),
+        "shots": payload_shots,
+    });
+    (cards, payload)
+}
 
-    let payload = script_safe(&json!(payload_scenes));
-
+/// The page's head: styles and the import map, shared by the board and
+/// the compare board.
+fn page_head(title: &str, extra_css: &str) -> String {
     format!(
         r##"<!DOCTYPE html>
 <html lang="en">
@@ -187,6 +221,7 @@ h2 a {{ color: #7ab; font-weight: 400; font-size: 13px; text-decoration: none; m
 .meta p {{ color: #bbb; font-size: 12.5px; margin-top: 4px; }}
 .meta .desc {{ color: #eee; }}
 ul.lines {{ margin: 8px 0 2px 18px; color: #999; font-size: 12.5px; }}
+{extra_css}
 @media print {{
   body {{ background: #fff; color: #000; padding: 0; }}
   .card {{ border-color: #999; background: #fff; }}
@@ -196,12 +231,17 @@ ul.lines {{ margin: 8px 0 2px 18px; color: #999; font-size: 12.5px; }}
 </style>
 </head>
 <body>
-<header>
-<h1>{title} — previs board</h1>
-<p>{scene_count} scenes &middot; {total_shots} shots &middot; staged by localgpt-previs (deterministic, no model) &middot; print to PDF from the browser</p>
-</header>
-{cards}
-<script type="importmap">
+"##,
+        title = html_escape(title),
+        extra_css = extra_css,
+    )
+}
+
+/// The page's tail: the inlined viewer and the script stepping it
+/// through every scene's shots, capturing each frame into its card.
+fn page_tail(payload: &str) -> String {
+    format!(
+        r##"<script type="importmap">
 {import_map}
 </script>
 <script type="module">
@@ -246,13 +286,104 @@ for (const scene of SCENES) {{
 </body>
 </html>
 "##,
+        import_map = import_map(),
+        viewer = world_export::html::WORLD_VIEWER_JS,
+        payload = payload,
+    )
+}
+
+/// The board page: a card per shot, frames rendered by the vendored
+/// viewer stepping through each scene's cameras.
+pub fn board_html(title: &str, scenes: &[SceneBoard]) -> String {
+    let mut cards = String::new();
+    let mut payload_scenes = Vec::new();
+    let total_shots: usize = scenes.iter().map(|s| s.shots.len()).sum();
+
+    for (si, scene) in scenes.iter().enumerate() {
+        let (section, payload) = section_html(si, scene, &std::collections::BTreeMap::new());
+        cards.push_str(&section);
+        payload_scenes.push(payload);
+    }
+
+    let payload = script_safe(&json!(payload_scenes));
+
+    format!(
+        r##"{head}
+<header>
+<h1>{title} — previs board</h1>
+<p>{scene_count} scenes &middot; {total_shots} shots &middot; staged by localgpt-previs (deterministic, no model) &middot; print to PDF from the browser</p>
+</header>
+{cards}
+{tail}"##,
+        head = page_head(title, ""),
         title = html_escape(title),
         scene_count = scenes.len(),
         total_shots = total_shots,
         cards = cards,
-        import_map = import_map(),
-        viewer = world_export::html::WORLD_VIEWER_JS,
-        payload = payload,
+        tail = page_tail(&payload),
+    )
+}
+
+/// The compare board: two tips' shot lists side by side, the shots
+/// [`crate::shots::diff_shots`] marks badged on their cards —
+/// *changed* on both sides, *removed* on the left, *added* on the
+/// right. `left_label` / `right_label` name the two tips as the caller
+/// knows them (entry ids, "head", …).
+pub fn board_compare_html(
+    title: &str,
+    left: &SceneBoard,
+    right: &SceneBoard,
+    diff: &crate::shots::ShotDiff,
+    left_label: &str,
+    right_label: &str,
+) -> String {
+    let mut left_marks = std::collections::BTreeMap::new();
+    let mut right_marks = std::collections::BTreeMap::new();
+    for name in &diff.changed {
+        left_marks.insert(name.clone(), "changed".to_string());
+        right_marks.insert(name.clone(), "changed".to_string());
+    }
+    for name in &diff.removed {
+        left_marks.insert(name.clone(), "removed".to_string());
+    }
+    for name in &diff.added {
+        right_marks.insert(name.clone(), "added".to_string());
+    }
+
+    let (left_cards, left_payload) = section_html(0, left, &left_marks);
+    let (right_cards, right_payload) = section_html(1, right, &right_marks);
+    let payload = script_safe(&json!([left_payload, right_payload]));
+
+    let css = ".columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }\n\
+               .columns .grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }\n\
+               .badge { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; \
+               padding: 1px 6px; border-radius: 4px; margin-left: 6px; vertical-align: middle; }\n\
+               .badge.changed { background: #7a5; color: #111; }\n\
+               .badge.added { background: #9cf; color: #111; }\n\
+               .badge.removed { background: #e97; color: #111; }\n\
+               .card.marked { border-color: #7a5; }\n\
+               @media (max-width: 900px) { .columns { grid-template-columns: 1fr; } }";
+
+    format!(
+        r##"{head}
+<header>
+<h1>{title} — previs boards compared</h1>
+<p>{left_label} (left) vs {right_label} (right) &middot; {marked} of {total} shots marked &middot; print to PDF from the browser</p>
+</header>
+<div class="columns">
+{left_cards}
+{right_cards}
+</div>
+{tail}"##,
+        head = page_head(title, css),
+        title = html_escape(title),
+        left_label = html_escape(left_label),
+        right_label = html_escape(right_label),
+        marked = diff.len(),
+        total = left.shots.len() + right.shots.len(),
+        left_cards = left_cards,
+        right_cards = right_cards,
+        tail = page_tail(&payload),
     )
 }
 
@@ -309,6 +440,53 @@ mod tests {
         assert!(html.contains("24 mm on Super"));
         assert!(html.contains("height 1.60 m"));
         assert!(html.contains("Sit down."));
+    }
+
+    #[test]
+    fn the_compare_board_marks_changed_shots_on_both_sides() {
+        let left = a_scene_board();
+        // The treatment: 1A re-lensed, everything else as staged.
+        let mut right_manifest = left.manifest.clone();
+        let camera = right_manifest
+            .entities
+            .iter_mut()
+            .find(|e| e.name.as_str() == "1A")
+            .unwrap()
+            .extra
+            .get_mut("ext-cinematography")
+            .unwrap();
+        camera
+            .get_mut("camera")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert("focal_length_mm".into(), serde_json::json!(35));
+        let right_shots = shots::shot_list(&right_manifest);
+        let right = SceneBoard {
+            manifest: right_manifest,
+            shots: right_shots,
+            ..left.clone()
+        };
+
+        let diff = shots::diff_shots(&left.manifest, &right.manifest);
+        let html = board_compare_html("Test", &left, &right, &diff, "main", "treatment");
+        assert!(html.contains("<title>Test — previs board</title>"));
+        assert!(html.contains("main (left) vs treatment (right)"));
+        assert!(html.contains("1 of 6 shots marked"));
+        // 1A is badged on both boards, and only there.
+        assert_eq!(html.matches("badge changed").count(), 2);
+        // Two columns of cards: frame slots unique per side, one
+        // payload scene each, so the viewer renders both boards.
+        for id in ["f-0-0", "f-1-0"] {
+            assert!(html.contains(&format!("id=\"{id}\"")), "{id}");
+        }
+        let payload_line = html
+            .lines()
+            .find(|l| l.contains("const SCENES"))
+            .expect("the payload line");
+        assert!(!payload_line.contains("</"));
+        assert_eq!(payload_line.matches("\"manifest\":").count(), 2);
+        assert!(payload_line.contains("\"focal_length_mm\":35"));
     }
 
     #[test]

@@ -12,15 +12,18 @@
 //! lens data, and `shotlist.csv`) → [`package`] (a head-first `.world`
 //! per scene) and [`board`] (`board.html`, the vendored Open World
 //! Format viewer stepping through each shot's camera). [`cinema`] is
-//! the extension's normative math, implemented locally until
-//! `openworldformat` ships a typed cinematography module.
+//! the extension's normative math, re-exported from
+//! `localgpt-world-types` (where it lives until `openworldformat`
+//! ships a typed cinematography module) so every renderer of a camera
+//! entity derives the same numbers.
 
 pub mod board;
-pub mod cinema;
 pub mod fountain;
 pub mod package;
 pub mod shots;
 pub mod stage;
+
+pub use localgpt_world_types::cinematography as cinema;
 
 pub use fountain::{Element, Script};
 pub use shots::ShotRow;

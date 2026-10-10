@@ -1,6 +1,10 @@
 //! The shot list: the cameras carrying a `shot`, in order, with the
 //! derived lens data (frame, fields of view, camera height, distance to
 //! subject) — and the `shotlist.csv` the shot-list tools import.
+//! [`diff_shots`] is the treatment compare: two tips' shot lists, by
+//! shot name, changed shots marked.
+
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
 
@@ -9,12 +13,15 @@ use localgpt_world_types as wt;
 use crate::cinema::{self, CameraComponent};
 
 /// One row of the shot list: a camera setup with its derived numbers.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ShotRow {
     /// The shot's scene (the `shot.scene` text).
     pub scene: String,
     /// The shot's name — the entity's name ("1A").
     pub shot: String,
+    /// The camera entity's id (a drag to reorder patches this entity's
+    /// `shot.order`).
+    pub entity_id: u64,
     /// The `shot.order` sort key.
     pub order: u32,
     /// The shot size ("WS", "MCU", …).
@@ -71,10 +78,15 @@ pub fn shot_list(manifest: &wt::WorldManifest) -> Vec<ShotRow> {
                     .unwrap_or_default()
                     .to_string()
             };
-            let seconds = |k: &str| shot.get(k).and_then(serde_json::Value::as_f64).unwrap_or(0.0);
+            let seconds = |k: &str| {
+                shot.get(k)
+                    .and_then(serde_json::Value::as_f64)
+                    .unwrap_or(0.0)
+            };
             Some(ShotRow {
                 scene: text("scene"),
                 shot: entity.name.as_str().to_string(),
+                entity_id: entity.id.0,
                 order: shot
                     .get("order")
                     .and_then(serde_json::Value::as_u64)
@@ -95,7 +107,8 @@ pub fn shot_list(manifest: &wt::WorldManifest) -> Vec<ShotRow> {
             })
         })
         .collect();
-    rows.sort_by_key(|r| r.order);
+    // The extension's sort: `shot.order`, ties by entity id.
+    rows.sort_by_key(|r| (r.order, r.entity_id));
     rows
 }
 
@@ -149,6 +162,82 @@ pub fn csv(rows: &[ShotRow]) -> String {
     out
 }
 
+/// Two tips' shots compared by shot name — the marks a side-by-side
+/// board carries. A shot on both sides whose entity transform or
+/// camera block differs is *changed*; only on the right is *added*,
+/// only on the left *removed*. (Shot metadata alone — a retimed or
+/// redescribed setup — doesn't mark a card: the board compares what
+/// the camera sees.)
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ShotDiff {
+    /// On both sides, different.
+    pub changed: BTreeSet<String>,
+    /// Only on the right.
+    pub added: BTreeSet<String>,
+    /// Only on the left.
+    pub removed: BTreeSet<String>,
+}
+
+impl ShotDiff {
+    /// Whether any shot is marked at all.
+    pub fn is_empty(&self) -> bool {
+        self.changed.is_empty() && self.added.is_empty() && self.removed.is_empty()
+    }
+
+    /// The total marked, for a header line.
+    pub fn len(&self) -> usize {
+        self.changed.len() + self.added.len() + self.removed.len()
+    }
+}
+
+/// The cameras carrying a `shot`, keyed by shot (entity) name.
+fn shots_by_name(manifest: &wt::WorldManifest) -> BTreeMap<&str, &wt::WorldEntity> {
+    manifest
+        .entities
+        .iter()
+        .filter(|entity| {
+            entity
+                .extra
+                .get(cinema::EXTENSION_NAME)
+                .and_then(|ext| ext.get("shot"))
+                .is_some_and(serde_json::Value::is_object)
+        })
+        .map(|entity| (entity.name.as_str(), entity))
+        .collect()
+}
+
+/// An entity's `ext-cinematography.camera` block, when it carries one.
+fn camera_block(entity: &wt::WorldEntity) -> Option<&serde_json::Value> {
+    entity.extra.get(cinema::EXTENSION_NAME)?.get("camera")
+}
+
+/// Compare two manifests' shots by shot name (see [`ShotDiff`]).
+pub fn diff_shots(left: &wt::WorldManifest, right: &wt::WorldManifest) -> ShotDiff {
+    let a = shots_by_name(left);
+    let b = shots_by_name(right);
+    let mut diff = ShotDiff::default();
+    for (name, entity) in &a {
+        match b.get(name) {
+            None => {
+                diff.removed.insert((*name).to_string());
+            }
+            Some(other) => {
+                if entity.transform != other.transform
+                    || camera_block(entity) != camera_block(other)
+                {
+                    diff.changed.insert((*name).to_string());
+                }
+            }
+        }
+    }
+    for name in b.keys() {
+        if !a.contains_key(name) {
+            diff.added.insert((*name).to_string());
+        }
+    }
+    diff
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -194,11 +283,19 @@ mod tests {
         let mut lines = text.lines();
         assert_eq!(
             lines.next(),
-            Some("scene,shot,size,focal_length_mm,sensor_mm,aspect,height_m,distance_m,in_s,out_s,description")
+            Some(
+                "scene,shot,size,focal_length_mm,sensor_mm,aspect,height_m,distance_m,in_s,out_s,description"
+            )
         );
         let master = lines.next().unwrap();
-        assert!(master.starts_with("1,1A,WS,24,24.89x18.66,2.39,1.6,"), "{master}");
-        assert!(master.ends_with(",0,3.4,Master wide — INT. KITCHEN - DAY"), "{master}");
+        assert!(
+            master.starts_with("1,1A,WS,24,24.89x18.66,2.39,1.6,"),
+            "{master}"
+        );
+        assert!(
+            master.ends_with(",0,3.4,Master wide — INT. KITCHEN - DAY"),
+            "{master}"
+        );
         assert_eq!(lines.count(), 2);
     }
 
@@ -206,5 +303,105 @@ mod tests {
     fn csv_fields_quote_commas() {
         assert_eq!(field("a,b"), "\"a,b\"");
         assert_eq!(field("plain"), "plain");
+    }
+
+    /// A manifest from shot-camera entities written as JSON
+    /// (`(id, name, position, camera)`).
+    fn shots_world(cameras: &[(u64, &str, [f32; 3], serde_json::Value)]) -> wt::WorldManifest {
+        let mut manifest = wt::WorldManifest::new("compare");
+        manifest.entities = cameras
+            .iter()
+            .map(|(id, name, position, camera)| {
+                serde_json::from_value(serde_json::json!({
+                    "id": id,
+                    "name": name,
+                    "transform": {"position": position},
+                    "ext-cinematography": {
+                        "camera": camera,
+                        "shot": {"scene": "1", "order": 1, "size": "WS"},
+                    },
+                }))
+                .unwrap()
+            })
+            .collect();
+        manifest
+    }
+
+    #[test]
+    fn order_ties_break_by_entity_id() {
+        let world = shots_world(&[
+            (9, "late-id", [0.0, 1.6, 3.0], serde_json::json!({})),
+            (2, "early-id", [0.0, 1.6, 6.0], serde_json::json!({})),
+        ]);
+        let rows = shot_list(&world);
+        let names: Vec<&str> = rows.iter().map(|r| r.shot.as_str()).collect();
+        assert_eq!(names, ["early-id", "late-id"]);
+    }
+
+    #[test]
+    fn the_diff_marks_changed_added_and_removed_shots_by_name() {
+        let left = shots_world(&[
+            (
+                1,
+                "1A",
+                [0.0, 1.6, 6.0],
+                serde_json::json!({"focal_length_mm": 24}),
+            ),
+            (
+                2,
+                "1B",
+                [0.0, 1.6, 3.0],
+                serde_json::json!({"focal_length_mm": 50}),
+            ),
+            (
+                3,
+                "1C",
+                [1.0, 1.6, 3.0],
+                serde_json::json!({"focal_length_mm": 50}),
+            ),
+        ]);
+        // 1A re-lensed, 1B moved, 1C untouched (metadata only), 1D new.
+        let right = shots_world(&[
+            (
+                1,
+                "1A",
+                [0.0, 1.6, 6.0],
+                serde_json::json!({"focal_length_mm": 35}),
+            ),
+            (
+                2,
+                "1B",
+                [0.5, 1.6, 3.0],
+                serde_json::json!({"focal_length_mm": 50}),
+            ),
+            (
+                4,
+                "1D",
+                [1.0, 1.6, 3.0],
+                serde_json::json!({"focal_length_mm": 85}),
+            ),
+        ]);
+        let diff = diff_shots(&left, &right);
+        let names = |s: &BTreeSet<String>| s.iter().map(String::to_string).collect::<Vec<_>>();
+        assert_eq!(names(&diff.changed), ["1A", "1B"]);
+        assert_eq!(names(&diff.added), ["1D"]);
+        assert_eq!(names(&diff.removed), ["1C"]);
+        assert_eq!(diff.len(), 4);
+        assert!(!diff.is_empty());
+
+        // A world against itself: nothing marks, not even metadata edits...
+        assert!(diff_shots(&left, &left).is_empty());
+        // ...and a metadata-only shot edit (description, order) doesn't either.
+        let mut retimed = left.clone();
+        retimed.entities[0]
+            .extra
+            .get_mut(cinema::EXTENSION_NAME)
+            .unwrap()
+            .get_mut("shot")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert("description".into(), serde_json::json!("new words"));
+        assert!(diff_shots(&left, &retimed).is_empty());
     }
 }

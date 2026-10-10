@@ -358,19 +358,31 @@ pub fn setup_gen_app(
         .add_systems(Update, audio::auto_infer_audio)
         .add_systems(Update, behaviors::behavior_tick)
         .add_systems(Update, super::region_dirty::track_region_dirty)
-        // FreeFly systems (run when camera is detached and not hovering inspector)
+        // FreeFly systems (run when camera is detached, not hovering
+        // inspector, and no shot owns the camera)
         .add_systems(
             Update,
-            fly_cam_movement.run_if(avatar::in_freefly_mode.and_then(crate::inspector::not_ui_hovered)),
+            fly_cam_movement.run_if(
+                avatar::in_freefly_mode
+                    .and_then(crate::inspector::not_ui_hovered)
+                    .and_then(super::shots::not_looking_through),
+            ),
         )
         .add_systems(
             Update,
-            fly_cam_look.run_if(avatar::in_freefly_mode.and_then(crate::inspector::not_ui_hovered)),
+            fly_cam_look.run_if(
+                avatar::in_freefly_mode
+                    .and_then(crate::inspector::not_ui_hovered)
+                    .and_then(super::shots::not_looking_through),
+            ),
         )
         .add_systems(
             Update,
-            fly_cam_scroll_speed
-                .run_if(avatar::in_freefly_mode.and_then(crate::inspector::not_ui_hovered)),
+            fly_cam_scroll_speed.run_if(
+                avatar::in_freefly_mode
+                    .and_then(crate::inspector::not_ui_hovered)
+                    .and_then(super::shots::not_looking_through),
+            ),
         )
         // Toggle system (Tab: Player ↔ FreeFly)
         .add_systems(Update, avatar::handle_camera_mode_toggle)

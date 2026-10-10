@@ -86,6 +86,7 @@ localgpt-world-audio = { version = "0.3.6", path = "crates/world-audio" }
 localgpt-world-sync = { version = "0.3.6", path = "crates/world-sync" }
 localgpt-world-editor = { version = "0.3.6", path = "crates/world-editor" }
 localgpt-world-agent = { version = "0.3.6", path = "crates/world-agent" }
+localgpt-previs = { version = "0.3.6", path = "crates/previs" }
 localgpt-cli-tools = { version = "0.3.6", path = "crates/cli-tools" }
 
 [profile.release]

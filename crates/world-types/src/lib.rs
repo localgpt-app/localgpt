@@ -39,6 +39,10 @@ pub use openworldformat::{
     modulation, shape, soundtrack, spatial, tour, trigger, validation, world,
 };
 
+// The cinematography extension's typed surface, held here until the
+// pinned `openworldformat` ships its own (see the module's doc).
+pub mod cinematography;
+
 // LocalGPT's own leaves — never part of the format's schema.
 pub mod genlog;
 pub mod library;

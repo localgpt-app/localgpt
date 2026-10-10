@@ -48,6 +48,8 @@ struct Call {
 struct Reply {
     status: u16,
     body: Value,
+    /// The board pages are HTML; everything else is JSON.
+    content_type: &'static str,
     /// A file the answer names; the API thread waits for it to be written.
     wait_for: Option<PathBuf>,
 }
@@ -57,6 +59,7 @@ impl Reply {
         Self {
             status: 200,
             body,
+            content_type: "application/json",
             wait_for: None,
         }
     }
@@ -65,9 +68,29 @@ impl Reply {
         Self {
             status,
             body,
+            content_type: "application/json",
             wait_for: None,
         }
     }
+
+    /// A rendered page (`GET /board`): sent as it is, not JSON-quoted.
+    fn html(body: String) -> Self {
+        Self {
+            status: 200,
+            body: Value::String(body),
+            content_type: "text/html; charset=utf-8",
+            wait_for: None,
+        }
+    }
+}
+
+/// The API's own address, so the shot strip can open board pages in
+/// the person's browser (the token rides the query, which the API
+/// accepts — it already sits in `.live/endpoint.json`).
+#[derive(Resource, Clone)]
+pub struct LiveEndpoint {
+    pub url: String,
+    pub token: String,
 }
 
 /// The open live world and the canvas's own bookkeeping.
@@ -93,6 +116,10 @@ struct Live {
     /// Set whenever the history or the canvas's place in it changes, so the
     /// rail's snapshot is rebuilt once rather than every frame.
     history_dirty: bool,
+    /// Set whenever the scene applied ops, so the shot strip's thumbnails
+    /// re-render even when the shot list itself is unchanged (a prop moved
+    /// inside a frame). Flushed to [`super::shots::ThumbsDirty`] each frame.
+    thumbs_dirty: bool,
     /// The newest thing that happened, for the rail: a commit, or a refusal.
     status: Option<String>,
 }
@@ -213,14 +240,17 @@ pub fn setup_live(app: &mut App, dir: &Path) -> anyhow::Result<()> {
         deferred: Vec::new(),
         replay: None,
         history_dirty: true,
+        thumbs_dirty: true,
         status: None,
     })
     .insert_resource(Endpoint(endpoint))
+    .insert_resource(LiveEndpoint { url, token })
     .init_resource::<LiveHistory>()
     .add_message::<SeekTo>()
     .add_plugins((
         super::history_rail::HistoryRailPlugin,
         super::canvas_edit::CanvasEditPlugin,
+        super::shots::ShotsPlugin,
     ))
     .add_systems(
         Update,
@@ -245,6 +275,7 @@ fn seek(
     applier.apply_ops(&for_scene(&delta.ops, live.world.dir()));
     live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
     live.history_dirty = true;
+    live.thumbs_dirty = true;
     let changes = live::describe_ops(&delta.ops);
     eprintln!(
         "[live] sought {} · {}",
@@ -265,6 +296,7 @@ fn seek(
 /// it can be without the view — and a branch is not drawn.
 fn follow(live: &mut Live, applier: &mut OpsApplier<'_, '_>, done: &live::Committed) -> bool {
     live.history_dirty = true;
+    live.thumbs_dirty = true;
     let ops = match live.view.observe(done.entry.clone()) {
         Ok(Some(delta)) => delta.ops,
         Ok(None) => return false,
@@ -310,6 +342,7 @@ fn person_edit(
     intent: PersonIntent,
 ) {
     live.history_dirty = true;
+    live.thumbs_dirty = true;
     let restore = match &intent {
         PersonIntent::Transform { id, .. } => Some(*id),
         _ => None,
@@ -546,6 +579,22 @@ fn publish(live: &Live) -> LiveHistory {
     }
 }
 
+/// The strip's snapshot of the shot list, from the document on screen:
+/// the cameras carrying a `shot`, in `shot.order`, each with its
+/// derived row. Same cadence as [`publish`] — a seek shows that
+/// point's shots, not the head's.
+fn publish_shots(live: &Live) -> super::shots::LiveShots {
+    let manifest = live.view.doc().to_manifest();
+    let shots = localgpt_previs::shots::shot_list(&manifest)
+        .into_iter()
+        .filter_map(|row| {
+            let entity = live.view.doc().get(row.entity_id)?.clone();
+            Some(super::shots::ShotEntry { entity, row })
+        })
+        .collect();
+    super::shots::LiveShots { shots }
+}
+
 const ENDPOINTS: &[(&str, &str)] = &[
     ("GET /world", "the world now (manifest.json)"),
     (
@@ -581,6 +630,10 @@ const ENDPOINTS: &[(&str, &str)] = &[
         "POST /goto",
         "move the canvas to an entry ({\"tip\": \"id\"}, or null for the base) — a view move; nothing is written",
     ),
+    (
+        "GET /board",
+        "the previs board as a printable page: ?tip=<id> (default the entry on screen, \"head\" for main's tip); &vs=<id> puts the two side by side, changed shots marked",
+    ),
 ];
 
 fn endpoints() -> Value {
@@ -593,13 +646,17 @@ fn endpoints() -> Value {
 }
 
 /// The world side: first build, ops, undo, replays, guarding manifest.json.
+#[allow(clippy::too_many_arguments)] // a Bevy system; the repo's convention
 fn live_world(
     time: Res<Time>,
     mut live: ResMut<Live>,
     mut applier: OpsApplier,
     mut snapshot: ResMut<LiveHistory>,
+    mut shots_snapshot: ResMut<super::shots::LiveShots>,
+    mut thumbs_dirty: ResMut<super::shots::ThumbsDirty>,
     mut seeks: MessageReader<SeekTo>,
     mut intents: MessageReader<PersonIntent>,
+    mut shot_ops: MessageReader<super::shots::ShotOps>,
     mut selection: Option<ResMut<InspectorSelection>>,
 ) {
     let live = &mut *live;
@@ -634,6 +691,15 @@ fn live_world(
             ("GET", "/world") => {
                 Reply::ok(serde_json::to_value(live.world.head_manifest()).unwrap_or_default())
             }
+            ("GET", "/board") => match super::board::page(
+                &live.world,
+                &live.view,
+                param(&call.query, "tip").as_deref(),
+                param(&call.query, "vs").as_deref(),
+            ) {
+                Ok(html) => Reply::html(html),
+                Err(e) => Reply::status(404, json!({"error": e})),
+            },
             ("GET", "/log") => Reply::ok(history(&live.world, live.view.history())),
             ("GET", "/verify") => {
                 let problems = live.world.verify();
@@ -821,6 +887,38 @@ fn live_world(
         person_edit(live, &mut applier, selection.as_deref_mut(), intent);
     }
 
+    // The shot strip's edits (a drag to reorder): the same person at
+    // the keyboard, committed at the entry on screen like a gesture.
+    let asked: Vec<super::shots::ShotOps> = shot_ops.read().cloned().collect();
+    for edit in asked {
+        live.history_dirty = true;
+        let refuse = |live: &mut Live, why: &str| {
+            eprintln!("[live] refused: {why}");
+            live.status = Some(format!("refused: {why}"));
+        };
+        if live.replay.is_some() {
+            refuse(live, "a replay is running; edits wait for it");
+            continue;
+        }
+        let at = live.view.tip().map(str::to_string);
+        if at.is_none() && !live.world.entries().is_empty() {
+            refuse(
+                live,
+                "the base can't take an edit once there is history; step to an entry first",
+            );
+            continue;
+        }
+        let batch = json!({"ops": edit.ops, "message": edit.what});
+        match live.world.submit_at(at.as_deref(), &batch, &person(), None) {
+            Ok(done) => {
+                follow(live, &mut applier, &done);
+                live.status = Some(status_line(&done, &edit.what));
+                eprintln!("[live] {}", live.status.as_deref().unwrap_or_default());
+            }
+            Err(refused) => refuse(live, &refused.errors.join("; ")),
+        }
+    }
+
     // The rail's requests, through the same seek the API uses.
     let asked: Vec<Option<String>> = seeks.read().map(|s| s.0.clone()).collect();
     for tip in asked {
@@ -828,9 +926,14 @@ fn live_world(
             eprintln!("[live] can't seek: {e}");
         }
     }
+    if live.thumbs_dirty {
+        live.thumbs_dirty = false;
+        thumbs_dirty.0 = true;
+    }
     if live.history_dirty {
         live.history_dirty = false;
         snapshot.set_if_neq(publish(live));
+        shots_snapshot.set_if_neq(publish_shots(live));
     }
 
     // A replay steps keyframe to keyframe, then returns to the head.
@@ -854,6 +957,7 @@ fn live_world(
         applier.apply_ops(&for_scene(&ops, live.world.dir()));
         replay.shown = target;
         replay.next += 1;
+        live.thumbs_dirty = true;
         if replay.next > replay.frames.len() {
             eprintln!(
                 "[live] replay done — back at revision {}",
@@ -914,6 +1018,7 @@ fn live_view(
                     "tip": live.view.tip(),
                     "at_head": live.view.tip().map(str::to_string) == live.world.main_tip(),
                 }),
+                content_type: "application/json",
                 wait_for: Some(path),
             }
         } else {
@@ -1127,7 +1232,17 @@ fn answer(mut stream: TcpStream, token: &str, calls: &Sender<Call>) -> std::io::
     if let Some(file) = &reply.wait_for {
         wait_for_file(file, Duration::from_secs(10));
     }
-    let text = serde_json::to_string_pretty(&reply.body).unwrap_or_default() + "\n";
+    let (content_type, text) = if reply.content_type == "application/json" {
+        (
+            reply.content_type,
+            serde_json::to_string_pretty(&reply.body).unwrap_or_default() + "\n",
+        )
+    } else {
+        (
+            reply.content_type,
+            reply.body.as_str().unwrap_or_default().to_string(),
+        )
+    };
     let reason = match reply.status {
         200 => "OK",
         400 => "Bad Request",
@@ -1139,7 +1254,7 @@ fn answer(mut stream: TcpStream, token: &str, calls: &Sender<Call>) -> std::io::
     };
     write!(
         stream,
-        "HTTP/1.1 {} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{text}",
+        "HTTP/1.1 {} {reason}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{text}",
         reply.status,
         text.len()
     )

@@ -1,17 +1,22 @@
-//! The `ext-cinematography` math, implemented locally (the published
-//! `openworldformat` crate has no typed cinematography module yet; the
-//! cameras this crate writes carry the extension in `WorldEntity::extra`
-//! as plain JSON). This is the normative surface of
-//! `openworldformat/spec/extensions/cinematography.md` — the crop math
-//! (Unreal's crop-to-aspect rule: cropping never widens the frame past
-//! the sensor, it trims), the aim look-at (+Y up), and a pinhole
-//! projection — matching the reference implementations
+//! The `ext-cinematography` math, kept here (the crate that re-exports
+//! the format) until the pinned `openworldformat` ships a typed
+//! cinematography module — the format's spec repo already has one, so
+//! when the workspace bumps to it this module's surface delegates to
+//! the crate's and the paths keep working. This is the normative
+//! surface of `openworldformat/spec/extensions/cinematography.md` —
+//! the crop math (Unreal's crop-to-aspect rule: cropping never widens
+//! the frame past the sensor, it trims), the aim look-at (+Y up), and
+//! a pinhole projection — matching the reference implementations
 //! (`rust/src/cinematography.rs`, `js/src/cinematography.js`) so the
-//! numbers agree.
+//! numbers agree. Cameras ride `WorldEntity::extra` as plain JSON.
+//!
+//! Moved here from `localgpt-previs` (`crates/previs`) so every
+//! renderer of a camera entity — the previs board, Gen's live canvas,
+//! anything next — derives the same numbers from one place.
 
 use serde::{Deserialize, Serialize};
 
-use localgpt_world_types as wt;
+use crate as wt;
 
 /// The extension key under `WorldEntity::extra`.
 pub const EXTENSION_NAME: &str = "ext-cinematography";
@@ -58,8 +63,17 @@ impl CameraComponent {
     /// Parse the component from an entity's `extra` map, defaults per
     /// absent field. `None` when the entity declares no camera.
     pub fn of(entity: &wt::WorldEntity) -> Option<Self> {
-        let camera = entity.extra.get(EXTENSION_NAME)?.get("camera")?.as_object()?;
-        let num = |k: &str, d: f64| camera.get(k).and_then(serde_json::Value::as_f64).unwrap_or(d);
+        let camera = entity
+            .extra
+            .get(EXTENSION_NAME)?
+            .get("camera")?
+            .as_object()?;
+        let num = |k: &str, d: f64| {
+            camera
+                .get(k)
+                .and_then(serde_json::Value::as_f64)
+                .unwrap_or(d)
+        };
         let vec2 = |k: &str| -> Option<[f64; 2]> {
             let a: Vec<f64> = camera
                 .get(k)?
@@ -81,7 +95,9 @@ impl CameraComponent {
         Some(CameraComponent {
             sensor_mm: vec2("sensor_mm").unwrap_or(DEFAULT_SENSOR),
             focal_length_mm: num("focal_length_mm", DEFAULT_FOCAL_LENGTH),
-            aspect_ratio: camera.get("aspect_ratio").and_then(serde_json::Value::as_f64),
+            aspect_ratio: camera
+                .get("aspect_ratio")
+                .and_then(serde_json::Value::as_f64),
             squeeze: num("squeeze", 1.0),
             aim: vec3("aim"),
         })
