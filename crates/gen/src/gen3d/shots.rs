@@ -70,9 +70,22 @@ impl Plugin for ShotsPlugin {
 
 /// The strip's snapshot: the shots of the document on screen, in
 /// `shot.order`, published by the canvas when that document changes.
-#[derive(Resource, Debug, Clone, Default, PartialEq)]
+#[derive(Resource, Debug, Clone, PartialEq)]
 pub struct LiveShots {
     pub shots: Vec<ShotEntry>,
+    /// The document the shots came from — what resolves a shot's view
+    /// (`aim_entity`, origins through parents) when the canvas looks
+    /// through it or renders its thumbnail.
+    pub manifest: wt::WorldManifest,
+}
+
+impl Default for LiveShots {
+    fn default() -> Self {
+        Self {
+            shots: Vec::new(),
+            manifest: wt::WorldManifest::new(""),
+        }
+    }
 }
 
 /// One shot: the camera entity as the document has it, and the derived
@@ -223,7 +236,7 @@ fn apply_look_through(
             .shots
             .iter()
             .find(|e| e.row.entity_id == id)
-            .and_then(|e| camera::shot_camera(&e.entity));
+            .and_then(|e| camera::shot_camera_in(&e.entity, &shots.manifest));
         let (Some(shot), Ok((mut transform, mut projection, mut camera))) =
             (shot, camera.single_mut())
         else {
@@ -264,7 +277,7 @@ fn drive_shot_view(
         .shots
         .iter()
         .find(|e| e.row.entity_id == id)
-        .and_then(|e| camera::shot_camera(&e.entity));
+        .and_then(|e| camera::shot_camera_in(&e.entity, &shots.manifest));
     match shot {
         Some(shot) => {
             if let Ok((mut transform, mut projection, mut camera)) = camera.single_mut() {
@@ -302,6 +315,9 @@ struct Thumb {
     texture: Option<egui::TextureId>,
     /// The document entity the last render was placed from.
     doc_entity: wt::WorldEntity,
+    /// Where the camera stood for it — a shot that tracks an actor
+    /// moves when the actor does, with its own entity unchanged.
+    placed: Transform,
     frames_left: u8,
 }
 
@@ -324,18 +340,20 @@ fn sync_shot_thumbs(
         });
         for entry in &shots.shots {
             let id = entry.row.entity_id;
-            if let Some(thumb) = thumbs.thumbs.iter().find(|t| t.entity_id == id)
-                && thumb.doc_entity == entry.entity
-            {
-                continue;
-            }
-            let Some(shot) = camera::shot_camera(&entry.entity) else {
+            // The view resolved in the document on screen: a shot that
+            // tracks an actor stands where the actor is now.
+            let Some(shot) = camera::shot_camera_in(&entry.entity, &shots.manifest) else {
                 continue;
             };
             match thumbs.thumbs.iter_mut().find(|t| t.entity_id == id) {
-                // The shot itself changed: re-place, re-render.
+                // Placed as before: nothing to re-place (what moved
+                // inside the frame is the dirty flag's business).
+                Some(thumb)
+                    if thumb.doc_entity == entry.entity && thumb.placed == shot.transform => {}
+                // The shot changed, or its actor moved it: re-place, re-render.
                 Some(thumb) => {
                     thumb.doc_entity = entry.entity.clone();
+                    thumb.placed = shot.transform;
                     thumb.frames_left = thumb.frames_left.max(2);
                     commands
                         .entity(thumb.camera)
@@ -363,6 +381,7 @@ fn sync_shot_thumbs(
                         image,
                         texture: None,
                         doc_entity: entry.entity.clone(),
+                        placed: shot.transform,
                         frames_left: 3,
                     });
                 }

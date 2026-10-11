@@ -25,7 +25,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-OWF_VERSION="${OWF_VERSION:-0.3.3}"
+OWF_VERSION="${OWF_VERSION:-0.3.4}"
 DEST_DIR="crates/world-export/js"
 # upstream file -> vendored name
 FILES="render.js:world-viewer.js cinematography.js:cinematography.js"

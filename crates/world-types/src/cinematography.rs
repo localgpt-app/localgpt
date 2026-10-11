@@ -29,14 +29,17 @@ pub fn default_camera() -> CameraComponent {
         aspect_ratio: None,
         squeeze: 1.0,
         aim: None,
+        aim_entity: None,
         focus_distance_m: None,
+        focus_entity: None,
         f_stop: None,
     }
 }
 
 /// The component as the JSON an entity's `ext-cinematography.camera`
 /// carries: the fields with defaults always written, the optional ones
-/// only when set. [`CameraComponent::of`] reads it back equal.
+/// only when set — an entity reference as the id or the name it holds.
+/// [`CameraComponent::of`] reads it back equal.
 pub fn camera_json(camera: &CameraComponent) -> serde_json::Value {
     let mut map = serde_json::Map::new();
     map.insert("sensor_mm".into(), json!(camera.sensor_mm));
@@ -48,8 +51,14 @@ pub fn camera_json(camera: &CameraComponent) -> serde_json::Value {
     if let Some(aim) = camera.aim {
         map.insert("aim".into(), json!(aim));
     }
+    if let Some(target) = &camera.aim_entity {
+        map.insert("aim_entity".into(), json!(target));
+    }
     if let Some(distance) = camera.focus_distance_m {
         map.insert("focus_distance_m".into(), json!(distance));
+    }
+    if let Some(target) = &camera.focus_entity {
+        map.insert("focus_entity".into(), json!(target));
     }
     if let Some(f_stop) = camera.f_stop {
         map.insert("f_stop".into(), json!(f_stop));
@@ -111,10 +120,15 @@ mod tests {
             focal_length_mm: 24.0,
             aspect_ratio: Some(2.39),
             aim: Some([0.0, 1.5, 0.0]),
+            aim_entity: Some(wt::EntityRef::id(4)),
             focus_distance_m: Some(6.0),
+            focus_entity: Some(wt::EntityRef::Name("maya".into())),
             f_stop: Some(2.8),
             ..default_camera()
         };
+        let json = camera_json(&full);
+        assert_eq!(json["aim_entity"], 4, "an id reference is a number");
+        assert_eq!(json["focus_entity"], "maya", "a name reference is a string");
         assert_eq!(
             CameraComponent::of(&entity_with(&full, [0.0; 3])).unwrap(),
             full
@@ -123,12 +137,20 @@ mod tests {
 
     #[test]
     fn in_frame_wants_the_point_in_front_and_inside_both_halves() {
-        let inside = Projection { x: 0.5, y: -0.9, z: 3.0 };
+        let inside = Projection {
+            x: 0.5,
+            y: -0.9,
+            z: 3.0,
+        };
         assert!(in_frame(&inside));
         assert!(!in_frame(&Projection { x: 1.01, ..inside }));
         assert!(!in_frame(&Projection { y: -1.01, ..inside }));
         assert!(!in_frame(&Projection { z: -3.0, ..inside }));
-        assert!(in_frame(&Projection { x: 1.0, y: 1.0, z: 0.01 }));
+        assert!(in_frame(&Projection {
+            x: 1.0,
+            y: 1.0,
+            z: 0.01
+        }));
     }
 
     #[test]

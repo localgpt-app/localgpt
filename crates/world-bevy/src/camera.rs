@@ -37,7 +37,8 @@ pub struct ShotCamera {
 /// no `ext-cinematography.camera`. Placed by the entity's transform —
 /// or, when the component carries an `aim`, looking at that world
 /// point, +Y up — with the vertical FOV and frame aspect of the
-/// extension's derived frame.
+/// extension's derived frame. An `aim_entity` needs the world to
+/// resolve: see [`shot_camera_in`].
 pub fn shot_camera(entity: &wt::WorldEntity) -> Option<ShotCamera> {
     let component = cinematography::CameraComponent::of(entity)?;
     let frame = cinematography::frame_of(&component);
@@ -47,13 +48,41 @@ pub fn shot_camera(entity: &wt::WorldEntity) -> Option<ShotCamera> {
     }
     Some(ShotCamera {
         transform,
-        projection: PerspectiveProjection {
-            fov: (frame.vfov_degrees as f32).to_radians(),
-            aspect_ratio: frame.aspect as f32,
-            ..default()
-        },
+        projection: projection_of(&frame),
         frame,
     })
+}
+
+/// The Bevy camera for a camera entity, resolved in its world — the
+/// extension's `view_in`: the camera stands at its origin through its
+/// parents and looks at `aim_entity`'s origin while that entity
+/// exists, else at `aim`, else down its rotation's −Z. This is the
+/// form the live canvas and the thumbnails use, so a shot that tracks
+/// an actor follows the actor.
+pub fn shot_camera_in(
+    entity: &wt::WorldEntity,
+    manifest: &wt::WorldManifest,
+) -> Option<ShotCamera> {
+    let component = cinematography::CameraComponent::of(entity)?;
+    let frame = cinematography::frame_of(&component);
+    let view = cinematography::view_in(entity, &component, manifest);
+    let as_vec = |v: [f64; 3]| Vec3::from_array(v.map(|c| c as f32));
+    let transform = Transform::from_translation(as_vec(view.position))
+        .looking_to(as_vec(view.forward), as_vec(view.up));
+    Some(ShotCamera {
+        transform,
+        projection: projection_of(&frame),
+        frame,
+    })
+}
+
+/// The projection a frame gives: its vertical FOV and aspect.
+fn projection_of(frame: &CameraFrame) -> PerspectiveProjection {
+    PerspectiveProjection {
+        fov: (frame.vfov_degrees as f32).to_radians(),
+        aspect_ratio: frame.aspect as f32,
+        ..default()
+    }
 }
 
 /// The viewport rect — physical position and size — that letterboxes a
@@ -183,6 +212,36 @@ mod tests {
         );
         // +Y up: no roll.
         assert!(shot.transform.up().dot(Vec3::Y) > 0.9999);
+    }
+
+    #[test]
+    fn a_shot_resolved_in_its_world_tracks_its_aim_entity_through_parents() {
+        // A pivot at x=1 carries the target at local [2, 1, 0]: its
+        // origin is [3, 1, 0]. The camera at [3, 1, 5] aims at it by
+        // entity, so the resolved view looks straight down −Z, where
+        // the entity-only form (no world to resolve in) would fall back
+        // to the camera's rotation.
+        let mut manifest = wt::WorldManifest::new("t");
+        let mut pivot = wt::WorldEntity::new(1, "pivot");
+        pivot.transform.position = [1.0, 0.0, 0.0];
+        let mut target = wt::WorldEntity::new(2, "target");
+        target.parent = Some(wt::EntityId(1));
+        target.transform.position = [2.0, 1.0, 0.0];
+        let mut cam = wt::WorldEntity::new(3, "cam");
+        cam.transform.position = [3.0, 1.0, 5.0];
+        cam.transform.rotation_degrees = [0.0, 90.0, 0.0];
+        cam.extra.insert(
+            cinematography::EXTENSION_NAME.to_string(),
+            json!({"camera": {"focal_length_mm": 50, "aim_entity": 2}}),
+        );
+        manifest.entities = vec![pivot, target, cam.clone()];
+
+        let resolved = shot_camera_in(&cam, &manifest).unwrap();
+        let forward = *resolved.transform.forward();
+        assert!((forward - Vec3::NEG_Z).length() < 1e-5, "forward {forward}");
+        assert!((resolved.transform.translation - Vec3::new(3.0, 1.0, 5.0)).length() < 1e-6);
+        let alone = shot_camera(&cam).unwrap();
+        assert!((*alone.transform.forward() - Vec3::NEG_X).length() < 1e-5, "the rotation stands alone");
     }
 
     #[test]

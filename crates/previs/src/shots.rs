@@ -36,13 +36,15 @@ pub struct ShotRow {
     pub hfov_degrees: f64,
     /// Derived vertical field of view, degrees.
     pub vfov_degrees: f64,
-    /// The camera's world position.
+    /// The camera's world position (its origin through its parents).
     pub position: [f64; 3],
-    /// The aim point (what the camera looks at).
+    /// The aim point (what the camera looks at): `aim_entity`'s origin
+    /// while that entity exists, else `aim`, else the camera itself.
     pub aim: [f64; 3],
     /// Camera height, m.
     pub height_m: f64,
-    /// Distance to subject (camera to aim), m.
+    /// Distance to subject, m: to `focus_entity`'s origin while that
+    /// entity exists, else `focus_distance_m`, else camera to aim.
     pub distance_m: f64,
     /// Seconds on the clock.
     pub in_s: f64,
@@ -66,12 +68,18 @@ pub fn shot_list(manifest: &wt::WorldManifest) -> Vec<ShotRow> {
             }
             let component = CameraComponent::of(entity)?;
             let frame = cinema::frame_of(&component);
-            let position = entity.transform.position.map(|p| p as f64);
-            let aim = component.aim.unwrap_or(position);
-            let distance = ((aim[0] - position[0]).powi(2)
-                + (aim[1] - position[1]).powi(2)
-                + (aim[2] - position[2]).powi(2))
-            .sqrt();
+            // The camera and its subject as the world resolves them:
+            // origins through parents, `aim_entity` over `aim`, the
+            // focus distance to `focus_entity`'s origin when it has one.
+            let position = cinema::world_origin(entity, manifest);
+            let aim = cinema::aim_point_of(&component, manifest).unwrap_or(position);
+            let distance =
+                cinema::focus_distance_of(entity, &component, manifest).unwrap_or_else(|| {
+                    ((aim[0] - position[0]).powi(2)
+                        + (aim[1] - position[1]).powi(2)
+                        + (aim[2] - position[2]).powi(2))
+                    .sqrt()
+                });
             let text = |k: &str| {
                 shot.get(k)
                     .and_then(serde_json::Value::as_str)

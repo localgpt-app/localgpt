@@ -22,8 +22,10 @@
 //!   projects inside the frame. Then one single per speaking
 //!   character, in first-speaking order (`<scene>B`, `<scene>C`, …):
 //!   50 mm at eye height over the scene partner's shoulder — 0.8 m
-//!   behind them and 0.6 m to the side, so their head sits on the near
-//!   edge — with the speaker's head on the far third of the frame.
+//!   behind them and 0.6 m to the side, so their shoulder holds the
+//!   near edge — aimed and focused at the speaker's head *by entity*
+//!   (`aim_entity`, `focus_entity`), so a single follows its actor
+//!   when the blocking changes.
 //! - **Timing.** A page-time estimate: dialogue at 2.5 words a second,
 //!   action at 1 second a line, rounded to 0.1 s. The master covers
 //!   the whole scene; a single covers its speaker's first-to-last
@@ -48,13 +50,10 @@ pub const MASTER_FOCAL_MM: f64 = 24.0;
 pub const SINGLE_FOCAL_MM: f64 = 50.0;
 /// An over-the-shoulder single stands this far behind the partner, m.
 pub const OVER_BACK_M: f64 = 0.8;
-/// …and this far to the side of them, m — their head sits on the near
-/// edge of the frame, their shoulder inside it, nothing of them over
-/// the speaker.
+/// …and this far to the side of them, m — with the speaker's head
+/// centred, the partner's head is off the near edge, their shoulder
+/// inside it, nothing of them over the speaker.
 pub const OVER_SIDE_M: f64 = 0.6;
-/// Where the speaker's head sits in an over: this far from the centre
-/// toward the far edge, in the frame's half-width (1 is the edge).
-pub const FAR_THIRD: f64 = 0.45;
 /// The show's frame aspect (the crop the whole coverage shares).
 pub const SHOW_ASPECT: f64 = 2.39;
 /// Dialogue pace for the page-time estimate, words a second.
@@ -463,7 +462,8 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
         [0.7, 0.4, 0.5, 1.0],
     ];
     let positions = cast_positions(speakers.len());
-    let mut cast: Vec<(String, [f64; 3])> = Vec::new(); // (name, ground position)
+    // (name, ground position, the head entity's id — what a single tracks)
+    let mut cast: Vec<(String, [f64; 3], u64)> = Vec::new();
     for (i, speaker) in speakers.iter().enumerate() {
         let ([x, _, z], yaw) = positions[i];
         let color = PALETTE[i % PALETTE.len()];
@@ -481,7 +481,8 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
             ..Default::default()
         });
         manifest.entities.push(body);
-        let mut head = wt::WorldEntity::new(alloc(), format!("{}.head", speaker.name));
+        let head_id = alloc();
+        let mut head = wt::WorldEntity::new(head_id, format!("{}.head", speaker.name));
         head.transform.position = [x as f32, HEAD_HEIGHT as f32, z as f32];
         head.shape = Some(wt::Shape::Sphere { radius: 0.12 });
         head.material = Some(wt::MaterialDef {
@@ -511,7 +512,7 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
             ..Default::default()
         });
         manifest.entities.push(face);
-        cast.push((speaker.name.clone(), [x, 0.0, z]));
+        cast.push((speaker.name.clone(), [x, 0.0, z], head_id));
     }
 
     // ---- Coverage ----
@@ -570,7 +571,7 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
         let master_pos = loop {
             let position = [centroid[0], EYE_HEIGHT, centroid[2] + distance];
             let view = cinema::view_from(position, &master);
-            let framed = cast.iter().all(|(_, p)| {
+            let framed = cast.iter().all(|(_, p, _)| {
                 let feet = cinema::project(&view, &frame, &master, *p);
                 let head =
                     cinema::project(&view, &frame, &master, [p[0], ACTOR_HEIGHT as f64, p[2]]);
@@ -601,24 +602,29 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
 
         // The singles, `<scene>B`, `<scene>C`, … in first-speaking
         // order: 50 mm at eye height over the scene partner's shoulder,
-        // the speaker's head on the far third of the frame.
+        // aimed and focused at the speaker's head by entity — the
+        // single follows its actor when the blocking changes; `aim` is
+        // the same point as staged, for a reader without the entity.
         for (i, speaker) in speakers.iter().enumerate() {
-            let (_, p) = &cast[i];
+            let (_, p, head_id) = &cast[i];
             let speaker_head = [p[0], HEAD_HEIGHT, p[2]];
-            let mut single = CameraComponent {
+            let single = CameraComponent {
                 focal_length_mm: SINGLE_FOCAL_MM,
                 aspect_ratio: Some(SHOW_ASPECT),
                 aim: Some(speaker_head),
+                aim_entity: Some(wt::EntityRef::id(*head_id)),
+                focus_entity: Some(wt::EntityRef::id(*head_id)),
                 ..cinema::default_camera()
             };
             let partner = partner_of(scene, &speaker.name)
-                .and_then(|partner| cast.iter().find(|(n, _)| n == &partner))
-                .map(|(_, q)| *q);
+                .and_then(|partner| cast.iter().find(|(n, _, _)| n == &partner))
+                .map(|(_, q, _)| *q);
             let position = match partner {
                 Some(q) => {
                     // Behind the partner (away from the speaker) and to
-                    // the side: their near shoulder holds the edge of
-                    // the frame, nothing of them covers the speaker.
+                    // the side: with the speaker centred, the partner's
+                    // head is off the near edge and their shoulder holds
+                    // it, nothing of them over the speaker.
                     let dir = {
                         let d = [p[0] - q[0], 0.0, p[2] - q[2]];
                         let l = (d[0] * d[0] + d[2] * d[2]).sqrt();
@@ -631,27 +637,11 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
                     // The camera's right, looking down `dir` with +Y up
                     // — the partner lands on the left of frame.
                     let side = [-dir[2], 0.0, dir[0]];
-                    let position = [
+                    [
                         q[0] - dir[0] * OVER_BACK_M + side[0] * OVER_SIDE_M,
                         EYE_HEIGHT,
                         q[2] - dir[2] * OVER_BACK_M + side[2] * OVER_SIDE_M,
-                    ];
-                    // The speaker on the far third: the aim slides toward
-                    // the partner's side of frame by what that third of
-                    // the half-width covers at the speaker's distance.
-                    let frame = cinema::frame_of(&single);
-                    let distance = ((speaker_head[0] - position[0]).powi(2)
-                        + (speaker_head[1] - position[1]).powi(2)
-                        + (speaker_head[2] - position[2]).powi(2))
-                    .sqrt();
-                    let shift =
-                        distance * (FAR_THIRD * (frame.hfov_degrees / 2.0).to_radians()).tan();
-                    single.aim = Some([
-                        speaker_head[0] - side[0] * shift,
-                        speaker_head[1],
-                        speaker_head[2] - side[2] * shift,
-                    ]);
-                    position
+                    ]
                 }
                 None => [p[0] + 0.3, EYE_HEIGHT, p[2] + 2.2],
             };
@@ -794,7 +784,7 @@ Anywhere the radio can't reach.
     }
 
     #[test]
-    fn each_single_is_an_over_with_the_speaker_on_the_far_third() {
+    fn each_single_tracks_its_speaker_by_entity_and_frames_an_over() {
         let scene_list = scenes(&fountain::parse(SCRIPT));
         for (scene, manifest) in scene_list.iter().zip(staged_scenes()) {
             let head_of = |name: &str| {
@@ -803,9 +793,6 @@ Anywhere the radio can't reach.
                     .iter()
                     .find(|e| e.name.as_str() == format!("{name}.head"))
                     .unwrap_or_else(|| panic!("no head for {name}"))
-                    .transform
-                    .position
-                    .map(|x| x as f64)
             };
             for entity in &manifest.entities {
                 let Some(component) = CameraComponent::of(entity) else {
@@ -819,24 +806,41 @@ Anywhere the radio can't reach.
                     .as_str()
                     .unwrap()
                     .replace("Single on ", "");
+                let head = head_of(&speaker);
+                // Aimed and focused at the speaker's head by entity, with
+                // the staged point as the fallback aim...
+                assert_eq!(component.aim_entity, Some(wt::EntityRef::id(head.id.0)));
+                assert_eq!(component.focus_entity, Some(wt::EntityRef::id(head.id.0)));
+                assert_eq!(component.aim.map(|a| a[1]), Some(HEAD_HEIGHT));
+                // ...so the view resolved in the world centres the head,
+                // level with the lens...
                 let frame = cinema::frame_of(&component);
-                let view = cinema::view_of(entity, &component);
-                // The speaker's head on the far third, level with the lens...
-                let p = cinema::project(&view, &frame, &component, head_of(&speaker));
+                let view = cinema::view_in(entity, &component, &manifest);
+                let p = cinema::project(
+                    &view,
+                    &frame,
+                    &component,
+                    cinema::world_origin(head, &manifest),
+                );
                 assert!(
-                    cinema::in_frame(&p) && (p.x - FAR_THIRD).abs() < 0.05 && p.y.abs() < 0.05,
-                    "{}: {} frames {} at ({:.3}, {:.3})",
+                    cinema::in_frame(&p) && p.x.abs() < 1e-4 && p.y.abs() < 1e-4,
+                    "{}: {} frames {} at ({:.4}, {:.4})",
                     manifest.meta.name,
                     entity.name.as_str(),
                     speaker,
                     p.x,
                     p.y
                 );
-                // ...and the partner's head on the near edge or beyond it:
-                // their shoulder in frame, nothing of them over the speaker.
+                // ...and the partner's head is off the near edge: their
+                // shoulder in frame, nothing of them over the speaker.
                 let partner =
                     partner_of(scene, &speaker).expect("every speaker in the script has a partner");
-                let q = cinema::project(&view, &frame, &component, head_of(&partner));
+                let q = cinema::project(
+                    &view,
+                    &frame,
+                    &component,
+                    cinema::world_origin(head_of(&partner), &manifest),
+                );
                 assert!(
                     q.z > 0.0 && q.x <= -0.95,
                     "{}: {} puts {}'s partner {} at ({:.3}, {:.3}), inside the frame",

@@ -31,7 +31,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { cameraOf, frameOf, viewOf, shotList } from './cinematography.js';
+import { cameraOf, frameOf, viewOf, aimPointOf, shotList } from './cinematography.js';
 
 /** @typedef {import('./index.js').Vec3} Vec3 */
 /** @typedef {import('./index.js').WorldEntity} WorldEntity */
@@ -870,7 +870,9 @@ export function createWorldViewer(container, manifest, options = {}) {
   const shotEntity = opts.shot ? (manifest.entities ?? []).find((e) => e.name === opts.shot) : null;
   const shotCamera = shotEntity ? cameraOf(shotEntity) : null;
   const shotFrame = shotCamera ? frameOf(shotCamera) : null;
-  const shotView = shotEntity && shotCamera ? viewOf(shotEntity, shotCamera) : null;
+  // The world resolves `aim_entity`: a camera on an actor looks at the
+  // actor's world origin, through parents.
+  const shotView = shotEntity && shotCamera ? viewOf(shotEntity, shotCamera, manifest) : null;
   if (opts.shot && !shotView) {
     console.warn(`no ext-cinematography camera named '${opts.shot}' — the default view stands`);
   }
@@ -878,9 +880,8 @@ export function createWorldViewer(container, manifest, options = {}) {
     camera.fov = shotFrame.vfov_degrees;
     camera.aspect = shotFrame.aspect;
     camera.position.set(...(/** @type {Vec3} */ (shotView.position)));
-    controls.target.set(...(shotCamera.aim
-      ? /** @type {Vec3} */ (shotCamera.aim)
-      : /** @type {Vec3} */ ([
+    controls.target.set(...(aimPointOf(shotCamera, manifest)
+      ?? /** @type {Vec3} */ ([
         shotView.position[0] + shotView.forward[0],
         shotView.position[1] + shotView.forward[1],
         shotView.position[2] + shotView.forward[2],

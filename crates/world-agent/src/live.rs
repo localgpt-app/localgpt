@@ -1581,14 +1581,30 @@ kind.
 `camera` fields: `sensor_mm` `[w, h]` (default `[24.89, 18.66]`, Super 35),
 `focal_length_mm` (default 35), `aspect_ratio` (the frame crop; default the
 sensor's), `squeeze` (default 1), `aim` `[x, y, z]` (look at this world
-point, +Y up; absent: the entity's local −Z). `shot` fields: `scene`,
-`order` (integer sort key; ties break by entity id), `in_s`/`out_s` (seconds
-on the clock), `size` (EWS, WS, MS, MCU, CU, ECU, INSERT, OTS, POV, TWO),
-`description`.
+point, +Y up; absent: the entity's local −Z), `aim_entity` (an entity the
+camera looks at — write its name, it commits as the id — over `aim` while
+the entity exists, so the shot follows the actor when the blocking moves),
+`focus_distance_m`, `focus_entity` (an entity the camera focuses on, over
+`focus_distance_m`), `f_stop`. A drafted single tracks its actor's head this
+way (`aim_entity: "MAYA.head"`): keep those fields when you revise it, unless
+the ask is to aim somewhere else. `shot` fields: `scene`, `order` (integer
+sort key; ties break by entity id), `in_s`/`out_s` (seconds on the clock),
+`size` (EWS, WS, MS, MCU, CU, ECU, INSERT, OTS, POV, TWO), `description`.
 
 An `ext-*` patch replaces the whole extension value, so a revision sends the
 full block back with its change. Read the entity from `manifest.json` first
 (the fold at the tip you're building on), change the fields, send it:
+
+- **"stay on her"** / **"track him"** — aim and focus by entity, so the
+  camera keeps the actor when they move; `aim` stays as the fallback point:
+
+  ```json
+  {"ModifyEntity": {"id": "1B", "patch": {"ext-cinematography": {
+    "camera": {"focal_length_mm": 50, "aspect_ratio": 2.39, "aim": [0.7, 1.6, 0.0],
+               "aim_entity": "MAYA.head", "focus_entity": "MAYA.head"},
+    "shot": {"scene": "1", "order": 2, "in_s": 0.5, "out_s": 1.5,
+             "size": "MCU", "description": "her"}}}}}
+  ```
 
 - **"a 50"** — the lens is `focal_length_mm`:
 

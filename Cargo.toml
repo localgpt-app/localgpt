@@ -39,10 +39,11 @@ tag-name = "v{{version}}"
 rate-limit.new-packages = 10
 
 [workspace.dependencies]
-# 0.3.4: `ext-cinematography` as a typed module (cameras, frames, the
-# shot list, the outcome runner — world-types' copy is gone), the merge
-# rules made exact, and ingest that warns on budgets instead of refusing.
-openworldformat = "0.3.4"
+# 0.3.5: `ext-cinematography` 0.3 — a camera aims and focuses on an entity
+# (`aim_entity`, `focus_entity`, references the merge rewrites like `parent`),
+# origins composed through parents (`world_origin`, `view_in`), and committed
+# ops that carry ids for the deeper references.
+openworldformat = "0.3.5"
 
 # Async runtime
 tokio = { version = "1.50", features = ["full"] }

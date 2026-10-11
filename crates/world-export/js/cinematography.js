@@ -1,4 +1,4 @@
-// The ext-cinematography reference implementation (extension version 0.2).
+// The ext-cinematography reference implementation (extension version 0.3).
 //
 // Spec: spec/extensions/cinematography.md. An entity carrying
 // `ext-cinematography.camera` is a camera — a filmback and a lens — and
@@ -9,6 +9,9 @@
 //     — Unreal's crop-to-aspect rule written out;
 //   - the view (aim look-at, +Y up, else the entity's local −Z) and a
 //     pinhole projection, so "is it in frame" is a predicate;
+//   - entity origins in world space (the document's TRS hierarchy), the
+//     point every assertion projects and the point `aim_entity` and
+//     `focus_entity` resolve to;
 //   - the shot list (shot.order, ties by entity id);
 //   - the outcome runner for conformance/outcomes/*.json.
 //
@@ -18,12 +21,13 @@
 /** @typedef {import('./index.js').Vec3} Vec3 */
 /** @typedef {import('./index.js').WorldEntity} WorldEntity */
 /** @typedef {import('./index.js').WorldManifest} WorldManifest */
+/** @typedef {{entities?: WorldEntity[]}} World a manifest or a fold state: anything with `entities` */
 
 /** The extension this module implements. */
 export const EXTENSION_NAME = "ext-cinematography";
 
 /** The extension version this module implements. */
-export const EXTENSION_VERSION = "0.2.0";
+export const EXTENSION_VERSION = "0.3.0";
 
 /** The default sensor (filmback): Super 35, [w, h] in mm. */
 export const DEFAULT_SENSOR = [24.89, 18.66];
@@ -40,7 +44,9 @@ export const DEFAULT_FOCAL_LENGTH = 35;
  * @property {number|undefined} aspect_ratio
  * @property {number} squeeze
  * @property {number[]|undefined} aim
+ * @property {number|string|undefined} aim_entity an entity reference: the id (bound) or the name (at intake)
  * @property {number|undefined} focus_distance_m
+ * @property {number|string|undefined} focus_entity an entity reference, like `aim_entity`
  * @property {number|undefined} f_stop
  */
 
@@ -80,7 +86,9 @@ export function cameraOf(entity) {
     aspect_ratio: camera.aspect_ratio,
     squeeze: camera.squeeze ?? 1,
     aim: camera.aim,
+    aim_entity: camera.aim_entity,
     focus_distance_m: camera.focus_distance_m,
+    focus_entity: camera.focus_entity,
     f_stop: camera.f_stop,
   };
 }
@@ -116,6 +124,8 @@ export function frameOf(camera) {
 /** @param {Vec3} a @param {Vec3} b @returns {Vec3} */
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 /** @param {Vec3} a @param {Vec3} b @returns {Vec3} */
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+/** @param {Vec3} a @param {Vec3} b @returns {Vec3} */
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 /** @param {Vec3} a @param {Vec3} b */
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -142,18 +152,101 @@ function rotateIntrinsicXyz(v, degrees) {
 }
 
 /**
- * A camera's view: with `aim`, the camera looks at the world point, +Y
- * up; without it, it looks down the entity's local −Z (the glTF /
- * three.js / Bevy convention), its frame carried by the entity's
- * rotation.
+ * The entity a reference names, in a world: by id (a bound reference,
+ * what a document holds) or by name (an authoring-time one, before
+ * ingestion binds it). `null` when nothing answers.
+ * @param {number|string|undefined} reference
+ * @param {World} world
+ * @returns {WorldEntity|null}
+ */
+export function entityOf(reference, world) {
+  if (reference === undefined || reference === null) return null;
+  const entities = world.entities ?? [];
+  if (typeof reference === "number") return entities.find((e) => e.id === reference) ?? null;
+  if (typeof reference === "string") return entities.find((e) => e.name === reference) ?? null;
+  return null;
+}
+
+/**
+ * An entity's origin in world space: its `transform.position` composed
+ * through its parents — the document's TRS hierarchy, `p = P + R·(S ⊙ p)`
+ * up the chain (spec/world.md "Conventions"). An unparented entity's
+ * origin is its position as written; a parent the world doesn't hold
+ * ends the chain. This is the point every outcome assertion projects
+ * and the point `aim_entity` and `focus_entity` resolve to.
+ * @param {WorldEntity} entity
+ * @param {World} world
+ * @returns {Vec3}
+ */
+export function worldOrigin(entity, world) {
+  const entities = world.entities ?? [];
+  let point = /** @type {Vec3} */ (entity.transform?.position ?? [0, 0, 0]);
+  let current = entity;
+  for (let guard = 0; guard < 4096; guard++) {
+    const parentId = /** @type {any} */ (current).parent;
+    if (parentId === undefined || parentId === null) break;
+    const parent = entities.find((e) => e.id === parentId);
+    if (!parent) break;
+    const t = parent.transform ?? {};
+    const P = /** @type {Vec3} */ (t.position ?? [0, 0, 0]);
+    const R = /** @type {Vec3} */ (t.rotation_degrees ?? [0, 0, 0]);
+    const S = /** @type {Vec3} */ (t.scale ?? [1, 1, 1]);
+    point = add(P, rotateIntrinsicXyz([point[0] * S[0], point[1] * S[1], point[2] * S[2]], R));
+    current = parent;
+  }
+  return point;
+}
+
+/**
+ * The point a camera aims at: `aim_entity`'s world origin while that
+ * entity exists in the world, else `aim`, else `null` (the camera
+ * looks down its local −Z). Without a world only `aim` can answer.
+ * @param {CameraComponent} camera
+ * @param {World} [world]
+ * @returns {Vec3|null}
+ */
+export function aimPointOf(camera, world) {
+  const target = world ? entityOf(camera.aim_entity, world) : null;
+  if (target && world) return worldOrigin(target, world);
+  return camera.aim ? /** @type {Vec3} */ (camera.aim) : null;
+}
+
+/**
+ * A camera's focus distance, metres: the distance from the camera
+ * entity's world origin to `focus_entity`'s while that entity exists,
+ * else `focus_distance_m`, else `undefined`.
+ * @param {WorldEntity} entity the camera entity
+ * @param {CameraComponent} camera
+ * @param {World} [world]
+ * @returns {number|undefined}
+ */
+export function focusDistanceOf(entity, camera, world) {
+  const target = world ? entityOf(camera.focus_entity, world) : null;
+  if (target && world) {
+    const d = sub(worldOrigin(target, world), worldOrigin(entity, world));
+    return Math.hypot(d[0], d[1], d[2]);
+  }
+  return camera.focus_distance_m;
+}
+
+/**
+ * A camera's view: with an aim point — `aim_entity`'s origin when the
+ * world is given and the entity exists, else `aim` — the camera looks
+ * at it, +Y up; without one it looks down the entity's local −Z (the
+ * glTF / three.js / Bevy convention), its frame carried by the entity's
+ * rotation. The camera stands at its own world origin.
  * @param {WorldEntity} entity the camera entity (its transform places it)
  * @param {CameraComponent} camera
+ * @param {World} [world] the world the entity references resolve in
  * @returns {CameraView}
  */
-export function viewOf(entity, camera) {
-  const position = /** @type {Vec3} */ (entity.transform?.position ?? [0, 0, 0]);
-  if (camera.aim) {
-    const forward = norm(sub(/** @type {Vec3} */ (camera.aim), position));
+export function viewOf(entity, camera, world) {
+  const position = world
+    ? worldOrigin(entity, world)
+    : /** @type {Vec3} */ (entity.transform?.position ?? [0, 0, 0]);
+  const aim = aimPointOf(camera, world);
+  if (aim) {
+    const forward = norm(sub(aim, position));
     const right = norm(cross(forward, [0, 1, 0]));
     const up = cross(right, forward);
     return { position, forward, right, up };
@@ -193,7 +286,7 @@ export function project(view, frame, camera, point) {
  * The shot list: every entity carrying `ext-cinematography.shot`, as
  * `{id, name, shot}`, ordered by `shot.order` (absent last), ties by
  * entity id. The entity's name is the shot's name.
- * @param {WorldManifest|import('./index.js').FoldState} world
+ * @param {World} world
  * @returns {{id: number, name: string, shot: Record<string, any>}[]}
  */
 export function shotList(world) {
@@ -225,13 +318,15 @@ export function runOutcomes(manifest, outcomes) {
     const entity = byName.get(name);
     const camera = entity && cameraOf(entity);
     if (!entity || !camera) failures.push(`no camera named ${name}`);
-    return entity && camera ? { entity, camera, frame: frameOf(camera), view: viewOf(entity, camera) } : null;
+    return entity && camera
+      ? { entity, camera, frame: frameOf(camera), view: viewOf(entity, camera, manifest) }
+      : null;
   };
   /** @param {string} name */
   const originOf = (name) => {
     const entity = byName.get(name);
     if (!entity) failures.push(`no entity named ${name}`);
-    return entity?.transform?.position ?? [0, 0, 0];
+    return entity ? worldOrigin(entity, manifest) : /** @type {Vec3} */ ([0, 0, 0]);
   };
 
   for (const assertion of outcomes.expect ?? []) {
@@ -256,6 +351,25 @@ export function runOutcomes(manifest, outcomes) {
       const inside = p.z > 0 && Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1;
       if (assertion.in_frame && !inside) failures.push(`${name}: ${target} projects outside the frame (${p.x.toFixed(3)}, ${p.y.toFixed(3)})`);
       if (assertion.out_of_frame && inside) failures.push(`${name}: ${target} projects inside the frame (${p.x.toFixed(3)}, ${p.y.toFixed(3)})`);
+    } else if (assertion.centred) {
+      // The camera aims at the entity: its origin projects at the
+      // frame's centre, in front — what `aim_entity` promises.
+      const { camera: name, entity: target, tolerance = 0.001 } = assertion.centred;
+      const c = cameraEntity(name);
+      if (!c) continue;
+      const p = project(c.view, c.frame, c.camera, originOf(target));
+      if (!(p.z > 0 && Math.abs(p.x) <= tolerance && Math.abs(p.y) <= tolerance)) {
+        failures.push(`${name}: ${target} projects at (${p.x.toFixed(4)}, ${p.y.toFixed(4)}), z ${p.z.toFixed(3)} — not the frame's centre (tolerance ${tolerance})`);
+      }
+    } else if (assertion.focus) {
+      // The derived focus distance — `focus_entity`'s origin from the
+      // camera, else `focus_distance_m` — within `tolerance` metres.
+      const { camera: name, distance_m, tolerance = 0.001 } = assertion.focus;
+      const c = cameraEntity(name);
+      if (!c) continue;
+      const actual = focusDistanceOf(c.entity, c.camera, manifest);
+      if (actual === undefined) failures.push(`${name}: no focus distance`);
+      else if (Math.abs(actual - distance_m) > tolerance) failures.push(`${name}: focus distance ${actual} != ${distance_m} (tolerance ${tolerance})`);
     } else if (Array.isArray(assertion.shot_list)) {
       const actual = shotList(manifest).map((s) => s.name);
       const expected = assertion.shot_list;

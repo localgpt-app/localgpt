@@ -592,7 +592,7 @@ fn publish_shots(live: &Live) -> super::shots::LiveShots {
             Some(super::shots::ShotEntry { entity, row })
         })
         .collect();
-    super::shots::LiveShots { shots }
+    super::shots::LiveShots { shots, manifest }
 }
 
 const ENDPOINTS: &[(&str, &str)] = &[
