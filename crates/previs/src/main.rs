@@ -43,9 +43,7 @@ fn parse_args() -> Result<Args, String> {
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--out" => {
-                out = Some(PathBuf::from(
-                    args.next().ok_or("--out needs a directory")?,
-                ));
+                out = Some(PathBuf::from(args.next().ok_or("--out needs a directory")?));
             }
             "--help" | "-h" => return Err(String::new()),
             _ if arg.starts_with("--out=") => {

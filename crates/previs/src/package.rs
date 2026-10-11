@@ -48,8 +48,7 @@ pub fn write_package(dir: &Path, manifest: &wt::WorldManifest) -> io::Result<Pac
     meta.app = Some("localgpt-previs".to_string());
     meta.world_sha256 = Some(openworldformat::sha256_hex(text.as_bytes()));
     let package_path = dir.join("package.json");
-    let mut package_json = serde_json::to_string_pretty(&meta)
-        .map_err(io::Error::other)?;
+    let mut package_json = serde_json::to_string_pretty(&meta).map_err(io::Error::other)?;
     package_json.push('\n');
     std::fs::write(&package_path, package_json)?;
 
@@ -90,10 +89,8 @@ mod tests {
 
         // package.json: format_version 2, name, base 0, head 0, and the
         // sha256 of the manifest's canonical bytes.
-        let package: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(&files.package).unwrap(),
-        )
-        .unwrap();
+        let package: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&files.package).unwrap()).unwrap();
         assert_eq!(package["format_version"], 2);
         assert_eq!(package["name"], "scene-1");
         assert_eq!(package["base_revision"], 0);

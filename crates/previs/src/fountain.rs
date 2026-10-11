@@ -212,28 +212,29 @@ pub fn parse(source: &str) -> Script {
         // block (parentheticals and dialogue lines) follows until a
         // blank line.
         if let Some((name, extension, dual)) = character_cue(trimmed)
-            && next_non_blank(&lines, i + 1).is_some_and(|n| n == i + 1) {
-                script.elements.push(Element::Character {
-                    name,
-                    extension,
-                    dual,
-                });
-                i += 1;
-                while i < lines.len() && !lines[i].trim().is_empty() {
-                    let d = lines[i].trim();
-                    if d.starts_with('(') && d.ends_with(')') && d.len() > 2 {
-                        script.elements.push(Element::Parenthetical {
-                            text: d[1..d.len() - 1].trim().to_string(),
-                        });
-                    } else {
-                        script.elements.push(Element::Dialogue {
-                            text: d.to_string(),
-                        });
-                    }
-                    i += 1;
+            && next_non_blank(&lines, i + 1).is_some_and(|n| n == i + 1)
+        {
+            script.elements.push(Element::Character {
+                name,
+                extension,
+                dual,
+            });
+            i += 1;
+            while i < lines.len() && !lines[i].trim().is_empty() {
+                let d = lines[i].trim();
+                if d.starts_with('(') && d.ends_with(')') && d.len() > 2 {
+                    script.elements.push(Element::Parenthetical {
+                        text: d[1..d.len() - 1].trim().to_string(),
+                    });
+                } else {
+                    script.elements.push(Element::Dialogue {
+                        text: d.to_string(),
+                    });
                 }
-                continue;
+                i += 1;
             }
+            continue;
+        }
         // Action: a paragraph of consecutive non-blank lines that open
         // no other element. (A cue-like line mid-paragraph still starts
         // a dialogue block per Fountain's blank-line rule: it can't,
