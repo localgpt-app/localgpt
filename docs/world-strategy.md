@@ -5,6 +5,8 @@ shared renderers and the conformance suite are built (§5.3, §11.1), and the
 static showcase — step 2 of §11 — is live on the site (§12).
 [§13](#13-the-consumer-pivot) (2026-09-27) revises §1 and §12 for a
 consumer-first product; where it and an earlier section disagree, §13 is later.
+[§15](#15-previs-first) (2026-10-09) names film previs as the first audience
+and orders the work for it; where it and §13 disagree, §15 is later.
 **Scope:** turning the placeholder at localgpt.world into a site backed by a
 SpacetimeDB world that LocalGPT Gen hosts write into, with the content shown
 on the web to attract users.
@@ -1055,6 +1057,66 @@ why the on-device tier of §13.3 is not a nicety there but the only path.
   source. Whether model outputs inherit a model's licence is unsettled; one
   for counsel, with the trademark questions.
 
+## 15. Previs first
+
+**Status:** decided 2026-10-09, after a third review of the Open World Format
+that ran the spec instead of reading it. Revises §13's audience, not its
+shape: one app, link-first sharing and the rule-derived first frame all stay.
+
+### 15.1 Why previs
+
+§13 aims at someone who opens a link. That reader never sees what makes the
+format different — the log, the branches, the authority, parametric shapes an
+agent can edit — and "a world from a sentence" is a visual-quality race that
+primitives and the 171-model pack (§13.4) do not win. Film previsualization
+inverts each of those:
+
+- **Greybox is the norm.** Grey mannequins and blockout sets are what previs
+  looks like; the primitive look is not a handicap there.
+- **Iteration is the work.** Coverage A against B, the director's pass against
+  the DP's: history, branches and authorship finally have a user.
+- **The deliverables are boards, shot lists and clips** — things LocalGPT can
+  produce without an importer into a game engine.
+- **Most of the machinery exists.** MD's sections-to-places pipeline becomes
+  scenes-to-sets; Gen has camera, screenshot, depth and ComfyUI preview tools
+  (`gen_render_depth`, `gen_preview_world`, `gen_image_to_layout`); the live
+  canvas forks, seeks and draws a history rail (`gen3d/live.rs`,
+  `gen3d/history_rail.rs`); Verse already uses a soundtrack as the clock.
+
+### 15.2 Between the two references
+
+| | Previs Pro 3.1 | invideo AI Previs | LocalGPT |
+|---|---|---|---|
+| How a shot is made | built by hand: sets, posable actors, cameras | generated frames, animatics, moving shots | drafted by an agent from the script, revised by asking |
+| Camera data | camera/sensor types, aspect ratios | "It isn't a technical plan": lens data and measured camera positions are "things to confirm in 3D previs or on a recce" | positions in metres, sensor, lens and frame (`ext-cinematography`) |
+| AI | lighting and props from text, pose from a photo | the whole look | the whole first pass; a generated look on top, optional |
+| Platforms | iPhone, iPad, Mac | web | desktop, web link, Android, Apple viewer |
+| Price | $179.99 a year or $399.99 lifetime; a free edition | not shown on the page | free |
+
+The position: an agent-drafted 3D plan with real measurements, with the
+generated look on top of it — the 3D previs invideo tells its users to go and
+get, without Previs Pro's hand-building.
+
+### 15.3 Decisions
+
+| Question | Decision |
+|---|---|
+| First audience | Film previs: indie directors, ADs, film students — people who previs today by hand, or with a generator that cannot measure. |
+| Format work | `ext-cinematography` 0.2 — cameras as entities (sensor, focal length, aspect, squeeze, focus) and shots as ordered setups with in/out times — riding `ext-*` must-ignore like `ext-physics`. **No breaking release:** the identity bundle (collision-free ids, entry ids everywhere, timed input) waits until git merges or gameplay replay need it. First, the five references' merges are fixed and pinned by a shared case corpus. |
+| Product work, in order | Script → board (a pure `crates/previs`: Fountain in; a `.world` per scene with set, cast and coverage; a board and a shot-list CSV out); then revising shots in the live canvas (look through a shot, a shot strip, treatments as branches compared as boards); then posing, animatics and the generated look — after users confirm the first two. |
+| Moved down | Game logic and semantic replay (previs has no gameplay); a git merge driver; extensions beyond cinematography; capability tiers; more language references; multiplayer rooms and SpacetimeDB plots. |
+| localgpt.world | Stays the share destination (§13.5) — a board is shared as a link — but "a world from a sentence" is no longer the headline. |
+| MD | Its pipeline becomes the script importer; no separate product push. |
+| Music | songworld stays its own product. The overlap comes later: music-video previs, shots cut on the beat grid. |
+
+### 15.4 How we find out
+
+Put the first two steps in front of five to ten people who previs today, with
+their own script pages. Measure minutes from a scene to a first board, and how
+many revisions until they would show the board to their DP. If they do not come
+back for a second scene, the problem is in those two steps, not in posing or
+animatics — which is why those wait.
+
 ## Sources
 
 Repositories, at the commits this document was written against (updated
@@ -1074,3 +1136,9 @@ Repositories, at the commits this document was written against (updated
 - [glTF External Reference Format](https://github.com/KhronosGroup/glTF-External-Reference)
 - Anthropic model pricing as listed in the Claude API reference at the time of
   writing; cache multipliers 0.1× read, 1.25× write, Batch API 50% off.
+- §15: [Previs Pro on the App Store](https://apps.apple.com/app/id1468484655);
+  [CG Channel on Previs Pro 3 and 3.1](https://www.cgchannel.com/2025/11/storyboarding-app-previs-pro-3-adds-animatics-and-a-free-edition/)
+  (platforms, features, exports, pricing);
+  [invideo AI Previs](https://invideo.io/make/ai-previs/) (its FAQ on what its
+  previs is accurate for); and the third format review, a localgpt.rs draft of
+  2026-10-09 (the runs behind the merge findings).
