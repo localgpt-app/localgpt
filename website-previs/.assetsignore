@@ -9,3 +9,5 @@ deploy.sh
 wrangler.toml
 README.md
 .assetsignore
+.wrangler/
+.DS_Store
