@@ -64,7 +64,7 @@ website-*/.wrangler/
 # the apps the way the old cross-repo sync did), and the curated worlds' shrunk
 # GLBs, music and posters in from the assets checkout, where they are LFS
 # objects. Only the site's own source is tracked here.
-website-world/viewer/world-viewer.js
+website-world/viewer/
 website-world/worlds/assets/
 website-world/worlds/posters/
 website-world/worlds/behaviors.json
