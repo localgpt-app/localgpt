@@ -231,10 +231,7 @@ fn cast_positions(count: usize) -> Vec<([f64; 3], f64)> {
     match count {
         0 => Vec::new(),
         1 => vec![([0.0, 0.0, 0.0], 180.0)],
-        2 => vec![
-            ([-0.7, 0.0, 0.0], -90.0),
-            ([0.7, 0.0, 0.0], 90.0),
-        ],
+        2 => vec![([-0.7, 0.0, 0.0], -90.0), ([0.7, 0.0, 0.0], 90.0)],
         n => (0..n)
             .map(|i| {
                 let phi = (-45.0 + 90.0 * i as f64 / (n - 1) as f64).to_radians();
@@ -433,11 +430,7 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
                 light_type: wt::LightType::Directional,
                 color: sun_color,
                 intensity: sun_lux,
-                direction: Some([
-                    -sun_pos[0] / l,
-                    -sun_pos[1] / l,
-                    -sun_pos[2] / l,
-                ]),
+                direction: Some([-sun_pos[0] / l, -sun_pos[1] / l, -sun_pos[2] / l]),
                 shadows: true,
                 ..Default::default()
             });
@@ -479,7 +472,12 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
         head.transform.position = [x as f32, HEAD_HEIGHT as f32, z as f32];
         head.shape = Some(wt::Shape::Sphere { radius: 0.12 });
         head.material = Some(wt::MaterialDef {
-            color: [color[0] * 0.6 + 0.4, color[1] * 0.6 + 0.4, color[2] * 0.6 + 0.4, 1.0],
+            color: [
+                color[0] * 0.6 + 0.4,
+                color[1] * 0.6 + 0.4,
+                color[2] * 0.6 + 0.4,
+                1.0,
+            ],
             roughness: 0.7,
             ..Default::default()
         });
@@ -506,7 +504,7 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
         e.extra.insert(
             cinema::EXTENSION_NAME.to_string(),
             json!({
-                "camera": component,
+                "camera": cinema::camera_json(&component),
                 "shot": {
                     "scene": scene_number,
                     "order": order,
@@ -536,19 +534,20 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
             focal_length_mm: MASTER_FOCAL_MM,
             aspect_ratio: Some(SHOW_ASPECT),
             aim: Some(aim),
-            ..Default::default()
+            ..cinema::default_camera()
         };
         let frame = cinema::frame_of(&master);
         let mut distance = 2.0_f64;
         let master_pos = loop {
             let position = [centroid[0], EYE_HEIGHT, centroid[2] + distance];
-            let view = cinema::view_of(position, &master);
+            let view = cinema::view_from(position, &master);
             let framed = cast.iter().all(|(_, p)| {
                 let feet = cinema::project(&view, &frame, &master, *p);
-                let head = cinema::project(&view, &frame, &master, [p[0], ACTOR_HEIGHT as f64, p[2]]);
-                [feet, head].iter().all(|q| {
-                    q.z > 0.0 && q.x.abs() <= 0.95 && q.y.abs() <= 0.95
-                })
+                let head =
+                    cinema::project(&view, &frame, &master, [p[0], ACTOR_HEIGHT as f64, p[2]]);
+                [feet, head]
+                    .iter()
+                    .all(|q| q.z > 0.0 && q.x.abs() <= 0.95 && q.y.abs() <= 0.95)
             });
             if framed || distance > 60.0 {
                 break position;
@@ -586,7 +585,11 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
                     let dir = {
                         let d = [p[0] - q[0], 0.0, p[2] - q[2]];
                         let l = (d[0] * d[0] + d[2] * d[2]).sqrt();
-                        if l < 1e-9 { [0.0, 0.0, 1.0] } else { [d[0] / l, 0.0, d[2] / l] }
+                        if l < 1e-9 {
+                            [0.0, 0.0, 1.0]
+                        } else {
+                            [d[0] / l, 0.0, d[2] / l]
+                        }
                     };
                     [
                         q[0] - dir[0] * 0.45 - dir[2] * 0.28,
@@ -600,7 +603,7 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
                 focal_length_mm: SINGLE_FOCAL_MM,
                 aspect_ratio: Some(SHOW_ASPECT),
                 aim: Some(speaker_head),
-                ..Default::default()
+                ..cinema::default_camera()
             };
             camera_entity(
                 &mut manifest,
@@ -619,7 +622,7 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
         let master_frame = cinema::frame_of(&CameraComponent {
             focal_length_mm: MASTER_FOCAL_MM,
             aspect_ratio: Some(SHOW_ASPECT),
-            ..Default::default()
+            ..cinema::default_camera()
         });
         manifest.camera = Some(wt::CameraDef {
             position: [placed[0] as f32, placed[1] as f32, placed[2] as f32],
@@ -669,10 +672,7 @@ Anywhere the radio can't reach.
 ";
 
     fn staged_scenes() -> Vec<wt::WorldManifest> {
-        scenes(&fountain::parse(SCRIPT))
-            .iter()
-            .map(stage)
-            .collect()
+        scenes(&fountain::parse(SCRIPT)).iter().map(stage).collect()
     }
 
     fn camera(manifest: &wt::WorldManifest, name: &str) -> (wt::WorldEntity, CameraComponent) {
@@ -681,7 +681,8 @@ Anywhere the radio can't reach.
             .iter()
             .find(|e| e.name.as_str() == name)
             .unwrap_or_else(|| panic!("no entity {name}"));
-        let component = CameraComponent::of(entity).unwrap_or_else(|| panic!("{name} is no camera"));
+        let component =
+            CameraComponent::of(entity).unwrap_or_else(|| panic!("{name} is no camera"));
         (entity.clone(), component)
     }
 
@@ -718,10 +719,7 @@ Anywhere the radio can't reach.
             let scene_number = manifest.meta.name.trim_start_matches("scene-");
             let (entity, master) = camera(&manifest, &format!("{scene_number}A"));
             let frame = cinema::frame_of(&master);
-            let view = cinema::view_of(
-                entity.transform.position.map(|p| p as f64),
-                &master,
-            );
+            let view = cinema::view_of(&entity, &master);
             for entity in &manifest.entities {
                 let name = entity.name.as_str();
                 if !name.ends_with(".head") {
@@ -734,7 +732,7 @@ Anywhere the radio can't reach.
                 ];
                 let p = cinema::project(&view, &frame, &master, feet);
                 assert!(
-                    p.in_frame(),
+                    cinema::in_frame(&p),
                     "{}: actor {name} projects at ({:.3}, {:.3}), z {:.3}",
                     manifest.meta.name,
                     p.x,
@@ -749,19 +747,24 @@ Anywhere the radio can't reach.
     fn each_single_frames_its_speakers_head_centred() {
         for manifest in staged_scenes() {
             for entity in &manifest.entities {
-                let Some(component) = CameraComponent::of(entity) else { continue };
+                let Some(component) = CameraComponent::of(entity) else {
+                    continue;
+                };
                 let shot = &entity.extra[cinema::EXTENSION_NAME]["shot"];
                 if shot["size"] != "MCU" {
                     continue;
                 }
-                let speaker = shot["description"].as_str().unwrap().replace("Single on ", "");
+                let speaker = shot["description"]
+                    .as_str()
+                    .unwrap()
+                    .replace("Single on ", "");
                 let head = manifest
                     .entities
                     .iter()
                     .find(|e| e.name.as_str() == format!("{speaker}.head"))
                     .unwrap_or_else(|| panic!("no head for {speaker}"));
                 let frame = cinema::frame_of(&component);
-                let view = cinema::view_of(entity.transform.position.map(|p| p as f64), &component);
+                let view = cinema::view_of(entity, &component);
                 let p = cinema::project(
                     &view,
                     &frame,
@@ -769,7 +772,7 @@ Anywhere the radio can't reach.
                     head.transform.position.map(|x| x as f64),
                 );
                 assert!(
-                    p.in_frame() && p.x.abs() < 0.05 && p.y.abs() < 0.05,
+                    cinema::in_frame(&p) && p.x.abs() < 0.05 && p.y.abs() < 0.05,
                     "{}: {} frames {} at ({:.3}, {:.3})",
                     manifest.meta.name,
                     entity.name.as_str(),

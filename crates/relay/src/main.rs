@@ -128,6 +128,7 @@ async fn main() {
         .route("/r/{code}", get(join_page))
         .route("/r/{code}/session", get(guest_ws))
         .route("/r/{code}/world-viewer.js", get(viewer_js))
+        .route("/r/{code}/cinematography.js", get(cinematography_js))
         .route("/r/{code}/session-client.js", get(client_js))
         .route("/r/{code}/vendor/three.module.js", get(vendor_three))
         .route(
@@ -362,6 +363,10 @@ async fn join_page() -> impl IntoResponse {
 
 async fn viewer_js() -> impl IntoResponse {
     js(export_html::WORLD_VIEWER_JS)
+}
+
+async fn cinematography_js() -> impl IntoResponse {
+    js(export_html::CINEMATOGRAPHY_JS)
 }
 
 async fn client_js() -> impl IntoResponse {

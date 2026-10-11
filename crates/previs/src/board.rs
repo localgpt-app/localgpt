@@ -43,19 +43,13 @@ pub struct SceneBoard {
     pub covers: Vec<Vec<String>>,
 }
 
-/// A JS module as a `data:` URL: browsers refuse ES-module imports
-/// over `file://`, but an import map may point at `data:` URLs, which
-/// is how the board stays one offline file.
-fn module_data_url(source: &str) -> String {
-    use base64::Engine;
-    format!(
-        "data:text/javascript;base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(source)
-    )
-}
+use world_export::html::module_data_url;
 
-/// The import map: `three` and the viewer's two addons as `data:`
-/// URLs. `GLTFLoader`'s relative import of `BufferGeometryUtils` can't
+/// The import map: `three`, the viewer's two addons and the
+/// `./cinematography.js` the viewer imports, all as `data:` URLs
+/// (browsers refuse ES-module imports over `file://`, but an import map
+/// may point at `data:` URLs, which is how the board stays one offline
+/// file). `GLTFLoader`'s relative import of `BufferGeometryUtils` can't
 /// resolve against a `data:` URL, so it's rewritten to the mapped
 /// specifier (the only edit the vendored bytes get).
 fn import_map() -> String {
@@ -64,11 +58,12 @@ fn import_map() -> String {
         "from 'three/addons/utils/BufferGeometryUtils.js'",
     );
     format!(
-        "{{\n  \"imports\": {{\n    \"three\": \"{}\",\n    \"three/addons/controls/OrbitControls.js\": \"{}\",\n    \"three/addons/loaders/GLTFLoader.js\": \"{}\",\n    \"three/addons/utils/BufferGeometryUtils.js\": \"{}\"\n  }}\n}}",
+        "{{\n  \"imports\": {{\n    \"three\": \"{}\",\n    \"three/addons/controls/OrbitControls.js\": \"{}\",\n    \"three/addons/loaders/GLTFLoader.js\": \"{}\",\n    \"three/addons/utils/BufferGeometryUtils.js\": \"{}\",\n    \"./cinematography.js\": \"{}\"\n  }}\n}}",
         module_data_url(world_export::html::THREE_MODULE_JS),
         module_data_url(world_export::html::ORBIT_CONTROLS_JS),
         module_data_url(&gltf_loader),
         module_data_url(world_export::html::BUFFER_GEOMETRY_UTILS_JS),
+        module_data_url(world_export::html::CINEMATOGRAPHY_JS),
     )
 }
 

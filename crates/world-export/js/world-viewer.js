@@ -31,6 +31,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { cameraOf, frameOf, viewOf, shotList } from './cinematography.js';
 
 /** @typedef {import('./index.js').Vec3} Vec3 */
 /** @typedef {import('./index.js').WorldEntity} WorldEntity */
@@ -71,6 +72,7 @@ const TAU = Math.PI * 2;
  * @property {boolean} [embedApi] postMessage API for a parent frame (default: when framed)
  * @property {number} [ambientScale] override for AMBIENT_SCALE
  * @property {boolean} [preserveDrawingBuffer] keep the canvas readable after render
+ * @property {string} [shot] an ext-cinematography camera's entity name: view through that shot, letterboxed to its frame
  */
 
 /**
@@ -861,8 +863,49 @@ export function createWorldViewer(container, manifest, options = {}) {
   controls.dampingFactor = 0.05;
   controls.update();
 
+  // ---- Shot view (ext-cinematography): opts.shot looks through that
+  // shot's camera — vertical FOV and frame aspect from the normative
+  // crop math, the canvas letterboxed to it. A shot is a fixed setup:
+  // no orbiting, no walking.
+  const shotEntity = opts.shot ? (manifest.entities ?? []).find((e) => e.name === opts.shot) : null;
+  const shotCamera = shotEntity ? cameraOf(shotEntity) : null;
+  const shotFrame = shotCamera ? frameOf(shotCamera) : null;
+  const shotView = shotEntity && shotCamera ? viewOf(shotEntity, shotCamera) : null;
+  if (opts.shot && !shotView) {
+    console.warn(`no ext-cinematography camera named '${opts.shot}' — the default view stands`);
+  }
+  if (shotView && shotFrame && shotCamera) {
+    camera.fov = shotFrame.vfov_degrees;
+    camera.aspect = shotFrame.aspect;
+    camera.position.set(...(/** @type {Vec3} */ (shotView.position)));
+    controls.target.set(...(shotCamera.aim
+      ? /** @type {Vec3} */ (shotCamera.aim)
+      : /** @type {Vec3} */ ([
+        shotView.position[0] + shotView.forward[0],
+        shotView.position[1] + shotView.forward[1],
+        shotView.position[2] + shotView.forward[2],
+      ])));
+    controls.enabled = false;
+    opts.keyboard = false;
+    container.style.background = '#000';
+    camera.updateProjectionMatrix();
+    controls.update();
+  }
+
   function resize() {
     const w = container.clientWidth || width, h = container.clientHeight || height;
+    if (shotFrame) {
+      // Letterbox to the frame's aspect: the largest centered rect of it.
+      let vw = w, vh = w / shotFrame.aspect;
+      if (vh > h) { vh = h; vw = h * shotFrame.aspect; }
+      renderer.setSize(vw, vh, false);
+      renderer.domElement.style.width = `${vw}px`;
+      renderer.domElement.style.height = `${vh}px`;
+      renderer.domElement.style.margin = `${(h - vh) / 2}px ${(w - vw) / 2}px`;
+      camera.aspect = shotFrame.aspect;
+      camera.updateProjectionMatrix();
+      return;
+    }
     renderer.setSize(w, h, false);
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
@@ -1506,7 +1549,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     updateTour(dt);
     updateTriggers(dt);
     controls.update();
-    if (camera.aspect !== (container.clientWidth || width) / (container.clientHeight || height)) resize();
+    if (!shotFrame && camera.aspect !== (container.clientWidth || width) / (container.clientHeight || height)) resize();
     renderer.render(scene, camera);
   }
   function animate() {
@@ -1527,6 +1570,8 @@ export function createWorldViewer(container, manifest, options = {}) {
       tourCount: tours.length,
       triggerCount: records.reduce((n, r) => n + r.triggers.length, 0),
       audioEnabled: audioState.started,
+      shots: shotList(manifest).map((s) => ({ name: s.name, ...s.shot })),
+      shot: shotView ? opts.shot : null,
       viewerVersion: VIEWER_VERSION,
     };
   }

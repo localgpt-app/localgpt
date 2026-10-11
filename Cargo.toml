@@ -39,9 +39,10 @@ tag-name = "v{{version}}"
 rate-limit.new-packages = 10
 
 [workspace.dependencies]
-# 0.3.2: `package.json` keeps its `refs` (0.3.1 dropped them on every
-# rewrite) and `main_tip` states the head rule that forking depends on.
-openworldformat = "0.3.2"
+# 0.3.4: `ext-cinematography` as a typed module (cameras, frames, the
+# shot list, the outcome runner — world-types' copy is gone), the merge
+# rules made exact, and ingest that warns on budgets instead of refusing.
+openworldformat = "0.3.4"
 
 # Async runtime
 tokio = { version = "1.50", features = ["full"] }

@@ -12,6 +12,24 @@ use crate::json::to_script_safe_json;
 /// The one web renderer for the LocalGPT world format.
 pub const WORLD_VIEWER_JS: &str = include_str!("../js/world-viewer.js");
 
+/// The `ext-cinematography` math the viewer imports as
+/// `./cinematography.js` (its shot view), vendored beside it from the
+/// same npm release. The session servers serve it next to the viewer;
+/// an exported page maps the relative specifier to a `data:` URL
+/// ([`module_data_url`]) so it stays one file.
+pub const CINEMATOGRAPHY_JS: &str = include_str!("../js/cinematography.js");
+
+/// A JS module as a `data:` URL for an import map entry: browsers
+/// refuse ES-module imports over `file://`, but an import map may point
+/// at `data:` URLs, which is how an exported page stays one file.
+pub fn module_data_url(source: &str) -> String {
+    use base64::Engine;
+    format!(
+        "data:text/javascript;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(source)
+    )
+}
+
 /// The browser client for collaborative sessions (joins over WebSocket,
 /// applies ops live). Served by a hosting Gen at `/session-client.js`.
 pub const SESSION_CLIENT_JS: &str = include_str!("../js/session-client.js");
@@ -155,7 +173,8 @@ html, body {{ width: 100%; height: 100%; overflow: hidden; background: #000; }}
 {{
   "imports": {{
     "three": "{three_base}/build/three.module.js",
-    "three/addons/": "{three_base}/examples/jsm/"
+    "three/addons/": "{three_base}/examples/jsm/",
+    "./cinematography.js": "{cinematography}"
   }}
 }}
 </script>
@@ -175,6 +194,7 @@ window.localgptViewer = createWorldViewer(document.getElementById('scene'), MANI
 "#,
         title = title,
         description = description,
+        cinematography = module_data_url(CINEMATOGRAPHY_JS),
         entity_count = entity_count,
         tours_label = if has_tours { " &middot; Tours" } else { "" },
         audio_label = if has_audio { " &middot; Audio" } else { "" },
@@ -300,10 +320,47 @@ mod tests {
     #[test]
     fn viewer_module_is_embedded_and_script_safe() {
         assert!(WORLD_VIEWER_JS.contains("export function createWorldViewer"));
+        for (name, module) in [
+            ("world-viewer.js", WORLD_VIEWER_JS),
+            ("cinematography.js", CINEMATOGRAPHY_JS),
+        ] {
+            assert!(
+                !module.contains("</script"),
+                "{name} would end the inline script early"
+            );
+        }
+        // The import maps key the viewer's relative import exactly; a
+        // renamed upstream import would load nothing.
         assert!(
-            !WORLD_VIEWER_JS.contains("</script"),
-            "the viewer would end the inline script early"
+            WORLD_VIEWER_JS.contains("from './cinematography.js'"),
+            "the viewer no longer imports ./cinematography.js"
         );
+        assert!(CINEMATOGRAPHY_JS.contains("export function cameraOf"));
+    }
+
+    #[test]
+    fn an_exported_page_maps_the_viewers_cinematography_import_inline() {
+        let (_, manifest) = conformance_worlds().into_iter().next().unwrap();
+        let html = generate_html(&manifest);
+        let map = html
+            .split("<script type=\"importmap\">")
+            .nth(1)
+            .unwrap()
+            .split("</script>")
+            .next()
+            .unwrap();
+        let entry = map
+            .split("\"./cinematography.js\": \"data:text/javascript;base64,")
+            .nth(1)
+            .expect("the import map carries ./cinematography.js as a data: URL")
+            .split('"')
+            .next()
+            .unwrap();
+        use base64::Engine;
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(entry)
+            .unwrap();
+        assert_eq!(decoded, CINEMATOGRAPHY_JS.as_bytes());
     }
 
     #[test]

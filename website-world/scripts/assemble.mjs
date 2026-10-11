@@ -39,15 +39,18 @@ async function copyDir(from, to, label) {
   return true;
 }
 
-// 1. The one web renderer, from the crate that owns it.
-const viewer = join(repo, 'crates/world-export/js/world-viewer.js');
-if (!existsSync(viewer)) {
-  console.error(`missing ${viewer} — run this from within the localgpt workspace`);
-  process.exit(1);
-}
+// 1. The one web renderer, from the crate that owns it — and the
+// ext-cinematography module it imports as `./cinematography.js`.
 await mkdir(join(site, 'viewer'), { recursive: true });
-await cp(viewer, join(site, 'viewer/world-viewer.js'), { force: true });
-console.log('  viewer/world-viewer.js <- crates/world-export');
+for (const file of ['world-viewer.js', 'cinematography.js']) {
+  const viewer = join(repo, 'crates/world-export/js', file);
+  if (!existsSync(viewer)) {
+    console.error(`missing ${viewer} — run this from within the localgpt workspace`);
+    process.exit(1);
+  }
+  await cp(viewer, join(site, 'viewer', file), { force: true });
+  console.log(`  viewer/${file} <- crates/world-export`);
+}
 
 // 2. The conformance scenes and their textures.
 const conformance = join(repo, 'crates/world-types/conformance');

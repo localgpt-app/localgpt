@@ -469,6 +469,7 @@ pub fn web_router(bridge: WebBridge) -> axum::Router {
     axum::Router::new()
         .route("/", get(join_page))
         .route("/world-viewer.js", get(viewer_js))
+        .route("/cinematography.js", get(cinematography_js))
         .route("/session-client.js", get(client_js))
         .route("/session-info", get(session_info))
         .route("/vendor/three.module.js", get(vendor_three))
@@ -526,6 +527,14 @@ async fn viewer_js() -> impl IntoResponse {
     (
         [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
         localgpt_world_export::html::WORLD_VIEWER_JS,
+    )
+}
+
+/// The `./cinematography.js` the viewer imports, next to it.
+async fn cinematography_js() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        localgpt_world_export::html::CINEMATOGRAPHY_JS,
     )
 }
 

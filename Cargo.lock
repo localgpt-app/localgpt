@@ -8710,6 +8710,7 @@ dependencies = [
 name = "localgpt-world-export"
 version = "0.3.6"
 dependencies = [
+ "base64 0.22.1",
  "localgpt-world-types",
  "ron",
  "serde_json",
@@ -10586,9 +10587,9 @@ dependencies = [
 
 [[package]]
 name = "openworldformat"
-version = "0.3.2"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a47ab30a37802549a0d9561b34b4fcaf22baa2e7c5fa79e621dd5a6b7c86d517"
+checksum = "e5ac411a9b17b9557871200348c6da8b2ea64c1ee494c692bd6646592aa478df"
 dependencies = [
  "schemars 1.2.2",
  "serde",

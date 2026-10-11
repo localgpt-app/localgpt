@@ -185,8 +185,9 @@ source format (serde-only; `schema` feature writes `world.schema.json`);
 `localgpt-world-bevy` is the only place a `Shape`, `MaterialDef`, `LightDef`
 or `EnvironmentDef` becomes Bevy components — Gen, MD and Verse all call it;
 `localgpt-world-export` holds the only web renderer
-(`js/world-viewer.js`, a vendored snapshot of the `openworldformat` npm
-package — `scripts/sync-viewer.sh`) and `generate_html`. Reference scenes live in
+(`js/world-viewer.js` and the `js/cinematography.js` it imports, vendored
+snapshots of the `openworldformat` npm package — `scripts/sync-viewer.sh`)
+and `generate_html`. Reference scenes live in
 `crates/world-types/conformance/`; render them before and after changing a
 mapping. Add fields to world-types, never a parallel format.
 

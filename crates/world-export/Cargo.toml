@@ -10,6 +10,9 @@ keywords = ["localgpt", "world", "3d", "threejs", "export"]
 [dependencies]
 localgpt-world-types = { workspace = true }
 serde_json = { workspace = true }
+# An exported page is one file, so the viewer's `./cinematography.js`
+# import rides its import map as a base64 `data:` URL.
+base64 = { workspace = true }
 
 [dev-dependencies]
 ron = "0.12.1"

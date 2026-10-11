@@ -32,7 +32,7 @@ localgpt-world-export = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-# three.js rides the board's import map as base64 `data:` URLs (browsers
-# refuse ES-module imports over file://; this keeps board.html one
-# offline file).
+[dev-dependencies]
+# The board tests decode the import map's base64 `data:` URLs (the
+# encoding itself is world-export's `module_data_url`).
 base64 = { workspace = true }

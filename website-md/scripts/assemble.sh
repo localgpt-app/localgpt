@@ -10,9 +10,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 root="$(cd .. && pwd)"
 
-# 1. The one web renderer, from the crate that owns it.
+# 1. The one web renderer, from the crate that owns it — and the
+# ext-cinematography module it imports as `./cinematography.js`.
 mkdir -p viewer
 cp "$root/crates/world-export/js/world-viewer.js" viewer/world-viewer.js
+cp "$root/crates/world-export/js/cinematography.js" viewer/cinematography.js
 
 # 2. three.js, shared with website-world's vendored copy.
 if [ -d "$root/website-world/vendor/three" ]; then
