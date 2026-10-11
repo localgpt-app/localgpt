@@ -13,15 +13,17 @@
 //! - **Cast.** Every character with dialogue, in first-appearance
 //!   order. One actor stands at the centre; two face each other 1.4 m
 //!   apart; three or more form an arc of radius 1.8 m facing the open
-//!   side. Each actor is a stand-in figure: a 1.7 m capsule body and a
-//!   head sphere, named after the character.
+//!   side. Each actor is a stand-in figure: a 1.7 m capsule body, a
+//!   head sphere and a pale face on its front (so the board reads
+//!   which way everyone looks), named after the character.
 //! - **Coverage.** Shot `<scene>A` is the master: a wide on 24 mm
 //!   (Super 35, cropped to 2.39), at 1.6 m, aimed at the cast's
 //!   centroid from far enough down the open side that every actor
 //!   projects inside the frame. Then one single per speaking
 //!   character, in first-speaking order (`<scene>B`, `<scene>C`, …):
-//!   50 mm at eye height from just beside the scene partner's
-//!   shoulder, aimed at the speaker's head.
+//!   50 mm at eye height over the scene partner's shoulder — 0.8 m
+//!   behind them and 0.6 m to the side, so their head sits on the near
+//!   edge — with the speaker's head on the far third of the frame.
 //! - **Timing.** A page-time estimate: dialogue at 2.5 words a second,
 //!   action at 1 second a line, rounded to 0.1 s. The master covers
 //!   the whole scene; a single covers its speaker's first-to-last
@@ -44,6 +46,15 @@ pub const HEAD_HEIGHT: f64 = 1.6;
 pub const MASTER_FOCAL_MM: f64 = 24.0;
 /// The singles' lens, mm.
 pub const SINGLE_FOCAL_MM: f64 = 50.0;
+/// An over-the-shoulder single stands this far behind the partner, m.
+pub const OVER_BACK_M: f64 = 0.8;
+/// …and this far to the side of them, m — their head sits on the near
+/// edge of the frame, their shoulder inside it, nothing of them over
+/// the speaker.
+pub const OVER_SIDE_M: f64 = 0.6;
+/// Where the speaker's head sits in an over: this far from the centre
+/// toward the far edge, in the frame's half-width (1 is the edge).
+pub const FAR_THIRD: f64 = 0.45;
 /// The show's frame aspect (the crop the whole coverage shares).
 pub const SHOW_ASPECT: f64 = 2.39;
 /// Dialogue pace for the page-time estimate, words a second.
@@ -320,9 +331,11 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
     match scene.kind {
         SceneKind::Interior => {
             // An 8 × 6 m room, three walls 3 m high, open side +Z.
+            // Lit flat and bright, the greybox way: a board is read on
+            // paper and in daylight, not graded.
             manifest.environment = Some(wt::EnvironmentDef {
                 background_color: Some([0.05, 0.05, 0.07, 1.0]),
-                ambient_intensity: Some(240.0),
+                ambient_intensity: Some(480.0),
                 ambient_color: Some([1.0, 0.95, 0.88, 1.0]),
                 ..Default::default()
             });
@@ -332,7 +345,7 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
                 "floor",
                 [8.0, 0.1, 6.0],
                 [0.0, -0.05, 0.0],
-                [0.4, 0.36, 0.3, 1.0],
+                [0.5, 0.46, 0.4, 1.0],
             ));
             manifest.entities.push(cuboid(
                 alloc(),
@@ -361,8 +374,8 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
                 light_type: wt::LightType::Point,
                 color: [1.0, 0.9, 0.8, 1.0],
                 // Room-scale on the format's lumen scale (the conformance
-                // suite's points run 60k–400k).
-                intensity: 120_000.0,
+                // suite's points run 60k–400k), toward the bright end.
+                intensity: 300_000.0,
                 range: Some(12.0),
                 shadows: true,
                 ..Default::default()
@@ -482,6 +495,22 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
             ..Default::default()
         });
         manifest.entities.push(head);
+        // The face: a small pale sphere on the front of the head, so the
+        // board reads which way each actor looks (eyelines, overs).
+        let facing = [-yaw.to_radians().sin(), 0.0, -yaw.to_radians().cos()];
+        let mut face = wt::WorldEntity::new(alloc(), format!("{}.face", speaker.name));
+        face.transform.position = [
+            (x + facing[0] * 0.11) as f32,
+            HEAD_HEIGHT as f32,
+            (z + facing[2] * 0.11) as f32,
+        ];
+        face.shape = Some(wt::Shape::Sphere { radius: 0.05 });
+        face.material = Some(wt::MaterialDef {
+            color: [0.96, 0.93, 0.86, 1.0],
+            roughness: 0.6,
+            ..Default::default()
+        });
+        manifest.entities.push(face);
         cast.push((speaker.name.clone(), [x, 0.0, z]));
     }
 
@@ -571,17 +600,25 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
         );
 
         // The singles, `<scene>B`, `<scene>C`, … in first-speaking
-        // order: 50 mm at eye height from just beside the scene
-        // partner's shoulder, aimed at the speaker's head.
+        // order: 50 mm at eye height over the scene partner's shoulder,
+        // the speaker's head on the far third of the frame.
         for (i, speaker) in speakers.iter().enumerate() {
             let (_, p) = &cast[i];
             let speaker_head = [p[0], HEAD_HEIGHT, p[2]];
-            let position = match partner_of(scene, &speaker.name)
+            let mut single = CameraComponent {
+                focal_length_mm: SINGLE_FOCAL_MM,
+                aspect_ratio: Some(SHOW_ASPECT),
+                aim: Some(speaker_head),
+                ..cinema::default_camera()
+            };
+            let partner = partner_of(scene, &speaker.name)
                 .and_then(|partner| cast.iter().find(|(n, _)| n == &partner))
-            {
-                Some((_, q)) => {
-                    // 0.45 m behind the partner (away from the speaker),
-                    // 0.28 m to the side — over their shoulder.
+                .map(|(_, q)| *q);
+            let position = match partner {
+                Some(q) => {
+                    // Behind the partner (away from the speaker) and to
+                    // the side: their near shoulder holds the edge of
+                    // the frame, nothing of them covers the speaker.
                     let dir = {
                         let d = [p[0] - q[0], 0.0, p[2] - q[2]];
                         let l = (d[0] * d[0] + d[2] * d[2]).sqrt();
@@ -591,19 +628,32 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
                             [d[0] / l, 0.0, d[2] / l]
                         }
                     };
-                    [
-                        q[0] - dir[0] * 0.45 - dir[2] * 0.28,
+                    // The camera's right, looking down `dir` with +Y up
+                    // — the partner lands on the left of frame.
+                    let side = [-dir[2], 0.0, dir[0]];
+                    let position = [
+                        q[0] - dir[0] * OVER_BACK_M + side[0] * OVER_SIDE_M,
                         EYE_HEIGHT,
-                        q[2] - dir[2] * 0.45 + dir[0] * 0.28,
-                    ]
+                        q[2] - dir[2] * OVER_BACK_M + side[2] * OVER_SIDE_M,
+                    ];
+                    // The speaker on the far third: the aim slides toward
+                    // the partner's side of frame by what that third of
+                    // the half-width covers at the speaker's distance.
+                    let frame = cinema::frame_of(&single);
+                    let distance = ((speaker_head[0] - position[0]).powi(2)
+                        + (speaker_head[1] - position[1]).powi(2)
+                        + (speaker_head[2] - position[2]).powi(2))
+                    .sqrt();
+                    let shift =
+                        distance * (FAR_THIRD * (frame.hfov_degrees / 2.0).to_radians()).tan();
+                    single.aim = Some([
+                        speaker_head[0] - side[0] * shift,
+                        speaker_head[1],
+                        speaker_head[2] - side[2] * shift,
+                    ]);
+                    position
                 }
                 None => [p[0] + 0.3, EYE_HEIGHT, p[2] + 2.2],
-            };
-            let single = CameraComponent {
-                focal_length_mm: SINGLE_FOCAL_MM,
-                aspect_ratio: Some(SHOW_ASPECT),
-                aim: Some(speaker_head),
-                ..cinema::default_camera()
             };
             camera_entity(
                 &mut manifest,
@@ -744,8 +794,19 @@ Anywhere the radio can't reach.
     }
 
     #[test]
-    fn each_single_frames_its_speakers_head_centred() {
-        for manifest in staged_scenes() {
+    fn each_single_is_an_over_with_the_speaker_on_the_far_third() {
+        let scene_list = scenes(&fountain::parse(SCRIPT));
+        for (scene, manifest) in scene_list.iter().zip(staged_scenes()) {
+            let head_of = |name: &str| {
+                manifest
+                    .entities
+                    .iter()
+                    .find(|e| e.name.as_str() == format!("{name}.head"))
+                    .unwrap_or_else(|| panic!("no head for {name}"))
+                    .transform
+                    .position
+                    .map(|x| x as f64)
+            };
             for entity in &manifest.entities {
                 let Some(component) = CameraComponent::of(entity) else {
                     continue;
@@ -758,27 +819,33 @@ Anywhere the radio can't reach.
                     .as_str()
                     .unwrap()
                     .replace("Single on ", "");
-                let head = manifest
-                    .entities
-                    .iter()
-                    .find(|e| e.name.as_str() == format!("{speaker}.head"))
-                    .unwrap_or_else(|| panic!("no head for {speaker}"));
                 let frame = cinema::frame_of(&component);
                 let view = cinema::view_of(entity, &component);
-                let p = cinema::project(
-                    &view,
-                    &frame,
-                    &component,
-                    head.transform.position.map(|x| x as f64),
-                );
+                // The speaker's head on the far third, level with the lens...
+                let p = cinema::project(&view, &frame, &component, head_of(&speaker));
                 assert!(
-                    cinema::in_frame(&p) && p.x.abs() < 0.05 && p.y.abs() < 0.05,
+                    cinema::in_frame(&p) && (p.x - FAR_THIRD).abs() < 0.05 && p.y.abs() < 0.05,
                     "{}: {} frames {} at ({:.3}, {:.3})",
                     manifest.meta.name,
                     entity.name.as_str(),
                     speaker,
                     p.x,
                     p.y
+                );
+                // ...and the partner's head on the near edge or beyond it:
+                // their shoulder in frame, nothing of them over the speaker.
+                let partner =
+                    partner_of(scene, &speaker).expect("every speaker in the script has a partner");
+                let q = cinema::project(&view, &frame, &component, head_of(&partner));
+                assert!(
+                    q.z > 0.0 && q.x <= -0.95,
+                    "{}: {} puts {}'s partner {} at ({:.3}, {:.3}), inside the frame",
+                    manifest.meta.name,
+                    entity.name.as_str(),
+                    speaker,
+                    partner,
+                    q.x,
+                    q.y
                 );
             }
         }
