@@ -86,3 +86,8 @@ website-md/vendor/
 website-md/samples/
 website-md/wasm/
 website-md/node_modules/
+# website-previs/ is assembled the same way: the sample comes from
+# crates/previs, wasm/ is wasm-pack output of crates/previs-web.
+website-previs/samples/
+website-previs/wasm/
+website-previs/node_modules/

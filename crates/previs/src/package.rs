@@ -28,35 +28,39 @@ pub struct PackageFiles {
     pub base: PathBuf,
 }
 
+/// The files a head-first package of `manifest` is made of, path within
+/// the package → text, in write order: `manifest.json` (the canonical
+/// text), an empty `ops.jsonl`, `snapshots/base.json` (base revision 0,
+/// head revision 0: the base is the manifest) and `package.json` naming
+/// the bytes. Pure — the previs page builds its download from it in the
+/// browser; [`write_package`] writes it.
+pub fn package_files(manifest: &wt::WorldManifest) -> Vec<(String, String)> {
+    let text = openworldformat::manifest_text_of(manifest);
+    let mut meta = SessionMeta::new(manifest.meta.name.clone());
+    meta.app = Some("localgpt-previs".to_string());
+    meta.world_sha256 = Some(openworldformat::sha256_hex(text.as_bytes()));
+    let mut package_json = serde_json::to_string_pretty(&meta).expect("a session meta serializes");
+    package_json.push('\n');
+    vec![
+        (openworldformat::package::MANIFEST.to_string(), text.clone()),
+        ("ops.jsonl".to_string(), String::new()),
+        (openworldformat::package::BASE_SNAPSHOT.to_string(), text),
+        ("package.json".to_string(), package_json),
+    ]
+}
+
 /// Write `manifest` as a head-first `.world` package under `dir`
 /// (created, with `snapshots/`). Returns the files written.
 pub fn write_package(dir: &Path, manifest: &wt::WorldManifest) -> io::Result<PackageFiles> {
     std::fs::create_dir_all(dir.join("snapshots"))?;
-
-    let text = openworldformat::manifest_text_of(manifest);
-    let manifest_path = dir.join(openworldformat::package::MANIFEST);
-    std::fs::write(&manifest_path, &text)?;
-
-    let ops_path = dir.join("ops.jsonl");
-    std::fs::write(&ops_path, "")?;
-
-    // Base revision 0, head revision 0: the base is the manifest.
-    let base_path = dir.join(openworldformat::package::BASE_SNAPSHOT);
-    std::fs::write(&base_path, &text)?;
-
-    let mut meta = SessionMeta::new(manifest.meta.name.clone());
-    meta.app = Some("localgpt-previs".to_string());
-    meta.world_sha256 = Some(openworldformat::sha256_hex(text.as_bytes()));
-    let package_path = dir.join("package.json");
-    let mut package_json = serde_json::to_string_pretty(&meta).map_err(io::Error::other)?;
-    package_json.push('\n');
-    std::fs::write(&package_path, package_json)?;
-
+    for (path, text) in package_files(manifest) {
+        std::fs::write(dir.join(path), text)?;
+    }
     Ok(PackageFiles {
-        manifest: manifest_path,
-        package: package_path,
-        ops: ops_path,
-        base: base_path,
+        manifest: dir.join(openworldformat::package::MANIFEST),
+        package: dir.join("package.json"),
+        ops: dir.join("ops.jsonl"),
+        base: dir.join(openworldformat::package::BASE_SNAPSHOT),
     })
 }
 

@@ -3,13 +3,13 @@
 //! Reads a Fountain screenplay and writes, per scene, a head-first
 //! `.world` package with the deterministic draft (set, cast, coverage),
 //! plus a `shotlist.csv` and a printable `board.html`. No model, no
-//! network — the output is a function of the text.
+//! network — the output is a function of the text, and the same
+//! function the previs page runs in the browser (`draft::draft`).
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use localgpt_previs::board::{self, SceneBoard};
-use localgpt_previs::{fountain, package, shots, stage};
+use localgpt_previs::draft;
 
 const USAGE: &str = "\
 Usage: localgpt-previs <script.fountain> --out <dir>
@@ -65,83 +65,40 @@ fn parse_args() -> Result<Args, String> {
 
 fn run(args: &Args) -> std::io::Result<()> {
     let source = std::fs::read_to_string(&args.script)?;
-    let script = fountain::parse(&source);
-    let scenes = stage::scenes(&script);
-    if scenes.is_empty() {
+    let fallback_title = args
+        .script
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "Untitled".to_string());
+    let Some(drafted) = draft::draft(&source, &fallback_title) else {
         eprintln!("{}: no scene headings found", args.script.display());
         return Err(std::io::Error::other("no scenes"));
-    }
+    };
 
     std::fs::create_dir_all(&args.out)?;
-
-    let title = script
-        .title_page
-        .iter()
-        .find(|(k, _)| k.eq_ignore_ascii_case("title"))
-        .and_then(|(_, v)| v.first())
-        .cloned()
-        .unwrap_or_else(|| {
-            args.script
-                .file_stem()
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_else(|| "Untitled".to_string())
-        });
-
-    let mut boards: Vec<SceneBoard> = Vec::new();
-    let mut rows = Vec::new();
-    for scene in &scenes {
-        let manifest = stage::stage(scene);
-        let scene_rows = shots::shot_list(&manifest);
-        let (speakers, total_s) = stage::speakers(scene);
-
-        // The lines each shot covers: the master's is the scene
-        // summary; a single covers its speaker's lines.
-        let mut covers = Vec::with_capacity(scene_rows.len());
-        if !scene_rows.is_empty() {
-            covers.push(vec![format!(
-                "Whole scene — {} speaker{}, {:.1} s",
-                speakers.len(),
-                if speakers.len() == 1 { "" } else { "s" },
-                total_s
-            )]);
-            for speaker in &speakers {
-                covers.push(speaker.lines.clone());
-            }
+    for scene in &drafted.scenes {
+        let dir = args.out.join(&scene.package_dir);
+        std::fs::create_dir_all(dir.join("snapshots"))?;
+        for (path, text) in &scene.files {
+            std::fs::write(dir.join(path), text)?;
         }
-
-        let package_dir = format!("scene-{}.world", scene.number);
-        package::write_package(&args.out.join(&package_dir), &manifest)?;
         println!(
             "  {:<16} {} entities, {} shots ({})",
-            format!("{package_dir}/"),
-            manifest.entities.len(),
-            scene_rows.len(),
+            format!("{}/", scene.package_dir),
+            scene.manifest.entities.len(),
+            scene.shots.len(),
             scene.heading
         );
-
-        rows.extend(scene_rows.iter().cloned());
-        boards.push(SceneBoard {
-            scene: scene.number.to_string(),
-            heading: scene.heading.clone(),
-            package_dir,
-            manifest,
-            shots: scene_rows,
-            covers,
-        });
     }
-
-    let csv_path = args.out.join("shotlist.csv");
-    std::fs::write(&csv_path, shots::csv(&rows))?;
-
-    let board_path = args.out.join("board.html");
-    std::fs::write(&board_path, board::board_html(&title, &boards))?;
+    std::fs::write(args.out.join("shotlist.csv"), &drafted.shotlist_csv)?;
+    std::fs::write(args.out.join("board.html"), &drafted.board_html)?;
 
     println!(
         "{}: {} scene{}, {} shots → {}, {}, {}",
-        title,
-        scenes.len(),
-        if scenes.len() == 1 { "" } else { "s" },
-        rows.len(),
+        drafted.title,
+        drafted.scenes.len(),
+        if drafted.scenes.len() == 1 { "" } else { "s" },
+        drafted.rows.len(),
         display_path(&args.out, "*.world/"),
         display_path(&args.out, "shotlist.csv"),
         display_path(&args.out, "board.html"),

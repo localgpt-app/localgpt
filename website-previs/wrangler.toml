@@ -1,0 +1,8 @@
+# Cloudflare Worker for the previs page: static assets only, no Worker
+# script, nothing to build. Deploy with ./deploy.sh from this directory;
+# point a hostname at it in the dashboard (previs.localgpt.app).
+name = "localgpt-previs"
+compatibility_date = "2026-09-21"
+
+[assets]
+directory = "."

@@ -11,6 +11,7 @@ members = [
     "crates/md",
     "crates/md-web",
     "crates/previs",
+    "crates/previs-web",
     "crates/verse",
     "crates/world-types",
     "crates/world-export",

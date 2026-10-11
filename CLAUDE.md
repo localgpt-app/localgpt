@@ -110,6 +110,7 @@ crates/
 ├── md-web/       # localgpt-md-web — MD's lib as WASM for the localgpt.md page
 ├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin; `song_world`)
 ├── previs/       # localgpt-previs — Fountain screenplay → per-scene .world with set/cast/coverage + board (deterministic)
+├── previs-web/   # localgpt-previs-web — previs's draft as WASM for the previs page
 ├── world-types/  # localgpt-world-types — serde-only world data model (no Bevy/SpacetimeDB)
 ├── world-bevy/   # localgpt-world-bevy — the one Bevy mapping of the format (Gen, MD, Verse)
 ├── world-audio/  # localgpt-world-audio — the one mapping of the format's audio (kira + FunDSP)
@@ -138,6 +139,7 @@ website*/         # One Cloudflare Worker each, all deployed by hand
 ├── website/      # localgpt.app — Docusaurus, the family hub and only docs site
 ├── website-gen/  # gen.localgpt.app — static landing
 ├── website-md/   # localgpt.md — the drop-a-file page (WASM compiler + viewer)
+├── website-previs/# the drop-a-screenplay page: the board and the .world packages, in the tab (WASM draft)
 ├── website-verse/# verse.localgpt.app — static landing
 └── website-world/# localgpt.world — the gallery and the one web viewer
 ```

@@ -11,13 +11,15 @@
 //! `ext-cinematography`) → [`shots`] (the shot list with the derived
 //! lens data, and `shotlist.csv`) → [`package`] (a head-first `.world`
 //! per scene) and [`board`] (`board.html`, the vendored Open World
-//! Format viewer stepping through each shot's camera). [`cinema`] is
-//! the extension's normative math, re-exported from
-//! `localgpt-world-types` (where it lives until `openworldformat`
-//! ships a typed cinematography module) so every renderer of a camera
-//! entity derives the same numbers.
+//! Format viewer stepping through each shot's camera). [`draft`] runs
+//! the whole pipeline in memory — what the CLI writes to disk and what
+//! the previs page hands to the browser. [`cinema`] is the extension's
+//! normative math — `openworldformat`'s module, through
+//! `localgpt-world-types` — so every renderer of a camera entity
+//! derives the same numbers.
 
 pub mod board;
+pub mod draft;
 pub mod fountain;
 pub mod package;
 pub mod shots;

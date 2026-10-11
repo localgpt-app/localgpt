@@ -8558,6 +8558,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "localgpt-previs-web"
+version = "0.3.6"
+dependencies = [
+ "localgpt-previs",
+ "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "localgpt-relay"
 version = "0.3.6"
 dependencies = [

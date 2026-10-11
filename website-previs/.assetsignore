@@ -1,0 +1,11 @@
+# What `wrangler deploy` leaves out of the static assets: the page needs
+# index.html, the icon, samples/ and wasm/ — nothing else in this
+# directory is for a visitor.
+node_modules/
+scripts/
+package.json
+package-lock.json
+deploy.sh
+wrangler.toml
+README.md
+.assetsignore
