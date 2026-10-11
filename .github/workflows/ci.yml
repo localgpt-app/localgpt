@@ -195,6 +195,15 @@ jobs:
           npm run assemble
           npx --no-install playwright install --with-deps chromium
           npm run check
+      # The previs page: drop a screenplay, require the board's frames and
+      # the package downloads.
+      - name: previs page check
+        working-directory: website-previs
+        run: |
+          npm ci
+          npm run assemble
+          npx --no-install playwright install --with-deps chromium
+          npm run check
 
   # Licenses, bans and sources only change with Cargo.lock and deny.toml, so
   # they gate every change.
