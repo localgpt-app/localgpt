@@ -101,7 +101,9 @@ fn now_ms() -> u64 {
 
 fn next_seq() -> u64 {
     let now = now_ms();
-    SEQ.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |last| {
+    // `try_update` is `fetch_update` under its newer name; Rust 1.99
+    // deprecates the old one, and CI builds with `-D warnings`.
+    SEQ.try_update(Ordering::SeqCst, Ordering::SeqCst, |last| {
         Some(seq_after(last, now))
     })
     .map(|last| seq_after(last, now))
