@@ -524,7 +524,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "x-entity-ref": "bindable"
         },
         "movement_speed": {
           "description": "Movement speed in units per second.",
@@ -603,7 +604,8 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "x-entity-ref": "bindable"
                 },
                 "center_point": {
                   "description": "Fixed point to orbit around [x,y,z] (used if `center` is None).",
@@ -743,7 +745,8 @@
               "properties": {
                 "target": {
                   "description": "Entity to look at.",
-                  "$ref": "#/$defs/EntityRef"
+                  "$ref": "#/$defs/EntityRef",
+                  "x-entity-ref": "bindable"
                 }
               },
               "required": [
@@ -998,7 +1001,8 @@
           "default": [],
           "items": {
             "$ref": "#/$defs/EntityId"
-          }
+          },
+          "x-entity-ref": "id"
         },
         "id": {
           "description": "Unique creation identifier.",
@@ -1144,7 +1148,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "x-entity-ref": "bindable"
         },
         "shape": {
           "anyOf": [
@@ -2802,7 +2807,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "x-entity-ref": "bindable"
         },
         "shape": {
           "description": "Parametric shape — never loses dimension info.",
