@@ -241,7 +241,10 @@ mod tests {
         assert!((forward - Vec3::NEG_Z).length() < 1e-5, "forward {forward}");
         assert!((resolved.transform.translation - Vec3::new(3.0, 1.0, 5.0)).length() < 1e-6);
         let alone = shot_camera(&cam).unwrap();
-        assert!((*alone.transform.forward() - Vec3::NEG_X).length() < 1e-5, "the rotation stands alone");
+        assert!(
+            (*alone.transform.forward() - Vec3::NEG_X).length() < 1e-5,
+            "the rotation stands alone"
+        );
     }
 
     #[test]
