@@ -88,7 +88,12 @@ pub fn to_fountain(markdown: &str) -> String {
                 titled = true;
             } else {
                 blank(&mut body);
-                body.push(format!("{} {}", "#".repeat(level), text));
+                let hashes = "#".repeat(level);
+                body.push(if text.is_empty() {
+                    hashes
+                } else {
+                    format!("{hashes} {text}")
+                });
                 blank(&mut body);
             }
             continue;
@@ -232,7 +237,9 @@ fn is_rule(line: &str) -> bool {
 }
 
 /// An ATX heading: one to six `#`, then a space (or nothing), then the
-/// text, trailing `#`s dropped.
+/// text. A closing run of `#`s is dropped only when a space precedes it
+/// (CommonMark's rule) — so `## INT. KITCHEN - DAY #12#` keeps the
+/// shooting script's scene number, which is content, not a closer.
 fn heading(line: &str) -> Option<(usize, &str)> {
     let level = line.chars().take_while(|&c| c == '#').count();
     if level == 0 || level > 6 {
@@ -242,7 +249,15 @@ fn heading(line: &str) -> Option<(usize, &str)> {
     if !rest.is_empty() && !rest.starts_with(' ') && !rest.starts_with('\t') {
         return None;
     }
-    let text = rest.trim().trim_end_matches('#').trim_end();
+    let text = rest.trim();
+    let stripped = text.trim_end_matches('#');
+    let text = if stripped.len() == text.len() {
+        text
+    } else if stripped.is_empty() || stripped.ends_with([' ', '\t']) {
+        stripped.trim_end()
+    } else {
+        text
+    };
     Some((level, text))
 }
 
@@ -415,6 +430,19 @@ mod tests {
         let f =
             to_fountain("### EXT. ROOF - NIGHT ###\n\n#### .Somewhere\n\n**INT. HALL - DAY**\n");
         assert_eq!(f, "EXT. ROOF - NIGHT\n\n.Somewhere\n\nINT. HALL - DAY\n");
+    }
+
+    #[test]
+    fn a_scene_number_is_not_a_closing_hash_run() {
+        // CommonMark drops a closing `#` run only after a space; a
+        // shooting script's `#12#` has none, so it stays for the parser.
+        let f = to_fountain(
+            "## INT. KITCHEN - DAY #12#\n\n## INT. HALL - DAY #12A# ##\n\n# Act One #\n\n## ##\n",
+        );
+        assert_eq!(
+            f,
+            "INT. KITCHEN - DAY #12#\n\nINT. HALL - DAY #12A#\n\n# Act One\n\n##\n"
+        );
     }
 
     #[test]
