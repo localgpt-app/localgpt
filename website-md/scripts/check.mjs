@@ -1,8 +1,11 @@
-// End-to-end check of the localgpt.md page: serve it, load it, drop the app's
-// own sample through the real file input, and require the viewer to render a
-// world with the right shape — the same contract the page promises a visitor.
+// End-to-end check of the previs page: serve it, load it, drop the crate's
+// own sample screenplay through the real file input, and require the board
+// to render every shot's frame and the downloads to hold the packages — the
+// same contract the page promises a visitor.
+import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
-import { readFile, readdir } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -12,7 +15,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
   '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml',
-  '.wasm': 'application/wasm', '.md': 'text/markdown',
+  '.wasm': 'application/wasm', '.fountain': 'text/plain',
 };
 const server = createServer(async (req, res) => {
   const path = normalize(decodeURIComponent(new URL(req.url, 'http://localhost').pathname));
@@ -33,7 +36,7 @@ const errors = [];
 const browser = await chromium.launch({
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
 });
-const page = await browser.newPage({ viewport: { width: 1080, height: 720 } });
+const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
 
@@ -44,34 +47,80 @@ const check = (name, ok, detail = '') => {
 };
 
 await page.goto(base, { waitUntil: 'load' });
-await page.waitForFunction(() => window.localgptViewer !== undefined || document.getElementById('status').textContent.includes('Ready'), null, { timeout: 8000 });
-
-// The compiler loaded.
+await page.waitForFunction(() => /Ready|Could not/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
 const ready = await page.textContent('#status');
-check('page boots', /Ready|Could not/.test(ready) && !/Could not/.test(ready), ready.trim());
+check('page boots', /Ready/.test(ready), ready.trim());
 
-// Drop the app's own sample through the real input.
-const sample = join(root, 'samples/hello.md');
-await page.setInputFiles('#file', sample);
+// Drop the crate's own sample through the real input.
+await page.setInputFiles('#file', join(root, 'samples/cold-eggs.fountain'));
 try {
-  await page.waitForFunction(
-    () => window.localgptViewer && window.localgptViewer.sceneInfo().entityCount > 0,
-    null, { timeout: 20000 },
-  );
-  const info = await page.evaluate(() => window.localgptViewer.sceneInfo());
-  const status = (await page.textContent('#status')).trim();
-  check('world renders from a dropped file', true, status);
-  check('sections became stops', /4 sections/.test(status), status);
-  check('canvas exists', await page.evaluate(() => Boolean(document.querySelector('#scene canvas'))));
-  check('the draft is labelled', !(await page.evaluate(() => document.getElementById('draftnote').hidden)));
-} catch (e) {
-  check('world renders from a dropped file', false, String(e).slice(0, 200));
+  await page.waitForFunction(() => window.localgptPrevis?.draft, null, { timeout: 20000 });
+} catch {
+  check('the sample drafts', false, (await page.textContent('#status')).trim());
 }
+const drafted = await page.evaluate(() => {
+  const { draft, entries } = window.localgptPrevis ?? {};
+  return draft && {
+    title: draft.title,
+    scenes: draft.scenes.length,
+    shots: draft.scenes.reduce((n, s) => n + s.shots.length, 0),
+    entries,
+    tracked: draft.scenes.every((s) => s.shots.slice(1).every((row) => row.distance_m > 0)),
+  };
+});
+check('the sample drafts: 2 scenes, 7 shots', drafted?.scenes === 2 && drafted?.shots === 7, JSON.stringify(drafted && { title: drafted.title, scenes: drafted.scenes, shots: drafted.shots }));
+check('the zip holds the board, the shot list and both packages (10 files)', drafted?.entries?.length === 10, drafted?.entries?.join(' '));
+check('every package is four files', ['manifest.json', 'ops.jsonl', 'snapshots/base.json', 'package.json']
+  .every((f) => drafted?.entries?.includes(`scene-1.world/${f}`) && drafted?.entries?.includes(`scene-2.world/${f}`)));
 
-check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+// The board in the iframe rendered a frame per shot (the viewer runs
+// inside the srcdoc page, WebGL through SwiftShader).
+const frame = page.frames().find((f) => f !== page.mainFrame());
+let frames = 0;
+if (frame) {
+  try {
+    await frame.waitForFunction(() => {
+      const imgs = [...document.querySelectorAll('img')];
+      return imgs.length > 0 && imgs.every((i) => i.src.startsWith('data:image/png'));
+    }, null, { timeout: 30000 });
+  } catch { /* counted below */ }
+  frames = await frame.evaluate(() => [...document.querySelectorAll('img')].filter((i) => i.src.startsWith('data:image/png')).length);
+}
+check('the board renders every shot\'s frame', frames === 7, `${frames} frames`);
+
+// The downloads are real blobs.
+const downloads = await page.evaluate(() => ['dl-board', 'dl-csv', 'dl-zip'].map((id) => document.getElementById(id).href.startsWith('blob:')));
+check('the three downloads are ready', downloads.every(Boolean), downloads.join(','));
+
+// The guards: a file past the size ceiling, a script past the scene
+// ceiling and random bytes are each refused with their own message.
+const guards = await mkdtemp(join(tmpdir(), 'previs-guards-'));
+const big = join(guards, 'big.fountain');
+await writeFile(big, Buffer.alloc(21 * 1024 * 1024, 0x20));
+const many = join(guards, 'many.fountain');
+await writeFile(many, 'INT. ROOM - DAY\n\n'.repeat(301));
+const noise = join(guards, 'noise.fountain');
+await writeFile(noise, randomBytes(65536));
+const refused = async (file) => {
+  await page.evaluate(() => { const s = document.getElementById('status'); s.textContent = ''; s.className = ''; });
+  await page.setInputFiles('#file', file);
+  await page.waitForFunction(() => document.getElementById('status').className === 'err', null, { timeout: 20000 });
+  return (await page.textContent('#status')).trim();
+};
+const tooBig = await refused(big);
+check('a 21 MB file is refused before it is read', /up to 20 MB/.test(tooBig), tooBig);
+const tooMany = await refused(many);
+check('a 301-scene script is refused at the ceiling', /boards up to 300/.test(tooMany), tooMany);
+const notText = await refused(noise);
+check('random bytes are refused as not a screenplay', /isn't a text screenplay/.test(notText), notText);
+await rm(guards, { recursive: true, force: true });
+
+check('no page errors', errors.length === 0, errors.join(' | '));
 
 await browser.close();
 server.close();
-if (failed) { console.log(`${failed} check(s) failed`); process.exit(1); }
-console.log('localgpt.md page verified');
-await readdir(root); // keep the import used on all paths
+if (failed > 0) {
+  console.error(`${failed} check(s) failed`);
+  process.exit(1);
+}
+console.log('previs page verified');

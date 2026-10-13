@@ -4,8 +4,8 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "LocalGPT Previs — a Fountain screenplay in, per-scene .world packages with set/cast/coverage, a printable board and a shot-list CSV out. Deterministic: no model, no network, no renderer"
-keywords = ["localgpt", "previs", "screenplay", "fountain", "storyboard"]
+description = "LocalGPT Previs — a screenplay in (Fountain, or Markdown script pages), per-scene .world packages with set/cast/coverage, a printable board and a shot-list CSV out. Deterministic: no model, no network, no renderer"
+keywords = ["localgpt", "previs", "screenplay", "fountain", "markdown"]
 
 [lib]
 name = "localgpt_previs"

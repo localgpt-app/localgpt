@@ -1,32 +1,44 @@
-# localgpt.md
+# The previs page
 
-Drop a Markdown file, walk through it as a 3D world — in the tab. No install,
-no account, **no upload**: the compiler is WASM in the page, so the file never
-leaves the browser.
+Drop a Fountain screenplay, get a previs board — in the tab. No install,
+no account, **no upload**: the draft is WASM in the page, so the script
+never leaves the browser.
 
-This is the developer wedge from `docs/world-strategy.md` §13.4: the cheapest
-distribution the project has, because there is nothing to install, no key, no
-model and no inference bill — the page cannot be farmed for compute, so it can
-be free forever. It renders the **rule-derived draft** (the shape of the
-document: sections become places, one tour stop each) plus any ` ```world `
-fences, and labels itself as the draft; the LLM-authored scenery is the
-desktop app's half, linked from the page.
+This is the no-install first contact `docs/world-strategy.md` §15 needs:
+a director with script pages gets a set, stand-ins and a first pass of
+coverage per scene — real lenses, measured camera positions, the actor
+tracked by entity — plus the shot list and the printable board, without
+`cargo` or the desktop app. Revising shots by asking (and treatments as
+branches) is the app's half, linked from the page.
+
+The page shows the board the draft produced (the self-contained
+`board.html`, in an iframe) and offers three downloads: the board, the
+shot list, and a zip of the per-scene `.world` packages — Open World
+Format worlds any viewer of the format opens.
 
 ## Assembled, not stored
 
-`npm run assemble` (or `scripts/assemble.sh`) builds the page tree; only the
-page itself and the scripts are tracked.
+`npm run assemble` (or `scripts/assemble.sh`) builds the page tree; only
+the page itself and the scripts are tracked.
 
 | Copied in | From |
 |---|---|
-| `viewer/world-viewer.js`, `viewer/cinematography.js` | `crates/world-export/js/` — same commit, cannot drift (those files are themselves vendored from the `openworldformat` npm package; the viewer imports the second as `./cinematography.js`) |
-| `vendor/three/` | `website-world/vendor/` (the no-third-party-requests rule) |
-| `samples/*.md` | `crates/md/samples/` |
-| `wasm/` | `crates/md-web` via `wasm-pack --target web` (~546 KB) |
+| `samples/cold-eggs.fountain` | `crates/previs/samples/` |
+| `localgpt-icon.svg` | `website-md/` |
+| `wasm/` | `crates/previs-web` via `wasm-pack --target web` |
 
-The WASM depends on `localgpt-md` with `default-features = false` — the pure
-half only. That dependency edge is the page's promise: nothing here can grow a
-renderer or an inference engine without it being a Cargo.toml decision.
+The WASM is `localgpt_previs::draft` — the same function the
+`localgpt-previs` command line writes to disk — so the page's board is
+the CLI's, byte for byte. Nothing in `crates/previs` touches a model, a
+renderer or the network; that dependency edge is the page's promise.
+
+## Limits
+
+The page refuses a file over 20 MB before reading it, and a script with
+more than 300 scenes after parsing it and before staging anything (a
+feature is a few hundred KB and 100–200 scenes); binary dropped on it is
+refused as not a screenplay. The `localgpt-previs` command line has no
+ceiling.
 
 ## Check
 
@@ -35,20 +47,14 @@ npm ci && npx playwright install --with-deps chromium
 npm run assemble && npm run check
 ```
 
-`check` serves the page, loads it in headless Chromium, drops the app's own
-`hello.md` through the real file input, and requires a rendered world — the
-same contract the page promises a visitor. CI runs it in the `viewer` job.
+`check` serves the page, loads it in headless Chromium, drops the crate's
+own `cold-eggs.fountain` through the real file input, and requires two
+scenes, seven shots, a rendered frame per shot in the board, and a zip
+holding both packages — the same contract the page promises a visitor.
+It then drops a 21 MB file, a 301-scene script and random bytes and
+requires each refusal's message. CI runs it in the `viewer` job.
 
 ## Deploy
 
-```bash
-./deploy.sh    # assembles, then wrangler deploy
-```
-
-Publishes as the `localgpt-md` Worker. Domain routing (dashboard): localgpt.md
-is the canonical host; md.localgpt.app 301s to it — the reverse of the old
-redirect, per `docs/world-strategy.md` §13.5.
-
-## License
-
-Apache-2.0, as the rest of this repository.
+`./deploy.sh` assembles and runs `wrangler deploy` (the `localgpt-previs`
+Worker, static assets). The hostname is set in the Cloudflare dashboard.

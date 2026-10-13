@@ -1,36 +1,26 @@
 #!/usr/bin/env bash
-# Assemble the localgpt.md page: the compiler, the viewer and the samples.
+# Assemble the previs page: the sample screenplay and the WASM draft.
 #
-# Like website-world's assemble: nothing below is tracked except the page and
-# this script — the viewer comes from the crate that owns it (so it cannot
-# drift from the apps), three.js is vendored from website-world's copy (the
-# no-third-party-requests rule), and the samples are the app's own.
-# The WASM is built by wasm-pack; rebuilt here only when cargo changes.
+# Like website-md's assemble: nothing below is tracked except the page and
+# this script — the sample is the crate's own, and the WASM is built by
+# wasm-pack from crates/previs-web (rebuilt here only when cargo changes).
+# The page needs no viewer of its own: the board it shows is the
+# self-contained board.html the draft produces, in an iframe.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root="$(cd .. && pwd)"
 
-# 1. The one web renderer, from the crate that owns it — and the
-# ext-cinematography module it imports as `./cinematography.js`.
-mkdir -p viewer
-cp "$root/crates/world-export/js/world-viewer.js" viewer/world-viewer.js
-cp "$root/crates/world-export/js/cinematography.js" viewer/cinematography.js
-
-# 2. three.js, shared with website-world's vendored copy.
-if [ -d "$root/website-world/vendor/three" ]; then
-  mkdir -p vendor
-  cp -R "$root/website-world/vendor/three" vendor/three
-fi
-
-# 3. The samples the page offers.
+# 1. The sample the page offers.
 mkdir -p samples
-cp "$root/crates/md/samples/hello.md" samples/hello.md
-cp "$root/crates/md/samples/deck.md" samples/deck.md
+cp "$root/crates/previs/samples/cold-eggs.fountain" samples/cold-eggs.fountain
 
-# 4. The compiler, if stale (wasm-pack skips when up to date).
+# 2. The page's icon, shared with the other landing pages.
+cp "$root/website-md/localgpt-icon.svg" localgpt-icon.svg
+
+# 3. The draft, if stale (wasm-pack skips when up to date).
 if ! command -v wasm-pack >/dev/null; then
   echo "wasm-pack not found — wasm/ left as is (CI builds it separately)" >&2
   exit 0
 fi
-(cd "$root" && wasm-pack build crates/md-web --target web --out-dir ../../website-md/wasm)
+(cd "$root" && wasm-pack build crates/previs-web --target web --out-dir ../../website-previs/wasm)
 echo "assembled"

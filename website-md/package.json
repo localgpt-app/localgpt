@@ -1,7 +1,7 @@
 {
-  "name": "localgpt-md-site",
+  "name": "localgpt-previs-site",
   "private": true,
-  "description": "The localgpt.md page. `assemble` copies the viewer, three.js and samples in and builds the WASM compiler; `check` loads the page headlessly, drops a Markdown file, and requires a rendered world.",
+  "description": "The previs page. `assemble` copies the sample in and builds the WASM draft; `check` loads the page headlessly, drops a screenplay, and requires a rendered board and the package downloads.",
   "type": "module",
   "scripts": {
     "assemble": "./scripts/assemble.sh",

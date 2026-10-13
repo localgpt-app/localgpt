@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Deploy this directory as the "localgpt-md" Cloudflare Worker (static
-# assets), serving localgpt.md — the drop-a-Markdown-file page.
+# Deploy this directory as the "localgpt-previs" Cloudflare Worker (static
+# assets), serving the drop-a-screenplay page.
 #
-# Assembles first: the viewer from crates/world-export, three.js and the
-# samples from their homes in this repository, and the WASM compiler from
-# crates/md-web via wasm-pack. See scripts/assemble.sh.
+# Assembles first: the sample from crates/previs and the WASM draft from
+# crates/previs-web via wasm-pack. See scripts/assemble.sh.
 set -euo pipefail
 cd "$(dirname "$0")"
 

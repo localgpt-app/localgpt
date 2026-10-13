@@ -109,7 +109,7 @@ pub enum Element {
 }
 
 /// The title page keys Fountain recognizes, lowercased for comparison.
-const TITLE_KEYS: &[&str] = &[
+pub(crate) const TITLE_KEYS: &[&str] = &[
     "title",
     "credit",
     "author",
@@ -397,7 +397,7 @@ fn take_until(lines: &[&str], start: usize, rest: &str, closer: &str) -> (String
 /// The forced scene heading: a single leading `.` followed by an
 /// alphanumeric — Fountain's rule, so `...` and `..` stay action.
 /// Returns the heading text after the dot.
-fn forced_heading(line: &str) -> Option<&str> {
+pub(crate) fn forced_heading(line: &str) -> Option<&str> {
     let rest = line.strip_prefix('.')?;
     rest.starts_with(|c: char| c.is_alphanumeric())
         .then_some(rest)
@@ -429,7 +429,7 @@ fn split_scene_number(heading: &str) -> (String, Option<String>) {
 
 /// True for the unforced scene-heading forms: `INT.`, `EXT.`, `EST.`,
 /// `INT./EXT.`, `INT/EXT.`, `I/E.` / `I/E `.
-fn is_scene_heading(line: &str) -> bool {
+pub(crate) fn is_scene_heading(line: &str) -> bool {
     const PREFIXES: &[&str] = &["INT./EXT.", "INT/EXT.", "INT.", "EXT.", "EST.", "I/E."];
     if PREFIXES.iter().any(|p| line.starts_with(p)) {
         return true;
@@ -446,7 +446,7 @@ fn is_scene_heading(line: &str) -> bool {
 }
 
 /// True for an uppercase line ending in `TO:` (the unforced transition).
-fn is_transition(line: &str) -> bool {
+pub(crate) fn is_transition(line: &str) -> bool {
     line.len() > 3 && line.ends_with("TO:") && is_upper(line) && !line.starts_with('.')
 }
 
@@ -466,7 +466,7 @@ fn is_upper(line: &str) -> bool {
 /// Parse a character cue: an uppercase line, optionally carrying an
 /// extension (`(V.O.)`, `(O.S.)`, `(CONT'D)`) and the dual-dialogue
 /// caret. Returns `(name, extension, dual)`.
-fn character_cue(line: &str) -> Option<(String, Option<String>, bool)> {
+pub(crate) fn character_cue(line: &str) -> Option<(String, Option<String>, bool)> {
     let mut body = line;
     let mut dual = false;
     if let Some(rest) = body.strip_suffix('^') {

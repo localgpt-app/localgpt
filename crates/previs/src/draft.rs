@@ -1,14 +1,53 @@
-//! The whole draft, in memory: a screenplay in; every scene's `.world`
-//! package files, the shot list and the printable board out. The CLI
-//! writes what this returns to disk and the previs page hands it to the
-//! browser, from one function — so the two can never drift, and the
-//! page's draft is the CLI's draft, byte for byte.
+//! The whole draft, in memory: script pages in (Fountain, or Markdown by
+//! [`markdown`]'s convention); every scene's `.world` package files, the
+//! shot list and the printable board out. The CLI writes what this
+//! returns to disk and the localgpt.md page hands it to the browser,
+//! from one function — so the two can never drift, and the page's draft
+//! is the CLI's draft, byte for byte.
 
 use localgpt_world_types as wt;
 
 use crate::board::{self, SceneBoard};
 use crate::shots::{self, ShotRow};
-use crate::{fountain, package, stage};
+use crate::{fountain, markdown, package, stage};
+
+/// What the pages are written in. Picked by the file's extension
+/// ([`Format::of_name`]): the text alone can't say, since Fountain is
+/// valid inside Markdown and the two differ only in what a `#` heading
+/// or a bold name means.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Format {
+    /// Fountain — `.fountain`, `.txt`, `.spmd`, and anything unnamed.
+    #[default]
+    Fountain,
+    /// Markdown — `.md`, `.markdown`, `.mdown`, `.mkd`: [`markdown`]'s
+    /// convention, translated to Fountain before the parse.
+    Markdown,
+}
+
+impl Format {
+    /// The format a file name implies (the extension, case-insensitive;
+    /// a path is fine — only the last segment is read).
+    pub fn of_name(name: &str) -> Format {
+        let file = name.rsplit(['/', '\\']).next().unwrap_or(name);
+        match file.rsplit_once('.') {
+            Some((stem, ext)) if !stem.is_empty() => match ext.to_ascii_lowercase().as_str() {
+                "md" | "markdown" | "mdown" | "mkd" => Format::Markdown,
+                _ => Format::Fountain,
+            },
+            _ => Format::Fountain,
+        }
+    }
+
+    /// The file name's stem — what names an untitled draft.
+    pub fn stem_of(name: &str) -> &str {
+        let file = name.rsplit(['/', '\\']).next().unwrap_or(name);
+        match file.rsplit_once('.') {
+            Some((stem, _)) if !stem.is_empty() => stem,
+            _ => file,
+        }
+    }
+}
 
 /// One scene of the draft: its staged world, its shots, and the files
 /// its `.world` package is made of.
@@ -72,7 +111,7 @@ impl std::fmt::Display for DraftError {
             DraftError::NoScenes => {
                 write!(
                     f,
-                    "no scene headings found — a scene starts with INT. or EXT."
+                    "no scene headings found — a scene starts with INT. or EXT. (a line, or a Markdown heading)"
                 )
             }
             DraftError::TooManyScenes { scenes, limit } => write!(
@@ -102,10 +141,11 @@ fn looks_like_text(source: &str) -> bool {
     suspect < 8 || suspect * 100 < total
 }
 
-/// Draft a screenplay: the set, cast and coverage of every scene, the
-/// shot list and the board — deterministic, a function of the text.
+/// Draft a Fountain screenplay: the set, cast and coverage of every
+/// scene, the shot list and the board — deterministic, a function of the
+/// text.
 pub fn draft(source: &str, fallback_title: &str) -> Result<Draft, DraftError> {
-    draft_inner(source, fallback_title, None)
+    draft_inner(source, Format::Fountain, fallback_title, None)
 }
 
 /// [`draft`] with a ceiling on the scenes it will stage — the previs
@@ -117,18 +157,38 @@ pub fn draft_limited(
     fallback_title: &str,
     max_scenes: usize,
 ) -> Result<Draft, DraftError> {
-    draft_inner(source, fallback_title, Some(max_scenes))
+    draft_inner(source, Format::Fountain, fallback_title, Some(max_scenes))
+}
+
+/// [`draft`] for pages in either format: Markdown is translated to
+/// Fountain first ([`markdown::to_fountain`]), then drafted the same way.
+pub fn draft_as(source: &str, format: Format, fallback_title: &str) -> Result<Draft, DraftError> {
+    draft_inner(source, format, fallback_title, None)
+}
+
+/// [`draft_limited`] for pages in either format.
+pub fn draft_limited_as(
+    source: &str,
+    format: Format,
+    fallback_title: &str,
+    max_scenes: usize,
+) -> Result<Draft, DraftError> {
+    draft_inner(source, format, fallback_title, Some(max_scenes))
 }
 
 fn draft_inner(
     source: &str,
+    format: Format,
     fallback_title: &str,
     max_scenes: Option<usize>,
 ) -> Result<Draft, DraftError> {
     if !looks_like_text(source) {
         return Err(DraftError::NotText);
     }
-    let script = fountain::parse(source);
+    let script = match format {
+        Format::Fountain => fountain::parse(source),
+        Format::Markdown => fountain::parse(&markdown::to_fountain(source)),
+    };
     let scenes = stage::scenes(&script);
     if scenes.is_empty() {
         return Err(DraftError::NoScenes);
@@ -231,6 +291,43 @@ mod tests {
         );
         assert!(d.shotlist_csv.starts_with("scene,shot,size,"));
         assert!(d.board_html.contains("Cold Eggs — previs board"));
+    }
+
+    #[test]
+    fn the_markdown_sample_drafts_to_the_fountain_samples_board_byte_for_byte() {
+        const SAMPLE_MD: &str = include_str!("../samples/cold-eggs.md");
+        let fountain = draft(SAMPLE, "cold-eggs").unwrap();
+        let md = draft_as(SAMPLE_MD, Format::Markdown, "cold-eggs").unwrap();
+        assert_eq!(md.title, "Cold Eggs");
+        assert_eq!(md.board_html, fountain.board_html);
+        assert_eq!(md.shotlist_csv, fountain.shotlist_csv);
+        assert_eq!(md.scenes.len(), fountain.scenes.len());
+        for (a, b) in md.scenes.iter().zip(&fountain.scenes) {
+            assert_eq!(a.files, b.files, "{}", a.package_dir);
+        }
+        // Read as Fountain, the same Markdown has no scenes: `## INT.` is
+        // a section there, which is why the format rides the file name.
+        assert!(matches!(
+            draft(SAMPLE_MD, "cold-eggs"),
+            Err(DraftError::NoScenes)
+        ));
+    }
+
+    #[test]
+    fn the_format_and_the_stem_come_off_the_file_name() {
+        for (name, format, stem) in [
+            ("cold-eggs.fountain", Format::Fountain, "cold-eggs"),
+            ("cold-eggs.md", Format::Markdown, "cold-eggs"),
+            ("Pages/Scene 4.MD", Format::Markdown, "Scene 4"),
+            ("notes.markdown", Format::Markdown, "notes"),
+            ("script.txt", Format::Fountain, "script"),
+            ("script", Format::Fountain, "script"),
+            (".md", Format::Fountain, ".md"),
+            ("a.b/script", Format::Fountain, "script"),
+        ] {
+            assert_eq!(Format::of_name(name), format, "{name}");
+            assert_eq!(Format::stem_of(name), stem, "{name}");
+        }
     }
 
     #[test]

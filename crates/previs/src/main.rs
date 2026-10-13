@@ -1,21 +1,26 @@
 //! LocalGPT Previs — script to board.
 //!
-//! Reads a Fountain screenplay and writes, per scene, a head-first
-//! `.world` package with the deterministic draft (set, cast, coverage),
-//! plus a `shotlist.csv` and a printable `board.html`. No model, no
-//! network — the output is a function of the text, and the same
-//! function the previs page runs in the browser (`draft::draft`).
+//! Reads a screenplay — Fountain, or Markdown script pages by the
+//! `markdown` module's convention, picked by the file's extension — and
+//! writes, per scene, a head-first `.world` package with the
+//! deterministic draft (set, cast, coverage), plus a `shotlist.csv` and
+//! a printable `board.html`. No model, no network — the output is a
+//! function of the text, and the same function the localgpt.md page
+//! runs in the browser (`draft::draft_as`).
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use localgpt_previs::draft;
+use localgpt_previs::draft::{self, Format};
 
 const USAGE: &str = "\
-Usage: localgpt-previs <script.fountain> --out <dir>
+Usage: localgpt-previs <script.fountain | pages.md> --out <dir>
 
-Stages a Fountain screenplay as previs, deterministically (no model, no
-network):
+Stages a screenplay as previs, deterministically (no model, no network).
+A .fountain (or .txt) file is read as Fountain; a .md file as Markdown
+script pages — a heading that reads INT./EXT. is the scene, **NAME:**
+opens dialogue, front matter is the title page, Fountain inside passes
+through.
 
   <dir>/<scene>.world/   one head-first package per scene: the set
                          (room or location), the cast (a stand-in per
@@ -65,12 +70,14 @@ fn parse_args() -> Result<Args, String> {
 
 fn run(args: &Args) -> std::io::Result<()> {
     let source = std::fs::read_to_string(&args.script)?;
-    let fallback_title = args
+    let file_name = args
         .script
-        .file_stem()
+        .file_name()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_else(|| "Untitled".to_string());
-    let drafted = match draft::draft(&source, &fallback_title) {
+    let format = Format::of_name(&file_name);
+    let fallback_title = Format::stem_of(&file_name).to_string();
+    let drafted = match draft::draft_as(&source, format, &fallback_title) {
         Ok(drafted) => drafted,
         Err(err) => {
             return Err(std::io::Error::other(format!(
