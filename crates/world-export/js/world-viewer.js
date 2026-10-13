@@ -40,7 +40,7 @@ import { cameraOf, frameOf, viewOf, aimPointOf, shotList } from './cinematograph
 /** @typedef {import('./index.js').EnvironmentDef} EnvironmentDef */
 /** @typedef {import('./index.js').Shape} Shape */
 
-export const VIEWER_VERSION = '0.3.0';
+export const VIEWER_VERSION = '0.3.5'; // the package version — js/test/version.test.mjs pins it to package.json
 
 /// Calibration between Bevy's light units and three.js', in one place.
 /// Bevy renders physical units through an exposure; three's lights are
