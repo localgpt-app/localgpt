@@ -42,7 +42,11 @@ targets = [
 # If true, metadata will be collected with `--all-features`. Note that this can't
 # be toggled off if true, if you want to conditionally enable `--all-features` it
 # is recommended to pass `--all-features` on the cmd line instead
-all-features = false
+#
+# True here because CI's cargo-deny-action passes `--all-features` by default,
+# so the graph it audits includes the opt-in tiers (local-llm, ml, server TLS).
+# A local `cargo deny check` now sees the same graph instead of a smaller one.
+all-features = true
 # If true, metadata will be collected with `--no-default-features`. The same
 # caveat with `all-features` applies
 no-default-features = false
@@ -72,8 +76,12 @@ feature-depth = 1
 ignore = [
     { id = "RUSTSEC-2025-0069", reason = "daemonize: unmaintained but no alternative; transitive dep only" },
     { id = "RUSTSEC-2024-0436", reason = "paste: unmaintained, transitive dep of tokenizers/rav1e; no upgrade available" },
+    { id = "RUSTSEC-2025-0057", reason = "fxhash: unmaintained, transitive via bm25 -> mistralrs-core (the local-llm tier); migrate to rustc-hash when mistral.rs does" },
+    { id = "RUSTSEC-2025-0119", reason = "number_prefix: unmaintained, transitive via indicatif -> hf-hub -> fastembed (local embeddings); no upgrade available" },
+    { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: unmaintained, via axum-server (server TLS); only reads PEM files, no code execution risk" },
     { id = "RUSTSEC-2023-0071", reason = "rsa (Marvin timing side channel): transitive via jsonwebtoken; no patched release exists; LocalGPT does not use RSA keys for JWTs" },
     { id = "RUSTSEC-2026-0192", reason = "ttf-parser: unmaintained, transitive via winit -> sctk-adwaita (Wayland window decorations); no upgrade available" },
+    { id = "RUSTSEC-2026-0344", reason = "ruzstd 0.8 decompression bomb (DoS only, no memory unsafety): reached through bevy_image's KTX2 zstd path, which no app here feeds untrusted .zst textures; fixed in 0.9.1, which bevy_image 0.19 does not accept — drop when Bevy bumps" },
 ]
 # If this is true, then cargo deny will use the git executable to fetch advisory database.
 # If this is false, then it uses a built-in git library.
