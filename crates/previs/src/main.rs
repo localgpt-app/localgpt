@@ -70,9 +70,14 @@ fn run(args: &Args) -> std::io::Result<()> {
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_else(|| "Untitled".to_string());
-    let Some(drafted) = draft::draft(&source, &fallback_title) else {
-        eprintln!("{}: no scene headings found", args.script.display());
-        return Err(std::io::Error::other("no scenes"));
+    let drafted = match draft::draft(&source, &fallback_title) {
+        Ok(drafted) => drafted,
+        Err(err) => {
+            return Err(std::io::Error::other(format!(
+                "{}: {err}",
+                args.script.display()
+            )));
+        }
     };
 
     std::fs::create_dir_all(&args.out)?;

@@ -144,6 +144,10 @@
   const result = document.getElementById('result');
   const boardFrame = document.getElementById('board');
   let draft = null;
+  // The page's ceilings — a feature is a few hundred KB and 100–200
+  // scenes. Past these the draft is still exact; the tab isn't.
+  const MAX_BYTES = 20 * 1024 * 1024;
+  const MAX_SCENES = 300;
 
   const say = (text, cls = '') => { status.textContent = text; status.className = cls; };
 
@@ -214,7 +218,7 @@
     const stem = name.replace(/\.[^.]+$/, '') || 'screenplay';
     let out;
     try {
-      out = JSON.parse(draft(text, stem));
+      out = JSON.parse(draft(text, stem, MAX_SCENES));
     } catch (err) {
       say(`The draft failed: ${err.message ?? err}`, 'err');
       return;
@@ -247,8 +251,19 @@
 
   async function take(file) {
     if (!file) return;
+    if (file.size > MAX_BYTES) {
+      say(`${file.name} is ${(file.size / 1048576).toFixed(0)} MB; this page drafts screenplays up to 20 MB — a feature is a few hundred KB.`, 'err');
+      return;
+    }
     say(`Drafting ${file.name}…`);
-    handle(file.name, await file.text());
+    let text;
+    try {
+      text = await file.text();
+    } catch (err) {
+      say(`Could not read ${file.name}: ${err.message ?? err}`, 'err');
+      return;
+    }
+    handle(file.name, text);
   }
 
   drop.addEventListener('click', () => input.click());

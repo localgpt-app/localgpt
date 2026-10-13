@@ -2,8 +2,10 @@
 // own sample screenplay through the real file input, and require the board
 // to render every shot's frame and the downloads to hold the packages — the
 // same contract the page promises a visitor.
+import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -89,6 +91,29 @@ check('the board renders every shot\'s frame', frames === 7, `${frames} frames`)
 // The downloads are real blobs.
 const downloads = await page.evaluate(() => ['dl-board', 'dl-csv', 'dl-zip'].map((id) => document.getElementById(id).href.startsWith('blob:')));
 check('the three downloads are ready', downloads.every(Boolean), downloads.join(','));
+
+// The guards: a file past the size ceiling, a script past the scene
+// ceiling and random bytes are each refused with their own message.
+const guards = await mkdtemp(join(tmpdir(), 'previs-guards-'));
+const big = join(guards, 'big.fountain');
+await writeFile(big, Buffer.alloc(21 * 1024 * 1024, 0x20));
+const many = join(guards, 'many.fountain');
+await writeFile(many, 'INT. ROOM - DAY\n\n'.repeat(301));
+const noise = join(guards, 'noise.fountain');
+await writeFile(noise, randomBytes(65536));
+const refused = async (file) => {
+  await page.evaluate(() => { const s = document.getElementById('status'); s.textContent = ''; s.className = ''; });
+  await page.setInputFiles('#file', file);
+  await page.waitForFunction(() => document.getElementById('status').className === 'err', null, { timeout: 20000 });
+  return (await page.textContent('#status')).trim();
+};
+const tooBig = await refused(big);
+check('a 21 MB file is refused before it is read', /up to 20 MB/.test(tooBig), tooBig);
+const tooMany = await refused(many);
+check('a 301-scene script is refused at the ceiling', /boards up to 300/.test(tooMany), tooMany);
+const notText = await refused(noise);
+check('random bytes are refused as not a screenplay', /isn't a text screenplay/.test(notText), notText);
+await rm(guards, { recursive: true, force: true });
 
 check('no page errors', errors.length === 0, errors.join(' | '));
 

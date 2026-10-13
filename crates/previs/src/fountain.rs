@@ -4,7 +4,9 @@
 //! Line-oriented and deterministic: the same bytes always parse to the
 //! same [`Script`]. Supported: title pages (`Key: value` blocks at the
 //! head of the file), scene headings (`INT.`/`EXT.`/`EST.`/`INT./EXT.`/
-//! `INT/EXT.`/`I/E`, plus the `.`-forced form), action, character cues
+//! `INT/EXT.`/`I/E`, plus the `.`-forced form — a single period then an
+//! alphanumeric, so an ellipsis stays action — with the shooting
+//! script's trailing `#12A#` scene number lifted off the text), action, character cues
 //! with extensions (`(V.O.)`, `(O.S.)`, `(CONT'D)`), parentheticals,
 //! dialogue, dual dialogue (`^`), transitions (`TO:` and the `>`-forced
 //! form), centered text (`>…<`), notes (`[[ … ]]`), the boneyard
@@ -13,6 +15,8 @@
 //! Notes and boneyard blocks are recognized when they open at the start
 //! of a line (both may span lines); a `[[ … ]]` that opens mid-line is
 //! left in the text, which is where screenplays put them least.
+//!
+//! A leading byte-order mark (what Windows editors write) is skipped.
 
 /// One parsed screenplay: the title page entries in order, then the body
 /// elements in order.
@@ -30,11 +34,16 @@ pub struct Script {
 pub enum Element {
     /// `INT. KITCHEN - DAY`, or the forced `.Kitchen` form.
     SceneHeading {
-        /// The heading text without the marker (`INT.` prefix / forcing
-        /// dot), trimmed.
+        /// The heading text, trimmed: as written for the standard forms,
+        /// without the forcing dot for the forced one, and without the
+        /// scene number.
         text: String,
         /// True when the heading was forced with a leading `.`.
         forced: bool,
+        /// The shooting script's scene number when the heading ends
+        /// with one — `INT. KITCHEN - DAY #12A#` carries `12A`
+        /// (alphanumerics, dashes and periods between `#`s).
+        number: Option<String>,
     },
     /// A paragraph of action; the source's line breaks are kept (the
     /// page-time estimate bills a second a line).
@@ -116,6 +125,8 @@ const TITLE_KEYS: &[&str] = &[
 
 /// Parse a Fountain screenplay.
 pub fn parse(source: &str) -> Script {
+    // A byte-order mark would hide the title page's first key.
+    let source = source.strip_prefix('\u{FEFF}').unwrap_or(source);
     let lines: Vec<&str> = source.lines().collect();
     let mut script = Script::default();
     let mut i = skip_blanks(&lines, 0);
@@ -166,19 +177,24 @@ pub fn parse(source: &str) -> Script {
             i += 1;
             continue;
         }
-        // Scene heading: forced (leading dot) or a standard prefix.
-        if let Some(rest) = trimmed.strip_prefix('.') {
+        // Scene heading: forced (a single dot, then an alphanumeric) or
+        // a standard prefix; a trailing `#12A#` is the scene number.
+        if let Some(rest) = forced_heading(trimmed) {
+            let (text, number) = split_scene_number(rest);
             script.elements.push(Element::SceneHeading {
-                text: rest.trim().to_string(),
+                text,
                 forced: true,
+                number,
             });
             i += 1;
             continue;
         }
         if is_scene_heading(trimmed) {
+            let (text, number) = split_scene_number(trimmed);
             script.elements.push(Element::SceneHeading {
-                text: trimmed.to_string(),
+                text,
                 forced: false,
+                number,
             });
             i += 1;
             continue;
@@ -247,7 +263,7 @@ pub fn parse(source: &str) -> Script {
                 break;
             }
             if !paragraph.is_empty()
-                && (a.starts_with('.')
+                && (forced_heading(a).is_some()
                     || a.starts_with('#')
                     || a.starts_with('=')
                     || a.starts_with("/*")
@@ -376,6 +392,39 @@ fn take_until(lines: &[&str], start: usize, rest: &str, closer: &str) -> (String
             None => return (parts.join("\n").trim().to_string(), i),
         }
     }
+}
+
+/// The forced scene heading: a single leading `.` followed by an
+/// alphanumeric — Fountain's rule, so `...` and `..` stay action.
+/// Returns the heading text after the dot.
+fn forced_heading(line: &str) -> Option<&str> {
+    let rest = line.strip_prefix('.')?;
+    rest.starts_with(|c: char| c.is_alphanumeric())
+        .then_some(rest)
+}
+
+/// Split a heading's trailing scene number off its text:
+/// `INT. KITCHEN - DAY #12A#` → (`INT. KITCHEN - DAY`, `12A`). A scene
+/// number is alphanumerics, dashes and periods between two `#`s at the
+/// end of the line; anything else leaves the text whole.
+fn split_scene_number(heading: &str) -> (String, Option<String>) {
+    let heading = heading.trim();
+    if let Some(body) = heading.strip_suffix('#')
+        && let Some(open) = body.rfind('#')
+    {
+        let number = &body[open + 1..];
+        if !number.is_empty()
+            && number
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.'))
+        {
+            return (
+                body[..open].trim_end().to_string(),
+                Some(number.to_string()),
+            );
+        }
+    }
+    (heading.to_string(), None)
 }
 
 /// True for the unforced scene-heading forms: `INT.`, `EXT.`, `EST.`,
@@ -530,7 +579,13 @@ mod tests {
         ] {
             let script = parse(line);
             match &script.elements[..] {
-                [Element::SceneHeading { text, forced: f }] => {
+                [
+                    Element::SceneHeading {
+                        text,
+                        forced: f,
+                        number: None,
+                    },
+                ] => {
                     assert_eq!(*f, forced, "{line}");
                     if forced {
                         assert_eq!(text, "A hallway, impossible to place");
@@ -547,6 +602,66 @@ mod tests {
     fn lowercase_int_is_action() {
         let script = parse("int. not a heading\n");
         assert_eq!(kinds(&script), vec!["action"]);
+    }
+
+    #[test]
+    fn scene_numbers_come_off_the_heading() {
+        for (line, text, number) in [
+            ("INT. KITCHEN - DAY #12#", "INT. KITCHEN - DAY", Some("12")),
+            (
+                "INT. KITCHEN - DAY #12A#",
+                "INT. KITCHEN - DAY",
+                Some("12A"),
+            ),
+            (
+                "EXT. YARD - NIGHT #I-1-A#",
+                "EXT. YARD - NIGHT",
+                Some("I-1-A"),
+            ),
+            ("EXT. YARD - NIGHT #1.#", "EXT. YARD - NIGHT", Some("1.")),
+            (".Kitchen #3#", "Kitchen", Some("3")),
+            // No closing hash, an empty number, a space inside: no number.
+            ("INT. CELL #4 - DAY", "INT. CELL #4 - DAY", None),
+            ("INT. CELL - DAY ##", "INT. CELL - DAY ##", None),
+            ("INT. CELL - DAY #1 2#", "INT. CELL - DAY #1 2#", None),
+        ] {
+            let script = parse(line);
+            match &script.elements[..] {
+                [
+                    Element::SceneHeading {
+                        text: t, number: n, ..
+                    },
+                ] => {
+                    assert_eq!(t, text, "{line}");
+                    assert_eq!(n.as_deref(), number, "{line}");
+                }
+                other => panic!("{line}: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn an_ellipsis_is_action_not_a_forced_heading() {
+        // Fountain: a single period followed by an alphanumeric forces a
+        // heading; `...` and `..` are action, as is a dot alone.
+        for line in ["...and then nothing.", "..", "."] {
+            assert_eq!(kinds(&parse(line)), vec!["action"], "{line}");
+        }
+        assert_eq!(kinds(&parse(".5 seconds pass")), vec!["scene"]);
+        // Mid-paragraph the same rule holds: an ellipsis line continues
+        // the action instead of opening a scene.
+        let script = parse("She waits.\n...and waits.\n");
+        assert_eq!(kinds(&script), vec!["action"]);
+    }
+
+    #[test]
+    fn a_byte_order_mark_does_not_hide_the_title_page() {
+        let script = parse("\u{FEFF}Title: Marked\n\nINT. KITCHEN - DAY\n");
+        assert_eq!(
+            script.title_page,
+            vec![("Title".to_string(), vec!["Marked".to_string()])]
+        );
+        assert_eq!(kinds(&script), vec!["scene"]);
     }
 
     #[test]

@@ -248,35 +248,42 @@ const SCENES = {payload};
 // and look_at from the shot, fov the derived vertical FOV, the canvas
 // sized to the frame aspect. Each rendered frame is captured into its
 // card as a still image (static images print; live canvases don't).
+// A yield between frames: the cards fill in as they render, and the
+// page stays responsive through a feature's four hundred shots.
 const W = 960;
-for (const scene of SCENES) {{
-  const stage = document.createElement('div');
-  stage.style.cssText = `position:fixed;left:${{-2 * W}}px;top:0;width:${{W}}px;height:${{Math.round(W / 2.39)}}px;visibility:hidden;`;
-  document.body.appendChild(stage);
-  let viewer = null;
-  try {{
-    viewer = createWorldViewer(stage, scene.manifest, {{ keyboard: false, embedApi: false, preserveDrawingBuffer: true }});
-  }} catch (err) {{
+const breathe = () => new Promise((resolve) => setTimeout(resolve, 0));
+(async () => {{
+  for (const scene of SCENES) {{
+    const stage = document.createElement('div');
+    stage.style.cssText = `position:fixed;left:${{-2 * W}}px;top:0;width:${{W}}px;height:${{Math.round(W / 2.39)}}px;visibility:hidden;`;
+    document.body.appendChild(stage);
+    let viewer = null;
+    try {{
+      viewer = createWorldViewer(stage, scene.manifest, {{ keyboard: false, embedApi: false, preserveDrawingBuffer: true }});
+    }} catch (err) {{
+      stage.remove();
+      continue; // no WebGL — the cards still carry the shot data
+    }}
+    viewer.controls.enabled = false;
+    viewer.controls.enableDamping = false;
+    for (let i = 0; i < scene.shots.length; i++) {{
+      const shot = scene.shots[i];
+      viewer.renderer.setSize(W, Math.round(W / shot.frame_aspect), false);
+      viewer.camera.aspect = shot.frame_aspect;
+      viewer.camera.fov = shot.vfov;
+      viewer.camera.updateProjectionMatrix();
+      viewer.camera.position.set(...shot.position);
+      viewer.controls.target.set(...shot.aim);
+      viewer.controls.update();
+      viewer.renderer.render(viewer.scene, viewer.camera);
+      const img = document.getElementById(`f-${{scene.index}}-${{i}}`);
+      if (img) img.src = viewer.renderer.domElement.toDataURL('image/png');
+      await breathe();
+    }}
+    viewer.dispose();
     stage.remove();
-    continue; // no WebGL — the cards still carry the shot data
   }}
-  viewer.controls.enabled = false;
-  viewer.controls.enableDamping = false;
-  scene.shots.forEach((shot, i) => {{
-    viewer.renderer.setSize(W, Math.round(W / shot.frame_aspect), false);
-    viewer.camera.aspect = shot.frame_aspect;
-    viewer.camera.fov = shot.vfov;
-    viewer.camera.updateProjectionMatrix();
-    viewer.camera.position.set(...shot.position);
-    viewer.controls.target.set(...shot.aim);
-    viewer.controls.update();
-    viewer.renderer.render(viewer.scene, viewer.camera);
-    const img = document.getElementById(`f-${{scene.index}}-${{i}}`);
-    if (img) img.src = viewer.renderer.domElement.toDataURL('image/png');
-  }});
-  viewer.dispose();
-  stage.remove();
-}}
+}})();
 </script>
 </body>
 </html>

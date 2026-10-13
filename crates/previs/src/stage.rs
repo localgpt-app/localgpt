@@ -31,6 +31,8 @@
 //!   the whole scene; a single covers its speaker's first-to-last
 //!   line.
 
+use std::collections::HashSet;
+
 use serde_json::json;
 
 use localgpt_world_types as wt;
@@ -86,8 +88,14 @@ pub enum TimeOfDay {
 /// One scene of the screenplay: its heading and the elements under it.
 #[derive(Debug, Clone)]
 pub struct Scene {
-    /// 1-based scene number (the shot names' prefix: scene 1 → 1A, 1B…).
-    pub number: usize,
+    /// The scene's label — the shot names' prefix and the package name:
+    /// the shooting script's scene number when the heading carries one
+    /// (`12`, `12A`), else the 1-based position in the script. Unique
+    /// across the script: a repeated number gets `-2`, `-3`, … appended.
+    pub number: String,
+    /// The 1-based position in the script — the label's fallback, and
+    /// the order the board keeps whatever the numbers say.
+    pub ordinal: usize,
     /// The heading text as written (`INT. KITCHEN - DAY`).
     pub heading: String,
     /// Interior / exterior.
@@ -116,10 +124,19 @@ pub struct Speaker {
 /// heading belong to no scene and are dropped).
 pub fn scenes(script: &Script) -> Vec<Scene> {
     let mut out: Vec<Scene> = Vec::new();
+    let mut labels: HashSet<String> = HashSet::new();
     for element in &script.elements {
-        if let Element::SceneHeading { text, forced } = element {
+        if let Element::SceneHeading {
+            text,
+            forced,
+            number,
+        } = element
+        {
+            let ordinal = out.len() + 1;
+            let label = number.clone().unwrap_or_else(|| ordinal.to_string());
             out.push(Scene {
-                number: out.len() + 1,
+                number: unique_label(label, &mut labels),
+                ordinal,
                 heading: text.clone(),
                 kind: scene_kind(text, *forced),
                 time_of_day: time_of_day(text),
@@ -130,6 +147,30 @@ pub fn scenes(script: &Script) -> Vec<Scene> {
         }
     }
     out
+}
+
+/// The label as given, unless the script already used it: then `-2`,
+/// `-3`, … until it's new (a sloppy script's repeated `#12#`, or an
+/// unnumbered scene whose position collides with a numbered one).
+fn unique_label(label: String, taken: &mut HashSet<String>) -> String {
+    let mut candidate = label.clone();
+    let mut n = 2;
+    while !taken.insert(candidate.clone()) {
+        candidate = format!("{label}-{n}");
+        n += 1;
+    }
+    candidate
+}
+
+/// A shot's name: the scene label and the setup letter — `12A`, and
+/// `12A-A` when the label itself ends in a letter, so the two never
+/// read as one.
+pub fn shot_name(scene: &str, suffix: &str) -> String {
+    if scene.ends_with(|c: char| c.is_ascii_alphabetic()) {
+        format!("{scene}-{suffix}")
+    } else {
+        format!("{scene}{suffix}")
+    }
 }
 
 /// The heading's kind: the `INT.`/`EXT.`/`EST.`/`I/E` prefixes; a
@@ -516,7 +557,7 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
     }
 
     // ---- Coverage ----
-    let scene_number = scene.number.to_string();
+    let scene_number = scene.number.clone();
     let mut camera_entity = |manifest: &mut wt::WorldManifest,
                              suffix: &str,
                              order: u32,
@@ -529,7 +570,7 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
         let position = round3(position);
         let mut component = component;
         component.aim = component.aim.map(round3);
-        let mut e = wt::WorldEntity::new(alloc(), format!("{}{}", scene.number, suffix));
+        let mut e = wt::WorldEntity::new(alloc(), shot_name(&scene.number, suffix));
         e.transform.position = [position[0] as f32, position[1] as f32, position[2] as f32];
         e.extra.insert(
             cinema::EXTENSION_NAME.to_string(),
@@ -757,7 +798,7 @@ Anywhere the radio can't reach.
     fn every_actor_is_inside_the_masters_frame() {
         for manifest in staged_scenes() {
             let scene_number = manifest.meta.name.trim_start_matches("scene-");
-            let (entity, master) = camera(&manifest, &format!("{scene_number}A"));
+            let (entity, master) = camera(&manifest, &shot_name(scene_number, "A"));
             let frame = cinema::frame_of(&master);
             let view = cinema::view_of(&entity, &master);
             for entity in &manifest.entities {
@@ -910,5 +951,51 @@ Anywhere the radio can't reach.
         assert_eq!(shot_suffix(25), "Z");
         assert_eq!(shot_suffix(26), "AA");
         assert_eq!(shot_suffix(27), "AB");
+    }
+
+    #[test]
+    fn shot_names_keep_a_lettered_scene_apart_from_the_setup() {
+        assert_eq!(shot_name("12", "A"), "12A");
+        assert_eq!(shot_name("12A", "A"), "12A-A");
+        assert_eq!(shot_name("12A", "AB"), "12A-AB");
+        assert_eq!(shot_name("1", "B"), "1B");
+    }
+
+    #[test]
+    fn scene_labels_follow_the_shooting_script() {
+        // Numbered, lettered, unnumbered, and a number the script repeats.
+        let script = fountain::parse(
+            "INT. A - DAY #12#\n\nMAYA\nHi.\n\n\
+             INT. B - DAY #12A#\n\nMAYA\nHi.\n\n\
+             INT. C - DAY\n\nMAYA\nHi.\n\n\
+             INT. D - DAY #12#\n\nMAYA\nHi.\n",
+        );
+        let list = scenes(&script);
+        let labels: Vec<&str> = list.iter().map(|s| s.number.as_str()).collect();
+        assert_eq!(labels, ["12", "12A", "3", "12-2"]);
+        let ordinals: Vec<usize> = list.iter().map(|s| s.ordinal).collect();
+        assert_eq!(ordinals, [1, 2, 3, 4]);
+        // The number is off the heading, so it isn't in the set's description.
+        assert_eq!(list[0].heading, "INT. A - DAY");
+
+        // The label names the world, its shots and the shot rows.
+        let manifest = stage(&list[1]);
+        assert_eq!(manifest.meta.name, "scene-12A");
+        assert_eq!(manifest.meta.description.as_deref(), Some("INT. B - DAY"));
+        let shots: Vec<&str> = manifest
+            .entities
+            .iter()
+            .filter(|e| CameraComponent::of(e).is_some())
+            .map(|e| e.name.as_str())
+            .collect();
+        assert_eq!(shots, ["12A-A", "12A-B"]);
+        let scene_field = &manifest.entities[manifest.entities.len() - 1].extra
+            [cinema::EXTENSION_NAME]["shot"]["scene"];
+        assert_eq!(scene_field, "12A");
+
+        // An unnumbered script reads exactly as before.
+        let plain = scenes(&fountain::parse(SCRIPT));
+        let labels: Vec<&str> = plain.iter().map(|s| s.number.as_str()).collect();
+        assert_eq!(labels, ["1", "2"]);
     }
 }

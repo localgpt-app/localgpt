@@ -32,6 +32,14 @@ The WASM is `localgpt_previs::draft` — the same function the
 the CLI's, byte for byte. Nothing in `crates/previs` touches a model, a
 renderer or the network; that dependency edge is the page's promise.
 
+## Limits
+
+The page refuses a file over 20 MB before reading it, and a script with
+more than 300 scenes after parsing it and before staging anything (a
+feature is a few hundred KB and 100–200 scenes); binary dropped on it is
+refused as not a screenplay. The `localgpt-previs` command line has no
+ceiling.
+
 ## Check
 
 ```bash
@@ -43,7 +51,8 @@ npm run assemble && npm run check
 own `cold-eggs.fountain` through the real file input, and requires two
 scenes, seven shots, a rendered frame per shot in the board, and a zip
 holding both packages — the same contract the page promises a visitor.
-CI runs it in the `viewer` job.
+It then drops a 21 MB file, a 301-scene script and random bytes and
+requires each refusal's message. CI runs it in the `viewer` job.
 
 ## Deploy
 

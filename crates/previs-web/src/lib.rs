@@ -27,17 +27,17 @@ use wasm_bindgen::prelude::*;
 ///  "shotlist_csv": "…", "board_html": "…"}
 /// ```
 ///
-/// or `{"error": "…"}` when the script has no scene headings.
-/// `fallback_title` names the draft when the title page has no title
-/// (the file name, on the page).
+/// or `{"error": "…"}` when the text isn't a screenplay, has no scene
+/// headings, or has more scenes than `max_scenes` — the page's ceiling,
+/// checked after the parse and before any staging
+/// ([`localgpt_previs::draft::draft_limited`]). `fallback_title` names
+/// the draft when the title page has no title (the file name, on the
+/// page).
 #[wasm_bindgen]
-pub fn draft_previs(fountain: String, fallback_title: String) -> String {
-    match localgpt_previs::draft::draft(&fountain, &fallback_title) {
-        None => json!({
-            "error": "no scene headings found — a scene starts with INT. or EXT.",
-        })
-        .to_string(),
-        Some(drafted) => json!({
+pub fn draft_previs(fountain: String, fallback_title: String, max_scenes: usize) -> String {
+    match localgpt_previs::draft::draft_limited(&fountain, &fallback_title, max_scenes) {
+        Err(err) => json!({ "error": err.to_string() }).to_string(),
+        Ok(drafted) => json!({
             "title": drafted.title,
             "scenes": drafted
                 .scenes
@@ -69,7 +69,7 @@ mod tests {
     #[test]
     fn the_sample_drafts_to_the_board_the_cli_writes() {
         let out: serde_json::Value =
-            serde_json::from_str(&draft_previs(SAMPLE.into(), "cold-eggs".into())).unwrap();
+            serde_json::from_str(&draft_previs(SAMPLE.into(), "cold-eggs".into(), 300)).unwrap();
         assert_eq!(out["title"], "Cold Eggs");
         let scenes = out["scenes"].as_array().unwrap();
         assert_eq!(scenes.len(), 2);
@@ -92,7 +92,20 @@ mod tests {
     #[test]
     fn a_script_without_scenes_is_an_error_not_a_panic() {
         let out: serde_json::Value =
-            serde_json::from_str(&draft_previs("no scenes here".into(), "notes".into())).unwrap();
+            serde_json::from_str(&draft_previs("no scenes here".into(), "notes".into(), 300))
+                .unwrap();
         assert!(out["error"].as_str().unwrap().contains("no scene headings"));
+    }
+
+    #[test]
+    fn the_ceiling_and_binary_are_errors_with_their_own_words() {
+        let error = |source: String, limit: usize| -> String {
+            let out: serde_json::Value =
+                serde_json::from_str(&draft_previs(source, "x".into(), limit)).unwrap();
+            out["error"].as_str().unwrap().to_string()
+        };
+        assert!(error("INT. A - DAY\n\nINT. B - DAY\n".into(), 1).contains("boards up to 1"),);
+        let noise: String = std::iter::repeat_n('\u{FFFD}', 100).collect();
+        assert!(error(noise, 300).contains("isn't a text screenplay"));
     }
 }
