@@ -187,18 +187,10 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
           npm run check
-      # The localgpt.md page: drop a Markdown file, require a rendered world.
+      # The localgpt.md page: drop a screenplay (Fountain, then the same one
+      # as Markdown), require the board's frames and the package downloads.
       - name: localgpt.md page check
         working-directory: website-md
-        run: |
-          npm ci
-          npm run assemble
-          npx --no-install playwright install --with-deps chromium
-          npm run check
-      # The previs page: drop a screenplay, require the board's frames and
-      # the package downloads.
-      - name: previs page check
-        working-directory: website-previs
         run: |
           npm ci
           npm run assemble

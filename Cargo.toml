@@ -9,7 +9,6 @@ members = [
     "crates/gen",
     "crates/app",
     "crates/md",
-    "crates/md-web",
     "crates/previs",
     "crates/previs-web",
     "crates/verse",

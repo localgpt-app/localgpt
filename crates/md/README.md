@@ -43,11 +43,12 @@ cargo fmt --check
 
 ## Website
 
-[`website-md/`](../../website-md/) — at the workspace root, beside
-`website-gen/` — is the landing page for
-[localgpt.md](https://localgpt.md/): static HTML, no build step.
-`website-md/deploy.sh` publishes it to Cloudflare as the `localgpt-md` Worker.
-The docs live on localgpt.app, in this repository's `website/docs/md/`.
+MD has no landing page of its own. [`website-md/`](../../website-md/) at
+the workspace root is [https://localgpt.md](https://localgpt.md/), the
+**previs** page (`docs/world-strategy.md` §15): drop a screenplay, get a
+board — it reads Markdown script pages as well as Fountain, but it does not
+walk a document; that is this crate's Bevy app. The docs live on
+localgpt.app, in this repository's `website/docs/md/`.
 
 ## License
 

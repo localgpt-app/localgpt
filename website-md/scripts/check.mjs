@@ -1,7 +1,8 @@
-// End-to-end check of the previs page: serve it, load it, drop the crate's
-// own sample screenplay through the real file input, and require the board
-// to render every shot's frame and the downloads to hold the packages — the
-// same contract the page promises a visitor.
+// End-to-end check of the localgpt.md page: serve it, load it, drop the
+// crate's own sample screenplay through the real file input, and require the
+// board to render every shot's frame and the downloads to hold the packages —
+// the same contract the page promises a visitor. Then the same screenplay as
+// Markdown pages, which must draft to the same board.
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -15,7 +16,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
   '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml',
-  '.wasm': 'application/wasm', '.fountain': 'text/plain',
+  '.wasm': 'application/wasm', '.fountain': 'text/plain', '.md': 'text/markdown',
 };
 const server = createServer(async (req, res) => {
   const path = normalize(decodeURIComponent(new URL(req.url, 'http://localhost').pathname));
@@ -92,6 +93,23 @@ check('the board renders every shot\'s frame', frames === 7, `${frames} frames`)
 const downloads = await page.evaluate(() => ['dl-board', 'dl-csv', 'dl-zip'].map((id) => document.getElementById(id).href.startsWith('blob:')));
 check('the three downloads are ready', downloads.every(Boolean), downloads.join(','));
 
+// The same screenplay as Markdown script pages drafts to the same board.
+const fountainBoard = await page.evaluate(() => window.localgptPrevis.draft.board_html);
+await page.evaluate(() => { window.localgptPrevis = null; });
+await page.setInputFiles('#file', join(root, 'samples/cold-eggs.md'));
+try {
+  await page.waitForFunction(() => window.localgptPrevis?.draft, null, { timeout: 20000 });
+} catch {
+  check('the Markdown sample drafts', false, (await page.textContent('#status')).trim());
+}
+const markdown = await page.evaluate(() => {
+  const { name, draft } = window.localgptPrevis ?? {};
+  return draft && { name, title: draft.title, scenes: draft.scenes.length, same: draft.board_html };
+});
+check('the Markdown sample drafts to the Fountain sample\'s board, byte for byte',
+  markdown?.name === 'cold-eggs.md' && markdown?.scenes === 2 && markdown?.same === fountainBoard,
+  JSON.stringify(markdown && { name: markdown.name, title: markdown.title, scenes: markdown.scenes, same: markdown.same === fountainBoard }));
+
 // The guards: a file past the size ceiling, a script past the scene
 // ceiling and random bytes are each refused with their own message.
 const guards = await mkdtemp(join(tmpdir(), 'previs-guards-'));
@@ -123,4 +141,4 @@ if (failed > 0) {
   console.error(`${failed} check(s) failed`);
   process.exit(1);
 }
-console.log('previs page verified');
+console.log('localgpt.md page verified');

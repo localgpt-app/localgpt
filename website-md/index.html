@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LocalGPT Previs — drop a screenplay, get a board</title>
-<meta name="description" content="Drop a Fountain screenplay and get a previs board — a set, stand-ins and coverage per scene, with real lenses and measured camera positions — right here in the tab. No install, no account, no upload: the script never leaves your browser.">
+<title>localgpt.md — drop a screenplay, get a previs board</title>
+<meta name="description" content="Drop a screenplay — a Fountain file or Markdown script pages — and get a previs board: a set, stand-ins and coverage per scene, with real lenses and measured camera positions, right here in the tab. No install, no account, no upload: the script never leaves your browser.">
 <link rel="icon" href="localgpt-icon.svg" type="image/svg+xml">
 <style>
   :root {
@@ -37,7 +37,8 @@
   header { padding: 40px 0 8px; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
   header img { width: 28px; align-self: center; }
   header h1 { font-size: 28px; letter-spacing: -0.02em; }
-  header h1 span { color: var(--accent); }
+  header h1 code { font-family: ui-monospace, monospace; }
+  header h1 span { color: var(--accent); font-weight: 500; }
   .tagline { color: var(--muted); margin: 4px 0 28px; max-width: 64ch; }
   .tagline strong { color: var(--ink); }
 
@@ -85,21 +86,21 @@
 <main>
   <header>
     <img src="localgpt-icon.svg" alt="">
-    <h1>LocalGPT <span>Previs</span></h1>
+    <h1><code>localgpt.md</code> <span>previs</span></h1>
   </header>
   <p class="tagline">
-    Drop a <strong>Fountain screenplay</strong> and get a previs board: a set, a stand-in per
-    speaking character and a first pass of coverage — a master and a single on everyone — with
-    <strong>real lenses and measured camera positions</strong>. It happens in this tab. No install,
-    no account, no upload: the script never leaves your browser.
+    Drop a <strong>screenplay</strong> — a Fountain file, or script pages in Markdown — and get a
+    previs board: a set, a stand-in per speaking character and a first pass of coverage — a master
+    and a single on everyone — with <strong>real lenses and measured camera positions</strong>. It
+    happens in this tab. No install, no account, no upload: the script never leaves your browser.
   </p>
 
-  <div id="drop" role="button" tabindex="0" aria-label="Drop a Fountain screenplay or click to choose one">
-    <div class="big">Drop a <code>.fountain</code> file here</div>
-    <div class="sub">or click to choose one · plain-text screenplays in Fountain, exported from Final Draft, Highland, Beat or Slugline</div>
+  <div id="drop" role="button" tabindex="0" aria-label="Drop a screenplay — .fountain or .md — or click to choose one">
+    <div class="big">Drop a <code>.fountain</code> or <code>.md</code> file here</div>
+    <div class="sub">or click to choose one · Fountain, as exported from Final Draft, Highland, Beat or Slugline — or Markdown pages: <code>## INT. KITCHEN - DAY</code> is a scene, <code>**MAYA:**</code> opens a line</div>
   </div>
-  <input id="file" type="file" accept=".fountain,.txt,.spmd,text/plain" aria-label="Fountain screenplay">
-  <p id="samples">No script handy? <button type="button" data-src="samples/cold-eggs.fountain">Try the sample</button></p>
+  <input id="file" type="file" accept=".fountain,.md,.markdown,.txt,.spmd,text/plain,text/markdown" aria-label="Screenplay, Fountain or Markdown">
+  <p id="samples">No script handy? Try the sample as <button type="button" data-src="samples/cold-eggs.fountain">Fountain</button> or as <button type="button" data-src="samples/cold-eggs.md">Markdown</button></p>
   <p id="status">Loading the draft…</p>
 
   <section id="result">
@@ -128,6 +129,22 @@
       35", "stay on her", a treatment as a branch — is the desktop app's half.</li>
   </ul>
 
+  <h2>Script pages in Markdown</h2>
+  <ul class="how">
+    <li>A heading at any depth that reads as a scene heading — <code>## INT. KITCHEN - DAY</code>,
+      <code>### EXT. CLIFF PATH - DUSK</code> — is that scene. Any other heading is an act or sequence.</li>
+    <li>A bold name with a colon opens dialogue: <code>**MAYA:** You're late.</code> A leading
+      <code>*(beat)*</code> is the parenthetical. A plain <code>MAYA: You're late.</code> works when the
+      name is uppercase.</li>
+    <li>Front matter (<code>title:</code>, <code>author:</code>, <code>credit:</code>) is the title page;
+      failing that, the first <code>#</code> heading before any scene is the title. An HTML comment is a
+      note.</li>
+    <li>Everything else is action, as written — and Fountain inside a <code>.md</code> file passes
+      through untouched: an uppercase cue over its lines, a bare <code>INT.</code> line,
+      <code>&gt; CUT TO:</code>. The two samples above are the same screenplay both ways, and they draft
+      to the same board, byte for byte.</li>
+  </ul>
+
   <footer>
     Part of <a href="https://localgpt.app">LocalGPT</a>. The packages are
     <a href="https://openworldformat.org">Open World Format</a> worlds: open them in any viewer that reads the
@@ -154,7 +171,7 @@
   try {
     await init();
     draft = draft_previs;
-    say('Ready — drop a .fountain file, or try the sample.', 'ok');
+    say('Ready — drop a .fountain or .md file, or try the sample.', 'ok');
   } catch (err) {
     say(`Could not load the draft: ${err.message ?? err}`, 'err');
   }
@@ -218,7 +235,9 @@
     const stem = name.replace(/\.[^.]+$/, '') || 'screenplay';
     let out;
     try {
-      out = JSON.parse(draft(text, stem, MAX_SCENES));
+      // The file name picks the format (.md is Markdown pages, anything
+      // else Fountain) and names an untitled draft.
+      out = JSON.parse(draft(text, name || 'screenplay.fountain', MAX_SCENES));
     } catch (err) {
       say(`The draft failed: ${err.message ?? err}`, 'err');
       return;
@@ -246,7 +265,7 @@
     say(`${out.title}: ${out.scenes.length} scene${out.scenes.length === 1 ? '' : 's'}, ${shots} shots — drafted in the tab; nothing was uploaded.`, 'ok');
     // For the page check (scripts/check.mjs) and anyone curious: the
     // draft, and the paths the zip holds.
-    window.localgptPrevis = { draft: out, entries: entries.map(([path]) => path) };
+    window.localgptPrevis = { name, draft: out, entries: entries.map(([path]) => path) };
   }
 
   async function take(file) {

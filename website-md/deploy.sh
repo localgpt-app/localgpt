@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Deploy this directory as the "localgpt-previs" Cloudflare Worker (static
-# assets), serving the drop-a-screenplay page.
+# Deploy this directory as the "localgpt-md" Cloudflare Worker (static
+# assets), serving localgpt.md — drop a screenplay, get a previs board.
 #
-# Assembles first: the sample from crates/previs and the WASM draft from
+# Assembles first: the samples from crates/previs and the WASM draft from
 # crates/previs-web via wasm-pack. See scripts/assemble.sh.
 set -euo pipefail
 cd "$(dirname "$0")"

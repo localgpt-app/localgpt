@@ -107,10 +107,9 @@ crates/
 ├── gen/          # localgpt-gen — Bevy 3D scene generation binary
 ├── app/          # localgpt-app — the one desktop app: Gen's shell, documents and songs as modes
 ├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
-├── md-web/       # localgpt-md-web — MD's lib as WASM for the localgpt.md page
 ├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin; `song_world`)
-├── previs/       # localgpt-previs — Fountain screenplay → per-scene .world with set/cast/coverage + board (deterministic)
-├── previs-web/   # localgpt-previs-web — previs's draft as WASM for the previs page
+├── previs/       # localgpt-previs — screenplay (Fountain or Markdown pages) → per-scene .world with set/cast/coverage + board (deterministic)
+├── previs-web/   # localgpt-previs-web — previs's draft as WASM for the localgpt.md page
 ├── world-types/  # localgpt-world-types — serde-only world data model (no Bevy/SpacetimeDB)
 ├── world-bevy/   # localgpt-world-bevy — the one Bevy mapping of the format (Gen, MD, Verse)
 ├── world-audio/  # localgpt-world-audio — the one mapping of the format's audio (kira + FunDSP)
@@ -138,8 +137,7 @@ scripts/          # The shared downloads, fetched once for every app
 website*/         # One Cloudflare Worker each, all deployed by hand
 ├── website/      # localgpt.app — Docusaurus, the family hub and only docs site
 ├── website-gen/  # gen.localgpt.app — static landing
-├── website-md/   # localgpt.md — the drop-a-file page (WASM compiler + viewer)
-├── website-previs/# the drop-a-screenplay page: the board and the .world packages, in the tab (WASM draft)
+├── website-md/   # localgpt.md — drop a screenplay (Fountain or Markdown), get a previs board in the tab (WASM draft)
 ├── website-verse/# verse.localgpt.app — static landing
 └── website-world/# localgpt.world — the gallery and the one web viewer
 ```
@@ -506,11 +504,14 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
   landing pages in their own repos; update their docs here when those apps
   change). `website-gen/` is the static landing page for gen.localgpt.app (no
   build step; `website-gen/deploy.sh` deploys it) and links to the Gen docs.
-  `website-md/` is localgpt.md: drop a Markdown file, walk the world, in the
-  tab. Its compiler is `crates/md-web` (wasm-pack, `localgpt-md`
-  default-features=false — the pure half only) and its page check (drop the
-  sample through the real input, require a rendered world) runs in the same
-  `viewer` CI job.
+  `website-md/` is localgpt.md, the previs page (`docs/world-strategy.md`
+  §15): drop a screenplay — Fountain, or Markdown script pages — and get the
+  board and the per-scene `.world` packages in the tab. Its draft is
+  `crates/previs-web` (wasm-pack over `crates/previs`, which touches no
+  model, renderer or network) and its page check (drop both samples through
+  the real input, require the rendered board and the downloads) runs in the
+  same `viewer` CI job. MD has no page of its own; its docs are on
+  localgpt.app.
   `website-world/` is localgpt.world: the gallery and the format's only web
   renderer. It is **assembled** — `npm run assemble` copies
   `crates/world-export/js/world-viewer.js` and the `crates/world-types`

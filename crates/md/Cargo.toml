@@ -12,7 +12,7 @@ name = "localgpt_md"
 path = "src/lib.rs"
 
 # The Bevy app that walks the world. Everything renderer-free lives in the
-# lib so the same code compiles to WASM for localgpt.md.
+# lib so `crates/app` (and any WASM build) can take it without Bevy.
 [[bin]]
 name = "localgpt-md"
 path = "src/main.rs"

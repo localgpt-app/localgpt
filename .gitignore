@@ -78,16 +78,9 @@ website-world/worlds/soundtrack.json
 website-world/worlds/textures.json
 website-world/worlds/triggers.json
 website-world/node_modules/
-# website-md/ is assembled like website-world/: the viewer comes from
-# crates/world-export, three.js and the samples are copied in, and wasm/ is
-# wasm-pack output. Only the page and its scripts are tracked.
-website-md/viewer/
-website-md/vendor/
+# website-md/ (localgpt.md, the previs page) is assembled like
+# website-world/: the samples come from crates/previs and wasm/ is wasm-pack
+# output of crates/previs-web. Only the page and its scripts are tracked.
 website-md/samples/
 website-md/wasm/
 website-md/node_modules/
-# website-previs/ is assembled the same way: the sample comes from
-# crates/previs, wasm/ is wasm-pack output of crates/previs-web.
-website-previs/samples/
-website-previs/wasm/
-website-previs/node_modules/

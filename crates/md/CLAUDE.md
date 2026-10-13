@@ -69,9 +69,9 @@ recipe → draft**, first success wins).
 
 - **The lib/bin split is load-bearing**: `src/lib.rs` holds doc, draft,
   recipe, sidecar, assets and agent — renderer-free, compiled without Bevy
-  under `--no-default-features` — because `crates/md-web` builds exactly that
-  to WASM for the localgpt.md page. The Bevy app is the bin behind the
-  `app` feature. Keep new pure logic in the lib and renderer logic in the bin.
+  under `--no-default-features` — because `crates/app` takes exactly that,
+  Bevy-free, with `default-features = false` (and a WASM build would too).
+  The Bevy app is the bin behind the `app` feature. Keep new pure logic in the lib and renderer logic in the bin.
 - **Genres** (`front_matter.genre`): `world` (default) — one section per
   `##` heading on a winding path; `deck` — one section per `---`-separated
   slide (Marp/Slidev) on a straight path. Deck separators must be
@@ -160,9 +160,9 @@ generations (1-bit/2-bit) cannot run on mistral.rs 0.8 — skip them.
 - Commits: conventional commits (`feat:`, `fix:`, `docs:`, `chore:`,
   `refactor:`), with no Co-Authored-By or Claude-Session trailers.
 - Never use `sed` to edit Rust files; use the Edit tool.
-- `website-md/` (workspace root) is the **localgpt.md page**: drop a Markdown
-  file, walk the world, in the tab. Its compiler is this crate's lib half via
-  `crates/md-web` (wasm-pack; `localgpt-md --no-default-features` must stay
-  Bevy-free for it), and it is assembled like website-world. The docs live on
-  localgpt.app under `website/docs/md/`; update them when commands, keys,
-  export or the LLM tier change.
+- `website-md/` (workspace root) is **localgpt.md, the previs page** — not
+  MD's: since 2026-10-12 it drops a screenplay (Fountain or Markdown script
+  pages) and boards it through `crates/previs-web`. The drop-a-Markdown-file
+  demo and `crates/md-web` are gone; walking a document lives in this crate's
+  Bevy app. The docs live on localgpt.app under `website/docs/md/`; update
+  them when commands, keys, export or the LLM tier change.

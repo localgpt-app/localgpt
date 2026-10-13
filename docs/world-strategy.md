@@ -663,6 +663,23 @@ So:
 
 ### 13.4 localgpt.md, the developer wedge
 
+**Superseded 2026-10-12 — localgpt.md is the previs page.** §15 moved the
+first audience to film previs, and every reason below for this domain —
+nothing to install, no model, no inference bill, the domain is the pitch, the
+demo and the funnel are one artifact — carries over to script pages whole.
+The one that does not ("every developer has Markdown open right now"; a
+director has a script, not a README) is the trade §15 made. So the previs
+page (`website-md/`, the `localgpt-md` Worker) now answers at `localgpt.md`;
+the document-walk page and `crates/md-web` are deleted, and the capability
+survives in the desktop app (`localgpt-md`). The page takes `.md` as well as
+`.fountain` — a deterministic Markdown screenplay convention,
+`crates/previs/src/markdown.rs`: a heading that reads `INT.`/`EXT.` is the
+scene, `**MAYA:**` opens dialogue, front matter is the title page, Fountain
+inside passes through — so the domain stays literal, and §15.4's measurement
+(minutes from a scene to a first board) replaces "measure the central
+unknown" below. The rest of this section stands as the record of the earlier
+bet.
+
 One page at `localgpt.md`: walk worlds MD authored from documents you know,
 and drop or paste a Markdown file to see yours take shape in the same browser
 tab. `md.localgpt.app` 301s to it —
@@ -778,7 +795,7 @@ Where it leads: "keep building" → Worlds; "publish this" →
 |---|---|---|
 | localgpt.app | Software and the only docs site: hub, downloads, `/docs/*` | developers, evaluators |
 | localgpt.world | Worlds' home, the gallery, and every share link: `/w/<hash>`, later `/r/<code>` | consumers |
-| localgpt.md | The zero-install utility of §13.4 | developers, writers |
+| localgpt.md | The previs page (§15; §13.4's addendum): drop a screenplay, get a board | directors, ADs, film students |
 | localgpt.rs | Engineering devlog, unchanged | Rust developers |
 | gen.localgpt.app | Gen's landing page, unchanged | creators |
 | verse.localgpt.app, md.localgpt.app | 301s — to Worlds and to localgpt.md | — |
@@ -1106,7 +1123,7 @@ get, without Previs Pro's hand-building.
 | Product work, in order | Script → board (a pure `crates/previs`: Fountain in; a `.world` per scene with set, cast and coverage; a board and a shot-list CSV out); then revising shots in the live canvas (look through a shot, a shot strip, treatments as branches compared as boards); then posing, animatics and the generated look — after users confirm the first two. |
 | Moved down | Game logic and semantic replay (previs has no gameplay); a git merge driver; extensions beyond cinematography; capability tiers; more language references; multiplayer rooms and SpacetimeDB plots. |
 | localgpt.world | Stays the share destination (§13.5) — a board is shared as a link — but "a world from a sentence" is no longer the headline. |
-| MD | Its pipeline becomes the script importer; no separate product push. |
+| MD | Its pipeline becomes the script importer; no separate product push. Since 2026-10-12 `localgpt.md` is the previs page's domain (§13.4's addendum): the page reads `.md` script pages, and the document-walk page and `crates/md-web` are gone — walking a document stays in the desktop app. |
 | Music | songworld stays its own product. The overlap comes later: music-video previs, shots cut on the beat grid. |
 
 ### 15.4 How we find out
