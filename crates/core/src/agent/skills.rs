@@ -521,7 +521,7 @@ fn parse_frontmatter(content: &str) -> (SkillFrontmatter, String) {
     let body: String = lines[end_idx + 1..].join("\n");
 
     // Parse YAML
-    match serde_yaml::from_str(&yaml_content) {
+    match serde_saphyr::from_str(&yaml_content) {
         Ok(fm) => (fm, body),
         Err(e) => {
             debug!("Failed to parse frontmatter: {}", e);
