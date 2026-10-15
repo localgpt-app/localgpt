@@ -666,3 +666,36 @@ fn a_batch_that_names_the_revision_it_read_is_refused_once_the_world_moved() {
     );
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn deleting_a_behaviors_target_is_taken_and_warned_about_on_the_receipt() {
+    let dir = temp("dangling-target");
+    let mut live = LiveWorld::open(&dir).expect("open");
+    live.submit(&spawn("sun"), "test", None).unwrap();
+    live.submit(
+        &json!({"ops": [{"SpawnEntity": {"entity": {"name": "flower",
+                 "behaviors": [{"LookAt": {"target": "sun"}}]}}}]}),
+        "test",
+        None,
+    )
+    .expect("a flower that looks at the sun");
+
+    // The delete is what the batch asked for: it lands, and the receipt
+    // says what it left looking at nothing.
+    let done = live
+        .submit(
+            &json!({"ops": [{"DeleteEntity": {"id": "sun"}}]}),
+            "test",
+            None,
+        )
+        .expect("the delete lands");
+    assert!(
+        done.warnings
+            .iter()
+            .any(|w| w.starts_with("look_at on flower targets sun") && w.contains("gone")),
+        "{:?}",
+        done.warnings
+    );
+    assert_eq!(names(live.head()), ["flower"]);
+    std::fs::remove_dir_all(&dir).ok();
+}

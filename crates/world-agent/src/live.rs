@@ -387,6 +387,11 @@ impl LiveWorld {
                 wt::Severity::Warning => warnings.push(issue.message),
             }
         }
+        // A behavior whose target this batch deleted is the authority's
+        // warning, not the format's refusal: the delete was what the batch
+        // asked for, and the behavior now looks at nothing until it is
+        // retargeted or dropped — the author is told so on the receipt.
+        warnings.extend(dangling_targets(&ingest.trial));
         if !errors.is_empty() {
             return Err(Rejected { errors });
         }
@@ -1563,6 +1568,35 @@ fn now_ms() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+/// Behaviors whose target the world no longer holds — a `look_at` or an
+/// `orbit` whose entity a delete took — one line each, for a receipt's
+/// warnings or a panel's diagnostics.
+pub fn dangling_targets(doc: &WorldDoc) -> Vec<String> {
+    let mut out = Vec::new();
+    for entity in doc.entities() {
+        for behavior in &entity.behaviors {
+            let (kind, target) = match behavior {
+                wt::BehaviorDef::LookAt { target } => ("look_at", target),
+                wt::BehaviorDef::Orbit {
+                    center: Some(center),
+                    ..
+                } => ("orbit", center),
+                _ => continue,
+            };
+            let gone = match target {
+                wt::EntityRef::Id(id) if !doc.contains(id.0) => format!("entity {}", id.0),
+                wt::EntityRef::Name(name) if doc.get_by_name(name).is_none() => name.clone(),
+                _ => continue,
+            };
+            out.push(format!(
+                "{kind} on {} targets {gone}, which is gone: retarget it or drop the behavior",
+                entity.name.0
+            ));
+        }
+    }
+    out
 }
 
 /// What `AGENTS.md` says in a new live package.
