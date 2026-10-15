@@ -17,7 +17,7 @@
 //! on screen and otherwise only grows the rail, so an agent working on main
 //! never yanks a person off the point they chose.
 
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -25,8 +25,12 @@ use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Duration;
 
+use bevy::input::ButtonState;
+use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
+use bevy::input::mouse::MouseButtonInput;
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
+use bevy::window::{CursorMoved, PrimaryWindow, WindowEvent};
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use localgpt_world_agent::live::{self, LiveWorld};
 use localgpt_world_types as wt;
@@ -131,6 +135,176 @@ pub(crate) struct Live {
     proposal: Option<Proposal>,
     /// Every proposal so far, for `GET /proposals`.
     proposals: Vec<ProposalRecord>,
+    /// A person's input, synthesized — the queue `POST /input` fills, one
+    /// event emitted per frame. `None` unless the app started with
+    /// `LOCALGPT_SYNTHETIC_INPUT=1`: it is a test's seam, and with it an
+    /// agent could press Enter on its own proposal.
+    synthetic: Option<VecDeque<SyntheticEvent>>,
+}
+
+/// A person's input, synthesized for a test that drives the canvas with
+/// no one at the keyboard. One event lands per frame, so a press and a
+/// release fall on different frames as a hand's do.
+#[derive(Debug, Clone)]
+enum SyntheticEvent {
+    /// The pointer, in window points.
+    Cursor(Vec2),
+    Button {
+        button: MouseButton,
+        pressed: bool,
+    },
+    Key {
+        key: KeyCode,
+        pressed: bool,
+    },
+}
+
+fn parse_synthetic(value: &Value) -> Result<SyntheticEvent, String> {
+    if let Some(at) = value.get("cursor") {
+        let xy: [f32; 2] = serde_json::from_value(at.clone())
+            .map_err(|_| "\"cursor\" is [x, y] in window points".to_string())?;
+        return Ok(SyntheticEvent::Cursor(Vec2::new(xy[0], xy[1])));
+    }
+    let pressed = value
+        .get("pressed")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    if let Some(button) = value.get("button").and_then(Value::as_str) {
+        let button = match button {
+            "left" => MouseButton::Left,
+            "right" => MouseButton::Right,
+            "middle" => MouseButton::Middle,
+            other => return Err(format!("no mouse button '{other}'")),
+        };
+        return Ok(SyntheticEvent::Button { button, pressed });
+    }
+    if let Some(key) = value.get("key").and_then(Value::as_str) {
+        let key = key_code(key).ok_or_else(|| format!("no key '{key}'"))?;
+        return Ok(SyntheticEvent::Key { key, pressed });
+    }
+    Err("an event is {\"cursor\": [x, y]}, {\"button\": \"left\", \"pressed\": true} or {\"key\": \"Enter\", \"pressed\": true}".into())
+}
+
+/// The keys the canvas answers to, by their `KeyCode` names.
+fn key_code(name: &str) -> Option<KeyCode> {
+    Some(match name {
+        "Enter" => KeyCode::Enter,
+        "Escape" => KeyCode::Escape,
+        "Delete" => KeyCode::Delete,
+        "Backspace" => KeyCode::Backspace,
+        "ArrowUp" => KeyCode::ArrowUp,
+        "ArrowDown" => KeyCode::ArrowDown,
+        "ArrowLeft" => KeyCode::ArrowLeft,
+        "ArrowRight" => KeyCode::ArrowRight,
+        "PageUp" => KeyCode::PageUp,
+        "PageDown" => KeyCode::PageDown,
+        "Comma" => KeyCode::Comma,
+        "Period" => KeyCode::Period,
+        "Minus" => KeyCode::Minus,
+        "Equal" => KeyCode::Equal,
+        "KeyD" => KeyCode::KeyD,
+        "KeyG" => KeyCode::KeyG,
+        "KeyZ" => KeyCode::KeyZ,
+        "ShiftLeft" => KeyCode::ShiftLeft,
+        "ControlLeft" => KeyCode::ControlLeft,
+        "SuperLeft" => KeyCode::SuperLeft,
+        "AltLeft" => KeyCode::AltLeft,
+        "F1" => KeyCode::F1,
+        _ => return None,
+    })
+}
+
+/// Emit the next synthesized event as the input it stands for: the same
+/// messages the window would send, so picking, the handles, the keys and
+/// egui all see a hand.
+fn inject_synthetic_input(
+    mut live: ResMut<Live>,
+    windows: Query<Entity, With<PrimaryWindow>>,
+    mut keys: MessageWriter<KeyboardInput>,
+    mut buttons: MessageWriter<MouseButtonInput>,
+    mut cursor: MessageWriter<CursorMoved>,
+    mut window_events: MessageWriter<WindowEvent>,
+) {
+    let Some(event) = live.synthetic.as_mut().and_then(VecDeque::pop_front) else {
+        return;
+    };
+    let Ok(window) = windows.single() else {
+        return;
+    };
+    let state = |pressed: bool| {
+        if pressed {
+            ButtonState::Pressed
+        } else {
+            ButtonState::Released
+        }
+    };
+    // The window backend sends each input twice: as its own message, and
+    // wrapped in `WindowEvent` — picking reads the wrapper, egui and the
+    // button maps read the message. Both, then, as a real hand gets.
+    match event {
+        SyntheticEvent::Cursor(position) => {
+            let moved = CursorMoved {
+                window,
+                position,
+                delta: None,
+            };
+            cursor.write(moved.clone());
+            window_events.write(WindowEvent::CursorMoved(moved));
+        }
+        SyntheticEvent::Button { button, pressed } => {
+            let input = MouseButtonInput {
+                button,
+                state: state(pressed),
+                window,
+            };
+            buttons.write(input);
+            window_events.write(WindowEvent::MouseButtonInput(input));
+        }
+        SyntheticEvent::Key { key, pressed } => {
+            let input = KeyboardInput {
+                key_code: key,
+                logical_key: Key::Unidentified(NativeKey::Unidentified),
+                state: state(pressed),
+                text: None,
+                repeat: false,
+                window,
+            };
+            keys.write(input.clone());
+            window_events.write(WindowEvent::KeyboardInput(input));
+        }
+    }
+}
+
+/// The handles' places in the window, for a driver with no eyes: the
+/// origin, the three arrow ends, a point on the ring (the one facing the
+/// camera) and the scale cube.
+fn handle_points(
+    handles: Option<&super::canvas_edit::Handles>,
+    cameras: &Query<(&Camera, &GlobalTransform), With<FlyCam>>,
+) -> Value {
+    let (Some(frame), Ok((camera, global))) = (handles.and_then(|h| h.frame()), cameras.single())
+    else {
+        return Value::Null;
+    };
+    let at = |world: Vec3| {
+        camera
+            .world_to_viewport(global, world)
+            .ok()
+            .map(|v| json!([v.x, v.y]))
+            .unwrap_or(Value::Null)
+    };
+    let to_camera = global.translation() - frame.origin;
+    let flat = Vec3::new(to_camera.x, 0.0, to_camera.z).normalize_or(Vec3::Z);
+    json!({
+        "origin": at(frame.origin),
+        "x": at(frame.origin + Vec3::X * frame.length),
+        "y": at(frame.origin + Vec3::Y * frame.length),
+        "z": at(frame.origin + Vec3::Z * frame.length),
+        "ring": at(frame.origin + flat * frame.ring_radius),
+        "scale": at(frame.scale_at),
+        // The one under the pointer now, if any.
+        "hot": handles.and_then(|h| h.hot_name()),
+    })
 }
 
 impl Live {
@@ -318,6 +492,9 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
         review: review || std::env::var("LOCALGPT_REVIEW").is_ok_and(|v| v == "1"),
         proposal: None,
         proposals: Vec::new(),
+        synthetic: std::env::var("LOCALGPT_SYNTHETIC_INPUT")
+            .is_ok_and(|v| v == "1")
+            .then(VecDeque::new),
     })
     .insert_resource(Endpoint(endpoint))
     .insert_resource(LiveEndpoint { url, token })
@@ -331,6 +508,10 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
     ))
     // Inside egui's pass (bevy_egui's own schedule), like every panel.
     .add_systems(EguiPrimaryContextPass, review_bar)
+    .add_systems(
+        Update,
+        inject_synthetic_input.before(super::canvas_edit::PersonEdits),
+    )
     .add_systems(
         Update,
         (live_world, live_view)
@@ -1058,6 +1239,10 @@ fn publish_shots(live: &Live) -> super::shots::LiveShots {
 const ENDPOINTS: &[(&str, &str)] = &[
     ("GET /world", "the world now (manifest.json)"),
     (
+        "POST /input",
+        "tests only, with LOCALGPT_SYNTHETIC_INPUT=1: {\"events\": [{\"cursor\": [x, y]}, {\"button\": \"left\", \"pressed\": true}, {\"key\": \"Enter\", \"pressed\": false}]} — a person's input synthesized, one event per frame; GET /selection reports the handles' window positions",
+    ),
+    (
         "POST /ops",
         "a batch of edit ops: [op, ...] or {\"ops\": [...], \"author\": ..., \"message\": ..., \"at\": ..., \"expected_revision\": ...} — \"at\" names the entry to build on (default: the head); an earlier one starts a branch; \"expected_revision\" is the revision you read, and a world that moved since refuses the batch",
     ),
@@ -1357,6 +1542,34 @@ fn live_world(
                 live.deferred.push(call);
                 continue;
             }
+            ("POST", "/input") => match live.synthetic.as_mut() {
+                None => Reply::status(
+                    404,
+                    json!({"error": "synthetic input is off: start the canvas with LOCALGPT_SYNTHETIC_INPUT=1 (a test's seam, not an agent's)"}),
+                ),
+                Some(queue) => match serde_json::from_slice::<Value>(&call.body) {
+                    Err(e) => Reply::status(400, json!({"error": format!("not JSON: {e}")})),
+                    Ok(body) => {
+                        let events: Vec<Result<SyntheticEvent, String>> = body
+                            .get("events")
+                            .and_then(Value::as_array)
+                            .map(|events| events.iter().map(parse_synthetic).collect())
+                            .unwrap_or_default();
+                        match events.into_iter().collect::<Result<Vec<_>, _>>() {
+                            Ok(events) if events.is_empty() => Reply::status(
+                                400,
+                                json!({"error": "send {\"events\": [...]}, one input each"}),
+                            ),
+                            Ok(events) => {
+                                let queued = events.len();
+                                queue.extend(events);
+                                Reply::ok(json!({"queued": queued, "pending": queue.len()}))
+                            }
+                            Err(why) => Reply::status(400, json!({"error": why})),
+                        }
+                    }
+                },
+            },
             _ => Reply::status(
                 404,
                 json!({"error": "no such endpoint", "endpoints": endpoints()}),
@@ -1495,8 +1708,10 @@ fn live_view(
     mut live: ResMut<Live>,
     mut commands: Commands,
     mut camera: Query<&mut Transform, With<FlyCam>>,
+    cameras: Query<(&Camera, &GlobalTransform), With<FlyCam>>,
     selection: Option<Res<InspectorSelection>>,
     gen_entities: Query<&GenEntity>,
+    handles: Option<Res<super::canvas_edit::Handles>>,
 ) {
     let live = &mut *live;
     if let Some(def) = live.camera.take()
@@ -1537,7 +1752,22 @@ fn live_view(
                 .and_then(|s| s.entity)
                 .and_then(|e| gen_entities.get(e).ok())
                 .and_then(|g| live.view.doc().get(g.world_id.0).cloned());
-            Reply::ok(json!({ "selected": picked }))
+            // The rest of a multi-selection, by id, and where the handles
+            // are in the window.
+            let others: Vec<u64> = selection
+                .as_ref()
+                .map(|s| {
+                    s.others
+                        .iter()
+                        .filter_map(|e| gen_entities.get(*e).ok().map(|g| g.world_id.0))
+                        .collect()
+                })
+                .unwrap_or_default();
+            Reply::ok(json!({
+                "selected": picked,
+                "others": others,
+                "handles": handle_points(handles.as_deref(), &cameras),
+            }))
         };
         let _ = call.reply.send(reply);
     }

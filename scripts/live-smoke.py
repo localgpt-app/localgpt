@@ -73,12 +73,14 @@ def ws_send(port, message):
 class Canvas:
     """The app as a subprocess: launched, driven, stopped."""
 
-    def __init__(self, binary, world, review, log):
+    def __init__(self, binary, world, review, log, synthetic=False):
         self.world = world
         ep_file = os.path.join(world, ".live", "endpoint.json")
         if os.path.exists(ep_file):
             os.remove(ep_file)
         env = dict(os.environ, LOCALGPT_INSPECTOR="full")
+        if synthetic:
+            env["LOCALGPT_SYNTHETIC_INPUT"] = "1"
         args = [binary, "--live", world] + (["--review"] if review else [])
         self.proc = subprocess.Popen(args, env=env, stdout=log, stderr=subprocess.STDOUT, cwd=ROOT)
         for _ in range(240):
@@ -136,9 +138,18 @@ def main():
     }
     shots = []
 
-    # Review on: the batch shows and waits; nothing is written.
+    def entity(ep, name):
+        _, world_now = call(ep, "GET", "/world")
+        return next((e for e in world_now.get("entities", []) if e.get("name") == name), {})
+
+    def press(key):
+        return [{"key": key, "pressed": True}, {"key": key, "pressed": False}]
+
+    # Review on, with a synthesized hand: a handle drag, a key turn, then
+    # proposals rejected, accepted and left pending; nothing is written
+    # while one waits.
     with open(os.path.join(world, ".live", "smoke-review.log"), "w") as log:
-        canvas = Canvas(binary, world, True, log)
+        canvas = Canvas(binary, world, True, log, synthetic=True)
         try:
             ep = canvas.ep
             status, body = call(ep, "GET", "/")
@@ -149,11 +160,36 @@ def main():
             check(selected == args.select, f"the inspector socket selects entity {args.select} (got {selected})")
             status, body = call(ep, "GET", "/screenshot")
             shots.append(body.get("path"))
-            before = canvas.log_lines()
+
+            # A proposal rejected with Esc, one accepted with Enter.
+            lines = canvas.log_lines()
             status, body = call(ep, "POST", "/ops", batch)
             check(status == 202 and body.get("result") == "proposed", f"a batch is proposed, not committed ({status} {body.get('result')})")
+            call(ep, "POST", "/input", {"events": press("Escape")})
+            time.sleep(0.6)
             status, body = call(ep, "GET", "/proposals")
-            check(body.get("pending") == 1, "GET /proposals shows it pending")
+            statuses = [p.get("status") for p in body.get("proposals", [])]
+            check(statuses == ["rejected"], f"Esc rejects the proposal ({statuses})")
+            check(canvas.log_lines() == lines, "a rejected proposal wrote nothing")
+            color = entity(ep, args.modify).get("material", {}).get("color")
+            check(color != [1.0, 0.1, 0.1, 1.0], f"the world keeps its color after a rejection ({color})")
+            status, body = call(ep, "POST", "/ops", batch)
+            call(ep, "POST", "/input", {"events": press("Enter")})
+            time.sleep(0.6)
+            status, body = call(ep, "GET", "/proposals")
+            statuses = [p.get("status") for p in body.get("proposals", [])]
+            check(statuses == ["rejected", "accepted"], f"Enter accepts the proposal ({statuses})")
+            check(canvas.log_lines() == lines + 1, "an accepted proposal is one entry")
+            color = entity(ep, args.modify).get("material", {}).get("color") or []
+            check(
+                len(color) == 4 and all(abs(a - b) < 1e-3 for a, b in zip(color, [1.0, 0.1, 0.1, 1.0])),
+                f"the accepted change is in the world ({color})",
+            )
+
+            # A third proposal left pending: others wait, nothing is written.
+            before = canvas.log_lines()
+            status, body = call(ep, "POST", "/ops", batch)
+            check(status == 202, f"a third batch is proposed ({status})")
             status, _ = call(ep, "POST", "/ops", batch)
             check(status == 409, f"a second batch waits for the decision ({status})")
             status, _ = call(ep, "POST", "/undo", {})
@@ -169,7 +205,7 @@ def main():
 
     # Review off: expected revisions, receipts, a dangling target.
     with open(os.path.join(world, ".live", "smoke-commit.log"), "w") as log:
-        canvas = Canvas(binary, world, False, log)
+        canvas = Canvas(binary, world, False, log, synthetic=True)
         try:
             ep = canvas.ep
             status, body = call(ep, "GET", "/log")
@@ -180,8 +216,49 @@ def main():
             check(status == 200 and body.get("result") == "committed", f"the right expected_revision commits ({status})")
             status, body = call(ep, "GET", "/log")
             check(body.get("revision") == revision + 1, "the log's revision moved by one")
-            ws_send(WS_PORT, json.dumps({"type": "select_entity", "entity_id": 10}))
-            time.sleep(0.5)
+
+            # The batch put the entity in front of the camera: select it and
+            # drag its X handle — along the arrow, 10 px a frame, released
+            # after 100 px — then turn it twice with the comma key.
+            modified = entity(ep, args.modify)
+            ws_send(WS_PORT, json.dumps({"type": "select_entity", "entity_id": modified.get("id", 10)}))
+            time.sleep(0.3)
+            status, body = call(ep, "GET", "/selection")
+            handles = body.get("handles") or {}
+            check(bool(handles.get("x")), f"GET /selection reports the handles ({handles})")
+            if handles.get("x"):
+                (ox, oy), (xx, xy) = handles["origin"], handles["x"]
+                dx, dy = xx - ox, xy - oy
+                n = max((dx * dx + dy * dy) ** 0.5, 1.0)
+                ux, uy = dx / n, dy / n
+                start = (ox + dx * 0.8, oy + dy * 0.8)
+                # Hover first: the X arrow lights up under the pointer.
+                call(ep, "POST", "/input", {"events": [{"cursor": list(start)}]})
+                time.sleep(0.2)
+                status, body = call(ep, "GET", "/selection")
+                hot = (body.get("handles") or {}).get("hot")
+                check(hot == "x", f"the pointer over the X arrow makes it hot ({hot})")
+                events = [{"button": "left", "pressed": True}]
+                events += [{"cursor": [start[0] + ux * 10 * i, start[1] + uy * 10 * i]} for i in range(1, 11)]
+                events += [{"button": "left", "pressed": False}]
+                before_x = modified.get("transform", {}).get("position", [0, 0, 0])[0]
+                lines = canvas.log_lines()
+                status, body = call(ep, "POST", "/input", {"events": events})
+                check(status == 200 and body.get("queued") == len(events), f"the input queue takes the drag ({status} {body})")
+                time.sleep(0.15)
+                status, body = call(ep, "GET", "/screenshot")  # mid-drag
+                shots.append(body.get("path"))
+                time.sleep(1.5)
+                after_x = entity(ep, args.modify).get("transform", {}).get("position", [0, 0, 0])[0]
+                check(canvas.log_lines() == lines + 1, "the drag committed one entry")
+                check(after_x > before_x + 0.05, f"the drag moved {args.modify} along +x ({before_x} -> {after_x})")
+
+            lines = canvas.log_lines()
+            status, body = call(ep, "POST", "/input", {"events": press("Comma") + press("Comma")})
+            time.sleep(1.8)
+            yaw = entity(ep, args.modify).get("transform", {}).get("rotation_degrees", [0, 0, 0])[1]
+            check(canvas.log_lines() == lines + 1, "the key turns committed as one entry")
+            check(abs(yaw - 30.0) < 0.01, f"two turns are 30 degrees ({yaw})")
             status, body = call(ep, "GET", "/screenshot")
             shots.append(body.get("path"))
             status, body = call(ep, "POST", "/ops", {"author": "smoke", "ops": [

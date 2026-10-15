@@ -41,9 +41,8 @@ use bevy::camera::primitives::Aabb;
 use bevy::ecs::system::SystemParam;
 use bevy::math::bounding::Aabb3d;
 use bevy::picking::events::{Click, Drag, DragEnd, DragStart, Pointer};
-use bevy::picking::pointer::PointerButton;
+use bevy::picking::pointer::{PointerButton, PointerId, PointerLocation};
 use bevy::prelude::*;
-use bevy::window::PrimaryWindow;
 use bevy_egui::EguiContexts;
 use serde_json::Value;
 
@@ -332,14 +331,33 @@ pub struct Handles {
     pressed: bool,
 }
 
+impl Handles {
+    /// Where the handles are this frame, for whoever has to find them
+    /// without eyes — the live API tells a test driver.
+    pub(crate) fn frame(&self) -> Option<HandleFrame> {
+        self.frame
+    }
+
+    /// The handle under the pointer, by name.
+    pub(crate) fn hot_name(&self) -> Option<&'static str> {
+        self.hot.map(|handle| match handle {
+            Handle::Axis(0) => "x",
+            Handle::Axis(1) => "y",
+            Handle::Axis(_) => "z",
+            Handle::Ring => "ring",
+            Handle::Scale => "scale",
+        })
+    }
+}
+
 /// The handles' geometry: sized by the distance to the camera so they take
 /// about the same screen space from anywhere.
 #[derive(Debug, Clone, Copy)]
-struct HandleFrame {
-    origin: Vec3,
-    length: f32,
-    ring_radius: f32,
-    scale_at: Vec3,
+pub(crate) struct HandleFrame {
+    pub(crate) origin: Vec3,
+    pub(crate) length: f32,
+    pub(crate) ring_radius: f32,
+    pub(crate) scale_at: Vec3,
     /// How near the pointer's ray must pass, in world units.
     threshold: f32,
 }
@@ -368,7 +386,10 @@ struct Scene<'w, 's> {
     registry: Res<'w, NameRegistry>,
     camera: Query<'w, 's, (&'static Camera, &'static GlobalTransform), With<FlyCam>>,
     windows: Query<'w, 's, (), With<Window>>,
-    primary_window: Query<'w, 's, &'static Window, With<PrimaryWindow>>,
+    /// The pointers picking tracks — the mouse's place, in the same
+    /// coordinates the picking events carry, whether a hand or a test
+    /// driver moved it.
+    pointers: Query<'w, 's, (&'static PointerId, &'static PointerLocation)>,
 }
 
 impl Scene<'_, '_> {
@@ -393,9 +414,12 @@ impl Scene<'_, '_> {
         self.identify(entity).map(|(id, name)| Named { id, name })
     }
 
-    /// Where the pointer is in the window, if it is in it.
+    /// Where the mouse pointer is in the window, if it is in it.
     fn cursor(&self) -> Option<Vec2> {
-        self.primary_window.single().ok()?.cursor_position()
+        self.pointers
+            .iter()
+            .find(|(id, _)| **id == PointerId::Mouse)
+            .and_then(|(_, location)| location.location().map(|l| l.position))
     }
 
     /// The world ray under a point of the window.

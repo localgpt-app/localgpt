@@ -230,10 +230,16 @@ the product.
 
 A smoke test drives all of this with no one at the keyboard —
 `scripts/live-smoke.py <world>` launches the canvas with the inspector
-open, selects over the inspector's WebSocket, proposes a batch with
-review on and checks the log stayed untouched, then relaunches to commit
-with an `expected_revision` and to see the receipt warn about a deleted
-target; the screenshots it takes land in `<world>/.live/`.
+open, selects over the inspector's WebSocket, and with a synthesized hand
+(`LOCALGPT_SYNTHETIC_INPUT=1` enables `POST /input`, a test's seam that
+is off otherwise so an agent can't press Enter on its own proposal)
+rejects a proposal with Esc and accepts one with Enter, drags the X
+handle of an entity (`GET /selection` reports where the handles are, and
+which is under the pointer) and turns it with the comma key; it checks
+the log stayed untouched while a proposal was pending, that a stale
+`expected_revision` is refused and the right one commits, and that the
+receipt warns about a deleted target. The screenshots it takes land in
+`<world>/.live/`.
 
 ## Not done
 
