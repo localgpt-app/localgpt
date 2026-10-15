@@ -196,7 +196,7 @@ the product.
   root), keeping its world placement; right-click offers duplicate,
   delete, unparent, group and focus.
 - **Handles and snapping**: three axis arrows, a ring about the vertical
-  and a cube for uniform scale, around the primary selection. `G`
+  and a cube for uniform scale, around the primary selection. `Y`
   toggles snapping to the grid and the angle step (defaults 0.25 m,
   15°; the world bar sets them), and Cmd/Ctrl held during a drag means
   the opposite.

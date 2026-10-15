@@ -25,9 +25,11 @@ use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Duration;
 
+use bevy::camera::{ImageRenderTarget, NormalizedRenderTarget};
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
 use bevy::input::mouse::MouseButtonInput;
+use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use bevy::window::{CursorMoved, PrimaryWindow, WindowEvent};
@@ -140,6 +142,9 @@ pub(crate) struct Live {
     /// `LOCALGPT_SYNTHETIC_INPUT=1`: it is a test's seam, and with it an
     /// agent could press Enter on its own proposal.
     synthetic: Option<VecDeque<SyntheticEvent>>,
+    /// The review bar's Accept and Reject buttons, in window points, while
+    /// a proposal is pending.
+    review_buttons: Option<[[f32; 4]; 2]>,
 }
 
 /// A person's input, synthesized for a test that drives the canvas with
@@ -204,6 +209,7 @@ fn key_code(name: &str) -> Option<KeyCode> {
         "Equal" => KeyCode::Equal,
         "KeyD" => KeyCode::KeyD,
         "KeyG" => KeyCode::KeyG,
+        "KeyY" => KeyCode::KeyY,
         "KeyZ" => KeyCode::KeyZ,
         "ShiftLeft" => KeyCode::ShiftLeft,
         "ControlLeft" => KeyCode::ControlLeft,
@@ -217,13 +223,17 @@ fn key_code(name: &str) -> Option<KeyCode> {
 /// Emit the next synthesized event as the input it stands for: the same
 /// messages the window would send, so picking, the handles, the keys and
 /// egui all see a hand.
+#[allow(clippy::too_many_arguments)] // a Bevy system; the repo's convention
 fn inject_synthetic_input(
     mut live: ResMut<Live>,
     windows: Query<Entity, With<PrimaryWindow>>,
+    offscreen: Option<Res<super::offscreen::OffscreenRenderTarget>>,
     mut keys: MessageWriter<KeyboardInput>,
     mut buttons: MessageWriter<MouseButtonInput>,
     mut cursor: MessageWriter<CursorMoved>,
     mut window_events: MessageWriter<WindowEvent>,
+    mut pointer_inputs: MessageWriter<PointerInput>,
+    mut cursor_last: Local<Vec2>,
 ) {
     let Some(event) = live.synthetic.as_mut().and_then(VecDeque::pop_front) else {
         return;
@@ -241,6 +251,19 @@ fn inject_synthetic_input(
     // The window backend sends each input twice: as its own message, and
     // wrapped in `WindowEvent` — picking reads the wrapper, egui and the
     // button maps read the message. Both, then, as a real hand gets.
+    //
+    // With the canvas rendering into an image (`LOCALGPT_OFFSCREEN_SHOTS`),
+    // picking would pair a window pointer with no camera: the pointer is
+    // fed to picking directly, aimed at the image, instead of the wrapper.
+    let image_target = offscreen
+        .as_ref()
+        .and_then(|o| o.image_handle.clone())
+        .map(|handle| {
+            NormalizedRenderTarget::Image(ImageRenderTarget {
+                handle,
+                scale_factor: 1.0,
+            })
+        });
     match event {
         SyntheticEvent::Cursor(position) => {
             let moved = CursorMoved {
@@ -249,7 +272,24 @@ fn inject_synthetic_input(
                 delta: None,
             };
             cursor.write(moved.clone());
-            window_events.write(WindowEvent::CursorMoved(moved));
+            match &image_target {
+                Some(target) => {
+                    pointer_inputs.write(PointerInput {
+                        pointer_id: PointerId::Mouse,
+                        location: Location {
+                            target: target.clone(),
+                            position,
+                        },
+                        action: PointerAction::Move {
+                            delta: position - *cursor_last,
+                        },
+                    });
+                }
+                None => {
+                    window_events.write(WindowEvent::CursorMoved(moved));
+                }
+            }
+            *cursor_last = position;
         }
         SyntheticEvent::Button { button, pressed } => {
             let input = MouseButtonInput {
@@ -258,7 +298,30 @@ fn inject_synthetic_input(
                 window,
             };
             buttons.write(input);
-            window_events.write(WindowEvent::MouseButtonInput(input));
+            match &image_target {
+                Some(target) => {
+                    let pointer_button = match button {
+                        MouseButton::Right => PointerButton::Secondary,
+                        MouseButton::Middle => PointerButton::Middle,
+                        _ => PointerButton::Primary,
+                    };
+                    pointer_inputs.write(PointerInput {
+                        pointer_id: PointerId::Mouse,
+                        location: Location {
+                            target: target.clone(),
+                            position: *cursor_last,
+                        },
+                        action: if pressed {
+                            PointerAction::Press(pointer_button)
+                        } else {
+                            PointerAction::Release(pointer_button)
+                        },
+                    });
+                }
+                None => {
+                    window_events.write(WindowEvent::MouseButtonInput(input));
+                }
+            }
         }
         SyntheticEvent::Key { key, pressed } => {
             let input = KeyboardInput {
@@ -518,6 +581,7 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
         synthetic: std::env::var("LOCALGPT_SYNTHETIC_INPUT")
             .is_ok_and(|v| v == "1")
             .then(VecDeque::new),
+        review_buttons: None,
     })
     .insert_resource(Endpoint(endpoint))
     .insert_resource(LiveEndpoint { url, token })
@@ -552,17 +616,20 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
 #[allow(deprecated)] // egui 0.34: bevy_egui hands out a Context, not a root Ui
 fn review_bar(
     mut contexts: EguiContexts,
-    live: Res<Live>,
+    mut live: ResMut<Live>,
     keys: Res<ButtonInput<KeyCode>>,
     mut decisions: MessageWriter<ReviewDecision>,
 ) {
     let Some(proposal) = &live.proposal else {
+        live.review_buttons = None;
         return;
     };
     let Ok(ctx) = contexts.ctx_mut() else {
         return;
     };
     let mut decision = None;
+    let mut buttons = None;
+    let rect = |r: egui::Rect| [r.min.x, r.min.y, r.width(), r.height()];
     egui::Panel::top("live_review").show(ctx, |ui| {
         ui.horizontal_wrapped(|ui| {
             ui.label(egui::RichText::new(format!("{} proposes:", proposal.author)).strong());
@@ -574,12 +641,15 @@ fn review_bar(
                 );
             }
             // Plain words: the default font has no glyphs for ⏎ and ⎋.
-            if ui.button("Accept (Enter)").clicked() {
+            let accept = ui.button("Accept (Enter)");
+            if accept.clicked() {
                 decision = Some(true);
             }
-            if ui.button("Reject (Esc)").clicked() {
+            let reject = ui.button("Reject (Esc)");
+            if reject.clicked() {
                 decision = Some(false);
             }
+            buttons = Some([rect(accept.rect), rect(reject.rect)]);
         });
     });
     if keys.just_pressed(KeyCode::Enter) {
@@ -588,6 +658,8 @@ fn review_bar(
     if keys.just_pressed(KeyCode::Escape) {
         decision = Some(false);
     }
+    // Where the buttons are, for a driver with no eyes (`GET /proposals`).
+    live.review_buttons = buttons;
     if let Some(accept) = decision {
         decisions.write(ReviewDecision(accept));
     }
@@ -1382,6 +1454,9 @@ fn live_world(
                 "review": live.review,
                 "pending": live.proposal.as_ref().map(|p| p.n),
                 "proposals": live.proposals.iter().map(ProposalRecord::to_json).collect::<Vec<_>>(),
+                // The bar's buttons in window points ([x, y, w, h]), while
+                // a proposal is pending.
+                "buttons": live.review_buttons.map(|[accept, reject]| json!({"accept": accept, "reject": reject})),
             })),
             ("POST", "/undo" | "/replay") if live.proposal.is_some() => Reply::status(
                 409,

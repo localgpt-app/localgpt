@@ -92,7 +92,7 @@ pub(crate) fn draw_world_info(
                 ui.separator();
                 if let Some(settings) = controls.settings.as_deref_mut() {
                     ui.checkbox(&mut settings.snap, "snap")
-                        .on_hover_text("G toggles; hold Cmd/Ctrl while dragging for the opposite");
+                        .on_hover_text("Y toggles; hold Cmd/Ctrl while dragging for the opposite");
                     ui.add(
                         egui::DragValue::new(&mut settings.grid_m)
                             .speed(0.05)

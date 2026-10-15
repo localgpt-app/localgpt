@@ -3,19 +3,22 @@
 
 Launches `localgpt-gen --live <world>` with the inspector open
 (`LOCALGPT_INSPECTOR=full`), drives it over the live API in
-`<world>/.live/endpoint.json` and the inspector's WebSocket (port 9877),
-and checks what an editor is judged by: selection, a reviewed proposal
-that leaves the log untouched, the busy replies while it is pending, the
-stale-revision refusal, a commit with the right expected revision, and
+`<world>/.live/endpoint.json`, the inspector's WebSocket (port 9877) and
+a synthesized hand (`LOCALGPT_SYNTHETIC_INPUT=1`, `POST /input`), and
+checks what an editor is judged by: selection, proposals rejected and
+accepted by key and by the bar's buttons, the busy replies while one is
+pending and the log untouched, the stale-revision refusal, a commit with
+the right expected revision, a handle drag, snapping, key turns, a
+shift-click multi-selection dragged together, grouping, deleting, and
 the receipt's warning when a delete leaves a behavior without its
 target. Screenshots land in `<world>/.live/` for a person to look at.
 
     cargo run -p localgpt-world-agent --example live -- init demo.world
     cargo build -p localgpt-gen
-    scripts/live-smoke.py demo.world
+    scripts/live-smoke.py demo.world            # --offscreen on a locked screen
 
-The world must be a live package (the `init` above). Accepting or
-rejecting a proposal is the person's key press and is not driven here.
+The world must be a live package (the `init` above) with the example's
+entities: a cuboid (10), a capsule (14) and a lantern (100).
 """
 
 import argparse
@@ -31,6 +34,7 @@ import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WS_PORT = 9877
+GRID = 0.25
 
 
 def call(ep, method, path, body=None, timeout=40):
@@ -68,6 +72,19 @@ def ws_send(port, message):
     s.sendall(header + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
     time.sleep(0.8)
     s.close()
+
+
+def press(key):
+    return [{"key": key, "pressed": True}, {"key": key, "pressed": False}]
+
+
+def click(at):
+    return [{"cursor": list(at)}, {"button": "left", "pressed": True}, {"button": "left", "pressed": False}]
+
+
+def center(rect):
+    x, y, w, h = rect
+    return (x + w / 2, y + h / 2)
 
 
 class Canvas:
@@ -113,6 +130,38 @@ class Canvas:
         with open(os.path.join(self.world, "ops.jsonl")) as f:
             return sum(1 for line in f if line.strip())
 
+    # -- the hand -----------------------------------------------------
+
+    def input(self, events):
+        return call(self.ep, "POST", "/input", {"events": events})
+
+    def select(self, entity_id):
+        ws_send(WS_PORT, json.dumps({"type": "select_entity", "entity_id": entity_id}))
+        time.sleep(0.3)
+        return call(self.ep, "GET", "/selection")[1]
+
+    def entity(self, name):
+        _, world_now = call(self.ep, "GET", "/world")
+        return next((e for e in world_now.get("entities", []) if e.get("name") == name), {})
+
+    def drag_x_handle(self, px, step=10, axis="x"):
+        """Hover an arrow of the selection, press, pull along it, release.
+        Returns the handle under the pointer at the press."""
+        handles = call(self.ep, "GET", "/selection")[1].get("handles") or {}
+        (ox, oy), (xx, xy) = handles["origin"], handles[axis]
+        dx, dy = xx - ox, xy - oy
+        n = max((dx * dx + dy * dy) ** 0.5, 1.0)
+        ux, uy = dx / n, dy / n
+        start = (ox + dx * 0.8, oy + dy * 0.8)
+        self.input([{"cursor": list(start)}])
+        time.sleep(0.2)
+        hot = (call(self.ep, "GET", "/selection")[1].get("handles") or {}).get("hot")
+        events = [{"button": "left", "pressed": True}]
+        events += [{"cursor": [start[0] + ux * step * i, start[1] + uy * step * i]} for i in range(1, px // step + 1)]
+        events += [{"button": "left", "pressed": False}]
+        self.input(events)
+        return hot
+
 
 class Check:
     def __init__(self):
@@ -130,6 +179,7 @@ def main():
     parser.add_argument("--build", action="store_true", help="cargo build -p localgpt-gen first")
     parser.add_argument("--select", type=int, default=100, help="entity id to select over the inspector socket")
     parser.add_argument("--modify", default="cuboid", help="entity the proposed batch moves and recolors")
+    parser.add_argument("--other", default="capsule", help="a solid entity to shift-click into the selection")
     parser.add_argument("--offscreen", action="store_true", help="render into an image for the screenshots (a locked or sleeping screen leaves the window black)")
     args = parser.parse_args()
     Canvas.offscreen = args.offscreen
@@ -147,58 +197,63 @@ def main():
     }
     shots = []
 
-    def entity(ep, name):
-        _, world_now = call(ep, "GET", "/world")
-        return next((e for e in world_now.get("entities", []) if e.get("name") == name), {})
+    def red(entity):
+        color = entity.get("material", {}).get("color") or []
+        return len(color) == 4 and all(abs(a - b) < 1e-3 for a, b in zip(color, [1.0, 0.1, 0.1, 1.0]))
 
-    def press(key):
-        return [{"key": key, "pressed": True}, {"key": key, "pressed": False}]
+    def statuses(ep):
+        return [p.get("status") for p in call(ep, "GET", "/proposals")[1].get("proposals", [])]
 
-    # Review on, with a synthesized hand: a handle drag, a key turn, then
-    # proposals rejected, accepted and left pending; nothing is written
-    # while one waits.
+    # Review on, with a synthesized hand: proposals rejected and accepted
+    # by key and by the bar's buttons, then one left pending; nothing is
+    # written while one waits.
     with open(os.path.join(world, ".live", "smoke-review.log"), "w") as log:
         canvas = Canvas(binary, world, True, log, synthetic=True)
         try:
             ep = canvas.ep
             status, body = call(ep, "GET", "/")
             check(status == 200 and "GET /proposals" in body.get("endpoints", {}), "the API lists /proposals")
-            ws_send(WS_PORT, json.dumps({"type": "select_entity", "entity_id": args.select}))
-            status, body = call(ep, "GET", "/selection")
-            selected = (body.get("selected") or {}).get("id")
+            selected = (canvas.select(args.select).get("selected") or {}).get("id")
             check(selected == args.select, f"the inspector socket selects entity {args.select} (got {selected})")
             status, body = call(ep, "GET", "/screenshot")
             shots.append(body.get("path"))
 
-            # A proposal rejected with Esc, one accepted with Enter.
             lines = canvas.log_lines()
             status, body = call(ep, "POST", "/ops", batch)
             check(status == 202 and body.get("result") == "proposed", f"a batch is proposed, not committed ({status} {body.get('result')})")
-            call(ep, "POST", "/input", {"events": press("Escape")})
+            canvas.input(press("Escape"))
             time.sleep(0.6)
-            status, body = call(ep, "GET", "/proposals")
-            statuses = [p.get("status") for p in body.get("proposals", [])]
-            check(statuses == ["rejected"], f"Esc rejects the proposal ({statuses})")
+            check(statuses(ep) == ["rejected"], f"Esc rejects the proposal ({statuses(ep)})")
             check(canvas.log_lines() == lines, "a rejected proposal wrote nothing")
-            color = entity(ep, args.modify).get("material", {}).get("color")
-            check(color != [1.0, 0.1, 0.1, 1.0], f"the world keeps its color after a rejection ({color})")
-            status, body = call(ep, "POST", "/ops", batch)
-            call(ep, "POST", "/input", {"events": press("Enter")})
-            time.sleep(0.6)
-            status, body = call(ep, "GET", "/proposals")
-            statuses = [p.get("status") for p in body.get("proposals", [])]
-            check(statuses == ["rejected", "accepted"], f"Enter accepts the proposal ({statuses})")
-            check(canvas.log_lines() == lines + 1, "an accepted proposal is one entry")
-            color = entity(ep, args.modify).get("material", {}).get("color") or []
-            check(
-                len(color) == 4 and all(abs(a - b) < 1e-3 for a, b in zip(color, [1.0, 0.1, 0.1, 1.0])),
-                f"the accepted change is in the world ({color})",
-            )
+            check(not red(canvas.entity(args.modify)), "the world keeps its color after a rejection")
 
-            # A third proposal left pending: others wait, nothing is written.
+            status, body = call(ep, "POST", "/ops", batch)
+            buttons = call(ep, "GET", "/proposals")[1].get("buttons") or {}
+            check(bool(buttons.get("reject")), f"GET /proposals reports the bar's buttons ({buttons})")
+            if buttons.get("reject"):
+                canvas.input(click(center(buttons["reject"])))
+                time.sleep(0.6)
+            check(statuses(ep) == ["rejected", "rejected"], f"the Reject button, clicked, rejects ({statuses(ep)})")
+            check(canvas.log_lines() == lines, "still nothing written")
+
+            status, body = call(ep, "POST", "/ops", batch)
+            canvas.input(press("Enter"))
+            time.sleep(0.6)
+            check(statuses(ep) == ["rejected", "rejected", "accepted"], f"Enter accepts the proposal ({statuses(ep)})")
+            check(canvas.log_lines() == lines + 1, "an accepted proposal is one entry")
+            check(red(canvas.entity(args.modify)), "the accepted change is in the world")
+
+            status, body = call(ep, "POST", "/ops", batch)
+            buttons = call(ep, "GET", "/proposals")[1].get("buttons") or {}
+            if buttons.get("accept"):
+                canvas.input(click(center(buttons["accept"])))
+                time.sleep(0.6)
+            check(statuses(ep) == ["rejected", "rejected", "accepted", "accepted"], f"the Accept button, clicked, accepts ({statuses(ep)})")
+            check(canvas.log_lines() == lines + 2, "the second accepted proposal is one more entry")
+
             before = canvas.log_lines()
             status, body = call(ep, "POST", "/ops", batch)
-            check(status == 202, f"a third batch is proposed ({status})")
+            check(status == 202, f"a fifth batch is proposed ({status})")
             status, _ = call(ep, "POST", "/ops", batch)
             check(status == 409, f"a second batch waits for the decision ({status})")
             status, _ = call(ep, "POST", "/undo", {})
@@ -212,7 +267,8 @@ def main():
     with open(os.path.join(world, ".live", "smoke-review.log")) as f:
         check("panicked" not in f.read(), "no panic with review on")
 
-    # Review off: expected revisions, receipts, a dangling target.
+    # Review off: expected revisions, the gestures, the selection, the
+    # receipt's warning.
     with open(os.path.join(world, ".live", "smoke-commit.log"), "w") as log:
         canvas = Canvas(binary, world, False, log, synthetic=True)
         try:
@@ -226,50 +282,96 @@ def main():
             status, body = call(ep, "GET", "/log")
             check(body.get("revision") == revision + 1, "the log's revision moved by one")
 
-            # The batch put the entity in front of the camera: select it and
-            # drag its X handle — along the arrow, 10 px a frame, released
-            # after 100 px — then turn it twice with the comma key.
-            modified = entity(ep, args.modify)
-            ws_send(WS_PORT, json.dumps({"type": "select_entity", "entity_id": modified.get("id", 10)}))
-            time.sleep(0.3)
-            status, body = call(ep, "GET", "/selection")
-            handles = body.get("handles") or {}
+            # The batch put the entity in front of the camera: select it,
+            # drag its X handle 100 px, then turn it twice with the comma key.
+            modified = canvas.entity(args.modify)
+            modified_id = modified.get("id", 10)
+            handles = canvas.select(modified_id).get("handles") or {}
             check(bool(handles.get("x")), f"GET /selection reports the handles ({handles})")
-            if handles.get("x"):
-                (ox, oy), (xx, xy) = handles["origin"], handles["x"]
-                dx, dy = xx - ox, xy - oy
-                n = max((dx * dx + dy * dy) ** 0.5, 1.0)
-                ux, uy = dx / n, dy / n
-                start = (ox + dx * 0.8, oy + dy * 0.8)
-                # Hover first: the X arrow lights up under the pointer.
-                call(ep, "POST", "/input", {"events": [{"cursor": list(start)}]})
-                time.sleep(0.2)
-                status, body = call(ep, "GET", "/selection")
-                hot = (body.get("handles") or {}).get("hot")
-                check(hot == "x", f"the pointer over the X arrow makes it hot ({hot})")
-                events = [{"button": "left", "pressed": True}]
-                events += [{"cursor": [start[0] + ux * 10 * i, start[1] + uy * 10 * i]} for i in range(1, 11)]
-                events += [{"button": "left", "pressed": False}]
-                before_x = modified.get("transform", {}).get("position", [0, 0, 0])[0]
-                lines = canvas.log_lines()
-                status, body = call(ep, "POST", "/input", {"events": events})
-                check(status == 200 and body.get("queued") == len(events), f"the input queue takes the drag ({status} {body})")
-                time.sleep(0.15)
-                status, body = call(ep, "GET", "/screenshot")  # mid-drag
-                shots.append(body.get("path"))
-                time.sleep(1.5)
-                after_x = entity(ep, args.modify).get("transform", {}).get("position", [0, 0, 0])[0]
-                check(canvas.log_lines() == lines + 1, "the drag committed one entry")
-                check(after_x > before_x + 0.05, f"the drag moved {args.modify} along +x ({before_x} -> {after_x})")
+            before_x = modified.get("transform", {}).get("position", [0, 0, 0])[0]
+            lines = canvas.log_lines()
+            hot = canvas.drag_x_handle(100)
+            check(hot == "x", f"the pointer over the X arrow makes it hot ({hot})")
+            time.sleep(0.15)
+            status, body = call(ep, "GET", "/screenshot")  # mid-drag
+            shots.append(body.get("path"))
+            time.sleep(1.5)
+            after_x = canvas.entity(args.modify).get("transform", {}).get("position", [0, 0, 0])[0]
+            check(canvas.log_lines() == lines + 1, "the drag committed one entry")
+            check(after_x > before_x + 0.05, f"the drag moved {args.modify} along +x ({before_x} -> {after_x})")
 
             lines = canvas.log_lines()
-            status, body = call(ep, "POST", "/input", {"events": press("Comma") + press("Comma")})
+            canvas.input(press("Comma") + press("Comma"))
             time.sleep(1.8)
-            yaw = entity(ep, args.modify).get("transform", {}).get("rotation_degrees", [0, 0, 0])[1]
+            yaw = canvas.entity(args.modify).get("transform", {}).get("rotation_degrees", [0, 0, 0])[1]
             check(canvas.log_lines() == lines + 1, "the key turns committed as one entry")
             check(abs(yaw - 30.0) < 0.01, f"two turns are 30 degrees ({yaw})")
             status, body = call(ep, "GET", "/screenshot")
             shots.append(body.get("path"))
+
+            # Snapping: Y on, a drag up the Y arrow (the X arrow now reaches
+            # under the detail panel) lands on the grid, Y off.
+            canvas.input(press("KeyY"))
+            time.sleep(0.3)
+            lines = canvas.log_lines()
+            before_y = canvas.entity(args.modify).get("transform", {}).get("position", [0, 0, 0])[1]
+            hot = canvas.drag_x_handle(57, axis="y")
+            time.sleep(1.5)
+            snapped_y = canvas.entity(args.modify).get("transform", {}).get("position", [0, 0, 0])[1]
+            on_grid = abs(snapped_y / GRID - round(snapped_y / GRID)) < 1e-3
+            check(hot == "y", f"the pointer over the Y arrow makes it hot ({hot})")
+            check(canvas.log_lines() == lines + 1 and snapped_y > before_y and on_grid, f"with snapping on, the drag lands on the {GRID} m grid ({before_y} -> {snapped_y})")
+            canvas.input(press("KeyY"))
+            time.sleep(0.3)
+
+            # A shift-click adds a second entity; a drag on it moves both.
+            other = canvas.entity(args.other)
+            other_id = other.get("id", 14)
+            other_at = (canvas.select(other_id).get("handles") or {}).get("origin")
+            canvas.select(modified_id)
+            check(bool(other_at), f"{args.other}'s place on screen is known ({other_at})")
+            if other_at:
+                canvas.input([{"key": "ShiftLeft", "pressed": True}] + click(other_at) + [{"key": "ShiftLeft", "pressed": False}])
+                time.sleep(0.6)
+            selection = call(ep, "GET", "/selection")[1]
+            check((selection.get("selected") or {}).get("id") == modified_id and selection.get("others") == [other_id],
+                  f"shift-click adds {args.other} to the selection ({(selection.get('selected') or {}).get('id')}, {selection.get('others')})")
+            status, body = call(ep, "GET", "/screenshot")  # two selection boxes
+            shots.append(body.get("path"))
+            x1 = canvas.entity(args.modify).get("transform", {}).get("position", [0, 0, 0])[0]
+            x2 = canvas.entity(args.other).get("transform", {}).get("position", [0, 0, 0])[0]
+            lines = canvas.log_lines()
+            if other_at:
+                events = [{"cursor": list(other_at)}, {"button": "left", "pressed": True}]
+                events += [{"cursor": [other_at[0] + 10 * i, other_at[1]]} for i in range(1, 7)]
+                events += [{"button": "left", "pressed": False}]
+                canvas.input(events)
+                time.sleep(1.5)
+            x1b = canvas.entity(args.modify).get("transform", {}).get("position", [0, 0, 0])[0]
+            x2b = canvas.entity(args.other).get("transform", {}).get("position", [0, 0, 0])[0]
+            check(canvas.log_lines() == lines + 1, "the drag of the selection is one entry")
+            check(x2b > x2 + 0.05 and abs((x1b - x1) - (x2b - x2)) < 0.05, f"both moved together ({x1}->{x1b}, {x2}->{x2b})")
+
+            # Cmd+G groups them under a new empty; Delete takes the group.
+            lines = canvas.log_lines()
+            canvas.input([{"key": "SuperLeft", "pressed": True}] + press("KeyG") + [{"key": "SuperLeft", "pressed": False}])
+            time.sleep(1.0)
+            group = canvas.entity("group")
+            parents = {canvas.entity(args.modify).get("parent"), canvas.entity(args.other).get("parent")}
+            check(canvas.log_lines() == lines + 1 and group.get("id") is not None and parents == {group.get("id")},
+                  f"Cmd+G groups the selection under 'group' ({group.get('id')}, parents {parents})")
+            selected = (call(ep, "GET", "/selection")[1].get("selected") or {}).get("name")
+            check(selected == "group", f"the new group is selected ({selected})")
+            status, body = call(ep, "GET", "/screenshot")  # the group, its children in the outliner
+            shots.append(body.get("path"))
+            lines = canvas.log_lines()
+            canvas.input(press("Delete"))
+            time.sleep(1.0)
+            gone = not canvas.entity("group") and not canvas.entity(args.modify) and not canvas.entity(args.other)
+            check(canvas.log_lines() == lines + 1 and gone, "Delete takes the group and what hangs under it, as one entry")
+            status, body = call(ep, "GET", "/screenshot")
+            shots.append(body.get("path"))
+
             status, body = call(ep, "POST", "/ops", {"author": "smoke", "ops": [
                 {"SpawnEntity": {"entity": {"name": "smoke-watcher", "shape": {"Sphere": {"radius": 0.3}},
                                             "transform": {"position": [2.0, 1.0, 2.0]},

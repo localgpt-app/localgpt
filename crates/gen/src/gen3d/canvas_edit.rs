@@ -23,7 +23,7 @@
 //! | arrows, PgUp / PgDn | nudge one grid step, along the axis nearest the view / vertically |
 //! | `,` `.` | turn one angle step left / right |
 //! | `-` `=` | scale down / up by 10% |
-//! | `G` | snapping on / off — or hold Cmd/Ctrl while dragging for the opposite |
+//! | `Y` | snapping on / off — or hold Cmd/Ctrl while dragging for the opposite |
 //! | Delete / Backspace | delete (children go with it) |
 //! | Cmd/Ctrl + D | duplicate beside it |
 //! | Cmd/Ctrl + G | group the selection under a new empty at its centroid |
@@ -98,8 +98,8 @@ impl Plugin for CanvasEditPlugin {
 /// Snapping, for the canvas to apply and the panels to show.
 #[derive(Resource)]
 pub struct CanvasSettings {
-    /// Drags land on the grid and on the angle step; `G` toggles, and a
-    /// Cmd/Ctrl held during a drag means the opposite.
+    /// Drags land on the grid and on the angle step; `Y` toggles (`G` is
+    /// the gallery's), and a Cmd/Ctrl held during a drag means the opposite.
     pub snap: bool,
     /// The grid, and one nudge.
     pub grid_m: f32,
@@ -782,6 +782,16 @@ fn pointer_edits(
         if click.event.button != PointerButton::Primary {
             continue;
         }
+        // The release that ends a drag reports a click on whatever is under
+        // the pointer too. That click is the drag's, not a choice: taken as
+        // one, it collapsed a multi-selection to the entity just moved.
+        if gesture
+            .0
+            .as_ref()
+            .is_some_and(|g| g.drag.is_some() && g.moved)
+        {
+            continue;
+        }
         if let Some(owner) = scene.owner(click.entity) {
             flush_unless(&mut gesture, Some(owner), &scene, &mut intents);
             if extend {
@@ -913,7 +923,7 @@ fn key_edits(
                 selection.clear();
             }
         }
-        if keys.just_pressed(KeyCode::KeyG) && !command {
+        if keys.just_pressed(KeyCode::KeyY) && !command {
             settings.snap = !settings.snap;
         }
         if command && keys.just_pressed(KeyCode::KeyZ) {

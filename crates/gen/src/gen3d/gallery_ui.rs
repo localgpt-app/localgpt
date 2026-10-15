@@ -155,7 +155,14 @@ fn gallery_toggle_system(
     mut thumb_cache: ResMut<ThumbnailCache>,
     workspace: Res<GenWorkspace>,
 ) {
-    if keys.just_pressed(KeyCode::KeyG) {
+    // Plain G only: Cmd/Ctrl + G is the live canvas's "group".
+    let command = keys.any_pressed([
+        KeyCode::SuperLeft,
+        KeyCode::SuperRight,
+        KeyCode::ControlLeft,
+        KeyCode::ControlRight,
+    ]);
+    if keys.just_pressed(KeyCode::KeyG) && !command {
         gallery.visible = !gallery.visible;
         if gallery.visible && gallery.entries.is_empty() {
             gallery.entries = gallery::scan_world_gallery(&workspace.path);
