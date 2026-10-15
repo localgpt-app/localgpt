@@ -1,0 +1,42 @@
+name: Website
+
+# localgpt.app is a Zola site deployed as a Cloudflare Worker by
+# `website/deploy.sh` (wrangler, from a logged-in machine). This only
+# builds it, so a template, config or content change that breaks the
+# build — or an internal link — fails here instead of at deploy time.
+# The GitHub Pages deploy that used to live here went with Docusaurus.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: website-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Zola build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Zola 0.22.1
+        run: |
+          curl -fsSL https://github.com/getzola/zola/releases/download/v0.22.1/zola-v0.22.1-x86_64-unknown-linux-gnu.tar.gz \
+            | sudo tar -xz -C /usr/local/bin zola
+      - run: zola build
+      # Internal links only; external ones drift on their own schedule and
+      # would make this flake.
+      - run: zola check --skip-external-links

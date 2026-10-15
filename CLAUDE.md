@@ -135,7 +135,7 @@ scripts/          # The shared downloads, fetched once for every app
 └── fetch-assets.sh  # the 522 MB CC0 pack -> ~/.local/share/localgpt/models/pack
 
 website*/         # One Cloudflare Worker each, all deployed by hand
-├── website/      # localgpt.app — Docusaurus, the family hub and only docs site
+├── website/      # localgpt.app — Zola, the family hub and only docs site (deployed by website/deploy.sh)
 ├── website-gen/  # gen.localgpt.app — static landing
 ├── website-md/   # localgpt.md — drop a screenplay (Final Draft, Fountain or Markdown), get a previs board in the tab (WASM draft)
 ├── website-verse/# verse.localgpt.app — static landing
@@ -498,7 +498,7 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
 - **Edition 2024**, workspace-shared version (`0.3.x`), `resolver = "3"`.
 - Related docs live under `docs/` (architecture, gen, mobile, security, rfcs,
   roadmap). `AGENTS.md` is the longer-form contributor guide.
-- **Websites:** `website/` is the Docusaurus site for localgpt.app, the
+- **Websites:** `website/` is the Zola site for localgpt.app, the
   family hub and its only docs site: the assistant's docs plus
   `website/docs/gen`, `docs/verse` and `docs/md` (Verse and MD keep only
   landing pages in their own repos; update their docs here when those apps

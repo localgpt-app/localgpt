@@ -41,4 +41,4 @@ docs/
 
 ## Relationship to Website Docs
 
-The `website/docs/` folder contains the published Docusaurus site (https://localgpt.app). This `docs/` folder is for internal tracking and design work. Some docs here informed website pages but are kept separately for research detail that doesn't belong in user-facing documentation.
+The `website/` folder is the published Zola site (https://localgpt.app). This `docs/` folder is for internal tracking and design work. Some docs here informed website pages but are kept separately for research detail that doesn't belong in user-facing documentation.
