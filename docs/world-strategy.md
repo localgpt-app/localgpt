@@ -1132,7 +1132,9 @@ Put the first two steps in front of five to ten people who previs today, with
 their own script pages. Measure minutes from a scene to a first board, and how
 many revisions until they would show the board to their DP. If they do not come
 back for a second scene, the problem is in those two steps, not in posing or
-animatics — which is why those wait.
+animatics — which is why those wait. The sessions run to
+[`previs-user-test.md`](previs-user-test.md): one sheet per person, so ten of
+them compare.
 
 ## Sources
 
