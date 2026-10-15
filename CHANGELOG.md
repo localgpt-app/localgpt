@@ -12,6 +12,10 @@ All notable changes to LocalGPT are documented in this file.
 - **`localgpt-world-sync`** — the collaboration core with no Bevy and no I/O: the shared world document (atomic, validated `EditOp` application with subtree deletes), the scene→ops diff, the versioned JSON wire protocol, and the room authority (peers, roles, revisions, presence, chat, prompt queue). `crates/world-sync`.
 - **`EntityPatch.modulations`** — entity modulation stacks can now be patched like every other field, so live sync and diffs cover them.
 
+### Fixed
+
+- **A package drafted elsewhere opens live with its guide** — `LiveWorld::open` now furnishes any package it opens with `AGENTS.md` and `assets/` when they are missing, not only the ones it made itself: a previs draft (four files from `localgpt-previs` or the localgpt.md zip) opened with `localgpt-gen --live` printed "see AGENTS.md" and had none for the agent to read.
+
 ### Changed
 
 - **`openworldformat` 0.3.5, viewer 0.3.4 — cameras track actors by entity** — `ext-cinematography` 0.3's `aim_entity` and `focus_entity` arrive: the drafted singles aim and focus at their speaker's head by entity, so "move Maya a step left" keeps 1B on her; the shot list, the board, Gen's look-through and thumbnails resolve a shot's view in the world (`shot_camera_in`, origins through parents); and the agent prompt knows the two fields ("stay on her").

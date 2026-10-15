@@ -170,6 +170,10 @@ impl LiveWorld {
         if !dir.join(PACKAGE).is_file() {
             init(dir)?;
         }
+        // A package made elsewhere — a previs draft, a download — has the
+        // format's four files and nothing an agent needs: the guide, and
+        // the folder its asset files go in.
+        furnish(dir)?;
         let meta: SessionMeta = read_json(dir, PACKAGE)?;
         let base_manifest: WorldManifest = read_json(dir, BASE)?;
         let base = WorldDoc::from_manifest(&base_manifest)
@@ -1408,6 +1412,18 @@ fn undo_of(entry: &OpLogEntry) -> Option<u64> {
     })
 }
 
+/// What a live package has beyond the format's four files: the guide an
+/// agent reads, and `assets/` for the files it writes. Written when
+/// missing, never over — so a package drafted by `localgpt-previs` or
+/// unzipped from a download gets them the first time it opens.
+fn furnish(dir: &Path) -> Result<(), LiveError> {
+    std::fs::create_dir_all(dir.join(ASSETS))?;
+    if !dir.join(AGENTS).exists() {
+        std::fs::write(dir.join(AGENTS), AGENTS_GUIDE)?;
+    }
+    Ok(())
+}
+
 /// Make `dir` a live package around the manifest it holds.
 fn init(dir: &Path) -> Result<(), LiveError> {
     let bytes = std::fs::read(dir.join(MANIFEST))
@@ -1415,15 +1431,12 @@ fn init(dir: &Path) -> Result<(), LiveError> {
     let manifest: WorldManifest = serde_json::from_slice(&bytes)
         .map_err(|e| LiveError(format!("{MANIFEST} isn't a world: {e}")))?;
     std::fs::create_dir_all(dir.join("snapshots"))?;
-    std::fs::create_dir_all(dir.join(ASSETS))?;
     std::fs::create_dir_all(dir.join(LIVE))?;
     write_atomic(&dir.join(BASE), &bytes)?;
     if !dir.join(LOG).exists() {
         std::fs::write(dir.join(LOG), b"")?;
     }
-    if !dir.join(AGENTS).exists() {
-        std::fs::write(dir.join(AGENTS), AGENTS_GUIDE)?;
-    }
+    furnish(dir)?;
     let mut meta = SessionMeta::new(manifest.meta.name.clone());
     meta.app = Some("localgpt-live".into());
     write_atomic(&dir.join(PACKAGE), to_pretty(&meta)?.as_bytes())?;
