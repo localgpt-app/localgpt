@@ -211,6 +211,11 @@ fn key_code(name: &str) -> Option<KeyCode> {
         "KeyG" => KeyCode::KeyG,
         "KeyY" => KeyCode::KeyY,
         "KeyZ" => KeyCode::KeyZ,
+        // The camera's keys, to look from somewhere else.
+        "KeyW" => KeyCode::KeyW,
+        "KeyA" => KeyCode::KeyA,
+        "KeyS" => KeyCode::KeyS,
+        "Space" => KeyCode::Space,
         "ShiftLeft" => KeyCode::ShiftLeft,
         "ControlLeft" => KeyCode::ControlLeft,
         "SuperLeft" => KeyCode::SuperLeft,

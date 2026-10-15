@@ -241,7 +241,9 @@ an outliner row onto another, frees it from the row's context menu,
 picks a parent and an alpha mode from the panel's combos and drags a
 value field (`GET /widgets` names every panel widget's rectangle),
 shift-clicks a second entity and drags both, groups them with Cmd+G and
-deletes the group; it checks the log stayed untouched while a proposal
+deletes the group, and measures what a hand would feel — the handles
+keep their screen size as the camera moves, and hover forgives a few
+pixels off an arrow but not many; it checks the log stayed untouched while a proposal
 was pending, that a stale `expected_revision` is refused and the right
 one commits, and that the receipt warns about a deleted target. Two
 things it caught: a click on a panel reached the scene behind it (egui's

@@ -330,6 +330,38 @@ def main():
             status, body = call(ep, "GET", "/screenshot")
             shots.append(body.get("path"))
 
+            # What a hand would feel, measured: the handles keep about the
+            # same size on screen from near and far, and the hover
+            # tolerance stays usable — a few pixels off the arrow still
+            # finds it, far off does not.
+            def arrow_px():
+                h = call(ep, "GET", "/selection")[1].get("handles") or {}
+                (ox, oy), (xx, xy) = h["origin"], h["x"]
+                return ((xx - ox) ** 2 + (xy - oy) ** 2) ** 0.5, (ox, oy), (xx, xy)
+
+            def hot_off_arrow(offset_px):
+                _, (ox, oy), (xx, xy) = arrow_px()
+                along = (ox + (xx - ox) * 0.6, oy + (xy - oy) * 0.6)
+                canvas.input([{"cursor": [along[0], along[1] + offset_px]}])
+                time.sleep(0.2)
+                return (call(ep, "GET", "/selection")[1].get("handles") or {}).get("hot")
+
+            near_len, near_origin, _ = arrow_px()
+            check(hot_off_arrow(8) == "x" and hot_off_arrow(60) != "x", "hover forgives 8 px off the arrow, not 60")
+            canvas.input([{"key": "KeyW", "pressed": True}])
+            time.sleep(0.45)
+            canvas.input([{"key": "KeyW", "pressed": False}])
+            time.sleep(0.4)
+            far_len, far_origin, _ = arrow_px()
+            moved_px = ((far_origin[0] - near_origin[0]) ** 2 + (far_origin[1] - near_origin[1]) ** 2) ** 0.5
+            check(moved_px > 5 and abs(far_len - near_len) / near_len < 0.3,
+                  f"the handles keep their screen size as the camera moves ({near_len:.0f} px -> {far_len:.0f} px, the origin shifted {moved_px:.0f} px)")
+            check(hot_off_arrow(8) == "x" and hot_off_arrow(60) != "x", "hover tolerance holds from the new distance")
+            canvas.input([{"key": "KeyS", "pressed": True}])
+            time.sleep(0.45)
+            canvas.input([{"key": "KeyS", "pressed": False}])
+            time.sleep(0.4)
+
             # Snapping: Y on, a drag up the Y arrow (the X arrow now reaches
             # under the detail panel) lands on the grid, Y off.
             canvas.input(press("KeyY"))
