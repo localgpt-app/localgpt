@@ -168,6 +168,60 @@ The code here still builds on the 0.1 crate and predates the decisions:
 - keep hash-named asset copies everywhere (portability first); git
   stays the optional layer it is here.
 
+## What a person edits in the canvas (2026-10-15)
+
+The canvas grew the editing surfaces an editor is judged by, each one a
+batch through the same authority the agents use — one history, one
+rule. The comparison that drove it was DeepMonkey Studio's editor
+(property panel, scene tree, gizmos, transaction receipts with
+revisions, previewable AI edits); what was taken is the mechanism, not
+the product.
+
+- **The detail panel edits** (F1 twice): name, position, rotation,
+  scale, visibility, material (color, metallic, roughness, reflectance,
+  emissive, alpha mode, double-sided, unlit), lights (color, intensity,
+  range, spot angles, direction, shadows), the parent (a combo that keeps
+  the world placement), and a behavior's removal. A held slider changes
+  the Bevy component so the person sees it; when the pointer is up and
+  nothing is being typed, the fields that moved go out as one
+  `ModifyEntity` merge patch, and a refusal puts the entity back from the
+  document. The values shown are the document's, so angles keep the form
+  their author gave them.
+- **The outliner edits**: shift-click adds to the selection; a row
+  dragged onto another hangs under it (onto the zone at the bottom: the
+  root), keeping its world placement; right-click offers duplicate,
+  delete, unparent, group and focus.
+- **Handles and snapping**: three axis arrows, a ring about the vertical
+  and a cube for uniform scale, around the primary selection. `G`
+  toggles snapping to the grid and the angle step (defaults 0.25 m,
+  15°; the world bar sets them), and Cmd/Ctrl held during a drag means
+  the opposite.
+- **A multi-selection** moves, turns, scales, deletes and duplicates
+  together, as one entry; Cmd/Ctrl + G groups it under a new empty at
+  its centroid (siblings only).
+- **A behavior whose target is gone** is marked in the panel with a
+  one-click removal, rather than silently looking at nothing.
+- **Review of agent edits** (the world bar's checkbox, or
+  `LOCALGPT_REVIEW=1`): `POST /ops` replies `proposed` (202) and the
+  batch shows on the canvas, read against the world on screen without
+  being written; Enter or the bar's button accepts it (then it goes
+  through the authority as it would have), Esc rejects it (the canvas is
+  put back from the document). `GET /proposals` reports each one's
+  status; a second batch, an undo, a seek or a person's edit waits for
+  the decision.
+- **A held drag blocks a seek**: the rail refuses to move through
+  history while an entity is where the pointer has it rather than where
+  the document says, so a gesture can't land on the wrong entry.
+- **Camera bookmarks**: the world bar's ★ menu saves the view as a
+  waypoint of a `bookmarks` tour in the document (a `ModifyWorld`), so
+  they travel with the world; each is a click away, or dropped.
+- **Receipts and revisions** (spec draft 0.3, Authoring): the reply to a
+  batch is the author's receipt — `revision`, `id`, `spawned`,
+  `warnings`, or `errors` and nothing changed — and a batch may carry
+  `expected_revision`, the revision its author read; a world that moved
+  since refuses it, naming both, so a stale edit re-reads instead of
+  landing.
+
 ## Not done
 
 - A cold test with a fresh agent that has only `AGENTS.md`.

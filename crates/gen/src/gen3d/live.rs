@@ -17,6 +17,7 @@
 //! on screen and otherwise only grows the rail, so an agent working on main
 //! never yanks a person off the point they chose.
 
+use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -26,11 +27,12 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
+use bevy_egui::{EguiContexts, egui};
 use localgpt_world_agent::live::{self, LiveWorld};
 use localgpt_world_types as wt;
 use serde_json::{Value, json};
 
-use super::canvas_edit::PersonIntent;
+use super::canvas_edit::{Named, PersonIntent};
 use super::ops_apply::OpsApplier;
 use super::plugin::FlyCam;
 use super::registry::GenEntity;
@@ -95,7 +97,7 @@ pub struct LiveEndpoint {
 
 /// The open live world and the canvas's own bookkeeping.
 #[derive(Resource)]
-struct Live {
+pub(crate) struct Live {
     world: LiveWorld,
     /// The non-linear view over the same log: seeks, tips, and the delta
     /// between what the canvas shows and where it is going. The authority
@@ -122,7 +124,78 @@ struct Live {
     thumbs_dirty: bool,
     /// The newest thing that happened, for the rail: a commit, or a refusal.
     status: Option<String>,
+    /// Agents' batches show on the canvas before they commit, and the
+    /// person accepts or rejects each one (`LOCALGPT_REVIEW=1` starts on).
+    pub(crate) review: bool,
+    /// The batch on the canvas awaiting the person's decision.
+    proposal: Option<Proposal>,
+    /// Every proposal so far, for `GET /proposals`.
+    proposals: Vec<ProposalRecord>,
 }
+
+impl Live {
+    /// The document the canvas shows: the fold at the entry on screen.
+    pub(crate) fn doc(&self) -> &openworldformat::WorldDoc {
+        self.view.doc()
+    }
+
+    /// The newest commit or refusal, in one line.
+    pub(crate) fn status(&self) -> Option<&str> {
+        self.status.as_deref()
+    }
+}
+
+/// An agent's batch shown on the canvas before it commits — the person
+/// accepts it (it goes through the authority then, as it would have) or
+/// rejects it (the canvas is put back from the document). What DeepMonkey
+/// calls a previewable, cancelable AI edit; here it is a batch read
+/// against the world on screen without being written.
+pub(crate) struct Proposal {
+    pub(crate) n: u64,
+    pub(crate) author: String,
+    /// The entry it builds on: what the canvas showed when it arrived.
+    at: Option<String>,
+    batch: Value,
+    /// The world the canvas shows while it is pending.
+    shown: wt::WorldManifest,
+    pub(crate) changes: Vec<String>,
+    pub(crate) warnings: Vec<String>,
+}
+
+struct ProposalRecord {
+    n: u64,
+    author: String,
+    changes: Vec<String>,
+    outcome: Outcome,
+}
+
+enum Outcome {
+    Pending,
+    Accepted { revision: u64 },
+    Rejected { why: String },
+}
+
+impl ProposalRecord {
+    fn to_json(&self) -> Value {
+        let (status, revision, why) = match &self.outcome {
+            Outcome::Pending => ("pending", None, None),
+            Outcome::Accepted { revision } => ("accepted", Some(*revision), None),
+            Outcome::Rejected { why } => ("rejected", None, Some(why.clone())),
+        };
+        json!({
+            "proposal": self.n,
+            "author": self.author,
+            "changes": self.changes,
+            "status": status,
+            "revision": revision,
+            "why": why,
+        })
+    }
+}
+
+/// The person's decision on the proposal on the canvas.
+#[derive(Message, Debug, Clone)]
+pub struct ReviewDecision(pub bool);
 
 /// What the history rail draws: the log as rows, and where the canvas is.
 ///
@@ -242,16 +315,21 @@ pub fn setup_live(app: &mut App, dir: &Path) -> anyhow::Result<()> {
         history_dirty: true,
         thumbs_dirty: true,
         status: None,
+        review: std::env::var("LOCALGPT_REVIEW").is_ok_and(|v| v == "1"),
+        proposal: None,
+        proposals: Vec::new(),
     })
     .insert_resource(Endpoint(endpoint))
     .insert_resource(LiveEndpoint { url, token })
     .init_resource::<LiveHistory>()
     .add_message::<SeekTo>()
+    .add_message::<ReviewDecision>()
     .add_plugins((
         super::history_rail::HistoryRailPlugin,
         super::canvas_edit::CanvasEditPlugin,
         super::shots::ShotsPlugin,
     ))
+    .add_systems(Update, review_bar.before(super::canvas_edit::PersonEdits))
     .add_systems(
         Update,
         (live_world, live_view)
@@ -259,6 +337,280 @@ pub fn setup_live(app: &mut App, dir: &Path) -> anyhow::Result<()> {
             .after(super::canvas_edit::PersonEdits),
     );
     Ok(())
+}
+
+/// The bar a pending proposal puts at the top of the window: who proposes
+/// what, and Accept / Reject. Enter and Esc do the same.
+#[allow(deprecated)] // egui 0.34: bevy_egui hands out a Context, not a root Ui
+fn review_bar(
+    mut contexts: EguiContexts,
+    live: Res<Live>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mut decisions: MessageWriter<ReviewDecision>,
+) {
+    let Some(proposal) = &live.proposal else {
+        return;
+    };
+    let Ok(ctx) = contexts.ctx_mut() else {
+        return;
+    };
+    let mut decision = None;
+    egui::Panel::top("live_review").show(ctx, |ui| {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(egui::RichText::new(format!("{} proposes:", proposal.author)).strong());
+            ui.label(proposal.changes.join(" · "));
+            for warning in &proposal.warnings {
+                ui.colored_label(
+                    egui::Color32::from_rgb(230, 180, 90),
+                    format!("\u{26A0} {warning}"),
+                );
+            }
+            if ui.button("Accept \u{23CE}").clicked() {
+                decision = Some(true);
+            }
+            if ui.button("Reject \u{238B}").clicked() {
+                decision = Some(false);
+            }
+        });
+    });
+    if keys.just_pressed(KeyCode::Enter) {
+        decision = Some(true);
+    }
+    if keys.just_pressed(KeyCode::Escape) {
+        decision = Some(false);
+    }
+    if let Some(accept) = decision {
+        decisions.write(ReviewDecision(accept));
+    }
+}
+
+/// Show an agent's batch on the canvas without committing it: read as the
+/// authority would, against the world on screen, applied to the scene, and
+/// held for the person's decision.
+fn propose(
+    live: &mut Live,
+    applier: &mut OpsApplier<'_, '_>,
+    batch: Value,
+    author: String,
+) -> Reply {
+    if let Some(pending) = &live.proposal {
+        return Reply::status(
+            409,
+            json!({"result": "busy", "pending": pending.n,
+                   "why": "an agent's proposal is on the canvas; it decides first"}),
+        );
+    }
+    if live.replay.is_some() {
+        return Reply::status(
+            409,
+            json!({"result": "busy", "why": "a replay is running; batches wait for it"}),
+        );
+    }
+    let at = live.view.tip().map(str::to_string);
+    if at.is_none() && !live.world.entries().is_empty() {
+        return Reply::status(
+            422,
+            json!({"result": "rejected",
+                   "errors": ["the canvas shows the base, which can't take an edit once there is history"]}),
+        );
+    }
+    // A proposal builds on what the person is looking at — that is what
+    // they review. A batch that names another entry is told so.
+    if let Some(named) = batch.get("at").and_then(Value::as_str)
+        && Some(named) != at.as_deref()
+    {
+        return Reply::status(
+            422,
+            json!({"result": "rejected",
+                   "errors": [format!("review shows batches on the entry on screen ({}); send without \"at\", or ask the person to seek to {named}",
+                                      at.as_deref().unwrap_or("the base"))]}),
+        );
+    }
+    if let Some(expected) = batch.get("expected_revision").and_then(Value::as_u64)
+        && expected != live.view.revision()
+    {
+        return Reply::status(
+            422,
+            json!({"result": "rejected",
+                   "errors": [format!("the world is at revision {}, not {expected}: read it again, then decide again", live.view.revision())]}),
+        );
+    }
+    let author = batch
+        .get("author")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or(author);
+    let ingested = match openworldformat::ingest(live.view.doc(), &batch) {
+        Ok(ingested) => ingested,
+        Err(refused) => {
+            eprintln!("[live] refused: {}", refused.errors.join(" · "));
+            return Reply::status(422, json!({"result": "rejected", "errors": refused.errors}));
+        }
+    };
+    let changes = live::describe_ops(&ingested.ops);
+    applier.apply_ops(&for_scene(&ingested.ops, live.world.dir()));
+    let n = live.proposals.len() as u64 + 1;
+    live.proposals.push(ProposalRecord {
+        n,
+        author: author.clone(),
+        changes: changes.clone(),
+        outcome: Outcome::Pending,
+    });
+    live.status = Some(format!(
+        "{author} proposes: {} — Enter accepts, Esc rejects",
+        changes.join(" · ")
+    ));
+    eprintln!("[live] {}", live.status.as_deref().unwrap_or_default());
+    live.history_dirty = true;
+    live.thumbs_dirty = true;
+    live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
+    let warnings = ingested.warnings.clone();
+    live.proposal = Some(Proposal {
+        n,
+        author,
+        at,
+        batch,
+        shown: ingested.doc.to_manifest(),
+        changes: changes.clone(),
+        warnings: warnings.clone(),
+    });
+    Reply::status(
+        202,
+        json!({
+            "result": "proposed",
+            "proposal": n,
+            "changes": changes,
+            "warnings": warnings,
+            "review": "the person sees this on the canvas; poll GET /proposals until it is accepted or rejected",
+        }),
+    )
+}
+
+/// The person's answer to the proposal on the canvas: put the scene back
+/// to the document, then commit the batch for real — or not.
+fn decide(live: &mut Live, applier: &mut OpsApplier<'_, '_>, accept: bool) {
+    let Some(proposal) = live.proposal.take() else {
+        return;
+    };
+    // Back to the document first: a commit moves the canvas by its own
+    // delta, and the proposal's ops are already on it.
+    let back = live::diff_manifests(&proposal.shown, &live.view.doc().to_manifest());
+    applier.apply_ops(&for_scene(&back, live.world.dir()));
+    live.thumbs_dirty = true;
+    live.history_dirty = true;
+    let what = proposal.changes.join(" · ");
+    let outcome = if accept {
+        match live.world.submit_at(
+            proposal.at.as_deref(),
+            &proposal.batch,
+            &proposal.author,
+            None,
+        ) {
+            Ok(done) => {
+                follow(live, applier, &done);
+                live.status = Some(status_line(&done, &what));
+                eprintln!(
+                    "[live] accepted · {}",
+                    live.status.as_deref().unwrap_or_default()
+                );
+                Outcome::Accepted {
+                    revision: done.revision,
+                }
+            }
+            Err(refused) => {
+                let why = refused.errors.join("; ");
+                eprintln!("[live] refused: {why}");
+                live.status = Some(format!("refused: {why}"));
+                Outcome::Rejected { why }
+            }
+        }
+    } else {
+        live.status = Some(format!("rejected {}'s proposal: {what}", proposal.author));
+        eprintln!("[live] {}", live.status.as_deref().unwrap_or_default());
+        Outcome::Rejected {
+            why: "rejected by the person".into(),
+        }
+    };
+    if let Some(record) = live.proposals.iter_mut().find(|r| r.n == proposal.n) {
+        record.outcome = outcome;
+    }
+}
+
+/// Whether `id` hangs under any of `ids` in the document — a delete of the
+/// ancestor takes it, so naming it too would no longer apply.
+fn has_ancestor_in(doc: &openworldformat::WorldDoc, id: u64, ids: &HashSet<u64>) -> bool {
+    let mut current = doc.get(id).and_then(|e| e.parent);
+    let mut budget = 4096;
+    while let Some(parent) = current {
+        if ids.contains(&parent.0) {
+            return true;
+        }
+        budget -= 1;
+        if budget == 0 {
+            return false;
+        }
+        current = doc.get(parent.0).and_then(|e| e.parent);
+    }
+    false
+}
+
+/// A name nobody holds: `base`, else `base-2`, `base-3`, …
+fn free_name(base: &str, taken: impl Fn(&str) -> bool) -> String {
+    if !taken(base) {
+        return base.to_string();
+    }
+    (2..)
+        .map(|n| format!("{base}-{n}"))
+        .find(|name| !taken(name))
+        .unwrap_or_else(|| base.to_string())
+}
+
+/// The batch that gathers siblings under a new empty at their centroid:
+/// the spawn, then each member re-hung with the position that keeps it
+/// where it stands. Members under different parents are refused — a
+/// group is a thing in one frame.
+fn group_ops(
+    doc: &openworldformat::WorldDoc,
+    members: &[Named],
+) -> Result<(Value, String), String> {
+    let mut parent: Option<Option<u64>> = None;
+    let mut entities = Vec::with_capacity(members.len());
+    for member in members {
+        let Some(entity) = doc.get(member.id) else {
+            return Err(format!("{} is not in the world on screen", member.name));
+        };
+        let under = entity.parent.map(|p| p.0);
+        match parent {
+            None => parent = Some(under),
+            Some(seen) if seen != under => {
+                return Err("group siblings: the selection hangs under different parents".into());
+            }
+            _ => {}
+        }
+        entities.push(entity);
+    }
+    let parent = parent.flatten();
+    let count = entities.len() as f32;
+    let mut centroid = [0.0f32; 3];
+    for entity in &entities {
+        for (axis, value) in centroid.iter_mut().zip(entity.transform.position) {
+            *axis += value / count;
+        }
+    }
+    let round = |v: [f32; 3]| v.map(|x| (x * 1000.0).round() / 1000.0);
+    let centroid = round(centroid);
+    let name = free_name("group", |n| doc.get_by_name(n).is_some());
+    let mut ops = vec![json!({"SpawnEntity": {"entity": {
+        "name": name, "parent": parent, "transform": {"position": centroid}}}})];
+    for entity in &entities {
+        let mut position = entity.transform.position;
+        for (axis, origin) in position.iter_mut().zip(centroid) {
+            *axis -= origin;
+        }
+        ops.push(json!({"ModifyEntity": {"id": entity.id.0, "patch": {
+            "parent": name, "transform": {"position": round(position)}}}}));
+    }
+    Ok((Value::Array(ops), name))
 }
 
 /// Move the canvas to `tip` (`None`: the base) — the one seek path, used by
@@ -271,6 +623,9 @@ fn seek(
     applier: &mut OpsApplier<'_, '_>,
     tip: Option<&str>,
 ) -> Result<Vec<String>, String> {
+    if live.proposal.is_some() {
+        return Err("an agent's proposal is on the canvas: accept or reject it first".into());
+    }
     let delta = live.view.goto(tip).map_err(|e| e.to_string())?;
     applier.apply_ops(&for_scene(&delta.ops, live.world.dir()));
     live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
@@ -343,19 +698,31 @@ fn person_edit(
 ) {
     live.history_dirty = true;
     live.thumbs_dirty = true;
-    let restore = match &intent {
-        PersonIntent::Transform { id, .. } => Some(*id),
-        _ => None,
+    // What the gesture or the panel moved ahead of the document, to put
+    // back from it on a refusal.
+    let restore: Vec<u64> = match &intent {
+        PersonIntent::Transform(moves) => moves.iter().map(|m| m.id).collect(),
+        PersonIntent::Patch { id, .. } => vec![*id],
+        _ => Vec::new(),
     };
     let refuse = |live: &mut Live, applier: &mut OpsApplier<'_, '_>, why: String| {
-        if let Some(entity) = restore.and_then(|id| live.view.doc().get(id)) {
-            applier.apply_ops(&[wt::EditOp::ModifyEntity {
+        let ops: Vec<wt::EditOp> = restore
+            .iter()
+            .filter_map(|id| live.view.doc().get(*id))
+            .map(|entity| wt::EditOp::ModifyEntity {
                 id: entity.id,
                 patch: wt::EntityPatch {
+                    name: Some(entity.name.clone()),
                     transform: Some(entity.transform.clone()),
+                    parent: Some(entity.parent),
+                    material: Some(entity.material.clone()),
+                    light: Some(entity.light.clone()),
                     ..Default::default()
                 },
-            }]);
+            })
+            .collect();
+        if !ops.is_empty() {
+            applier.apply_ops(&for_scene(&ops, live.world.dir()));
         }
         eprintln!("[live] refused: {why}");
         live.status = Some(format!("refused: {why}"));
@@ -365,6 +732,13 @@ fn person_edit(
             live,
             applier,
             "a replay is running; edits wait for it".into(),
+        );
+    }
+    if live.proposal.is_some() {
+        return refuse(
+            live,
+            applier,
+            "an agent's proposal is on the canvas: accept or reject it first (Enter / Esc)".into(),
         );
     }
     let at = live.view.tip().map(str::to_string);
@@ -384,63 +758,139 @@ fn person_edit(
             .submit_at(at.as_deref(), &batch, &author, None)
             .map_err(|r| r.errors.join("; "))
     };
+    // After a spawn, select what was made: this one first, the rest after.
     let mut select_name = None;
     let (outcome, what) = match intent {
-        PersonIntent::Transform {
+        PersonIntent::Transform(moves) => {
+            let doc = live.view.doc();
+            let mut ops = Vec::with_capacity(moves.len());
+            let mut verbs: Vec<String> = Vec::new();
+            let mut names = Vec::new();
+            for moved in &moves {
+                let Some(current) = doc.get(moved.id).map(|e| e.transform.clone()) else {
+                    return refuse(
+                        live,
+                        applier,
+                        format!("{} is not in the world on screen", moved.name),
+                    );
+                };
+                let patch =
+                    gesture_patch(&current, moved.position, moved.yaw_degrees, moved.scale_by);
+                if patch.is_empty() {
+                    continue;
+                }
+                let verb = gesture_verbs(&patch);
+                if !verbs.contains(&verb) {
+                    verbs.push(verb);
+                }
+                names.push(moved.name.clone());
+                ops.push(json!({"ModifyEntity": {"id": moved.id, "patch": {"transform": patch}}}));
+            }
+            if ops.is_empty() {
+                // A drag that ended where it began.
+                return;
+            }
+            let what = format!("{} {}", verbs.join(", "), names.join(", "));
+            (submit(live, Value::Array(ops), &what), what)
+        }
+        PersonIntent::Delete(targets) => {
+            // Deleting a parent takes its children: one named too would no
+            // longer apply by the time its turn came.
+            let doc = live.view.doc();
+            let ids: HashSet<u64> = targets.iter().map(|t| t.id).collect();
+            let roots: Vec<&Named> = targets
+                .iter()
+                .filter(|t| !has_ancestor_in(doc, t.id, &ids))
+                .collect();
+            let what = format!(
+                "delete {}",
+                roots
+                    .iter()
+                    .map(|t| t.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+            let ops: Vec<Value> = roots
+                .iter()
+                .map(|t| json!({"DeleteEntity": {"id": t.id}}))
+                .collect();
+            (submit(live, Value::Array(ops), &what), what)
+        }
+        PersonIntent::Duplicate(ids) => {
+            let doc = live.view.doc();
+            let mut ops = Vec::with_capacity(ids.len());
+            let mut names = Vec::new();
+            let mut minted: Vec<String> = Vec::new();
+            for id in ids {
+                let Some(original) = doc.get(id).cloned() else {
+                    return refuse(
+                        live,
+                        applier,
+                        "that entity is not in the world on screen".into(),
+                    );
+                };
+                let name = copy_name(&original.name.0, |n| {
+                    doc.get_by_name(n).is_some() || minted.iter().any(|m| m == n)
+                });
+                let mut entity = serde_json::to_value(&original).unwrap_or_default();
+                if let Some(object) = entity.as_object_mut() {
+                    object.remove("id");
+                    object.insert("name".into(), json!(name));
+                }
+                let mut position = original.transform.position;
+                position[0] += 1.0;
+                entity["transform"]["position"] = json!(position);
+                names.push(original.name.0.clone());
+                if select_name.is_none() {
+                    select_name = Some(name.clone());
+                }
+                minted.push(name);
+                ops.push(json!({"SpawnEntity": {"entity": entity}}));
+            }
+            let what = format!("duplicate {}", names.join(", "));
+            (submit(live, Value::Array(ops), &what), what)
+        }
+        PersonIntent::Group(members) => match group_ops(live.view.doc(), &members) {
+            Ok((ops, group)) => {
+                let what = format!(
+                    "group {} as {group}",
+                    members
+                        .iter()
+                        .map(|m| m.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                select_name = Some(group);
+                (submit(live, ops, &what), what)
+            }
+            Err(why) => return refuse(live, applier, why),
+        },
+        PersonIntent::Patch {
             id,
             name,
-            position,
-            yaw_degrees,
-            scale_by,
+            patch,
+            what,
         } => {
-            let Some(current) = live.view.doc().get(id).map(|e| e.transform.clone()) else {
+            if live.view.doc().get(id).is_none() {
                 return refuse(
                     live,
                     applier,
                     format!("{name} is not in the world on screen"),
                 );
-            };
-            let patch = gesture_patch(&current, position, yaw_degrees, scale_by);
-            if patch.is_empty() {
-                // A drag that ended where it began.
-                return;
             }
-            let what = format!("{} {name}", gesture_verbs(&patch));
-            let ops = json!([{"ModifyEntity": {"id": id, "patch": {"transform": patch}}}]);
-            (submit(live, ops, &what), what)
-        }
-        PersonIntent::Delete { id, name } => {
-            let what = format!("delete {name}");
             (
-                submit(live, json!([{"DeleteEntity": {"id": id}}]), &what),
-                what,
-            )
-        }
-        PersonIntent::Duplicate { id } => {
-            let Some(original) = live.view.doc().get(id).cloned() else {
-                return refuse(
+                submit(
                     live,
-                    applier,
-                    "that entity is not in the world on screen".into(),
-                );
-            };
-            let doc = live.view.doc();
-            let name = copy_name(&original.name.0, |n| doc.get_by_name(n).is_some());
-            let mut entity = serde_json::to_value(&original).unwrap_or_default();
-            if let Some(object) = entity.as_object_mut() {
-                object.remove("id");
-                object.insert("name".into(), json!(name));
-            }
-            let mut position = original.transform.position;
-            position[0] += 1.0;
-            entity["transform"]["position"] = json!(position);
-            let what = format!("duplicate {}", original.name.0);
-            select_name = Some(name);
-            (
-                submit(live, json!([{"SpawnEntity": {"entity": entity}}]), &what),
+                    json!([{"ModifyEntity": {"id": id, "patch": patch}}]),
+                    &what,
+                ),
                 what,
             )
         }
+        PersonIntent::World { patch, what } => (
+            submit(live, json!([{"ModifyWorld": {"patch": patch}}]), &what),
+            what,
+        ),
         PersonIntent::Undo => (
             live.world
                 .undo_at(at.as_deref(), &author)
@@ -458,10 +908,18 @@ fn person_edit(
             live.status = Some(status_line(&done, &what));
             eprintln!("[live] {}", live.status.as_deref().unwrap_or_default());
             if let (Some(name), Some(selection)) = (select_name, selection) {
-                selection.entity = done
+                let primary = done
                     .spawned
                     .get(&name)
                     .and_then(|id| applier.entity_of(*id));
+                let others: Vec<Entity> = done
+                    .spawned
+                    .iter()
+                    .filter(|(n, _)| **n != name)
+                    .filter_map(|(_, id)| applier.entity_of(*id))
+                    .collect();
+                selection.set(primary);
+                selection.others = others;
             }
         }
         Err(why) => refuse(live, applier, why),
@@ -610,6 +1068,10 @@ const ENDPOINTS: &[(&str, &str)] = &[
         "the history: id, parent, revision, author, message, changes — and which entry is the head",
     ),
     (
+        "GET /proposals",
+        "with review on, a batch waits on the canvas for the person (POST /ops replies 202 \"proposed\"): each proposal's status — pending, accepted with its revision, or rejected with why",
+    ),
+    (
         "GET /verify",
         "check that the head's fold equals manifest.json and every asset its hash",
     ),
@@ -657,7 +1119,9 @@ fn live_world(
     mut seeks: MessageReader<SeekTo>,
     mut intents: MessageReader<PersonIntent>,
     mut shot_ops: MessageReader<super::shots::ShotOps>,
+    mut decisions: MessageReader<ReviewDecision>,
     mut selection: Option<ResMut<InspectorSelection>>,
+    gesture: Option<Res<super::canvas_edit::CanvasGesture>>,
 ) {
     let live = &mut *live;
     if !live.started {
@@ -701,6 +1165,16 @@ fn live_world(
                 Err(e) => Reply::status(404, json!({"error": e})),
             },
             ("GET", "/log") => Reply::ok(history(&live.world, live.view.history())),
+            ("GET", "/proposals") => Reply::ok(json!({
+                "review": live.review,
+                "pending": live.proposal.as_ref().map(|p| p.n),
+                "proposals": live.proposals.iter().map(ProposalRecord::to_json).collect::<Vec<_>>(),
+            })),
+            ("POST", "/undo" | "/replay") if live.proposal.is_some() => Reply::status(
+                409,
+                json!({"result": "busy", "pending": live.proposal.as_ref().map(|p| p.n),
+                       "why": "an agent's proposal is on the canvas; it decides first"}),
+            ),
             ("GET", "/verify") => {
                 let problems = live.world.verify();
                 Reply::ok(json!({"ok": problems.is_empty(), "problems": problems}))
@@ -709,6 +1183,14 @@ fn live_world(
                 Err(e) => Reply::status(
                     400,
                     json!({"result": "rejected", "errors": [format!("not JSON: {e}")]}),
+                ),
+                // With review on, the batch shows on the canvas first and
+                // the person decides; the authority sees it on accept.
+                Ok(batch) if live.review || live.proposal.is_some() => propose(
+                    live,
+                    &mut applier,
+                    batch,
+                    param(&call.query, "author").unwrap_or("agent".into()),
                 ),
                 Ok(batch) => match live.world.submit_at(
                     param(&call.query, "at").as_deref(),
@@ -881,6 +1363,12 @@ fn live_world(
         let _ = call.reply.send(reply);
     }
 
+    // The person's word on a proposal, before their own edits.
+    let decided: Vec<bool> = decisions.read().map(|d| d.0).collect();
+    for accept in decided {
+        decide(live, &mut applier, accept);
+    }
+
     // A person's edits, committed at the entry on screen.
     let asked: Vec<PersonIntent> = intents.read().cloned().collect();
     for intent in asked {
@@ -898,6 +1386,13 @@ fn live_world(
         };
         if live.replay.is_some() {
             refuse(live, "a replay is running; edits wait for it");
+            continue;
+        }
+        if live.proposal.is_some() {
+            refuse(
+                live,
+                "an agent's proposal is on the canvas: accept or reject it first (Enter / Esc)",
+            );
             continue;
         }
         let at = live.view.tip().map(str::to_string);
@@ -919,10 +1414,21 @@ fn live_world(
         }
     }
 
-    // The rail's requests, through the same seek the API uses.
+    // The rail's requests, through the same seek the API uses. A drag in
+    // progress holds an entity where the pointer has it, not where the
+    // document says: it is released before the canvas moves through
+    // history, so the gesture can't land on the wrong entry.
     let asked: Vec<Option<String>> = seeks.read().map(|s| s.0.clone()).collect();
     for tip in asked {
+        if gesture.as_ref().is_some_and(|g| g.dragging()) {
+            live.status = Some("refused: release the drag before moving through history".into());
+            live.history_dirty = true;
+            eprintln!("[live] can't seek: a drag is in progress");
+            continue;
+        }
         if let Err(e) = seek(live, &mut applier, tip.as_deref()) {
+            live.status = Some(format!("refused: {e}"));
+            live.history_dirty = true;
             eprintln!("[live] can't seek: {e}");
         }
     }

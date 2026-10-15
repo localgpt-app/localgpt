@@ -1,25 +1,153 @@
-//! Detail panel — shows all components of the selected entity.
+//! Detail panel — the selected entity's components; in a live world, the
+//! place to change them.
+//!
+//! Every widget edit becomes one `ModifyEntity` merge patch through the
+//! authority, like a canvas gesture (`gen3d::canvas_edit`): while a slider
+//! is held or a field is being typed into, the Bevy component is changed
+//! directly so the person sees the value; when the pointer is up and
+//! nothing has keyboard focus, what moved goes out as one intent holding
+//! only those fields, and the document has the last word — a refusal puts
+//! the entity back. The values shown are the document's, not the scene's,
+//! so an angle keeps the form the author gave it. Without a live world the
+//! panel reads the scene and does not write.
+
+use std::collections::HashSet;
 
 use bevy::prelude::*;
 use bevy_egui::egui;
+use serde_json::{Map, Value, json};
 
 use crate::gen3d::audio::AudioEngine;
 use crate::gen3d::behaviors::EntityBehaviors;
-use crate::gen3d::commands::BehaviorDef;
+use crate::gen3d::canvas_edit::PersonIntent;
+use crate::gen3d::commands::BehaviorDef as GenBehaviorDef;
 use crate::gen3d::registry::*;
+use localgpt_world_types as wt;
 
 use super::{InspectorQueries, InspectorSelection};
 
-/// Get the variant name of a BehaviorDef.
-fn behavior_type_name(def: &BehaviorDef) -> &'static str {
-    match def {
-        BehaviorDef::Orbit { .. } => "orbit",
-        BehaviorDef::Spin { .. } => "spin",
-        BehaviorDef::Bob { .. } => "bob",
-        BehaviorDef::LookAt { .. } => "look_at",
-        BehaviorDef::Pulse { .. } => "pulse",
-        BehaviorDef::PathFollow { .. } => "path_follow",
-        BehaviorDef::Bounce { .. } => "bounce",
+const REFUSED: egui::Color32 = egui::Color32::from_rgb(235, 120, 100);
+const WARN: egui::Color32 = egui::Color32::from_rgb(230, 180, 90);
+
+/// Where the panel's edits go, in a live world.
+pub(crate) struct EditSurface<'a> {
+    /// The document the canvas shows: the panel edits its values.
+    pub doc: &'a openworldformat::WorldDoc,
+    /// Intents for the canvas to commit.
+    pub intents: &'a mut Vec<PersonIntent>,
+    /// The field gesture in progress.
+    pub edit: &'a mut PanelEdit,
+    /// The newest commit or refusal, for the panel to show.
+    pub status: Option<&'a str>,
+}
+
+/// The field gesture in progress: changes to one entity merged into one
+/// patch, sent when the pointer is up and nothing is being typed.
+#[derive(Resource, Default)]
+pub struct PanelEdit {
+    pending: Option<Pending>,
+    /// The name being typed, until it is committed or abandoned.
+    name_draft: Option<(u64, String)>,
+    /// Why the last name couldn't be taken.
+    name_problem: Option<String>,
+}
+
+struct Pending {
+    id: u64,
+    name: String,
+    patch: Map<String, Value>,
+    verbs: Vec<&'static str>,
+}
+
+impl PanelEdit {
+    /// Merge one field into the pending patch for `id` — flushing a patch
+    /// for another entity first. `sub` names a key inside an object-valued
+    /// field (`transform.position`); the authority merges those.
+    #[allow(clippy::too_many_arguments)]
+    fn change(
+        &mut self,
+        out: &mut Vec<PersonIntent>,
+        id: u64,
+        name: &str,
+        top: &str,
+        sub: Option<&str>,
+        value: Value,
+        verb: &'static str,
+    ) {
+        if self.pending.as_ref().is_some_and(|p| p.id != id) {
+            self.flush(out);
+        }
+        let pending = self.pending.get_or_insert_with(|| Pending {
+            id,
+            name: name.to_string(),
+            patch: Map::new(),
+            verbs: Vec::new(),
+        });
+        match sub {
+            Some(sub) => {
+                let slot = pending
+                    .patch
+                    .entry(top.to_string())
+                    .or_insert_with(|| json!({}));
+                if let Some(object) = slot.as_object_mut() {
+                    object.insert(sub.to_string(), value);
+                }
+            }
+            None => {
+                pending.patch.insert(top.to_string(), value);
+            }
+        }
+        if !pending.verbs.contains(&verb) {
+            pending.verbs.push(verb);
+        }
+    }
+
+    /// Send what is pending as one intent.
+    pub fn flush(&mut self, out: &mut Vec<PersonIntent>) {
+        if let Some(p) = self.pending.take() {
+            out.push(PersonIntent::Patch {
+                id: p.id,
+                what: format!("{} {}", p.verbs.join(", "), p.name),
+                name: p.name,
+                patch: Value::Object(p.patch),
+            });
+        }
+    }
+
+    /// Flush when the gesture is over — the pointer is up and no field has
+    /// the keyboard — or when the pending entity is no longer the one shown.
+    fn settle(&mut self, ctx: &egui::Context, out: &mut Vec<PersonIntent>, shown: Option<u64>) {
+        let Some(p) = &self.pending else {
+            return;
+        };
+        let held = ctx.input(|i| i.pointer.any_down()) || ctx.egui_wants_keyboard_input();
+        if Some(p.id) != shown || !held {
+            self.flush(out);
+        }
+    }
+}
+
+/// What a section needs to draw, and to edit when live.
+struct Edit<'a, 'b> {
+    entity: Entity,
+    id: Option<u64>,
+    name: &'a str,
+    /// The document's entity, when live.
+    doc: Option<&'a wt::WorldEntity>,
+    live: Option<&'a mut EditSurface<'b>>,
+}
+
+impl Edit<'_, '_> {
+    fn editable(&self) -> bool {
+        self.live.is_some() && self.doc.is_some()
+    }
+
+    /// Record a field change, when live.
+    fn change(&mut self, top: &str, sub: Option<&str>, value: Value, verb: &'static str) {
+        if let (Some(live), Some(id)) = (self.live.as_mut(), self.id) {
+            live.edit
+                .change(live.intents, id, self.name, top, sub, value, verb);
+        }
     }
 }
 
@@ -31,11 +159,12 @@ fn behavior_type_name(def: &BehaviorDef) -> &'static str {
 // bevy_egui only exposes a `Context` (not a root `Ui`), so the context-level
 // `show` is still the correct entry point here.
 #[allow(deprecated)]
-pub fn draw_detail(
+pub(crate) fn draw_detail(
     ctx: &egui::Context,
-    selection: &InspectorSelection,
+    selection: &mut InspectorSelection,
     registry: &NameRegistry,
-    q: &InspectorQueries,
+    q: &mut InspectorQueries,
+    mut live: Option<EditSurface<'_>>,
 ) {
     egui::Panel::right("inspector_detail")
         .default_size(320.0)
@@ -45,41 +174,105 @@ pub fn draw_detail(
                 ui.heading("Inspector");
                 ui.separator();
                 ui.weak("Select an entity to inspect");
+                if let Some(live) = live.as_mut() {
+                    live.edit.flush(live.intents);
+                    show_status(ui, live.status);
+                }
                 return;
             };
 
             // Verify entity still exists in registry
-            let Some(name) = registry.get_name(entity) else {
+            let Some(name) = registry.get_name(entity).map(str::to_string) else {
                 ui.heading("Inspector");
                 ui.separator();
                 ui.weak("Entity no longer exists");
+                if let Some(live) = live.as_mut() {
+                    live.edit.flush(live.intents);
+                }
                 return;
             };
+            let id = q.gen_entities.get(entity).ok().map(|g| g.world_id.0);
+            // The document's entity, which is what the panel edits.
+            let doc_entity = match (&live, id) {
+                (Some(live), Some(id)) => live.doc.get(id).cloned(),
+                _ => None,
+            };
 
-            ui.heading(name);
+            ui.heading(&name);
+            if !selection.others.is_empty() {
+                ui.weak(format!(
+                    "+{} more selected — fields here change {name}; gestures move all",
+                    selection.others.len()
+                ));
+            }
+            if let Some(live) = &live {
+                show_status(ui, live.status);
+            }
             ui.separator();
 
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    draw_identity_section(ui, entity, name, registry, &q.gen_entities);
-                    draw_transform_section(ui, entity, &q.transforms, &q.visibility_q);
-                    draw_shape_section(ui, entity, &q.shapes);
-                    draw_material_section(ui, entity, &q.material_handles, &q.materials);
-                    draw_light_section(ui, entity, &q.point_lights, &q.dir_lights, &q.spot_lights);
-                    draw_behaviors_section(ui, entity, &q.behaviors_q);
-                    draw_audio_section(ui, name, q.audio_engine.as_deref());
-                    draw_mesh_section(ui, entity, &q.gltf_sources);
-                    draw_hierarchy_section(
-                        ui,
+                    let mut edit = Edit {
                         entity,
-                        registry,
-                        &q.children_q,
-                        &q.parent_q,
-                        &q.gen_entities,
-                    );
+                        id,
+                        name: &name,
+                        doc: doc_entity.as_ref(),
+                        live: live.as_mut(),
+                    };
+                    draw_identity_section(ui, &mut edit, registry, q);
+                    draw_transform_section(ui, &mut edit, q);
+                    draw_shape_section(ui, entity, &q.shapes);
+                    draw_material_section(ui, &mut edit, q);
+                    draw_light_section(ui, &mut edit, q);
+                    draw_behaviors_section(ui, &mut edit, &q.behaviors_q);
+                    draw_audio_section(ui, &name, q.audio_engine.as_deref());
+                    draw_mesh_section(ui, entity, &q.gltf_sources);
+                    draw_hierarchy_section(ui, &mut edit, registry, q, selection);
                 });
+            if let Some(live) = live.as_mut() {
+                live.edit.settle(ctx, live.intents, id);
+            }
         });
+}
+
+fn show_status(ui: &mut egui::Ui, status: Option<&str>) {
+    if let Some(status) = status {
+        if status.starts_with("refused") {
+            ui.colored_label(REFUSED, status);
+        } else {
+            ui.weak(status);
+        }
+    }
+}
+
+/// Three drag values in a row; true when one changed.
+fn triple(ui: &mut egui::Ui, v: &mut [f32; 3], speed: f64, enabled: bool) -> bool {
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        for (i, label) in ["x", "y", "z"].iter().enumerate() {
+            ui.label(*label);
+            changed |= ui
+                .add_enabled(
+                    enabled,
+                    egui::DragValue::new(&mut v[i]).speed(speed).max_decimals(3),
+                )
+                .changed();
+        }
+    });
+    changed
+}
+
+fn round3(v: [f32; 3]) -> [f32; 3] {
+    v.map(|x| (x * 1000.0).round() / 1000.0)
+}
+
+fn round2(v: [f32; 3]) -> [f32; 3] {
+    v.map(|x| (x * 100.0).round() / 100.0)
+}
+
+fn round3_4(v: [f32; 4]) -> [f32; 4] {
+    v.map(|x| (x * 1000.0).round() / 1000.0)
 }
 
 // ---------------------------------------------------------------------------
@@ -88,10 +281,9 @@ pub fn draw_detail(
 
 fn draw_identity_section(
     ui: &mut egui::Ui,
-    entity: Entity,
-    name: &str,
+    edit: &mut Edit,
     registry: &NameRegistry,
-    gen_entities: &Query<&GenEntity>,
+    q: &InspectorQueries,
 ) {
     egui::CollapsingHeader::new("Identity")
         .default_open(true)
@@ -101,10 +293,52 @@ fn draw_identity_section(
                 .spacing([8.0, 4.0])
                 .show(ui, |ui| {
                     ui.label("Name");
-                    ui.label(name);
-                    ui.end_row();
+                    match (edit.live.as_mut(), edit.doc, edit.id) {
+                        (Some(live), Some(_), Some(id)) => {
+                            let mut draft = match &live.edit.name_draft {
+                                Some((d, s)) if *d == id => s.clone(),
+                                _ => edit.name.to_string(),
+                            };
+                            let response = ui.text_edit_singleline(&mut draft);
+                            if response.lost_focus() {
+                                let new = draft.trim().to_string();
+                                if new.is_empty() {
+                                    live.edit.name_problem = Some("a name can't be empty".into());
+                                    draft = edit.name.to_string();
+                                } else if new != edit.name {
+                                    if live.doc.get_by_name(&new).is_some() {
+                                        live.edit.name_problem = Some(format!("{new} is taken"));
+                                    } else {
+                                        live.edit.name_problem = None;
+                                        live.edit.change(
+                                            live.intents,
+                                            id,
+                                            edit.name,
+                                            "name",
+                                            None,
+                                            json!(new),
+                                            "rename",
+                                        );
+                                    }
+                                } else {
+                                    live.edit.name_problem = None;
+                                }
+                            }
+                            live.edit.name_draft = Some((id, draft));
+                            ui.end_row();
+                            if let Some(problem) = live.edit.name_problem.clone() {
+                                ui.label("");
+                                ui.colored_label(REFUSED, problem);
+                                ui.end_row();
+                            }
+                        }
+                        _ => {
+                            ui.label(edit.name);
+                            ui.end_row();
+                        }
+                    }
 
-                    if let Ok(gen_e) = gen_entities.get(entity) {
+                    if let Ok(gen_e) = q.gen_entities.get(edit.entity) {
                         ui.label("Type");
                         ui.label(gen_e.entity_type.as_str());
                         ui.end_row();
@@ -114,7 +348,7 @@ fn draw_identity_section(
                         ui.end_row();
                     }
 
-                    if let Some(id) = registry.get_id(entity) {
+                    if let Some(id) = registry.get_id(edit.entity) {
                         ui.label("Entity ID");
                         ui.label(format!("{}", id.0));
                         ui.end_row();
@@ -127,14 +361,31 @@ fn draw_identity_section(
 // Section: Transform
 // ---------------------------------------------------------------------------
 
-fn draw_transform_section(
-    ui: &mut egui::Ui,
-    entity: Entity,
-    transforms: &Query<&Transform>,
-    visibility_q: &Query<&Visibility>,
-) {
-    let Ok(transform) = transforms.get(entity) else {
+fn draw_transform_section(ui: &mut egui::Ui, edit: &mut Edit, q: &mut InspectorQueries) {
+    let Ok(current) = q.transforms.get(edit.entity).copied() else {
         return;
+    };
+    let editable = edit.editable();
+    // The document's values when live — the angles keep their form — and
+    // the scene's otherwise.
+    let (mut position, mut rotation, mut scale, mut visible) = match edit.doc {
+        Some(doc) => (
+            doc.transform.position,
+            doc.transform.rotation_degrees,
+            doc.transform.scale,
+            doc.transform.visible,
+        ),
+        None => {
+            let (x, y, z) = current.rotation.to_euler(EulerRot::XYZ);
+            (
+                current.translation.to_array(),
+                [x.to_degrees(), y.to_degrees(), z.to_degrees()],
+                current.scale.to_array(),
+                q.visibility_q
+                    .get(edit.entity)
+                    .map_or(true, |v| *v != Visibility::Hidden),
+            )
+        }
     };
 
     egui::CollapsingHeader::new("Transform")
@@ -144,31 +395,69 @@ fn draw_transform_section(
                 .num_columns(2)
                 .spacing([8.0, 4.0])
                 .show(ui, |ui| {
-                    let pos = transform.translation;
                     ui.label("Position");
-                    ui.label(format!("[{:.3}, {:.3}, {:.3}]", pos.x, pos.y, pos.z));
-                    ui.end_row();
-
-                    let (x, y, z) = transform.rotation.to_euler(EulerRot::XYZ);
-                    ui.label("Rotation");
-                    ui.label(format!(
-                        "[{:.1}, {:.1}, {:.1}]",
-                        x.to_degrees(),
-                        y.to_degrees(),
-                        z.to_degrees()
-                    ));
-                    ui.end_row();
-
-                    let scale = transform.scale;
-                    ui.label("Scale");
-                    ui.label(format!("[{:.3}, {:.3}, {:.3}]", scale.x, scale.y, scale.z));
-                    ui.end_row();
-
-                    if let Ok(vis) = visibility_q.get(entity) {
-                        ui.label("Visible");
-                        ui.label(format!("{:?}", vis));
-                        ui.end_row();
+                    if triple(ui, &mut position, 0.01, editable) {
+                        if let Ok(mut t) = q.transforms.get_mut(edit.entity) {
+                            t.translation = Vec3::from_array(position);
+                        }
+                        edit.change(
+                            "transform",
+                            Some("position"),
+                            json!(round3(position)),
+                            "move",
+                        );
                     }
+                    ui.end_row();
+
+                    ui.label("Rotation \u{00B0}");
+                    if triple(ui, &mut rotation, 0.5, editable) {
+                        if let Ok(mut t) = q.transforms.get_mut(edit.entity) {
+                            t.rotation = Quat::from_euler(
+                                EulerRot::XYZ,
+                                rotation[0].to_radians(),
+                                rotation[1].to_radians(),
+                                rotation[2].to_radians(),
+                            );
+                        }
+                        edit.change(
+                            "transform",
+                            Some("rotation_degrees"),
+                            json!(round2(rotation)),
+                            "turn",
+                        );
+                    }
+                    ui.end_row();
+
+                    ui.label("Scale");
+                    if triple(ui, &mut scale, 0.01, editable) {
+                        let scale = scale.map(|s| s.max(0.001));
+                        if let Ok(mut t) = q.transforms.get_mut(edit.entity) {
+                            t.scale = Vec3::from_array(scale);
+                        }
+                        edit.change("transform", Some("scale"), json!(round3(scale)), "scale");
+                    }
+                    ui.end_row();
+
+                    ui.label("Visible");
+                    if ui
+                        .add_enabled(editable, egui::Checkbox::without_text(&mut visible))
+                        .changed()
+                    {
+                        if let Ok(mut v) = q.visibility_q.get_mut(edit.entity) {
+                            *v = if visible {
+                                Visibility::Inherited
+                            } else {
+                                Visibility::Hidden
+                            };
+                        }
+                        edit.change(
+                            "transform",
+                            Some("visible"),
+                            json!(visible),
+                            if visible { "show" } else { "hide" },
+                        );
+                    }
+                    ui.end_row();
                 });
         });
 }
@@ -200,18 +489,80 @@ fn draw_shape_section(ui: &mut egui::Ui, entity: Entity, shapes: &Query<&Paramet
 // Section: Material
 // ---------------------------------------------------------------------------
 
-fn draw_material_section(
-    ui: &mut egui::Ui,
-    entity: Entity,
-    material_handles: &Query<&MeshMaterial3d<StandardMaterial>>,
-    materials: &Assets<StandardMaterial>,
-) {
-    let Ok(mat_handle) = material_handles.get(entity) else {
-        return;
-    };
+/// The definition a scene material reads back as, for a panel with no
+/// document to show.
+fn material_of(material: &StandardMaterial) -> wt::MaterialDef {
+    let c = material.base_color.to_srgba();
+    let e = material.emissive;
+    wt::MaterialDef {
+        color: [c.red, c.green, c.blue, c.alpha],
+        metallic: material.metallic,
+        roughness: material.perceptual_roughness,
+        emissive: [e.red, e.green, e.blue, e.alpha],
+        alpha_mode: Some(match material.alpha_mode {
+            AlphaMode::Opaque => wt::AlphaModeDef::Opaque,
+            AlphaMode::Mask(cutoff) => wt::AlphaModeDef::Mask(cutoff),
+            AlphaMode::Add => wt::AlphaModeDef::Add,
+            AlphaMode::Multiply => wt::AlphaModeDef::Multiply,
+            _ => wt::AlphaModeDef::Blend,
+        }),
+        unlit: Some(material.unlit),
+        double_sided: Some(material.double_sided),
+        reflectance: Some(material.reflectance),
+        ..Default::default()
+    }
+}
 
-    let Some(material) = materials.get(&mat_handle.0) else {
-        return;
+fn alpha_mode_name(mode: Option<&wt::AlphaModeDef>) -> &'static str {
+    match mode {
+        None | Some(wt::AlphaModeDef::Opaque) => "Opaque",
+        Some(wt::AlphaModeDef::Mask(_)) => "Mask",
+        Some(wt::AlphaModeDef::Blend) => "Blend",
+        Some(wt::AlphaModeDef::Add) => "Add",
+        Some(wt::AlphaModeDef::Multiply) => "Multiply",
+    }
+}
+
+fn alpha_mode_of(name: &str) -> wt::AlphaModeDef {
+    match name {
+        "Mask" => wt::AlphaModeDef::Mask(0.5),
+        "Blend" => wt::AlphaModeDef::Blend,
+        "Add" => wt::AlphaModeDef::Add,
+        "Multiply" => wt::AlphaModeDef::Multiply,
+        _ => wt::AlphaModeDef::Opaque,
+    }
+}
+
+fn bevy_alpha_mode(def: &wt::AlphaModeDef) -> AlphaMode {
+    match def {
+        wt::AlphaModeDef::Opaque => AlphaMode::Opaque,
+        wt::AlphaModeDef::Mask(cutoff) => AlphaMode::Mask(*cutoff),
+        wt::AlphaModeDef::Blend => AlphaMode::Blend,
+        wt::AlphaModeDef::Add => AlphaMode::Add,
+        wt::AlphaModeDef::Multiply => AlphaMode::Multiply,
+    }
+}
+
+fn draw_material_section(ui: &mut egui::Ui, edit: &mut Edit, q: &mut InspectorQueries) {
+    let handle = q
+        .material_handles
+        .get(edit.entity)
+        .ok()
+        .map(|h| h.0.clone());
+    let editable = edit.editable();
+    let mut def = if editable {
+        match edit.doc.and_then(|d| d.material.clone()) {
+            Some(def) => def,
+            None => return,
+        }
+    } else {
+        let Some(handle) = &handle else {
+            return;
+        };
+        let Some(material) = q.materials.get(handle) else {
+            return;
+        };
+        material_of(material)
     };
 
     egui::CollapsingHeader::new("Material")
@@ -221,49 +572,194 @@ fn draw_material_section(
                 .num_columns(2)
                 .spacing([8.0, 4.0])
                 .show(ui, |ui| {
-                    let color = material.base_color;
-                    ui.label("Base Color");
-                    ui.horizontal(|ui| {
-                        let c = color.to_srgba();
-                        color_swatch(ui, c.red, c.green, c.blue, c.alpha);
-                        ui.label(format!(
-                            "[{:.2}, {:.2}, {:.2}, {:.2}]",
-                            c.red, c.green, c.blue, c.alpha
-                        ));
-                    });
+                    ui.label("Color");
+                    let mut rgba = def.color;
+                    let changed = ui
+                        .add_enabled_ui(editable, |ui| {
+                            ui.color_edit_button_rgba_unmultiplied(&mut rgba)
+                        })
+                        .inner
+                        .changed();
+                    if changed {
+                        if let Some(handle) = &handle
+                            && let Some(mut m) = q.materials.get_mut(handle)
+                        {
+                            m.base_color = Color::srgba(rgba[0], rgba[1], rgba[2], rgba[3]);
+                        }
+                        edit.change("material", Some("color"), json!(round3_4(rgba)), "recolor");
+                    }
                     ui.end_row();
 
                     ui.label("Metallic");
-                    ui.label(format!("{:.3}", material.metallic));
+                    if ui
+                        .add_enabled(editable, egui::Slider::new(&mut def.metallic, 0.0..=1.0))
+                        .changed()
+                    {
+                        if let Some(handle) = &handle
+                            && let Some(mut m) = q.materials.get_mut(handle)
+                        {
+                            m.metallic = def.metallic;
+                        }
+                        edit.change(
+                            "material",
+                            Some("metallic"),
+                            json!((def.metallic * 1000.0).round() / 1000.0),
+                            "reshade",
+                        );
+                    }
                     ui.end_row();
 
                     ui.label("Roughness");
-                    ui.label(format!("{:.3}", material.perceptual_roughness));
+                    if ui
+                        .add_enabled(editable, egui::Slider::new(&mut def.roughness, 0.0..=1.0))
+                        .changed()
+                    {
+                        if let Some(handle) = &handle
+                            && let Some(mut m) = q.materials.get_mut(handle)
+                        {
+                            m.perceptual_roughness = def.roughness;
+                        }
+                        edit.change(
+                            "material",
+                            Some("roughness"),
+                            json!((def.roughness * 1000.0).round() / 1000.0),
+                            "reshade",
+                        );
+                    }
                     ui.end_row();
 
                     ui.label("Reflectance");
-                    ui.label(format!("{:.3}", material.reflectance));
+                    let mut reflectance = def.reflectance.unwrap_or(0.5);
+                    if ui
+                        .add_enabled(editable, egui::Slider::new(&mut reflectance, 0.0..=1.0))
+                        .changed()
+                    {
+                        if let Some(handle) = &handle
+                            && let Some(mut m) = q.materials.get_mut(handle)
+                        {
+                            m.reflectance = reflectance;
+                        }
+                        edit.change(
+                            "material",
+                            Some("reflectance"),
+                            json!((reflectance * 1000.0).round() / 1000.0),
+                            "reshade",
+                        );
+                    }
                     ui.end_row();
 
-                    let e = material.emissive;
                     ui.label("Emissive");
+                    let mut e = [def.emissive[0], def.emissive[1], def.emissive[2]];
+                    let mut changed = false;
                     ui.horizontal(|ui| {
-                        color_swatch(ui, e.red, e.green, e.blue, 1.0);
-                        ui.label(format!("[{:.2}, {:.2}, {:.2}]", e.red, e.green, e.blue));
+                        color_swatch(ui, e[0].min(1.0), e[1].min(1.0), e[2].min(1.0), 1.0);
+                        for v in e.iter_mut() {
+                            changed |= ui
+                                .add_enabled(
+                                    editable,
+                                    egui::DragValue::new(v)
+                                        .speed(0.05)
+                                        .range(0.0..=100.0)
+                                        .max_decimals(2),
+                                )
+                                .changed();
+                        }
                     });
+                    if changed {
+                        let linear = LinearRgba::new(e[0], e[1], e[2], def.emissive[3]);
+                        // The selection glow sits on the material; the
+                        // material's own emissive is kept aside, so the
+                        // edit goes there and shows once deselected.
+                        if let Ok(mut kept) = q.original_emissives.get_mut(edit.entity) {
+                            kept.color = linear;
+                        } else if let Some(handle) = &handle
+                            && let Some(mut m) = q.materials.get_mut(handle)
+                        {
+                            m.emissive = linear;
+                        }
+                        edit.change(
+                            "material",
+                            Some("emissive"),
+                            json!(round3_4([e[0], e[1], e[2], def.emissive[3]])),
+                            "relight",
+                        );
+                    }
                     ui.end_row();
 
                     ui.label("Alpha Mode");
-                    ui.label(format!("{:?}", material.alpha_mode));
+                    let before = alpha_mode_name(def.alpha_mode.as_ref());
+                    let mut mode = before;
+                    ui.add_enabled_ui(editable, |ui| {
+                        egui::ComboBox::from_id_salt("alpha_mode")
+                            .selected_text(mode)
+                            .show_ui(ui, |ui| {
+                                for name in ["Opaque", "Blend", "Mask", "Add", "Multiply"] {
+                                    ui.selectable_value(&mut mode, name, name);
+                                }
+                            });
+                    });
+                    if mode != before {
+                        let new = alpha_mode_of(mode);
+                        if let Some(handle) = &handle
+                            && let Some(mut m) = q.materials.get_mut(handle)
+                        {
+                            m.alpha_mode = bevy_alpha_mode(&new);
+                        }
+                        edit.change(
+                            "material",
+                            Some("alpha_mode"),
+                            serde_json::to_value(new).unwrap_or(Value::Null),
+                            "reshade",
+                        );
+                    }
                     ui.end_row();
 
                     ui.label("Double Sided");
-                    ui.label(format!("{}", material.double_sided));
+                    let mut double_sided = def.double_sided.unwrap_or(false);
+                    if ui
+                        .add_enabled(editable, egui::Checkbox::without_text(&mut double_sided))
+                        .changed()
+                    {
+                        if let Some(handle) = &handle
+                            && let Some(mut m) = q.materials.get_mut(handle)
+                        {
+                            m.double_sided = double_sided;
+                        }
+                        edit.change(
+                            "material",
+                            Some("double_sided"),
+                            json!(double_sided),
+                            "reshade",
+                        );
+                    }
                     ui.end_row();
 
                     ui.label("Unlit");
-                    ui.label(format!("{}", material.unlit));
+                    let mut unlit = def.unlit.unwrap_or(false);
+                    if ui
+                        .add_enabled(editable, egui::Checkbox::without_text(&mut unlit))
+                        .changed()
+                    {
+                        if let Some(handle) = &handle
+                            && let Some(mut m) = q.materials.get_mut(handle)
+                        {
+                            m.unlit = unlit;
+                        }
+                        edit.change("material", Some("unlit"), json!(unlit), "reshade");
+                    }
                     ui.end_row();
+
+                    for (label, texture) in [
+                        ("Base texture", &def.base_color_texture),
+                        ("Metal/rough", &def.metallic_roughness_texture),
+                        ("Normal map", &def.normal_map_texture),
+                    ] {
+                        if let Some(path) = texture {
+                            ui.label(label);
+                            ui.monospace(path);
+                            ui.end_row();
+                        }
+                    }
                 });
         });
 }
@@ -284,121 +780,327 @@ fn color_swatch(ui: &mut egui::Ui, r: f32, g: f32, b: f32, a: f32) {
 // Section: Light
 // ---------------------------------------------------------------------------
 
-fn draw_light_section(
-    ui: &mut egui::Ui,
-    entity: Entity,
-    point_lights: &Query<&PointLight>,
-    dir_lights: &Query<&DirectionalLight>,
-    spot_lights: &Query<&SpotLight>,
-) {
-    if let Ok(light) = point_lights.get(entity) {
-        egui::CollapsingHeader::new("Light (Point)")
-            .default_open(true)
-            .show(ui, |ui| {
-                egui::Grid::new("light_grid")
-                    .num_columns(2)
-                    .spacing([8.0, 4.0])
-                    .show(ui, |ui| {
-                        ui.label("Color");
-                        let c = light.color.to_srgba();
-                        ui.horizontal(|ui| {
-                            color_swatch(ui, c.red, c.green, c.blue, 1.0);
-                            ui.label(format!("[{:.2}, {:.2}, {:.2}]", c.red, c.green, c.blue));
-                        });
-                        ui.end_row();
+/// The definition the scene's light reads back as, for a panel with no
+/// document to show.
+fn light_of(entity: Entity, q: &InspectorQueries) -> Option<wt::LightDef> {
+    let rgba = |color: Color| {
+        let c = color.to_srgba();
+        [c.red, c.green, c.blue, c.alpha]
+    };
+    if let Ok(light) = q.point_lights.get(entity) {
+        return Some(wt::LightDef {
+            light_type: wt::LightType::Point,
+            color: rgba(light.color),
+            intensity: light.intensity,
+            shadows: light.shadow_maps_enabled,
+            range: Some(light.range),
+            ..Default::default()
+        });
+    }
+    if let Ok(light) = q.spot_lights.get(entity) {
+        return Some(wt::LightDef {
+            light_type: wt::LightType::Spot,
+            color: rgba(light.color),
+            intensity: light.intensity,
+            shadows: light.shadow_maps_enabled,
+            range: Some(light.range),
+            inner_angle: Some(light.inner_angle),
+            outer_angle: Some(light.outer_angle),
+            ..Default::default()
+        });
+    }
+    if let Ok(light) = q.dir_lights.get(entity) {
+        return Some(wt::LightDef {
+            light_type: wt::LightType::Directional,
+            color: rgba(light.color),
+            intensity: light.illuminance,
+            shadows: light.shadow_maps_enabled,
+            ..Default::default()
+        });
+    }
+    None
+}
 
-                        ui.label("Intensity");
-                        ui.label(format!("{:.1}", light.intensity));
-                        ui.end_row();
+fn draw_light_section(ui: &mut egui::Ui, edit: &mut Edit, q: &mut InspectorQueries) {
+    let editable = edit.editable();
+    let def = if editable {
+        match edit.doc.and_then(|d| d.light.clone()) {
+            Some(def) => def,
+            None => return,
+        }
+    } else {
+        match light_of(edit.entity, q) {
+            Some(def) => def,
+            None => return,
+        }
+    };
+    let kind = match def.light_type {
+        wt::LightType::Directional => "Directional",
+        wt::LightType::Point => "Point",
+        wt::LightType::Spot => "Spot",
+    };
+    let entity = edit.entity;
 
+    egui::CollapsingHeader::new(format!("Light ({kind})"))
+        .default_open(true)
+        .show(ui, |ui| {
+            egui::Grid::new("light_grid")
+                .num_columns(2)
+                .spacing([8.0, 4.0])
+                .show(ui, |ui| {
+                    ui.label("Color");
+                    let mut rgba = def.color;
+                    let changed = ui
+                        .add_enabled_ui(editable, |ui| {
+                            ui.color_edit_button_rgba_unmultiplied(&mut rgba)
+                        })
+                        .inner
+                        .changed();
+                    if changed {
+                        let color = Color::srgba(rgba[0], rgba[1], rgba[2], rgba[3]);
+                        if let Ok(mut l) = q.point_lights.get_mut(entity) {
+                            l.color = color;
+                        }
+                        if let Ok(mut l) = q.spot_lights.get_mut(entity) {
+                            l.color = color;
+                        }
+                        if let Ok(mut l) = q.dir_lights.get_mut(entity) {
+                            l.color = color;
+                        }
+                        edit.change("light", Some("color"), json!(round3_4(rgba)), "relight");
+                    }
+                    ui.end_row();
+
+                    ui.label(if def.light_type == wt::LightType::Directional {
+                        "Illuminance"
+                    } else {
+                        "Intensity"
+                    });
+                    let mut intensity = def.intensity;
+                    if ui
+                        .add_enabled(
+                            editable,
+                            egui::DragValue::new(&mut intensity)
+                                .speed(10.0)
+                                .range(0.0..=f32::MAX),
+                        )
+                        .changed()
+                    {
+                        if let Ok(mut l) = q.point_lights.get_mut(entity) {
+                            l.intensity = intensity;
+                        }
+                        if let Ok(mut l) = q.spot_lights.get_mut(entity) {
+                            l.intensity = intensity;
+                        }
+                        if let Ok(mut l) = q.dir_lights.get_mut(entity) {
+                            l.illuminance = intensity;
+                        }
+                        edit.change(
+                            "light",
+                            Some("intensity"),
+                            json!(intensity.round()),
+                            "relight",
+                        );
+                    }
+                    ui.end_row();
+
+                    if def.light_type != wt::LightType::Directional {
                         ui.label("Range");
-                        ui.label(format!("{:.2}", light.range));
+                        let mut range = def.range.unwrap_or(20.0);
+                        if ui
+                            .add_enabled(
+                                editable,
+                                egui::DragValue::new(&mut range)
+                                    .speed(0.1)
+                                    .range(0.0..=f32::MAX)
+                                    .suffix(" m"),
+                            )
+                            .changed()
+                        {
+                            if let Ok(mut l) = q.point_lights.get_mut(entity) {
+                                l.range = range;
+                            }
+                            if let Ok(mut l) = q.spot_lights.get_mut(entity) {
+                                l.range = range;
+                            }
+                            edit.change(
+                                "light",
+                                Some("range"),
+                                json!((range * 100.0).round() / 100.0),
+                                "relight",
+                            );
+                        }
                         ui.end_row();
+                    }
 
-                        ui.label("Shadows");
-                        ui.label(format!("{}", light.shadow_maps_enabled));
-                        ui.end_row();
-                    });
-            });
-    }
+                    if def.light_type == wt::LightType::Spot {
+                        // The document holds radians, as Bevy does; the
+                        // panel shows degrees.
+                        for (label, key, value) in [
+                            ("Inner Angle", "inner_angle", def.inner_angle.unwrap_or(0.0)),
+                            (
+                                "Outer Angle",
+                                "outer_angle",
+                                def.outer_angle.unwrap_or(std::f32::consts::FRAC_PI_4),
+                            ),
+                        ] {
+                            ui.label(label);
+                            let mut degrees = value.to_degrees();
+                            if ui
+                                .add_enabled(
+                                    editable,
+                                    egui::DragValue::new(&mut degrees)
+                                        .speed(0.5)
+                                        .range(0.0..=90.0)
+                                        .suffix("\u{00B0}"),
+                                )
+                                .changed()
+                            {
+                                let radians = degrees.to_radians();
+                                if let Ok(mut l) = q.spot_lights.get_mut(entity) {
+                                    if key == "inner_angle" {
+                                        l.inner_angle = radians;
+                                    } else {
+                                        l.outer_angle = radians;
+                                    }
+                                }
+                                edit.change(
+                                    "light",
+                                    Some(key),
+                                    json!((radians * 1000.0).round() / 1000.0),
+                                    "relight",
+                                );
+                            }
+                            ui.end_row();
+                        }
+                    }
 
-    if let Ok(light) = dir_lights.get(entity) {
-        egui::CollapsingHeader::new("Light (Directional)")
-            .default_open(true)
-            .show(ui, |ui| {
-                egui::Grid::new("dirlight_grid")
-                    .num_columns(2)
-                    .spacing([8.0, 4.0])
-                    .show(ui, |ui| {
-                        ui.label("Color");
-                        let c = light.color.to_srgba();
-                        ui.horizontal(|ui| {
-                            color_swatch(ui, c.red, c.green, c.blue, 1.0);
-                            ui.label(format!("[{:.2}, {:.2}, {:.2}]", c.red, c.green, c.blue));
-                        });
+                    if def.light_type == wt::LightType::Directional {
+                        ui.label("Direction");
+                        let mut direction = def.direction.unwrap_or([0.0, -1.0, -0.5]);
+                        if triple(ui, &mut direction, 0.01, editable) {
+                            // The scene aims the light when the commit lands.
+                            edit.change(
+                                "light",
+                                Some("direction"),
+                                json!(round3(direction)),
+                                "aim",
+                            );
+                        }
                         ui.end_row();
+                    }
 
-                        ui.label("Illuminance");
-                        ui.label(format!("{:.1}", light.illuminance));
-                        ui.end_row();
-
-                        ui.label("Shadows");
-                        ui.label(format!("{}", light.shadow_maps_enabled));
-                        ui.end_row();
-                    });
-            });
-    }
-
-    if let Ok(light) = spot_lights.get(entity) {
-        egui::CollapsingHeader::new("Light (Spot)")
-            .default_open(true)
-            .show(ui, |ui| {
-                egui::Grid::new("spotlight_grid")
-                    .num_columns(2)
-                    .spacing([8.0, 4.0])
-                    .show(ui, |ui| {
-                        ui.label("Color");
-                        let c = light.color.to_srgba();
-                        ui.horizontal(|ui| {
-                            color_swatch(ui, c.red, c.green, c.blue, 1.0);
-                            ui.label(format!("[{:.2}, {:.2}, {:.2}]", c.red, c.green, c.blue));
-                        });
-                        ui.end_row();
-
-                        ui.label("Intensity");
-                        ui.label(format!("{:.1}", light.intensity));
-                        ui.end_row();
-
-                        ui.label("Range");
-                        ui.label(format!("{:.2}", light.range));
-                        ui.end_row();
-
-                        ui.label("Inner Angle");
-                        ui.label(format!("{:.1}\u{00B0}", light.inner_angle.to_degrees()));
-                        ui.end_row();
-
-                        ui.label("Outer Angle");
-                        ui.label(format!("{:.1}\u{00B0}", light.outer_angle.to_degrees()));
-                        ui.end_row();
-
-                        ui.label("Shadows");
-                        ui.label(format!("{}", light.shadow_maps_enabled));
-                        ui.end_row();
-                    });
-            });
-    }
+                    ui.label("Shadows");
+                    let mut shadows = def.shadows;
+                    if ui
+                        .add_enabled(editable, egui::Checkbox::without_text(&mut shadows))
+                        .changed()
+                    {
+                        if let Ok(mut l) = q.point_lights.get_mut(entity) {
+                            l.shadow_maps_enabled = shadows;
+                        }
+                        if let Ok(mut l) = q.spot_lights.get_mut(entity) {
+                            l.shadow_maps_enabled = shadows;
+                        }
+                        if let Ok(mut l) = q.dir_lights.get_mut(entity) {
+                            l.shadow_maps_enabled = shadows;
+                        }
+                        edit.change("light", Some("shadows"), json!(shadows), "relight");
+                    }
+                    ui.end_row();
+                });
+        });
 }
 
 // ---------------------------------------------------------------------------
 // Section: Behaviors
 // ---------------------------------------------------------------------------
 
+/// The kind and the parameters of a document behavior, from its JSON form
+/// (an externally tagged enum: one key, the kind).
+fn behavior_kind_and_params(def: &wt::BehaviorDef) -> (String, String) {
+    let value = serde_json::to_value(def).unwrap_or(Value::Null);
+    match value.as_object().and_then(|o| o.iter().next()) {
+        Some((kind, params)) => (kind.clone(), params.to_string()),
+        None => ("behavior".into(), value.to_string()),
+    }
+}
+
+/// Why a behavior's target is a problem: it names an entity that is gone.
+fn missing_target(def: &wt::BehaviorDef, doc: &openworldformat::WorldDoc) -> Option<String> {
+    let target = match def {
+        wt::BehaviorDef::LookAt { target } => target,
+        wt::BehaviorDef::Orbit {
+            center: Some(center),
+            ..
+        } => center,
+        _ => return None,
+    };
+    match target {
+        wt::EntityRef::Id(id) if !doc.contains(id.0) => Some(format!(
+            "targets entity {}, which is gone — pick a new target or remove it",
+            id.0
+        )),
+        wt::EntityRef::Name(name) if doc.get_by_name(name).is_none() => Some(format!(
+            "targets {name}, which is gone — pick a new target or remove it"
+        )),
+        _ => None,
+    }
+}
+
 fn draw_behaviors_section(
     ui: &mut egui::Ui,
-    entity: Entity,
+    edit: &mut Edit,
     behaviors_q: &Query<&EntityBehaviors>,
 ) {
-    let Ok(behaviors) = behaviors_q.get(entity) else {
+    if edit.editable() {
+        let Some(doc) = edit.doc else {
+            return;
+        };
+        if doc.behaviors.is_empty() {
+            return;
+        }
+        egui::CollapsingHeader::new(format!("Behaviors ({})", doc.behaviors.len()))
+            .default_open(true)
+            .show(ui, |ui| {
+                for (n, def) in doc.behaviors.iter().enumerate() {
+                    let (kind, params) = behavior_kind_and_params(def);
+                    let problem = edit
+                        .live
+                        .as_ref()
+                        .and_then(|live| missing_target(def, live.doc));
+                    egui::CollapsingHeader::new(format!("{n}: {kind}"))
+                        .id_salt(("behavior", n))
+                        .default_open(problem.is_some())
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::Label::new(egui::RichText::new(params).monospace()).wrap(),
+                            );
+                            if let Some(problem) = &problem {
+                                ui.colored_label(WARN, format!("\u{26A0} {problem}"));
+                            }
+                            if ui.button("Remove this behavior").clicked() {
+                                let remaining: Vec<&wt::BehaviorDef> = doc
+                                    .behaviors
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(i, _)| *i != n)
+                                    .map(|(_, d)| d)
+                                    .collect();
+                                edit.change(
+                                    "behaviors",
+                                    None,
+                                    serde_json::to_value(remaining).unwrap_or_else(|_| json!([])),
+                                    "drop a behavior of",
+                                );
+                            }
+                        });
+                }
+            });
+        return;
+    }
+
+    let Ok(behaviors) = behaviors_q.get(edit.entity) else {
         return;
     };
 
@@ -451,6 +1153,19 @@ fn draw_behaviors_section(
                 });
             }
         });
+}
+
+/// Get the variant name of a scene BehaviorDef.
+fn behavior_type_name(def: &GenBehaviorDef) -> &'static str {
+    match def {
+        GenBehaviorDef::Orbit { .. } => "orbit",
+        GenBehaviorDef::Spin { .. } => "spin",
+        GenBehaviorDef::Bob { .. } => "bob",
+        GenBehaviorDef::LookAt { .. } => "look_at",
+        GenBehaviorDef::Pulse { .. } => "pulse",
+        GenBehaviorDef::PathFollow { .. } => "path_follow",
+        GenBehaviorDef::Bounce { .. } => "bounce",
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -534,34 +1249,75 @@ fn draw_mesh_section(ui: &mut egui::Ui, entity: Entity, gltf_sources: &Query<&Gl
 // Section: Hierarchy
 // ---------------------------------------------------------------------------
 
+/// The intent that hangs `child` under `parent` (`None`: at the root) where
+/// it stands: a new parent, and the local transform that keeps its world
+/// placement — what an editor's drag between tree rows means.
+pub(crate) fn reparent_intent(
+    q: &InspectorQueries,
+    child: Entity,
+    id: u64,
+    name: &str,
+    parent: Option<(Entity, u64, &str)>,
+) -> Option<PersonIntent> {
+    let child_global = q.globals.get(child).ok()?;
+    let local = match parent {
+        Some((entity, _, _)) => child_global.reparented_to(q.globals.get(entity).ok()?),
+        None => child_global.compute_transform(),
+    };
+    let (x, y, z) = local.rotation.to_euler(EulerRot::XYZ);
+    let patch = json!({
+        "parent": parent.map(|(_, id, _)| id),
+        "transform": {
+            "position": round3(local.translation.to_array()),
+            "rotation_degrees": round2([x.to_degrees(), y.to_degrees(), z.to_degrees()]),
+            "scale": round3(local.scale.to_array()),
+        }
+    });
+    let what = match parent {
+        Some((_, _, parent_name)) => format!("parent {name} to {parent_name}"),
+        None => format!("unparent {name}"),
+    };
+    Some(PersonIntent::Patch {
+        id,
+        name: name.to_string(),
+        patch,
+        what,
+    })
+}
+
 fn draw_hierarchy_section(
     ui: &mut egui::Ui,
-    entity: Entity,
+    edit: &mut Edit,
     registry: &NameRegistry,
-    children_q: &Query<&Children>,
-    parent_q: &Query<&ChildOf>,
-    gen_entities: &Query<&GenEntity>,
+    q: &InspectorQueries,
+    selection: &mut InspectorSelection,
 ) {
-    let parent_name = parent_q
-        .get(entity)
+    let parent_entity = q
+        .parent_q
+        .get(edit.entity)
         .ok()
-        .and_then(|p| registry.get_name(p.parent()))
+        .map(|p| p.parent())
+        .filter(|p| q.gen_entities.contains(*p));
+    let parent_name = parent_entity
+        .and_then(|p| registry.get_name(p))
         .map(|s| s.to_string());
 
-    let children_names: Vec<String> = children_q
-        .get(entity)
+    let children: Vec<(Entity, String)> = q
+        .children_q
+        .get(edit.entity)
         .map(|ch| {
             ch.iter()
                 .filter_map(|child| {
                     // Only show Gen-managed children
-                    gen_entities.get(child).ok()?;
-                    registry.get_name(child).map(|s| s.to_string())
+                    q.gen_entities.get(child).ok()?;
+                    registry.get_name(child).map(|s| (child, s.to_string()))
                 })
                 .collect()
         })
         .unwrap_or_default();
 
-    if parent_name.is_none() && children_names.is_empty() {
+    let editable = edit.editable();
+    if parent_name.is_none() && children.is_empty() && !editable {
         return;
     }
 
@@ -572,17 +1328,67 @@ fn draw_hierarchy_section(
                 .num_columns(2)
                 .spacing([8.0, 4.0])
                 .show(ui, |ui| {
-                    if let Some(ref parent) = parent_name {
-                        ui.label("Parent");
-                        ui.label(parent);
-                        ui.end_row();
+                    ui.label("Parent");
+                    match (edit.doc, edit.live.as_mut(), edit.id) {
+                        (Some(doc), Some(live), Some(id)) => {
+                            // Candidates: everything but this entity and
+                            // what hangs under it.
+                            let under: HashSet<u64> = live
+                                .doc
+                                .subtree_entities_parent_first(id)
+                                .iter()
+                                .map(|e| e.id.0)
+                                .collect();
+                            let mut candidates: Vec<(u64, String)> = live
+                                .doc
+                                .entities()
+                                .filter(|e| !under.contains(&e.id.0))
+                                .map(|e| (e.id.0, e.name.0.clone()))
+                                .collect();
+                            candidates.sort_by_key(|(_, name)| name.to_lowercase());
+                            let before: Option<u64> = doc.parent.map(|p| p.0);
+                            let mut choice = before;
+                            egui::ComboBox::from_id_salt("parent")
+                                .selected_text(
+                                    parent_name.clone().unwrap_or_else(|| "— none —".into()),
+                                )
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut choice, None, "— none —");
+                                    for (candidate, name) in &candidates {
+                                        ui.selectable_value(&mut choice, Some(*candidate), name);
+                                    }
+                                });
+                            if choice != before {
+                                let parent = choice.and_then(|pid| {
+                                    let entity = registry.get_entity_by_id(&wt::EntityId(pid))?;
+                                    let name = candidates
+                                        .iter()
+                                        .find(|(c, _)| *c == pid)
+                                        .map(|(_, n)| n.as_str())?;
+                                    Some((entity, pid, name))
+                                });
+                                if (choice.is_none() || parent.is_some())
+                                    && let Some(intent) =
+                                        reparent_intent(q, edit.entity, id, edit.name, parent)
+                                {
+                                    live.edit.flush(live.intents);
+                                    live.intents.push(intent);
+                                }
+                            }
+                        }
+                        _ => {
+                            ui.label(parent_name.clone().unwrap_or_else(|| "— none —".into()));
+                        }
                     }
+                    ui.end_row();
 
-                    if !children_names.is_empty() {
+                    if !children.is_empty() {
                         ui.label("Children");
                         ui.vertical(|ui| {
-                            for child_name in &children_names {
-                                ui.label(child_name);
+                            for (child, child_name) in &children {
+                                if ui.link(child_name).clicked() {
+                                    selection.set(Some(*child));
+                                }
                             }
                         });
                         ui.end_row();

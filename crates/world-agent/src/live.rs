@@ -1601,6 +1601,9 @@ curl -s -X POST "$URL/ops" -H "Authorization: Bearer $TOKEN" -d '{
   you read. If anyone moved it since, the batch is refused naming both
   revisions; read again, then decide again. Leave it out to bind by name
   against the world as it is now.
+- With review on in the canvas, the reply is `proposed` (HTTP 202) and your
+  batch waits on the canvas for the person to accept or reject it: poll
+  `GET /proposals` for its status, and don't resend meanwhile.
 - A `patch` holds only what changes. `transform`, `material` and `light` merge
   into the current value (send just `position` to move something); `null`
   removes a field.

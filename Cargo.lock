@@ -8561,6 +8561,7 @@ dependencies = [
  "mdns-sd",
  "mistralrs",
  "noise",
+ "openworldformat",
  "rand 0.10.3",
  "reqwest 0.13.5",
  "ron",

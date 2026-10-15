@@ -16,6 +16,9 @@ path = "src/main.rs"
 [dependencies]
 localgpt-core = { workspace = true, features = ["mcp-http"] }
 localgpt-world-types = { workspace = true }
+# The format crate itself, for the dry run a reviewed batch gets (ingest
+# against the world on screen, without writing).
+openworldformat = { workspace = true }
 localgpt-world-export = { workspace = true }
 localgpt-world-sync = { workspace = true, optional = true }
 localgpt-world-bevy = { workspace = true }

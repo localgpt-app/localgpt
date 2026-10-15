@@ -42,10 +42,80 @@ pub struct InspectorState {
     pub mode: InspectorMode,
 }
 
-/// Currently selected entity in the inspector.
+/// What the inspector and the canvas have selected: a primary entity, and
+/// any others added to it with shift-click. Gestures and keys act on all
+/// of them; the detail panel shows the primary.
 #[derive(Resource, Default)]
 pub struct InspectorSelection {
     pub entity: Option<Entity>,
+    /// The rest of a multi-selection, in the order they were added; never
+    /// holds `entity`.
+    pub others: Vec<Entity>,
+}
+
+impl InspectorSelection {
+    /// Select one entity and nothing else (`None`: nothing). Writes only
+    /// what changes, so change detection stays meaningful.
+    pub fn set(&mut self, entity: Option<Entity>) {
+        if self.entity != entity {
+            self.entity = entity;
+        }
+        if !self.others.is_empty() {
+            self.others.clear();
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.set(None);
+    }
+
+    /// Add an entity to the selection, or take it out if it is in (a
+    /// shift-click). Taking out the primary promotes the next one.
+    pub fn toggle(&mut self, entity: Entity) {
+        if self.entity == Some(entity) {
+            self.entity = if self.others.is_empty() {
+                None
+            } else {
+                Some(self.others.remove(0))
+            };
+        } else if let Some(n) = self.others.iter().position(|e| *e == entity) {
+            self.others.remove(n);
+        } else if self.entity.is_none() {
+            self.entity = Some(entity);
+        } else {
+            self.others.push(entity);
+        }
+    }
+
+    pub fn contains(&self, entity: Entity) -> bool {
+        self.entity == Some(entity) || self.others.contains(&entity)
+    }
+
+    /// The primary first, then the others.
+    pub fn all(&self) -> impl Iterator<Item = Entity> + '_ {
+        self.entity.into_iter().chain(self.others.iter().copied())
+    }
+
+    pub fn len(&self) -> usize {
+        usize::from(self.entity.is_some()) + self.others.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entity.is_none()
+    }
+}
+
+/// Edits the panels ask for — field patches, reparenting, bookmarks —
+/// drained into the live canvas's intent stream by `canvas_edit`. Without
+/// a live world nothing drains them, and the panels only write when one is
+/// open.
+#[derive(Resource, Default)]
+pub struct PanelIntents(pub Vec<crate::gen3d::canvas_edit::PersonIntent>);
+
+/// When set, the camera flies to this pose: a bookmark, or a shot.
+#[derive(Resource, Default)]
+pub struct PendingCameraPose {
+    pub pose: Option<(Vec3, Vec3)>,
 }
 
 /// Marker resource: present when the mouse is over an inspector panel.
@@ -83,21 +153,26 @@ impl Default for WsBridgeState {
 // SystemParam for component queries
 // ---------------------------------------------------------------------------
 
+/// The scene as the panels read it — and, while a field is being dragged,
+/// write it, so the person sees the value before the document takes it.
 #[derive(SystemParam)]
-pub struct InspectorQueries<'w, 's> {
+pub(crate) struct InspectorQueries<'w, 's> {
     pub gen_entities: Query<'w, 's, &'static GenEntity>,
-    pub transforms: Query<'w, 's, &'static Transform>,
+    pub transforms: Query<'w, 's, &'static mut Transform>,
+    pub globals: Query<'w, 's, &'static GlobalTransform>,
     pub shapes: Query<'w, 's, &'static ParametricShape>,
     pub material_handles: Query<'w, 's, &'static MeshMaterial3d<StandardMaterial>>,
-    pub materials: Res<'w, Assets<StandardMaterial>>,
-    pub point_lights: Query<'w, 's, &'static PointLight>,
-    pub dir_lights: Query<'w, 's, &'static DirectionalLight>,
-    pub spot_lights: Query<'w, 's, &'static SpotLight>,
+    pub materials: ResMut<'w, Assets<StandardMaterial>>,
+    pub original_emissives: Query<'w, 's, &'static mut selection::OriginalEmissive>,
+    pub point_lights: Query<'w, 's, &'static mut PointLight>,
+    pub dir_lights: Query<'w, 's, &'static mut DirectionalLight>,
+    pub spot_lights: Query<'w, 's, &'static mut SpotLight>,
     pub behaviors_q: Query<'w, 's, &'static EntityBehaviors>,
     pub gltf_sources: Query<'w, 's, &'static GltfSource>,
-    pub visibility_q: Query<'w, 's, &'static Visibility>,
+    pub visibility_q: Query<'w, 's, &'static mut Visibility>,
     pub children_q: Query<'w, 's, &'static Children>,
     pub parent_q: Query<'w, 's, &'static ChildOf>,
+    pub fly_cam: Query<'w, 's, Entity, With<crate::gen3d::plugin::FlyCam>>,
     pub behavior_state: Res<'w, BehaviorState>,
     pub audio_engine: Option<Res<'w, AudioEngine>>,
     pub current_world: Res<'w, CurrentWorld>,
@@ -130,6 +205,9 @@ impl Plugin for InspectorPlugin {
             .init_resource::<outliner::OutlinerCache>()
             .init_resource::<WsBridgeState>()
             .init_resource::<PendingFocusEntity>()
+            .init_resource::<PendingCameraPose>()
+            .init_resource::<PanelIntents>()
+            .init_resource::<detail::PanelEdit>()
             .add_systems(
                 Update,
                 (
@@ -172,13 +250,19 @@ fn inspector_toggle(
     // Escape clears selection (only when inspector is visible)
     if keys.just_pressed(KeyCode::Escape)
         && state.mode != InspectorMode::Hidden
-        && selection.entity.is_some()
+        && !selection.is_empty()
     {
-        selection.entity = None;
+        selection.clear();
     }
 }
 
 /// Main inspector UI system — draws all egui panels and updates UiHovered.
+///
+/// With a live world open (`--live`), the panels edit: the detail panel's
+/// fields, the outliner's drag-to-reparent and context menu, and the
+/// world bar's snap, review and bookmark controls all write intents that
+/// the canvas commits through the authority.
+#[allow(clippy::too_many_arguments)] // a Bevy system; the repo's convention
 fn inspector_ui(
     mut commands: Commands,
     mut contexts: EguiContexts,
@@ -186,7 +270,12 @@ fn inspector_ui(
     mut selection: ResMut<InspectorSelection>,
     registry: Res<NameRegistry>,
     mut outliner_cache: ResMut<outliner::OutlinerCache>,
-    params: InspectorQueries,
+    mut params: InspectorQueries,
+    mut live: Option<ResMut<crate::gen3d::live::Live>>,
+    mut settings: Option<ResMut<crate::gen3d::canvas_edit::CanvasSettings>>,
+    mut panel_intents: ResMut<PanelIntents>,
+    mut panel_edit: ResMut<detail::PanelEdit>,
+    mut pose: ResMut<PendingCameraPose>,
 ) {
     if state.mode == InspectorMode::Hidden {
         commands.remove_resource::<UiHovered>();
@@ -198,28 +287,57 @@ fn inspector_ui(
     };
 
     // --- Outliner (left panel) ---
-    outliner::draw_outliner(
-        ctx,
-        &registry,
-        &mut selection,
-        &mut outliner_cache,
-        &params.gen_entities,
-        &params.visibility_q,
-        &params.children_q,
-        &params.parent_q,
-    );
+    {
+        let edit = live.as_deref().map(|live| outliner::OutlinerEdit {
+            intents: &mut panel_intents.0,
+            doc: live.doc(),
+            q: &params,
+        });
+        outliner::draw_outliner(
+            ctx,
+            &registry,
+            &mut selection,
+            &mut outliner_cache,
+            &params.gen_entities,
+            &params.visibility_q,
+            &params.children_q,
+            &params.parent_q,
+            edit,
+        );
+    }
 
     if state.mode == InspectorMode::Full {
         // --- Detail panel (right) ---
-        detail::draw_detail(ctx, &selection, &registry, &params);
+        {
+            let edit = live.as_deref().map(|live| detail::EditSurface {
+                doc: live.doc(),
+                intents: &mut panel_intents.0,
+                edit: &mut panel_edit,
+                status: live.status(),
+            });
+            detail::draw_detail(ctx, &mut selection, &registry, &mut params, edit);
+        }
 
         // --- World info bar (bottom) ---
+        let camera = params
+            .fly_cam
+            .single()
+            .ok()
+            .and_then(|cam| params.transforms.get(cam).ok().copied());
+        let controls = live.as_deref_mut().map(|live| world_info::LiveControls {
+            live,
+            settings: settings.as_deref_mut(),
+            intents: &mut panel_intents.0,
+            camera,
+            pose: &mut pose,
+        });
         world_info::draw_world_info(
             ctx,
             &registry,
             &params.behavior_state,
             params.audio_engine.as_deref(),
             &params.current_world,
+            controls,
         );
     }
 
@@ -296,14 +414,14 @@ fn ws_bridge_system(
                 }
                 protocol::ClientMessage::SelectEntity { entity_id } => {
                     if let Some(entity) = registry.get_entity_by_id(&wt::EntityId(entity_id)) {
-                        selection.entity = Some(entity);
+                        selection.set(Some(entity));
                         let _ = bridge
                             .tx
                             .send(protocol::ServerMessage::SelectionChanged { entity_id });
                     }
                 }
                 protocol::ClientMessage::Deselect => {
-                    selection.entity = None;
+                    selection.clear();
                     let _ = bridge.tx.send(protocol::ServerMessage::SelectionCleared);
                 }
                 protocol::ClientMessage::ToggleVisibility { entity_id } => {
@@ -319,7 +437,7 @@ fn ws_bridge_system(
                 protocol::ClientMessage::RequestSceneSnapshot => {
                     match crate::gen3d::gltf_export::build_glb_bytes(
                         &registry,
-                        &params.transforms,
+                        &params.transforms.as_readonly(),
                         &params.gen_entities,
                         &params.parent_q,
                         &params.material_handles,
@@ -653,9 +771,16 @@ fn build_world_info(registry: &NameRegistry, params: &InspectorQueries) -> proto
 /// When a PendingFocusEntity is set, teleport the camera to look at the target entity.
 fn focus_camera_system(
     mut pending: ResMut<PendingFocusEntity>,
+    mut pose: ResMut<PendingCameraPose>,
     mut camera_q: Query<&mut Transform, With<crate::gen3d::plugin::FlyCam>>,
     target_transforms: Query<&Transform, Without<crate::gen3d::plugin::FlyCam>>,
 ) {
+    // A bookmark: fly to the pose as it was saved.
+    if let Some((position, look_at)) = pose.pose.take()
+        && let Ok(mut camera_transform) = camera_q.single_mut()
+    {
+        *camera_transform = Transform::from_translation(position).looking_at(look_at, Vec3::Y);
+    }
     let Some(target_entity) = pending.target.take() else {
         return;
     };
@@ -681,17 +806,22 @@ fn focus_camera_system(
 // ---------------------------------------------------------------------------
 
 /// Observer: when a mesh is clicked in the 3D viewport, select the GenEntity.
-/// Walks up the parent chain to find the nearest GenEntity ancestor.
+/// Walks up the parent chain to find the nearest GenEntity ancestor. A
+/// shift-click adds to the selection. The live canvas selects on its own
+/// (`canvas_edit`), so this stands down when it is there.
+#[allow(clippy::too_many_arguments)] // a Bevy observer; the repo's convention
 fn on_mesh_clicked(
     on: On<Pointer<Click>>,
     gen_entities: Query<&GenEntity>,
     parent_q: Query<&ChildOf>,
     state: Res<InspectorState>,
+    keys: Res<ButtonInput<KeyCode>>,
     mut selection: ResMut<InspectorSelection>,
     hovered: Option<Res<UiHovered>>,
+    canvas: Option<Res<crate::gen3d::canvas_edit::CanvasGesture>>,
 ) {
     // Only when inspector is visible and pointer is not over UI
-    if state.mode == InspectorMode::Hidden || hovered.is_some() {
+    if state.mode == InspectorMode::Hidden || hovered.is_some() || canvas.is_some() {
         return;
     }
 
@@ -699,12 +829,17 @@ fn on_mesh_clicked(
     if on.event.button != PointerButton::Primary {
         return;
     }
+    let extend = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
 
     // Walk up parent chain to find the GenEntity
     let mut entity = on.entity;
     loop {
         if gen_entities.contains(entity) {
-            selection.entity = Some(entity);
+            if extend {
+                selection.toggle(entity);
+            } else {
+                selection.set(Some(entity));
+            }
             return;
         }
         if let Ok(child_of) = parent_q.get(entity) {
