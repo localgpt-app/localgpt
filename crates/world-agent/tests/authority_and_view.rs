@@ -597,3 +597,72 @@ fn undo_at_a_branch_takes_back_the_branchs_newest_and_leaves_the_head() {
     assert!(live.verify().is_empty(), "{:?}", live.verify());
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn a_batch_that_names_the_revision_it_read_is_refused_once_the_world_moved() {
+    let dir = temp("expected-revision");
+    let mut live = LiveWorld::open(&dir).expect("open");
+    let batch = |name: &str, expected: u64| {
+        json!({"ops": [{"SpawnEntity": {"entity": {"name": name}}}],
+               "expected_revision": expected})
+    };
+
+    let first = live.submit(&spawn("lighthouse"), "test", None).unwrap();
+    // The author read the head and says so: the world is where they left it.
+    let second = live
+        .submit(&batch("jetty", first.revision), "test", None)
+        .expect("the world is at the revision the author read");
+    assert_eq!(live.revision(), second.revision);
+
+    // Someone else moved it since: refused whole, naming both revisions.
+    let refused = live
+        .submit(&batch("buoy", first.revision), "test", None)
+        .expect_err("a stale batch is refused");
+    assert_eq!(refused.errors.len(), 1, "{:?}", refused.errors);
+    assert!(
+        refused.errors[0].contains(&format!(
+            "revision {}, not {}",
+            second.revision, first.revision
+        )),
+        "{:?}",
+        refused.errors
+    );
+    assert_eq!(names(live.head()), ["jetty", "lighthouse"]);
+
+    // Building on an earlier entry, the revision to name is that entry's.
+    let first_id = first.entry.id.clone().expect("entries carry ids");
+    let branched = live
+        .submit_at(
+            Some(&first_id),
+            &batch("buoy", first.revision),
+            "test",
+            None,
+        )
+        .expect("the fork point is at the revision the author read");
+    assert!(branched.forked);
+    let stale = live
+        .submit_at(
+            Some(&first_id),
+            &batch("crane", second.revision),
+            "test",
+            None,
+        )
+        .expect_err("the head's revision is not the fork point's");
+    assert!(stale.errors[0].contains("not"), "{:?}", stale.errors);
+
+    // Not a number: refused before anything is read.
+    let odd = live
+        .submit(
+            &json!({"ops": [{"SpawnEntity": {"entity": {"name": "crane"}}}],
+                    "expected_revision": "latest"}),
+            "test",
+            None,
+        )
+        .expect_err("a revision is a number");
+    assert!(
+        odd.errors[0].contains("expected_revision"),
+        "{:?}",
+        odd.errors
+    );
+    std::fs::remove_dir_all(&dir).ok();
+}

@@ -278,18 +278,31 @@ impl LiveWorld {
         author: &str,
         message: Option<&str>,
     ) -> Result<Committed, Rejected> {
-        let (ops, author, message, at) = match input {
+        let (ops, author, message, at, expected) = match input {
             Value::Array(ops) => (
                 ops.clone(),
                 author.to_string(),
                 message.map(str::to_string),
                 at.map(str::to_string),
+                None,
             ),
             Value::Object(body) => {
                 let Some(Value::Array(ops)) = body.get("ops") else {
                     return Err(Rejected::one(
-                        "send a JSON array of ops, or {\"ops\": [...], \"author\": ..., \"message\": ..., \"at\": ...}",
+                        "send a JSON array of ops, or {\"ops\": [...], \"author\": ..., \"message\": ..., \"at\": ..., \"expected_revision\": ...}",
                     ));
+                };
+                // The revision the author read, when they say so
+                // (spec/session.md, "Authoring"): a world that moved
+                // since refuses the batch instead of landing a stale edit.
+                let expected = match body.get("expected_revision") {
+                    None | Some(Value::Null) => None,
+                    Some(Value::Number(n)) if n.as_u64().is_some() => n.as_u64(),
+                    Some(_) => {
+                        return Err(Rejected::one(
+                            "\"expected_revision\" is the revision you read (a number)",
+                        ));
+                    }
                 };
                 let author = body
                     .get("author")
@@ -312,7 +325,7 @@ impl LiveWorld {
                         ));
                     }
                 };
-                (ops.clone(), author, message, at)
+                (ops.clone(), author, message, at, expected)
             }
             _ => return Err(Rejected::one("send a JSON array of ops")),
         };
@@ -323,6 +336,24 @@ impl LiveWorld {
             None => self.head.clone(),
             Some(at) => self.fork_point(at)?.0,
         };
+        if let Some(expected) = expected {
+            // The head's revision, or the fork point's: the document the
+            // batch is read against, which is the one the author read.
+            let now = match &branch_from {
+                None => self.revision(),
+                Some(at) => self
+                    .entries
+                    .iter()
+                    .find(|e| e.id.as_deref() == Some(at.as_str()))
+                    .map(|e| e.revision)
+                    .ok_or_else(|| Rejected::one(format!("no entry '{at}' in this log")))?,
+            };
+            if now != expected {
+                return Err(Rejected::one(format!(
+                    "the world is at revision {now}, not {expected}: read it again, then decide again"
+                )));
+            }
+        }
         if ops.is_empty() {
             return Err(Rejected::one("the batch holds no ops"));
         }
@@ -1563,6 +1594,13 @@ curl -s -X POST "$URL/ops" -H "Authorization: Bearer $TOKEN" -d '{
 
 - Use an entity's name wherever an id goes. Leave `id` out of a new entity and
   it gets one; the reply lists them.
+- The reply is your receipt: `revision` and `id` of the entry, `spawned` (name
+  → id), `warnings`; or `errors`, one per failing op, and nothing changed.
+- Add `"expected_revision": N` — the `revision` you read from `GET /log` (or
+  the entry's, when building on one) — when the batch must land on the world
+  you read. If anyone moved it since, the batch is refused naming both
+  revisions; read again, then decide again. Leave it out to bind by name
+  against the world as it is now.
 - A `patch` holds only what changes. `transform`, `material` and `light` merge
   into the current value (send just `position` to move something); `null`
   removes a field.

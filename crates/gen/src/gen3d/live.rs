@@ -599,7 +599,7 @@ const ENDPOINTS: &[(&str, &str)] = &[
     ("GET /world", "the world now (manifest.json)"),
     (
         "POST /ops",
-        "a batch of edit ops: [op, ...] or {\"ops\": [...], \"author\": ..., \"message\": ..., \"at\": ...} — \"at\" names the entry to build on (default: the head); an earlier one starts a branch",
+        "a batch of edit ops: [op, ...] or {\"ops\": [...], \"author\": ..., \"message\": ..., \"at\": ..., \"expected_revision\": ...} — \"at\" names the entry to build on (default: the head); an earlier one starts a branch; \"expected_revision\" is the revision you read, and a world that moved since refuses the batch",
     ),
     (
         "POST /undo",
