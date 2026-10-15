@@ -42,6 +42,11 @@ url = "https://md.localgpt.app"
 blurb = "Walk through your notes as a world."
 
 [[extra.family]]
+name = "localgpt.md"
+url = "https://localgpt.md"
+blurb = "Drop a screenplay, get a previs board."
+
+[[extra.family]]
 name = "localgpt.world"
 url = "https://localgpt.world"
 blurb = "Worlds from every app, in your browser."

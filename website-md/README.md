@@ -9,7 +9,10 @@ director with script pages gets a set, stand-ins and a first pass of coverage
 per scene — real lenses, measured camera positions, the actor tracked by
 entity — plus the shot list and the printable board, without `cargo` or the
 desktop app. Revising shots by asking (and treatments as branches) is the
-app's half, linked from the page.
+app's half, linked from the page: unzip the packages, open one scene live
+(`localgpt-gen --live scene-1.world`, or `localgpt-app --world …`), put an
+agent on the folder (`localgpt world mcp`) — the walk is
+`website/content/docs/gen/previs.md`.
 
 The page shows the board the draft produced (the self-contained `board.html`,
 in an iframe) and offers three downloads: the board, the shot list, and a zip

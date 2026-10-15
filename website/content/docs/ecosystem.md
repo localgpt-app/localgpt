@@ -17,8 +17,9 @@ Everything under [localgpt.app](https://localgpt.app) runs locally and is open s
 | **[LocalGPT Gen](/docs/gen)** | Build explorable 3D worlds with natural language — alone or [together](/docs/gen/multiplayer) |
 | **[LocalGPT Verse](/docs/verse)** | Listens to your music and imagines a living 3D world for every song — analyzed, staged, and performed on your machine |
 | **[LocalGPT MD](/docs/md)** | Open a Markdown file and walk through it as a 3D world; every section becomes a place, and saving rebuilds it |
+| **[Previs](/docs/gen/previs)** | Drop a screenplay on [localgpt.md](https://localgpt.md/) — a Final Draft file, Fountain or Markdown — and get a previs board in the tab: a set, stand-ins and coverage per scene with real lenses, nothing installed; then revise the shots in Gen's live canvas |
 
-Each app has a landing page — [gen.localgpt.app](https://gen.localgpt.app/), [verse.localgpt.app](https://verse.localgpt.app/), [md.localgpt.app](https://md.localgpt.app/) — and its docs live here. Two more sites complete the family: [localgpt.world](https://localgpt.world/) opens worlds from every app in your browser, and [localgpt.rs](https://localgpt.rs/) is the devlog about building them in Rust.
+Each app has a landing page — [gen.localgpt.app](https://gen.localgpt.app/), [verse.localgpt.app](https://verse.localgpt.app/), [md.localgpt.app](https://md.localgpt.app/) — and its docs live here. Three more sites complete the family: [localgpt.md](https://localgpt.md/) drafts a previs board from a screenplay in the browser, [localgpt.world](https://localgpt.world/) opens worlds from every app in your browser, and [localgpt.rs](https://localgpt.rs/) is the devlog about building them in Rust.
 
 ## Claw Ecosystem
 

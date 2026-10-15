@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
   <title>LocalGPT World — The Portal for Local 3D Worlds</title>
-  <meta name="description" content="localgpt.world is the upcoming spatial hub for explorable 3D worlds created with LocalGPT. Explore worlds from localgpt.app, gen.localgpt.app, verse.localgpt.app, and md.localgpt.app.">
+  <meta name="description" content="localgpt.world is the upcoming spatial hub for explorable 3D worlds created with LocalGPT. Explore worlds from LocalGPT's apps — Gen, Verse, MD — and the previs boards drafted at localgpt.md.">
   <link rel="canonical" href="https://localgpt.world/">
   <link rel="icon" href="localgpt-icon.svg" type="image/svg+xml">
 
@@ -13,7 +13,7 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="LocalGPT World">
   <meta property="og:title" content="LocalGPT World — worlds you can enter">
-  <meta property="og:description" content="Spatial portal for the LocalGPT ecosystem: text-to-3D worlds, walking through markdown notes, and music-reactive realms. Open source, local-first.">
+  <meta property="og:description" content="Spatial portal for the LocalGPT ecosystem: text-to-3D worlds, previs boards from a screenplay, walking through markdown notes, and music-reactive realms. Open source, local-first.">
   <meta property="og:url" content="https://localgpt.world/">
   <meta property="og:image" content="https://localgpt.world/worlds/posters/gen-basalt-lighthouse.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -774,7 +774,7 @@
       <h1 class="hero-title">Walk into a world a local AI built.</h1>
       
       <p class="hero-lead">
-        <strong>localgpt.world</strong> is where worlds made on your machine can be visited by anyone. Natural language, Markdown notes and music tracks become places you can walk through — generated locally, shared here.
+        <strong>localgpt.world</strong> is where worlds made on your machine can be visited by anyone. Natural language, a screenplay, Markdown notes and music tracks become places you can walk through — generated locally, shared here.
       </p>
 
       <div class="hero-actions">
@@ -846,13 +846,12 @@
         <pre class="quickstart-code" id="terminal-content"><code><span class="comment"># 1. Install LocalGPT Gen to generate 3D worlds from prompts</span>
 <span class="cmd">cargo install localgpt-gen</span>
 
-<span class="comment"># 2. Or run LocalGPT MD to explore markdown documents as spaces</span>
-<span class="cmd">git clone https://github.com/localgpt-app/localgpt-md.git</span>
-<span class="cmd">cd localgpt-md && cargo run -- path/to/notes.md</span>
+<span class="comment"># 2. Or previs a screenplay with nothing installed: drop it on https://localgpt.md</span>
 
-<span class="comment"># 3. Or launch LocalGPT Verse to turn songs into living worlds</span>
-<span class="cmd">git clone https://github.com/localgpt-app/localgpt-verse.git</span>
-<span class="cmd">cd localgpt-verse && cargo run</span></code></pre>
+<span class="comment"># 3. Or run LocalGPT MD and Verse from the one workspace</span>
+<span class="cmd">git clone https://github.com/localgpt-app/localgpt.git</span>
+<span class="cmd">cd localgpt && cargo run -p localgpt-md -- path/to/notes.md</span>
+<span class="cmd">cargo run -p localgpt-verse</span></code></pre>
       </div>
 
     </div>
@@ -871,6 +870,7 @@
         <a href="https://gen.localgpt.app" target="_blank" rel="noopener" title="Worlds from words.">LocalGPT Gen</a>
         <a href="https://verse.localgpt.app" target="_blank" rel="noopener" title="A 3D world for every song.">LocalGPT Verse</a>
         <a href="https://md.localgpt.app" target="_blank" rel="noopener" title="Walk through your notes as a world.">LocalGPT MD</a>
+        <a href="https://localgpt.md" target="_blank" rel="noopener" title="Drop a screenplay, get a previs board.">localgpt.md</a>
         <a href="https://localgpt.rs" target="_blank" rel="noopener" title="The devlog: building it all in Rust.">localgpt.rs</a>
         <a href="https://github.com/localgpt-app" target="_blank" rel="noopener">GitHub</a>
         <a href="https://discord.gg/spKRr6mRyp" target="_blank" rel="noopener">Discord</a>
@@ -1067,7 +1067,7 @@
       const copyBtn = document.getElementById('copy-btn');
       if (copyBtn) {
         copyBtn.addEventListener('click', () => {
-          const codeText = `cargo install localgpt-gen\n\ngit clone https://github.com/localgpt-app/localgpt-md.git\ncd localgpt-md && cargo run -- path/to/notes.md\n\ngit clone https://github.com/localgpt-app/localgpt-verse.git\ncd localgpt-verse && cargo run`;
+          const codeText = `cargo install localgpt-gen\n\n# previs a screenplay with nothing installed: drop it on https://localgpt.md\n\ngit clone https://github.com/localgpt-app/localgpt.git\ncd localgpt && cargo run -p localgpt-md -- path/to/notes.md\ncargo run -p localgpt-verse`;
           navigator.clipboard.writeText(codeText).then(() => {
             const prevText = copyBtn.textContent;
             copyBtn.textContent = 'Copied!';
