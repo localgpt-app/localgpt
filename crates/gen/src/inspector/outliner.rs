@@ -29,8 +29,9 @@ pub struct TreeNode {
     pub visible: bool,
 }
 
-/// Cached outliner state, rebuilt when entity count changes.
-#[derive(Resource)]
+/// Cached outliner state, rebuilt when the entities, their names, their
+/// parents or their visibility change.
+#[derive(Resource, Default)]
 pub struct OutlinerCache {
     pub nodes: Vec<TreeNode>,
     pub search_text: String,
@@ -39,20 +40,41 @@ pub struct OutlinerCache {
     pub pending_visibility_toggles: Vec<Entity>,
     /// Entity to focus the camera on (set by double-click, processed by inspector_ui).
     pub pending_focus: Option<Entity>,
-    pub(super) last_entity_count: usize,
+    /// What the tree was built from ([`tree_signature`]); 0 — the
+    /// default, so the first frame builds it — forces a rebuild.
+    pub(super) last_signature: u64,
 }
 
-impl Default for OutlinerCache {
-    fn default() -> Self {
-        Self {
-            nodes: Vec::new(),
-            search_text: String::new(),
-            collapsed: HashSet::new(),
-            pending_visibility_toggles: Vec::new(),
-            pending_focus: None,
-            last_entity_count: usize::MAX, // Force rebuild on first frame
-        }
+/// A hash of what the tree shows — every entity's name, parent and
+/// visibility — so a reparent or a rename rebuilds it, not only a change
+/// in how many entities there are (which a reparent keeps).
+fn tree_signature(
+    registry: &NameRegistry,
+    gen_entities: &Query<&GenEntity>,
+    visibility_q: &Query<&mut Visibility>,
+    parent_q: &Query<&ChildOf>,
+) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    let mut rows: Vec<(&str, Entity)> = registry
+        .all_names()
+        .filter(|(_, entity)| gen_entities.contains(*entity))
+        .collect();
+    rows.sort_by_key(|(name, _)| *name);
+    for (name, entity) in rows {
+        name.hash(&mut hasher);
+        entity.to_bits().hash(&mut hasher);
+        parent_q
+            .get(entity)
+            .ok()
+            .map(|p| p.parent().to_bits())
+            .hash(&mut hasher);
+        visibility_q
+            .get(entity)
+            .map_or(true, |v| *v != Visibility::Hidden)
+            .hash(&mut hasher);
     }
+    hasher.finish().max(1)
 }
 
 /// Where the outliner's edits go, in a live world.
@@ -60,6 +82,9 @@ pub(crate) struct OutlinerEdit<'a, 'w, 's> {
     pub intents: &'a mut Vec<PersonIntent>,
     pub doc: &'a openworldformat::WorldDoc,
     pub q: &'a InspectorQueries<'w, 's>,
+    /// Where the rows, the menu's items and the drop zone are, for a
+    /// driver with no eyes.
+    pub rects: &'a mut super::PanelRects,
 }
 
 /// What a row's menu asked for, acted on once the rows are drawn.
@@ -216,19 +241,28 @@ pub(crate) fn draw_outliner(
     children_q: &Query<&Children>,
     parent_q: &Query<&ChildOf>,
     mut edit: Option<OutlinerEdit<'_, '_, '_>>,
-) {
-    // Rebuild tree when entity count changes
+) -> egui::Rect {
+    // Rebuild the tree when what it shows changes — names, parents,
+    // visibility, not only the count: a reparent keeps the count and
+    // moves a row.
     let current_count = registry.len();
-    if current_count != cache.last_entity_count {
+    let signature = tree_signature(registry, gen_entities, visibility_q, parent_q);
+    if signature != cache.last_signature {
         cache.nodes = build_tree(registry, gen_entities, visibility_q, children_q, parent_q);
-        cache.last_entity_count = current_count;
+        cache.last_signature = signature;
     }
 
     let mut actions: Vec<Action> = Vec::new();
     // Rows dropped onto rows: (dragged, new parent — None for the root).
     let mut drops: Vec<(Entity, Option<Entity>)> = Vec::new();
 
-    egui::Panel::left("inspector_outliner")
+    let live = edit.is_some();
+    let panel_rect;
+    {
+        // Where the widgets are, noted as they draw (for `GET /widgets`); the
+        // block returns `edit` once the panel is drawn.
+        let mut rects = edit.as_mut().map(|e| &mut *e.rects);
+        let panel = egui::Panel::left("inspector_outliner")
         .default_size(250.0)
         .resizable(true)
         .show(ctx, |ui| {
@@ -245,7 +279,6 @@ pub(crate) fn draw_outliner(
             // Entity tree
             let search = cache.search_text.to_lowercase();
             let has_search = !search.is_empty();
-            let live = edit.is_some();
             let extend = ui.input(|i| i.modifiers.shift || i.modifiers.command);
 
             egui::ScrollArea::vertical()
@@ -320,6 +353,9 @@ pub(crate) fn draw_outliner(
                             } else {
                                 response
                             };
+                            if let Some(rects) = rects.as_deref_mut() {
+                                rects.note(format!("outliner.row.{}", node.name), &response);
+                            }
                             if response.double_clicked() {
                                 // Double-click: select + focus camera
                                 selection.set(Some(node.entity));
@@ -352,19 +388,27 @@ pub(crate) fn draw_outliner(
                                             verb.to_string()
                                         }
                                     };
-                                    if ui.button(label("Duplicate")).clicked() {
+                                    // Each item by its verb, for a driver with no eyes.
+                                    let mut item = |ui: &mut egui::Ui, verb: &str, text: String| {
+                                        let button = ui.button(text);
+                                        if let Some(rects) = rects.as_deref_mut() {
+                                            rects.note(format!("menu.{verb}"), &button);
+                                        }
+                                        button.clicked()
+                                    };
+                                    if item(ui, "Duplicate", label("Duplicate")) {
                                         actions.push(Action::Duplicate(targets.clone()));
                                     }
-                                    if ui.button(label("Delete")).clicked() {
+                                    if item(ui, "Delete", label("Delete")) {
                                         actions.push(Action::Delete(targets.clone()));
                                     }
-                                    if node.depth > 0 && ui.button("Unparent").clicked() {
+                                    if node.depth > 0 && item(ui, "Unparent", "Unparent".into()) {
                                         actions.push(Action::Unparent(node.entity));
                                     }
-                                    if many && ui.button(label("Group")).clicked() {
+                                    if many && item(ui, "Group", label("Group")) {
                                         actions.push(Action::Group(targets.clone()));
                                     }
-                                    if ui.button("Focus camera").clicked() {
+                                    if item(ui, "Focus camera", "Focus camera".into()) {
                                         actions.push(Action::Focus(node.entity));
                                     }
                                 });
@@ -398,9 +442,12 @@ pub(crate) fn draw_outliner(
                         let frame = egui::Frame::default()
                             .inner_margin(8.0)
                             .stroke(ui.visuals().widgets.inactive.bg_stroke);
-                        let (_, dropped) = ui.dnd_drop_zone::<Entity, ()>(frame, |ui| {
+                        let (zone, dropped) = ui.dnd_drop_zone::<Entity, ()>(frame, |ui| {
                             ui.weak("drop here to unparent");
                         });
+                        if let Some(rects) = &mut rects {
+                            rects.note("outliner.unparent_zone", &zone.response);
+                        }
                         if let Some(dropped) = dropped {
                             drops.push((*dropped, None));
                         }
@@ -413,9 +460,10 @@ pub(crate) fn draw_outliner(
                 ui.small("shift-click adds · drag a row onto another to parent it · right-click for more");
             }
         });
-
+        panel_rect = panel.response.rect;
+    }
     let Some(edit) = edit.as_mut() else {
-        return;
+        return panel_rect;
     };
     let named = |entity: Entity| -> Option<Named> {
         let id = gen_entities.get(entity).ok()?.world_id.0;
@@ -486,4 +534,5 @@ pub(crate) fn draw_outliner(
             Action::Focus(entity) => cache.pending_focus = Some(entity),
         }
     }
+    panel_rect
 }

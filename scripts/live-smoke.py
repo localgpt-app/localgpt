@@ -144,6 +144,25 @@ class Canvas:
         _, world_now = call(self.ep, "GET", "/world")
         return next((e for e in world_now.get("entities", []) if e.get("name") == name), {})
 
+    def widgets(self):
+        """The panels' widgets by name, in window points (GET /widgets)."""
+        return call(self.ep, "GET", "/widgets")[1] or {}
+
+    def click_widget(self, name):
+        """Click a panel widget by name; False when it isn't on screen."""
+        rect = self.widgets().get(name)
+        if not rect:
+            return False
+        self.input(click(center(rect)))
+        return True
+
+    def drag(self, a, b, steps=8):
+        """Press at `a`, pull to `b` in steps, release."""
+        events = [{"cursor": list(a)}, {"button": "left", "pressed": True}]
+        events += [{"cursor": [a[0] + (b[0] - a[0]) * i / steps, a[1] + (b[1] - a[1]) * i / steps]} for i in range(1, steps + 1)]
+        events += [{"button": "left", "pressed": False}]
+        return self.input(events)
+
     def drag_x_handle(self, px, step=10, axis="x"):
         """Hover an arrow of the selection, press, pull along it, release.
         Returns the handle under the pointer at the press."""
@@ -286,6 +305,8 @@ def main():
             # drag its X handle 100 px, then turn it twice with the comma key.
             modified = canvas.entity(args.modify)
             modified_id = modified.get("id", 10)
+            other = canvas.entity(args.other)
+            other_id = other.get("id", 14)
             handles = canvas.select(modified_id).get("handles") or {}
             check(bool(handles.get("x")), f"GET /selection reports the handles ({handles})")
             before_x = modified.get("transform", {}).get("position", [0, 0, 0])[0]
@@ -324,9 +345,70 @@ def main():
             canvas.input(press("KeyY"))
             time.sleep(0.3)
 
+            # The outliner by pointer: drag the other's row onto the
+            # modified entity's row, then free it from the row's menu.
+            w = canvas.widgets()
+            rows = (f"outliner.row.{args.other}", f"outliner.row.{args.modify}")
+            check(all(r in w for r in rows), f"GET /widgets reports the outliner rows ({len(w)} widgets)")
+            lines = canvas.log_lines()
+            if all(r in w for r in rows):
+                canvas.drag(center(w[rows[0]]), center(w[rows[1]]))
+                time.sleep(1.2)
+            parent = canvas.entity(args.other).get("parent")
+            check(parent == modified_id and canvas.log_lines() == lines + 1, f"dragging the {args.other} row onto the {args.modify} row hangs it under it (parent {parent})")
+            w = canvas.widgets()
+            lines = canvas.log_lines()
+            if rows[0] in w:
+                at = center(w[rows[0]])
+                canvas.input([{"cursor": list(at)}, {"button": "right", "pressed": True}, {"button": "right", "pressed": False}])
+                time.sleep(0.5)
+                w = canvas.widgets()
+                check("menu.Unparent" in w, f"the row's context menu opens ({sorted(k for k in w if k.startswith('menu.'))})")
+                if "menu.Unparent" in w:
+                    canvas.input(click(center(w["menu.Unparent"])))
+                    time.sleep(1.2)
+            parent = canvas.entity(args.other).get("parent")
+            check(parent is None and canvas.log_lines() == lines + 1, f"the menu's Unparent frees it (parent {parent})")
+
+            # The detail panel's Parent combo, both ways.
+            canvas.select(other_id)
+            lines = canvas.log_lines()
+            if canvas.click_widget("detail.parent"):
+                time.sleep(0.5)
+                if canvas.click_widget(f"combo.parent.{args.modify}"):
+                    time.sleep(1.2)
+            parent = canvas.entity(args.other).get("parent")
+            check(parent == modified_id and canvas.log_lines() == lines + 1, f"the Parent combo hangs {args.other} under {args.modify} (parent {parent})")
+            lines = canvas.log_lines()
+            if canvas.click_widget("detail.parent"):
+                time.sleep(0.5)
+                if canvas.click_widget("combo.parent.— none —"):
+                    time.sleep(1.2)
+            parent = canvas.entity(args.other).get("parent")
+            check(parent is None and canvas.log_lines() == lines + 1, f"the Parent combo's none frees it (parent {parent})")
+
+            # The Alpha Mode combo, and a value field dragged by pointer.
+            canvas.select(modified_id)
+            lines = canvas.log_lines()
+            if canvas.click_widget("detail.alpha_mode"):
+                time.sleep(0.5)
+                if canvas.click_widget("combo.alpha_mode.Blend"):
+                    time.sleep(1.2)
+            alpha = canvas.entity(args.modify).get("material", {}).get("alpha_mode")
+            check(str(alpha).lower() == "blend" and canvas.log_lines() == lines + 1, f"the Alpha Mode combo sets Blend ({alpha})")
+            w = canvas.widgets()
+            y0 = canvas.entity(args.modify).get("transform", {}).get("position", [0, 0, 0])[1]
+            lines = canvas.log_lines()
+            if "detail.position.y" in w:
+                at = center(w["detail.position.y"])
+                canvas.drag(at, (at[0] + 40, at[1]))
+                time.sleep(1.2)
+            y1 = canvas.entity(args.modify).get("transform", {}).get("position", [0, 0, 0])[1]
+            check(y1 > y0 + 0.1 and canvas.log_lines() == lines + 1, f"dragging the position y field moves it ({y0} -> {y1})")
+            status, body = call(ep, "GET", "/screenshot")
+            shots.append(body.get("path"))
+
             # A shift-click adds a second entity; a drag on it moves both.
-            other = canvas.entity(args.other)
-            other_id = other.get("id", 14)
             other_at = (canvas.select(other_id).get("handles") or {}).get("origin")
             canvas.select(modified_id)
             check(bool(other_at), f"{args.other}'s place on screen is known ({other_at})")

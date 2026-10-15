@@ -41,8 +41,8 @@ pub(crate) fn draw_world_info(
     audio_engine: Option<&AudioEngine>,
     current_world: &CurrentWorld,
     mut controls: Option<LiveControls<'_>>,
-) {
-    egui::Panel::bottom("inspector_world_info")
+) -> egui::Rect {
+    let panel = egui::Panel::bottom("inspector_world_info")
         .exact_size(28.0)
         .show(ctx, |ui| {
             ui.horizontal_centered(|ui| {
@@ -125,6 +125,7 @@ pub(crate) fn draw_world_info(
                 }
             });
         });
+    panel.response.rect
 }
 
 /// The bookmarks menu: fly to one, drop one, add the view now.

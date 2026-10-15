@@ -233,6 +233,8 @@ fn inject_synthetic_input(
     mut cursor: MessageWriter<CursorMoved>,
     mut window_events: MessageWriter<WindowEvent>,
     mut pointer_inputs: MessageWriter<PointerInput>,
+    mut egui_events: MessageWriter<bevy_egui::input::EguiInputEvent>,
+    egui_contexts: Query<Entity, With<bevy_egui::PrimaryEguiContext>>,
     mut cursor_last: Local<Vec2>,
 ) {
     let Some(event) = live.synthetic.as_mut().and_then(VecDeque::pop_front) else {
@@ -284,6 +286,18 @@ fn inject_synthetic_input(
                             delta: position - *cursor_last,
                         },
                     });
+                    // bevy_egui hands a window's cursor moves only to
+                    // contexts drawn in that window, and this one draws in
+                    // the image now (its button presses still arrive): the
+                    // move goes to egui directly, so hover is known before
+                    // the press — which is what keeps a click on a panel
+                    // from reaching the scene behind it.
+                    if let Ok(context) = egui_contexts.single() {
+                        egui_events.write(bevy_egui::input::EguiInputEvent {
+                            context,
+                            event: egui::Event::PointerMoved(egui::pos2(position.x, position.y)),
+                        });
+                    }
                 }
                 None => {
                     window_events.write(WindowEvent::CursorMoved(moved));
@@ -619,9 +633,13 @@ fn review_bar(
     mut live: ResMut<Live>,
     keys: Res<ButtonInput<KeyCode>>,
     mut decisions: MessageWriter<ReviewDecision>,
+    mut other_panels: ResMut<crate::inspector::OtherPanels>,
 ) {
     let Some(proposal) = &live.proposal else {
         live.review_buttons = None;
+        if !other_panels.0.is_empty() {
+            other_panels.0.clear();
+        }
         return;
     };
     let Ok(ctx) = contexts.ctx_mut() else {
@@ -630,7 +648,7 @@ fn review_bar(
     let mut decision = None;
     let mut buttons = None;
     let rect = |r: egui::Rect| [r.min.x, r.min.y, r.width(), r.height()];
-    egui::Panel::top("live_review").show(ctx, |ui| {
+    let panel = egui::Panel::top("live_review").show(ctx, |ui| {
         ui.horizontal_wrapped(|ui| {
             ui.label(egui::RichText::new(format!("{} proposes:", proposal.author)).strong());
             ui.label(proposal.changes.join(" · "));
@@ -658,8 +676,10 @@ fn review_bar(
     if keys.just_pressed(KeyCode::Escape) {
         decision = Some(false);
     }
-    // Where the buttons are, for a driver with no eyes (`GET /proposals`).
+    // Where the buttons are, for a driver with no eyes (`GET /proposals`),
+    // and where the bar is, for the inspector's hover test.
     live.review_buttons = buttons;
+    other_panels.0 = vec![rect(panel.response.rect)];
     if let Some(accept) = decision {
         decisions.write(ReviewDecision(accept));
     }
@@ -1341,6 +1361,10 @@ const ENDPOINTS: &[(&str, &str)] = &[
         "tests only, with LOCALGPT_SYNTHETIC_INPUT=1: {\"events\": [{\"cursor\": [x, y]}, {\"button\": \"left\", \"pressed\": true}, {\"key\": \"Enter\", \"pressed\": false}]} — a person's input synthesized, one event per frame; GET /selection reports the handles' window positions",
     ),
     (
+        "GET /widgets",
+        "with synthetic input: the panels' widgets by name in window points [x, y, w, h] — outliner rows, the row menu's items, the detail panel's fields, combos and their open items",
+    ),
+    (
         "POST /ops",
         "a batch of edit ops: [op, ...] or {\"ops\": [...], \"author\": ..., \"message\": ..., \"at\": ..., \"expected_revision\": ...} — \"at\" names the entry to build on (default: the head); an earlier one starts a branch; \"expected_revision\" is the revision you read, and a world that moved since refuses the batch",
     ),
@@ -1407,6 +1431,7 @@ fn live_world(
     mut decisions: MessageReader<ReviewDecision>,
     mut selection: Option<ResMut<InspectorSelection>>,
     gesture: Option<Res<super::canvas_edit::CanvasGesture>>,
+    rects: Option<Res<crate::inspector::PanelRects>>,
 ) {
     let live = &mut *live;
     if !live.started {
@@ -1450,6 +1475,16 @@ fn live_world(
                 Err(e) => Reply::status(404, json!({"error": e})),
             },
             ("GET", "/log") => Reply::ok(history(&live.world, live.view.history())),
+            // The panels' widgets by name, for the hand that has no eyes.
+            ("GET", "/widgets") => match live.synthetic {
+                None => Reply::status(
+                    404,
+                    json!({"error": "widget positions come with synthetic input: start the canvas with LOCALGPT_SYNTHETIC_INPUT=1"}),
+                ),
+                Some(_) => Reply::ok(json!(
+                    rects.as_ref().map(|r| r.0.clone()).unwrap_or_default()
+                )),
+            },
             ("GET", "/proposals") => Reply::ok(json!({
                 "review": live.review,
                 "pending": live.proposal.as_ref().map(|p| p.n),
@@ -1815,6 +1850,7 @@ fn live_view(
     gen_entities: Query<&GenEntity>,
     handles: Option<Res<super::canvas_edit::Handles>>,
     offscreen: Option<Res<super::offscreen::OffscreenRenderTarget>>,
+    hovered: Option<Res<crate::inspector::UiHovered>>,
 ) {
     let live = &mut *live;
     if let Some(def) = live.camera.take()
@@ -1870,6 +1906,8 @@ fn live_view(
                 "selected": picked,
                 "others": others,
                 "handles": handle_points(handles.as_deref(), &cameras),
+                // Whether a panel has the pointer right now.
+                "ui_hovered": hovered.is_some(),
             }))
         };
         let _ = call.reply.send(reply);

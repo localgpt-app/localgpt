@@ -39,6 +39,8 @@ pub(crate) struct EditSurface<'a> {
     pub edit: &'a mut PanelEdit,
     /// The newest commit or refusal, for the panel to show.
     pub status: Option<&'a str>,
+    /// Where the fields, combos and buttons are, for a driver with no eyes.
+    pub rects: &'a mut super::PanelRects,
 }
 
 /// The field gesture in progress: changes to one entity merged into one
@@ -149,6 +151,17 @@ impl Edit<'_, '_> {
                 .change(live.intents, id, self.name, top, sub, value, verb);
         }
     }
+
+    /// Note where a widget is, when live.
+    fn note(&mut self, name: impl Into<String>, response: &egui::Response) {
+        self.note_rect(name, response.rect);
+    }
+
+    fn note_rect(&mut self, name: impl Into<String>, rect: egui::Rect) {
+        if let Some(live) = self.live.as_mut() {
+            live.rects.note_rect(name, rect);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -165,8 +178,8 @@ pub(crate) fn draw_detail(
     registry: &NameRegistry,
     q: &mut InspectorQueries,
     mut live: Option<EditSurface<'_>>,
-) {
-    egui::Panel::right("inspector_detail")
+) -> egui::Rect {
+    let panel = egui::Panel::right("inspector_detail")
         .default_size(320.0)
         .resizable(true)
         .show(ctx, |ui| {
@@ -234,6 +247,7 @@ pub(crate) fn draw_detail(
                 live.edit.settle(ctx, live.intents, id);
             }
         });
+    panel.response.rect
 }
 
 fn show_status(ui: &mut egui::Ui, status: Option<&str>) {
@@ -246,21 +260,34 @@ fn show_status(ui: &mut egui::Ui, status: Option<&str>) {
     }
 }
 
-/// Three drag values in a row; true when one changed.
-fn triple(ui: &mut egui::Ui, v: &mut [f32; 3], speed: f64, enabled: bool) -> bool {
+/// Three drag values in a row; whether one changed, and where each is.
+fn triple(
+    ui: &mut egui::Ui,
+    v: &mut [f32; 3],
+    speed: f64,
+    enabled: bool,
+) -> (bool, [egui::Rect; 3]) {
     let mut changed = false;
+    let mut rects = [egui::Rect::NOTHING; 3];
     ui.horizontal(|ui| {
         for (i, label) in ["x", "y", "z"].iter().enumerate() {
             ui.label(*label);
-            changed |= ui
-                .add_enabled(
-                    enabled,
-                    egui::DragValue::new(&mut v[i]).speed(speed).max_decimals(3),
-                )
-                .changed();
+            let response = ui.add_enabled(
+                enabled,
+                egui::DragValue::new(&mut v[i]).speed(speed).max_decimals(3),
+            );
+            changed |= response.changed();
+            rects[i] = response.rect;
         }
     });
-    changed
+    (changed, rects)
+}
+
+/// Note a triple's three fields as `<name>.x`, `.y`, `.z`.
+fn note_triple(edit: &mut Edit, name: &str, rects: [egui::Rect; 3]) {
+    for (axis, rect) in ["x", "y", "z"].iter().zip(rects) {
+        edit.note_rect(format!("{name}.{axis}"), rect);
+    }
 }
 
 fn round3(v: [f32; 3]) -> [f32; 3] {
@@ -300,6 +327,7 @@ fn draw_identity_section(
                                 _ => edit.name.to_string(),
                             };
                             let response = ui.text_edit_singleline(&mut draft);
+                            live.rects.note("detail.name", &response);
                             if response.lost_focus() {
                                 let new = draft.trim().to_string();
                                 if new.is_empty() {
@@ -396,7 +424,9 @@ fn draw_transform_section(ui: &mut egui::Ui, edit: &mut Edit, q: &mut InspectorQ
                 .spacing([8.0, 4.0])
                 .show(ui, |ui| {
                     ui.label("Position");
-                    if triple(ui, &mut position, 0.01, editable) {
+                    let (changed, rects) = triple(ui, &mut position, 0.01, editable);
+                    note_triple(edit, "detail.position", rects);
+                    if changed {
                         if let Ok(mut t) = q.transforms.get_mut(edit.entity) {
                             t.translation = Vec3::from_array(position);
                         }
@@ -410,7 +440,9 @@ fn draw_transform_section(ui: &mut egui::Ui, edit: &mut Edit, q: &mut InspectorQ
                     ui.end_row();
 
                     ui.label("Rotation \u{00B0}");
-                    if triple(ui, &mut rotation, 0.5, editable) {
+                    let (changed, rects) = triple(ui, &mut rotation, 0.5, editable);
+                    note_triple(edit, "detail.rotation", rects);
+                    if changed {
                         if let Ok(mut t) = q.transforms.get_mut(edit.entity) {
                             t.rotation = Quat::from_euler(
                                 EulerRot::XYZ,
@@ -429,7 +461,9 @@ fn draw_transform_section(ui: &mut egui::Ui, edit: &mut Edit, q: &mut InspectorQ
                     ui.end_row();
 
                     ui.label("Scale");
-                    if triple(ui, &mut scale, 0.01, editable) {
+                    let (changed, rects) = triple(ui, &mut scale, 0.01, editable);
+                    note_triple(edit, "detail.scale", rects);
+                    if changed {
                         let scale = scale.map(|s| s.max(0.001));
                         if let Ok(mut t) = q.transforms.get_mut(edit.entity) {
                             t.scale = Vec3::from_array(scale);
@@ -439,10 +473,10 @@ fn draw_transform_section(ui: &mut egui::Ui, edit: &mut Edit, q: &mut InspectorQ
                     ui.end_row();
 
                     ui.label("Visible");
-                    if ui
-                        .add_enabled(editable, egui::Checkbox::without_text(&mut visible))
-                        .changed()
-                    {
+                    let response =
+                        ui.add_enabled(editable, egui::Checkbox::without_text(&mut visible));
+                    edit.note("detail.visible", &response);
+                    if response.changed() {
                         if let Ok(mut v) = q.visibility_q.get_mut(edit.entity) {
                             *v = if visible {
                                 Visibility::Inherited
@@ -733,13 +767,13 @@ fn draw_material_section(ui: &mut egui::Ui, edit: &mut Edit, q: &mut InspectorQu
                 .show(ui, |ui| {
                     ui.label("Color");
                     let mut rgba = def.color;
-                    let changed = ui
+                    let response = ui
                         .add_enabled_ui(editable, |ui| {
                             ui.color_edit_button_rgba_unmultiplied(&mut rgba)
                         })
-                        .inner
-                        .changed();
-                    if changed {
+                        .inner;
+                    edit.note("detail.material.color", &response);
+                    if response.changed() {
                         if let Some(handle) = &handle
                             && let Some(mut m) = q.materials.get_mut(handle)
                         {
@@ -750,10 +784,10 @@ fn draw_material_section(ui: &mut egui::Ui, edit: &mut Edit, q: &mut InspectorQu
                     ui.end_row();
 
                     ui.label("Metallic");
-                    if ui
-                        .add_enabled(editable, egui::Slider::new(&mut def.metallic, 0.0..=1.0))
-                        .changed()
-                    {
+                    let response =
+                        ui.add_enabled(editable, egui::Slider::new(&mut def.metallic, 0.0..=1.0));
+                    edit.note("detail.material.metallic", &response);
+                    if response.changed() {
                         if let Some(handle) = &handle
                             && let Some(mut m) = q.materials.get_mut(handle)
                         {
@@ -848,15 +882,23 @@ fn draw_material_section(ui: &mut egui::Ui, edit: &mut Edit, q: &mut InspectorQu
                     ui.label("Alpha Mode");
                     let before = alpha_mode_name(def.alpha_mode.as_ref());
                     let mut mode = before;
-                    ui.add_enabled_ui(editable, |ui| {
-                        egui::ComboBox::from_id_salt("alpha_mode")
-                            .selected_text(mode)
-                            .show_ui(ui, |ui| {
-                                for name in ["Opaque", "Blend", "Mask", "Add", "Multiply"] {
-                                    ui.selectable_value(&mut mode, name, name);
-                                }
-                            });
-                    });
+                    let mut items: Vec<(&str, egui::Rect)> = Vec::new();
+                    let combo = ui
+                        .add_enabled_ui(editable, |ui| {
+                            egui::ComboBox::from_id_salt("alpha_mode")
+                                .selected_text(mode)
+                                .show_ui(ui, |ui| {
+                                    for name in ["Opaque", "Blend", "Mask", "Add", "Multiply"] {
+                                        let item = ui.selectable_value(&mut mode, name, name);
+                                        items.push((name, item.rect));
+                                    }
+                                })
+                        })
+                        .inner;
+                    edit.note("detail.alpha_mode", &combo.response);
+                    for (name, rect) in items {
+                        edit.note_rect(format!("combo.alpha_mode.{name}"), rect);
+                    }
                     if mode != before {
                         let new = alpha_mode_of(mode);
                         if let Some(handle) = &handle
@@ -1137,7 +1179,9 @@ fn draw_light_section(ui: &mut egui::Ui, edit: &mut Edit, q: &mut InspectorQueri
                     if def.light_type == wt::LightType::Directional {
                         ui.label("Direction");
                         let mut direction = def.direction.unwrap_or([0.0, -1.0, -0.5]);
-                        if triple(ui, &mut direction, 0.01, editable) {
+                        let (changed, rects) = triple(ui, &mut direction, 0.01, editable);
+                        note_triple(edit, "detail.light.direction", rects);
+                        if changed {
                             // The scene aims the light when the commit lands.
                             edit.change(
                                 "light",
@@ -1263,7 +1307,9 @@ fn draw_behaviors_section(
                             if let Some(problem) = &problem {
                                 ui.colored_label(WARN, format!("\u{26A0} {problem}"));
                             }
-                            if ui.button("Remove this behavior").clicked() {
+                            let remove = ui.button("Remove this behavior");
+                            edit.note(format!("detail.behavior.{n}.remove"), &remove);
+                            if remove.clicked() {
                                 let remaining: Vec<&wt::BehaviorDef> = doc
                                     .behaviors
                                     .iter()
@@ -1532,16 +1578,27 @@ fn draw_hierarchy_section(
                             candidates.sort_by_key(|(_, name)| name.to_lowercase());
                             let before: Option<u64> = doc.parent.map(|p| p.0);
                             let mut choice = before;
-                            egui::ComboBox::from_id_salt("parent")
+                            let mut items: Vec<(String, egui::Rect)> = Vec::new();
+                            let combo = egui::ComboBox::from_id_salt("parent")
                                 .selected_text(
                                     parent_name.clone().unwrap_or_else(|| "— none —".into()),
                                 )
                                 .show_ui(ui, |ui| {
-                                    ui.selectable_value(&mut choice, None, "— none —");
+                                    let none = ui.selectable_value(&mut choice, None, "— none —");
+                                    items.push(("— none —".into(), none.rect));
                                     for (candidate, name) in &candidates {
-                                        ui.selectable_value(&mut choice, Some(*candidate), name);
+                                        let item = ui.selectable_value(
+                                            &mut choice,
+                                            Some(*candidate),
+                                            name,
+                                        );
+                                        items.push((name.clone(), item.rect));
                                     }
                                 });
+                            live.rects.note("detail.parent", &combo.response);
+                            for (name, rect) in items {
+                                live.rects.note_rect(format!("combo.parent.{name}"), rect);
+                            }
                             if choice != before {
                                 let parent = choice.and_then(|pid| {
                                     let entity = registry.get_entity_by_id(&wt::EntityId(pid))?;

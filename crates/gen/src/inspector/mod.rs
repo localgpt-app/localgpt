@@ -14,7 +14,7 @@ pub mod ws_server;
 use bevy::ecs::system::SystemParam;
 use bevy::picking::prelude::*;
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass};
+use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
 
 use localgpt_world_types as wt;
 
@@ -112,11 +112,40 @@ impl InspectorSelection {
 #[derive(Resource, Default)]
 pub struct PanelIntents(pub Vec<crate::gen3d::canvas_edit::PersonIntent>);
 
+/// Where the panels' widgets are this frame, by name, in window points
+/// (`[x, y, w, h]`) — rows of the outliner, its menu's items, the detail
+/// panel's fields and combos and their open items. For a driver with no
+/// eyes: the live API reports them with its synthetic-input seam
+/// (`GET /widgets`). Cleared and refilled each frame the panels draw.
+#[derive(Resource, Default)]
+pub struct PanelRects(pub std::collections::HashMap<String, [f32; 4]>);
+
+impl PanelRects {
+    pub fn note(&mut self, name: impl Into<String>, response: &bevy_egui::egui::Response) {
+        self.note_rect(name, response.rect);
+    }
+
+    pub fn note_rect(&mut self, name: impl Into<String>, rect: bevy_egui::egui::Rect) {
+        self.0.insert(
+            name.into(),
+            [rect.min.x, rect.min.y, rect.width(), rect.height()],
+        );
+    }
+}
+
 /// When set, the camera flies to this pose: a bookmark, or a shot.
 #[derive(Resource, Default)]
 pub struct PendingCameraPose {
     pub pose: Option<(Vec3, Vec3)>,
 }
+
+/// Panels drawn outside the inspector that own the pointer too — the live
+/// review bar — as `[x, y, w, h]` in window points. The inspector's hover
+/// test reads them: egui's own `is_pointer_over_egui` does not count the
+/// legacy context panels this app draws, so without the rectangles a
+/// click on a panel reached the scene behind it.
+#[derive(Resource, Default)]
+pub struct OtherPanels(pub Vec<[f32; 4]>);
 
 /// Marker resource: present when the mouse is over an inspector panel.
 /// Camera systems should check `not(resource_exists::<UiHovered>)`.
@@ -207,6 +236,8 @@ impl Plugin for InspectorPlugin {
             .init_resource::<PendingFocusEntity>()
             .init_resource::<PendingCameraPose>()
             .init_resource::<PanelIntents>()
+            .init_resource::<PanelRects>()
+            .init_resource::<OtherPanels>()
             .init_resource::<detail::PanelEdit>()
             .add_systems(Startup, inspector_from_env)
             .add_systems(
@@ -291,6 +322,8 @@ fn inspector_ui(
     mut panel_intents: ResMut<PanelIntents>,
     mut panel_edit: ResMut<detail::PanelEdit>,
     mut pose: ResMut<PendingCameraPose>,
+    mut rects: ResMut<PanelRects>,
+    other_panels: Res<OtherPanels>,
 ) {
     if state.mode == InspectorMode::Hidden {
         commands.remove_resource::<UiHovered>();
@@ -300,6 +333,15 @@ fn inspector_ui(
     let Ok(ctx) = contexts.ctx_mut() else {
         return;
     };
+    rects.0.clear();
+    // Where egui believes the pointer is, for a driver checking its hand.
+    if let Some(pointer) = ctx.pointer_latest_pos() {
+        rects
+            .0
+            .insert("egui.pointer".into(), [pointer.x, pointer.y, 0.0, 0.0]);
+    }
+    // The panels' rectangles this frame, for the hover test below.
+    let mut panels: Vec<egui::Rect> = Vec::new();
 
     // --- Outliner (left panel) ---
     {
@@ -307,8 +349,9 @@ fn inspector_ui(
             intents: &mut panel_intents.0,
             doc: live.doc(),
             q: &params,
+            rects: &mut rects,
         });
-        outliner::draw_outliner(
+        panels.push(outliner::draw_outliner(
             ctx,
             &registry,
             &mut selection,
@@ -318,7 +361,7 @@ fn inspector_ui(
             &params.children_q,
             &params.parent_q,
             edit,
-        );
+        ));
     }
 
     if state.mode == InspectorMode::Full {
@@ -329,8 +372,15 @@ fn inspector_ui(
                 intents: &mut panel_intents.0,
                 edit: &mut panel_edit,
                 status: live.status(),
+                rects: &mut rects,
             });
-            detail::draw_detail(ctx, &mut selection, &registry, &mut params, edit);
+            panels.push(detail::draw_detail(
+                ctx,
+                &mut selection,
+                &registry,
+                &mut params,
+                edit,
+            ));
         }
 
         // --- World info bar (bottom) ---
@@ -346,14 +396,14 @@ fn inspector_ui(
             camera,
             pose: &mut pose,
         });
-        world_info::draw_world_info(
+        panels.push(world_info::draw_world_info(
             ctx,
             &registry,
             &params.behavior_state,
             params.audio_engine.as_deref(),
             &params.current_world,
             controls,
-        );
+        ));
     }
 
     // --- Process pending visibility toggles from outliner ---
@@ -370,7 +420,7 @@ fn inspector_ui(
     }
     if !pending.is_empty() {
         // Force tree rebuild to update visibility state
-        outliner_cache.last_entity_count = usize::MAX;
+        outliner_cache.last_signature = 0;
     }
 
     // --- Process pending focus request from outliner double-click ---
@@ -381,7 +431,19 @@ fn inspector_ui(
     }
 
     // --- Update UiHovered resource ---
-    if ctx.is_pointer_over_egui() {
+    // egui's own answer misses the legacy context panels drawn here (it
+    // asks the modern root UI's free rect, which they don't shrink), so the
+    // panels' rectangles decide, and egui's answer covers its popups and
+    // windows.
+    let pointer = ctx.pointer_latest_pos();
+    let over_panel = pointer.is_some_and(|p| {
+        panels.iter().any(|rect| rect.contains(p))
+            || other_panels
+                .0
+                .iter()
+                .any(|[x, y, w, h]| p.x >= *x && p.x <= x + w && p.y >= *y && p.y <= y + h)
+    });
+    if over_panel || ctx.is_pointer_over_egui() {
         commands.insert_resource(UiHovered);
     } else {
         commands.remove_resource::<UiHovered>();

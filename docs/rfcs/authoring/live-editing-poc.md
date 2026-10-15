@@ -233,12 +233,21 @@ A smoke test drives all of this with no one at the keyboard —
 open, selects over the inspector's WebSocket, and with a synthesized hand
 (`LOCALGPT_SYNTHETIC_INPUT=1` enables `POST /input`, a test's seam that
 is off otherwise so an agent can't press Enter on its own proposal)
-rejects a proposal with Esc and accepts one with Enter, drags the X
-handle of an entity (`GET /selection` reports where the handles are, and
-which is under the pointer) and turns it with the comma key; it checks
-the log stayed untouched while a proposal was pending, that a stale
-`expected_revision` is refused and the right one commits, and that the
-receipt warns about a deleted target. The screenshots it takes land in
+rejects a proposal with Esc and accepts one with Enter, clicks the bar's
+Reject and Accept buttons, drags the X handle of an entity
+(`GET /selection` reports where the handles are, and which is under the
+pointer), turns it with the comma key, snaps a drag onto the grid, drags
+an outliner row onto another, frees it from the row's context menu,
+picks a parent and an alpha mode from the panel's combos and drags a
+value field (`GET /widgets` names every panel widget's rectangle),
+shift-clicks a second entity and drags both, groups them with Cmd+G and
+deletes the group; it checks the log stayed untouched while a proposal
+was pending, that a stale `expected_revision` is refused and the right
+one commits, and that the receipt warns about a deleted target. Two
+things it caught: a click on a panel reached the scene behind it (egui's
+own hover test skips the legacy context panels drawn here, so hover is
+now decided from the panels' rectangles), and the outliner rebuilt its
+tree only when the entity count changed, so a reparent left a stale row. The screenshots it takes land in
 `<world>/.live/`; on a locked or sleeping screen a window's surface stays
 black, and `--offscreen` (`LOCALGPT_OFFSCREEN_SHOTS=1`) has the canvas
 render into an image the screenshots read instead.
