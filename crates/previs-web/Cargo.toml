@@ -3,7 +3,7 @@ name = "localgpt-previs-web"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "The localgpt.md page's WASM: a screenplay in (Fountain, Final Draft or Markdown), every scene's .world package, the shot list and the printable board out, in the browser tab"
+description = "The localgpt.md page's WASM: a screenplay in (Fountain, Final Draft, PDF or Markdown), every scene's .world package, the shot list and the printable board out, in the browser tab"
 repository.workspace = true
 keywords = ["localgpt", "previs", "screenplay", "wasm", "storyboard"]
 
@@ -15,7 +15,8 @@ crate-type = ["cdylib", "rlib"]
 # which is what lets the page be free: the draft is a function of the
 # text, computed where the text already is. The CLI runs the same
 # `localgpt_previs::draft`, so the page's board is the CLI's.
-localgpt-previs = { path = "../previs" }
+# With the PDF reader: the page reads PDFs too.
+localgpt-previs = { path = "../previs", features = ["pdf"] }
 
 wasm-bindgen = "0.2"
 serde_json = { workspace = true }

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>localgpt.md — drop a screenplay, get a previs board</title>
-<meta name="description" content="Drop a screenplay — a Final Draft file, Fountain, or Markdown script pages — and get a previs board: a set, stand-ins and coverage per scene, with real lenses and measured camera positions, right here in the tab. No install, no account, no upload: the script never leaves your browser.">
+<meta name="description" content="Drop a screenplay — a PDF, a Final Draft file, Fountain, or Markdown script pages — and get a previs board: a set, stand-ins and coverage per scene, with real lenses and measured camera positions, right here in the tab. No install, no account, no upload: the script never leaves your browser.">
 <link rel="icon" href="localgpt-icon.svg" type="image/svg+xml">
 <style>
   :root {
@@ -89,18 +89,18 @@
     <h1><code>localgpt.md</code> <span>previs</span></h1>
   </header>
   <p class="tagline">
-    Drop a <strong>screenplay</strong> — a Final Draft file, Fountain, or script pages in Markdown — and get a
+    Drop a <strong>screenplay</strong> — a PDF, a Final Draft file, Fountain, or script pages in Markdown — and get a
     previs board: a set, a stand-in per speaking character and a first pass of coverage — a master
     and a single on everyone — with <strong>real lenses and measured camera positions</strong>. It
     happens in this tab. No install, no account, no upload: the script never leaves your browser.
   </p>
 
-  <div id="drop" role="button" tabindex="0" aria-label="Drop a screenplay — .fdx, .fountain or .md — or click to choose one">
-    <div class="big">Drop a <code>.fdx</code>, <code>.fountain</code> or <code>.md</code> file here</div>
-    <div class="sub">or click to choose one · a Final Draft file as saved (<code>.fdx</code>), Fountain from Highland, Beat, Slugline or any export — or Markdown pages: <code>## INT. KITCHEN - DAY</code> is a scene, <code>**MAYA:**</code> opens a line</div>
+  <div id="drop" role="button" tabindex="0" aria-label="Drop a screenplay — .pdf, .fdx, .fountain or .md — or click to choose one">
+    <div class="big">Drop a <code>.pdf</code>, <code>.fdx</code>, <code>.fountain</code> or <code>.md</code> file here</div>
+    <div class="sub">or click to choose one · the script's PDF, a Final Draft file as saved (<code>.fdx</code>), Fountain from Highland, Beat, Slugline or any export — or Markdown pages: <code>## INT. KITCHEN - DAY</code> is a scene, <code>**MAYA:**</code> opens a line</div>
   </div>
-  <input id="file" type="file" accept=".fdx,.fountain,.md,.markdown,.txt,.spmd,text/plain,text/markdown,application/xml,text/xml" aria-label="Screenplay: Final Draft, Fountain or Markdown">
-  <p id="samples">No script handy? Try the sample as <button type="button" data-src="samples/cold-eggs.fdx">Final Draft</button>, <button type="button" data-src="samples/cold-eggs.fountain">Fountain</button> or <button type="button" data-src="samples/cold-eggs.md">Markdown</button></p>
+  <input id="file" type="file" accept=".pdf,.fdx,.fountain,.md,.markdown,.txt,.spmd,application/pdf,text/plain,text/markdown,application/xml,text/xml" aria-label="Screenplay: PDF, Final Draft, Fountain or Markdown">
+  <p id="samples">No script handy? Try the sample as a <button type="button" data-src="samples/cold-eggs.pdf">PDF</button>, as <button type="button" data-src="samples/cold-eggs.fdx">Final Draft</button>, <button type="button" data-src="samples/cold-eggs.fountain">Fountain</button> or <button type="button" data-src="samples/cold-eggs.md">Markdown</button></p>
   <p id="status">Loading the draft…</p>
 
   <section id="result">
@@ -131,6 +131,19 @@
       and put an agent on the folder (<a href="https://localgpt.app/docs/gen/previs/">the walk</a>).</li>
   </ul>
 
+  <h2>PDFs</h2>
+  <ul class="how">
+    <li>A screenplay page is a fixed layout, and that is how a PDF is read: the text layer's lines by where
+      they sit — action and scene headings at the left margin, dialogue an inch in, cues further still,
+      transitions at the right — with the columns learned from the file, since every app sets them a few
+      points apart. Scene numbers in the margins stay with their headings; page numbers,
+      <code>(CONTINUED)</code> and <code>(MORE)</code> go. A Fountain or plain-text file printed as it is,
+      all at one margin, is read as Fountain.</li>
+    <li>The page's lines are the script's lines, so the page-time estimate reads a PDF the way a page is
+      read. A scanned script has no text to read and is refused as one — export the text, or OCR it first.
+      Dual dialogue set side by side comes out as one cue. Up to 300 pages.</li>
+  </ul>
+
   <h2>Final Draft files</h2>
   <ul class="how">
     <li>A <code>.fdx</code> is read as Final Draft saved it: scene headings with their <strong>scene
@@ -139,8 +152,8 @@
       line is the title; a "written by" line and the one after it are the credit and the author.</li>
     <li>Final Draft wraps action by its page layout, so the draft re-wraps it at a screenplay page's
       61-character action column before timing it — the same page-time estimate a hard-wrapped Fountain
-      file gets. Styling, revision marks and page breaks don't reach the board. The three samples above
-      are the same screenplay three ways, and they draft to the same board, byte for byte.</li>
+      file gets. Styling, revision marks and page breaks don't reach the board. The four samples above
+      are the same screenplay four ways, and they draft to the same board, byte for byte.</li>
   </ul>
 
   <h2>Script pages in Markdown</h2>
@@ -168,25 +181,32 @@
 </main>
 
 <script type="module">
-  import init, { draft_previs } from './wasm/localgpt_previs_web.js';
-
   const status = document.getElementById('status');
   const drop = document.getElementById('drop');
   const input = document.getElementById('file');
   const result = document.getElementById('result');
   const boardFrame = document.getElementById('board');
   let draft = null;
-  // The page's ceilings — a feature is a few hundred KB and 100–200
-  // scenes. Past these the draft is still exact; the tab isn't.
+  // The page's ceilings — a feature is a few hundred KB, 100–200 scenes,
+  // 90–120 pages. Past these the draft is still exact; the tab isn't.
   const MAX_BYTES = 20 * 1024 * 1024;
   const MAX_SCENES = 300;
+  const MAX_PAGES = 300;
 
   const say = (text, cls = '') => { status.textContent = text; status.className = cls; };
 
+  // The draft is a WASM module. A PDF too broken for its reader can
+  // trap the module (a Rust panic has nowhere to unwind to in WASM), so
+  // it is loaded through a function that can load it again, fresh.
+  let loads = 0;
+  async function loadDraft() {
+    const wasm = await import(`./wasm/localgpt_previs_web.js?load=${loads++}`);
+    await wasm.default();
+    draft = wasm.draft_previs_bytes;
+  }
   try {
-    await init();
-    draft = draft_previs;
-    say('Ready — drop a .fdx, .fountain or .md file, or try the sample.', 'ok');
+    await loadDraft();
+    say('Ready — drop a .pdf, .fdx, .fountain or .md file, or try the sample.', 'ok');
   } catch (err) {
     say(`Could not load the draft: ${err.message ?? err}`, 'err');
   }
@@ -245,17 +265,19 @@
     links.push(a.href);
   }
 
-  function handle(name, text) {
+  async function handle(name, bytes) {
     if (!draft) return;
     const stem = name.replace(/\.[^.]+$/, '') || 'screenplay';
     let out;
     try {
-      // The file name picks the format (.fdx is Final Draft, .md is
-      // Markdown pages, anything else Fountain — and XML at the head is
-      // Final Draft whatever the name) and names an untitled draft.
-      out = JSON.parse(draft(text, name || 'screenplay.fountain', MAX_SCENES));
+      // The bytes' head and the file name pick the format (%PDF- is a
+      // PDF, XML is Final Draft; else .fdx, .pdf, .md by name, anything
+      // else Fountain) and the name names an untitled draft.
+      out = JSON.parse(draft(bytes, name || 'screenplay.fountain', MAX_SCENES, MAX_PAGES));
     } catch (err) {
-      say(`The draft failed: ${err.message ?? err}`, 'err');
+      say(`The draft failed on ${name}: ${err.message ?? err} — this file is beyond the reader; export the script as Fountain or .fdx and try again.`, 'err');
+      draft = null;
+      try { await loadDraft(); } catch (again) { say(`Could not reload the draft: ${again.message ?? again}`, 'err'); }
       return;
     }
     if (out.error) { say(out.error, 'err'); result.classList.remove('show'); return; }
@@ -291,14 +313,14 @@
       return;
     }
     say(`Drafting ${file.name}…`);
-    let text;
+    let bytes;
     try {
-      text = await file.text();
+      bytes = new Uint8Array(await file.arrayBuffer());
     } catch (err) {
       say(`Could not read ${file.name}: ${err.message ?? err}`, 'err');
       return;
     }
-    handle(file.name, text);
+    await handle(file.name, bytes);
   }
 
   drop.addEventListener('click', () => input.click());
@@ -320,7 +342,7 @@
       try {
         const response = await fetch(button.dataset.src);
         if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-        handle(button.dataset.src.split('/').pop(), await response.text());
+        await handle(button.dataset.src.split('/').pop(), new Uint8Array(await response.arrayBuffer()));
       } catch (err) {
         say(`Could not fetch the sample: ${err.message ?? err}`, 'err');
       }

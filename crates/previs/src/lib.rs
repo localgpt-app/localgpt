@@ -1,14 +1,15 @@
 //! `localgpt_previs` — script to board: a screenplay in (Fountain, a
-//! Final Draft `.fdx`, or Markdown script pages), per scene a `.world`
-//! package with set/cast/coverage, a printable board and a shot-list CSV
-//! out.
+//! Final Draft `.fdx`, a PDF, or Markdown script pages), per scene a
+//! `.world` package with set/cast/coverage, a printable board and a
+//! shot-list CSV out.
 //!
 //! Deterministic only: no model, no network, no renderer — the draft is
 //! a pure function of the screenplay text (same text, same bytes).
 //!
-//! Pipeline: [`fdx`] or [`markdown`] (a Final Draft file's typed
-//! paragraphs, or a `.md` file's convention → Fountain, when the pages
-//! are either) → [`fountain`] (screenplay → scenes and elements) →
+//! Pipeline: [`fdx`], [`pdf`] or [`markdown`] (a Final Draft file's
+//! typed paragraphs, a PDF's text layer read by its columns, or a `.md`
+//! file's convention → Fountain, when the pages are any of those) →
+//! [`fountain`] (screenplay → scenes and elements) →
 //! [`stage`] (a scene → set, cast and coverage as a `WorldManifest`,
 //! cameras and shots riding `WorldEntity::extra` under
 //! `ext-cinematography`) → [`shots`] (the shot list with the derived
@@ -27,6 +28,8 @@ pub mod fdx;
 pub mod fountain;
 pub mod markdown;
 pub mod package;
+#[cfg(feature = "pdf")]
+pub mod pdf;
 pub mod shots;
 pub mod stage;
 

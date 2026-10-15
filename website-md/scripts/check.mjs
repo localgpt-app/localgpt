@@ -2,7 +2,8 @@
 // crate's own sample screenplay through the real file input, and require the
 // board to render every shot's frame and the downloads to hold the packages —
 // the same contract the page promises a visitor. Then the same screenplay as
-// a Final Draft file and as Markdown pages, which must draft to the same board.
+// a Final Draft file, a PDF and Markdown pages, which must draft to the same
+// board.
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -17,7 +18,7 @@ const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
   '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml',
   '.wasm': 'application/wasm', '.fountain': 'text/plain', '.md': 'text/markdown',
-  '.fdx': 'application/xml',
+  '.fdx': 'application/xml', '.pdf': 'application/pdf',
 };
 const server = createServer(async (req, res) => {
   const path = normalize(decodeURIComponent(new URL(req.url, 'http://localhost').pathname));
@@ -97,7 +98,7 @@ check('the three downloads are ready', downloads.every(Boolean), downloads.join(
 // The same screenplay as a Final Draft file and as Markdown script pages
 // drafts to the same board.
 const fountainBoard = await page.evaluate(() => window.localgptPrevis.draft.board_html);
-for (const [label, sample] of [['Final Draft', 'cold-eggs.fdx'], ['Markdown', 'cold-eggs.md']]) {
+for (const [label, sample] of [['Final Draft', 'cold-eggs.fdx'], ['PDF', 'cold-eggs.pdf'], ['Markdown', 'cold-eggs.md']]) {
   await page.evaluate(() => { window.localgptPrevis = null; });
   await page.setInputFiles('#file', join(root, 'samples', sample));
   try {
@@ -125,6 +126,9 @@ const noise = join(guards, 'noise.fountain');
 await writeFile(noise, randomBytes(65536));
 const notFdx = join(guards, 'page.fdx');
 await writeFile(notFdx, '<?xml version="1.0"?><html><body>not a script</body></html>\n');
+const notPdf = join(guards, 'fake.pdf');
+await writeFile(notPdf, 'INT. A - DAY\n\nNot a PDF.\n');
+const scan = join(root, '../crates/previs/samples/pdf/cold-eggs-scan.pdf');
 const refused = async (file) => {
   await page.evaluate(() => { const s = document.getElementById('status'); s.textContent = ''; s.className = ''; });
   await page.setInputFiles('#file', file);
@@ -139,6 +143,18 @@ const notText = await refused(noise);
 check('random bytes are refused as not a screenplay', /isn't a text screenplay/.test(notText), notText);
 const xml = await refused(notFdx);
 check('XML that isn\'t Final Draft is refused in its own words', /isn't a Final Draft file — the XML is a <html> document/.test(xml), xml);
+const fake = await refused(notPdf);
+check('a .pdf that isn\'t one is refused in its own words', /isn't a PDF this draft can read/.test(fake), fake);
+const scanned = await refused(scan);
+check('a scanned PDF is refused as a picture of a script', /picture of a script/.test(scanned), scanned);
+// A refusal leaves the draft ready: the sample still drafts after it.
+await page.evaluate(() => { window.localgptPrevis = null; });
+await page.setInputFiles('#file', join(root, 'samples/cold-eggs.pdf'));
+try {
+  await page.waitForFunction(() => window.localgptPrevis?.draft, null, { timeout: 20000 });
+} catch { /* counted below */ }
+const after = await page.evaluate(() => window.localgptPrevis?.draft?.scenes?.length ?? 0);
+check('the draft is still ready after the refusals', after === 2, `${after} scenes`);
 await rm(guards, { recursive: true, force: true });
 
 check('no page errors', errors.length === 0, errors.join(' | '));

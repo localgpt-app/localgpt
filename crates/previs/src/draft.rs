@@ -9,6 +9,8 @@
 use localgpt_world_types as wt;
 
 use crate::board::{self, SceneBoard};
+#[cfg(feature = "pdf")]
+use crate::pdf;
 use crate::shots::{self, ShotRow};
 use crate::{fdx, fountain, markdown, package, stage};
 
@@ -16,7 +18,8 @@ use crate::{fdx, fountain, markdown, package, stage};
 /// ([`Format::of_name`]), since the text alone can't tell Fountain from
 /// Markdown: Fountain is valid inside Markdown and the two differ only
 /// in what a `#` heading or a bold name means. A Final Draft file is
-/// XML, which the text does say ([`Format::of`]).
+/// XML and a PDF is a PDF, which the bytes do say ([`Format::of`],
+/// [`Format::of_bytes`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Format {
     /// Fountain — `.fountain`, `.txt`, `.spmd`, and anything unnamed.
@@ -28,6 +31,11 @@ pub enum Format {
     /// Markdown — `.md`, `.markdown`, `.mdown`, `.mkd`: [`markdown`]'s
     /// convention, translated to Fountain before the parse.
     Markdown,
+    /// A PDF — `.pdf`: the text layer read back into elements by where
+    /// it sits on the page (the `pdf` module, behind the `pdf` feature),
+    /// translated to Fountain before the parse. Read from the bytes
+    /// ([`draft_bytes`]), never from text.
+    Pdf,
 }
 
 impl Format {
@@ -39,6 +47,7 @@ impl Format {
             Some((stem, ext)) if !stem.is_empty() => match ext.to_ascii_lowercase().as_str() {
                 "md" | "markdown" | "mdown" | "mkd" => Format::Markdown,
                 "fdx" => Format::Fdx,
+                "pdf" => Format::Pdf,
                 _ => Format::Fountain,
             },
             _ => Format::Fountain,
@@ -48,7 +57,8 @@ impl Format {
     /// The format of a file by its name, unless the text says otherwise:
     /// XML at the head (`<?xml`, `<FinalDraft`) is a Final Draft file
     /// whatever it was renamed to — and an XML file that isn't one gets
-    /// told so, instead of "no scene headings".
+    /// told so, instead of "no scene headings". (A PDF's bytes aren't
+    /// text; [`Format::of_bytes`] knows those.)
     pub fn of(name: &str, source: &str) -> Format {
         let head = source
             .strip_prefix('\u{FEFF}')
@@ -58,6 +68,16 @@ impl Format {
             return Format::Fdx;
         }
         Format::of_name(name)
+    }
+
+    /// The format of a file's bytes: `%PDF-` at the head (or a `.pdf`
+    /// name) is a PDF; anything else is text, read as [`Format::of`]
+    /// reads it once decoded ([`decode_text`]).
+    pub fn of_bytes(name: &str, bytes: &[u8]) -> Format {
+        if bytes.starts_with(b"%PDF-") || Format::of_name(name) == Format::Pdf {
+            return Format::Pdf;
+        }
+        Format::of(name, &decode_text(bytes))
     }
 
     /// The file name's stem — what names an untitled draft.
@@ -117,6 +137,25 @@ pub enum DraftError {
         /// What the reader found ([`fdx::FdxError`]'s words).
         reason: String,
     },
+    /// Read as a PDF (named `.pdf`, or `%PDF-` at the head), the bytes
+    /// don't open as one, or the file is encrypted — or it was handed
+    /// over as text, which a PDF never is.
+    NotPdf {
+        /// What the reader found (`pdf::PdfError`'s words).
+        reason: String,
+    },
+    /// A PDF with pages and no text on them: a scan.
+    NoTextLayer,
+    /// More pages than the caller reads ([`draft_bytes_limited`]).
+    TooManyPages {
+        /// The pages the file has.
+        pages: usize,
+        /// The caller's ceiling.
+        limit: usize,
+    },
+    /// A PDF, but this build has no PDF reader (the `pdf` feature is
+    /// off).
+    NoPdfSupport,
     /// No scene headings — nothing to stage.
     NoScenes,
     /// More scenes than the caller boards ([`draft_limited`]).
@@ -139,6 +178,22 @@ impl std::fmt::Display for DraftError {
                 f,
                 "that isn't a Final Draft file — {reason}; save the script from Final Draft as .fdx, or export it as Fountain"
             ),
+            DraftError::NotPdf { reason } => write!(
+                f,
+                "that isn't a PDF this draft can read — {reason}; export the script again, or as Fountain"
+            ),
+            DraftError::NoTextLayer => write!(
+                f,
+                "this PDF is a picture of a script — no text layer to read; export the script's text from the app that wrote it, or OCR it first"
+            ),
+            DraftError::TooManyPages { pages, limit } => write!(
+                f,
+                "{pages} pages — this page reads up to {limit}; split the script, or run localgpt-previs on the whole thing"
+            ),
+            DraftError::NoPdfSupport => write!(
+                f,
+                "a PDF, and this build reads none (localgpt-previs was built without its pdf feature); export the script as Fountain or .fdx"
+            ),
             DraftError::NoScenes => {
                 write!(
                     f,
@@ -154,6 +209,36 @@ impl std::fmt::Display for DraftError {
 }
 
 impl std::error::Error for DraftError {}
+
+/// A file's bytes as text: UTF-16 by its byte-order mark (what some
+/// Windows exports write), else UTF-8 with the usual replacement
+/// characters — which the text gate then judges.
+pub fn decode_text(bytes: &[u8]) -> String {
+    let utf16 = |pairs: &mut dyn Iterator<Item = u16>| -> String {
+        char::decode_utf16(pairs)
+            .map(|c| c.unwrap_or('\u{FFFD}'))
+            .collect()
+    };
+    if let Some(rest) = bytes.strip_prefix(b"\xFF\xFE") {
+        return utf16(
+            &mut rest
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|p| u16::from_le_bytes(*p)),
+        );
+    }
+    if let Some(rest) = bytes.strip_prefix(b"\xFE\xFF") {
+        return utf16(
+            &mut rest
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|p| u16::from_be_bytes(*p)),
+        );
+    }
+    String::from_utf8_lossy(bytes).into_owned()
+}
 
 /// Whether the text could be a screenplay at all. Binary dropped on the
 /// page, a PDF, or UTF-16 read as UTF-8 arrives full of replacement
@@ -208,6 +293,67 @@ pub fn draft_limited_as(
     draft_inner(source, format, fallback_title, Some(max_scenes))
 }
 
+/// [`draft`] from a file's bytes, whatever it is: a PDF is read by its
+/// page layout, anything else is decoded ([`decode_text`]) and read by
+/// its name and head ([`Format::of_bytes`]). What the command line and
+/// the localgpt.md page both run.
+pub fn draft_bytes(
+    bytes: &[u8],
+    file_name: &str,
+    fallback_title: &str,
+) -> Result<Draft, DraftError> {
+    draft_bytes_inner(bytes, file_name, fallback_title, None, None)
+}
+
+/// [`draft_bytes`] with the page's ceilings: scenes, checked after the
+/// parse and before staging, and PDF pages, checked before any page is
+/// read.
+pub fn draft_bytes_limited(
+    bytes: &[u8],
+    file_name: &str,
+    fallback_title: &str,
+    max_scenes: usize,
+    max_pages: usize,
+) -> Result<Draft, DraftError> {
+    draft_bytes_inner(
+        bytes,
+        file_name,
+        fallback_title,
+        Some(max_scenes),
+        Some(max_pages),
+    )
+}
+
+fn draft_bytes_inner(
+    bytes: &[u8],
+    file_name: &str,
+    fallback_title: &str,
+    max_scenes: Option<usize>,
+    max_pages: Option<usize>,
+) -> Result<Draft, DraftError> {
+    match Format::of_bytes(file_name, bytes) {
+        Format::Pdf => {
+            let translated = pdf_to_fountain(bytes, max_pages)?;
+            draft_script(fountain::parse(&translated), fallback_title, max_scenes)
+        }
+        format => draft_inner(&decode_text(bytes), format, fallback_title, max_scenes),
+    }
+}
+
+#[cfg(feature = "pdf")]
+fn pdf_to_fountain(bytes: &[u8], max_pages: Option<usize>) -> Result<String, DraftError> {
+    pdf::to_fountain(bytes, max_pages).map_err(|e| match e {
+        pdf::PdfError::NotPdf(reason) => DraftError::NotPdf { reason },
+        pdf::PdfError::NoTextLayer => DraftError::NoTextLayer,
+        pdf::PdfError::TooManyPages { pages, limit } => DraftError::TooManyPages { pages, limit },
+    })
+}
+
+#[cfg(not(feature = "pdf"))]
+fn pdf_to_fountain(_bytes: &[u8], _max_pages: Option<usize>) -> Result<String, DraftError> {
+    Err(DraftError::NoPdfSupport)
+}
+
 fn draft_inner(
     source: &str,
     format: Format,
@@ -226,7 +372,22 @@ fn draft_inner(
             fountain::parse(&translated)
         }
         Format::Markdown => fountain::parse(&markdown::to_fountain(source)),
+        Format::Pdf => {
+            return Err(DraftError::NotPdf {
+                reason: "a PDF is read from its bytes, not its text".to_string(),
+            });
+        }
     };
+    draft_script(script, fallback_title, max_scenes)
+}
+
+/// The draft of a parsed script: the scenes staged, the shots listed,
+/// the board built.
+fn draft_script(
+    script: fountain::Script,
+    fallback_title: &str,
+    max_scenes: Option<usize>,
+) -> Result<Draft, DraftError> {
     let scenes = stage::scenes(&script);
     if scenes.is_empty() {
         return Err(DraftError::NoScenes);
@@ -385,11 +546,194 @@ mod tests {
     }
 
     #[test]
+    fn bytes_are_read_by_their_head_then_their_name() {
+        assert_eq!(Format::of_bytes("x.txt", b"%PDF-1.4\n%junk"), Format::Pdf);
+        assert_eq!(Format::of_bytes("x.pdf", b"INT. A - DAY"), Format::Pdf);
+        assert_eq!(Format::of_bytes("x.md", b"# T"), Format::Markdown);
+        assert_eq!(
+            Format::of_bytes("x.txt", b"<?xml?><FinalDraft/>"),
+            Format::Fdx
+        );
+        // UTF-16 by its byte-order mark, either way round.
+        let le: Vec<u8> = [0xFF, 0xFE]
+            .into_iter()
+            .chain(
+                "INT. A - DAY\n\nMAYA\nHi.\n"
+                    .encode_utf16()
+                    .flat_map(u16::to_le_bytes),
+            )
+            .collect();
+        assert_eq!(decode_text(&le), "INT. A - DAY\n\nMAYA\nHi.\n");
+        let be: Vec<u8> = [0xFE, 0xFF]
+            .into_iter()
+            .chain("Title: T\n".encode_utf16().flat_map(u16::to_be_bytes))
+            .collect();
+        assert_eq!(decode_text(&be), "Title: T\n");
+        let d = draft_bytes(&le, "script.txt", "x").unwrap();
+        assert_eq!(d.scenes.len(), 1);
+        assert_eq!(d.scenes[0].shots.len(), 2);
+        // Read as text, UTF-16 is replacement characters: the gate holds.
+        assert!(matches!(
+            draft(&String::from_utf8_lossy(&le), "x"),
+            Err(DraftError::NotText)
+        ));
+        // A PDF handed over as text is refused, not misread.
+        assert!(matches!(
+            draft_as("%PDF-1.4", Format::Pdf, "x"),
+            Err(DraftError::NotPdf { .. })
+        ));
+    }
+
+    /// A draft's shape: per scene, the heading and the shot names —
+    /// what every reading of the same script must agree on, whatever
+    /// its line breaks did to the timing.
+    #[cfg(feature = "pdf")]
+    fn shape(d: &Draft) -> Vec<(String, Vec<String>)> {
+        d.scenes
+            .iter()
+            .map(|s| {
+                (
+                    s.heading.clone(),
+                    s.shots.iter().map(|r| r.shot.clone()).collect(),
+                )
+            })
+            .collect()
+    }
+
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn the_pdf_sample_drafts_to_the_fountain_samples_board_byte_for_byte() {
+        const SAMPLE_PDF: &[u8] = include_bytes!("../samples/cold-eggs.pdf");
+        let fountain = draft(SAMPLE, "cold-eggs").unwrap();
+        let pdf = draft_bytes(SAMPLE_PDF, "cold-eggs.pdf", "cold-eggs").unwrap();
+        assert_eq!(pdf.title, "Cold Eggs");
+        assert_eq!(pdf.board_html, fountain.board_html);
+        assert_eq!(pdf.shotlist_csv, fountain.shotlist_csv);
+        for (a, b) in pdf.scenes.iter().zip(&fountain.scenes) {
+            assert_eq!(a.files, b.files, "{}", a.package_dir);
+        }
+        // The same bytes, named anything.
+        let renamed = draft_bytes(SAMPLE_PDF, "cold-eggs.txt", "cold-eggs").unwrap();
+        assert_eq!(renamed.board_html, fountain.board_html);
+    }
+
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn the_corpus_drafts_the_same_scenes_whatever_wrote_the_pdf() {
+        let fountain = draft(SAMPLE, "cold-eggs").unwrap();
+        for (name, bytes, title) in [
+            (
+                "afterwriting",
+                &include_bytes!("../samples/pdf/cold-eggs-afterwriting.pdf")[..],
+                "COLD EGGS",
+            ),
+            (
+                "chromium",
+                &include_bytes!("../samples/pdf/cold-eggs-chromium.pdf")[..],
+                "cold-eggs",
+            ),
+            (
+                "cups",
+                &include_bytes!("../samples/pdf/cold-eggs-cups.pdf")[..],
+                "Cold Eggs",
+            ),
+            (
+                "soffice",
+                &include_bytes!("../samples/pdf/cold-eggs-soffice.pdf")[..],
+                "Cold Eggs",
+            ),
+        ] {
+            let d = draft_bytes(bytes, "cold-eggs.pdf", "cold-eggs")
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert_eq!(d.title, title, "{name}");
+            assert_eq!(shape(&d), shape(&fountain), "{name}");
+        }
+    }
+
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn a_ten_scene_script_keeps_its_numbers_and_its_shots_through_two_generators() {
+        const SOURCE: &str = include_str!("../samples/pdf/gull-point.fountain");
+        let fountain = draft(SOURCE, "gull-point").unwrap();
+        assert_eq!(fountain.scenes.len(), 10);
+        for (name, bytes) in [
+            (
+                "screenplain",
+                &include_bytes!("../samples/pdf/gull-point-screenplain.pdf")[..],
+            ),
+            (
+                "afterwriting",
+                &include_bytes!("../samples/pdf/gull-point-afterwriting.pdf")[..],
+            ),
+        ] {
+            let d = draft_bytes(bytes, "gull-point.pdf", "gull-point")
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert!(
+                d.title.eq_ignore_ascii_case("The Lamp at Gull Point"),
+                "{name}: {}",
+                d.title
+            );
+            let theirs = shape(&d);
+            let ours = shape(&fountain);
+            assert_eq!(theirs.len(), 10, "{name}");
+            for (i, (a, b)) in theirs.iter().zip(&ours).enumerate() {
+                assert_eq!(a.0, b.0, "{name}: scene {}", i + 1);
+                // Scene 4 has dual dialogue, which a page sets side by
+                // side and this reading takes as one cue (documented).
+                if i == 3 {
+                    assert!(
+                        a.1.len() >= b.1.len() - 1,
+                        "{name}: scene 4 {:?} vs {:?}",
+                        a.1,
+                        b.1
+                    );
+                } else {
+                    assert_eq!(a.1, b.1, "{name}: scene {}", i + 1);
+                }
+            }
+            // The margin numbers and the ordinals agree, so both label
+            // the scenes 1–10.
+            let dirs: Vec<&str> = d.scenes.iter().map(|s| s.package_dir.as_str()).collect();
+            assert_eq!(dirs[0], "scene-1.world", "{name}");
+            assert_eq!(dirs[9], "scene-10.world", "{name}");
+        }
+    }
+
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn a_scan_a_fake_and_a_torn_pdf_are_refused_not_panics() {
+        const SCAN: &[u8] = include_bytes!("../samples/pdf/cold-eggs-scan.pdf");
+        const SAMPLE_PDF: &[u8] = include_bytes!("../samples/cold-eggs.pdf");
+        assert_eq!(
+            draft_bytes(SCAN, "scan.pdf", "x").unwrap_err(),
+            DraftError::NoTextLayer
+        );
+        assert!(matches!(
+            draft_bytes(b"INT. A - DAY\n", "script.pdf", "x").unwrap_err(),
+            DraftError::NotPdf { .. }
+        ));
+        assert!(matches!(
+            draft_bytes(b"%PDF-1.7\ngarbage", "script.txt", "x").unwrap_err(),
+            DraftError::NotPdf { .. } | DraftError::NoTextLayer | DraftError::NoScenes
+        ));
+        // Torn at several points: whatever comes back, it comes back.
+        for cut in [200, 2000, 8000, 20000] {
+            let _ = draft_bytes(&SAMPLE_PDF[..cut.min(SAMPLE_PDF.len())], "torn.pdf", "x");
+        }
+        assert_eq!(
+            draft_bytes_limited(SAMPLE_PDF, "cold-eggs.pdf", "x", 300, 1).unwrap_err(),
+            DraftError::TooManyPages { pages: 2, limit: 1 }
+        );
+    }
+
+    #[test]
     fn the_format_and_the_stem_come_off_the_file_name() {
         for (name, format, stem) in [
             ("cold-eggs.fountain", Format::Fountain, "cold-eggs"),
             ("cold-eggs.md", Format::Markdown, "cold-eggs"),
             ("cold-eggs.fdx", Format::Fdx, "cold-eggs"),
+            ("script.pdf", Format::Pdf, "script"),
+            ("Drafts/Script v3.PDF", Format::Pdf, "Script v3"),
             ("Drafts/COLD EGGS.FDX", Format::Fdx, "COLD EGGS"),
             ("Pages/Scene 4.MD", Format::Markdown, "Scene 4"),
             ("notes.markdown", Format::Markdown, "notes"),

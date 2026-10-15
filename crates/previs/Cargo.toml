@@ -4,8 +4,15 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "LocalGPT Previs — a screenplay in (Fountain, a Final Draft .fdx, or Markdown script pages), per-scene .world packages with set/cast/coverage, a printable board and a shot-list CSV out. Deterministic: no model, no network, no renderer"
+description = "LocalGPT Previs — a screenplay in (Fountain, a Final Draft .fdx, a PDF, or Markdown script pages), per-scene .world packages with set/cast/coverage, a printable board and a shot-list CSV out. Deterministic: no model, no network, no renderer"
 keywords = ["localgpt", "previs", "screenplay", "fountain", "markdown"]
+
+[features]
+default = ["pdf"]
+# A screenplay PDF: the text layer read back into elements by where it
+# sits on the page (`pdf.rs`). On by default; Gen, which only stages and
+# boards, turns it off.
+pdf = ["dep:pdf-extract"]
 
 [lib]
 name = "localgpt_previs"
@@ -14,6 +21,11 @@ path = "src/lib.rs"
 [[bin]]
 name = "localgpt-previs"
 path = "src/main.rs"
+
+# The Fountain a PDF reads as, for checking a generator's output by eye.
+[[example]]
+name = "pdf_fountain"
+required-features = ["pdf"]
 
 [dependencies]
 # The shared LocalGPT world format: `WorldManifest`, `WorldEntity` (the
@@ -34,6 +46,8 @@ serde_json = { workspace = true }
 # Final Draft's .fdx is XML (`fdx.rs`): the typed paragraphs come out of
 # a DOM walk, entities resolved by the parser.
 roxmltree = { workspace = true }
+# A PDF's text with positions, for `pdf.rs` (the `pdf` feature).
+pdf-extract = { workspace = true, optional = true }
 
 [dev-dependencies]
 # The board tests decode the import map's base64 `data:` URLs (the

@@ -46,8 +46,8 @@ cargo fmt --check
 MD has no landing page of its own. [`website-md/`](../../website-md/) at
 the workspace root is [https://localgpt.md](https://localgpt.md/), the
 **previs** page (`docs/world-strategy.md` §15): drop a screenplay, get a
-board — it reads Final Draft files and Markdown script pages as well as
-Fountain, but it does not
+board — it reads PDFs, Final Draft files and Markdown script pages as well
+as Fountain, but it does not
 walk a document; that is this crate's Bevy app. The docs live on
 localgpt.app, in this repository's `website/docs/md/`.
 

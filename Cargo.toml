@@ -67,6 +67,9 @@ toml = "1.0"
 # crate — on WASM too. No DTD, so no entity expansion beyond the five
 # predefined ones.
 roxmltree = { version = "0.21", default-features = false, features = ["std"] }
+# A screenplay PDF's text layer, with positions (`crates/previs/src/pdf.rs`):
+# pure Rust over lopdf, built for wasm32 too (it asks lopdf for `wasm_js`).
+pdf-extract = "0.12"
 
 # Logging
 tracing = "0.1"
@@ -95,7 +98,9 @@ localgpt-world-audio = { version = "0.3.6", path = "crates/world-audio" }
 localgpt-world-sync = { version = "0.3.6", path = "crates/world-sync" }
 localgpt-world-editor = { version = "0.3.6", path = "crates/world-editor" }
 localgpt-world-agent = { version = "0.3.6", path = "crates/world-agent" }
-localgpt-previs = { version = "0.3.6", path = "crates/previs" }
+# Without its `pdf` feature here: Gen stages and boards and needs no PDF
+# reader; the previs binary and previs-web turn it on themselves.
+localgpt-previs = { version = "0.3.6", path = "crates/previs", default-features = false }
 localgpt-cli-tools = { version = "0.3.6", path = "crates/cli-tools" }
 
 [profile.release]

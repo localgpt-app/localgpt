@@ -9,7 +9,7 @@ LocalGPT's previs is two halves. The first is a page, [localgpt.md](https://loca
 
 ## 1. Script → board (the page) {#board}
 
-Drop a `.fdx` (a Final Draft file, as saved), a `.fountain`, or Markdown script pages on [localgpt.md](https://localgpt.md/). The page shows the board and offers three downloads:
+Drop the script's PDF, a `.fdx` (a Final Draft file, as saved), a `.fountain`, or Markdown script pages on [localgpt.md](https://localgpt.md/). The page shows the board and offers three downloads:
 
 | Download | What it is |
 |---|---|
@@ -25,7 +25,9 @@ cargo run -p localgpt-previs -- script.fdx --out previs/
 # previs/scene-1.world/  previs/scene-2.world/  previs/shotlist.csv  previs/board.html
 ```
 
-The draft is deterministic and model-free: the same pages give the same board, byte for byte, on the page and on the command line. A Final Draft file, its Fountain export and the same script as Markdown pages draft to the same board.
+The draft is deterministic and model-free: the same pages give the same board, byte for byte, on the page and on the command line. A Final Draft file, its PDF, its Fountain export and the same script as Markdown pages draft to the same board.
+
+A PDF is read by its page layout: the text layer's lines by where they sit — action and headings at the left margin, dialogue an inch in, cues further still — with the columns learned from the file. Scene numbers in the margins stay with their headings. A scanned script has no text layer and is refused as one; export the text, or OCR it first.
 
 ## 2. Board → canvas (the app) {#canvas}
 

@@ -23,6 +23,8 @@ localgpt-world-bevy = { workspace = true }
 # normative camera math (via world-types) and the board pages the live
 # authority's `GET /board` serves — the previs crate is deterministic
 # (no model, no renderer), so the canvas can depend on it.
+# Staging and boards only: the PDF reader (previs's `pdf` feature) stays
+# out of Gen's build (the workspace dependency leaves it off).
 localgpt-previs = { workspace = true }
 # For `paths`: the shared model directory and the GGUF/tokenizer discovery
 # rule, which MD and Verse read from here too. Not optional — `local-llm`

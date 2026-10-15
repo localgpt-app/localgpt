@@ -1,13 +1,14 @@
 //! LocalGPT Previs — script to board.
 //!
 //! Reads a screenplay — Fountain, a Final Draft `.fdx` file by the `fdx`
-//! module's mapping, or Markdown script pages by the `markdown` module's
-//! convention, picked by the file's extension (XML is Final Draft
-//! whatever the name) — and writes, per scene, a head-first `.world`
-//! package with the deterministic draft (set, cast, coverage), plus a
-//! `shotlist.csv` and a printable `board.html`. No model, no network —
-//! the output is a function of the text, and the same function the
-//! localgpt.md page runs in the browser (`draft::draft_as`).
+//! module's mapping, a PDF by the `pdf` module's reading of its page
+//! layout, or Markdown script pages by the `markdown` module's
+//! convention, picked by the file's extension (XML is Final Draft and
+//! `%PDF-` a PDF whatever the name) — and writes, per scene, a head-first
+//! `.world` package with the deterministic draft (set, cast, coverage),
+//! plus a `shotlist.csv` and a printable `board.html`. No model, no
+//! network — the output is a function of the file, and the same function
+//! the localgpt.md page runs in the browser (`draft::draft_bytes`).
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -15,14 +16,16 @@ use std::process::ExitCode;
 use localgpt_previs::draft::{self, Format};
 
 const USAGE: &str = "\
-Usage: localgpt-previs <script.fountain | script.fdx | pages.md> --out <dir>
+Usage: localgpt-previs <script.fountain | script.fdx | script.pdf | pages.md> --out <dir>
 
 Stages a screenplay as previs, deterministically (no model, no network).
 A .fountain (or .txt) file is read as Fountain; a .fdx file as Final
-Draft — the typed paragraphs, scene numbers included; a .md file as
-Markdown script pages — a heading that reads INT./EXT. is the scene,
-**NAME:** opens dialogue, front matter is the title page, Fountain
-inside passes through.
+Draft — the typed paragraphs, scene numbers included; a .pdf by its page
+layout — the columns say which line is action, a cue or dialogue, the
+margins carry the scene numbers (a scanned script has no text to read);
+a .md file as Markdown script pages — a heading that reads INT./EXT. is
+the scene, **NAME:** opens dialogue, front matter is the title page,
+Fountain inside passes through.
 
   <dir>/<scene>.world/   one head-first package per scene: the set
                          (room or location), the cast (a stand-in per
@@ -71,15 +74,14 @@ fn parse_args() -> Result<Args, String> {
 }
 
 fn run(args: &Args) -> std::io::Result<()> {
-    let source = std::fs::read_to_string(&args.script)?;
+    let bytes = std::fs::read(&args.script)?;
     let file_name = args
         .script
         .file_name()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_else(|| "Untitled".to_string());
-    let format = Format::of(&file_name, &source);
     let fallback_title = Format::stem_of(&file_name).to_string();
-    let drafted = match draft::draft_as(&source, format, &fallback_title) {
+    let drafted = match draft::draft_bytes(&bytes, &file_name, &fallback_title) {
         Ok(drafted) => drafted,
         Err(err) => {
             return Err(std::io::Error::other(format!(

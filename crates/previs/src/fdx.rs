@@ -247,13 +247,13 @@ fn title_page(node: roxmltree::Node) -> Vec<(String, String)> {
 
 /// `by`, `written by`, `screenplay by`, `story by` … — short, and ending
 /// in the word.
-fn is_credit(line: &str) -> bool {
+pub(crate) fn is_credit(line: &str) -> bool {
     let lower = line.trim().trim_end_matches(':').to_ascii_lowercase();
     lower == "by" || (lower.ends_with(" by") && lower.len() <= 40)
 }
 
 /// Fountain's scene number: alphanumerics, dashes and periods.
-fn is_scene_number(number: &str) -> bool {
+pub(crate) fn is_scene_number(number: &str) -> bool {
     !number.is_empty()
         && number
             .chars()
@@ -397,7 +397,7 @@ fn wrap(text: &str, width: usize) -> Vec<String> {
 
 /// An action line, `!`-forced when Fountain would read it as a cue, a
 /// heading, a transition, a section, a note, or any other element.
-fn force_action(line: String) -> String {
+pub(crate) fn force_action(line: String) -> String {
     let reads_otherwise = fountain::forced_heading(&line).is_some()
         || line.starts_with(['#', '=', '>', '~', '!', '@'])
         || line.starts_with("[[")

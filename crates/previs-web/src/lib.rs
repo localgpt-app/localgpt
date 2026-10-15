@@ -1,15 +1,18 @@
 //! The localgpt.md page's WASM module.
 //!
-//! One function: [`draft_previs`] takes script pages — a Fountain
-//! screenplay, a Final Draft `.fdx` file by `localgpt_previs::fdx`'s
-//! mapping, or Markdown by `localgpt_previs::markdown`'s convention,
-//! told apart by the file name — and returns the whole draft as JSON:
-//! every scene's `.world` package files, the shot list and the printable
-//! board, which the page shows as the board and offers as downloads. It
-//! is `localgpt_previs::draft::draft_as`, the function the CLI writes to
-//! disk: deterministic, model-free, no network, so the page is free to
-//! serve, works offline once loaded, and the script never leaves the
-//! browser tab.
+//! Two functions: [`draft_previs_bytes`] takes a file's bytes — a
+//! Fountain screenplay, a Final Draft `.fdx` file by
+//! `localgpt_previs::fdx`'s mapping, a PDF by `localgpt_previs::pdf`'s
+//! reading of its page layout, or Markdown by
+//! `localgpt_previs::markdown`'s convention, told apart by the file name
+//! and the bytes' head — and returns the whole draft as JSON: every
+//! scene's `.world` package files, the shot list and the printable
+//! board, which the page shows as the board and offers as downloads.
+//! [`draft_previs`] is the same for text already decoded. Both are
+//! `localgpt_previs::draft`, the function the CLI writes to disk:
+//! deterministic, model-free, no network, so the page is free to serve,
+//! works offline once loaded, and the script never leaves the browser
+//! tab.
 //!
 //! Build (into `website-md/wasm/`, which is what the page loads):
 //!
@@ -17,11 +20,11 @@
 //! wasm-pack build crates/previs-web --target web --out-dir ../../website-md/wasm
 //! ```
 
-use localgpt_previs::draft::{self, Format};
+use localgpt_previs::draft::{self, Draft, DraftError, Format};
 use serde_json::json;
 use wasm_bindgen::prelude::*;
 
-/// Draft script pages into previs, as a JSON string:
+/// Draft a file's bytes into previs, as a JSON string:
 ///
 /// ```json
 /// {"title": "...",
@@ -31,19 +34,46 @@ use wasm_bindgen::prelude::*;
 ///  "shotlist_csv": "…", "board_html": "…"}
 /// ```
 ///
-/// or `{"error": "…"}` when the text isn't a screenplay, has no scene
-/// headings, or has more scenes than `max_scenes` — the page's ceiling,
-/// checked after the parse and before any staging
-/// ([`localgpt_previs::draft::draft_limited_as`]). `file_name` picks the
-/// format by its extension (`.fdx` is Final Draft, `.md` Markdown,
-/// anything else Fountain — and XML at the head is Final Draft whatever
-/// the name) and names the draft by its stem when the title page has no
-/// title.
+/// or `{"error": "…"}` when the file isn't a screenplay, has no scene
+/// headings, or has more scenes than `max_scenes` or more pages than
+/// `max_pages` — the page's ceilings, checked before any staging
+/// ([`localgpt_previs::draft::draft_bytes_limited`]). `file_name` picks
+/// the format by its extension (`.fdx` is Final Draft, `.pdf` a PDF,
+/// `.md` Markdown, anything else Fountain — and XML or `%PDF-` at the
+/// head wins over the name) and names the draft by its stem when the
+/// title page has no title.
+#[wasm_bindgen]
+pub fn draft_previs_bytes(
+    bytes: &[u8],
+    file_name: String,
+    max_scenes: usize,
+    max_pages: usize,
+) -> String {
+    let fallback_title = Format::stem_of(&file_name);
+    as_json(draft::draft_bytes_limited(
+        bytes,
+        &file_name,
+        fallback_title,
+        max_scenes,
+        max_pages,
+    ))
+}
+
+/// [`draft_previs_bytes`] for text already decoded (no PDFs this way).
 #[wasm_bindgen]
 pub fn draft_previs(source: String, file_name: String, max_scenes: usize) -> String {
     let format = Format::of(&file_name, &source);
     let fallback_title = Format::stem_of(&file_name);
-    match draft::draft_limited_as(&source, format, fallback_title, max_scenes) {
+    as_json(draft::draft_limited_as(
+        &source,
+        format,
+        fallback_title,
+        max_scenes,
+    ))
+}
+
+fn as_json(result: Result<Draft, DraftError>) -> String {
+    match result {
         Err(err) => json!({ "error": err.to_string() }).to_string(),
         Ok(drafted) => json!({
             "title": drafted.title,
@@ -75,6 +105,59 @@ mod tests {
     const SAMPLE: &str = include_str!("../../previs/samples/cold-eggs.fountain");
     const SAMPLE_MD: &str = include_str!("../../previs/samples/cold-eggs.md");
     const SAMPLE_FDX: &str = include_str!("../../previs/samples/cold-eggs.fdx");
+    const SAMPLE_PDF: &[u8] = include_bytes!("../../previs/samples/cold-eggs.pdf");
+    const SCAN_PDF: &[u8] = include_bytes!("../../previs/samples/pdf/cold-eggs-scan.pdf");
+
+    #[test]
+    fn the_pdf_sample_drafts_from_its_bytes_to_the_same_board() {
+        let fountain: serde_json::Value = serde_json::from_str(&draft_previs_bytes(
+            SAMPLE.as_bytes(),
+            "cold-eggs.fountain".into(),
+            300,
+            300,
+        ))
+        .unwrap();
+        let pdf: serde_json::Value = serde_json::from_str(&draft_previs_bytes(
+            SAMPLE_PDF,
+            "cold-eggs.pdf".into(),
+            300,
+            300,
+        ))
+        .unwrap();
+        assert_eq!(pdf["title"], "Cold Eggs");
+        assert_eq!(pdf["board_html"], fountain["board_html"]);
+        assert_eq!(pdf["shotlist_csv"], fountain["shotlist_csv"]);
+        // The same bytes, however the file is named.
+        let renamed: serde_json::Value = serde_json::from_str(&draft_previs_bytes(
+            SAMPLE_PDF,
+            "cold-eggs.txt".into(),
+            300,
+            300,
+        ))
+        .unwrap();
+        assert_eq!(renamed["board_html"], fountain["board_html"]);
+        // The bytes path drafts text too, and the text path is unchanged.
+        let text: serde_json::Value = serde_json::from_str(&draft_previs(
+            SAMPLE.into(),
+            "cold-eggs.fountain".into(),
+            300,
+        ))
+        .unwrap();
+        assert_eq!(text["board_html"], fountain["board_html"]);
+        // A scan, the page ceiling and a non-PDF named .pdf each say why.
+        let error = |bytes: &[u8], name: &str, pages: usize| -> String {
+            let out: serde_json::Value =
+                serde_json::from_str(&draft_previs_bytes(bytes, name.into(), 300, pages)).unwrap();
+            out["error"].as_str().unwrap_or("").to_string()
+        };
+        assert!(error(SCAN_PDF, "scan.pdf", 300).contains("picture of a script"));
+        assert!(
+            error(SAMPLE_PDF, "cold-eggs.pdf", 1).contains("2 pages — this page reads up to 1")
+        );
+        assert!(
+            error(b"INT. A - DAY\n", "script.pdf", 300).contains("isn't a PDF this draft can read")
+        );
+    }
 
     #[test]
     fn the_sample_drafts_to_the_board_the_cli_writes() {
