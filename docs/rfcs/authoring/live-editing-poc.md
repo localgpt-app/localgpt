@@ -239,7 +239,9 @@ which is under the pointer) and turns it with the comma key; it checks
 the log stayed untouched while a proposal was pending, that a stale
 `expected_revision` is refused and the right one commits, and that the
 receipt warns about a deleted target. The screenshots it takes land in
-`<world>/.live/`.
+`<world>/.live/`; on a locked or sleeping screen a window's surface stays
+black, and `--offscreen` (`LOCALGPT_OFFSCREEN_SHOTS=1`) has the canvas
+render into an image the screenshots read instead.
 
 ## Not done
 

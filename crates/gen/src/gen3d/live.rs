@@ -275,6 +275,29 @@ fn inject_synthetic_input(
     }
 }
 
+/// `LOCALGPT_OFFSCREEN_SHOTS=1`: the canvas renders into an image rather
+/// than the window, and `GET /screenshot` reads that image. For a test on
+/// a locked or sleeping screen, where a window's surface stays black
+/// whatever the scene does; the window itself goes dark meanwhile.
+fn offscreen_canvas(
+    mut offscreen: ResMut<super::offscreen::OffscreenRenderTarget>,
+    mut cameras: Query<&mut bevy::camera::RenderTarget, With<FlyCam>>,
+    mut images: ResMut<Assets<Image>>,
+) {
+    let (width, height) = (offscreen.width, offscreen.height);
+    for mut target in &mut cameras {
+        if matches!(*target, bevy::camera::RenderTarget::Window(_)) {
+            let handle = offscreen
+                .image_handle
+                .get_or_insert_with(|| {
+                    super::offscreen::create_offscreen_image(&mut images, width, height)
+                })
+                .clone();
+            *target = bevy::camera::RenderTarget::Image(handle.into());
+        }
+    }
+}
+
 /// The handles' places in the window, for a driver with no eyes: the
 /// origin, the three arrow ends, a point on the ring (the one facing the
 /// camera) and the scale cube.
@@ -518,6 +541,9 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
             .chain()
             .after(super::canvas_edit::PersonEdits),
     );
+    if std::env::var("LOCALGPT_OFFSCREEN_SHOTS").is_ok_and(|v| v == "1") {
+        app.add_systems(Update, offscreen_canvas);
+    }
     Ok(())
 }
 
@@ -1704,6 +1730,7 @@ fn live_world(
 }
 
 /// The view side: the camera, screenshots, the selection.
+#[allow(clippy::too_many_arguments)] // a Bevy system; the repo's convention
 fn live_view(
     mut live: ResMut<Live>,
     mut commands: Commands,
@@ -1712,6 +1739,7 @@ fn live_view(
     selection: Option<Res<InspectorSelection>>,
     gen_entities: Query<&GenEntity>,
     handles: Option<Res<super::canvas_edit::Handles>>,
+    offscreen: Option<Res<super::offscreen::OffscreenRenderTarget>>,
 ) {
     let live = &mut *live;
     if let Some(def) = live.camera.take()
@@ -1773,9 +1801,13 @@ fn live_view(
     }
 
     for path in std::mem::take(&mut live.shots) {
-        commands
-            .spawn(Screenshot::primary_window())
-            .observe(save_to_disk(path));
+        // The window's surface — or the image the canvas renders into
+        // when it has one (headless, or `LOCALGPT_OFFSCREEN_SHOTS=1`).
+        let shot = match offscreen.as_ref().and_then(|o| o.image_handle.clone()) {
+            Some(image) => Screenshot::image(image),
+            None => Screenshot::primary_window(),
+        };
+        commands.spawn(shot).observe(save_to_disk(path));
     }
 }
 

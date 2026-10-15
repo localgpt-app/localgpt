@@ -73,6 +73,8 @@ def ws_send(port, message):
 class Canvas:
     """The app as a subprocess: launched, driven, stopped."""
 
+    offscreen = False
+
     def __init__(self, binary, world, review, log, synthetic=False):
         self.world = world
         ep_file = os.path.join(world, ".live", "endpoint.json")
@@ -81,6 +83,11 @@ class Canvas:
         env = dict(os.environ, LOCALGPT_INSPECTOR="full")
         if synthetic:
             env["LOCALGPT_SYNTHETIC_INPUT"] = "1"
+        if Canvas.offscreen:
+            # A locked or sleeping screen leaves a window's surface black:
+            # the canvas renders into an image instead, and screenshots
+            # read that.
+            env["LOCALGPT_OFFSCREEN_SHOTS"] = "1"
         args = [binary, "--live", world] + (["--review"] if review else [])
         self.proc = subprocess.Popen(args, env=env, stdout=log, stderr=subprocess.STDOUT, cwd=ROOT)
         for _ in range(240):
@@ -123,7 +130,9 @@ def main():
     parser.add_argument("--build", action="store_true", help="cargo build -p localgpt-gen first")
     parser.add_argument("--select", type=int, default=100, help="entity id to select over the inspector socket")
     parser.add_argument("--modify", default="cuboid", help="entity the proposed batch moves and recolors")
+    parser.add_argument("--offscreen", action="store_true", help="render into an image for the screenshots (a locked or sleeping screen leaves the window black)")
     args = parser.parse_args()
+    Canvas.offscreen = args.offscreen
     world = os.path.abspath(args.world)
     binary = os.path.join(ROOT, "target", "debug", "localgpt-gen")
     if args.build or not os.path.exists(binary):
