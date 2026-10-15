@@ -165,6 +165,11 @@ struct Cli {
     /// in the window.
     #[arg(long)]
     live: Option<PathBuf>,
+
+    /// With --live: an agent's batch shows on the canvas before it
+    /// commits, and you accept (Enter) or reject (Esc) each one.
+    #[arg(long, requires = "live")]
+    review: bool,
 }
 
 /// Tool access for prompts from collaborative clients (`--remote-tools`).
@@ -403,7 +408,15 @@ fn main() -> Result<()> {
     // --live: a canvas for a world agents change from outside — no agent here.
     if let Some(dir) = cli.live.clone() {
         let (_bridge, channels) = gen3d::create_gen_channels();
-        return run_bevy_app(channels, workspace, None, None, None, None, Some(dir));
+        return run_bevy_app(
+            channels,
+            workspace,
+            None,
+            None,
+            None,
+            None,
+            Some((dir, cli.review)),
+        );
     }
 
     // Multiplayer client mode (--join): slim viewer app, no gen subsystems.
@@ -825,7 +838,7 @@ fn run_bevy_app(
         std::collections::VecDeque<localgpt_world_sync::OpLogEntry>,
         f32,
     )>,
-    live: Option<PathBuf>,
+    live: Option<(PathBuf, bool)>,
 ) -> Result<()> {
     use bevy::prelude::*;
 
@@ -857,8 +870,8 @@ fn run_bevy_app(
     if let Some((entries, speed)) = replay {
         gen3d::replay::setup_replay(&mut app, entries, speed);
     }
-    if let Some(dir) = live {
-        gen3d::live::setup_live(&mut app, &dir)?;
+    if let Some((dir, review)) = live {
+        gen3d::live::setup_live(&mut app, &dir, review)?;
     }
     add_prompt_panel(&mut app, panel);
 

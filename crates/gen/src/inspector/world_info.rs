@@ -107,7 +107,7 @@ pub(crate) fn draw_world_info(
                     );
                     ui.separator();
                 }
-                ui.checkbox(&mut controls.live.review, "review agent edits")
+                ui.checkbox(&mut controls.live.review, "review")
                     .on_hover_text(
                         "An agent's batch shows on the canvas before it commits: \
                          Enter accepts it, Esc rejects it",

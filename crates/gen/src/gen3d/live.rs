@@ -27,7 +27,7 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
-use bevy_egui::{EguiContexts, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use localgpt_world_agent::live::{self, LiveWorld};
 use localgpt_world_types as wt;
 use serde_json::{Value, json};
@@ -250,7 +250,7 @@ impl Drop for Endpoint {
 }
 
 /// Open the folder, start the API, and add the canvas systems.
-pub fn setup_live(app: &mut App, dir: &Path) -> anyhow::Result<()> {
+pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()> {
     let dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
     let world = LiveWorld::open(&dir).map_err(|e| anyhow::anyhow!("{e}"))?;
 
@@ -315,7 +315,7 @@ pub fn setup_live(app: &mut App, dir: &Path) -> anyhow::Result<()> {
         history_dirty: true,
         thumbs_dirty: true,
         status: None,
-        review: std::env::var("LOCALGPT_REVIEW").is_ok_and(|v| v == "1"),
+        review: review || std::env::var("LOCALGPT_REVIEW").is_ok_and(|v| v == "1"),
         proposal: None,
         proposals: Vec::new(),
     })
@@ -329,7 +329,8 @@ pub fn setup_live(app: &mut App, dir: &Path) -> anyhow::Result<()> {
         super::canvas_edit::CanvasEditPlugin,
         super::shots::ShotsPlugin,
     ))
-    .add_systems(Update, review_bar.before(super::canvas_edit::PersonEdits))
+    // Inside egui's pass (bevy_egui's own schedule), like every panel.
+    .add_systems(EguiPrimaryContextPass, review_bar)
     .add_systems(
         Update,
         (live_world, live_view)
@@ -365,10 +366,11 @@ fn review_bar(
                     format!("\u{26A0} {warning}"),
                 );
             }
-            if ui.button("Accept \u{23CE}").clicked() {
+            // Plain words: the default font has no glyphs for ⏎ and ⎋.
+            if ui.button("Accept (Enter)").clicked() {
                 decision = Some(true);
             }
-            if ui.button("Reject \u{238B}").clicked() {
+            if ui.button("Reject (Esc)").clicked() {
                 decision = Some(false);
             }
         });

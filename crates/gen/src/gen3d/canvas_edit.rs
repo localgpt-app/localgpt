@@ -542,13 +542,21 @@ fn keep_selection(
     }
 }
 
-/// The panels' intents, into the same stream as the gestures.
+/// The panels' intents, into the same stream as the gestures. egui may run
+/// a second pass in a frame (its multi-pass mode, for sizing), and a click
+/// is a click in both: an intent identical to the one before it is the
+/// same ask, not a second one.
 fn panel_intents(mut panel: ResMut<PanelIntents>, mut intents: MessageWriter<PersonIntent>) {
     if panel.0.is_empty() {
         return;
     }
+    let mut last: Option<PersonIntent> = None;
     for intent in panel.0.drain(..) {
-        intents.write(intent);
+        if last.as_ref() == Some(&intent) {
+            continue;
+        }
+        intents.write(intent.clone());
+        last = Some(intent);
     }
 }
 

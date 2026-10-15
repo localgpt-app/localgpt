@@ -30,7 +30,7 @@
 //! [`shot_camera`]: localgpt_world_bevy::camera::shot_camera
 
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, EguiTextureHandle, egui};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, EguiTextureHandle, egui};
 use localgpt_world_bevy::camera::{self, ShotCamera};
 use localgpt_world_types as wt;
 use serde_json::{Value, json};
@@ -61,10 +61,12 @@ impl Plugin for ShotsPlugin {
                     apply_look_through,
                     drive_shot_view,
                     sync_shot_thumbs,
-                    shot_strip_ui,
                 )
                     .chain(),
-            );
+            )
+            // The strip draws inside egui's pass, which bevy_egui runs in
+            // its own schedule (multi-pass mode, its default).
+            .add_systems(EguiPrimaryContextPass, shot_strip_ui);
     }
 }
 

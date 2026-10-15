@@ -177,11 +177,15 @@ rule. The comparison that drove it was DeepMonkey Studio's editor
 revisions, previewable AI edits); what was taken is the mechanism, not
 the product.
 
-- **The detail panel edits** (F1 twice): name, position, rotation,
-  scale, visibility, material (color, metallic, roughness, reflectance,
-  emissive, alpha mode, double-sided, unlit), lights (color, intensity,
-  range, spot angles, direction, shadows), the parent (a combo that keeps
-  the world placement), and a behavior's removal. A held slider changes
+- **The detail panel edits** (F1 twice, or `LOCALGPT_INSPECTOR=full`
+  to open it at start): name, position, rotation, scale, visibility,
+  material (color, metallic, roughness, reflectance, emissive, alpha
+  mode, double-sided, unlit), lights (color, intensity, range, spot
+  angles, direction, shadows), the parent (a combo that keeps the world
+  placement), a shape's parameters and a behavior's parameters (the
+  document's JSON, field by field, so a new variant edits without a new
+  widget; a target is a combo of entity names), and a behavior's
+  removal. A held slider changes
   the Bevy component so the person sees it; when the pointer is up and
   nothing is being typed, the fields that moved go out as one
   `ModifyEntity` merge patch, and a refusal puts the entity back from the
@@ -200,8 +204,10 @@ the product.
   together, as one entry; Cmd/Ctrl + G groups it under a new empty at
   its centroid (siblings only).
 - **A behavior whose target is gone** is marked in the panel with a
-  one-click removal, rather than silently looking at nothing.
-- **Review of agent edits** (the world bar's checkbox, or
+  retarget combo and a one-click removal, rather than silently looking
+  at nothing; the authority's receipt warns the batch that caused it, and
+  the format crate's validation (next release) reports it to inspectors.
+- **Review of agent edits** (`--review`, the world bar's checkbox, or
   `LOCALGPT_REVIEW=1`): `POST /ops` replies `proposed` (202) and the
   batch shows on the canvas, read against the world on screen without
   being written; Enter or the bar's button accepts it (then it goes
@@ -221,6 +227,13 @@ the product.
   `expected_revision`, the revision its author read; a world that moved
   since refuses it, naming both, so a stale edit re-reads instead of
   landing.
+
+A smoke test drives all of this with no one at the keyboard —
+`scripts/live-smoke.py <world>` launches the canvas with the inspector
+open, selects over the inspector's WebSocket, proposes a batch with
+review on and checks the log stayed untouched, then relaunches to commit
+with an `expected_revision` and to see the receipt warn about a deleted
+target; the screenshots it takes land in `<world>/.live/`.
 
 ## Not done
 

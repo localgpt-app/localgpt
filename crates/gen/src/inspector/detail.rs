@@ -222,7 +222,7 @@ pub(crate) fn draw_detail(
                     };
                     draw_identity_section(ui, &mut edit, registry, q);
                     draw_transform_section(ui, &mut edit, q);
-                    draw_shape_section(ui, entity, &q.shapes);
+                    draw_shape_section(ui, &mut edit, q);
                     draw_material_section(ui, &mut edit, q);
                     draw_light_section(ui, &mut edit, q);
                     draw_behaviors_section(ui, &mut edit, &q.behaviors_q);
@@ -466,22 +466,181 @@ fn draw_transform_section(ui: &mut egui::Ui, edit: &mut Edit, q: &mut InspectorQ
 // Section: Shape
 // ---------------------------------------------------------------------------
 
-fn draw_shape_section(ui: &mut egui::Ui, entity: Entity, shapes: &Query<&ParametricShape>) {
-    let Ok(shape) = shapes.get(entity) else {
-        return;
-    };
+/// A number for the document: rounded so the log reads, an integer kept
+/// an integer, never NaN.
+fn json_number(v: f64, integer: bool) -> Value {
+    if integer {
+        return Value::from(v.round() as i64);
+    }
+    let v = (v * 1000.0).round() / 1000.0;
+    serde_json::Number::from_f64(v)
+        .map(Value::Number)
+        .unwrap_or(Value::Null)
+}
 
-    egui::CollapsingHeader::new("Shape")
-        .default_open(true)
-        .show(ui, |ui| {
-            egui::Grid::new("shape_grid")
+/// One JSON field as a widget: a number as a drag value, a boolean as a
+/// checkbox, a string as text, a short array of numbers in a row, an
+/// object as its own grid; anything else shown as it is. A key named
+/// `target` or `center` with entity names to offer is a combo of them —
+/// an entity reference, written as the name that binds at ingest.
+fn json_field(
+    ui: &mut egui::Ui,
+    key: &str,
+    field: &mut Value,
+    enabled: bool,
+    salt: &str,
+    names: &[String],
+) -> bool {
+    if (key == "target" || key == "center") && !names.is_empty() {
+        let current = match field {
+            Value::String(s) => s.clone(),
+            Value::Number(n) => format!("entity {n}"),
+            _ => "\u{2014}".into(),
+        };
+        let mut pick: Option<String> = None;
+        ui.add_enabled_ui(enabled, |ui| {
+            egui::ComboBox::from_id_salt(salt)
+                .selected_text(&current)
+                .show_ui(ui, |ui| {
+                    for name in names {
+                        if ui.selectable_label(current == *name, name).clicked() {
+                            pick = Some(name.clone());
+                        }
+                    }
+                });
+        });
+        return match pick {
+            Some(name) => {
+                *field = Value::String(name);
+                true
+            }
+            None => false,
+        };
+    }
+    match field {
+        Value::Number(n) => {
+            let integer = n.is_i64() || n.is_u64();
+            let mut v = n.as_f64().unwrap_or(0.0);
+            let changed = ui
+                .add_enabled(
+                    enabled,
+                    egui::DragValue::new(&mut v)
+                        .speed(if integer { 1.0 } else { 0.05 })
+                        .max_decimals(3),
+                )
+                .changed();
+            if changed {
+                *field = json_number(v, integer);
+            }
+            changed
+        }
+        Value::Bool(b) => ui
+            .add_enabled(enabled, egui::Checkbox::without_text(b))
+            .changed(),
+        Value::String(s) => ui
+            .add_enabled(enabled, egui::TextEdit::singleline(s))
+            .changed(),
+        Value::Array(items)
+            if !items.is_empty() && items.len() <= 4 && items.iter().all(Value::is_number) =>
+        {
+            let mut changed = false;
+            ui.horizontal(|ui| {
+                for item in items.iter_mut() {
+                    let integer = item.as_i64().is_some() || item.as_u64().is_some();
+                    let mut v = item.as_f64().unwrap_or(0.0);
+                    if ui
+                        .add_enabled(
+                            enabled,
+                            egui::DragValue::new(&mut v).speed(0.05).max_decimals(3),
+                        )
+                        .changed()
+                    {
+                        *item = json_number(v, integer);
+                        changed = true;
+                    }
+                }
+            });
+            changed
+        }
+        Value::Object(_) => {
+            let mut changed = false;
+            ui.vertical(|ui| {
+                changed = json_fields(ui, field, enabled, salt, names);
+            });
+            changed
+        }
+        other => {
+            ui.monospace(other.to_string());
+            false
+        }
+    }
+}
+
+/// A JSON object's fields as a grid of widgets, in place — what a
+/// parametric shape or a behavior is, to the panel: the document's JSON,
+/// field by field, so a new variant edits without a new widget. Returns
+/// whether anything changed.
+fn json_fields(
+    ui: &mut egui::Ui,
+    value: &mut Value,
+    enabled: bool,
+    salt: &str,
+    names: &[String],
+) -> bool {
+    let mut changed = false;
+    match value {
+        Value::Object(map) => {
+            egui::Grid::new(salt)
                 .num_columns(2)
                 .spacing([8.0, 4.0])
                 .show(ui, |ui| {
-                    ui.label("Variant");
-                    ui.label(format!("{:?}", shape.shape));
-                    ui.end_row();
+                    for (key, field) in map.iter_mut() {
+                        ui.label(key.as_str());
+                        changed |=
+                            json_field(ui, key, field, enabled, &format!("{salt}.{key}"), names);
+                        ui.end_row();
+                    }
                 });
+        }
+        other => changed |= json_field(ui, "", other, enabled, salt, names),
+    }
+    changed
+}
+
+/// The one key of an externally tagged enum's JSON (`{"Cuboid": {…}}`)
+/// and what is under it.
+fn variant_of(value: &Value) -> Option<(String, Value)> {
+    value
+        .as_object()
+        .and_then(|o| o.iter().next())
+        .map(|(kind, params)| (kind.clone(), params.clone()))
+}
+
+fn draw_shape_section(ui: &mut egui::Ui, edit: &mut Edit, q: &InspectorQueries) {
+    let editable = edit.editable();
+    let value = if editable {
+        match edit.doc.and_then(|d| d.shape.as_ref()) {
+            Some(shape) => serde_json::to_value(shape).unwrap_or(Value::Null),
+            None => return,
+        }
+    } else {
+        let Ok(shape) = q.shapes.get(edit.entity) else {
+            return;
+        };
+        serde_json::to_value(&shape.shape).unwrap_or(Value::Null)
+    };
+    let Some((variant, mut params)) = variant_of(&value) else {
+        return;
+    };
+
+    egui::CollapsingHeader::new(format!("Shape ({variant})"))
+        .default_open(true)
+        .show(ui, |ui| {
+            if json_fields(ui, &mut params, editable, "shape", &[]) {
+                // A shape replaces whole: the scene rebuilds the mesh when
+                // the commit lands.
+                edit.change("shape", None, json!({ variant: params }), "reshape");
+            }
         });
 }
 
@@ -1060,11 +1219,17 @@ fn draw_behaviors_section(
         if doc.behaviors.is_empty() {
             return;
         }
+        // Every entity's name, for a target to pick from.
+        let names: Vec<String> = edit
+            .live
+            .as_ref()
+            .map(|live| live.doc.entities().map(|e| e.name.0.clone()).collect())
+            .unwrap_or_default();
         egui::CollapsingHeader::new(format!("Behaviors ({})", doc.behaviors.len()))
             .default_open(true)
             .show(ui, |ui| {
                 for (n, def) in doc.behaviors.iter().enumerate() {
-                    let (kind, params) = behavior_kind_and_params(def);
+                    let (kind, _) = behavior_kind_and_params(def);
                     let problem = edit
                         .live
                         .as_ref()
@@ -1073,9 +1238,28 @@ fn draw_behaviors_section(
                         .id_salt(("behavior", n))
                         .default_open(problem.is_some())
                         .show(ui, |ui| {
-                            ui.add(
-                                egui::Label::new(egui::RichText::new(params).monospace()).wrap(),
-                            );
+                            // The parameters, field by field; a change
+                            // sends the whole list back with this one
+                            // replaced — `behaviors` patches whole.
+                            let mut params = serde_json::to_value(def)
+                                .ok()
+                                .and_then(|v| variant_of(&v))
+                                .map(|(_, p)| p)
+                                .unwrap_or(Value::Null);
+                            if json_fields(ui, &mut params, true, &format!("behavior{n}"), &names) {
+                                let mut all: Vec<Value> = doc
+                                    .behaviors
+                                    .iter()
+                                    .map(|d| serde_json::to_value(d).unwrap_or(Value::Null))
+                                    .collect();
+                                all[n] = json!({ kind.clone(): params });
+                                edit.change(
+                                    "behaviors",
+                                    None,
+                                    Value::Array(all),
+                                    "retune a behavior of",
+                                );
+                            }
                             if let Some(problem) = &problem {
                                 ui.colored_label(WARN, format!("\u{26A0} {problem}"));
                             }

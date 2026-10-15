@@ -14,7 +14,7 @@ pub mod ws_server;
 use bevy::ecs::system::SystemParam;
 use bevy::picking::prelude::*;
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, EguiPlugin};
+use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass};
 
 use localgpt_world_types as wt;
 
@@ -208,17 +208,21 @@ impl Plugin for InspectorPlugin {
             .init_resource::<PendingCameraPose>()
             .init_resource::<PanelIntents>()
             .init_resource::<detail::PanelEdit>()
+            .add_systems(Startup, inspector_from_env)
             .add_systems(
                 Update,
                 (
                     inspector_toggle,
-                    inspector_ui,
                     selection::highlight_selected,
                     ws_bridge_system,
                     focus_camera_system,
                 )
                     .chain(),
             )
+            // The panels draw inside egui's pass, which bevy_egui runs in
+            // its own schedule (multi-pass mode, its default): a context
+            // panel drawn from `Update` finds no pass begun and panics.
+            .add_systems(EguiPrimaryContextPass, inspector_ui)
             // 3D viewport click-to-select via Bevy's built-in mesh picking
             .add_observer(on_mesh_clicked);
     }
@@ -232,6 +236,17 @@ pub fn not_ui_hovered(hovered: Option<Res<UiHovered>>) -> bool {
 // ---------------------------------------------------------------------------
 // Systems
 // ---------------------------------------------------------------------------
+
+/// `LOCALGPT_INSPECTOR=outliner|full` opens the inspector at startup, for a
+/// canvas driven from outside — a smoke test over the live API, a demo.
+fn inspector_from_env(mut state: ResMut<InspectorState>) {
+    let mode = match std::env::var("LOCALGPT_INSPECTOR").as_deref() {
+        Ok("outliner") => InspectorMode::OutlinerOnly,
+        Ok("full") => InspectorMode::Full,
+        _ => return,
+    };
+    state.mode = mode;
+}
 
 /// F1 cycles through inspector modes. Escape deselects the current entity.
 fn inspector_toggle(
