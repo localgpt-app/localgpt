@@ -1,25 +1,30 @@
-//! The whole draft, in memory: script pages in (Fountain, or Markdown by
-//! [`markdown`]'s convention); every scene's `.world` package files, the
-//! shot list and the printable board out. The CLI writes what this
-//! returns to disk and the localgpt.md page hands it to the browser,
-//! from one function — so the two can never drift, and the page's draft
-//! is the CLI's draft, byte for byte.
+//! The whole draft, in memory: script pages in (Fountain, a Final Draft
+//! file by [`fdx`]'s mapping, or Markdown by [`markdown`]'s convention);
+//! every scene's `.world` package files, the shot list and the printable
+//! board out. The CLI writes what this returns to disk and the
+//! localgpt.md page hands it to the browser, from one function — so the
+//! two can never drift, and the page's draft is the CLI's draft, byte
+//! for byte.
 
 use localgpt_world_types as wt;
 
 use crate::board::{self, SceneBoard};
 use crate::shots::{self, ShotRow};
-use crate::{fountain, markdown, package, stage};
+use crate::{fdx, fountain, markdown, package, stage};
 
 /// What the pages are written in. Picked by the file's extension
-/// ([`Format::of_name`]): the text alone can't say, since Fountain is
-/// valid inside Markdown and the two differ only in what a `#` heading
-/// or a bold name means.
+/// ([`Format::of_name`]), since the text alone can't tell Fountain from
+/// Markdown: Fountain is valid inside Markdown and the two differ only
+/// in what a `#` heading or a bold name means. A Final Draft file is
+/// XML, which the text does say ([`Format::of`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Format {
     /// Fountain — `.fountain`, `.txt`, `.spmd`, and anything unnamed.
     #[default]
     Fountain,
+    /// Final Draft — `.fdx`: [`fdx`]'s mapping of the typed paragraphs,
+    /// translated to Fountain before the parse.
+    Fdx,
     /// Markdown — `.md`, `.markdown`, `.mdown`, `.mkd`: [`markdown`]'s
     /// convention, translated to Fountain before the parse.
     Markdown,
@@ -33,10 +38,26 @@ impl Format {
         match file.rsplit_once('.') {
             Some((stem, ext)) if !stem.is_empty() => match ext.to_ascii_lowercase().as_str() {
                 "md" | "markdown" | "mdown" | "mkd" => Format::Markdown,
+                "fdx" => Format::Fdx,
                 _ => Format::Fountain,
             },
             _ => Format::Fountain,
         }
+    }
+
+    /// The format of a file by its name, unless the text says otherwise:
+    /// XML at the head (`<?xml`, `<FinalDraft`) is a Final Draft file
+    /// whatever it was renamed to — and an XML file that isn't one gets
+    /// told so, instead of "no scene headings".
+    pub fn of(name: &str, source: &str) -> Format {
+        let head = source
+            .strip_prefix('\u{FEFF}')
+            .unwrap_or(source)
+            .trim_start();
+        if head.starts_with("<?xml") || head.starts_with("<FinalDraft") {
+            return Format::Fdx;
+        }
+        Format::of_name(name)
     }
 
     /// The file name's stem — what names an untitled draft.
@@ -90,6 +111,12 @@ pub enum DraftError {
     /// replacement characters or control bytes where a script has prose
     /// (binary dropped on the page, a PDF, UTF-16 read as UTF-8).
     NotText,
+    /// Read as Final Draft (named `.fdx`, or XML at the head), the text
+    /// isn't: not well-formed, or not a `<FinalDraft>` document.
+    NotFinalDraft {
+        /// What the reader found ([`fdx::FdxError`]'s words).
+        reason: String,
+    },
     /// No scene headings — nothing to stage.
     NoScenes,
     /// More scenes than the caller boards ([`draft_limited`]).
@@ -107,6 +134,10 @@ impl std::fmt::Display for DraftError {
             DraftError::NotText => write!(
                 f,
                 "that isn't a text screenplay — binary, or an encoding this draft can't read; export the script as Fountain or plain text"
+            ),
+            DraftError::NotFinalDraft { reason } => write!(
+                f,
+                "that isn't a Final Draft file — {reason}; save the script from Final Draft as .fdx, or export it as Fountain"
             ),
             DraftError::NoScenes => {
                 write!(
@@ -160,13 +191,14 @@ pub fn draft_limited(
     draft_inner(source, Format::Fountain, fallback_title, Some(max_scenes))
 }
 
-/// [`draft`] for pages in either format: Markdown is translated to
-/// Fountain first ([`markdown::to_fountain`]), then drafted the same way.
+/// [`draft`] for pages in any format: a Final Draft file or Markdown is
+/// translated to Fountain first ([`fdx::to_fountain`],
+/// [`markdown::to_fountain`]), then drafted the same way.
 pub fn draft_as(source: &str, format: Format, fallback_title: &str) -> Result<Draft, DraftError> {
     draft_inner(source, format, fallback_title, None)
 }
 
-/// [`draft_limited`] for pages in either format.
+/// [`draft_limited`] for pages in any format.
 pub fn draft_limited_as(
     source: &str,
     format: Format,
@@ -187,6 +219,12 @@ fn draft_inner(
     }
     let script = match format {
         Format::Fountain => fountain::parse(source),
+        Format::Fdx => {
+            let translated = fdx::to_fountain(source).map_err(|e| DraftError::NotFinalDraft {
+                reason: e.to_string(),
+            })?;
+            fountain::parse(&translated)
+        }
         Format::Markdown => fountain::parse(&markdown::to_fountain(source)),
     };
     let scenes = stage::scenes(&script);
@@ -314,10 +352,45 @@ mod tests {
     }
 
     #[test]
+    fn the_final_draft_sample_drafts_to_the_fountain_samples_board_byte_for_byte() {
+        const SAMPLE_FDX: &str = include_str!("../samples/cold-eggs.fdx");
+        let fountain = draft(SAMPLE, "cold-eggs").unwrap();
+        let fdx = draft_as(SAMPLE_FDX, Format::Fdx, "cold-eggs").unwrap();
+        assert_eq!(fdx.title, "Cold Eggs");
+        assert_eq!(fdx.board_html, fountain.board_html);
+        assert_eq!(fdx.shotlist_csv, fountain.shotlist_csv);
+        assert_eq!(fdx.scenes.len(), fountain.scenes.len());
+        for (a, b) in fdx.scenes.iter().zip(&fountain.scenes) {
+            assert_eq!(a.files, b.files, "{}", a.package_dir);
+        }
+        // Read as Fountain, the XML has no scenes; read as Final Draft,
+        // Fountain isn't XML, and XML that isn't Final Draft says which.
+        assert!(matches!(
+            draft(SAMPLE_FDX, "cold-eggs"),
+            Err(DraftError::NoScenes)
+        ));
+        let not_xml = draft_as(SAMPLE, Format::Fdx, "x").unwrap_err();
+        assert!(matches!(not_xml, DraftError::NotFinalDraft { .. }));
+        assert!(
+            not_xml
+                .to_string()
+                .starts_with("that isn't a Final Draft file — the XML doesn't parse"),
+            "{not_xml}"
+        );
+        let html = draft_as("<?xml version=\"1.0\"?><html/>", Format::Fdx, "x").unwrap_err();
+        assert_eq!(
+            html.to_string(),
+            "that isn't a Final Draft file — the XML is a <html> document, not <FinalDraft>; save the script from Final Draft as .fdx, or export it as Fountain"
+        );
+    }
+
+    #[test]
     fn the_format_and_the_stem_come_off_the_file_name() {
         for (name, format, stem) in [
             ("cold-eggs.fountain", Format::Fountain, "cold-eggs"),
             ("cold-eggs.md", Format::Markdown, "cold-eggs"),
+            ("cold-eggs.fdx", Format::Fdx, "cold-eggs"),
+            ("Drafts/COLD EGGS.FDX", Format::Fdx, "COLD EGGS"),
             ("Pages/Scene 4.MD", Format::Markdown, "Scene 4"),
             ("notes.markdown", Format::Markdown, "notes"),
             ("script.txt", Format::Fountain, "script"),
@@ -328,6 +401,21 @@ mod tests {
             assert_eq!(Format::of_name(name), format, "{name}");
             assert_eq!(Format::stem_of(name), stem, "{name}");
         }
+    }
+
+    #[test]
+    fn xml_at_the_head_is_final_draft_whatever_the_name() {
+        assert_eq!(
+            Format::of(
+                "script.txt",
+                "\u{FEFF}\n<?xml version=\"1.0\"?><FinalDraft/>"
+            ),
+            Format::Fdx
+        );
+        assert_eq!(Format::of("script.md", "<FinalDraft>"), Format::Fdx);
+        assert_eq!(Format::of("script.md", "# Title"), Format::Markdown);
+        assert_eq!(Format::of("script.fdx", "INT. A - DAY"), Format::Fdx);
+        assert_eq!(Format::of("script", "<b>not xml</b>"), Format::Fountain);
     }
 
     #[test]

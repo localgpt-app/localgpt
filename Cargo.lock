@@ -8553,6 +8553,7 @@ dependencies = [
  "localgpt-world-export",
  "localgpt-world-types",
  "openworldformat",
+ "roxmltree",
  "serde",
  "serde_json",
 ]

@@ -6,11 +6,14 @@
 //! head of the file), scene headings (`INT.`/`EXT.`/`EST.`/`INT./EXT.`/
 //! `INT/EXT.`/`I/E`, plus the `.`-forced form — a single period then an
 //! alphanumeric, so an ellipsis stays action — with the shooting
-//! script's trailing `#12A#` scene number lifted off the text), action, character cues
-//! with extensions (`(V.O.)`, `(O.S.)`, `(CONT'D)`), parentheticals,
-//! dialogue, dual dialogue (`^`), transitions (`TO:` and the `>`-forced
-//! form), centered text (`>…<`), notes (`[[ … ]]`), the boneyard
-//! (`/* … */`), sections (`#`), synopses (`=`) and page breaks (`===`).
+//! script's trailing `#12A#` scene number lifted off the text), action
+//! (and the `!`-forced form, for a line that would otherwise read as a
+//! cue, a heading or a transition), character cues with extensions
+//! (`(V.O.)`, `(O.S.)`, `(CONT'D)`) and the `@`-forced form (any case,
+//! any marks: `@McCLANE`), parentheticals, dialogue, dual dialogue (`^`),
+//! transitions (`TO:` and the `>`-forced form), centered text (`>…<`),
+//! notes (`[[ … ]]`), the boneyard (`/* … */`), sections (`#`), synopses
+//! (`=`) and page breaks (`===`).
 //!
 //! Notes and boneyard blocks are recognized when they open at the start
 //! of a line (both may span lines); a `[[ … ]]` that opens mid-line is
@@ -155,6 +158,15 @@ pub fn parse(source: &str) -> Script {
             i = next;
             continue;
         }
+        // Forced action: a leading `!` — Fountain's escape for a line
+        // that would otherwise read as a cue, a heading or a
+        // transition. The paragraph runs on from it as any action does.
+        if let Some(rest) = trimmed.strip_prefix('!') {
+            let (lines, next) = action_paragraph(&lines, i, Some(rest.trim_start()));
+            script.elements.push(Element::Action { lines });
+            i = next;
+            continue;
+        }
         // Page break: three or more `=` and nothing else.
         if trimmed.chars().all(|c| c == '=') && trimmed.len() >= 3 {
             script.elements.push(Element::PageBreak);
@@ -224,10 +236,14 @@ pub fn parse(source: &str) -> Script {
             i += 1;
             continue;
         }
-        // Character cue: uppercase, next line non-blank. Its dialogue
-        // block (parentheticals and dialogue lines) follows until a
-        // blank line.
-        if let Some((name, extension, dual)) = character_cue(trimmed)
+        // Character cue: uppercase (or `@`-forced, in any case), next
+        // line non-blank. Its dialogue block (parentheticals and
+        // dialogue lines) follows until a blank line.
+        let cue = match trimmed.strip_prefix('@') {
+            Some(rest) => forced_character_cue(rest),
+            None => character_cue(trimmed),
+        };
+        if let Some((name, extension, dual)) = cue
             && next_non_blank(&lines, i + 1).is_some_and(|n| n == i + 1)
         {
             script.elements.push(Element::Character {
@@ -252,46 +268,66 @@ pub fn parse(source: &str) -> Script {
             continue;
         }
         // Action: a paragraph of consecutive non-blank lines that open
-        // no other element. (A cue-like line mid-paragraph still starts
-        // a dialogue block per Fountain's blank-line rule: it can't,
-        // since the cue check above requires a non-blank follower —
-        // inside a paragraph every line qualifies, so test each line.)
-        let mut paragraph: Vec<String> = Vec::new();
-        while i < lines.len() {
-            let a = lines[i].trim();
-            if a.is_empty() {
-                break;
-            }
-            if !paragraph.is_empty()
-                && (forced_heading(a).is_some()
-                    || a.starts_with('#')
-                    || a.starts_with('=')
-                    || a.starts_with("/*")
-                    || a.starts_with("[[")
-                    || is_scene_heading(a)
-                    || is_transition(a)
-                    || a.starts_with('>'))
-            {
-                break;
-            }
-            if !paragraph.is_empty()
-                && character_cue(a).is_some()
-                && next_non_blank(&lines, i + 1).is_some_and(|n| n == i + 1)
-            {
-                break;
-            }
-            paragraph.push(a.to_string());
-            i += 1;
-        }
-        if paragraph.is_empty() {
-            // A line nothing claimed (e.g. an uppercase line at the end
-            // of the file) — action of one line.
-            paragraph.push(trimmed.to_string());
-            i += 1;
-        }
+        // no other element.
+        let (paragraph, next) = action_paragraph(&lines, i, None);
         script.elements.push(Element::Action { lines: paragraph });
+        i = next;
     }
     script
+}
+
+/// An action paragraph from line `start`: that line (as `first` when
+/// the caller already stripped a forcing `!`, else as it is), then the
+/// consecutive non-blank lines that open no other element. A `!` at the
+/// head of a later line is dropped too. Returns the lines and the index
+/// after the paragraph. (A cue-like line mid-paragraph still starts a
+/// dialogue block per Fountain's blank-line rule: it can't, since the
+/// cue check requires a non-blank follower — inside a paragraph every
+/// line qualifies, so each line is tested.)
+fn action_paragraph(lines: &[&str], start: usize, first: Option<&str>) -> (Vec<String>, usize) {
+    let mut paragraph: Vec<String> = Vec::new();
+    let mut i = start;
+    if let Some(first) = first {
+        paragraph.push(first.to_string());
+        i += 1;
+    }
+    while i < lines.len() {
+        let a = lines[i].trim();
+        if a.is_empty() {
+            break;
+        }
+        // A `!` line stays in the paragraph whatever it reads as.
+        let forced = a.starts_with('!');
+        if !paragraph.is_empty()
+            && !forced
+            && (forced_heading(a).is_some()
+                || a.starts_with('#')
+                || a.starts_with('=')
+                || a.starts_with("/*")
+                || a.starts_with("[[")
+                || is_scene_heading(a)
+                || is_transition(a)
+                || a.starts_with('>'))
+        {
+            break;
+        }
+        if !paragraph.is_empty()
+            && !forced
+            && (a.starts_with('@') || character_cue(a).is_some())
+            && next_non_blank(lines, i + 1).is_some_and(|n| n == i + 1)
+        {
+            break;
+        }
+        paragraph.push(a.strip_prefix('!').unwrap_or(a).trim_start().to_string());
+        i += 1;
+    }
+    if paragraph.is_empty() {
+        // A line nothing claimed (e.g. an uppercase line at the end
+        // of the file) — action of one line.
+        paragraph.push(lines[start].trim().to_string());
+        i = start + 1;
+    }
+    (paragraph, i)
 }
 
 fn skip_blanks(lines: &[&str], mut i: usize) -> usize {
@@ -447,7 +483,7 @@ pub(crate) fn is_scene_heading(line: &str) -> bool {
 
 /// True for an uppercase line ending in `TO:` (the unforced transition).
 pub(crate) fn is_transition(line: &str) -> bool {
-    line.len() > 3 && line.ends_with("TO:") && is_upper(line) && !line.starts_with('.')
+    line.len() > 3 && line.ends_with("TO:") && is_upper(line) && !line.starts_with(['.', '!'])
 }
 
 /// True when every cased character is uppercase (digits and punctuation
@@ -467,27 +503,7 @@ fn is_upper(line: &str) -> bool {
 /// extension (`(V.O.)`, `(O.S.)`, `(CONT'D)`) and the dual-dialogue
 /// caret. Returns `(name, extension, dual)`.
 pub(crate) fn character_cue(line: &str) -> Option<(String, Option<String>, bool)> {
-    let mut body = line;
-    let mut dual = false;
-    if let Some(rest) = body.strip_suffix('^') {
-        dual = true;
-        body = rest.trim_end();
-    }
-    let mut extension: Option<String> = None;
-    // Extensions trail the cue: `MAYA (V.O.) (CONT'D)` — take all
-    // trailing parenthesized groups, rightmost last.
-    while body.ends_with(')') {
-        let Some(open) = body.rfind('(') else { break };
-        let ext = body[open + 1..body.len() - 1].trim();
-        if ext.is_empty() || ext.len() > 12 {
-            break;
-        }
-        extension = match extension {
-            None => Some(ext.to_string()),
-            Some(prev) => Some(format!("{ext} {prev}")),
-        };
-        body = body[..open].trim_end();
-    }
+    let (body, extension, dual) = split_cue(line);
     if body.is_empty() || body.ends_with('.') || !is_upper(body) {
         return None;
     }
@@ -500,6 +516,40 @@ pub(crate) fn character_cue(line: &str) -> Option<(String, Option<String>, bool)
         return None;
     }
     Some((body.to_string(), extension, dual))
+}
+
+/// The `@`-forced cue (`line` is what follows the `@`): any case, any
+/// marks — `@McCLANE`, `@MAYA & KAI` — with the same extension and
+/// caret parse as an uppercase cue. Only an empty name is refused.
+pub(crate) fn forced_character_cue(line: &str) -> Option<(String, Option<String>, bool)> {
+    let (body, extension, dual) = split_cue(line.trim());
+    (!body.is_empty()).then(|| (body.to_string(), extension, dual))
+}
+
+/// A cue's parts: the name, the trailing parenthesized extensions
+/// (`MAYA (V.O.) (CONT'D)` — all of them, rightmost last) and whether
+/// a `^` marks it dual. No judgement on the name.
+fn split_cue(line: &str) -> (&str, Option<String>, bool) {
+    let mut body = line;
+    let mut dual = false;
+    if let Some(rest) = body.strip_suffix('^') {
+        dual = true;
+        body = rest.trim_end();
+    }
+    let mut extension: Option<String> = None;
+    while body.ends_with(')') {
+        let Some(open) = body.rfind('(') else { break };
+        let ext = body[open + 1..body.len() - 1].trim();
+        if ext.is_empty() || ext.len() > 12 {
+            break;
+        }
+        extension = match extension {
+            None => Some(ext.to_string()),
+            Some(prev) => Some(format!("{ext} {prev}")),
+        };
+        body = body[..open].trim_end();
+    }
+    (body, extension, dual)
 }
 
 #[cfg(test)]
@@ -773,6 +823,69 @@ mod tests {
             Element::Centered { text } => assert_eq!(text, "THE END"),
             other => panic!("{other:?}"),
         }
+    }
+
+    #[test]
+    fn a_forced_action_line_is_action_whatever_it_reads_as() {
+        // `!` escapes a cue, a heading and a transition; the paragraph
+        // runs on, and a later `!` is dropped too.
+        let script = parse(
+            "!MAYA\nstands in the door.\n\n!INT. NOT A SCENE\n\n!CUT TO:\n!and still action\n\n!\n",
+        );
+        assert_eq!(kinds(&script), vec!["action", "action", "action", "action"]);
+        match &script.elements[0] {
+            Element::Action { lines } => {
+                assert_eq!(lines, &["MAYA", "stands in the door."]);
+            }
+            other => panic!("{other:?}"),
+        }
+        match &script.elements[2] {
+            Element::Action { lines } => {
+                assert_eq!(lines, &["CUT TO:", "and still action"]);
+            }
+            other => panic!("{other:?}"),
+        }
+        // A bare `!` is an empty action line, not a crash.
+        match &script.elements[3] {
+            Element::Action { lines } => assert_eq!(lines, &[""]),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_forced_cue_takes_any_case_and_any_marks() {
+        let script =
+            parse("@McCLANE (V.O.)\nYippee.\n\n@Maya & Kai ^\nTogether.\n\n@\nNot a cue.\n");
+        assert_eq!(
+            kinds(&script),
+            vec!["character", "dialogue", "character", "dialogue", "action"]
+        );
+        match &script.elements[0] {
+            Element::Character {
+                name,
+                extension,
+                dual,
+            } => {
+                assert_eq!(name, "McCLANE");
+                assert_eq!(extension.as_deref(), Some("V.O."));
+                assert!(!dual);
+            }
+            other => panic!("{other:?}"),
+        }
+        match &script.elements[2] {
+            Element::Character { name, dual, .. } => {
+                assert_eq!(name, "Maya & Kai");
+                assert!(*dual);
+            }
+            other => panic!("{other:?}"),
+        }
+        // A forced cue needs its lines like any other: alone, it's action.
+        assert_eq!(kinds(&parse("@MAYA\n")), vec!["action"]);
+        // And it breaks an action paragraph the way an uppercase cue does.
+        assert_eq!(
+            kinds(&parse("She turns.\n@McClane\nHi.\n")),
+            vec!["action", "character", "dialogue"]
+        );
     }
 
     #[test]

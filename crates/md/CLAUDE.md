@@ -161,8 +161,8 @@ generations (1-bit/2-bit) cannot run on mistral.rs 0.8 — skip them.
   `refactor:`), with no Co-Authored-By or Claude-Session trailers.
 - Never use `sed` to edit Rust files; use the Edit tool.
 - `website-md/` (workspace root) is **localgpt.md, the previs page** — not
-  MD's: since 2026-10-12 it drops a screenplay (Fountain or Markdown script
-  pages) and boards it through `crates/previs-web`. The drop-a-Markdown-file
+  MD's: since 2026-10-12 it drops a screenplay (Final Draft, Fountain or
+  Markdown script pages) and boards it through `crates/previs-web`. The drop-a-Markdown-file
   demo and `crates/md-web` are gone; walking a document lives in this crate's
   Bevy app. The docs live on localgpt.app under `website/docs/md/`; update
   them when commands, keys, export or the LLM tier change.

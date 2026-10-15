@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "LocalGPT Previs — a screenplay in (Fountain, or Markdown script pages), per-scene .world packages with set/cast/coverage, a printable board and a shot-list CSV out. Deterministic: no model, no network, no renderer"
+description = "LocalGPT Previs — a screenplay in (Fountain, a Final Draft .fdx, or Markdown script pages), per-scene .world packages with set/cast/coverage, a printable board and a shot-list CSV out. Deterministic: no model, no network, no renderer"
 keywords = ["localgpt", "previs", "screenplay", "fountain", "markdown"]
 
 [lib]
@@ -31,6 +31,9 @@ localgpt-world-export = { workspace = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Final Draft's .fdx is XML (`fdx.rs`): the typed paragraphs come out of
+# a DOM walk, entities resolved by the parser.
+roxmltree = { workspace = true }
 
 [dev-dependencies]
 # The board tests decode the import map's base64 `data:` URLs (the

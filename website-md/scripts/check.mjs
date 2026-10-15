@@ -2,7 +2,7 @@
 // crate's own sample screenplay through the real file input, and require the
 // board to render every shot's frame and the downloads to hold the packages —
 // the same contract the page promises a visitor. Then the same screenplay as
-// Markdown pages, which must draft to the same board.
+// a Final Draft file and as Markdown pages, which must draft to the same board.
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -17,6 +17,7 @@ const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
   '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml',
   '.wasm': 'application/wasm', '.fountain': 'text/plain', '.md': 'text/markdown',
+  '.fdx': 'application/xml',
 };
 const server = createServer(async (req, res) => {
   const path = normalize(decodeURIComponent(new URL(req.url, 'http://localhost').pathname));
@@ -93,22 +94,25 @@ check('the board renders every shot\'s frame', frames === 7, `${frames} frames`)
 const downloads = await page.evaluate(() => ['dl-board', 'dl-csv', 'dl-zip'].map((id) => document.getElementById(id).href.startsWith('blob:')));
 check('the three downloads are ready', downloads.every(Boolean), downloads.join(','));
 
-// The same screenplay as Markdown script pages drafts to the same board.
+// The same screenplay as a Final Draft file and as Markdown script pages
+// drafts to the same board.
 const fountainBoard = await page.evaluate(() => window.localgptPrevis.draft.board_html);
-await page.evaluate(() => { window.localgptPrevis = null; });
-await page.setInputFiles('#file', join(root, 'samples/cold-eggs.md'));
-try {
-  await page.waitForFunction(() => window.localgptPrevis?.draft, null, { timeout: 20000 });
-} catch {
-  check('the Markdown sample drafts', false, (await page.textContent('#status')).trim());
+for (const [label, sample] of [['Final Draft', 'cold-eggs.fdx'], ['Markdown', 'cold-eggs.md']]) {
+  await page.evaluate(() => { window.localgptPrevis = null; });
+  await page.setInputFiles('#file', join(root, 'samples', sample));
+  try {
+    await page.waitForFunction(() => window.localgptPrevis?.draft, null, { timeout: 20000 });
+  } catch {
+    check(`the ${label} sample drafts`, false, (await page.textContent('#status')).trim());
+  }
+  const other = await page.evaluate(() => {
+    const { name, draft } = window.localgptPrevis ?? {};
+    return draft && { name, title: draft.title, scenes: draft.scenes.length, same: draft.board_html };
+  });
+  check(`the ${label} sample drafts to the Fountain sample's board, byte for byte`,
+    other?.name === sample && other?.scenes === 2 && other?.same === fountainBoard,
+    JSON.stringify(other && { name: other.name, title: other.title, scenes: other.scenes, same: other.same === fountainBoard }));
 }
-const markdown = await page.evaluate(() => {
-  const { name, draft } = window.localgptPrevis ?? {};
-  return draft && { name, title: draft.title, scenes: draft.scenes.length, same: draft.board_html };
-});
-check('the Markdown sample drafts to the Fountain sample\'s board, byte for byte',
-  markdown?.name === 'cold-eggs.md' && markdown?.scenes === 2 && markdown?.same === fountainBoard,
-  JSON.stringify(markdown && { name: markdown.name, title: markdown.title, scenes: markdown.scenes, same: markdown.same === fountainBoard }));
 
 // The guards: a file past the size ceiling, a script past the scene
 // ceiling and random bytes are each refused with their own message.
@@ -119,6 +123,8 @@ const many = join(guards, 'many.fountain');
 await writeFile(many, 'INT. ROOM - DAY\n\n'.repeat(301));
 const noise = join(guards, 'noise.fountain');
 await writeFile(noise, randomBytes(65536));
+const notFdx = join(guards, 'page.fdx');
+await writeFile(notFdx, '<?xml version="1.0"?><html><body>not a script</body></html>\n');
 const refused = async (file) => {
   await page.evaluate(() => { const s = document.getElementById('status'); s.textContent = ''; s.className = ''; });
   await page.setInputFiles('#file', file);
@@ -131,6 +137,8 @@ const tooMany = await refused(many);
 check('a 301-scene script is refused at the ceiling', /boards up to 300/.test(tooMany), tooMany);
 const notText = await refused(noise);
 check('random bytes are refused as not a screenplay', /isn't a text screenplay/.test(notText), notText);
+const xml = await refused(notFdx);
+check('XML that isn\'t Final Draft is refused in its own words', /isn't a Final Draft file — the XML is a <html> document/.test(xml), xml);
 await rm(guards, { recursive: true, force: true });
 
 check('no page errors', errors.length === 0, errors.join(' | '));

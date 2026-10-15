@@ -1,7 +1,8 @@
 //! The localgpt.md page's WASM module.
 //!
 //! One function: [`draft_previs`] takes script pages — a Fountain
-//! screenplay, or Markdown by `localgpt_previs::markdown`'s convention,
+//! screenplay, a Final Draft `.fdx` file by `localgpt_previs::fdx`'s
+//! mapping, or Markdown by `localgpt_previs::markdown`'s convention,
 //! told apart by the file name — and returns the whole draft as JSON:
 //! every scene's `.world` package files, the shot list and the printable
 //! board, which the page shows as the board and offers as downloads. It
@@ -34,11 +35,13 @@ use wasm_bindgen::prelude::*;
 /// headings, or has more scenes than `max_scenes` — the page's ceiling,
 /// checked after the parse and before any staging
 /// ([`localgpt_previs::draft::draft_limited_as`]). `file_name` picks the
-/// format by its extension (`.md` is Markdown, anything else Fountain)
-/// and names the draft by its stem when the title page has no title.
+/// format by its extension (`.fdx` is Final Draft, `.md` Markdown,
+/// anything else Fountain — and XML at the head is Final Draft whatever
+/// the name) and names the draft by its stem when the title page has no
+/// title.
 #[wasm_bindgen]
 pub fn draft_previs(source: String, file_name: String, max_scenes: usize) -> String {
-    let format = Format::of_name(&file_name);
+    let format = Format::of(&file_name, &source);
     let fallback_title = Format::stem_of(&file_name);
     match draft::draft_limited_as(&source, format, fallback_title, max_scenes) {
         Err(err) => json!({ "error": err.to_string() }).to_string(),
@@ -71,6 +74,7 @@ mod tests {
 
     const SAMPLE: &str = include_str!("../../previs/samples/cold-eggs.fountain");
     const SAMPLE_MD: &str = include_str!("../../previs/samples/cold-eggs.md");
+    const SAMPLE_FDX: &str = include_str!("../../previs/samples/cold-eggs.fdx");
 
     #[test]
     fn the_sample_drafts_to_the_board_the_cli_writes() {
@@ -124,6 +128,46 @@ mod tests {
                 .as_str()
                 .unwrap()
                 .contains("no scene headings")
+        );
+    }
+
+    #[test]
+    fn the_final_draft_sample_drafts_to_the_same_board_by_its_name_or_its_head() {
+        let fountain: serde_json::Value = serde_json::from_str(&draft_previs(
+            SAMPLE.into(),
+            "cold-eggs.fountain".into(),
+            300,
+        ))
+        .unwrap();
+        let fdx: serde_json::Value = serde_json::from_str(&draft_previs(
+            SAMPLE_FDX.into(),
+            "cold-eggs.fdx".into(),
+            300,
+        ))
+        .unwrap();
+        assert_eq!(fdx["title"], "Cold Eggs");
+        assert_eq!(fdx["board_html"], fountain["board_html"]);
+        assert_eq!(fdx["shotlist_csv"], fountain["shotlist_csv"]);
+        // Renamed, the XML still says what it is.
+        let renamed: serde_json::Value = serde_json::from_str(&draft_previs(
+            SAMPLE_FDX.into(),
+            "cold-eggs.txt".into(),
+            300,
+        ))
+        .unwrap();
+        assert_eq!(renamed["board_html"], fountain["board_html"]);
+        // And XML that isn't Final Draft is refused in its own words.
+        let html: serde_json::Value = serde_json::from_str(&draft_previs(
+            "<?xml version=\"1.0\"?><html/>".into(),
+            "page.fdx".into(),
+            300,
+        ))
+        .unwrap();
+        assert!(
+            html["error"]
+                .as_str()
+                .unwrap()
+                .contains("isn't a Final Draft file")
         );
     }
 

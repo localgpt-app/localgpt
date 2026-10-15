@@ -108,7 +108,7 @@ crates/
 ├── app/          # localgpt-app — the one desktop app: Gen's shell, documents and songs as modes
 ├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
 ├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin; `song_world`)
-├── previs/       # localgpt-previs — screenplay (Fountain or Markdown pages) → per-scene .world with set/cast/coverage + board (deterministic)
+├── previs/       # localgpt-previs — screenplay (Fountain, Final Draft .fdx or Markdown pages) → per-scene .world with set/cast/coverage + board (deterministic)
 ├── previs-web/   # localgpt-previs-web — previs's draft as WASM for the localgpt.md page
 ├── world-types/  # localgpt-world-types — serde-only world data model (no Bevy/SpacetimeDB)
 ├── world-bevy/   # localgpt-world-bevy — the one Bevy mapping of the format (Gen, MD, Verse)
@@ -137,7 +137,7 @@ scripts/          # The shared downloads, fetched once for every app
 website*/         # One Cloudflare Worker each, all deployed by hand
 ├── website/      # localgpt.app — Docusaurus, the family hub and only docs site
 ├── website-gen/  # gen.localgpt.app — static landing
-├── website-md/   # localgpt.md — drop a screenplay (Fountain or Markdown), get a previs board in the tab (WASM draft)
+├── website-md/   # localgpt.md — drop a screenplay (Final Draft, Fountain or Markdown), get a previs board in the tab (WASM draft)
 ├── website-verse/# verse.localgpt.app — static landing
 └── website-world/# localgpt.world — the gallery and the one web viewer
 ```
@@ -505,10 +505,11 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
   change). `website-gen/` is the static landing page for gen.localgpt.app (no
   build step; `website-gen/deploy.sh` deploys it) and links to the Gen docs.
   `website-md/` is localgpt.md, the previs page (`docs/world-strategy.md`
-  §15): drop a screenplay — Fountain, or Markdown script pages — and get the
+  §15): drop a screenplay — a Final Draft `.fdx`, Fountain, or Markdown
+  script pages — and get the
   board and the per-scene `.world` packages in the tab. Its draft is
   `crates/previs-web` (wasm-pack over `crates/previs`, which touches no
-  model, renderer or network) and its page check (drop both samples through
+  model, renderer or network) and its page check (drop the three samples through
   the real input, require the rendered board and the downloads) runs in the
   same `viewer` CI job. MD has no page of its own; its docs are on
   localgpt.app.

@@ -10,10 +10,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 root="$(cd .. && pwd)"
 
-# 1. The samples the page offers: the same screenplay as Fountain and as
-# Markdown script pages (they draft to the same board, byte for byte).
+# 1. The samples the page offers: the same screenplay as Fountain, as a
+# Final Draft file and as Markdown script pages (they draft to the same
+# board, byte for byte).
 mkdir -p samples
 cp "$root/crates/previs/samples/cold-eggs.fountain" samples/cold-eggs.fountain
+cp "$root/crates/previs/samples/cold-eggs.fdx" samples/cold-eggs.fdx
 cp "$root/crates/previs/samples/cold-eggs.md" samples/cold-eggs.md
 
 # 2. The draft, if stale (wasm-pack skips when up to date).

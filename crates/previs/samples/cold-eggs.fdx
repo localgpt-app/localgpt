@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<FinalDraft DocumentType="Script" Template="No" Version="5">
+
+  <Content>
+    <Paragraph Type="New Act">
+      <Text>Act One</Text>
+    </Paragraph>
+    <Paragraph Number="1" Type="Scene Heading">
+      <SceneProperties Length="4/8" Page="1" Title="">
+        <SceneArcBeats/>
+      </SceneProperties>
+      <Text>INT. KITCHEN - DAY</Text>
+    </Paragraph>
+    <Paragraph Type="Action">
+      <Text>Maya fries an egg at the counter. The radio mutters the shipping forecast to nobody. Kai stumbles in, half asleep, and drops onto a stool.</Text>
+    </Paragraph>
+    <Paragraph Type="Character">
+      <Text>MAYA</Text>
+    </Paragraph>
+    <Paragraph Type="Dialogue">
+      <Text>You&apos;re late. The eggs are cold.</Text>
+    </Paragraph>
+    <Paragraph Type="Character">
+      <Text>KAI</Text>
+    </Paragraph>
+    <Paragraph Type="Parenthetical">
+      <Text>(yawning)</Text>
+    </Paragraph>
+    <Paragraph Type="Dialogue">
+      <Text>The eggs are always cold.</Text>
+    </Paragraph>
+    <Paragraph Type="Character">
+      <Text>MAYA</Text>
+    </Paragraph>
+    <Paragraph Type="Dialogue">
+      <Text>Then maybe don't be late.</Text>
+    </Paragraph>
+    <Paragraph Type="Character">
+      <Text>KAI</Text>
+    </Paragraph>
+    <Paragraph Type="Dialogue">
+      <Text>It's a system. </Text>
+      <Text Style="Italic">It works.</Text>
+      <ScriptNote Color="#FFFFFF00000000">
+        <Paragraph>
+          <Text>the radio should name the storm from scene two</Text>
+        </Paragraph>
+      </ScriptNote>
+    </Paragraph>
+    <Paragraph Number="2" Type="Scene Heading" StartsNewPage="No">
+      <SceneProperties Length="3/8" Page="1" Title="">
+        <SceneArcBeats/>
+      </SceneProperties>
+      <Text>EXT. CLIFF PATH - DUSK</Text>
+    </Paragraph>
+    <Paragraph Type="Action">
+      <Text>Wind. The lighthouse blinks out at sea. June waits by the gate, collar up against the spray.</Text>
+    </Paragraph>
+    <Paragraph Type="Character">
+      <Text>JUNE</Text>
+    </Paragraph>
+    <Paragraph Type="Dialogue">
+      <Text>You came.</Text>
+    </Paragraph>
+    <Paragraph Type="Character">
+      <Text>MAYA</Text>
+    </Paragraph>
+    <Paragraph Type="Dialogue">
+      <Text>We argued about it.</Text>
+    </Paragraph>
+    <Paragraph Type="Character">
+      <Text>KAI</Text>
+    </Paragraph>
+    <Paragraph Type="Dialogue">
+      <Text>I lost the argument.</Text>
+    </Paragraph>
+    <Paragraph Type="Character">
+      <Text>JUNE</Text>
+    </Paragraph>
+    <Paragraph Type="Parenthetical">
+      <Text>(pointing at the sea)</Text>
+    </Paragraph>
+    <Paragraph Type="Dialogue">
+      <Text>There. Where the gulls won't go.</Text>
+    </Paragraph>
+    <Paragraph Type="Transition">
+      <Text>FADE OUT.</Text>
+    </Paragraph>
+  </Content>
+
+  <TitlePage>
+    <Content>
+      <Paragraph Alignment="Center">
+        <Text>Cold Eggs</Text>
+      </Paragraph>
+      <Paragraph Alignment="Center">
+        <Text></Text>
+      </Paragraph>
+      <Paragraph Alignment="Center">
+        <Text>written by</Text>
+      </Paragraph>
+      <Paragraph Alignment="Center">
+        <Text>A. Previs</Text>
+      </Paragraph>
+    </Content>
+  </TitlePage>
+
+</FinalDraft>
