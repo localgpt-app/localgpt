@@ -13,12 +13,14 @@ shift-click multi-selection dragged together, grouping, deleting, and
 the receipt's warning when a delete leaves a behavior without its
 target. Screenshots land in `<world>/.live/` for a person to look at.
 
+    mkdir demo.world && cp ../openworldformat/examples/hello-world/manifest.json demo.world/
     cargo run -p localgpt-world-agent --example live -- init demo.world
     cargo build -p localgpt-gen
     scripts/live-smoke.py demo.world            # --offscreen on a locked screen
 
-The world must be a live package (the `init` above) with the example's
-entities: a cuboid (10), a capsule (14) and a lantern (100).
+The world must be a live package with the spec's hello-world entities:
+a cuboid (10), a capsule (14) and a lantern (100). `init` on an empty
+folder makes an empty world, so copy the manifest in first.
 """
 
 import argparse
