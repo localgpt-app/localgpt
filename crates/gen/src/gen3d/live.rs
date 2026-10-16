@@ -1704,6 +1704,16 @@ fn live_world(
             },
             ("GET", "/log") => Reply::ok(history(&live.world, live.view.history())),
             // The panels' widgets by name, for the hand that has no eyes.
+            // How many synthesized events still wait to be emitted, one per
+            // frame — a driver waits for zero before it reads, so a slow
+            // stretch of frames never makes a check read too early.
+            ("GET", "/input") => match &live.synthetic {
+                None => Reply::status(
+                    404,
+                    json!({"error": "no synthetic input (LOCALGPT_SYNTHETIC_INPUT=1)"}),
+                ),
+                Some(queue) => Reply::ok(json!({"queued": queue.len()})),
+            },
             ("GET", "/widgets") => match live.synthetic {
                 None => Reply::status(
                     404,

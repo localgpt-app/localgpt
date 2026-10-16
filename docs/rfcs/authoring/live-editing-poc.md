@@ -267,7 +267,11 @@ window's surface stays black, and `--offscreen`
 screenshots read instead. The same mode keeps a run clear of a real mouse
 crossing the window, which a smoke run beside a person's window needs,
 and `LOCALGPT_INSPECTOR_PORT` gives that second canvas its own inspector
-socket.
+socket. The hand's events are emitted one per frame; `POST /input` is
+followed by a wait on `GET /input` until the queue is empty, so a slow
+stretch of frames can never make a check read before its input landed —
+the one source of flakiness the suite showed, a run where every panel
+interaction in one stretch read too early.
 
 ## Since then (2026-10-16)
 

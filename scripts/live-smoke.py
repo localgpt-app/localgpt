@@ -138,7 +138,20 @@ class Canvas:
     # -- the hand -----------------------------------------------------
 
     def input(self, events):
-        return call(self.ep, "POST", "/input", {"events": events})
+        """Queue a hand's events, one per frame, and return once the canvas
+        has emitted them all — plus a frame for the last to land. The fixed
+        waits after a call are settle time for what the events set off, not
+        for the events themselves, so a slow stretch of frames cannot make a
+        check read before its input arrived."""
+        reply = call(self.ep, "POST", "/input", {"events": events})
+        deadline = time.time() + 60.0
+        while time.time() < deadline:
+            status, body = call(self.ep, "GET", "/input")
+            if status != 200 or (body or {}).get("queued", 0) == 0:
+                break
+            time.sleep(0.05)
+        time.sleep(0.05)
+        return reply
 
     def select(self, entity_id):
         ws_send(WS_PORT, json.dumps({"type": "select_entity", "entity_id": entity_id}))
@@ -482,6 +495,29 @@ def main():
             check(moved_px > 5 and abs(far_len - near_len) / near_len < 0.3,
                   f"the handles keep their screen size as the camera moves ({near_len:.0f} px -> {far_len:.0f} px, the origin shifted {moved_px:.0f} px)")
             check(hot_off_arrow(8) == "x" and hot_off_arrow(60) != "x", "hover tolerance holds from the new distance")
+
+            # The same tolerance on an arrow laid along the entity's own,
+            # turned axis (L) — what a hand grabbing a local-axes handle
+            # feels. Off the arrow means perpendicular to it on screen: a
+            # vertical offset from a turned arrow can run along it.
+            def hot_off_arrow_perp(offset_px):
+                _, (ox, oy), (xx, xy) = arrow_px()
+                dx, dy = xx - ox, xy - oy
+                n = max(math.hypot(dx, dy), 1.0)
+                px_, py_ = -dy / n, dx / n
+                along = (ox + dx * 0.6, oy + dy * 0.6)
+                canvas.input([{"cursor": [along[0] + px_ * offset_px, along[1] + py_ * offset_px]}])
+                time.sleep(0.2)
+                return (call(ep, "GET", "/selection")[1].get("handles") or {}).get("hot")
+
+            canvas.input(press("KeyL"))
+            time.sleep(0.4)
+            local_now = (call(ep, "GET", "/selection")[1].get("handles") or {}).get("local")
+            near_local, far_local = hot_off_arrow_perp(8), hot_off_arrow_perp(60)
+            canvas.input(press("KeyL"))
+            time.sleep(0.4)
+            check(local_now is True and near_local == "x" and far_local != "x",
+                  f"on local axes the turned X arrow forgives 8 px off it, not 60 (local {local_now}, {near_local}, {far_local})")
             canvas.input([{"key": "KeyS", "pressed": True}])
             time.sleep(0.45)
             canvas.input([{"key": "KeyS", "pressed": False}])
