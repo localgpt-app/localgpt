@@ -19,7 +19,11 @@
 //! |---|---|
 //! | click | select (Esc, or a click on nothing: deselect); Shift- or Cmd/Ctrl-click adds to the selection |
 //! | drag | move along the ground; with Alt held, up and down |
+//! | drag on nothing, or Shift-drag anywhere | box-select what the box encloses (Shift adds to the selection) |
 //! | drag a handle | move along one axis (the arrows), turn about one (the rings), scale (the cube) |
+//! | Alt-drag an arrow | scale along the entity's own matching axis |
+//! | `L` | the handles along the world's axes, or the entity's own |
+//! | Alt + right-drag | orbit the camera around the selection |
 //! | arrows, PgUp / PgDn | nudge one grid step, along the axis nearest the view / vertically |
 //! | `,` `.` | turn one angle step left / right |
 //! | `-` `=` | scale down / up by 10% |
@@ -27,7 +31,8 @@
 //! | Delete / Backspace | delete (children go with it) |
 //! | Cmd/Ctrl + D | duplicate beside it |
 //! | Cmd/Ctrl + G | group the selection under a new empty at its centroid |
-//! | Cmd/Ctrl + Z | undo on the branch on screen |
+//! | Cmd/Ctrl + Z | undo your own newest change on the branch on screen; with Alt held, anyone's |
+//! | Cmd/Ctrl + Shift + Z | redo your own newest undo |
 //!
 //! A multi-selection moves, turns, scales, deletes and duplicates together,
 //! as one entry. The panels (`crate::inspector`) edit through the same
@@ -42,9 +47,10 @@ use bevy::camera::primitives::Aabb;
 use bevy::ecs::system::SystemParam;
 use bevy::math::bounding::Aabb3d;
 use bevy::picking::events::{Click, Drag, DragEnd, DragStart, Pointer};
+use bevy::picking::hover::HoverMap;
 use bevy::picking::pointer::{PointerButton, PointerId, PointerLocation};
 use bevy::prelude::*;
-use bevy_egui::EguiContexts;
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use serde_json::Value;
 
 use super::avatar;
@@ -57,6 +63,8 @@ use localgpt_world_types as wt;
 const KEY_GESTURE_IDLE_SECS: f32 = 0.6;
 /// One scale step.
 const SCALE_STEP: f32 = 1.1;
+/// How far a press must travel before it is a selection box, not a click.
+const BOX_THRESHOLD_PX: f32 = 3.0;
 const SELECTED: Color = Color::srgb(0.35, 0.8, 1.0);
 const SELECTED_TOO: Color = Color::srgb(0.25, 0.55, 0.72);
 const AXES: [Vec3; 3] = [Vec3::X, Vec3::Y, Vec3::Z];
@@ -67,6 +75,8 @@ const AXIS_COLORS: [Color; 3] = [
 ];
 const SCALE_HANDLE: Color = Color::srgb(0.9, 0.9, 0.9);
 const HOT: Color = Color::WHITE;
+const BOX_FILL: egui::Color32 = egui::Color32::from_rgba_premultiplied(18, 36, 51, 40);
+const BOX_LINE: egui::Color32 = egui::Color32::from_rgb(90, 180, 255);
 
 /// A person's edits in the canvas.
 pub struct CanvasEditPlugin;
@@ -81,6 +91,8 @@ impl Plugin for CanvasEditPlugin {
             .init_resource::<CanvasGesture>()
             .init_resource::<CanvasSettings>()
             .init_resource::<Handles>()
+            .init_resource::<CanvasMarquee>()
+            .add_systems(EguiPrimaryContextPass, draw_marquee)
             .add_systems(
                 Update,
                 (
@@ -105,6 +117,9 @@ pub struct CanvasSettings {
     pub grid_m: f32,
     /// The angle step, and one turn.
     pub angle_degrees: f32,
+    /// The handles along the entity's own axes rather than the world's;
+    /// `L` toggles.
+    pub local_axes: bool,
 }
 
 impl Default for CanvasSettings {
@@ -113,6 +128,7 @@ impl Default for CanvasSettings {
             snap: false,
             grid_m: 0.25,
             angle_degrees: 15.0,
+            local_axes: false,
         }
     }
 }
@@ -142,8 +158,11 @@ pub enum PersonIntent {
     },
     /// A scene-wide edit from a panel: a `ModifyWorld` patch.
     World { patch: Value, what: String },
-    /// Undo on the path to the entry on screen.
-    Undo,
+    /// Undo on the path to the entry on screen: the person's own newest
+    /// change, or anyone's.
+    Undo { own: bool },
+    /// Take the person's own newest undo back.
+    Redo,
 }
 
 /// One entity a gesture took.
@@ -157,8 +176,9 @@ pub struct Moved {
     /// vertical from the keys, about any world axis from the rings.
     /// Identity when it didn't turn.
     pub turn: Quat,
-    /// Uniform factor.
-    pub scale_by: f32,
+    /// Factors along the entity's own axes: the same on all three from the
+    /// cube or the keys, one of them from an Alt-drag of an arrow.
+    pub scale_by: [f32; 3],
 }
 
 /// An entity by id, with its name for the history to read.
@@ -186,7 +206,7 @@ struct Gesture {
     grabbed: Vec<Grabbed>,
     moved: bool,
     turned: bool,
-    scale_by: f32,
+    scale_by: Vec3,
     /// Quiet time before a run of key presses commits; a drag commits on
     /// release instead.
     idle: Timer,
@@ -211,7 +231,7 @@ impl Gesture {
             grabbed,
             moved: false,
             turned: false,
-            scale_by: 1.0,
+            scale_by: Vec3::ONE,
             idle: Timer::from_seconds(KEY_GESTURE_IDLE_SECS, TimerMode::Once),
             drag: None,
         }
@@ -253,8 +273,8 @@ impl Gesture {
 
     /// Turn everything by `degrees` about a world `axis` through its own
     /// origin — the axis read in the parent's frame, which is what the
-    /// committed angles say — and scale it by `factor`.
-    fn turn_and_scale(&mut self, scene: &mut Scene, axis: Vec3, degrees: f32, factor: f32) {
+    /// committed angles say — and scale it by `factor` along its own axes.
+    fn turn_and_scale(&mut self, scene: &mut Scene, axis: Vec3, degrees: f32, factor: Vec3) {
         for g in &self.grabbed {
             let local_axis = scene.local_vector(g.entity, axis).normalize_or(axis);
             if let Ok(mut transform) = scene.transforms.get_mut(g.entity) {
@@ -289,7 +309,7 @@ impl Gesture {
                         } else {
                             Quat::IDENTITY
                         },
-                        scale_by: self.scale_by,
+                        scale_by: self.scale_by.to_array(),
                     }
                 })
                 .collect(),
@@ -311,17 +331,21 @@ struct Grab {
 }
 
 /// The handles around the selection: three axis arrows, three rings, one
-/// about each axis, a cube for uniform scale.
+/// about each axis, a cube for uniform scale. An arrow grabbed with Alt
+/// held is a stretch: scale along that one axis of the entity's own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Handle {
     Axis(usize),
     Ring(usize),
     Scale,
+    Stretch(usize),
 }
 
 /// A handle being dragged, and where the drag began.
 struct HandleGrab {
     handle: Handle,
+    /// The frame's axes at the grab: a turn mid-drag doesn't move the rail.
+    axes: [Vec3; 3],
     /// Along the axis: the line parameter under the pointer at the grab.
     start_s: f32,
     /// On a ring: the direction from the origin to the grab.
@@ -331,8 +355,32 @@ struct HandleGrab {
     /// What the ring has applied so far, in degrees, so each frame applies
     /// the rest.
     applied_angle: f32,
-    /// What the cube has applied so far.
+    /// What the cube, or a stretch, has applied so far.
     applied_scale: f32,
+}
+
+/// A box being drawn over the viewport, to select what it encloses.
+#[derive(Resource, Default)]
+pub struct CanvasMarquee(Option<Marquee>);
+
+impl CanvasMarquee {
+    /// The box on screen now, `[x0, y0, x1, y1]` in window points — for the
+    /// live API, so a test driver sees what a person sees.
+    pub(crate) fn rect(&self) -> Option<[f32; 4]> {
+        self.0
+            .as_ref()
+            .filter(|m| m.moved)
+            .map(|m| [m.from.x, m.from.y, m.to.x, m.to.y])
+    }
+}
+
+struct Marquee {
+    from: Vec2,
+    to: Vec2,
+    /// Add to the selection rather than replace it.
+    extend: bool,
+    /// The pointer has moved since the press: a box, not a click.
+    moved: bool,
 }
 
 /// Where the handles are this frame, and which one is under the pointer.
@@ -355,9 +403,9 @@ impl Handles {
     /// The handle under the pointer, by name.
     pub(crate) fn hot_name(&self) -> Option<&'static str> {
         self.hot.map(|handle| match handle {
-            Handle::Axis(0) => "x",
-            Handle::Axis(1) => "y",
-            Handle::Axis(_) => "z",
+            Handle::Axis(0) | Handle::Stretch(0) => "x",
+            Handle::Axis(1) | Handle::Stretch(1) => "y",
+            Handle::Axis(_) | Handle::Stretch(_) => "z",
             Handle::Ring(0) => "ring_x",
             Handle::Ring(1) => "ring_y",
             Handle::Ring(_) => "ring_z",
@@ -367,28 +415,39 @@ impl Handles {
 }
 
 /// The handles' geometry: sized by the distance to the camera so they take
-/// about the same screen space from anywhere.
+/// about the same screen space from anywhere, along the world's axes or,
+/// turned by the entity's rotation, its own.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct HandleFrame {
     pub(crate) origin: Vec3,
     pub(crate) length: f32,
     pub(crate) ring_radius: f32,
     pub(crate) scale_at: Vec3,
+    /// The arrows' directions and the rings' normals.
+    pub(crate) axes: [Vec3; 3],
+    /// What turns the world's axes into `axes`: identity for the world's.
+    pub(crate) rotation: Quat,
+    /// The axes are the entity's own.
+    pub(crate) local: bool,
     /// How near the pointer's ray must pass, in world units.
     threshold: f32,
 }
 
 impl HandleFrame {
-    fn around(origin: Vec3, camera: Vec3) -> Self {
+    fn around(origin: Vec3, camera: Vec3, local: Option<Quat>) -> Self {
         let distance = (camera - origin).length().max(0.5);
         let length = (0.22 * distance).clamp(0.4, 12.0);
+        let rotation = local.unwrap_or(Quat::IDENTITY);
         Self {
             origin,
             length,
             // Outside the arrows' tips: a ring inside them crosses every
             // arrow at its own radius, and there the ring took the grab.
             ring_radius: 1.15 * length,
-            scale_at: origin + Vec3::ONE.normalize() * 0.9 * length,
+            scale_at: origin + rotation * (Vec3::ONE.normalize() * 0.9 * length),
+            axes: AXES.map(|axis| rotation * axis),
+            rotation,
+            local: local.is_some(),
             threshold: 0.035 * distance,
         }
     }
@@ -398,7 +457,11 @@ impl HandleFrame {
 #[derive(SystemParam)]
 struct Scene<'w, 's> {
     gen_entities: Query<'w, 's, &'static GenEntity>,
+    /// Every world entity, for a box to look through.
+    entities: Query<'w, 's, Entity, With<GenEntity>>,
     parents: Query<'w, 's, &'static ChildOf>,
+    children: Query<'w, 's, &'static Children>,
+    bounds: Query<'w, 's, &'static Aabb>,
     globals: Query<'w, 's, &'static GlobalTransform>,
     transforms: Query<'w, 's, &'static mut Transform>,
     registry: Res<'w, NameRegistry>,
@@ -408,6 +471,10 @@ struct Scene<'w, 's> {
     /// coordinates the picking events carry, whether a hand or a test
     /// driver moved it.
     pointers: Query<'w, 's, (&'static PointerId, &'static PointerLocation)>,
+    /// What picking finds under each pointer, so a press on nothing is
+    /// known as one without waiting for an event that may never come
+    /// (picking sends none when the canvas renders into an image).
+    hover: Option<Res<'w, HoverMap>>,
 }
 
 impl Scene<'_, '_> {
@@ -430,6 +497,14 @@ impl Scene<'_, '_> {
 
     fn named(&self, entity: Entity) -> Option<Named> {
         self.identify(entity).map(|(id, name)| Named { id, name })
+    }
+
+    /// Whether anything pickable is under the mouse pointer.
+    fn under_pointer(&self) -> bool {
+        self.hover
+            .as_ref()
+            .and_then(|map| map.get(&PointerId::Mouse))
+            .is_some_and(|hits| !hits.is_empty())
     }
 
     /// Where the mouse pointer is in the window, if it is in it.
@@ -486,6 +561,92 @@ impl Scene<'_, '_> {
     fn parent_global(&self, entity: Entity) -> Option<GlobalTransform> {
         let parent = self.parents.get(entity).ok()?.parent();
         self.globals.get(parent).ok().copied()
+    }
+
+    /// The entity's own rotation in the world, for handles along its axes.
+    fn world_rotation(&self, entity: Entity) -> Option<Quat> {
+        self.globals
+            .get(entity)
+            .ok()
+            .map(|g| g.compute_transform().rotation)
+    }
+
+    /// Whether a world entity is under another in the set.
+    fn has_ancestor_in(&self, mut entity: Entity, set: &[Entity]) -> bool {
+        while let Ok(child_of) = self.parents.get(entity) {
+            entity = child_of.parent();
+            if set.contains(&entity) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The world entities a box between two window points encloses whole —
+    /// every corner of what they draw inside it, or their origin when they
+    /// draw nothing — without the ones whose parent is enclosed too, since
+    /// those move with it. By id, so the order is the world's.
+    fn enclosed_by(&self, a: Vec2, b: Vec2) -> Vec<Entity> {
+        let (low, high) = (a.min(b), a.max(b));
+        let inside = |p: Vec2| p.cmpge(low).all() && p.cmple(high).all();
+        let mut found: Vec<(u64, Entity)> = Vec::new();
+        for root in self.entities.iter() {
+            let mut corners_seen = false;
+            let mut all_inside = true;
+            let mut stack = vec![root];
+            let mut budget = 4096;
+            while let Some(entity) = stack.pop() {
+                budget -= 1;
+                if budget == 0 {
+                    break;
+                }
+                if let (Ok(aabb), Ok(global)) = (self.bounds.get(entity), self.globals.get(entity))
+                {
+                    for corner in corners(aabb) {
+                        corners_seen = true;
+                        match self.to_viewport(global.transform_point(corner)) {
+                            Some(p) if inside(p) => {}
+                            _ => all_inside = false,
+                        }
+                    }
+                }
+                if let Ok(kids) = self.children.get(entity) {
+                    stack.extend(kids.iter());
+                }
+            }
+            let enclosed = if corners_seen {
+                all_inside
+            } else {
+                self.globals
+                    .get(root)
+                    .ok()
+                    .and_then(|g| self.to_viewport(g.translation()))
+                    .is_some_and(inside)
+            };
+            if enclosed && let Some((id, _)) = self.identify(root) {
+                found.push((id, root));
+            }
+        }
+        found.sort_by_key(|(id, _)| *id);
+        let all: Vec<Entity> = found.iter().map(|(_, e)| *e).collect();
+        all.iter()
+            .copied()
+            .filter(|e| !self.has_ancestor_in(*e, &all))
+            .collect()
+    }
+}
+
+/// Select what a box enclosed: in place of the selection, or added to it.
+fn select_boxed(selection: &mut InspectorSelection, enclosed: Vec<Entity>, extend: bool) {
+    if !extend {
+        selection.clear();
+    }
+    for entity in enclosed {
+        if selection.is_empty() {
+            selection.set(Some(entity));
+        } else if !selection.contains(entity) {
+            selection.toggle(entity);
+        }
     }
 }
 
@@ -642,7 +803,11 @@ fn handle_edits(
     let (Ok(global), Ok((_, camera))) = (scene.globals.get(primary), scene.camera.single()) else {
         return;
     };
-    let frame = HandleFrame::around(global.translation(), camera.translation());
+    let local = settings
+        .local_axes
+        .then(|| scene.world_rotation(primary))
+        .flatten();
+    let frame = HandleFrame::around(global.translation(), camera.translation(), local);
     handles.frame = Some(frame);
     let cursor = scene.cursor();
     let ray = cursor.and_then(|c| scene.ray(c));
@@ -671,6 +836,7 @@ fn handle_edits(
         };
         let origin = grab.origin;
         let kind = hg.handle;
+        let axes = hg.axes;
         let (start_s, start_dir, start_px) = (hg.start_s, hg.start_dir, hg.start_px);
         let (applied_angle, applied_scale) = (hg.applied_angle, hg.applied_scale);
         let mut target = None;
@@ -678,18 +844,34 @@ fn handle_edits(
         let mut scale = applied_scale;
         // The axis a ring turns about; the keys' vertical otherwise.
         let mut turn_axis = Vec3::Y;
+        // The one axis of the entity's own a stretch scales along.
+        let mut stretch_axis = None;
         match kind {
             Handle::Axis(i) => {
-                let axis = AXES[i];
+                let axis = axes[i];
                 let s = line_param_nearest_ray(origin, axis, ray);
-                let mut t = origin + axis * (s - start_s);
-                if snap {
+                let mut along = s - start_s;
+                if snap && settings.local_axes {
+                    // No grid lines run along a turned axis: grid steps of
+                    // travel instead.
+                    along = snap_to(along, settings.grid_m);
+                }
+                let mut t = origin + axis * along;
+                if snap && !settings.local_axes {
                     t[i] = snap_to(t[i], settings.grid_m);
                 }
                 target = Some(t);
             }
+            Handle::Stretch(i) => {
+                stretch_axis = Some(i);
+                let s = line_param_nearest_ray(origin, axes[i], ray);
+                scale = (s / start_s.max(0.05)).max(0.05);
+                if snap {
+                    scale = ((scale * 4.0).round().max(1.0)) / 4.0;
+                }
+            }
             Handle::Ring(i) => {
-                turn_axis = AXES[i];
+                turn_axis = axes[i];
                 if let Some(hit) = hit_plane(ray, origin, turn_axis) {
                     let dir = (hit - origin).normalize_or_zero();
                     if dir != Vec3::ZERO {
@@ -713,12 +895,16 @@ fn handle_edits(
             g.move_to(&mut scene, t);
         }
         if angle != applied_angle || scale != applied_scale {
-            g.turn_and_scale(
-                &mut scene,
-                turn_axis,
-                angle - applied_angle,
-                scale / applied_scale,
-            );
+            let by = scale / applied_scale;
+            let factor = match stretch_axis {
+                Some(i) => {
+                    let mut f = Vec3::ONE;
+                    f[i] = by;
+                    f
+                }
+                None => Vec3::splat(by),
+            };
+            g.turn_and_scale(&mut scene, turn_axis, angle - applied_angle, factor);
         }
         if let Some(hg) = g.drag.as_mut().and_then(|d| d.handle.as_mut()) {
             hg.applied_angle = angle;
@@ -740,6 +926,13 @@ fn handle_edits(
     if !mouse.just_pressed(MouseButton::Left) {
         return;
     }
+    // An arrow taken with Alt held stretches instead of moving.
+    let kind = match kind {
+        Handle::Axis(i) if keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]) => {
+            Handle::Stretch(i)
+        }
+        other => other,
+    };
     let Some(g) = gesture_on(&mut gesture, primary, &selection, &scene, &mut intents) else {
         return;
     };
@@ -747,6 +940,7 @@ fn handle_edits(
     let origin = frame.origin;
     let mut hg = HandleGrab {
         handle: kind,
+        axes: frame.axes,
         start_s: 0.0,
         start_dir: Vec3::X,
         start_px: 1.0,
@@ -754,11 +948,13 @@ fn handle_edits(
         applied_scale: 1.0,
     };
     match kind {
-        Handle::Axis(i) => hg.start_s = line_param_nearest_ray(origin, AXES[i], ray),
+        Handle::Axis(i) | Handle::Stretch(i) => {
+            hg.start_s = line_param_nearest_ray(origin, frame.axes[i], ray);
+        }
         Handle::Ring(i) => {
             // Some direction in the ring's plane, should the grab miss it.
-            let across = AXES[(i + 1) % 3];
-            hg.start_dir = hit_plane(ray, origin, AXES[i])
+            let across = frame.axes[(i + 1) % 3];
+            hg.start_dir = hit_plane(ray, origin, frame.axes[i])
                 .map(|hit| (hit - origin).normalize_or(across))
                 .unwrap_or(across);
         }
@@ -791,19 +987,41 @@ fn pointer_edits(
     hovered: Option<Res<UiHovered>>,
     settings: Res<CanvasSettings>,
     mut handles: ResMut<Handles>,
+    mut marquee: ResMut<CanvasMarquee>,
     mut selection: ResMut<InspectorSelection>,
     mut gesture: ResMut<CanvasGesture>,
     mut intents: MessageWriter<PersonIntent>,
     mut scene: Scene,
 ) {
+    let left = mouse.pressed(MouseButton::Left);
+    // A box being drawn follows the pointer wherever it goes — across a
+    // panel too — and ends on release. Its press's picking events are not
+    // the world's: a drag of what was under the press, a click on what is
+    // under the release. A press that never travelled is a click, below.
+    if let Some(m) = marquee.0.as_mut() {
+        if let Some(at) = scene.cursor()
+            && (at - m.from).length() > BOX_THRESHOLD_PX
+        {
+            m.to = at;
+            m.moved = true;
+        }
+        if left {
+            drain_pointer(&mut clicks, &mut starts, &mut drags, &mut ends);
+            return;
+        }
+        let m = marquee.0.take().expect("checked just above");
+        if m.moved {
+            let enclosed = scene.enclosed_by(m.from, m.to);
+            select_boxed(&mut selection, enclosed, m.extend);
+            drain_pointer(&mut clicks, &mut starts, &mut drags, &mut ends);
+            return;
+        }
+    }
     // A panel under the pointer (the inspector) has the pointer, not the
     // world; and a press on a handle was the handle's.
     if hovered.is_some() || handles.pressed {
-        clicks.clear();
-        starts.clear();
-        drags.clear();
-        ends.clear();
-        if handles.pressed && !mouse.pressed(MouseButton::Left) {
+        drain_pointer(&mut clicks, &mut starts, &mut drags, &mut ends);
+        if handles.pressed && !left {
             handles.pressed = false;
         }
         return;
@@ -818,6 +1036,24 @@ fn pointer_edits(
         KeyCode::ControlRight,
     ]);
     let snap = snapping(&settings, &keys);
+
+    // A press on nothing, or with Shift on anything, begins a box. Read
+    // from the button and the hover map rather than picking's events, so
+    // the sky counts as nothing whether or not a window is behind it.
+    let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+    if mouse.just_pressed(MouseButton::Left)
+        && !gesture.dragging()
+        && (shift || !scene.under_pointer())
+        && let Some(at) = scene.cursor()
+    {
+        flush_unless(&mut gesture, None, &scene, &mut intents);
+        marquee.0 = Some(Marquee {
+            from: at,
+            to: at,
+            extend,
+            moved: false,
+        });
+    }
 
     for click in clicks.read() {
         if click.event.button != PointerButton::Primary {
@@ -850,7 +1086,7 @@ fn pointer_edits(
     }
 
     for start in starts.read() {
-        if start.event.button != PointerButton::Primary {
+        if start.event.button != PointerButton::Primary || marquee.0.is_some() {
             continue;
         }
         let Some(owner) = scene.owner(start.entity) else {
@@ -894,6 +1130,9 @@ fn pointer_edits(
     }
 
     for drag in drags.read() {
+        if marquee.0.is_some() {
+            continue;
+        }
         let Some(g) = gesture.0.as_mut() else {
             continue;
         };
@@ -935,6 +1174,42 @@ fn pointer_edits(
     }
 }
 
+/// Forget this frame's picking events: they belong to a panel, a handle or
+/// a box, not to the world.
+fn drain_pointer(
+    clicks: &mut MessageReader<Pointer<Click>>,
+    starts: &mut MessageReader<Pointer<DragStart>>,
+    drags: &mut MessageReader<Pointer<Drag>>,
+    ends: &mut MessageReader<Pointer<DragEnd>>,
+) {
+    clicks.clear();
+    starts.clear();
+    drags.clear();
+    ends.clear();
+}
+
+/// The box being drawn, over everything.
+fn draw_marquee(marquee: Res<CanvasMarquee>, mut egui: EguiContexts) {
+    let Some(m) = marquee.0.as_ref().filter(|m| m.moved) else {
+        return;
+    };
+    let Ok(ctx) = egui.ctx_mut() else {
+        return;
+    };
+    let rect = egui::Rect::from_two_pos(egui::pos2(m.from.x, m.from.y), egui::pos2(m.to.x, m.to.y));
+    let painter = ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Foreground,
+        egui::Id::new("canvas_marquee"),
+    ));
+    painter.rect_filled(rect, 0.0, BOX_FILL);
+    painter.rect_stroke(
+        rect,
+        0.0,
+        egui::Stroke::new(1.0_f32, BOX_LINE),
+        egui::StrokeKind::Outside,
+    );
+}
+
 /// Keys edit the selection; a run of presses is one gesture.
 #[allow(clippy::too_many_arguments)]
 fn key_edits(
@@ -967,9 +1242,18 @@ fn key_edits(
         if keys.just_pressed(KeyCode::KeyY) && !command {
             settings.snap = !settings.snap;
         }
+        if keys.just_pressed(KeyCode::KeyL) && !command {
+            settings.local_axes = !settings.local_axes;
+        }
         if command && keys.just_pressed(KeyCode::KeyZ) {
             flush_unless(&mut gesture, None, &scene, &mut intents);
-            intents.write(PersonIntent::Undo);
+            let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+            let alt = keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]);
+            intents.write(if shift {
+                PersonIntent::Redo
+            } else {
+                PersonIntent::Undo { own: !alt }
+            });
         }
         if let Some(entity) = selection.entity {
             key_edit(
@@ -1081,7 +1365,7 @@ fn key_edit(
         g.nudge(scene, nudge);
     }
     if turn != 0.0 || scale != 1.0 {
-        g.turn_and_scale(scene, Vec3::Y, turn, scale);
+        g.turn_and_scale(scene, Vec3::Y, turn, Vec3::splat(scale));
     }
 }
 
@@ -1154,12 +1438,9 @@ fn draw_handles(mut gizmos: Gizmos, handles: Res<Handles>, gesture: Res<CanvasGe
         .and_then(|d| d.handle.as_ref())
         .map(|h| h.handle);
     let hot = active.or(handles.hot);
-    for (i, axis) in AXES.iter().enumerate() {
-        let color = if hot == Some(Handle::Axis(i)) {
-            HOT
-        } else {
-            AXIS_COLORS[i]
-        };
+    for (i, axis) in frame.axes.iter().enumerate() {
+        let lit = matches!(hot, Some(Handle::Axis(j) | Handle::Stretch(j)) if j == i);
+        let color = if lit { HOT } else { AXIS_COLORS[i] };
         gizmos.arrow(
             frame.origin + *axis * frame.length * 0.15,
             frame.origin + *axis * frame.length,
@@ -1168,7 +1449,7 @@ fn draw_handles(mut gizmos: Gizmos, handles: Res<Handles>, gesture: Res<CanvasGe
     }
     for (i, facing) in ring_facings().iter().enumerate() {
         gizmos.circle(
-            Isometry3d::new(frame.origin, *facing),
+            Isometry3d::new(frame.origin, frame.rotation * *facing),
             frame.ring_radius,
             if hot == Some(Handle::Ring(i)) {
                 HOT
@@ -1200,7 +1481,7 @@ fn hit_handle(frame: &HandleFrame, ray: Ray3d) -> Option<Handle> {
             best = Some((distance, handle));
         }
     };
-    for (i, axis) in AXES.iter().enumerate() {
+    for (i, axis) in frame.axes.iter().enumerate() {
         let (distance, _) = ray_segment_distance(
             ray,
             frame.origin + *axis * frame.length * 0.15,
@@ -1213,7 +1494,7 @@ fn hit_handle(frame: &HandleFrame, ray: Ray3d) -> Option<Handle> {
         Handle::Scale,
         frame.threshold * 1.4,
     );
-    for (i, axis) in AXES.iter().enumerate() {
+    for (i, axis) in frame.axes.iter().enumerate() {
         if let Some(hit) = hit_plane(ray, frame.origin, *axis) {
             let radius = (hit - frame.origin).length();
             consider(
@@ -1449,8 +1730,41 @@ mod tests {
     }
 
     #[test]
+    fn local_axes_turn_the_frame_with_the_entity() {
+        let camera = Vec3::new(0.0, 5.0, 10.0);
+        let world = HandleFrame::around(Vec3::ZERO, camera, None);
+        assert!(!world.local);
+        assert_eq!(world.axes, AXES);
+        // An entity turned a quarter about Y: its own X points down -Z.
+        let turned = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
+        let local = HandleFrame::around(Vec3::ZERO, camera, Some(turned));
+        assert!(local.local);
+        assert!(
+            (local.axes[0] - Vec3::NEG_Z).length() < 1e-5,
+            "{:?}",
+            local.axes
+        );
+        assert!(
+            (local.axes[1] - Vec3::Y).length() < 1e-5,
+            "{:?}",
+            local.axes
+        );
+        assert!(
+            (local.axes[2] - Vec3::X).length() < 1e-5,
+            "{:?}",
+            local.axes
+        );
+        // The X arrow is found where it now lies, not where the world's is.
+        let on_x = local.axes[0] * local.length;
+        let ray = Ray3d::new(on_x + Vec3::Y * 10.0, Dir3::NEG_Y);
+        assert_eq!(hit_handle(&local, ray), Some(Handle::Axis(0)));
+        let where_world_x_was = Ray3d::new(Vec3::X * local.length + Vec3::Y * 10.0, Dir3::NEG_Y);
+        assert_eq!(hit_handle(&local, where_world_x_was), Some(Handle::Axis(2)));
+    }
+
+    #[test]
     fn the_nearest_handle_wins_and_nothing_far_away_does() {
-        let frame = HandleFrame::around(Vec3::ZERO, Vec3::new(0.0, 5.0, 10.0));
+        let frame = HandleFrame::around(Vec3::ZERO, Vec3::new(0.0, 5.0, 10.0), None);
         // Straight down onto the end of the X arrow.
         let x_end = Vec3::X * frame.length;
         let ray = Ray3d::new(x_end + Vec3::Y * 10.0, Dir3::NEG_Y);

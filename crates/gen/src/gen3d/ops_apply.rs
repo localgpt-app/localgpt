@@ -7,10 +7,11 @@
 //! would "heal" the document back to the pre-undo scene.
 //!
 //! Coverage: spawn, delete, and every `EntityPatch` field (transform, name,
-//! parent, shape, material, light, behaviors), plus `SetEnvironment`.
-//! Audio ops, ambience, camera, modulations and mesh-asset replacement are
-//! no-ops here (audio follows the scene's own state; the host keeps its
-//! camera) — the document still tracks them for other clients.
+//! parent, shape, material, light, behaviors, audio, mesh asset), plus
+//! `SetEnvironment`, the ambience and the audio emitters. Modulations are
+//! no-ops here, and so is `SetCamera`: the host keeps its own camera, and
+//! the live canvas moves its camera itself for a committed camera op — the
+//! document tracks both for other clients.
 
 use bevy::prelude::*;
 use localgpt_world_types as wt;
@@ -41,6 +42,7 @@ pub struct OpsApplier<'w, 's> {
     clear_color: Option<ResMut<'w, ClearColor>>,
     ambient_light: Option<ResMut<'w, GlobalAmbientLight>>,
     gen_entities: Query<'w, 's, &'static GenEntity>,
+    children: Query<'w, 's, &'static Children>,
     audio_engine: ResMut<'w, super::audio::AudioEngine>,
     pending_world: ResMut<'w, PendingWorldSetup>,
 }
@@ -150,12 +152,28 @@ impl OpsApplier<'_, '_> {
                     }
                 }
             }
-            // The host keeps its own camera; audio follows the scene's own
-            // emitter components (audio ops matter for other clients).
-            wt::EditOp::SetCamera { .. }
-            | wt::EditOp::SetAmbience { .. }
+            // The host keeps its own camera: the op is the document's
+            // default view, and the live canvas moves its camera for a
+            // committed one itself (`live::note_camera`).
+            wt::EditOp::SetCamera { .. } => {}
+            // Audio reaches the engine the way the in-app undo stack sends
+            // it: the ambience whole, an emitter by name.
+            wt::EditOp::SetAmbience { .. }
             | wt::EditOp::SpawnAudioEmitter { .. }
-            | wt::EditOp::RemoveAudioEmitter { .. } => {}
+            | wt::EditOp::RemoveAudioEmitter { .. } => {
+                super::plugin::apply_edit_op(
+                    op,
+                    &mut self.commands,
+                    &mut self.meshes,
+                    &mut self.materials,
+                    &mut self.registry,
+                    &mut self.next_entity_id,
+                    &mut self.behavior_state,
+                    &self.asset_server,
+                    &mut self.pending_gltf,
+                    &mut self.audio_engine,
+                );
+            }
             wt::EditOp::Batch { ops } => self.apply_ops(ops),
         }
     }
@@ -284,7 +302,84 @@ impl OpsApplier<'_, '_> {
             }
         }
 
-        // audio / mesh_asset / modulations: intentionally not applied (see
-        // the module doc). The document tracks them for other clients.
+        // An entity's own sound: an emitter named after it, attached to it.
+        // The engine's names are the document's entity names, so a rename
+        // above renamed this one too.
+        if let Some(audio) = &patch.audio {
+            let name = self
+                .registry
+                .get_name(bevy_entity)
+                .unwrap_or_default()
+                .to_string();
+            if !name.is_empty() {
+                if self.audio_engine.emitter_names.contains(&name) {
+                    super::audio::handle_remove_audio_emitter(&name, &mut self.audio_engine);
+                }
+                match audio {
+                    Some(def) => {
+                        let cmd = super::commands::AudioEmitterCmd {
+                            name: name.clone(),
+                            entity: Some(name),
+                            position: None,
+                            sound: super::plugin::convert_audio_def_to_emitter_sound(def),
+                            radius: def.radius.unwrap_or(10.0),
+                            volume: def.volume,
+                        };
+                        super::audio::handle_spawn_audio_emitter(
+                            cmd,
+                            &mut self.audio_engine,
+                            &mut self.commands,
+                            &mut self.registry,
+                            &mut self.next_entity_id,
+                        );
+                    }
+                    None => {
+                        self.commands
+                            .entity(bevy_entity)
+                            .remove::<super::audio::AudioEmitter>();
+                    }
+                }
+            }
+        }
+
+        // A mesh file: what the entity drew goes, and the glTF scene fills
+        // it in place once the asset server has it — the same path a world
+        // load takes, so the entity keeps its transform, id and components.
+        if let Some(mesh) = &patch.mesh_asset {
+            if let Ok(kids) = self.children.get(bevy_entity) {
+                for kid in kids.iter() {
+                    self.commands.entity(kid).despawn();
+                }
+            }
+            self.commands
+                .entity(bevy_entity)
+                .remove::<(Mesh3d, MeshMaterial3d<StandardMaterial>)>();
+            if let Some(mesh) = mesh {
+                let path = super::plugin::resolve_mesh_asset_path(None, &mesh.path);
+                if path.exists() {
+                    let asset_path = path.to_string_lossy().trim_start_matches('/').to_string();
+                    let handle = self
+                        .asset_server
+                        .load::<bevy::world_serialization::WorldAsset>(format!(
+                            "{asset_path}#Scene0"
+                        ));
+                    let name = self
+                        .registry
+                        .get_name(bevy_entity)
+                        .unwrap_or("entity")
+                        .to_string();
+                    self.pending_gltf
+                        .fill(handle, &name, &mesh.path, bevy_entity);
+                } else {
+                    tracing::warn!(
+                        "Mesh asset '{}' not found; the entity stays empty",
+                        mesh.path
+                    );
+                }
+            }
+        }
+
+        // modulations: intentionally not applied (see the module doc). The
+        // document tracks them for other clients.
     }
 }

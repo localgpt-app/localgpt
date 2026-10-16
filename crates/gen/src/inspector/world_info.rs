@@ -105,6 +105,9 @@ pub(crate) fn draw_world_info(
                             .range(1.0..=90.0)
                             .suffix("\u{00B0}"),
                     );
+                    ui.checkbox(&mut settings.local_axes, "local").on_hover_text(
+                        "L toggles: the handles along the entity's own axes instead of the world's",
+                    );
                     ui.separator();
                 }
                 ui.checkbox(&mut controls.live.review, "review")

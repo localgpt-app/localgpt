@@ -15,18 +15,20 @@ the receipt's warning when a delete leaves a behavior without its
 target. Screenshots land in `<world>/.live/` for a person to look at.
 
     mkdir demo.world && cp ../openworldformat/examples/hello-world/manifest.json demo.world/
-    cargo run -p localgpt-world-agent --example live -- init demo.world
+    cargo run -p localgpt-world-agent --example live -- init demo.world --git
     cargo build -p localgpt-gen
     scripts/live-smoke.py demo.world            # --offscreen on a locked screen
 
 The world must be a live package with the spec's hello-world entities:
 a cuboid (10), a capsule (14) and a lantern (100). `init` on an empty
-folder makes an empty world, so copy the manifest in first.
+folder makes an empty world, so copy the manifest in first. With `--git`
+the checkout and replay checks run too; without it they are skipped.
 """
 
 import argparse
 import base64
 import json
+import math
 import os
 import socket
 import subprocess
@@ -202,6 +204,21 @@ class Canvas:
         self.input(events)
         return hot
 
+    def drag_box(self, start, end, steps=10):
+        """Press at `start`, pull to `end`, release — and report the box the
+        canvas showed mid-drag (GET /selection's `box`), for the record."""
+        self.input([{"cursor": list(start)}, {"button": "left", "pressed": True}])
+        time.sleep(0.2)
+        mid = None
+        for i in range(1, steps + 1):
+            self.input([{"cursor": [start[0] + (end[0] - start[0]) * i / steps, start[1] + (end[1] - start[1]) * i / steps]}])
+            if i == steps // 2:
+                time.sleep(0.2)
+                mid = call(self.ep, "GET", "/selection")[1].get("box")
+        time.sleep(0.2)
+        self.input([{"button": "left", "pressed": False}])
+        return mid
+
 
 class Check:
     def __init__(self):
@@ -372,6 +389,60 @@ def main():
             check(canvas.log_lines() == lines + 1, "the ring drag committed one entry")
             check(max(abs(a - b) for a, b in zip(after, before)) > 1.0, f"the ring turned {args.modify} about its axis ({before} -> {after})")
 
+            # L: the handles follow the entity's own axes. The cuboid is turned
+            # now, so its X arrow swings on screen with local axes on, and
+            # swings back with them off.
+            def handles_now():
+                return call(ep, "GET", "/selection")[1].get("handles") or {}
+
+            def arrow_angle():
+                h = handles_now()
+                (ox, oy), (xx, xy) = h["origin"], h["x"]
+                return math.degrees(math.atan2(xy - oy, xx - ox)), h.get("local")
+
+            a0, local0 = arrow_angle()
+            canvas.input(press("KeyL"))
+            time.sleep(0.4)
+            a1, local1 = arrow_angle()
+            canvas.input(press("KeyL"))
+            time.sleep(0.4)
+            a2, local2 = arrow_angle()
+            check((local0, local1, local2) == (False, True, False), f"L toggles local axes ({local0}, {local1}, {local2})")
+            check(abs(a1 - a0) > 3.0 and abs(a2 - a0) < 0.5,
+                  f"local axes swing the X arrow with the turned cuboid ({a0:.1f} -> {a1:.1f} -> {a2:.1f} deg)")
+
+            # Alt-drag an arrow scales along the entity's own matching axis.
+            scale0 = canvas.entity(args.modify).get("transform", {}).get("scale", [1, 1, 1])
+            lines = canvas.log_lines()
+            canvas.input([{"key": "AltLeft", "pressed": True}])
+            hot = canvas.drag_x_handle(60)
+            canvas.input([{"key": "AltLeft", "pressed": False}])
+            time.sleep(1.5)
+            scale1 = canvas.entity(args.modify).get("transform", {}).get("scale", [1, 1, 1])
+            check(hot == "x" and canvas.log_lines() == lines + 1, f"an Alt-drag of the X arrow commits one entry ({hot})")
+            check(scale1[0] > scale0[0] + 0.05 and abs(scale1[1] - scale0[1]) < 1e-3 and abs(scale1[2] - scale0[2]) < 1e-3,
+                  f"it scaled {args.modify} along its own x only ({scale0} -> {scale1})")
+
+            # Alt + right-drag orbits the camera around the selection: the
+            # selected origin keeps its place on screen while the X arrow
+            # swings. Then the same drag back, so the view is as it was.
+            def orbit(dx):
+                events = [{"key": "AltLeft", "pressed": True}, {"cursor": [640.0, 330.0]}, {"button": "right", "pressed": True}]
+                events += [{"cursor": [640.0 + dx * i, 330.0]} for i in range(1, 9)]
+                events += [{"button": "right", "pressed": False}, {"key": "AltLeft", "pressed": False}]
+                canvas.input(events)
+                time.sleep(0.5)
+
+            a_before, _ = arrow_angle()
+            o_before = handles_now()["origin"]
+            orbit(20.0)
+            a_after, _ = arrow_angle()
+            o_after = handles_now()["origin"]
+            drift = math.hypot(o_after[0] - o_before[0], o_after[1] - o_before[1])
+            check(drift < 4.0 and abs(a_after - a_before) > 2.0,
+                  f"Alt + right-drag orbits around the selection (origin drifted {drift:.1f} px, the X arrow swung {abs(a_after - a_before):.1f} deg)")
+            orbit(-20.0)
+
             # What a hand would feel, measured: the handles keep about the
             # same size on screen from near and far, and the hover
             # tolerance stays usable — a few pixels off the arrow still
@@ -508,6 +579,51 @@ def main():
             check(canvas.log_lines() == lines + 1, "the drag of the selection is one entry")
             check(x2b > x2 + 0.05 and abs((x1b - x1) - (x2b - x2)) < 0.05, f"both moved together ({x1}->{x1b}, {x2}->{x2b})")
 
+            # A box drawn with Shift held around the cuboid and the capsule
+            # selects both — whatever else it encloses comes along — and the
+            # release that ends it is not a click on nothing.
+            canvas.input(press("Escape"))
+            time.sleep(0.3)
+            a = (canvas.select(modified_id).get("handles") or {}).get("origin")
+            pad = 0.9 * arrow_px()[0] if a else 150.0
+            b = (canvas.select(other_id).get("handles") or {}).get("origin")
+            canvas.input(press("Escape"))
+            time.sleep(0.3)
+            if a and b:
+                # Inside the free viewport: a corner on a panel is egui's
+                # press, not the canvas's, and a drag across a panel's fields
+                # edits whatever they hold.
+                w = canvas.widgets()
+                free_x0 = max((r[0] + r[2] for n, r in w.items() if n.startswith("panel.") and r[0] < 200), default=0.0) + 8
+                free_x1 = min((r[0] for n, r in w.items() if n.startswith("panel.") and r[0] > 600), default=1280.0) - 8
+                free_y1 = min((r[1] for n, r in w.items() if n == "panel.world_info"), default=720.0) - 8
+                lo = (max(min(a[0], b[0]) - pad, free_x0), max(min(a[1], b[1]) - pad, 80.0))
+                hi = (min(max(a[0], b[0]) + pad, free_x1), min(max(a[1], b[1]) + pad, free_y1))
+                panels = {n: [round(v) for v in r] for n, r in w.items() if n.startswith("panel.")}
+                canvas.input([{"key": "ShiftLeft", "pressed": True}])
+                mid_box = canvas.drag_box(lo, hi, steps=10)
+                canvas.input([{"key": "ShiftLeft", "pressed": False}])
+                time.sleep(0.8)
+            else:
+                mid_box, panels = None, {}
+            selection = call(ep, "GET", "/selection")[1]
+            picked = {(selection.get("selected") or {}).get("id")} | set(selection.get("others") or [])
+            check({modified_id, other_id} <= picked,
+                  f"a Shift-box around {args.modify} and {args.other} selects both ({sorted(i for i in picked if i is not None)}; "
+                  f"box {lo} -> {hi}, mid-drag {mid_box}, a {a}, b {b}, panels {panels})")
+            # Back to just the pair, for the grouping below.
+            canvas.select(modified_id)
+            time.sleep(0.3)
+            other_at = (canvas.select(other_id).get("handles") or {}).get("origin")
+            canvas.select(modified_id)
+            time.sleep(0.3)
+            if other_at:
+                canvas.input([{"key": "ShiftLeft", "pressed": True}] + click(other_at) + [{"key": "ShiftLeft", "pressed": False}])
+                time.sleep(0.6)
+            pair = call(ep, "GET", "/selection")[1]
+            check((pair.get("selected") or {}).get("id") == modified_id and pair.get("others") == [other_id],
+                  f"the pair is selected again ({(pair.get('selected') or {}).get('id')}, {pair.get('others')})")
+
             # Cmd+G groups them under a new empty; Delete takes the group.
             lines = canvas.log_lines()
             canvas.input([{"key": "SuperLeft", "pressed": True}] + press("KeyG") + [{"key": "SuperLeft", "pressed": False}])
@@ -536,6 +652,92 @@ def main():
             status, body = call(ep, "POST", "/ops", {"author": "smoke", "ops": [{"DeleteEntity": {"id": args.select}}]})
             warned = any("targets" in w and "gone" in w for w in body.get("warnings", []))
             check(status == 200 and warned, f"deleting its target lands, and the receipt warns ({body.get('warnings')})")
+
+            # Undo and redo. The person's: a nudge of the sphere commits as
+            # theirs; Cmd+Z takes back their own newest (not the agent's
+            # delete just above), Cmd+Shift+Z brings it back. Anyone's:
+            # the API's /undo and /redo on an agent's spawn.
+            def sphere_x():
+                return canvas.entity("sphere").get("transform", {}).get("position", [0, 0, 0])
+            canvas.select(11)
+            time.sleep(0.3)
+            p0 = sphere_x()
+            lines = canvas.log_lines()
+            canvas.input(press("ArrowRight"))
+            time.sleep(1.5)
+            p1 = sphere_x()
+            check(canvas.log_lines() == lines + 1 and p1 != p0, f"a nudge of the sphere commits ({p0} -> {p1})")
+            canvas.input([{"key": "SuperLeft", "pressed": True}] + press("KeyZ") + [{"key": "SuperLeft", "pressed": False}])
+            time.sleep(1.2)
+            p2 = sphere_x()
+            check(canvas.log_lines() == lines + 2 and p2 == p0, f"Cmd+Z undoes the person's own nudge, not the agent's delete ({p2})")
+            check(canvas.entity(args.select).get("id") is None, "the agent's delete above stands")
+            canvas.input([{"key": "SuperLeft", "pressed": True}, {"key": "ShiftLeft", "pressed": True}] + press("KeyZ")
+                         + [{"key": "ShiftLeft", "pressed": False}, {"key": "SuperLeft", "pressed": False}])
+            time.sleep(1.2)
+            p3 = sphere_x()
+            check(canvas.log_lines() == lines + 3 and p3 == p1, f"Cmd+Shift+Z redoes it ({p3})")
+            status, body = call(ep, "POST", "/ops", {"author": "smoke", "ops": [
+                {"SpawnEntity": {"entity": {"name": "smoke-post", "shape": {"Cylinder": {"radius": 0.1, "height": 1.5}},
+                                            "transform": {"position": [-2.0, 0.75, 2.0]}}}}]})
+            check(status == 200, f"an agent spawns a post ({status})")
+            status, body = call(ep, "POST", "/undo", {"author": "smoke"})
+            check(status == 200 and canvas.entity("smoke-post").get("id") is None, f"POST /undo takes the newest change back ({status} {body.get('warnings')})")
+            status, body = call(ep, "POST", "/redo", {"author": "smoke"})
+            check(status == 200 and canvas.entity("smoke-post").get("id") is not None, f"POST /redo brings it back ({status} {body.get('warnings')})")
+            status, body = call(ep, "POST", "/undo", {"author": "nobody", "own": True})
+            check(status == 409 and any("nothing to undo" in e for e in body.get("errors", [])), f"an own undo with nothing of one's own is refused ({status})")
+
+            # A direct write to manifest.json is put back within the guard's
+            # half second, and noted where an agent can read why its change
+            # vanished.
+            manifest_path = os.path.join(world, "manifest.json")
+            with open(manifest_path, "rb") as f:
+                before_bytes = f.read()
+            with open(manifest_path, "ab") as f:
+                f.write(b"\n")
+            time.sleep(1.5)
+            with open(manifest_path, "rb") as f:
+                after_bytes = f.read()
+            status, body = call(ep, "GET", "/refusals")
+            notes = body.get("refusals", []) if isinstance(body, dict) else []
+            check(after_bytes == before_bytes, "a direct write to manifest.json is put back")
+            check(status == 200 and any("direct write" in n.get("what", "") for n in notes), f"GET /refusals names it ({len(notes)} note(s))")
+
+            # In a git world: a checkout under the open window is followed,
+            # and a replay walks the commits and comes back to the head.
+            if os.path.isdir(os.path.join(world, ".git")):
+                def git(*a):
+                    r = subprocess.run(["git", "-C", world] + list(a), capture_output=True, text=True)
+                    check(r.returncode == 0, "git %s works under the open window (%s)" % (" ".join(a), r.stderr.strip()))
+                    return r.stdout.strip()
+                branch = git("rev-parse", "--abbrev-ref", "HEAD")
+                dirty = git("status", "--porcelain")
+                check(dirty == "", f"the committer leaves the git tree clean, a restored manifest included ({dirty!r})")
+                rev_before = call(ep, "GET", "/log")[1].get("revision")
+                had_post = canvas.entity("smoke-post").get("id") is not None
+                git("checkout", "--quiet", "HEAD~1")
+                time.sleep(1.5)
+                rev_back = call(ep, "GET", "/log")[1].get("revision")
+                check(rev_back == rev_before - 1, f"a checkout under the open window is followed (revision {rev_before} -> {rev_back})")
+                check(had_post and canvas.entity("smoke-post").get("id") is None, "the scene shows the checked-out state (the redone post is gone again)")
+                git("checkout", "--quiet", branch)
+                time.sleep(1.5)
+                check(call(ep, "GET", "/log")[1].get("revision") == rev_before and canvas.entity("smoke-post").get("id") is not None,
+                      "and back on the branch, the post is back")
+                status, body = call(ep, "POST", "/replay?seconds=0.05", {})
+                check(status == 200 and body.get("result") == "replaying", f"a replay starts ({status} {body})")
+                done = False
+                for _ in range(200):
+                    time.sleep(0.25)
+                    with open(os.path.join(world, ".live", "smoke-commit.log")) as f:
+                        if "replay done" in f.read():
+                            done = True
+                            break
+                check(done, "the replay walks every commit and returns to the head")
+                check(call(ep, "GET", "/log")[1].get("revision") == rev_before, "the world is at the head after the replay")
+            else:
+                print("skip the checkout and replay checks: not a git world (init with --git)")
         finally:
             canvas.stop()
     with open(os.path.join(world, ".live", "smoke-commit.log")) as f:

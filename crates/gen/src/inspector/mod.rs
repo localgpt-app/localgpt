@@ -351,7 +351,7 @@ fn inspector_ui(
             q: &params,
             rects: &mut rects,
         });
-        panels.push(outliner::draw_outliner(
+        let rect = outliner::draw_outliner(
             ctx,
             &registry,
             &mut selection,
@@ -361,7 +361,11 @@ fn inspector_ui(
             &params.children_q,
             &params.parent_q,
             edit,
-        ));
+        );
+        // The panels themselves, named, so a test driver knows the free
+        // viewport (`GET /widgets`).
+        rects.note_rect("panel.outliner", rect);
+        panels.push(rect);
     }
 
     if state.mode == InspectorMode::Full {
@@ -374,13 +378,9 @@ fn inspector_ui(
                 status: live.status(),
                 rects: &mut rects,
             });
-            panels.push(detail::draw_detail(
-                ctx,
-                &mut selection,
-                &registry,
-                &mut params,
-                edit,
-            ));
+            let rect = detail::draw_detail(ctx, &mut selection, &registry, &mut params, edit);
+            rects.note_rect("panel.detail", rect);
+            panels.push(rect);
         }
 
         // --- World info bar (bottom) ---
@@ -396,14 +396,16 @@ fn inspector_ui(
             camera,
             pose: &mut pose,
         });
-        panels.push(world_info::draw_world_info(
+        let rect = world_info::draw_world_info(
             ctx,
             &registry,
             &params.behavior_state,
             params.audio_engine.as_deref(),
             &params.current_world,
             controls,
-        ));
+        );
+        rects.note_rect("panel.world_info", rect);
+        panels.push(rect);
     }
 
     // --- Process pending visibility toggles from outliner ---

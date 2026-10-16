@@ -188,6 +188,27 @@ pub(crate) struct PendingGltfLoads {
     queue: Vec<PendingGltfLoad>,
 }
 
+impl PendingGltfLoads {
+    /// Fill an entity already in the scene with a glTF scene once the
+    /// asset server has it — a world entity whose mesh file changed.
+    pub(crate) fn fill(
+        &mut self,
+        handle: Handle<WorldAsset>,
+        name: &str,
+        path: &str,
+        target: Entity,
+    ) {
+        self.queue.push(PendingGltfLoad {
+            handle,
+            name: name.to_string(),
+            path: path.to_string(),
+            send_response: false,
+            segment: false,
+            target: Some(target),
+        });
+    }
+}
+
 /// Deferred world setup — applied after a world's glTF scene finishes spawning.
 ///
 /// Placeholder resource retained for `handle_clear_scene` compatibility.
@@ -7293,7 +7314,9 @@ fn convert_audio_source_to_ambient_sound(
 }
 
 /// Convert `world_types::AudioDef` to gen's `EmitterSound`.
-fn convert_audio_def_to_emitter_sound(audio: &wt::AudioDef) -> super::commands::EmitterSound {
+pub(crate) fn convert_audio_def_to_emitter_sound(
+    audio: &wt::AudioDef,
+) -> super::commands::EmitterSound {
     use super::commands::EmitterSound;
     match &audio.source {
         wt::AudioSource::Water { turbulence } => EmitterSound::Water {
@@ -7354,7 +7377,7 @@ fn convert_filter_type(ft: wt::FilterType) -> super::commands::FilterType {
 
 /// Apply a single `EditOp` to the scene. Returns a human-readable description.
 #[allow(clippy::too_many_arguments)]
-fn apply_edit_op(
+pub(crate) fn apply_edit_op(
     op: &wt::EditOp,
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -8137,11 +8160,16 @@ fn fly_cam_movement(
     }
 }
 
-/// Right-click + mouse drag to rotate the camera (yaw and pitch).
+/// Right-click + mouse drag to rotate the camera (yaw and pitch) — in
+/// place, or with Alt held, around the selected entity: an orbit, which
+/// keeps the selection where it is on screen while the view swings round.
 fn fly_cam_look(
     mouse: Res<ButtonInput<MouseButton>>,
+    keys: Res<ButtonInput<KeyCode>>,
     config: Res<FlyCamConfig>,
     mut motion_reader: MessageReader<MouseMotion>,
+    selection: Option<Res<crate::inspector::InspectorSelection>>,
+    globals: Query<&GlobalTransform>,
     mut query: Query<&mut Transform, With<FlyCam>>,
 ) {
     let delta: Vec2 = motion_reader.read().map(|e| e.delta).sum();
@@ -8155,6 +8183,26 @@ fn fly_cam_look(
 
     let yaw = -delta.x * config.look_sensitivity;
     let pitch = -delta.y * config.look_sensitivity;
+    let max_pitch = 89.0_f32.to_radians();
+
+    // Alt: the selected entity is the pivot. Eye and view turn together
+    // about it, so it stays put on screen.
+    let pivot = keys
+        .any_pressed([KeyCode::AltLeft, KeyCode::AltRight])
+        .then(|| selection.as_ref()?.entity)
+        .flatten()
+        .and_then(|entity| globals.get(entity).ok())
+        .map(|global| global.translation());
+    if let Some(pivot) = pivot {
+        transform.rotate_around(pivot, Quat::from_rotation_y(yaw));
+        let right = transform.right().as_vec3();
+        let pitched = Quat::from_axis_angle(right, pitch);
+        let new_forward = pitched * transform.forward().as_vec3();
+        if new_forward.y.asin().abs() < max_pitch {
+            transform.rotate_around(pivot, pitched);
+        }
+        return;
+    }
 
     // Apply yaw (rotate around global Y axis)
     transform.rotate_y(yaw);
@@ -8166,7 +8214,6 @@ fn fly_cam_look(
     // Clamp pitch: check the angle between the camera's forward and the horizontal plane
     let new_forward = new_rotation * Vec3::NEG_Z;
     let pitch_angle = new_forward.y.asin();
-    let max_pitch = 89.0_f32.to_radians();
 
     if pitch_angle.abs() < max_pitch {
         transform.rotation = new_rotation;

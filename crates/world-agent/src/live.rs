@@ -61,6 +61,8 @@ pub const ASSETS: &str = "assets";
 pub const AGENTS: &str = "AGENTS.md";
 /// The open app's files: its endpoint, previews, screenshots.
 pub const LIVE: &str = ".live";
+/// Under `.live/`: what was tried outside the API and why it did not take.
+pub const REFUSALS: &str = "refusals.jsonl";
 
 /// True when `dir` is a `.world` package — a folder holding its
 /// `manifest.json`, whether or not a log has grown yet.
@@ -161,6 +163,10 @@ pub struct LiveWorld {
     /// what no op reaches (meta, avatar, tours, soundtrack, creations).
     head_manifest: WorldManifest,
     meta: SessionMeta,
+    /// The git commit the committer last made or read, when the package is
+    /// a repository: a different `HEAD` on disk means a checkout happened
+    /// under it (`git_moved`), which is not a direct write to put back.
+    git_head: Option<String>,
 }
 
 impl LiveWorld {
@@ -189,6 +195,7 @@ impl LiveWorld {
             entries,
             head,
             meta,
+            git_head: read_git_head(dir),
         };
         // manifest.json is the committer's to write; whatever is there now
         // is replaced by the head the log says (a no-op when it already is).
@@ -495,8 +502,8 @@ impl LiveWorld {
     }
 
     /// Undo the newest batch nobody has undone, by appending its inverse —
-    /// the log never rewinds. Undo entries themselves aren't undone (no
-    /// redo in this proof of concept).
+    /// the log never rewinds. Undo and redo entries are markers: an undo
+    /// skips them, and `redo_at` takes an undo back.
     ///
     /// Only the head's own path counts: on a branched log the newest line in
     /// the file may belong to another branch, and taking it back would apply
@@ -511,6 +518,43 @@ impl LiveWorld {
     /// a branch commit like any other: the head stays where it was. This is
     /// what a person looking at a branch means by undo.
     pub fn undo_at(&mut self, at: Option<&str>, author: &str) -> Result<Committed, Rejected> {
+        self.undo_scoped(at, author, UndoScope::Anyone)
+    }
+
+    /// Undo within a scope: anyone's newest, or the author's own newest —
+    /// what a person's Cmd+Z means in a room with agents. An own undo of a
+    /// batch that a later batch built on (the same entities) is refused,
+    /// naming the later one: undo that first, or take the newer route.
+    pub fn undo_scoped(
+        &mut self,
+        at: Option<&str>,
+        author: &str,
+        scope: UndoScope,
+    ) -> Result<Committed, Rejected> {
+        self.take_back(at, author, scope, false)
+    }
+
+    /// Redo: take back the newest undo on the path that nobody has redone,
+    /// by appending the undo's own inverse. A batch committed after the
+    /// undo ends the redo, as in any editor; within `UndoScope::Own` only the
+    /// author's entries count either way.
+    pub fn redo_at(
+        &mut self,
+        at: Option<&str>,
+        author: &str,
+        scope: UndoScope,
+    ) -> Result<Committed, Rejected> {
+        self.take_back(at, author, scope, true)
+    }
+
+    fn take_back(
+        &mut self,
+        at: Option<&str>,
+        author: &str,
+        scope: UndoScope,
+        redo: bool,
+    ) -> Result<Committed, Rejected> {
+        let verb = if redo { "redo" } else { "undo" };
         let branch_at = at
             .filter(|at| Some(*at) != self.main_tip().as_deref())
             .map(str::to_string);
@@ -523,13 +567,67 @@ impl LiveWorld {
             Some(at) => self.fork_point(at)?,
         };
         let on_path: Vec<&OpLogEntry> = path.iter().map(|&i| &self.entries[i]).collect();
-        let undone: HashSet<u64> = on_path.iter().copied().filter_map(undo_of).collect();
-        let Some(k) = on_path.iter().rposition(|e| {
-            !e.edit_ops().is_empty() && undo_of(e).is_none() && !undone.contains(&e.revision)
-        }) else {
-            return Err(Rejected::one("nothing to undo"));
+        let (undone, redone) = marks(&on_path);
+        let mine = |e: &OpLogEntry| scope == UndoScope::Anyone || e.author.name == author;
+        let k = if redo {
+            // Newest undo not yet redone, walking back past redo markers
+            // and redone undos; a batch met first means nothing to redo.
+            let mut found = None;
+            for (i, e) in on_path.iter().enumerate().rev() {
+                if !mine(e) || redo_of(e).is_some() {
+                    continue;
+                }
+                if undo_of(e).is_some() {
+                    if !redone.contains(&e.revision) {
+                        found = Some(i);
+                        break;
+                    }
+                    continue;
+                }
+                if !e.edit_ops().is_empty() {
+                    break;
+                }
+            }
+            found.ok_or_else(|| Rejected::one("nothing to redo"))?
+        } else {
+            on_path
+                .iter()
+                .rposition(|e| mine(e) && is_batch(e) && !undone.contains(&e.revision))
+                .ok_or_else(|| Rejected::one("nothing to undo"))?
         };
         let target = on_path[k].revision;
+        // Within a scope the target may not be the newest: a later batch
+        // that touched the same entities built on it, and taking it back
+        // from under that batch would be a silent clobber. Markers and
+        // batches that stand undone built nothing that is still there.
+        let mine_touched = touched(&on_path[k].edit_ops());
+        for later in on_path[k + 1..]
+            .iter()
+            .filter(|e| is_batch(e) && !undone.contains(&e.revision))
+        {
+            let shared: Vec<u64> = touched(&later.edit_ops())
+                .intersection(&mine_touched)
+                .copied()
+                .collect();
+            if !shared.is_empty() {
+                let names: Vec<String> = shared
+                    .iter()
+                    .map(|id| {
+                        self.head
+                            .get(*id)
+                            .map(|e| e.name.0.clone())
+                            .unwrap_or_else(|| format!("entity {id}"))
+                    })
+                    .collect();
+                return Err(Rejected::one(format!(
+                    "revision {target} can't be {verb}ne: revision {} by {} built on it ({}); \
+                     take that back first",
+                    later.revision,
+                    later.author.name,
+                    names.join(", ")
+                )));
+            }
+        }
         // The path is a chain, so folding its prefix is the state just
         // before the target — which is what an inverse is computed against.
         let prefix: Vec<OpLogEntry> = on_path[..k].iter().map(|e| (*e).clone()).collect();
@@ -539,14 +637,19 @@ impl LiveWorld {
         let mut trial = start;
         trial.apply_all(&inverse).map_err(|e| {
             Rejected::one(format!(
-                "revision {target} can't be undone: later changes depend on it ({e})"
+                "revision {target} can't be {verb}ne: later changes depend on it ({e})"
             ))
         })?;
+        let said = if redo {
+            format!("redid revision {}", undo_of(on_path[k]).unwrap_or(target))
+        } else {
+            format!("undid revision {target}")
+        };
         let revision = self.next_revision();
         let mut entry = entry(
             revision,
             author,
-            json!({"via": "undo", "of": target}),
+            json!({"via": verb, "of": target}),
             &inverse,
         );
         let forked = branch_at.is_some();
@@ -566,28 +669,110 @@ impl LiveWorld {
             ops: inverse,
             spawned: BTreeMap::new(),
             stored: BTreeMap::new(),
-            warnings: vec![format!("undid revision {target}")],
+            warnings: vec![said],
             entry,
             forked,
         })
     }
 
     /// Put `manifest.json` back if something other than the committer wrote
-    /// it. Returns what happened, for the person or agent to hear.
+    /// it. Returns what happened, for the person or agent to hear — and
+    /// notes it in `.live/refusals.jsonl`, since whoever wrote the file
+    /// directly is not on the API to be told.
     pub fn guard(&mut self) -> Option<String> {
         let on_disk = std::fs::read(self.dir.join(MANIFEST)).ok();
         let sha = on_disk.as_deref().map(sha256_hex);
         if sha.is_some() && sha == self.meta.world_sha256 {
             return None;
         }
-        match self.write_head() {
-            Ok(()) => Some(format!(
+        // A hash on record means the committer wrote the file before and
+        // someone changed it since; none means a fresh package whose
+        // manifest is being normalized for the first time — not a refusal.
+        let was_written = self.meta.world_sha256.is_some();
+        let said = match self.restore_manifest() {
+            Ok(()) => format!(
                 "{MANIFEST} was changed outside the committer; the world only changes \
                  through ops, so it is back at revision {}",
                 self.meta.head_revision
-            )),
-            Err(e) => Some(format!("{MANIFEST} couldn't be restored: {e}")),
+            ),
+            Err(e) => format!("{MANIFEST} couldn't be restored: {e}"),
+        };
+        if was_written {
+            self.note_refusal(&format!("a direct write to {MANIFEST}"), &said);
         }
+        Some(said)
+    }
+
+    /// Put `manifest.json` back as the head: the file alone once its hash
+    /// is on record — the same bytes the last commit wrote, so `package.json`
+    /// is left as that commit wrote it and a git tree stays clean for a
+    /// checkout — and the whole head the first time, when the hash is not.
+    fn restore_manifest(&mut self) -> Result<(), LiveError> {
+        if self.meta.world_sha256.is_none() {
+            return self.write_head();
+        }
+        let text = to_pretty(&self.head_manifest)?;
+        write_atomic(&self.dir.join(MANIFEST), text.as_bytes())?;
+        Ok(())
+    }
+
+    /// Append a refusal to `.live/refusals.jsonl`: what was tried, why it
+    /// did not take, and the revision the world stands at.
+    fn note_refusal(&self, what: &str, why: &str) {
+        let line = json!({
+            "at_ms": now_ms(),
+            "what": what,
+            "why": why,
+            "revision": self.meta.head_revision,
+        });
+        let dir = self.dir.join(LIVE);
+        let _ = std::fs::create_dir_all(&dir);
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(dir.join(REFUSALS))
+        {
+            use std::io::Write;
+            let _ = writeln!(file, "{line}");
+        }
+    }
+
+    /// The commit the package's git `HEAD` names now, when it is a
+    /// repository.
+    pub fn git_head(&self) -> Option<String> {
+        read_git_head(&self.dir)
+    }
+
+    /// Whether git's `HEAD` is not the commit this committer last made or
+    /// read — a checkout, a reset or a pull happened under the open
+    /// package. Cheap enough to ask every frame: `.git/HEAD` and its ref
+    /// are read directly; git itself only for a packed ref.
+    pub fn git_moved(&self) -> bool {
+        self.is_git() && read_git_head(&self.dir) != self.git_head
+    }
+
+    /// Take the current `HEAD` as the known one without reopening — when a
+    /// checkout led somewhere that does not open as a package, so the
+    /// question is not asked again until it moves once more.
+    pub fn acknowledge_git(&mut self) {
+        self.git_head = read_git_head(&self.dir);
+    }
+
+    /// The branch `HEAD` is on, or `HEAD` itself when detached.
+    pub fn git_branch(&self) -> Option<String> {
+        if !self.is_git() {
+            return None;
+        }
+        git(&self.dir, &["rev-parse", "--abbrev-ref", "HEAD"])
+            .ok()
+            .map(|s| s.trim().to_string())
+    }
+
+    /// Read the package again from disk — after a checkout moved the files
+    /// under this process, which is not a direct write to put back.
+    pub fn reopen(&mut self) -> Result<(), LiveError> {
+        *self = Self::open(&self.dir)?;
+        Ok(())
     }
 
     /// Where the package disagrees with itself: the fold against
@@ -698,6 +883,7 @@ impl LiveWorld {
         self.write_head()?;
         if self.is_git() {
             git_commit(&self.dir, &author, &subject, &body)?;
+            self.git_head = read_git_head(&self.dir);
         }
         Ok(entry)
     }
@@ -726,6 +912,7 @@ impl LiveWorld {
         self.write_head()?;
         if self.is_git() {
             git_commit(&self.dir, &author, &subject, &body)?;
+            self.git_head = read_git_head(&self.dir);
         }
         Ok(entry)
     }
@@ -1279,8 +1466,37 @@ pub fn describe_ops(ops: &[EditOp]) -> Vec<String> {
     out
 }
 
+/// The commit `HEAD` names: `.git/HEAD` read directly, through its ref when
+/// it is symbolic; git asked only when the ref is packed. `None` when the
+/// folder is not a repository or the branch is unborn.
+fn read_git_head(dir: &Path) -> Option<String> {
+    let git_dir = dir.join(".git");
+    if !git_dir.exists() {
+        return None;
+    }
+    let head = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    let head = head.trim();
+    let direct = match head.strip_prefix("ref: ") {
+        Some(reference) => std::fs::read_to_string(git_dir.join(reference.trim()))
+            .ok()
+            .map(|s| s.trim().to_string()),
+        None => Some(head.to_string()),
+    };
+    direct.filter(|s| !s.is_empty()).or_else(|| {
+        git(dir, &["rev-parse", "--verify", "--quiet", "HEAD"])
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    })
+}
+
 /// Run git in the package; its error output becomes the error.
 fn git(dir: &Path, args: &[&str]) -> Result<String, LiveError> {
+    git_bytes(dir, args).map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// Run git in the package for its raw output — a blob's bytes.
+fn git_bytes(dir: &Path, args: &[&str]) -> Result<Vec<u8>, LiveError> {
     let output = std::process::Command::new("git")
         .arg("-C")
         .arg(dir)
@@ -1294,7 +1510,7 @@ fn git(dir: &Path, args: &[&str]) -> Result<String, LiveError> {
         .output()
         .map_err(|e| LiveError(format!("git: {e}")))?;
     if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+        Ok(output.stdout)
     } else {
         Err(LiveError(format!(
             "git {}: {}",
@@ -1440,12 +1656,130 @@ fn spawned_ids(op: &EditOp) -> Vec<u64> {
     }
 }
 
+/// Whose entries an undo or a redo may take back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UndoScope {
+    /// The newest on the path, whoever made it.
+    Anyone,
+    /// The author's own newest, skipping others' — a person's Cmd+Z in a
+    /// room with agents.
+    Own,
+}
+
 /// The revision an undo entry undid.
 fn undo_of(entry: &OpLogEntry) -> Option<u64> {
+    marker_of(entry, "undo")
+}
+
+/// The undo entry a redo entry took back.
+fn redo_of(entry: &OpLogEntry) -> Option<u64> {
+    marker_of(entry, "redo")
+}
+
+fn marker_of(entry: &OpLogEntry, via: &str) -> Option<u64> {
     entry.ops.iter().find_map(|op| match op {
-        SessionOp::Tool(t) if t.tool == "live" && t.args["via"] == "undo" => t.args["of"].as_u64(),
+        SessionOp::Tool(t) if t.tool == "live" && t.args["via"] == via => t.args["of"].as_u64(),
         _ => None,
     })
+}
+
+/// A batch someone made, as opposed to an undo or redo marker.
+fn is_batch(entry: &OpLogEntry) -> bool {
+    !entry.edit_ops().is_empty() && undo_of(entry).is_none() && redo_of(entry).is_none()
+}
+
+/// Which revisions on a path stand undone right now, and which undo entries
+/// have been redone — the markers replayed in order, so an undo, a redo and
+/// an undo again come out as they went.
+fn marks(on_path: &[&OpLogEntry]) -> (HashSet<u64>, HashSet<u64>) {
+    let mut undone = HashSet::new();
+    let mut redone = HashSet::new();
+    for e in on_path {
+        if let Some(n) = undo_of(e) {
+            undone.insert(n);
+        } else if let Some(u) = redo_of(e) {
+            redone.insert(u);
+            if let Some(n) = on_path
+                .iter()
+                .find(|x| x.revision == u)
+                .and_then(|x| undo_of(x))
+            {
+                undone.remove(&n);
+            }
+        }
+    }
+    (undone, redone)
+}
+
+/// The entities a batch's ops touch, by id.
+fn touched(ops: &[EditOp]) -> HashSet<u64> {
+    let mut ids = HashSet::new();
+    fn walk(op: &EditOp, ids: &mut HashSet<u64>) {
+        match op {
+            EditOp::SpawnEntity { entity } => {
+                ids.insert(entity.id.0);
+            }
+            EditOp::DeleteEntity { id } | EditOp::ModifyEntity { id, .. } => {
+                ids.insert(id.0);
+            }
+            EditOp::Batch { ops } => ops.iter().for_each(|op| walk(op, ids)),
+            _ => {}
+        }
+    }
+    ops.iter().for_each(|op| walk(op, &mut ids));
+    ids
+}
+
+/// The refusals noted in `.live/refusals.jsonl`, oldest first: what was
+/// tried outside the API and why it did not take.
+pub fn refusals(dir: &Path) -> Vec<Value> {
+    std::fs::read_to_string(dir.join(LIVE).join(REFUSALS))
+        .map(|text| {
+            text.lines()
+                .filter_map(|line| serde_json::from_str(line).ok())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The assets as they stood at `commit`, under `<into>/<commit>/assets/…`:
+/// each blob cached once by hash in `<into>/blobs/` and linked into place,
+/// so a replay loads what that commit held rather than today's bytes. The
+/// root returned has the package's layout (`assets/` inside it) and the
+/// commit's own files; a commit with no `assets/` gives an empty root.
+pub fn assets_at(dir: &Path, commit: &str, into: &Path) -> Result<PathBuf, LiveError> {
+    let root = into.join(commit);
+    let blobs = into.join("blobs");
+    std::fs::create_dir_all(&blobs)?;
+    let listing = git(dir, &["ls-tree", "-r", "-z", commit, "--", ASSETS])?;
+    for record in listing.split('\0').filter(|r| !r.is_empty()) {
+        // "<mode> <type> <sha>\t<path>"
+        let Some((meta, path)) = record.split_once('\t') else {
+            continue;
+        };
+        let mut fields = meta.split_whitespace();
+        let (Some(_mode), Some(kind), Some(sha)) = (fields.next(), fields.next(), fields.next())
+        else {
+            continue;
+        };
+        if kind != "blob" {
+            continue;
+        }
+        let blob = blobs.join(sha);
+        if !blob.exists() {
+            let bytes = git_bytes(dir, &["cat-file", "blob", sha])?;
+            write_atomic(&blob, &bytes)?;
+        }
+        let target = root.join(path);
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        if !target.exists() {
+            std::fs::hard_link(&blob, &target)
+                .or_else(|_| std::fs::copy(&blob, &target).map(|_| ()))?;
+        }
+    }
+    Ok(root)
 }
 
 /// What a live package has beyond the format's four files: the guide an
@@ -1739,7 +2073,14 @@ builds on — the branch is the treatment.
 - `GET $URL/selection` — what the person has selected; "this" means it.
 - `POST $URL/undo` — undoes the head's newest change by appending its inverse
   (`{"at": "<id>"}`: the newest on that entry's path instead, as a branch).
+  `{"own": true}` undoes your own newest instead, skipping others' — refused,
+  naming the entry, if someone built on it since. `POST $URL/redo` takes the
+  newest undo back the same way (`own` too); a batch since the undo ends it.
 - `.live/preview.png` refreshes by itself after every change.
+- Writing `manifest.json` or `ops.jsonl` yourself does nothing lasting: the
+  committer puts them back and notes it in `.live/refusals.jsonl`
+  (`GET $URL/refusals`). If a change of yours vanished, that is why — send
+  it as a batch.
 
 ## History is a tree
 
@@ -1754,6 +2095,10 @@ says otherwise.
 - `POST $URL/goto -d '{"tip": "<id>"}'` — show any entry in the window (`null`
   for before it began). Nothing is written; this is how you look at an
   earlier state.
+- When the folder is a git repository, every entry is also a commit, and a
+  `git checkout` made under the open window is followed: within a second the
+  window shows the checked-out state and the API answers from it. Nothing is
+  written back over a checkout.
 - Add `"at": "<id>"` to a batch to build on that entry instead of the head.
   From an earlier entry this starts a branch: main and `manifest.json` stay as
   they were, and the reply's `id` is the branch's new tip — send the next
@@ -1940,6 +2285,182 @@ mod tests {
         assert_eq!(read_log(&dir).len(), 2, "the log grew; it never rewinds");
         assert!(live.verify().is_empty(), "{:?}", live.verify());
         assert!(live.undo("you").is_err(), "undo entries aren't undone");
+    }
+
+    #[test]
+    fn redo_takes_an_undo_back_and_a_batch_since_ends_it() {
+        let (dir, mut live) = world();
+        let has = |dir: &Path, name: &str| on_disk(dir).entities.iter().any(|e| e.name.0 == name);
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "post"}}}]),
+            "claude",
+            None,
+        )
+        .unwrap();
+        live.undo("you").unwrap();
+        assert!(!has(&dir, "post"));
+        // After an undo, the redo is the undo's inverse.
+        let redone = live.redo_at(None, "you", UndoScope::Anyone).unwrap();
+        assert_eq!(redone.revision, 3);
+        assert_eq!(redone.warnings, vec!["redid revision 1".to_string()]);
+        assert!(has(&dir, "post"), "the redo put the post back");
+        assert!(
+            live.redo_at(None, "you", UndoScope::Anyone).is_err(),
+            "redone once"
+        );
+        // Undo again takes the same batch back; redo after a new batch is over.
+        live.undo("you").unwrap();
+        assert!(!has(&dir, "post"));
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "bench"}}}]),
+            "claude",
+            None,
+        )
+        .unwrap();
+        let refused = live.redo_at(None, "you", UndoScope::Anyone).unwrap_err();
+        assert!(
+            refused.errors[0].contains("nothing to redo"),
+            "{:?}",
+            refused.errors
+        );
+        assert!(live.verify().is_empty(), "{:?}", live.verify());
+    }
+
+    #[test]
+    fn own_undo_skips_others_and_refuses_what_they_built_on() {
+        let (dir, mut live) = world();
+        let has = |dir: &Path, name: &str| on_disk(dir).entities.iter().any(|e| e.name.0 == name);
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "post"}}}]),
+            "alice",
+            None,
+        )
+        .unwrap();
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "bench"}}}]),
+            "bob",
+            None,
+        )
+        .unwrap();
+        // Alice's own undo takes her post, not Bob's newer bench.
+        let undone = live.undo_scoped(None, "alice", UndoScope::Own).unwrap();
+        assert_eq!(undone.warnings, vec!["undid revision 1".to_string()]);
+        assert!(!has(&dir, "post") && has(&dir, "bench"));
+        // Carol's own undo: she made nothing.
+        assert!(live.undo_scoped(None, "carol", UndoScope::Own).is_err());
+        // Bob paints the crate; Alice moves it; Bob's own undo would pull
+        // the paint from under Alice's move — refused, naming her entry.
+        live.submit(
+            &json!([{"ModifyEntity": {"id": "crate", "patch": {"material": {"color": [1.0, 0.0, 0.0, 1.0]}}}}]),
+            "bob",
+            None,
+        )
+        .unwrap();
+        live.submit(
+            &json!([{"ModifyEntity": {"id": "crate", "patch": {"transform": {"position": [3.0, 0.5, 0.0]}}}}]),
+            "alice",
+            None,
+        )
+        .unwrap();
+        let refused = live.undo_scoped(None, "bob", UndoScope::Own).unwrap_err();
+        assert!(
+            refused.errors[0].contains("alice") && refused.errors[0].contains("crate"),
+            "{:?}",
+            refused.errors
+        );
+        // Alice can take hers back; then Bob's goes.
+        live.undo_scoped(None, "alice", UndoScope::Own).unwrap();
+        live.undo_scoped(None, "bob", UndoScope::Own).unwrap();
+        assert!(live.verify().is_empty(), "{:?}", live.verify());
+    }
+
+    #[test]
+    fn a_direct_write_is_put_back_and_noted() {
+        let (dir, mut live) = world();
+        let before = std::fs::read(dir.join(MANIFEST)).unwrap();
+        std::fs::write(dir.join(MANIFEST), b"{\"version\": 3, \"entities\": []}").unwrap();
+        let said = live.guard().expect("the guard noticed");
+        assert!(said.contains("outside the committer"), "{said}");
+        assert_eq!(std::fs::read(dir.join(MANIFEST)).unwrap(), before);
+        let notes = refusals(&dir);
+        assert_eq!(notes.len(), 1, "{notes:?}");
+        assert!(notes[0]["what"].as_str().unwrap().contains("direct write"));
+        assert_eq!(notes[0]["revision"], 0);
+        assert!(live.guard().is_none(), "nothing to put back now");
+    }
+
+    #[test]
+    fn a_checkout_under_the_open_package_is_noticed_and_followed() {
+        let (dir, first) = world();
+        init_git(&dir).unwrap();
+        // A fresh handle, as the app holds one: it learns the head from disk.
+        drop(first);
+        let mut live = LiveWorld::open(&dir).unwrap();
+        assert!(!live.git_moved(), "nothing moved yet");
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "post"}}}]),
+            "claude",
+            None,
+        )
+        .unwrap();
+        assert!(
+            !live.git_moved(),
+            "the committer's own commit is not a move"
+        );
+        assert_eq!(live.revision(), 1);
+        let branch = git(&dir, &["rev-parse", "--abbrev-ref", "HEAD"])
+            .unwrap()
+            .trim()
+            .to_string();
+
+        git(&dir, &["checkout", "--quiet", "HEAD~1"]).unwrap();
+        assert!(live.git_moved(), "a checkout under the package is a move");
+        live.reopen().unwrap();
+        assert!(!live.git_moved());
+        assert_eq!(live.revision(), 0, "the package is what the checkout left");
+        assert!(live.head().get_by_name("post").is_none());
+        assert!(live.verify().is_empty(), "{:?}", live.verify());
+
+        git(&dir, &["checkout", "--quiet", &branch]).unwrap();
+        assert!(live.git_moved());
+        live.reopen().unwrap();
+        assert_eq!(live.revision(), 1);
+        assert!(live.head().get_by_name("post").is_some());
+    }
+
+    #[test]
+    fn assets_at_a_commit_are_that_commits_bytes() {
+        let (dir, _live) = world();
+        init_git(&dir).unwrap();
+        let asset = dir.join(ASSETS).join("sign.txt");
+        std::fs::write(&asset, b"first").unwrap();
+        git(&dir, &["add", "--all"]).unwrap();
+        git(&dir, &["commit", "--quiet", "-m", "first sign"]).unwrap();
+        let first = git(&dir, &["rev-parse", "HEAD"])
+            .unwrap()
+            .trim()
+            .to_string();
+        std::fs::write(&asset, b"second").unwrap();
+        git(&dir, &["commit", "--quiet", "-am", "second sign"]).unwrap();
+        let second = git(&dir, &["rev-parse", "HEAD"])
+            .unwrap()
+            .trim()
+            .to_string();
+
+        let cache = dir.join(LIVE).join("replay");
+        let root = assets_at(&dir, &first, &cache).unwrap();
+        assert_eq!(
+            std::fs::read(root.join(ASSETS).join("sign.txt")).unwrap(),
+            b"first"
+        );
+        let root = assets_at(&dir, &second, &cache).unwrap();
+        assert_eq!(
+            std::fs::read(root.join(ASSETS).join("sign.txt")).unwrap(),
+            b"second"
+        );
+        // Asked again, the same files; the blobs are cached once by hash.
+        assets_at(&dir, &first, &cache).unwrap();
+        assert_eq!(std::fs::read_dir(cache.join("blobs")).unwrap().count(), 2);
     }
 
     #[test]

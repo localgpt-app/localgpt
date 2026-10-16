@@ -66,7 +66,7 @@ pub struct AudioEngine {
     pub active: bool,
     master_volume: f32,
     /// Names of live emitters, mirroring the audio thread's map.
-    emitter_names: HashSet<String>,
+    pub(crate) emitter_names: HashSet<String>,
     update_tx: mpsc::Sender<AudioUpdate>,
     pub ambience_layer_names: Vec<String>,
     pub emitter_meta: HashMap<String, EmitterMeta>,

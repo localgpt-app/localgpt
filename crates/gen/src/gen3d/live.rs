@@ -211,10 +211,12 @@ fn key_code(name: &str) -> Option<KeyCode> {
         "KeyG" => KeyCode::KeyG,
         "KeyY" => KeyCode::KeyY,
         "KeyZ" => KeyCode::KeyZ,
+        "KeyL" => KeyCode::KeyL,
         // The camera's keys, to look from somewhere else.
         "KeyW" => KeyCode::KeyW,
         "KeyA" => KeyCode::KeyA,
         "KeyS" => KeyCode::KeyS,
+        "KeyQ" => KeyCode::KeyQ,
         "Space" => KeyCode::Space,
         "ShiftLeft" => KeyCode::ShiftLeft,
         "ControlLeft" => KeyCode::ControlLeft,
@@ -236,6 +238,7 @@ fn inject_synthetic_input(
     mut keys: MessageWriter<KeyboardInput>,
     mut buttons: MessageWriter<MouseButtonInput>,
     mut cursor: MessageWriter<CursorMoved>,
+    mut motions: MessageWriter<bevy::input::mouse::MouseMotion>,
     mut window_events: MessageWriter<WindowEvent>,
     mut pointer_inputs: MessageWriter<PointerInput>,
     mut egui_events: MessageWriter<bevy_egui::input::EguiInputEvent>,
@@ -273,12 +276,15 @@ fn inject_synthetic_input(
         });
     match event {
         SyntheticEvent::Cursor(position) => {
+            let delta = position - *cursor_last;
             let moved = CursorMoved {
                 window,
                 position,
                 delta: None,
             };
             cursor.write(moved.clone());
+            // The raw motion the camera's look reads, as the device sends it.
+            motions.write(bevy::input::mouse::MouseMotion { delta });
             match &image_target {
                 Some(target) => {
                     pointer_inputs.write(PointerInput {
@@ -287,9 +293,7 @@ fn inject_synthetic_input(
                             target: target.clone(),
                             position,
                         },
-                        action: PointerAction::Move {
-                            delta: position - *cursor_last,
-                        },
+                        action: PointerAction::Move { delta },
                     });
                     // bevy_egui hands a window's cursor moves only to
                     // contexts drawn in that window, and this one draws in
@@ -403,7 +407,7 @@ fn handle_points(
     // A point of each ring near the camera: in the ring's plane, toward the
     // camera, then an eighth of a turn along the ring so it is not where an
     // arrow crosses it (the arrows win a tie there).
-    let axes = [Vec3::X, Vec3::Y, Vec3::Z];
+    let axes = frame.axes;
     let on_ring = |i: usize| {
         let axis = axes[i];
         let facing = (to_camera - axis * to_camera.dot(axis)).normalize_or(axes[(i + 1) % 3]);
@@ -412,15 +416,17 @@ fn handle_points(
     };
     json!({
         "origin": at(frame.origin),
-        "x": at(frame.origin + Vec3::X * frame.length),
-        "y": at(frame.origin + Vec3::Y * frame.length),
-        "z": at(frame.origin + Vec3::Z * frame.length),
+        "x": at(frame.origin + axes[0] * frame.length),
+        "y": at(frame.origin + axes[1] * frame.length),
+        "z": at(frame.origin + axes[2] * frame.length),
         "ring_x": on_ring(0),
         "ring_y": on_ring(1),
         "ring_z": on_ring(2),
         // The ring about the vertical, under the name it had alone.
         "ring": on_ring(1),
         "scale": at(frame.scale_at),
+        // Along the entity's own axes (`L`), or the world's.
+        "local": frame.local,
         // The one under the pointer now, if any.
         "hot": handles.and_then(|h| h.hot_name()),
     })
@@ -947,6 +953,7 @@ fn seek(
         return Err("an agent's proposal is on the canvas: accept or reject it first".into());
     }
     let delta = live.view.goto(tip).map_err(|e| e.to_string())?;
+    note_camera(live, &delta.ops);
     applier.apply_ops(&for_scene(&delta.ops, live.world.dir()));
     live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
     live.history_dirty = true;
@@ -983,9 +990,143 @@ fn follow(live: &mut Live, applier: &mut OpsApplier<'_, '_>, done: &live::Commit
             done.ops.clone()
         }
     };
+    note_camera(live, &ops);
     applier.apply_ops(&for_scene(&ops, live.world.dir()));
     live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
     true
+}
+
+/// A checkout made under the open window: git's `HEAD` is not the commit
+/// the committer last made, so the files on disk are another point of the
+/// history. Reopen the package there and move the scene to its head — the
+/// guard must not put the old head back over it. Returns whether `HEAD` had
+/// moved: followed now, or left for the next tick while a drag, a proposal
+/// or a replay holds the canvas.
+fn follow_git(live: &mut Live, applier: &mut OpsApplier<'_, '_>, busy: bool) -> bool {
+    if !live.world.git_moved() {
+        return false;
+    }
+    if busy || live.proposal.is_some() || live.replay.is_some() {
+        return true;
+    }
+    let before = live.view.doc().clone();
+    let branch = live.world.git_branch().unwrap_or_else(|| "HEAD".into());
+    let short: String = live
+        .world
+        .git_head()
+        .unwrap_or_default()
+        .chars()
+        .take(7)
+        .collect();
+    live.history_dirty = true;
+    if let Err(e) = live.world.reopen() {
+        live.world.acknowledge_git();
+        live.status = Some(format!(
+            "refused: git moved to {branch} ({short}), which doesn't open as a live package: {e}"
+        ));
+        eprintln!("[live] {}", live.status.as_deref().unwrap_or_default());
+        return true;
+    }
+    match localgpt_world_editor::Editor::open_at(
+        live.world.base().clone(),
+        live.world.entries().to_vec(),
+        live.world.main_tip().as_deref(),
+    ) {
+        Ok(view) => live.view = view,
+        Err(e) => {
+            live.status = Some(format!(
+                "refused: the history at {branch} ({short}) doesn't open as a tree: {e}"
+            ));
+            eprintln!("[live] {}", live.status.as_deref().unwrap_or_default());
+            return true;
+        }
+    }
+    let delta = localgpt_world_editor::delta_between(&before, live.view.doc());
+    note_camera(live, &delta.ops);
+    applier.apply_ops(&for_scene(&delta.ops, live.world.dir()));
+    live.thumbs_dirty = true;
+    live.preview = Some(Timer::from_seconds(0.8, TimerMode::Once));
+    live.status = Some(format!(
+        "git moved to {branch} ({short}); the canvas followed to revision {}",
+        live.world.revision()
+    ));
+    eprintln!("[live] {}", live.status.as_deref().unwrap_or_default());
+    true
+}
+
+/// `POST /undo` and `POST /redo`: `at` (an entry id; the head when absent),
+/// `author`, and `own` (only that author's own entries count) — each from
+/// the query or the body, a query winning, since the MCP shim sends a body.
+fn take_back(live: &mut Live, applier: &mut OpsApplier<'_, '_>, call: &Call, redo: bool) -> Reply {
+    let body: Value = serde_json::from_slice(&call.body).unwrap_or(Value::Null);
+    let text =
+        |key: &str| param(&call.query, key).or_else(|| body.get(key)?.as_str().map(str::to_string));
+    let at = text("at");
+    let author = text("author").unwrap_or_else(|| "you".into());
+    let own = param(&call.query, "own")
+        .map(|v| v == "1" || v == "true")
+        .or_else(|| body.get("own")?.as_bool())
+        .unwrap_or(false);
+    let outcome = if redo {
+        live.world.redo_at(at.as_deref(), &author, scope_of(own))
+    } else {
+        live.world
+            .undo_scoped(at.as_deref(), &author, scope_of(own))
+    };
+    match outcome {
+        Ok(done) => {
+            let on_screen = follow(live, applier, &done);
+            Reply::ok(json!({
+                "result": "committed",
+                "revision": done.revision,
+                "id": done.entry.id,
+                "on_screen": on_screen,
+                "changes": live::describe_ops(&done.ops),
+                "warnings": done.warnings,
+            }))
+        }
+        Err(refused) => Reply::status(409, json!({"result": "rejected", "errors": refused.errors})),
+    }
+}
+
+fn scope_of(own: bool) -> live::UndoScope {
+    if own {
+        live::UndoScope::Own
+    } else {
+        live::UndoScope::Anyone
+    }
+}
+
+/// The camera the ops set, if any — the last word among them.
+fn camera_in(ops: &[wt::EditOp]) -> Option<wt::CameraDef> {
+    let mut found = None;
+    for op in ops {
+        match op {
+            wt::EditOp::SetCamera { camera } => found = Some(camera.clone()),
+            wt::EditOp::ModifyWorld { patch } => {
+                if let Some(Some(camera)) = &patch.camera {
+                    found = Some(camera.clone());
+                }
+            }
+            wt::EditOp::Batch { ops } => {
+                if let Some(camera) = camera_in(ops) {
+                    found = Some(camera);
+                }
+            }
+            _ => {}
+        }
+    }
+    found
+}
+
+/// A committed camera op moves the canvas's camera on the next frame — the
+/// scene applier leaves cameras alone, since a guest's op is the document's
+/// default view, not the host's eyes; here the document is what the person
+/// is looking at.
+fn note_camera(live: &mut Live, ops: &[wt::EditOp]) {
+    if let Some(camera) = camera_in(ops) {
+        live.camera = Some(camera);
+    }
 }
 
 /// The person at the keyboard, as the history names them.
@@ -1210,18 +1351,24 @@ fn person_edit(
             submit(live, json!([{"ModifyWorld": {"patch": patch}}]), &what),
             what,
         ),
-        PersonIntent::Undo => (
+        PersonIntent::Undo { own } => (
             live.world
-                .undo_at(at.as_deref(), &author)
+                .undo_scoped(at.as_deref(), &author, scope_of(own))
                 .map_err(|r| r.errors.join("; ")),
             "undo".to_string(),
+        ),
+        PersonIntent::Redo => (
+            live.world
+                .redo_at(at.as_deref(), &author, live::UndoScope::Own)
+                .map_err(|r| r.errors.join("; ")),
+            "redo".to_string(),
         ),
     };
     match outcome {
         Ok(done) => {
             follow(live, applier, &done);
             let what = match done.warnings.first() {
-                Some(w) if what == "undo" => w.clone(),
+                Some(w) if what == "undo" || what == "redo" => w.clone(),
                 _ => what,
             };
             live.status = Some(status_line(&done, &what));
@@ -1247,12 +1394,13 @@ fn person_edit(
 
 /// The transform patch a gesture makes, from the document's current value:
 /// the position the canvas left it at, a turn (in the parent's frame), a
-/// uniform scale. Only what changed, rounded so the log reads (mm, 0.01°).
+/// scale along the entity's own axes. Only what changed, rounded so the
+/// log reads (mm, 0.01°).
 fn gesture_patch(
     current: &wt::WorldTransform,
     position: Option<[f32; 3]>,
     turn: Quat,
-    scale_by: f32,
+    scale_by: [f32; 3],
 ) -> serde_json::Map<String, Value> {
     // Rounded, then read as the f32's shortest decimal — widening an f32
     // to JSON's f64 directly writes 2.122999906539917 for 2.123. The `+ 0.0`
@@ -1278,11 +1426,14 @@ fn gesture_patch(
             json!(turned(current.rotation_degrees, turn).map(|v| round(v, 100.0))),
         );
     }
-    if (scale_by - 1.0).abs() > 1e-4 {
-        patch.insert(
-            "scale".into(),
-            json!(current.scale.map(|s| round(s * scale_by, 1000.0))),
-        );
+    if scale_by.iter().any(|by| (by - 1.0).abs() > 1e-4) {
+        let scaled: Vec<f64> = current
+            .scale
+            .iter()
+            .zip(scale_by)
+            .map(|(s, by)| round(s * by, 1000.0))
+            .collect();
+        patch.insert("scale".into(), json!(scaled));
     }
     patch
 }
@@ -1579,42 +1730,13 @@ fn live_world(
                     }
                 },
             },
-            ("POST", "/undo") => match live.world.undo_at(
-                param(&call.query, "at")
-                    .or_else(|| {
-                        serde_json::from_slice::<Value>(&call.body)
-                            .ok()?
-                            .get("at")?
-                            .as_str()
-                            .map(str::to_string)
-                    })
-                    .as_deref(),
-                &param(&call.query, "author")
-                    .or_else(|| {
-                        // The MCP shim sends {"author": ...}; a query wins.
-                        serde_json::from_slice::<Value>(&call.body)
-                            .ok()?
-                            .get("author")?
-                            .as_str()
-                            .map(str::to_string)
-                    })
-                    .unwrap_or("you".into()),
-            ) {
-                Ok(done) => {
-                    let on_screen = follow(live, &mut applier, &done);
-                    Reply::ok(json!({
-                        "result": "committed",
-                        "revision": done.revision,
-                        "id": done.entry.id,
-                        "on_screen": on_screen,
-                        "changes": live::describe_ops(&done.ops),
-                        "warnings": done.warnings,
-                    }))
-                }
-                Err(refused) => {
-                    Reply::status(409, json!({"result": "rejected", "errors": refused.errors}))
-                }
-            },
+            ("POST", "/undo") => take_back(live, &mut applier, &call, false),
+            ("POST", "/redo") => take_back(live, &mut applier, &call, true),
+            // What was tried outside the API and did not take — a direct
+            // write to the package's files, put back by the committer.
+            ("GET", "/refusals") => Reply::ok(json!({
+                "refusals": live::refusals(live.world.dir()),
+            })),
             ("POST", "/replay") => {
                 if !live.world.is_git() {
                     Reply::status(
@@ -1833,7 +1955,26 @@ fn live_world(
             None => live.world.head_manifest().clone(),
         };
         let ops = live::diff_manifests(&replay.shown, &target);
-        applier.apply_ops(&for_scene(&ops, live.world.dir()));
+        // The assets as that commit held them — a replay of an older frame
+        // must not show today's bytes for a file that changed since.
+        let dir = live.world.dir();
+        let root = match replay.frames.get(replay.next) {
+            Some(frame) => {
+                live::assets_at(dir, &frame.commit, &dir.join(live::LIVE).join("replay"))
+                    .unwrap_or_else(|e| {
+                        eprintln!(
+                            "[live] replay: that commit's assets couldn't be read ({e}); \
+                             showing the working tree's"
+                        );
+                        dir.to_path_buf()
+                    })
+            }
+            None => dir.to_path_buf(),
+        };
+        if let Some(camera) = camera_in(&ops) {
+            live.camera = Some(camera);
+        }
+        applier.apply_ops(&for_scene(&ops, &root));
         replay.shown = target;
         replay.next += 1;
         live.thumbs_dirty = true;
@@ -1846,10 +1987,17 @@ fn live_world(
         }
     }
 
-    if live.guard.tick(time.delta()).just_finished()
-        && let Some(said) = live.world.guard()
-    {
-        eprintln!("[live] {said}");
+    if live.guard.tick(time.delta()).just_finished() {
+        // A checkout under the window first: the guard would put the old
+        // head back over it. Then a direct write, put back and said so.
+        let busy = gesture.as_ref().is_some_and(|g| g.dragging());
+        if !follow_git(live, &mut applier, busy)
+            && let Some(said) = live.world.guard()
+        {
+            eprintln!("[live] {said}");
+            live.status = Some(format!("refused: {said}"));
+            live.history_dirty = true;
+        }
     }
 
     if let Some(timer) = live.preview.as_mut()
@@ -1871,6 +2019,7 @@ fn live_view(
     selection: Option<Res<InspectorSelection>>,
     gen_entities: Query<&GenEntity>,
     handles: Option<Res<super::canvas_edit::Handles>>,
+    marquee: Option<Res<super::canvas_edit::CanvasMarquee>>,
     offscreen: Option<Res<super::offscreen::OffscreenRenderTarget>>,
     hovered: Option<Res<crate::inspector::UiHovered>>,
 ) {
@@ -1928,6 +2077,8 @@ fn live_view(
                 "selected": picked,
                 "others": others,
                 "handles": handle_points(handles.as_deref(), &cameras),
+                // A selection box being drawn: [x0, y0, x1, y1] in window points.
+                "box": marquee.as_ref().and_then(|m| m.rect()),
                 // Whether a panel has the pointer right now.
                 "ui_hovered": hovered.is_some(),
             }))
@@ -2195,32 +2346,36 @@ mod tests {
     fn a_gesture_patches_only_what_it_changed() {
         let t = transform([0.0, 170.0, 0.0]);
         let yaw = |degrees: f32| Quat::from_rotation_y(degrees.to_radians());
+        let same = [1.0; 3];
         // A drag that came back to where it began changes nothing.
-        assert!(gesture_patch(&t, Some([1.00001, 0.5, -2.0]), Quat::IDENTITY, 1.0).is_empty());
-        let moved = gesture_patch(&t, Some([2.12345, 0.5, -2.0]), Quat::IDENTITY, 1.0);
+        assert!(gesture_patch(&t, Some([1.00001, 0.5, -2.0]), Quat::IDENTITY, same).is_empty());
+        let moved = gesture_patch(&t, Some([2.12345, 0.5, -2.0]), Quat::IDENTITY, same);
         assert_eq!(moved.get("position"), Some(&json!([2.123, 0.5, -2.0])));
         assert_eq!(moved.len(), 1);
         // Turning past 180 wraps, keeping the angles' form.
-        let turn = gesture_patch(&t, None, yaw(15.0), 1.0);
+        let turn = gesture_patch(&t, None, yaw(15.0), same);
         assert_eq!(
             turn.get("rotation_degrees"),
             Some(&json!([0.0, -175.0, 0.0]))
         );
         // A full circle is no turn.
-        assert!(gesture_patch(&t, None, yaw(360.0), 1.0).is_empty());
+        assert!(gesture_patch(&t, None, yaw(360.0), same).is_empty());
         // A turn about X on an untilted body tilts it, and the yaw stays.
         let tilt = gesture_patch(
             &transform([0.0, 30.0, 0.0]),
             None,
             Quat::from_rotation_x(20f32.to_radians()),
-            1.0,
+            same,
         );
         assert_eq!(
             tilt.get("rotation_degrees"),
             Some(&json!([20.0, 30.0, 0.0]))
         );
-        let scaled = gesture_patch(&t, None, Quat::IDENTITY, 1.21);
+        let scaled = gesture_patch(&t, None, Quat::IDENTITY, [1.21; 3]);
         assert_eq!(scaled.get("scale"), Some(&json!([1.21, 1.21, 1.21])));
+        // A stretch along one of the entity's own axes leaves the others.
+        let stretched = gesture_patch(&t, None, Quat::IDENTITY, [2.0, 1.0, 1.0]);
+        assert_eq!(stretched.get("scale"), Some(&json!([2.0, 1.0, 1.0])));
         assert_eq!(gesture_verbs(&moved), "move");
         let mut both = moved.clone();
         both.extend(turn);

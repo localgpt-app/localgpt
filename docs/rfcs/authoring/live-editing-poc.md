@@ -199,7 +199,11 @@ the product.
   and a cube for uniform scale, around the primary selection. `Y`
   toggles snapping to the grid and the angle step (defaults 0.25 m,
   15°; the world bar sets them), and Cmd/Ctrl held during a drag means
-  the opposite.
+  the opposite. `L` lays the handles along the entity's own axes instead
+  of the world's (the bar has the same switch); an Alt-drag of an arrow
+  scales along that one axis of the entity's own; a drag from empty
+  space, or a Shift-drag from anywhere, box-selects what the box encloses
+  whole; and Alt + right-drag orbits the camera around the selection.
 - **A multi-selection** moves, turns, scales, deletes and duplicates
   together, as one entry; Cmd/Ctrl + G groups it under a new empty at
   its centroid (siblings only).
@@ -265,17 +269,68 @@ crossing the window, which a smoke run beside a person's window needs,
 and `LOCALGPT_INSPECTOR_PORT` gives that second canvas its own inspector
 socket.
 
+## Since then (2026-10-16)
+
+The list below was the previous "Not done". Each item is in, verified by
+the authority's unit tests and the smoke run (`scripts/live-smoke.py` on a
+`--git` world: 70-odd checks).
+
+- **Redo, and per-author undo.** `undo_scoped` / `redo_at` on the
+  authority take an `UndoScope`: anyone's newest on the path, or the
+  author's own newest, skipping others'. Undo and redo entries are
+  markers (`via: undo|redo`, `of: <revision>`), replayed in path order so
+  an undo, a redo and an undo again come out as they went; a batch after
+  an undo ends the redo, as in any editor. An own undo of a batch that a
+  later live batch built on (the same entities) is refused naming that
+  entry — "take that back first" — never a silent clobber. In the canvas
+  Cmd+Z is the person's own newest, Cmd+Shift+Z their redo, Cmd+Alt+Z
+  anyone's newest; the API's `POST /undo` takes `own`, and `POST /redo`
+  exists.
+- **Telling the agent when its direct write was refused.** The guard
+  still puts `manifest.json` back; now it also appends a line to
+  `.live/refusals.jsonl` (what, why, the revision the world stands at),
+  `GET /refusals` returns them, the bottom bar shows the refusal, and
+  `AGENTS.md` says where to look when a change vanished. A fresh
+  package's first normalization is not a refusal and is not noted.
+- **Switching git branches under an open app.** Every entry is a commit,
+  so the authority remembers the commit it last made or read and asks
+  `.git/HEAD` (through its ref; git only for a packed ref) each guard
+  tick whether that moved. When it has, the canvas reopens the package
+  from disk, rebuilds the view at main's tip and applies the delta from
+  what it showed to the new head — before the guard runs, so the old
+  head is never written back over the checkout. A drag, a pending
+  proposal or a replay defers it a tick. The smoke checks out `HEAD~1`
+  and back under the open window.
+- **Replay reading assets at the replayed commit.** `assets_at(dir,
+  commit, into)` materializes a commit's `assets/` under
+  `.live/replay/<commit>/` from `git ls-tree` + `cat-file`, each blob
+  cached once by hash and hard-linked (copied on a filesystem that
+  can't), and the replay resolves each frame's ops against that root.
+- **Mesh, audio and camera changes in the open scene.** `OpsApplier`
+  now applies an entity's `audio` (an emitter named after the entity,
+  attached to it; `null` removes it), `mesh_asset` (what the entity drew
+  goes, and the glTF scene fills it in place through the same pending
+  load a world load uses — `null` leaves an empty), and `SetAmbience` /
+  `SpawnAudioEmitter` / `RemoveAudioEmitter` through the in-app undo
+  stack's path. `SetCamera` and a world patch's `camera` move the live
+  canvas's own camera on the next frame (`note_camera`), while the
+  applier itself still leaves cameras alone for guests. Modulations
+  remain tracked, not applied.
+- **The canvas's editor follow-ups** (same day): `L` lays the handles
+  along the entity's own axes, an Alt-drag of an arrow scales along that
+  axis alone, a drag from empty space or a Shift-drag from anywhere
+  box-selects what it encloses whole, and Alt + right-drag orbits the
+  camera around the selection. The box reads the button and picking's
+  hover map rather than picking's events, because picking sends none for
+  a press on the sky when the canvas renders into an image.
+- **A cold test with a fresh agent that has only `AGENTS.md`.** Run on
+  2026-10-16 against this guide; its findings and the guide changes they
+  led to are in the next section.
+
 ## Not done
 
-- A cold test with a fresh agent that has only `AGENTS.md`.
-- Switching git branches under an open app.
-- Replay reading assets at the replayed commit: replay walks commits'
-  `manifest.json`, but loads asset files from the working tree, so an
-  old commit would show today's bytes for a changed asset — the canvas
-  must load them from that commit (`git show <commit>:assets/…`).
-- Redo, and per-author undo.
-- Mesh, audio and camera changes in the open scene (`OpsApplier`
-  doesn't apply them).
-- Telling the agent, not only the app's log, when its direct write was
-  refused — the read-only hint makes ordinary writes fail fast, but the
-  authority's refusal stays the source of truth.
+- Modulations in the open scene (`OpsApplier` tracks, doesn't apply).
+- A redo that survives a branch: redo follows the path to the entry on
+  screen, and an undo made on a branch is redone on that branch only.
+- `assets_at` runs git synchronously on the replay tick; a commit with
+  many large new blobs stalls that frame once (they are cached after).
