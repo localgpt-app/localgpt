@@ -43,7 +43,9 @@ rate-limit.new-packages = 10
 # (`aim_entity`, `focus_entity`, references the merge rewrites like `parent`),
 # origins composed through parents (`world_origin`, `view_in`), and committed
 # ops that carry ids for the deeper references.
-openworldformat = "0.3.5"
+# 0.3.6: validation warns about a behavior whose target is gone — the
+# dangling-target diagnostic the inspector and the live canvas show.
+openworldformat = "0.3.6"
 
 # Async runtime
 tokio = { version = "1.50", features = ["full"] }

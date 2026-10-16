@@ -206,7 +206,7 @@ the product.
 - **A behavior whose target is gone** is marked in the panel with a
   retarget combo and a one-click removal, rather than silently looking
   at nothing; the authority's receipt warns the batch that caused it, and
-  the format crate's validation (next release) reports it to inspectors.
+  the format crate's validation (0.3.6) reports it to inspectors.
 - **Review of agent edits** (`--review`, the world bar's checkbox, or
   `LOCALGPT_REVIEW=1`): `POST /ops` replies `proposed` (202) and the
   batch shows on the canvas, read against the world on screen without
