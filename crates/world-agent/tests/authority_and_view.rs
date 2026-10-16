@@ -689,10 +689,13 @@ fn deleting_a_behaviors_target_is_taken_and_warned_about_on_the_receipt() {
             None,
         )
         .expect("the delete lands");
+    // The warning is the format's (openworldformat 0.3.6 validates a
+    // behavior whose target is gone); the receipt carries it, naming the
+    // target by the id it was bound to.
     assert!(
-        done.warnings
-            .iter()
-            .any(|w| w.starts_with("look_at on flower targets sun") && w.contains("gone")),
+        done.warnings.iter().any(|w| w.contains("'flower'")
+            && w.contains("look_at behavior targeting entity 1")
+            && w.contains("not in the world")),
         "{:?}",
         done.warnings
     );

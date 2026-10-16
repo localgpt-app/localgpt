@@ -1129,6 +1129,17 @@ fn note_camera(live: &mut Live, ops: &[wt::EditOp]) {
     }
 }
 
+/// A value for a reply, through text: `serde_json::to_value` widens an f32
+/// to its f64 (0.55 arrives as 0.550000011920929), while the text form is
+/// the f32's shortest decimal — what `manifest.json` holds, so a reader
+/// diffing the two sees the same numbers.
+fn clean_json<T: serde::Serialize>(value: &T) -> Value {
+    serde_json::to_string(value)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
 /// The person at the keyboard, as the history names them.
 fn person() -> String {
     std::env::var("USER")
@@ -1635,8 +1646,14 @@ fn live_world(
         let (method, path) = (call.method.clone(), call.path.clone());
         let reply = match (method.as_str(), path.as_str()) {
             ("GET", "/" | "") => Reply::ok(json!({ "endpoints": endpoints() })),
+            // The head — or `?tip=current`, the entry the window shows,
+            // which `manifest.json` is not while the person looks back.
             ("GET", "/world") => {
-                Reply::ok(serde_json::to_value(live.world.head_manifest()).unwrap_or_default())
+                let manifest = match param(&call.query, "tip").as_deref() {
+                    Some("current") => live.view.doc().to_manifest(),
+                    _ => live.world.head_manifest().clone(),
+                };
+                Reply::ok(clean_json(&manifest))
             }
             ("GET", "/board") => match super::board::page(
                 &live.world,
@@ -1807,6 +1824,11 @@ fn live_world(
                                "errors": ["name a tip, or send null for the base"]}),
                     ));
                     continue;
+                };
+                // `"head"` is main's tip, whatever its id is today.
+                let asked = match asked.as_deref() {
+                    Some("head") => live.world.main_tip(),
+                    _ => asked,
                 };
                 match seek(live, &mut applier, asked.as_deref()) {
                     Ok(changes) => Reply::ok(json!({

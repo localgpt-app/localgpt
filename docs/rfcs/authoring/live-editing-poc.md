@@ -324,8 +324,34 @@ the authority's unit tests and the smoke run (`scripts/live-smoke.py` on a
   hover map rather than picking's events, because picking sends none for
   a press on the sky when the canvas renders into an image.
 - **A cold test with a fresh agent that has only `AGENTS.md`.** Run on
-  2026-10-16 against this guide; its findings and the guide changes they
-  led to are in the next section.
+  2026-10-16: a fresh agent was given the world's path and told to learn
+  the API from the guide alone, then asked to add a bench by the cuboid,
+  make the lantern look at it, take a screenshot, undo, look at the base
+  and come back, and list its entries. It did all six in 21 calls, every
+  one HTTP 200 — and its report found one real defect and a dozen gaps.
+  The defect: a behavior target sent by name (`LookAt: {target:
+  "bench"}`) committed as the name, the fold bound it, and `GET /verify`
+  said the lantern "differs from the history" while that entry was the
+  head. The authority's intake bound only an op's `id` and `parent`; it
+  now runs the format crate's `bind_committed_refs` over every op, so
+  the log carries ids in every marked field (behavior targets and
+  centers, a camera's aim and focus, the avatar's model) and a name
+  nothing has refuses the batch, naming it. The gaps, all in the guide,
+  all closed: no word on behaviors (the agent guessed the shape
+  correctly), on which fields take a name, on the receipt's full shape,
+  on `/undo` taking an `author` (its undo landed as "you") and
+  replying a receipt, on how to read the state the window shows after a
+  `goto` (`GET /world` and `manifest.json` answer from the head; now
+  `GET /world?tip=current` and `goto {"tip": "head"}` exist and are
+  documented), on `/tips.revision` being the view's while
+  `/log.revision` is the head's, on the screenshot being the person's
+  camera with no framing from the API (`at_head` documented), on
+  shape origins (centered, every shape), on `/world` and `/verify`
+  existing at all, and a curl example that assumed the shell sat in
+  the folder. `GET /world` also printed f32 fields through their f64
+  widening (`0.550000011920929`); it goes through text now and prints
+  what `manifest.json` prints. The smoke checks the binding, the
+  refusal and the numbers.
 
 ## Not done
 

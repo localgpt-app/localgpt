@@ -16,6 +16,7 @@ All notable changes to LocalGPT are documented in this file.
 
 ### Fixed
 
+- **Live API: a behavior target sent by name committed as the name** (`crates/world-agent`) — the authority's intake bound only an op's `id` and `parent`, so `{"LookAt": {"target": "bench"}}` was logged with the string, the fold bound it, and `GET /verify` reported the entity as differing from its history. Every marked reference (behavior targets and centers, a camera's `aim_entity` and `focus_entity`, the avatar's model) now binds at intake through the format crate's one list, and a name nothing has refuses the batch, naming it. Found by a cold run of a fresh agent on `AGENTS.md` alone, which also drove a dozen additions to that guide, `GET /world?tip=current`, `goto {"tip": "head"}`, and `/world` printing f32 fields as `manifest.json` does.
 - **A package drafted elsewhere opens live with its guide** — `LiveWorld::open` now furnishes any package it opens with `AGENTS.md` and `assets/` when they are missing, not only the ones it made itself: a previs draft (four files from `localgpt-previs` or the localgpt.md zip) opened with `localgpt-gen --live` printed "see AGENTS.md" and had none for the agent to read.
 
 ### Changed

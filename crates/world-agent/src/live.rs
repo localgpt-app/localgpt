@@ -394,11 +394,10 @@ impl LiveWorld {
                 wt::Severity::Warning => warnings.push(issue.message),
             }
         }
-        // A behavior whose target this batch deleted is the authority's
-        // warning, not the format's refusal: the delete was what the batch
-        // asked for, and the behavior now looks at nothing until it is
-        // retargeted or dropped — the author is told so on the receipt.
-        warnings.extend(dangling_targets(&ingest.trial));
+        // A behavior whose target this batch deleted is among those
+        // warnings (openworldformat 0.3.6 validates it), not a refusal: the
+        // delete was what the batch asked for, and the behavior looks at
+        // nothing until retargeted or dropped — the receipt says so.
         if !errors.is_empty() {
             return Err(Rejected { errors });
         }
@@ -973,6 +972,16 @@ impl Ingest {
                 .collect::<Vec<_>>()
                 .join("; "));
         }
+        // The deeper references — a behavior's target or center, a camera's
+        // aim and focus — bind here as the top-level ones did above, so the
+        // log carries ids in every marked field (spec/session.md: committed
+        // ops always carry ids). The format's one list says which fields;
+        // a name nothing has refuses the op. Without this, a target sent by
+        // name was committed as the name, the fold bound it and the
+        // package no longer verified against its own history.
+        self.trial
+            .bind_committed_refs(&mut op)
+            .map_err(|e| e.to_string())?;
         self.store_assets(&mut op)?;
         self.trial
             .apply(&op)
@@ -1904,35 +1913,6 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// Behaviors whose target the world no longer holds — a `look_at` or an
-/// `orbit` whose entity a delete took — one line each, for a receipt's
-/// warnings or a panel's diagnostics.
-pub fn dangling_targets(doc: &WorldDoc) -> Vec<String> {
-    let mut out = Vec::new();
-    for entity in doc.entities() {
-        for behavior in &entity.behaviors {
-            let (kind, target) = match behavior {
-                wt::BehaviorDef::LookAt { target } => ("look_at", target),
-                wt::BehaviorDef::Orbit {
-                    center: Some(center),
-                    ..
-                } => ("orbit", center),
-                _ => continue,
-            };
-            let gone = match target {
-                wt::EntityRef::Id(id) if !doc.contains(id.0) => format!("entity {}", id.0),
-                wt::EntityRef::Name(name) if doc.get_by_name(name).is_none() => name.clone(),
-                _ => continue,
-            };
-            out.push(format!(
-                "{kind} on {} targets {gone}, which is gone: retarget it or drop the behavior",
-                entity.name.0
-            ));
-        }
-    }
-    out
-}
-
 /// What `AGENTS.md` says in a new live package.
 pub const AGENTS_GUIDE: &str = r#"# This folder is a live world
 
@@ -1947,7 +1927,8 @@ Send a batch of edit ops to the open app. A batch applies whole or not at all:
 if any op is wrong, nothing changes and the reply says which op and why.
 
 ```sh
-URL=$(jq -r .url .live/endpoint.json); TOKEN=$(jq -r .token .live/endpoint.json)
+W=/path/to/this/folder   # the folder this file is in; your shell may not be in it
+URL=$(jq -r .url "$W/.live/endpoint.json"); TOKEN=$(jq -r .token "$W/.live/endpoint.json")
 curl -s -X POST "$URL/ops" -H "Authorization: Bearer $TOKEN" -d '{
   "author": "your-name", "message": "what this change is for",
   "ops": [
@@ -1962,8 +1943,11 @@ curl -s -X POST "$URL/ops" -H "Authorization: Bearer $TOKEN" -d '{
 
 - Use an entity's name wherever an id goes. Leave `id` out of a new entity and
   it gets one; the reply lists them.
-- The reply is your receipt: `revision` and `id` of the entry, `spawned` (name
-  → id), `warnings`; or `errors`, one per failing op, and nothing changed.
+- The reply is your receipt: `result` (`committed`, or `proposed` under
+  review), `revision` and `id` of the entry, `parent`, `head`, `branch` (true
+  when it landed off main), `changes` (one line per op, like `spawn #101
+  bench`), `spawned` (name → id), `stored` (asset → its copy), `warnings`
+  and `on_screen`; or `errors`, one per failing op, and nothing changed.
 - Add `"expected_revision": N` — the `revision` you read from `GET /log` (or
   the entry's, when building on one) — when the batch must land on the world
   you read. If anyone moved it since, the batch is refused naming both
@@ -1973,15 +1957,33 @@ curl -s -X POST "$URL/ops" -H "Authorization: Bearer $TOKEN" -d '{
   batch waits on the canvas for the person to accept or reject it: poll
   `GET /proposals` for its status, and don't resend meanwhile.
 - A `patch` holds only what changes. `transform`, `material` and `light` merge
-  into the current value (send just `position` to move something); `null`
-  removes a field.
+  into the current value (send just `position` to move something); every
+  other field — `behaviors`, `shape`, `parent`, `audio`, `mesh_asset` — is
+  replaced whole; `null` removes a field.
 - Op kinds: SpawnEntity, ModifyEntity, DeleteEntity (takes children with it),
   SetEnvironment (merges too), SetCamera, Batch.
+- Names bind wherever the format marks a reference — an op's `id`, `parent`,
+  a behavior's `target` or `center`, a camera's `aim_entity` and
+  `focus_entity`, the avatar's `model_entity` — and commit as ids. A name
+  nothing has refuses the batch, naming it.
+- Behaviors animate an entity without code: `"behaviors": [...]` on an entity
+  or in a patch, the new list replacing the old (`[]` or `null` clears it).
+  `{"LookAt": {"target": "bench"}}` turns the entity to face another;
+  `{"Orbit": {"center": "sun", "radius": 3, "speed": 30}}` circles one
+  (`center_point: [x, y, z]` circles a point; `axis`, `tilt`, `phase`);
+  `{"Spin": {"axis": [0, 1, 0], "speed": 90}}` (degrees a second);
+  `{"Bob": {"axis": [0, 1, 0], "amplitude": 0.2, "frequency": 0.5}}`;
+  `{"Pulse": {"min_scale": 0.9, "max_scale": 1.1, "frequency": 1}}`;
+  `{"PathFollow": {"waypoints": [[0, 1, 0], [4, 1, 0]], "speed": 1}}`;
+  Bounce. Delete a target later and the receipt warns; the behavior stays
+  and looks at nothing until retargeted or dropped.
 - Meters, Y up. Rotations: `rotation_degrees`, X then Y then Z. Colors: RGBA
   0–1, sRGB; `emissive` is linear and glows above 1.
 - Shapes: copy the forms in `manifest.json` — {"Cuboid": {"x": 1, "y": 1, "z": 1}},
   {"Sphere": {"radius": 0.5}}, {"Cylinder": {"radius": 0.2, "height": 3}},
   {"Plane": {"x": 10, "z": 10}}, Cone, Capsule, Torus, Pyramid, Wedge …
+  A position is the shape's center, for every shape (a pyramid's base sits
+  at −height/2): a 1.5 m cuboid rests on the ground at y 0.75.
 
 ## Assets are files you write
 
@@ -2068,14 +2070,24 @@ builds on — the branch is the treatment.
 
 ## See and ask
 
-- `GET $URL/screenshot` — renders the view now and replies with the PNG's path.
-  Look at it after a change.
+- `GET $URL/world` — the head as a manifest (what `manifest.json` holds);
+  `?tip=current` for the entry the window shows instead, when the person
+  looks back. `GET $URL/verify` — whether the package agrees with its
+  history (`ok`, `problems`).
+- `GET $URL/screenshot` — renders the view now and replies with the PNG's
+  path, `tip`, `revision` and `at_head`. It is the person's camera: look at
+  `.live/preview.png` first to see whether your corner of the world is in
+  frame. There is no framing it from here short of `SetCamera`, which moves
+  the shared camera and is a recorded change like any other.
 - `GET $URL/selection` — what the person has selected; "this" means it.
-- `POST $URL/undo` — undoes the head's newest change by appending its inverse
-  (`{"at": "<id>"}`: the newest on that entry's path instead, as a branch).
-  `{"own": true}` undoes your own newest instead, skipping others' — refused,
-  naming the entry, if someone built on it since. `POST $URL/redo` takes the
-  newest undo back the same way (`own` too); a batch since the undo ends it.
+- `POST $URL/undo -d '{"author": "your-name"}'` — undoes the head's newest
+  change by appending its inverse: a new entry under your name (`you` when
+  the body names none), with a receipt like `/ops`'s and `warnings:
+  ["undid revision N"]`. `{"at": "<id>"}`: the newest on that entry's path
+  instead, as a branch. `{"own": true}`: your own newest, skipping others' —
+  refused, naming the entry, if someone built on it since. `POST $URL/redo`
+  takes the newest undo back the same way (`author` and `own` too); a batch
+  since the undo ends it.
 - `.live/preview.png` refreshes by itself after every change.
 - Writing `manifest.json` or `ops.jsonl` yourself does nothing lasting: the
   committer puts them back and notes it in `.live/refusals.jsonl`
@@ -2089,16 +2101,21 @@ what `manifest.json` holds — is main's tip, and a batch lands there unless it
 says otherwise.
 
 - `GET $URL/log` — the history: each entry's id, parent, revision, author,
-  message, and which entry is the `head`.
+  message, which entry is the `head`, and `revision` — the head's, the one
+  `expected_revision` wants.
 - `GET $URL/tips` — every branch end, which one is the `head`, and which entry
-  the window is showing (`current`).
+  the window is showing (`current`), with its `revision` — the entry on
+  screen's, not the head's.
 - `POST $URL/goto -d '{"tip": "<id>"}'` — show any entry in the window (`null`
-  for before it began). Nothing is written; this is how you look at an
-  earlier state.
+  for before it began, `"head"` for main's tip). Nothing is written; this is
+  how you look at an earlier state. The reply is `{result: "sought", tip,
+  revision, changes}` — `changes` is what the window applied to get there.
+  `manifest.json` and `GET /world` keep answering from the head meanwhile;
+  read the shown state with `GET /world?tip=current`.
 - When the folder is a git repository, every entry is also a commit, and a
   `git checkout` made under the open window is followed: within a second the
-  window shows the checked-out state and the API answers from it. Nothing is
-  written back over a checkout.
+  window shows the checked-out state and `/log`, `/tips` and `/world` answer
+  from it. Nothing is written back over a checkout.
 - Add `"at": "<id>"` to a batch to build on that entry instead of the head.
   From an earlier entry this starts a branch: main and `manifest.json` stay as
   they were, and the reply's `id` is the branch's new tip — send the next
@@ -2285,6 +2302,65 @@ mod tests {
         assert_eq!(read_log(&dir).len(), 2, "the log grew; it never rewinds");
         assert!(live.verify().is_empty(), "{:?}", live.verify());
         assert!(live.undo("you").is_err(), "undo entries aren't undone");
+    }
+
+    #[test]
+    fn a_behavior_target_sent_by_name_commits_as_the_id_and_the_package_verifies() {
+        let (dir, mut live) = world();
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "post", "transform": {"position": [3.0, 0.5, 0.0]}}}}]),
+            "claude",
+            None,
+        )
+        .unwrap();
+        let done = live
+            .submit(
+                &json!([{"ModifyEntity": {"id": "crate", "patch": {"behaviors": [{"LookAt": {"target": "post"}}]}}}]),
+                "claude",
+                None,
+            )
+            .unwrap();
+        let logged = serde_json::to_value(&done.ops[0]).unwrap();
+        assert_eq!(
+            logged["ModifyEntity"]["patch"]["behaviors"][0]["LookAt"]["target"],
+            json!(3),
+            "the committed op carries the id: {logged}"
+        );
+        let crate_ = on_disk(&dir)
+            .entities
+            .into_iter()
+            .find(|e| e.name.0 == "crate")
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(&crate_.behaviors).unwrap(),
+            json!([{"LookAt": {"target": 3}}]),
+            "manifest.json carries the id"
+        );
+        assert!(live.verify().is_empty(), "{:?}", live.verify());
+        // A spawn carrying a reference binds the same way.
+        let done = live
+            .submit(
+                &json!([{"SpawnEntity": {"entity": {"name": "moon", "behaviors": [{"Orbit": {"center": "post", "radius": 2.0}}]}}}]),
+                "claude",
+                None,
+            )
+            .unwrap();
+        let logged = serde_json::to_value(&done.ops[0]).unwrap();
+        assert_eq!(
+            logged["SpawnEntity"]["entity"]["behaviors"][0]["Orbit"]["center"],
+            json!(3),
+            "{logged}"
+        );
+        assert!(live.verify().is_empty(), "{:?}", live.verify());
+        // A name nothing has is refused, naming it.
+        let refused = live
+            .submit(
+                &json!([{"ModifyEntity": {"id": "crate", "patch": {"behaviors": [{"LookAt": {"target": "nobody"}}]}}}]),
+                "claude",
+                None,
+            )
+            .unwrap_err();
+        assert!(refused.errors[0].contains("nobody"), "{:?}", refused.errors);
     }
 
     #[test]

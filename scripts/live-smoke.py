@@ -161,6 +161,18 @@ class Canvas:
         self.input(click(center(rect)))
         return True
 
+    def hot_after_a_moment(self):
+        """The handle under the pointer once the canvas has drawn a frame
+        with the pointer there — polled, since a frame under load (a build
+        beside the run) can take longer than a fixed wait."""
+        hot = None
+        for _ in range(15):
+            time.sleep(0.1)
+            hot = (call(self.ep, "GET", "/selection")[1].get("handles") or {}).get("hot")
+            if hot:
+                break
+        return hot
+
     def drag(self, a, b, steps=8):
         """Press at `a`, pull to `b` in steps, release."""
         events = [{"cursor": list(a)}, {"button": "left", "pressed": True}]
@@ -178,8 +190,7 @@ class Canvas:
         ux, uy = dx / n, dy / n
         start = (ox + dx * 0.8, oy + dy * 0.8)
         self.input([{"cursor": list(start)}])
-        time.sleep(0.2)
-        hot = (call(self.ep, "GET", "/selection")[1].get("handles") or {}).get("hot")
+        hot = self.hot_after_a_moment()
         events = [{"button": "left", "pressed": True}]
         events += [{"cursor": [start[0] + ux * step * i, start[1] + uy * step * i]} for i in range(1, px // step + 1)]
         events += [{"button": "left", "pressed": False}]
@@ -196,8 +207,7 @@ class Canvas:
         n = max((dx * dx + dy * dy) ** 0.5, 1.0)
         tx, ty = -dy / n, dx / n
         self.input([{"cursor": [rx, ry]}])
-        time.sleep(0.2)
-        hot = (call(self.ep, "GET", "/selection")[1].get("handles") or {}).get("hot")
+        hot = self.hot_after_a_moment()
         events = [{"button": "left", "pressed": True}]
         events += [{"cursor": [rx + tx * step * i, ry + ty * step * i]} for i in range(1, px // step + 1)]
         events += [{"button": "left", "pressed": False}]
@@ -650,8 +660,28 @@ def main():
                                             "behaviors": [{"LookAt": {"target": args.select}}]}}}]})
             check(status == 200, f"a watcher that looks at entity {args.select} spawns ({status} {body.get('errors')})")
             status, body = call(ep, "POST", "/ops", {"author": "smoke", "ops": [{"DeleteEntity": {"id": args.select}}]})
-            warned = any("targets" in w and "gone" in w for w in body.get("warnings", []))
+            warned = any("targeting" in w and "not in the world" in w for w in body.get("warnings", []))
             check(status == 200 and warned, f"deleting its target lands, and the receipt warns ({body.get('warnings')})")
+
+            # A target sent by name commits as the id (the cold agent test
+            # found it committing as the name, and the package then no
+            # longer verified against its history); a name nothing has
+            # refuses the batch, naming it.
+            status, body = call(ep, "POST", "/ops", {"author": "smoke", "ops": [
+                {"SpawnEntity": {"entity": {"name": "smoke-gazer", "shape": {"Sphere": {"radius": 0.2}},
+                                            "transform": {"position": [-6.0, 1.0, 2.0]},
+                                            "behaviors": [{"LookAt": {"target": "sphere"}}]}}}]})
+            gazer = canvas.entity("smoke-gazer")
+            target = ((gazer.get("behaviors") or [{}])[0].get("LookAt") or {}).get("target")
+            check(status == 200 and target == 11, f"a LookAt target sent by name commits as the id ({target})")
+            status, body = call(ep, "GET", "/verify")
+            check(status == 200 and body.get("ok") is True, f"the package verifies against its history ({body.get('problems')})")
+            status, body = call(ep, "POST", "/ops", {"author": "smoke", "ops": [
+                {"ModifyEntity": {"id": "smoke-gazer", "patch": {"behaviors": [{"LookAt": {"target": "nobody"}}]}}}]})
+            check(status == 422 and any("nobody" in e for e in body.get("errors", [])), f"a target nothing is named refuses the batch, naming it ({status} {body.get('errors')})")
+            status, body = call(ep, "GET", "/world")
+            noisy = [v for e in body.get("entities", []) for v in (e.get("transform", {}).get("position") or []) if isinstance(v, float) and len(repr(v)) > 12]
+            check(status == 200 and not noisy, f"GET /world prints the numbers manifest.json prints ({noisy[:3]})")
 
             # Undo and redo. The person's: a nudge of the sphere commits as
             # theirs; Cmd+Z takes back their own newest (not the agent's
