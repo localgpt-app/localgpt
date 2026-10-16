@@ -1,0 +1,115 @@
+{
+  "comment": "Authoring outcomes (spec/session.md, \"Authoring\"): each case is a batch an author sends to an authority over the base world, and what must come back — the receipt and the world. Implementation-neutral: run the batch through your ingest (the Rust crate's openworldformat::authoring::ingest, LocalGPT's live authority, the js/python/kotlin/swift ingest) and check the predicates. `ops` and `world` paths are JSON pointers into the committed op as JSON and into the entity as JSON; numbers compare by value (2 equals 2.0). A refused batch changes nothing, so its `world` predicates hold against the base. The first cases are the ones a cold agent run found an authority getting wrong: a name in a deeper marked field (a behavior's target) that committed as the name.",
+  "base": {
+    "version": 3,
+    "meta": {"name": "yard", "description": "the authoring suite's yard"},
+    "entities": [
+      {"id": 1, "name": "ground", "transform": {"position": [0, 0, 0]}, "shape": {"Plane": {"x": 20, "z": 20}}},
+      {"id": 2, "name": "crate", "transform": {"position": [0, 0.5, 0], "scale": [2, 2, 2]}, "shape": {"Cuboid": {"x": 1, "y": 1, "z": 1}}, "material": {"color": [0.6, 0.4, 0.2, 1], "roughness": 0.8}},
+      {"id": 3, "name": "sun", "transform": {"position": [0, 20, 0]}, "light": {"light_type": "directional", "color": [1, 1, 1, 1], "intensity": 10000, "direction": [-0.4, -1, -0.35]}},
+      {"id": 4, "name": "lamp", "transform": {"position": [3, 0, 3]}, "shape": {"Cylinder": {"radius": 0.1, "height": 1}}},
+      {"id": 5, "name": "flower", "transform": {"position": [-2, 0, 2]}, "shape": {"Sphere": {"radius": 0.2}}, "behaviors": [{"LookAt": {"target": 3}}]}
+    ],
+    "next_entity_id": 6
+  },
+  "cases": [
+    {
+      "name": "a name in a deeper marked field binds: a behavior's target commits as the id",
+      "batch": [{"ModifyEntity": {"id": "crate", "patch": {"behaviors": [{"LookAt": {"target": "sun"}}]}}}],
+      "expect": {
+        "result": "committed",
+        "ops": [{"op": 0, "path": "/ModifyEntity/patch/behaviors/0/LookAt/target", "equals": 3}],
+        "world": [{"entity": "crate", "path": "/behaviors/0/LookAt/target", "equals": 3}]
+      }
+    },
+    {
+      "name": "a spawn's deeper reference binds, to a name the same batch spawned",
+      "batch": [
+        {"SpawnEntity": {"entity": {"name": "post", "transform": {"position": [4, 1, 0]}, "shape": {"Cylinder": {"radius": 0.05, "height": 2}}}}},
+        {"SpawnEntity": {"entity": {"name": "moon", "shape": {"Sphere": {"radius": 0.2}}, "behaviors": [{"Orbit": {"center": "post", "radius": 1.5, "speed": 30}}]}}}
+      ],
+      "expect": {
+        "result": "committed",
+        "spawned": {"post": 6, "moon": 7},
+        "ops": [{"op": 1, "path": "/SpawnEntity/entity/behaviors/0/Orbit/center", "equals": 6}],
+        "world": [{"entity": "moon", "path": "/behaviors/0/Orbit/center", "equals": 6}]
+      }
+    },
+    {
+      "name": "a name nothing has, in a deeper marked field, refuses the batch naming it",
+      "batch": [{"ModifyEntity": {"id": "crate", "patch": {"behaviors": [{"LookAt": {"target": "nobody"}}]}}}],
+      "expect": {
+        "result": "refused",
+        "errors_contain": ["nobody"],
+        "world": [{"entity": "crate", "path": "/material/roughness", "equals": 0.8}]
+      }
+    },
+    {
+      "name": "a top-level reference binds: a parent by name",
+      "batch": [{"SpawnEntity": {"entity": {"name": "shade", "parent": "lamp", "transform": {"position": [0, 1, 0]}, "shape": {"Cone": {"radius": 0.3, "height": 0.2}}}}}],
+      "expect": {
+        "result": "committed",
+        "spawned": {"shade": 6},
+        "ops": [{"op": 0, "path": "/SpawnEntity/entity/parent", "equals": 4}],
+        "world": [{"entity": "shade", "path": "/parent", "equals": 4}]
+      }
+    },
+    {
+      "name": "a transform patch merges, and the committed op carries the merged whole",
+      "batch": [{"ModifyEntity": {"id": "crate", "patch": {"transform": {"position": [0, 2, 0]}}}}],
+      "expect": {
+        "result": "committed",
+        "ops": [{"op": 0, "path": "/ModifyEntity/patch/transform/scale", "equals": [2, 2, 2]}],
+        "world": [
+          {"entity": "crate", "path": "/transform/position", "equals": [0, 2, 0]},
+          {"entity": "crate", "path": "/transform/scale", "equals": [2, 2, 2]}
+        ]
+      }
+    },
+    {
+      "name": "an unknown field refuses with a JSON pointer to it",
+      "batch": [{"ModifyEntity": {"id": "crate", "patch": {"material": {"colour": [1, 0, 0, 1]}}}}],
+      "expect": {
+        "result": "refused",
+        "errors_contain": ["/ModifyEntity/patch/material/colour"],
+        "world": [{"entity": "crate", "path": "/material/roughness", "equals": 0.8}]
+      }
+    },
+    {
+      "name": "a name resolves against the batch's earlier ops",
+      "batch": [
+        {"SpawnEntity": {"entity": {"name": "post", "shape": {"Cylinder": {"radius": 0.05, "height": 2}}}}},
+        {"ModifyEntity": {"id": "post", "patch": {"transform": {"position": [1, 1, 1]}}}}
+      ],
+      "expect": {
+        "result": "committed",
+        "ops": [{"op": 1, "path": "/ModifyEntity/id", "equals": 6}],
+        "world": [{"entity": "post", "path": "/transform/position", "equals": [1, 1, 1]}]
+      }
+    },
+    {
+      "name": "deleting a behavior's target lands, and the receipt warns",
+      "batch": [{"DeleteEntity": {"id": "sun"}}],
+      "expect": {
+        "result": "committed",
+        "warnings_contain": ["flower"],
+        "world": [
+          {"entity": "sun", "absent": true},
+          {"entity": "flower", "path": "/behaviors/0/LookAt/target", "equals": 3}
+        ]
+      }
+    },
+    {
+      "name": "one bad op refuses the whole batch, and nothing changes",
+      "batch": [
+        {"SpawnEntity": {"entity": {"name": "post"}}},
+        {"DeleteEntity": {"id": "nobody"}}
+      ],
+      "expect": {
+        "result": "refused",
+        "errors_contain": ["nobody"],
+        "world": [{"entity": "post", "absent": true}]
+      }
+    }
+  ]
+}
