@@ -189,7 +189,7 @@ impl LiveWorld {
             .map_err(|e| LiveError(format!("{LOG} no longer folds: {e}")))?;
         let mut world = Self {
             dir: dir.to_path_buf(),
-            head_manifest: compose(&base_manifest, &head),
+            head_manifest: head_as_written(dir, &meta, &base_manifest, &head),
             base_manifest,
             base,
             entries,
@@ -624,20 +624,12 @@ impl LiveWorld {
             .iter()
             .filter(|e| is_batch(e) && !undone.contains(&e.revision))
         {
-            let shared: Vec<u64> = touched(&later.edit_ops())
+            let shared: Vec<Touch> = touched(&later.edit_ops())
                 .intersection(&mine_touched)
-                .copied()
+                .cloned()
                 .collect();
             if !shared.is_empty() {
-                let names: Vec<String> = shared
-                    .iter()
-                    .map(|id| {
-                        self.head
-                            .get(*id)
-                            .map(|e| e.name.0.clone())
-                            .unwrap_or_else(|| format!("entity {id}"))
-                    })
-                    .collect();
+                let names: Vec<String> = shared.iter().map(|t| self.describe_touch(t)).collect();
                 return Err(Rejected::one(format!(
                     "revision {target} can't be {verb}ne: revision {} by {} built on it ({}); \
                      take that back first",
@@ -653,12 +645,30 @@ impl LiveWorld {
         let before = fold_log(&self.base, &prefix)
             .map_err(|e| Rejected::one(format!("the history no longer folds: {e}")))?;
         let inverse = sync::compute_inverse(&before, &on_path[k].edit_ops());
+        let before_ids: HashSet<u64> = start.entities().map(|e| e.id.0).collect();
         let mut trial = start;
         trial.apply_all(&inverse).map_err(|e| {
             Rejected::one(format!(
                 "revision {target} can't be {verb}ne: later changes depend on it ({e})"
             ))
         })?;
+        // What the inverse takes with it beyond the target's own entities —
+        // a child another author hung under an entity this batch spawned,
+        // which a delete's cascade would sweep — is theirs: refuse, naming
+        // it, rather than silently take it too.
+        let own: HashSet<u64> = on_path[k].edit_ops().iter().flat_map(spawned_ids).collect();
+        let swept: Vec<String> = before_ids
+            .iter()
+            .filter(|id| !trial.contains(**id) && !own.contains(id))
+            .map(|id| self.describe_touch(&Touch::Entity(*id)))
+            .collect();
+        if !swept.is_empty() {
+            return Err(Rejected::one(format!(
+                "revision {target} can't be {verb}ne: taking it back would also remove {}, \
+                 which others built under it; take those back first",
+                swept.join(", ")
+            )));
+        }
         let said = if redo {
             format!("redid revision {}", undo_of(on_path[k]).unwrap_or(target))
         } else {
@@ -694,6 +704,23 @@ impl LiveWorld {
         })
     }
 
+    /// A touched thing, for a refusal: an entity by name, or the scene-wide
+    /// thing by what it is.
+    fn describe_touch(&self, touch: &Touch) -> String {
+        match touch {
+            Touch::Entity(id) => self
+                .head
+                .get(*id)
+                .map(|e| e.name.0.clone())
+                .unwrap_or_else(|| format!("entity {id}")),
+            Touch::Environment => "the environment".into(),
+            Touch::Camera => "the camera".into(),
+            Touch::Ambience => "the ambience".into(),
+            Touch::World(field) => format!("the world's {field}"),
+            Touch::Emitter(name) => format!("emitter {name}"),
+        }
+    }
+
     /// Put `manifest.json` back if something other than the committer wrote
     /// it. Returns what happened, for the person or agent to hear — and
     /// notes it in `.live/refusals.jsonl`, since whoever wrote the file
@@ -702,6 +729,12 @@ impl LiveWorld {
         let on_disk = std::fs::read(self.dir.join(MANIFEST)).ok();
         let sha = on_disk.as_deref().map(sha256_hex);
         if sha.is_some() && sha == self.meta.world_sha256 {
+            return None;
+        }
+        // Git's files, mid-checkout or just checked out, are not a direct
+        // write: the canvas follows the checkout, and nothing is put back
+        // over it.
+        if self.git_moved() {
             return None;
         }
         // A hash on record means the committer wrote the file before and
@@ -732,6 +765,10 @@ impl LiveWorld {
         }
         let text = to_pretty(&self.head_manifest)?;
         write_atomic(&self.dir.join(MANIFEST), text.as_bytes())?;
+        // The record follows what was written, so the next tick settles
+        // instead of restoring again; `package.json` keeps the committed
+        // record until the next commit, which keeps a git tree clean.
+        self.meta.world_sha256 = Some(sha256_hex(text.as_bytes()));
         Ok(())
     }
 
@@ -790,6 +827,12 @@ impl LiveWorld {
     /// Read the package again from disk — after a checkout moved the files
     /// under this process, which is not a direct write to put back.
     pub fn reopen(&mut self) -> Result<(), LiveError> {
+        if !self.dir.join(PACKAGE).is_file() {
+            return Err(LiveError(format!(
+                "{PACKAGE} is not there: this checkout holds a world, not a live package, \
+                 and opening it would write one into the tree"
+            )));
+        }
         *self = Self::open(&self.dir)?;
         Ok(())
     }
@@ -1451,6 +1494,7 @@ fn describe_entry(entry: &OpLogEntry) -> (String, String, String) {
     });
     let subject = match intent {
         Some(args) if args["via"] == "undo" => format!("undo revision {}", args["of"]),
+        Some(args) if args["via"] == "redo" => format!("redo of revision {}", args["of"]),
         Some(args) => args["message"]
             .as_str()
             .map(str::to_string)
@@ -1502,6 +1546,14 @@ fn read_git_head(dir: &Path) -> Option<String> {
     let git_dir = dir.join(".git");
     if !git_dir.exists() {
         return None;
+    }
+    if git_dir.is_file() {
+        // A worktree or a submodule: `.git` names the real git dir. Ask
+        // git rather than follow the pointer and its common dir by hand.
+        return git(dir, &["rev-parse", "--verify", "--quiet", "HEAD"])
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
     }
     let head = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
     let head = head.trim();
@@ -1695,6 +1747,32 @@ pub enum UndoScope {
     Own,
 }
 
+/// The head as a manifest: the file itself when it is the record's — the
+/// same bytes again, so the guard never mistakes its own writing for a
+/// direct write — else composed from the base and the fold. Composing is
+/// not byte-stable across opens: a fresh composition can order entities
+/// differently from one grown commit by commit, and a guard comparing
+/// hashes would then restore the file every tick, note a refusal each
+/// time and leave a git tree dirty.
+fn head_as_written(
+    dir: &Path,
+    meta: &SessionMeta,
+    base_manifest: &WorldManifest,
+    head: &WorldDoc,
+) -> WorldManifest {
+    let composed = compose(base_manifest, head);
+    let Some(recorded) = meta.world_sha256.as_deref() else {
+        return composed;
+    };
+    let Ok(bytes) = std::fs::read(dir.join(MANIFEST)) else {
+        return composed;
+    };
+    if sha256_hex(&bytes) != recorded {
+        return composed;
+    }
+    serde_json::from_slice::<WorldManifest>(&bytes).unwrap_or(composed)
+}
+
 /// The revision an undo entry undid.
 fn undo_of(entry: &OpLogEntry) -> Option<u64> {
     marker_of(entry, "undo")
@@ -1740,23 +1818,63 @@ fn marks(on_path: &[&OpLogEntry]) -> (HashSet<u64>, HashSet<u64>) {
     (undone, redone)
 }
 
-/// The entities a batch's ops touch, by id.
-fn touched(ops: &[EditOp]) -> HashSet<u64> {
-    let mut ids = HashSet::new();
-    fn walk(op: &EditOp, ids: &mut HashSet<u64>) {
+/// What a batch's ops touch: entities by id, and the scene-wide things an
+/// op can set — the environment, the camera, the ambience, a world field,
+/// an audio emitter by name — so an undo that would silently take back
+/// another author's later change to the same thing is refused, whatever
+/// the thing is.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum Touch {
+    Entity(u64),
+    Environment,
+    Camera,
+    Ambience,
+    World(String),
+    Emitter(String),
+}
+
+fn touched(ops: &[EditOp]) -> HashSet<Touch> {
+    let mut set = HashSet::new();
+    fn walk(op: &EditOp, set: &mut HashSet<Touch>) {
         match op {
             EditOp::SpawnEntity { entity } => {
-                ids.insert(entity.id.0);
+                set.insert(Touch::Entity(entity.id.0));
             }
             EditOp::DeleteEntity { id } | EditOp::ModifyEntity { id, .. } => {
-                ids.insert(id.0);
+                set.insert(Touch::Entity(id.0));
             }
-            EditOp::Batch { ops } => ops.iter().for_each(|op| walk(op, ids)),
-            _ => {}
+            EditOp::SetEnvironment { .. } => {
+                set.insert(Touch::Environment);
+            }
+            EditOp::SetCamera { .. } => {
+                set.insert(Touch::Camera);
+            }
+            EditOp::SetAmbience { .. } => {
+                set.insert(Touch::Ambience);
+            }
+            EditOp::SpawnAudioEmitter { name, .. } | EditOp::RemoveAudioEmitter { name, .. } => {
+                set.insert(Touch::Emitter(name.clone()));
+            }
+            EditOp::ModifyWorld { patch } => {
+                // Every field the patch names, cleared or set.
+                let world = |field: &str| Touch::World(field.to_string());
+                let named: [(bool, Touch); 8] = [
+                    (patch.meta.is_some(), world("meta")),
+                    (patch.environment.is_some(), Touch::Environment),
+                    (patch.camera.is_some(), Touch::Camera),
+                    (patch.avatar.is_some(), world("avatar")),
+                    (patch.tours.is_some(), world("tours")),
+                    (patch.soundtrack.is_some(), world("soundtrack")),
+                    (patch.ambience.is_some(), Touch::Ambience),
+                    (patch.creations.is_some(), world("creations")),
+                ];
+                set.extend(named.into_iter().filter(|(set, _)| *set).map(|(_, t)| t));
+            }
+            EditOp::Batch { ops } => ops.iter().for_each(|op| walk(op, set)),
         }
     }
-    ops.iter().for_each(|op| walk(op, &mut ids));
-    ids
+    ops.iter().for_each(|op| walk(op, &mut set));
+    set
 }
 
 /// Whether `entry`, folded strictly onto `before` the way every reader
@@ -2524,6 +2642,112 @@ mod tests {
         assert_eq!(r7.warnings, vec!["redid revision 2".to_string()]);
         assert!(!r7.forked);
         assert!(live.verify().is_empty(), "{:?}", live.verify());
+    }
+
+    #[test]
+    fn a_reopened_package_settles_after_one_direct_write_and_its_git_tree_stays_clean() {
+        // Grown commit by commit, the head's entity order is commit order;
+        // composed afresh on reopen it would be parent-first — and a guard
+        // comparing hashes would then restore the file every tick.
+        let (dir, first) = world();
+        init_git(&dir).unwrap();
+        drop(first);
+        let mut live = LiveWorld::open(&dir).unwrap();
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "post"}}}]),
+            "a",
+            None,
+        )
+        .unwrap();
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "lamp", "parent": "ground"}}}]),
+            "a",
+            None,
+        )
+        .unwrap();
+        live.reopen().unwrap();
+        let recorded = std::fs::read(dir.join(MANIFEST)).unwrap();
+        let mut tampered = recorded.clone();
+        tampered.push(b'\n');
+        std::fs::write(dir.join(MANIFEST), &tampered).unwrap();
+        assert!(live.guard().is_some(), "the direct write is noticed");
+        assert!(live.guard().is_none(), "and put back once, not every tick");
+        assert_eq!(
+            std::fs::read(dir.join(MANIFEST)).unwrap(),
+            recorded,
+            "the same bytes again"
+        );
+        assert_eq!(refusals(&dir).len(), 1);
+        let status = git(&dir, &["status", "--porcelain"]).unwrap();
+        assert_eq!(status.trim(), "", "the git tree is clean: {status}");
+    }
+
+    #[test]
+    fn own_undo_refuses_a_scene_wide_change_another_built_on() {
+        let (_dir, mut live) = world();
+        live.submit(
+            &json!([{"SetEnvironment": {"env": {"background_color": [1.0, 0.0, 0.0, 1.0]}}}]),
+            "alice",
+            None,
+        )
+        .unwrap();
+        live.submit(
+            &json!([{"SetEnvironment": {"env": {"background_color": [0.0, 0.0, 1.0, 1.0]}}}]),
+            "bob",
+            None,
+        )
+        .unwrap();
+        let refused = live.undo_scoped(None, "alice", UndoScope::Own).unwrap_err();
+        assert!(
+            refused.errors[0].contains("bob") && refused.errors[0].contains("the environment"),
+            "{:?}",
+            refused.errors
+        );
+    }
+
+    #[test]
+    fn own_undo_refuses_to_sweep_what_another_hung_under_it() {
+        let (_dir, mut live) = world();
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "post"}}}]),
+            "alice",
+            None,
+        )
+        .unwrap();
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "lamp", "parent": "post"}}}]),
+            "bob",
+            None,
+        )
+        .unwrap();
+        let refused = live.undo_scoped(None, "alice", UndoScope::Own).unwrap_err();
+        assert!(
+            refused.errors[0].contains("lamp") && refused.errors[0].contains("also remove"),
+            "{:?}",
+            refused.errors
+        );
+        // Bob takes his lamp back; now Alice's post can go.
+        live.undo_scoped(None, "bob", UndoScope::Own).unwrap();
+        live.undo_scoped(None, "alice", UndoScope::Own).unwrap();
+        assert!(live.verify().is_empty(), "{:?}", live.verify());
+    }
+
+    #[test]
+    fn a_redo_is_labelled_as_one_in_git() {
+        let (dir, first) = world();
+        init_git(&dir).unwrap();
+        drop(first);
+        let mut live = LiveWorld::open(&dir).unwrap();
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "post"}}}]),
+            "a",
+            None,
+        )
+        .unwrap();
+        live.undo("a").unwrap();
+        live.redo_at(None, "a", UndoScope::Anyone).unwrap();
+        let subject = git(&dir, &["log", "-1", "--format=%s"]).unwrap();
+        assert!(subject.starts_with("redo of revision"), "{subject}");
     }
 
     #[test]

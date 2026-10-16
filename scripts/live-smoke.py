@@ -325,6 +325,8 @@ def main():
             check(status == 409, f"a second batch waits for the decision ({status})")
             status, _ = call(ep, "POST", "/undo", {})
             check(status == 409, f"an undo waits for the decision ({status})")
+            status, _ = call(ep, "POST", "/redo", {})
+            check(status == 409, f"a redo waits for the decision too ({status})")
             time.sleep(1.0)
             status, body = call(ep, "GET", "/screenshot")
             shots.append(body.get("path"))

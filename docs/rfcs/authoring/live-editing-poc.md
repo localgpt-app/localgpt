@@ -407,3 +407,26 @@ the authority's unit tests and the smoke run (`scripts/live-smoke.py` on a
   back.
 
 Nothing on the proof of concept's list remains open.
+
+**Reviewed before pushing (2026-10-16).** A fresh reader over the
+unpushed diff found one regression and six holes, all fixed. The guard
+could never settle on a reopened package after a single direct write:
+composing the head afresh on open ordered entities differently from the
+file grown commit by commit, so the restored bytes never hashed to the
+record and the file was rewritten every tick — now the head is read from
+the file while the file is the record's, the record follows a restore,
+and a checkout in progress is never mistaken for a direct write. The
+own-scope undo's conflict scan knew only entities, so another author's
+scene-wide change (the environment, the camera, a world field, an
+emitter) or a child hung under the undone spawn was swept silently — it
+now names every touched thing, and refuses an inverse that would remove
+an entity the target did not spawn. A mesh swap despawned the world
+entities parented under the entity along with the old glTF nodes, and
+left the markers that say it is a glTF; `/redo` slipped past the
+pending-proposal guard; an audio patch together with a rename orphaned
+the old emitter; redo markers were labelled as plain edits in git; a
+checkout to a commit holding a world but no package would have written
+one into the tree; a worktree's `.git` file was not followed. Known and
+left: a replay's first frame waits for its assets if playback outruns
+git, and renaming an entity that has an emitter, without an audio patch,
+keeps the emitter under the old name.

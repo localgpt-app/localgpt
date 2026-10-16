@@ -1721,7 +1721,13 @@ fn live_world(
                 // a proposal is pending.
                 "buttons": live.review_buttons.map(|[accept, reject]| json!({"accept": accept, "reject": reject})),
             })),
-            ("POST", "/undo" | "/replay") if live.proposal.is_some() => Reply::status(
+            // A replay holds the canvas: an undo or a redo would commit under
+            // it, and the view would apply the delta onto a replayed frame.
+            ("POST", "/undo" | "/redo") if live.replay.is_some() => Reply::status(
+                409,
+                json!({"result": "busy", "why": "a replay is running; edits wait for it"}),
+            ),
+            ("POST", "/undo" | "/redo" | "/replay") if live.proposal.is_some() => Reply::status(
                 409,
                 json!({"result": "busy", "pending": live.proposal.as_ref().map(|p| p.n),
                        "why": "an agent's proposal is on the canvas; it decides first"}),

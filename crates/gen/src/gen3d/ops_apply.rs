@@ -182,6 +182,8 @@ impl OpsApplier<'_, '_> {
         let Some(bevy_entity) = self.registry.get_entity_by_id(&id) else {
             return;
         };
+        // The name it had, for what the engine keys by it (an emitter).
+        let old_name = self.registry.get_name(bevy_entity).map(str::to_string);
 
         if let Some(name) = &patch.name {
             self.registry.remove_by_entity(bevy_entity);
@@ -312,8 +314,15 @@ impl OpsApplier<'_, '_> {
                 .unwrap_or_default()
                 .to_string();
             if !name.is_empty() {
-                if self.audio_engine.emitter_names.contains(&name) {
-                    super::audio::handle_remove_audio_emitter(&name, &mut self.audio_engine);
+                // The emitter it had is under the name it had: a rename in
+                // the same patch renamed the entity, not the engine's key.
+                for had in [old_name.as_deref(), Some(name.as_str())]
+                    .into_iter()
+                    .flatten()
+                {
+                    if self.audio_engine.emitter_names.contains(had) {
+                        super::audio::handle_remove_audio_emitter(had, &mut self.audio_engine);
+                    }
                 }
                 match audio {
                     Some(def) => {
@@ -346,14 +355,21 @@ impl OpsApplier<'_, '_> {
         // it in place once the asset server has it — the same path a world
         // load takes, so the entity keeps its transform, id and components.
         if let Some(mesh) = &patch.mesh_asset {
+            // The old scene's nodes go; world entities parented under this
+            // one are children too, and stay.
             if let Ok(kids) = self.children.get(bevy_entity) {
-                for kid in kids.iter() {
+                for kid in kids.iter().filter(|k| !self.gen_entities.contains(*k)) {
                     self.commands.entity(kid).despawn();
                 }
             }
-            self.commands
-                .entity(bevy_entity)
-                .remove::<(Mesh3d, MeshMaterial3d<StandardMaterial>)>();
+            // With the mesh goes what said it was one, so a save does not
+            // project the old file back.
+            self.commands.entity(bevy_entity).remove::<(
+                Mesh3d,
+                MeshMaterial3d<StandardMaterial>,
+                bevy::world_serialization::WorldAssetRoot,
+                super::registry::GltfSource,
+            )>();
             if let Some(mesh) = mesh {
                 let path = super::plugin::resolve_mesh_asset_path(None, &mesh.path);
                 if path.exists() {
