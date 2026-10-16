@@ -108,6 +108,8 @@ thing that makes a branch rail honest about convergence.
 
 ## Chrome: Bevy's own widgets, not egui
 
+(Evaluated on 2026-10-16 against the inventory then: [`egui-or-not.md`](egui-or-not.md) — the direction stands, the removal is staged per surface, nothing new goes on egui.)
+
 This is where "fully utilize Bevy" has recently become the right answer rather
 than the loyal one. Bevy 0.19 ships an editor-widget toolkit.
 

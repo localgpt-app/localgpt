@@ -179,6 +179,9 @@ everything, so this is a hygiene check rather than a risk.
 
 ## If egui is not a given
 
+(Whether and when to take egui out, with the inventory as of 2026-10-16 and
+a recommendation, is [`egui-or-not.md`](egui-or-not.md).)
+
 Dropping `bevy_egui` is not a detail of tier 2 — it changes which tier is
 cheap, and it opens a third door that is better than either.
 
@@ -323,6 +326,76 @@ So PTY sessions are already a service in this architecture, reattachable over
 IPC. Tier 2's remaining cost is only VT emulation, rendering and input
 mapping — the process, scrollback and lifecycle layer does not need writing,
 and the seam already sits where a pane would want it.
+
+## libghostty-vt, and herdr as the pane (added 2026-10-16)
+
+The emulator comparison above weighed two stacks, Zed's and Orca's. A third
+sits in `external/ade/herdr` and was not in the table: **libghostty-vt**,
+Ghostty's VT library, which herdr vendors (1.3.2 plus a commit, under
+`vendor/libghostty-vt/`, MIT) and binds through its own `ghostty-vt` crate
+(Apache-2.0, `publish = false`, an FFI over a library **built with Zig** —
+herdr pins Zig 0.16.0 and carries local patches with a tracked index).
+
+| | `alacritty_terminal` 0.26 | libghostty-vt (via a binding like herdr's) | xterm.js in the served page |
+|---|---|---|---|
+| What it is | Rust VT state machine, Apache-2.0; Zed uses its own fork | Ghostty's VT core, MIT; Zig, C ABI; Kitty graphics, correct grapheme widths, scrollback compression | Browser emulator, MIT; Orca patched it seven times for widths, ligatures, images |
+| Toolchain cost to this workspace | none beyond Rust | **a Zig toolchain in the build**, or a prebuilt artifact per platform, plus a binding we would own (herdr's is not published) | none native; a page and a WebSocket pump Gen already has |
+| Rendering | ours to write (cell grid to a texture: the easy case for a 3D engine) | ours to write, same | the browser's |
+| Input | ours: Bevy's `KeyboardInput` is close to raw bytes | same | the browser's |
+| Fidelity risk | widths and images are where Zed carries patches | the strongest of the three on exactly those | the weakest; patched upstream |
+| Licence | clean | clean (MIT core; the binding would be ours) | clean |
+
+Read against the three tiers: libghostty-vt is the best **emulator** of the
+three and the worst **dependency** of the three for a Rust-only workspace. It
+earns its Zig toolchain only if an in-window pane is genuinely wanted (tier
+2) and fidelity for the agents' TUIs — Claude Code's and Codex's boxes,
+spinners and images — is the thing people complain about. Until then it
+changes nothing in the recommendation: 0 now, 1 next, 2 if Gen becomes
+where people live.
+
+**What herdr changes is tier 0, not tier 2.** herdr is a terminal
+multiplexer that *owns the agents' terminals*: one Rust binary in whatever
+terminal the person already uses, a background server the panes survive in,
+remote machines over SSH, and — the part that matters here — **agent
+detection**: a hot-reloadable catalog of per-agent manifests (Claude Code,
+Codex, Cursor, OpenCode and others) that reads each pane's screen and marks
+it `working`, `blocked`, `idle` or `done`, exposed over a socket API
+(`HERDR_SOCKET_PATH`) and a CLI: `herdr pane run <id> <command>`,
+`herdr pane read [--ansi]`, `herdr pane wait-output`, `herdr wait
+agent-status --status blocked|done`, status subscriptions through its event
+hub, and `pane report-metadata` for labels. That is a pane host and a
+turn-boundary detector that already exists, is maintained as a product, and
+asks nothing of Gen's window.
+
+**Why the blocked state is the useful bit.** Tier 0's weakness is not that
+the agent runs in another window; it is that Gen's window is blind to it.
+The person is looking at the canvas; the terminal is behind it or on the
+other display; the agent stops at a permission prompt, a question, a login,
+or a refusal it wants to discuss — and sits there for minutes while the
+person waits for a commit that is never coming. The authority sees nothing
+(no batch arrives), the canvas sees nothing, and the thing that could tell
+them is a screen-reading heuristic per agent that Gen should not own and
+herdr already maintains. One subscription turns that into a light on the
+bottom bar — "Claude is waiting for you", click to focus the pane — at the
+cost of a socket read. The same transitions give **turn boundaries**,
+which §"What to do first" names as the missing link: the log knows who
+committed and what, not *which turn* asked; `working → done` from herdr
+segments the revisions between into one turn without ACP, which is most of
+tier 1's attribution at tier 0's cost. And it composes with the review flow:
+a pending proposal and a blocked agent are the same wait on the same person,
+so the bar can say it once. None of this crosses the line below: Gen reads a
+state and shows it; it composes no prompt and interprets no reply.
+
+**The tier-0 variant, concretely.** When `herdr` is on the path (a Homebrew
+formula exists) and its socket answers, "Open a terminal here" becomes
+`herdr pane run` in the world folder with `--env` carrying nothing Gen does
+not already write to `.live/endpoint.json`; Gen subscribes to the pane's
+agent status and shows it; `done` marks a turn in the history rail;
+`blocked` lights the bar. When herdr is absent, tier 0 is what it is today.
+No emulator, no second way in, no agent logic. The pane's bytes stay in the
+person's terminal, where herdr renders them with the best emulator of the
+three — which is also the answer to "should Gen embed libghostty-vt": not
+while herdr can hold the pane and tell Gen what it needs to know.
 
 ## Three things that bite regardless
 
