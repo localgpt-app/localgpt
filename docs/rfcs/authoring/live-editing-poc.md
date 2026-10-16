@@ -378,8 +378,12 @@ the authority's unit tests and the smoke run (`scripts/live-smoke.py` on a
   than the guide: the committer now proves, before it writes, that the
   entry as it will be logged folds (by the strict fold every reader
   uses) to the world it made in memory — the class of bug the agent
-  found — and refuses, naming the entity, if not; and the cold run is
-  the standing check after a guide change. Run again against the revised
+  found — and refuses, naming the entity, if not; the format gained an
+  authoring outcome suite (`conformance/authoring/cases.json`, nine
+  batches over a base world with what must come back), which the
+  reference crate runs over its own ingest and this authority runs over
+  a vendored copy in CI, so the two cannot drift over what a batch
+  commits; and the cold run is the standing check after a guide change. Run again against the revised
   guide with a different task mix (a stale `expected_revision`, a branch
   and its state, an orbit by name, a direct write, the undo's author),
   the second agent did all eight tasks in 27 calls with no guess that
