@@ -365,6 +365,9 @@ impl LiveWorld {
             return Err(Rejected::one("the batch holds no ops"));
         }
 
+        // Kept to prove, below, that the entry as logged folds back to the
+        // world it makes.
+        let before = start.clone();
         let mut ingest = Ingest {
             dir: self.dir.clone(),
             next_id: self.next_entity_id().max(start.next_id()),
@@ -409,6 +412,12 @@ impl LiveWorld {
             json!({"via": "ops", "message": message}),
             &committed,
         );
+        // The entry as it will be logged must fold, by the strict fold every
+        // reader uses, to the world it made in memory. A difference means
+        // the package would disagree with its own history — as it did when
+        // a reference bound in memory but not in the log — so refuse rather
+        // than write that, and say it is the committer's fault.
+        folds_back(&before, &entry, &ingest.trial).map_err(Rejected::one)?;
         let forked = branch_from.is_some();
         let entry = match branch_from {
             None => self.commit(entry, ingest.trial, next),
@@ -1739,6 +1748,44 @@ fn touched(ops: &[EditOp]) -> HashSet<u64> {
     ids
 }
 
+/// Whether `entry`, folded strictly onto `before` the way every reader
+/// folds the log, gives `after` — the world the committer made in memory.
+/// Per entity, with the tolerance `verify` uses, plus the environment and
+/// the camera. The error names what differs; it is a bug in the committer,
+/// never in the batch.
+fn folds_back(before: &WorldDoc, entry: &OpLogEntry, after: &WorldDoc) -> Result<(), String> {
+    let refolded = fold_log(before, std::slice::from_ref(entry))
+        .map_err(|e| format!("the entry as logged doesn't fold: {e}"))?;
+    let mut differ: Vec<String> = Vec::new();
+    for entity in after.entities() {
+        match refolded.get(entity.id.0) {
+            Some(folded) if wt::values_close(entity, folded) => {}
+            _ => differ.push(entity.name.0.clone()),
+        }
+    }
+    for entity in refolded.entities() {
+        if after.get(entity.id.0).is_none() {
+            differ.push(entity.name.0.clone());
+        }
+    }
+    if !wt::values_close(&after.environment, &refolded.environment) {
+        differ.push("environment".into());
+    }
+    if !wt::values_close(&after.camera, &refolded.camera) {
+        differ.push("camera".into());
+    }
+    if differ.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "the entry as logged would not fold to the world it makes ({}): the committer \
+             would write a package that disagrees with its own history. Nothing was written; \
+             this is a bug in the committer, please report it",
+            differ.join(", ")
+        ))
+    }
+}
+
 /// The refusals noted in `.live/refusals.jsonl`, oldest first: what was
 /// tried outside the API and why it did not take.
 pub fn refusals(dir: &Path) -> Vec<Value> {
@@ -2361,6 +2408,92 @@ mod tests {
             )
             .unwrap_err();
         assert!(refused.errors[0].contains("nobody"), "{:?}", refused.errors);
+    }
+
+    #[test]
+    fn a_committed_entry_must_fold_back_to_the_world_it_made() {
+        let (_dir, live) = world();
+        let before = live.head().clone();
+        let look_at = |target: wt::EntityRef| EditOp::ModifyEntity {
+            id: wt::EntityId(2),
+            patch: wt::EntityPatch {
+                behaviors: Some(vec![wt::BehaviorDef::LookAt { target }]),
+                ..Default::default()
+            },
+        };
+        // The world the committer made: the reference bound to its id.
+        let mut after = before.clone();
+        after
+            .apply_all(std::slice::from_ref(&look_at(wt::EntityRef::id(1))))
+            .unwrap();
+        // Logged with the id, the entry folds back to it.
+        let bound = entry(1, "t", json!({}), &[look_at(wt::EntityRef::id(1))]);
+        assert!(folds_back(&before, &bound, &after).is_ok());
+        // What the intake used to do: apply the op with the name, keeping
+        // the name in the world it made, while the fold binds a logged name
+        // to the id — the two disagree, and the check names the entity.
+        let by_name = look_at(wt::EntityRef::name("ground"));
+        let mut kept_the_name = before.clone();
+        kept_the_name
+            .apply_all(std::slice::from_ref(&by_name))
+            .unwrap();
+        let unbound = entry(1, "t", json!({}), std::slice::from_ref(&by_name));
+        let refolded = fold_log(&before, std::slice::from_ref(&unbound)).unwrap();
+        let (kept, folded) = (
+            kept_the_name.get(2).unwrap().behaviors.clone(),
+            refolded.get(2).unwrap().behaviors.clone(),
+        );
+        assert_ne!(kept, folded, "the fold binds what the apply kept: {kept:?}");
+        let why = folds_back(&before, &unbound, &kept_the_name).unwrap_err();
+        assert!(why.contains("crate") && why.contains("disagrees"), "{why}");
+    }
+
+    #[test]
+    fn undo_and_redo_stay_on_their_branch() {
+        let (_dir, mut live) = world();
+        let r1 = live
+            .submit(
+                &json!([{"SpawnEntity": {"entity": {"name": "post"}}}]),
+                "a",
+                None,
+            )
+            .unwrap();
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "bench"}}}]),
+            "a",
+            None,
+        )
+        .unwrap();
+        // A branch from r1: a lamp that main never has.
+        let r1_id = r1.entry.id.clone().expect("entries have ids");
+        let r3 = live
+            .submit(
+                &json!({"ops": [{"SpawnEntity": {"entity": {"name": "lamp"}}}], "at": r1_id}),
+                "a",
+                None,
+            )
+            .unwrap();
+        assert!(r3.forked);
+        let r3_id = r3.entry.id.clone().unwrap();
+        // Undo on the branch takes the lamp, as the branch's own child.
+        let r4 = live.undo_at(Some(&r3_id), "a").unwrap();
+        assert!(r4.forked);
+        assert_eq!(r4.entry.parent.as_deref(), Some(r3_id.as_str()));
+        assert_eq!(r4.warnings, vec!["undid revision 3".to_string()]);
+        // Main has no undo to redo; the branch does, at its tip.
+        assert!(live.redo_at(None, "a", UndoScope::Anyone).is_err());
+        let r4_id = r4.entry.id.clone().unwrap();
+        let r5 = live.redo_at(Some(&r4_id), "a", UndoScope::Anyone).unwrap();
+        assert!(r5.forked);
+        assert_eq!(r5.entry.parent.as_deref(), Some(r4_id.as_str()));
+        assert_eq!(r5.warnings, vec!["redid revision 3".to_string()]);
+        // Main's own undo and redo are untouched by the branch's.
+        let r6 = live.undo("a").unwrap();
+        assert_eq!(r6.warnings, vec!["undid revision 2".to_string()]);
+        let r7 = live.redo_at(None, "a", UndoScope::Anyone).unwrap();
+        assert_eq!(r7.warnings, vec!["redid revision 2".to_string()]);
+        assert!(!r7.forked);
+        assert!(live.verify().is_empty(), "{:?}", live.verify());
     }
 
     #[test]

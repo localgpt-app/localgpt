@@ -7,11 +7,11 @@
 //! would "heal" the document back to the pre-undo scene.
 //!
 //! Coverage: spawn, delete, and every `EntityPatch` field (transform, name,
-//! parent, shape, material, light, behaviors, audio, mesh asset), plus
-//! `SetEnvironment`, the ambience and the audio emitters. Modulations are
-//! no-ops here, and so is `SetCamera`: the host keeps its own camera, and
-//! the live canvas moves its camera itself for a committed camera op — the
-//! document tracks both for other clients.
+//! parent, shape, material, light, behaviors, audio, mesh asset,
+//! modulations), plus `SetEnvironment`, the ambience and the audio
+//! emitters. `SetCamera` alone is a no-op here: the host keeps its own
+//! camera, and the live canvas moves its camera itself for a committed
+//! camera op — the document tracks it for other clients.
 
 use bevy::prelude::*;
 use localgpt_world_types as wt;
@@ -379,7 +379,23 @@ impl OpsApplier<'_, '_> {
             }
         }
 
-        // modulations: intentionally not applied (see the module doc). The
-        // document tracks them for other clients.
+        // Modulations: the component is rebuilt from the new list the way a
+        // load builds it, or removed when nothing valid is left. The restore
+        // half of the modulation frame has already run by `Update`, so the
+        // entity stands at its authored values when the component changes.
+        if let Some(defs) = &patch.modulations {
+            let mut probe = wt::WorldEntity::new(id.0, "");
+            probe.modulations = defs.clone();
+            match localgpt_world_bevy::modulation::modulated(&probe) {
+                Some(component) => {
+                    self.commands.entity(bevy_entity).insert(component);
+                }
+                None => {
+                    self.commands
+                        .entity(bevy_entity)
+                        .remove::<localgpt_world_bevy::modulation::Modulated>();
+                }
+            }
+        }
     }
 }

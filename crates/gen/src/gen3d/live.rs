@@ -536,6 +536,11 @@ struct Replay {
     next: usize,
     timer: Timer,
     shown: wt::WorldManifest,
+    /// Each frame's assets as its commit held them, materialized on a
+    /// thread ahead of playback: commit → the root to resolve against, or
+    /// why there is none.
+    roots: std::collections::HashMap<String, Result<PathBuf, String>>,
+    assets: Mutex<std::sync::mpsc::Receiver<(String, Result<PathBuf, String>)>>,
 }
 
 /// Removes `.live/endpoint.json` when the app goes away.
@@ -1772,11 +1777,29 @@ fn live_world(
                                 .iter()
                                 .map(|f| format!("{} {} — {}", &f.commit[..7], f.author, f.subject))
                                 .collect();
+                            // The commits' assets, fetched ahead of the frames
+                            // on a thread: git is not asked on the frame.
+                            let (tx, rx) = std::sync::mpsc::channel();
+                            let dir = live.world.dir().to_path_buf();
+                            let commits_to_fetch: Vec<String> =
+                                frames.iter().map(|f| f.commit.clone()).collect();
+                            std::thread::spawn(move || {
+                                let into = dir.join(live::LIVE).join("replay");
+                                for commit in commits_to_fetch {
+                                    let root = live::assets_at(&dir, &commit, &into)
+                                        .map_err(|e| e.to_string());
+                                    if tx.send((commit, root)).is_err() {
+                                        break;
+                                    }
+                                }
+                            });
                             live.replay = Some(Replay {
                                 frames,
                                 next: 0,
                                 timer: Timer::from_seconds(seconds, TimerMode::Repeating),
                                 shown: live.world.head_manifest().clone(),
+                                roots: std::collections::HashMap::new(),
+                                assets: Mutex::new(rx),
                             });
                             Reply::ok(json!({"result": "replaying", "commits": commits}))
                         }
@@ -1978,20 +2001,42 @@ fn live_world(
         };
         let ops = live::diff_manifests(&replay.shown, &target);
         // The assets as that commit held them — a replay of an older frame
-        // must not show today's bytes for a file that changed since.
+        // must not show today's bytes for a file that changed since. They
+        // were fetched ahead; only when playback outruns git does a frame
+        // wait for its own.
         let dir = live.world.dir();
-        let root = match replay.frames.get(replay.next) {
-            Some(frame) => {
-                live::assets_at(dir, &frame.commit, &dir.join(live::LIVE).join("replay"))
-                    .unwrap_or_else(|e| {
-                        eprintln!(
-                            "[live] replay: that commit's assets couldn't be read ({e}); \
-                             showing the working tree's"
-                        );
-                        dir.to_path_buf()
-                    })
+        let root = {
+            // The guard lives only here: the replay is cleared further down.
+            let fetched = replay.assets.lock();
+            if let Ok(fetched) = fetched.as_ref() {
+                for (commit, root) in fetched.try_iter() {
+                    replay.roots.insert(commit, root);
+                }
             }
-            None => dir.to_path_buf(),
+            match replay.frames.get(replay.next) {
+                Some(frame) => {
+                    while !replay.roots.contains_key(&frame.commit) {
+                        match fetched.as_ref().ok().and_then(|rx| rx.recv().ok()) {
+                            Some((commit, root)) => {
+                                replay.roots.insert(commit, root);
+                            }
+                            None => break,
+                        }
+                    }
+                    match replay.roots.get(&frame.commit) {
+                        Some(Ok(root)) => root.clone(),
+                        Some(Err(e)) => {
+                            eprintln!(
+                                "[live] replay: that commit's assets couldn't be read ({e}); \
+                                 showing the working tree's"
+                            );
+                            dir.to_path_buf()
+                        }
+                        None => dir.to_path_buf(),
+                    }
+                }
+                None => dir.to_path_buf(),
+            }
         };
         if let Some(camera) = camera_in(&ops) {
             live.camera = Some(camera);
