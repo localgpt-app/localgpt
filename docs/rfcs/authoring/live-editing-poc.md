@@ -195,7 +195,7 @@ the product.
   dragged onto another hangs under it (onto the zone at the bottom: the
   root), keeping its world placement; right-click offers duplicate,
   delete, unparent, group and focus.
-- **Handles and snapping**: three axis arrows, a ring about the vertical
+- **Handles and snapping**: three axis arrows, a ring about each axis
   and a cube for uniform scale, around the primary selection. `Y`
   toggles snapping to the grid and the angle step (defaults 0.25 m,
   15°; the world bar sets them), and Cmd/Ctrl held during a drag means
@@ -236,7 +236,8 @@ is off otherwise so an agent can't press Enter on its own proposal)
 rejects a proposal with Esc and accepts one with Enter, clicks the bar's
 Reject and Accept buttons, drags the X handle of an entity
 (`GET /selection` reports where the handles are, and which is under the
-pointer), turns it with the comma key, snaps a drag onto the grid, drags
+pointer), turns it with the comma key, pulls a ring to turn it about
+an axis, snaps a drag onto the grid, drags
 an outliner row onto another, frees it from the row's context menu,
 picks a parent and an alpha mode from the panel's combos and drags a
 value field (`GET /widgets` names every panel widget's rectangle),
@@ -249,10 +250,20 @@ one commits, and that the receipt warns about a deleted target. Two
 things it caught: a click on a panel reached the scene behind it (egui's
 own hover test skips the legacy context panels drawn here, so hover is
 now decided from the panels' rectangles), and the outliner rebuilt its
-tree only when the entity count changed, so a reparent left a stale row. The screenshots it takes land in
-`<world>/.live/`; on a locked or sleeping screen a window's surface stays
-black, and `--offscreen` (`LOCALGPT_OFFSCREEN_SHOTS=1`) has the canvas
-render into an image the screenshots read instead.
+tree only when the entity count changed, so a reparent left a stale row.
+The first pass with a real mouse (2026-10-15, after the hand) found two
+more: Shift was also the fly camera's descend key, so a Shift-click landed
+on a moving scene and never counted as a click (descend is Q now, and
+Cmd/Ctrl-click adds to the selection too), and the rings — grown from one
+to three, one about each axis — crossed every arrow at their own radius
+and took the grab there (they sit outside the arrows now). The screenshots
+it takes land in `<world>/.live/`; on a locked or sleeping screen a
+window's surface stays black, and `--offscreen`
+(`LOCALGPT_OFFSCREEN_SHOTS=1`) has the canvas render into an image the
+screenshots read instead. The same mode keeps a run clear of a real mouse
+crossing the window, which a smoke run beside a person's window needs,
+and `LOCALGPT_INSPECTOR_PORT` gives that second canvas its own inspector
+socket.
 
 ## Not done
 

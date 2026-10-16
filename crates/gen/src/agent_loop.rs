@@ -1312,7 +1312,8 @@ pub async fn run_agent_loop(
     println!("Scene Controls:");
     println!("  WASD/Arrows   Move (forward/back/strafe)");
     println!("  Space         Move up / Jump (player mode)");
-    println!("  Shift         Move down / Run (player mode)");
+    println!("  Q             Move down");
+    println!("  Shift         Run (player mode); Shift-click adds to the selection");
     println!("  Right-click   Hold + drag to look around");
     println!("  Scroll wheel  Adjust movement speed");
     println!("  Tab           Toggle free-fly / avatar camera");

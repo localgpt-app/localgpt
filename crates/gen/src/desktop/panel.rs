@@ -32,7 +32,7 @@ const EXAMPLES: [&str; 3] = [
 const CONTROLS: [(&str, &str); 9] = [
     ("WASD", "Move"),
     ("Right-drag", "Look around"),
-    ("Space / Shift", "Up / down (jump / run as avatar)"),
+    ("Space / Q", "Up / down (Space jumps, Shift runs as avatar)"),
     ("Scroll", "Movement speed"),
     ("Tab", "Free-fly or avatar camera"),
     ("E", "Interact"),

@@ -17,9 +17,9 @@
 //!
 //! | Input | Edit |
 //! |---|---|
-//! | click | select (Esc, or a click on nothing: deselect); shift-click adds to the selection |
+//! | click | select (Esc, or a click on nothing: deselect); Shift- or Cmd/Ctrl-click adds to the selection |
 //! | drag | move along the ground; with Alt held, up and down |
-//! | drag a handle | move along one axis (the arrows), turn (the ring), scale (the cube) |
+//! | drag a handle | move along one axis (the arrows), turn about one (the rings), scale (the cube) |
 //! | arrows, PgUp / PgDn | nudge one grid step, along the axis nearest the view / vertically |
 //! | `,` `.` | turn one angle step left / right |
 //! | `-` `=` | scale down / up by 10% |
@@ -34,8 +34,9 @@
 //! stream: a field, a parent, a bookmark arrives here as an intent and goes
 //! out as a batch the way a gesture does.
 //!
-//! W A S D, Space and Shift stay the camera's and the right button looks
-//! around, so none of these collide with flying.
+//! W A S D, Space and Q stay the camera's and the right button looks
+//! around, so none of these collide with flying — and Shift is free to be
+//! the selection's modifier.
 
 use bevy::camera::primitives::Aabb;
 use bevy::ecs::system::SystemParam;
@@ -64,7 +65,6 @@ const AXIS_COLORS: [Color; 3] = [
     Color::srgb(0.4, 0.9, 0.4),
     Color::srgb(0.35, 0.5, 1.0),
 ];
-const RING: Color = Color::srgb(0.95, 0.85, 0.3);
 const SCALE_HANDLE: Color = Color::srgb(0.9, 0.9, 0.9);
 const HOT: Color = Color::WHITE;
 
@@ -153,8 +153,10 @@ pub struct Moved {
     pub name: String,
     /// The local position the canvas left it at, when the gesture moved it.
     pub position: Option<[f32; 3]>,
-    /// Degrees about the vertical axis, counter-clockwise seen from above.
-    pub yaw_degrees: f32,
+    /// The rotation the gesture applied, in the parent's frame — about the
+    /// vertical from the keys, about any world axis from the rings.
+    /// Identity when it didn't turn.
+    pub turn: Quat,
     /// Uniform factor.
     pub scale_by: f32,
 }
@@ -183,7 +185,7 @@ impl CanvasGesture {
 struct Gesture {
     grabbed: Vec<Grabbed>,
     moved: bool,
-    yaw_degrees: f32,
+    turned: bool,
     scale_by: f32,
     /// Quiet time before a run of key presses commits; a drag commits on
     /// release instead.
@@ -198,6 +200,9 @@ struct Grabbed {
     /// The world origin when the drag began: the others follow the
     /// primary's displacement from theirs.
     start: Vec3,
+    /// The local rotation when the gesture began: what it turned is the
+    /// difference at the end.
+    start_rotation: Quat,
 }
 
 impl Gesture {
@@ -205,7 +210,7 @@ impl Gesture {
         Self {
             grabbed,
             moved: false,
-            yaw_degrees: 0.0,
+            turned: false,
             scale_by: 1.0,
             idle: Timer::from_seconds(KEY_GESTURE_IDLE_SECS, TimerMode::Once),
             drag: None,
@@ -246,17 +251,21 @@ impl Gesture {
         self.moved = true;
     }
 
-    /// Turn everything by `degrees` about its own vertical — the parent's,
-    /// which is what the committed angles say — and scale it by `factor`.
-    fn turn_and_scale(&mut self, scene: &mut Scene, degrees: f32, factor: f32) {
+    /// Turn everything by `degrees` about a world `axis` through its own
+    /// origin — the axis read in the parent's frame, which is what the
+    /// committed angles say — and scale it by `factor`.
+    fn turn_and_scale(&mut self, scene: &mut Scene, axis: Vec3, degrees: f32, factor: f32) {
         for g in &self.grabbed {
+            let local_axis = scene.local_vector(g.entity, axis).normalize_or(axis);
             if let Ok(mut transform) = scene.transforms.get_mut(g.entity) {
                 transform.rotation =
-                    Quat::from_rotation_y(degrees.to_radians()) * transform.rotation;
+                    Quat::from_axis_angle(local_axis, degrees.to_radians()) * transform.rotation;
                 transform.scale *= factor;
             }
         }
-        self.yaw_degrees += degrees;
+        if degrees != 0.0 {
+            self.turned = true;
+        }
         self.scale_by *= factor;
     }
 
@@ -265,19 +274,23 @@ impl Gesture {
         PersonIntent::Transform(
             self.grabbed
                 .iter()
-                .map(|g| Moved {
-                    id: g.id,
-                    name: g.name.clone(),
-                    position: if self.moved {
-                        transforms
-                            .get(g.entity)
-                            .ok()
-                            .map(|t| t.translation.to_array())
-                    } else {
-                        None
-                    },
-                    yaw_degrees: self.yaw_degrees,
-                    scale_by: self.scale_by,
+                .map(|g| {
+                    let now = transforms.get(g.entity).ok();
+                    Moved {
+                        id: g.id,
+                        name: g.name.clone(),
+                        position: if self.moved {
+                            now.map(|t| t.translation.to_array())
+                        } else {
+                            None
+                        },
+                        turn: if self.turned {
+                            now.map_or(Quat::IDENTITY, |t| t.rotation * g.start_rotation.inverse())
+                        } else {
+                            Quat::IDENTITY
+                        },
+                        scale_by: self.scale_by,
+                    }
                 })
                 .collect(),
         )
@@ -297,12 +310,12 @@ struct Grab {
     handle: Option<HandleGrab>,
 }
 
-/// The handles around the selection: three axis arrows, a ring about the
-/// vertical, a cube for uniform scale.
+/// The handles around the selection: three axis arrows, three rings, one
+/// about each axis, a cube for uniform scale.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Handle {
     Axis(usize),
-    Ring,
+    Ring(usize),
     Scale,
 }
 
@@ -311,12 +324,13 @@ struct HandleGrab {
     handle: Handle,
     /// Along the axis: the line parameter under the pointer at the grab.
     start_s: f32,
-    /// On the ring: the direction from the origin to the grab.
+    /// On a ring: the direction from the origin to the grab.
     start_dir: Vec3,
     /// On the cube: the screen distance from the origin to the grab.
     start_px: f32,
-    /// What the ring has applied so far, so each frame applies the rest.
-    applied_yaw: f32,
+    /// What the ring has applied so far, in degrees, so each frame applies
+    /// the rest.
+    applied_angle: f32,
     /// What the cube has applied so far.
     applied_scale: f32,
 }
@@ -344,7 +358,9 @@ impl Handles {
             Handle::Axis(0) => "x",
             Handle::Axis(1) => "y",
             Handle::Axis(_) => "z",
-            Handle::Ring => "ring",
+            Handle::Ring(0) => "ring_x",
+            Handle::Ring(1) => "ring_y",
+            Handle::Ring(_) => "ring_z",
             Handle::Scale => "scale",
         })
     }
@@ -369,7 +385,9 @@ impl HandleFrame {
         Self {
             origin,
             length,
-            ring_radius: 0.8 * length,
+            // Outside the arrows' tips: a ring inside them crosses every
+            // arrow at its own radius, and there the ring took the grab.
+            ring_radius: 1.15 * length,
             scale_at: origin + Vec3::ONE.normalize() * 0.9 * length,
             threshold: 0.035 * distance,
         }
@@ -507,11 +525,16 @@ fn gesture_on<'g>(
                     .get(entity)
                     .map(|g| g.translation())
                     .unwrap_or_default();
+                let start_rotation = scene
+                    .transforms
+                    .get(entity)
+                    .map_or(Quat::IDENTITY, |t| t.rotation);
                 grabbed.push(Grabbed {
                     entity,
                     id,
                     name,
                     start,
+                    start_rotation,
                 });
             }
         };
@@ -596,7 +619,7 @@ fn snapping(settings: &CanvasSettings, keys: &ButtonInput<KeyCode>) -> bool {
         ])
 }
 
-/// The handles: hover, grab, and the drag along an axis, around the ring
+/// The handles: hover, grab, and the drag along an axis, around a ring
 /// or out from the cube. Runs before the picking-driven edits so a press on
 /// a handle is a handle's, not a press on what is behind it.
 #[allow(clippy::too_many_arguments)]
@@ -649,10 +672,12 @@ fn handle_edits(
         let origin = grab.origin;
         let kind = hg.handle;
         let (start_s, start_dir, start_px) = (hg.start_s, hg.start_dir, hg.start_px);
-        let (applied_yaw, applied_scale) = (hg.applied_yaw, hg.applied_scale);
+        let (applied_angle, applied_scale) = (hg.applied_angle, hg.applied_scale);
         let mut target = None;
-        let mut yaw = applied_yaw;
+        let mut angle = applied_angle;
         let mut scale = applied_scale;
+        // The axis a ring turns about; the keys' vertical otherwise.
+        let mut turn_axis = Vec3::Y;
         match kind {
             Handle::Axis(i) => {
                 let axis = AXES[i];
@@ -663,13 +688,14 @@ fn handle_edits(
                 }
                 target = Some(t);
             }
-            Handle::Ring => {
-                if let Some(hit) = hit_plane(ray, origin, Vec3::Y) {
+            Handle::Ring(i) => {
+                turn_axis = AXES[i];
+                if let Some(hit) = hit_plane(ray, origin, turn_axis) {
                     let dir = (hit - origin).normalize_or_zero();
                     if dir != Vec3::ZERO {
-                        yaw = signed_angle_about_y(start_dir, dir).to_degrees();
+                        angle = signed_angle_about(turn_axis, start_dir, dir).to_degrees();
                         if snap {
-                            yaw = snap_to(yaw, settings.angle_degrees);
+                            angle = snap_to(angle, settings.angle_degrees);
                         }
                     }
                 }
@@ -686,11 +712,16 @@ fn handle_edits(
         if let Some(t) = target {
             g.move_to(&mut scene, t);
         }
-        if yaw != applied_yaw || scale != applied_scale {
-            g.turn_and_scale(&mut scene, yaw - applied_yaw, scale / applied_scale);
+        if angle != applied_angle || scale != applied_scale {
+            g.turn_and_scale(
+                &mut scene,
+                turn_axis,
+                angle - applied_angle,
+                scale / applied_scale,
+            );
         }
         if let Some(hg) = g.drag.as_mut().and_then(|d| d.handle.as_mut()) {
-            hg.applied_yaw = yaw;
+            hg.applied_angle = angle;
             hg.applied_scale = scale;
         }
         return;
@@ -719,15 +750,17 @@ fn handle_edits(
         start_s: 0.0,
         start_dir: Vec3::X,
         start_px: 1.0,
-        applied_yaw: 0.0,
+        applied_angle: 0.0,
         applied_scale: 1.0,
     };
     match kind {
         Handle::Axis(i) => hg.start_s = line_param_nearest_ray(origin, AXES[i], ray),
-        Handle::Ring => {
-            hg.start_dir = hit_plane(ray, origin, Vec3::Y)
-                .map(|hit| (hit - origin).normalize_or(Vec3::X))
-                .unwrap_or(Vec3::X);
+        Handle::Ring(i) => {
+            // Some direction in the ring's plane, should the grab miss it.
+            let across = AXES[(i + 1) % 3];
+            hg.start_dir = hit_plane(ray, origin, AXES[i])
+                .map(|hit| (hit - origin).normalize_or(across))
+                .unwrap_or(across);
         }
         Handle::Scale => {
             hg.start_px = cursor
@@ -775,7 +808,15 @@ fn pointer_edits(
         }
         return;
     }
-    let extend = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+    // Shift, or Cmd/Ctrl as the outliner also takes it.
+    let extend = keys.any_pressed([
+        KeyCode::ShiftLeft,
+        KeyCode::ShiftRight,
+        KeyCode::SuperLeft,
+        KeyCode::SuperRight,
+        KeyCode::ControlLeft,
+        KeyCode::ControlRight,
+    ]);
     let snap = snapping(&settings, &keys);
 
     for click in clicks.read() {
@@ -1040,7 +1081,7 @@ fn key_edit(
         g.nudge(scene, nudge);
     }
     if turn != 0.0 || scale != 1.0 {
-        g.turn_and_scale(scene, turn, scale);
+        g.turn_and_scale(scene, Vec3::Y, turn, scale);
     }
 }
 
@@ -1099,8 +1140,9 @@ fn draw_selection(
     }
 }
 
-/// The handles around the primary selection: axis arrows, the yaw ring,
-/// the scale cube; the one under the pointer, or being dragged, lights up.
+/// The handles around the primary selection: axis arrows, a ring about
+/// each axis in the axis's color, the scale cube; the one under the
+/// pointer, or being dragged, lights up.
 fn draw_handles(mut gizmos: Gizmos, handles: Res<Handles>, gesture: Res<CanvasGesture>) {
     let Some(frame) = handles.frame else {
         return;
@@ -1124,14 +1166,17 @@ fn draw_handles(mut gizmos: Gizmos, handles: Res<Handles>, gesture: Res<CanvasGe
             color,
         );
     }
-    gizmos.circle(
-        Isometry3d::new(
-            frame.origin,
-            Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
-        ),
-        frame.ring_radius,
-        if hot == Some(Handle::Ring) { HOT } else { RING },
-    );
+    for (i, facing) in ring_facings().iter().enumerate() {
+        gizmos.circle(
+            Isometry3d::new(frame.origin, *facing),
+            frame.ring_radius,
+            if hot == Some(Handle::Ring(i)) {
+                HOT
+            } else {
+                AXIS_COLORS[i]
+            },
+        );
+    }
     let half = Vec3::splat(frame.length * 0.05);
     gizmos.aabb_3d(
         Aabb3d {
@@ -1168,15 +1213,27 @@ fn hit_handle(frame: &HandleFrame, ray: Ray3d) -> Option<Handle> {
         Handle::Scale,
         frame.threshold * 1.4,
     );
-    if let Some(hit) = hit_plane(ray, frame.origin, Vec3::Y) {
-        let radius = (hit - frame.origin).length();
-        consider(
-            (radius - frame.ring_radius).abs(),
-            Handle::Ring,
-            frame.threshold,
-        );
+    for (i, axis) in AXES.iter().enumerate() {
+        if let Some(hit) = hit_plane(ray, frame.origin, *axis) {
+            let radius = (hit - frame.origin).length();
+            consider(
+                (radius - frame.ring_radius).abs(),
+                Handle::Ring(i),
+                frame.threshold,
+            );
+        }
     }
     best.map(|(_, handle)| handle)
+}
+
+/// The rotation that lays a gizmo circle (drawn about +Z) in each ring's
+/// plane: about X, about Y, about Z.
+fn ring_facings() -> [Quat; 3] {
+    [
+        Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+        Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
+        Quat::IDENTITY,
+    ]
 }
 
 fn corners(aabb: &Aabb) -> [Vec3; 8] {
@@ -1269,10 +1326,11 @@ fn line_param_nearest_ray(origin: Vec3, axis: Vec3, ray: Ray3d) -> f32 {
     (ab * bw - bb * aw) / denom
 }
 
-/// The rotation about +Y that takes direction `from` to direction `to`,
-/// in radians, counter-clockwise seen from above.
-fn signed_angle_about_y(from: Vec3, to: Vec3) -> f32 {
-    from.cross(to).dot(Vec3::Y).atan2(from.dot(to))
+/// The rotation about `axis` that takes direction `from` to direction `to`,
+/// in radians — right-handed, so about +Y it is counter-clockwise seen from
+/// above.
+fn signed_angle_about(axis: Vec3, from: Vec3, to: Vec3) -> f32 {
+    from.cross(to).dot(axis).atan2(from.dot(to))
 }
 
 #[cfg(test)]
@@ -1361,7 +1419,7 @@ mod tests {
 
     #[test]
     fn the_ring_turns_counter_clockwise_seen_from_above() {
-        let quarter = signed_angle_about_y(Vec3::Z, Vec3::X);
+        let quarter = signed_angle_about(Vec3::Y, Vec3::Z, Vec3::X);
         assert!(
             (quarter - std::f32::consts::FRAC_PI_2).abs() < 1e-5,
             "{quarter}"
@@ -1369,8 +1427,25 @@ mod tests {
         // Applying it as a rotation about Y takes `from` to `to`.
         let turned = Quat::from_rotation_y(quarter) * Vec3::Z;
         assert!((turned - Vec3::X).length() < 1e-5, "{turned}");
-        let back = signed_angle_about_y(Vec3::X, Vec3::Z);
+        let back = signed_angle_about(Vec3::Y, Vec3::X, Vec3::Z);
         assert!((back + std::f32::consts::FRAC_PI_2).abs() < 1e-5, "{back}");
+        // The same rule about X: the angle applied about X takes Y to Z.
+        let about_x = signed_angle_about(Vec3::X, Vec3::Y, Vec3::Z);
+        let turned = Quat::from_axis_angle(Vec3::X, about_x) * Vec3::Y;
+        assert!((turned - Vec3::Z).length() < 1e-5, "{turned}");
+    }
+
+    #[test]
+    fn each_ring_lies_in_its_own_plane() {
+        // A circle gizmo is drawn about +Z; faced for ring i, its normal is
+        // axis i.
+        for (i, facing) in ring_facings().iter().enumerate() {
+            let normal = *facing * Vec3::Z;
+            assert!(
+                (normal.abs() - AXES[i]).length() < 1e-5,
+                "ring {i} faces {normal}"
+            );
+        }
     }
 
     #[test]
@@ -1380,10 +1455,14 @@ mod tests {
         let x_end = Vec3::X * frame.length;
         let ray = Ray3d::new(x_end + Vec3::Y * 10.0, Dir3::NEG_Y);
         assert_eq!(hit_handle(&frame, ray), Some(Handle::Axis(0)));
-        // Straight down onto the ring, away from any arrow.
+        // Straight down onto the ring about Y, away from any arrow.
         let on_ring = Vec3::new(1.0, 0.0, 1.0).normalize() * frame.ring_radius;
         let ray = Ray3d::new(on_ring + Vec3::Y * 10.0, Dir3::NEG_Y);
-        assert_eq!(hit_handle(&frame, ray), Some(Handle::Ring));
+        assert_eq!(hit_handle(&frame, ray), Some(Handle::Ring(1)));
+        // Along -X onto the ring about X, where no other ring or arrow is.
+        let on_x_ring = Vec3::new(0.0, 1.0, -1.0).normalize() * frame.ring_radius;
+        let ray = Ray3d::new(on_x_ring + Vec3::X * 10.0, Dir3::NEG_X);
+        assert_eq!(hit_handle(&frame, ray), Some(Handle::Ring(0)));
         // Onto the cube.
         let ray = Ray3d::new(frame.scale_at + Vec3::Y * 10.0, Dir3::NEG_Y);
         assert_eq!(hit_handle(&frame, ray), Some(Handle::Scale));

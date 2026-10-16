@@ -8087,7 +8087,9 @@ fn find_in_dir(dir: &PathBuf, needle: &OsStr) -> Option<PathBuf> {
 // Fly camera systems
 // ---------------------------------------------------------------------------
 
-/// WASD + Space/Shift movement relative to camera orientation.
+/// WASD + Space/Q movement relative to camera orientation. Shift is not
+/// the camera's: it is the canvas's selection modifier (Shift-click adds),
+/// and a key that also flew made the click land on a moving scene.
 fn fly_cam_movement(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
@@ -8126,7 +8128,7 @@ fn fly_cam_movement(
     if keys.pressed(KeyCode::Space) {
         velocity += Vec3::Y;
     }
-    if keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight) {
+    if keys.pressed(KeyCode::KeyQ) {
         velocity -= Vec3::Y;
     }
 

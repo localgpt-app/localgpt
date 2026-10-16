@@ -906,7 +906,14 @@ fn on_mesh_clicked(
     if on.event.button != PointerButton::Primary {
         return;
     }
-    let extend = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+    let extend = keys.any_pressed([
+        KeyCode::ShiftLeft,
+        KeyCode::ShiftRight,
+        KeyCode::SuperLeft,
+        KeyCode::SuperRight,
+        KeyCode::ControlLeft,
+        KeyCode::ControlRight,
+    ]);
 
     // Walk up parent chain to find the GenEntity
     let mut entity = on.entity;

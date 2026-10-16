@@ -3,8 +3,9 @@
 
 Launches `localgpt-gen --live <world>` with the inspector open
 (`LOCALGPT_INSPECTOR=full`), drives it over the live API in
-`<world>/.live/endpoint.json`, the inspector's WebSocket (port 9877) and
-a synthesized hand (`LOCALGPT_SYNTHETIC_INPUT=1`, `POST /input`), and
+`<world>/.live/endpoint.json`, the inspector's WebSocket (port 9877, or
+`LOCALGPT_INSPECTOR_PORT` for a second canvas on the same desk) and a
+synthesized hand (`LOCALGPT_SYNTHETIC_INPUT=1`, `POST /input`), and
 checks what an editor is judged by: selection, proposals rejected and
 accepted by key and by the bar's buttons, the busy replies while one is
 pending and the log untouched, the stale-revision refusal, a commit with
@@ -35,7 +36,7 @@ import urllib.error
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WS_PORT = 9877
+WS_PORT = int(os.environ.get("LOCALGPT_INSPECTOR_PORT", "9877"))
 GRID = 0.25
 
 
@@ -179,6 +180,24 @@ class Canvas:
         hot = (call(self.ep, "GET", "/selection")[1].get("handles") or {}).get("hot")
         events = [{"button": "left", "pressed": True}]
         events += [{"cursor": [start[0] + ux * step * i, start[1] + uy * step * i]} for i in range(1, px // step + 1)]
+        events += [{"button": "left", "pressed": False}]
+        self.input(events)
+        return hot
+
+    def drag_ring(self, name, px, step=8):
+        """Hover a ring of the selection where the API puts it, press, pull
+        along the ring (across its spoke), release. Returns the handle under
+        the pointer at the press."""
+        handles = call(self.ep, "GET", "/selection")[1].get("handles") or {}
+        (ox, oy), (rx, ry) = handles["origin"], handles[name]
+        dx, dy = rx - ox, ry - oy
+        n = max((dx * dx + dy * dy) ** 0.5, 1.0)
+        tx, ty = -dy / n, dx / n
+        self.input([{"cursor": [rx, ry]}])
+        time.sleep(0.2)
+        hot = (call(self.ep, "GET", "/selection")[1].get("handles") or {}).get("hot")
+        events = [{"button": "left", "pressed": True}]
+        events += [{"cursor": [rx + tx * step * i, ry + ty * step * i]} for i in range(1, px // step + 1)]
         events += [{"button": "left", "pressed": False}]
         self.input(events)
         return hot
@@ -331,6 +350,27 @@ def main():
             check(abs(yaw - 30.0) < 0.01, f"two turns are 30 degrees ({yaw})")
             status, body = call(ep, "GET", "/screenshot")
             shots.append(body.get("path"))
+
+            # A ring: the most face-on of the three (its spoke is longest on
+            # screen), hovered where the API puts it, then pulled along the
+            # ring — a turn about that axis, committed as one entry.
+            h = call(ep, "GET", "/selection")[1].get("handles") or {}
+
+            def spoke(name):
+                if not h.get(name) or not h.get("origin"):
+                    return 0.0
+                (ox, oy), (px_, py_) = h["origin"], h[name]
+                return ((px_ - ox) ** 2 + (py_ - oy) ** 2) ** 0.5
+
+            ring = max(("ring_x", "ring_y", "ring_z"), key=spoke)
+            before = canvas.entity(args.modify).get("transform", {}).get("rotation_degrees", [0, 0, 0])
+            lines = canvas.log_lines()
+            hot = canvas.drag_ring(ring, 48)
+            check(hot == ring, f"the pointer over the {ring} ring makes it hot ({hot})")
+            time.sleep(1.5)
+            after = canvas.entity(args.modify).get("transform", {}).get("rotation_degrees", [0, 0, 0])
+            check(canvas.log_lines() == lines + 1, "the ring drag committed one entry")
+            check(max(abs(a - b) for a, b in zip(after, before)) > 1.0, f"the ring turned {args.modify} about its axis ({before} -> {after})")
 
             # What a hand would feel, measured: the handles keep about the
             # same size on screen from near and far, and the hover

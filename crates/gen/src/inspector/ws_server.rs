@@ -73,8 +73,17 @@ struct ServerState {
 // Bevy plugin + systems
 // ---------------------------------------------------------------------------
 
-/// Default port for the inspector WebSocket server.
+/// Default port for the inspector WebSocket server. `LOCALGPT_INSPECTOR_PORT`
+/// overrides it, so a second canvas on the same desk (a smoke run beside a
+/// person's window) has its own.
 const DEFAULT_PORT: u16 = 9877;
+
+fn port() -> u16 {
+    std::env::var("LOCALGPT_INSPECTOR_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(DEFAULT_PORT)
+}
 
 /// Starts the WebSocket server and inserts bridge resources into the Bevy app.
 pub fn start_ws_server(app: &mut App) {
@@ -123,16 +132,14 @@ pub fn start_ws_server(app: &mut App) {
                 .route("/health", get(health_handler))
                 .with_state(state);
 
-            let addr = SocketAddr::from(([0, 0, 0, 0], DEFAULT_PORT));
+            let port = port();
+            let addr = SocketAddr::from(([0, 0, 0, 0], port));
             info!("Inspector WebSocket server listening on ws://{}/ws", addr);
 
             let listener = match tokio::net::TcpListener::bind(addr).await {
                 Ok(l) => l,
                 Err(e) => {
-                    warn!(
-                        "Inspector WS server failed to bind port {}: {}",
-                        DEFAULT_PORT, e
-                    );
+                    warn!("Inspector WS server failed to bind port {}: {}", port, e);
                     return;
                 }
             };

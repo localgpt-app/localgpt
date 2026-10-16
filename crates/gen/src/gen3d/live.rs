@@ -381,8 +381,9 @@ fn offscreen_canvas(
 }
 
 /// The handles' places in the window, for a driver with no eyes: the
-/// origin, the three arrow ends, a point on the ring (the one facing the
-/// camera) and the scale cube.
+/// origin, the three arrow ends, a point on each ring (near where it faces
+/// the camera, a turn along it away from the arrows it crosses) and the
+/// scale cube.
 fn handle_points(
     handles: Option<&super::canvas_edit::Handles>,
     cameras: &Query<(&Camera, &GlobalTransform), With<FlyCam>>,
@@ -399,13 +400,26 @@ fn handle_points(
             .unwrap_or(Value::Null)
     };
     let to_camera = global.translation() - frame.origin;
-    let flat = Vec3::new(to_camera.x, 0.0, to_camera.z).normalize_or(Vec3::Z);
+    // A point of each ring near the camera: in the ring's plane, toward the
+    // camera, then an eighth of a turn along the ring so it is not where an
+    // arrow crosses it (the arrows win a tie there).
+    let axes = [Vec3::X, Vec3::Y, Vec3::Z];
+    let on_ring = |i: usize| {
+        let axis = axes[i];
+        let facing = (to_camera - axis * to_camera.dot(axis)).normalize_or(axes[(i + 1) % 3]);
+        let spoke = Quat::from_axis_angle(axis, std::f32::consts::FRAC_PI_4) * facing;
+        at(frame.origin + spoke * frame.ring_radius)
+    };
     json!({
         "origin": at(frame.origin),
         "x": at(frame.origin + Vec3::X * frame.length),
         "y": at(frame.origin + Vec3::Y * frame.length),
         "z": at(frame.origin + Vec3::Z * frame.length),
-        "ring": at(frame.origin + flat * frame.ring_radius),
+        "ring_x": on_ring(0),
+        "ring_y": on_ring(1),
+        "ring_z": on_ring(2),
+        // The ring about the vertical, under the name it had alone.
+        "ring": on_ring(1),
         "scale": at(frame.scale_at),
         // The one under the pointer now, if any.
         "hot": handles.and_then(|h| h.hot_name()),
@@ -1080,8 +1094,7 @@ fn person_edit(
                         format!("{} is not in the world on screen", moved.name),
                     );
                 };
-                let patch =
-                    gesture_patch(&current, moved.position, moved.yaw_degrees, moved.scale_by);
+                let patch = gesture_patch(&current, moved.position, moved.turn, moved.scale_by);
                 if patch.is_empty() {
                     continue;
                 }
@@ -1233,18 +1246,19 @@ fn person_edit(
 }
 
 /// The transform patch a gesture makes, from the document's current value:
-/// the position the canvas left it at, a turn about the vertical, a uniform
-/// scale. Only what changed, rounded so the log reads (mm, 0.01°).
+/// the position the canvas left it at, a turn (in the parent's frame), a
+/// uniform scale. Only what changed, rounded so the log reads (mm, 0.01°).
 fn gesture_patch(
     current: &wt::WorldTransform,
     position: Option<[f32; 3]>,
-    yaw_degrees: f32,
+    turn: Quat,
     scale_by: f32,
 ) -> serde_json::Map<String, Value> {
     // Rounded, then read as the f32's shortest decimal — widening an f32
-    // to JSON's f64 directly writes 2.122999906539917 for 2.123.
+    // to JSON's f64 directly writes 2.122999906539917 for 2.123. The `+ 0.0`
+    // turns a -0.0 into 0.0.
     let round = |v: f32, by: f32| -> f64 {
-        let r = (v * by).round() / by;
+        let r = (v * by).round() / by + 0.0;
         r.to_string().parse().unwrap_or(f64::from(r))
     };
     let mut patch = serde_json::Map::new();
@@ -1257,12 +1271,11 @@ fn gesture_patch(
             patch.insert("position".into(), json!(p));
         }
     }
-    if yaw_degrees.rem_euclid(360.0).abs() > 1e-3
-        && (yaw_degrees.rem_euclid(360.0) - 360.0).abs() > 1e-3
-    {
+    // A full circle is no turn: the angle to the identity is the short way.
+    if turn.angle_between(Quat::IDENTITY).to_degrees() > 1e-3 {
         patch.insert(
             "rotation_degrees".into(),
-            json!(turned(current.rotation_degrees, yaw_degrees).map(|v| round(v, 100.0))),
+            json!(turned(current.rotation_degrees, turn).map(|v| round(v, 100.0))),
         );
     }
     if (scale_by - 1.0).abs() > 1e-4 {
@@ -1274,19 +1287,23 @@ fn gesture_patch(
     patch
 }
 
-/// Turn XYZ angles about the vertical. Without a tilt that is the yaw plus
-/// the turn, kept in (-180, 180]; with one, the rotations are composed and
-/// read back as the format's XYZ angles — what the canvas previewed.
-fn turned(rotation: [f32; 3], yaw: f32) -> [f32; 3] {
+/// Apply a turn to XYZ angles. A turn about the vertical on an untilted
+/// body is the yaw plus the turn, kept in (-180, 180], so the angles keep
+/// their form; otherwise the rotations are composed and read back as the
+/// format's XYZ angles — what the canvas previewed either way.
+fn turned(rotation: [f32; 3], turn: Quat) -> [f32; 3] {
     let wrap = |d: f32| {
         let w = (d + 180.0).rem_euclid(360.0) - 180.0;
         if w == -180.0 { 180.0 } else { w }
     };
-    if rotation[0].abs() < 1e-3 && rotation[2].abs() < 1e-3 {
+    let (axis, angle) = turn.to_axis_angle();
+    let about_vertical = axis.x.abs() < 1e-4 && axis.z.abs() < 1e-4;
+    if about_vertical && rotation[0].abs() < 1e-3 && rotation[2].abs() < 1e-3 {
+        let yaw = angle.to_degrees() * axis.y.signum();
         return [rotation[0], wrap(rotation[1] + yaw), rotation[2]];
     }
     let [x, y, z] = rotation.map(f32::to_radians);
-    let q = Quat::from_rotation_y(yaw.to_radians()) * Quat::from_euler(EulerRot::XYZ, x, y, z);
+    let q = turn * Quat::from_euler(EulerRot::XYZ, x, y, z);
     let (x, y, z) = q.to_euler(EulerRot::XYZ);
     [x, y, z].map(f32::to_degrees)
 }
@@ -2177,20 +2194,32 @@ mod tests {
     #[test]
     fn a_gesture_patches_only_what_it_changed() {
         let t = transform([0.0, 170.0, 0.0]);
+        let yaw = |degrees: f32| Quat::from_rotation_y(degrees.to_radians());
         // A drag that came back to where it began changes nothing.
-        assert!(gesture_patch(&t, Some([1.00001, 0.5, -2.0]), 0.0, 1.0).is_empty());
-        let moved = gesture_patch(&t, Some([2.12345, 0.5, -2.0]), 0.0, 1.0);
+        assert!(gesture_patch(&t, Some([1.00001, 0.5, -2.0]), Quat::IDENTITY, 1.0).is_empty());
+        let moved = gesture_patch(&t, Some([2.12345, 0.5, -2.0]), Quat::IDENTITY, 1.0);
         assert_eq!(moved.get("position"), Some(&json!([2.123, 0.5, -2.0])));
         assert_eq!(moved.len(), 1);
         // Turning past 180 wraps, keeping the angles' form.
-        let turn = gesture_patch(&t, None, 15.0, 1.0);
+        let turn = gesture_patch(&t, None, yaw(15.0), 1.0);
         assert_eq!(
             turn.get("rotation_degrees"),
             Some(&json!([0.0, -175.0, 0.0]))
         );
         // A full circle is no turn.
-        assert!(gesture_patch(&t, None, 360.0, 1.0).is_empty());
-        let scaled = gesture_patch(&t, None, 0.0, 1.21);
+        assert!(gesture_patch(&t, None, yaw(360.0), 1.0).is_empty());
+        // A turn about X on an untilted body tilts it, and the yaw stays.
+        let tilt = gesture_patch(
+            &transform([0.0, 30.0, 0.0]),
+            None,
+            Quat::from_rotation_x(20f32.to_radians()),
+            1.0,
+        );
+        assert_eq!(
+            tilt.get("rotation_degrees"),
+            Some(&json!([20.0, 30.0, 0.0]))
+        );
+        let scaled = gesture_patch(&t, None, Quat::IDENTITY, 1.21);
         assert_eq!(scaled.get("scale"), Some(&json!([1.21, 1.21, 1.21])));
         assert_eq!(gesture_verbs(&moved), "move");
         let mut both = moved.clone();
@@ -2201,7 +2230,7 @@ mod tests {
     #[test]
     fn a_tilted_turn_is_the_rotation_the_canvas_previewed() {
         let tilted = [20.0, 30.0, -10.0];
-        let angles = turned(tilted, 45.0);
+        let angles = turned(tilted, Quat::from_rotation_y(45f32.to_radians()));
         let rad = |a: [f32; 3]| a.map(f32::to_radians);
         let [x, y, z] = rad(angles);
         let [a, b, c] = rad(tilted);
