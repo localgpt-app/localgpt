@@ -8,10 +8,14 @@ pub mod detail;
 pub mod outliner;
 pub mod protocol;
 pub mod selection;
+#[cfg(feature = "feathers")]
+pub mod world_bar;
 pub mod world_info;
 pub mod ws_server;
 
 use bevy::ecs::system::SystemParam;
+use bevy::picking::hover::HoverMap;
+use bevy::picking::pointer::PointerId;
 use bevy::picking::prelude::*;
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
@@ -201,6 +205,7 @@ pub(crate) struct InspectorQueries<'w, 's> {
     pub visibility_q: Query<'w, 's, &'static mut Visibility>,
     pub children_q: Query<'w, 's, &'static Children>,
     pub parent_q: Query<'w, 's, &'static ChildOf>,
+    #[cfg_attr(feature = "feathers", allow(dead_code))] // the egui bar's bookmark camera
     pub fly_cam: Query<'w, 's, Entity, With<crate::gen3d::plugin::FlyCam>>,
     pub behavior_state: Res<'w, BehaviorState>,
     pub audio_engine: Option<Res<'w, AudioEngine>>,
@@ -256,6 +261,9 @@ impl Plugin for InspectorPlugin {
             .add_systems(EguiPrimaryContextPass, inspector_ui)
             // 3D viewport click-to-select via Bevy's built-in mesh picking
             .add_observer(on_mesh_clicked);
+        // The world bar on Bevy's own widgets, in place of the egui one.
+        #[cfg(feature = "feathers")]
+        app.add_plugins(world_bar::WorldBarPlugin);
     }
 }
 
@@ -302,6 +310,20 @@ fn inspector_toggle(
     }
 }
 
+/// What the bar and the hover test read besides the panels' own state,
+/// bundled: a Bevy function system takes sixteen parameters at most.
+#[derive(SystemParam)]
+#[cfg_attr(feature = "feathers", allow(dead_code))] // the bar's inputs, when the bar is `world_bar.rs`
+pub(crate) struct ChromeInputs<'w, 's> {
+    /// herdr's pane, when herdr runs.
+    pub presence: Option<Res<'w, crate::gen3d::herdr::AgentPresence>>,
+    pub time: Res<'w, Time>,
+    /// What the pointer is over, for the `bevy_ui` chrome.
+    pub hover: Option<Res<'w, HoverMap>>,
+    pub chrome: Query<'w, 's, (), With<crate::ui::widgets::Widget>>,
+    pub parents: Query<'w, 's, &'static ChildOf>,
+}
+
 /// Main inspector UI system — draws all egui panels and updates UiHovered.
 ///
 /// With a live world open (`--live`), the panels edit: the detail panel's
@@ -309,6 +331,7 @@ fn inspector_toggle(
 /// world bar's snap, review and bookmark controls all write intents that
 /// the canvas commits through the authority.
 #[allow(clippy::too_many_arguments)] // a Bevy system; the repo's convention
+#[cfg_attr(feature = "feathers", allow(unused))] // the bar's inputs go unused when it is `world_bar.rs`
 fn inspector_ui(
     mut commands: Commands,
     mut contexts: EguiContexts,
@@ -324,6 +347,7 @@ fn inspector_ui(
     mut pose: ResMut<PendingCameraPose>,
     mut rects: ResMut<PanelRects>,
     other_panels: Res<OtherPanels>,
+    extras: ChromeInputs,
 ) {
     if state.mode == InspectorMode::Hidden {
         commands.remove_resource::<UiHovered>();
@@ -342,6 +366,49 @@ fn inspector_ui(
     }
     // The panels' rectangles this frame, for the hover test below.
     let mut panels: Vec<egui::Rect> = Vec::new();
+
+    // --- World info bar (bottom) ---
+    // First, so it spans the window and the side panels take the height
+    // above it: drawn after them, egui laid it under the right panel, and
+    // its review checkbox, bookmarks and agent menu were unreachable. With
+    // the `feathers` feature the bar is `world_bar.rs`, on `bevy_ui`, and
+    // reports itself through the widget seam.
+    #[cfg(not(feature = "feathers"))]
+    if state.mode == InspectorMode::Full {
+        let camera = params
+            .fly_cam
+            .single()
+            .ok()
+            .and_then(|cam| params.transforms.get(cam).ok().copied());
+        let now = extras.time.elapsed_secs_f64();
+        let controls = live.as_deref_mut().map(|live| world_info::LiveControls {
+            live,
+            settings: settings.as_deref_mut(),
+            intents: &mut panel_intents.0,
+            camera,
+            pose: &mut pose,
+            presence: extras.presence.as_deref(),
+            rects: &mut rects,
+            now,
+        });
+        let rect = world_info::draw_world_info(
+            ctx,
+            &registry,
+            &params.behavior_state,
+            params.audio_engine.as_deref(),
+            &params.current_world,
+            controls,
+        );
+        rects.note_rect("panel.world_info", rect);
+        panels.push(rect);
+    }
+
+    // The feathers bar is `bevy_ui`, which egui draws over: an empty strip
+    // its height keeps the side panels off it (`world_bar::reserve_space`).
+    #[cfg(feature = "feathers")]
+    if state.mode == InspectorMode::Full {
+        panels.push(world_bar::reserve_space(ctx));
+    }
 
     // --- Outliner (left panel) ---
     {
@@ -382,30 +449,6 @@ fn inspector_ui(
             rects.note_rect("panel.detail", rect);
             panels.push(rect);
         }
-
-        // --- World info bar (bottom) ---
-        let camera = params
-            .fly_cam
-            .single()
-            .ok()
-            .and_then(|cam| params.transforms.get(cam).ok().copied());
-        let controls = live.as_deref_mut().map(|live| world_info::LiveControls {
-            live,
-            settings: settings.as_deref_mut(),
-            intents: &mut panel_intents.0,
-            camera,
-            pose: &mut pose,
-        });
-        let rect = world_info::draw_world_info(
-            ctx,
-            &registry,
-            &params.behavior_state,
-            params.audio_engine.as_deref(),
-            &params.current_world,
-            controls,
-        );
-        rects.note_rect("panel.world_info", rect);
-        panels.push(rect);
     }
 
     // --- Process pending visibility toggles from outliner ---
@@ -445,7 +488,20 @@ fn inspector_ui(
                 .iter()
                 .any(|[x, y, w, h]| p.x >= *x && p.x <= x + w && p.y >= *y && p.y <= y + h)
     });
-    if over_panel || ctx.is_pointer_over_egui() {
+    // The `bevy_ui` chrome too — the history rail, the feathers bar: a hit
+    // on a named node (`ui::widgets::Widget`) or on anything inside one.
+    let over_chrome = extras.hover.as_ref().is_some_and(|map| {
+        map.get(&PointerId::Mouse).is_some_and(|hits| {
+            hits.keys().any(|&hit| {
+                std::iter::successors(Some(hit), |&e| {
+                    extras.parents.get(e).ok().map(ChildOf::parent)
+                })
+                .take(16)
+                .any(|e| extras.chrome.contains(e))
+            })
+        })
+    });
+    if over_panel || over_chrome || ctx.is_pointer_over_egui() {
         commands.insert_resource(UiHovered);
     } else {
         commands.remove_resource::<UiHovered>();

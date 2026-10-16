@@ -7,6 +7,7 @@ pub mod label;
 pub mod notification;
 pub mod sign;
 pub mod tooltip;
+pub mod widgets;
 
 pub use hud::*;
 pub use label::*;

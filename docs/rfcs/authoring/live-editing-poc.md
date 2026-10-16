@@ -434,3 +434,12 @@ one into the tree; a worktree's `.git` file was not followed. Known and
 left: a replay's first frame waits for its assets if playback outruns
 git, and renaming an entity that has an emitter, without an audio patch,
 keeps the emitter under the old name.
+
+Later the same day, two things the two newer documents asked for: the
+smoke's widget seam reports `bevy_ui` nodes by name beside egui's
+rectangles (`crates/gen/src/ui/widgets.rs`; the rail's rows first), and
+the world bar exists on Bevy's own widgets behind the `feathers` feature
+(`inspector/world_bar.rs`) — the priced spike of `egui-or-not.md` — while
+`gen3d/herdr.rs` is the agents RFC's tier-0 variant: herdr's pane in the
+world folder from the bar, its agent's `blocked` as a light and its turns
+as marks on the rail.

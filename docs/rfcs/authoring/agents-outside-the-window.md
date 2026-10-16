@@ -397,6 +397,30 @@ person's terminal, where herdr renders them with the best emulator of the
 three — which is also the answer to "should Gen embed libghostty-vt": not
 while herdr can hold the pane and tell Gen what it needs to know.
 
+**Built (2026-10-16).** `crates/gen/src/gen3d/herdr.rs`. When herdr's
+socket answers (`HERDR_SOCKET_PATH`, else the session's or the default
+socket under the config directory, probed every 3 s), the bottom bar grows
+an "agent" menu — "terminal here", and "claude here", "codex here", … for
+the agents found on the path — that opens a pane in the world folder
+(`pane.split` beside Gen's own pane when Gen itself runs inside herdr, else
+beside the focused pane, else `workspace.create`), with
+`LOCALGPT_LIVE_ENDPOINT` naming `.live/endpoint.json`, and sends the
+command in with Enter (`pane.send_input`, what `herdr pane run` does). Gen
+then holds one `events.subscribe` connection for that pane's
+`pane.agent_status_changed` and its end: `blocked` becomes "claude is
+waiting for you (40 s)" in the refusal colour (click: `pane.focus`);
+`working` → `done` or `idle` pushes a `TurnMark` — the log's length and
+the head's revision then — which the history rail draws as a line between
+the entries ("-- turn 2 · claude --") and `GET /agents` reports with the
+pane and its status. Without herdr nothing shows. herdr's `done` comes
+from its detection manifests; `idle` after `working` counts as a turn's
+end too, because a state reported through `pane.report_agent` never says
+`done`. The smoke checks it end to end against a headless `herdr server`
+of its own (`scripts/live-smoke.py --herdr`: an isolated config directory
+under the world's `.live/`, a socket of its own, `pane report-agent`
+standing in for detection). Not done, by design: nothing opens herdr for
+the person, and no pane output is read.
+
 ## Three things that bite regardless
 
 - **`PATH`.** `desktop/shell_env.rs` exists because a build launched from

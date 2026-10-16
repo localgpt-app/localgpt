@@ -145,6 +145,9 @@ pub(crate) struct Live {
     /// The review bar's Accept and Reject buttons, in window points, while
     /// a proposal is pending.
     review_buttons: Option<[[f32; 4]; 2]>,
+    /// The turns herdr saw end in the agent's pane (`gen3d::herdr`), for
+    /// the rail.
+    turns: Vec<TurnMark>,
 }
 
 /// A person's input, synthesized for a test that drives the canvas with
@@ -366,12 +369,13 @@ fn inject_synthetic_input(
 /// a locked or sleeping screen, where a window's surface stays black
 /// whatever the scene does; the window itself goes dark meanwhile.
 fn offscreen_canvas(
+    mut commands: Commands,
     mut offscreen: ResMut<super::offscreen::OffscreenRenderTarget>,
-    mut cameras: Query<&mut bevy::camera::RenderTarget, With<FlyCam>>,
+    mut cameras: Query<(Entity, &mut bevy::camera::RenderTarget), With<FlyCam>>,
     mut images: ResMut<Assets<Image>>,
 ) {
     let (width, height) = (offscreen.width, offscreen.height);
-    for mut target in &mut cameras {
+    for (camera, mut target) in &mut cameras {
         if matches!(*target, bevy::camera::RenderTarget::Window(_)) {
             let handle = offscreen
                 .image_handle
@@ -380,6 +384,10 @@ fn offscreen_canvas(
                 })
                 .clone();
             *target = bevy::camera::RenderTarget::Image(handle.into());
+            // `bevy_ui` draws through the camera that targets the primary
+            // window; with none, the rail and the bar would be laid out
+            // against nothing and drawn nowhere. This camera is it now.
+            commands.entity(camera).insert(bevy::ui::IsDefaultUiCamera);
         }
     }
 }
@@ -441,6 +449,23 @@ impl Live {
     /// The newest commit or refusal, in one line.
     pub(crate) fn status(&self) -> Option<&str> {
         self.status.as_deref()
+    }
+
+    /// A turn ended (herdr saw the pane's agent stop working): mark it in
+    /// the history the rail draws.
+    pub(crate) fn note_turn(&mut self, mark: TurnMark) {
+        self.turns.push(mark);
+        self.history_dirty = true;
+    }
+
+    /// How many entries the log holds.
+    pub(crate) fn history_len(&self) -> usize {
+        self.view.history().len()
+    }
+
+    /// The head's revision.
+    pub(crate) fn revision(&self) -> u64 {
+        self.world.revision()
     }
 }
 
@@ -508,6 +533,21 @@ pub struct LiveHistory {
     pub current: Option<String>,
     /// The newest commit or refusal, in one line.
     pub status: Option<String>,
+    /// The turns that ended, in order (herdr's word on the agent's pane).
+    pub turns: Vec<TurnMark>,
+}
+
+/// A turn that ended, as the rail marks it: the pane's agent went from
+/// `working` to `done` (or `idle`) when the log held `rows` entries, so the
+/// entries after the previous mark and up to this one are that turn's.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TurnMark {
+    pub n: u32,
+    pub agent: String,
+    /// The log's length when the turn ended: the mark sits above row `rows - 1`.
+    pub rows: usize,
+    /// The head's revision then.
+    pub revision: u64,
 }
 
 /// One entry of the log, as the rail shows it.
@@ -626,6 +666,7 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
             .is_ok_and(|v| v == "1")
             .then(VecDeque::new),
         review_buttons: None,
+        turns: Vec::new(),
     })
     .insert_resource(Endpoint(endpoint))
     .insert_resource(LiveEndpoint { url, token })
@@ -637,6 +678,8 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
         super::history_rail::HistoryRailPlugin,
         super::canvas_edit::CanvasEditPlugin,
         super::shots::ShotsPlugin,
+        // herdr's pane in the world folder, when herdr runs (nothing otherwise).
+        super::herdr::HerdrPlugin { dir: dir.clone() },
     ))
     // Inside egui's pass (bevy_egui's own schedule), like every panel.
     .add_systems(EguiPrimaryContextPass, review_bar)
@@ -1536,6 +1579,7 @@ fn publish(live: &Live) -> LiveHistory {
             .collect(),
         current: live.view.tip().map(str::to_string),
         status: live.status.clone(),
+        turns: live.turns.clone(),
     }
 }
 
@@ -1565,8 +1609,12 @@ const ENDPOINTS: &[(&str, &str)] = &[
         "tests only, with LOCALGPT_SYNTHETIC_INPUT=1: {\"events\": [{\"cursor\": [x, y]}, {\"button\": \"left\", \"pressed\": true}, {\"key\": \"Enter\", \"pressed\": false}]} — a person's input synthesized, one event per frame; GET /selection reports the handles' window positions",
     ),
     (
+        "GET /agents",
+        "herdr, when it runs: the pane the bar opened in the world folder, its agent and status (working, blocked — waiting for the person — idle, done), and the turns that ended, each with the log's length then",
+    ),
+    (
         "GET /widgets",
-        "with synthetic input: the panels' widgets by name in window points [x, y, w, h] — outliner rows, the row menu's items, the detail panel's fields, combos and their open items",
+        "with synthetic input: the panels' widgets by name in window points [x, y, w, h] — outliner rows, the row menu's items, the detail panel's fields, combos and their open items, the history rail's rows and turn marks",
     ),
     (
         "POST /ops",
@@ -1644,6 +1692,8 @@ fn live_world(
     mut selection: Option<ResMut<InspectorSelection>>,
     gesture: Option<Res<super::canvas_edit::CanvasGesture>>,
     rects: Option<Res<crate::inspector::PanelRects>>,
+    ui_widgets: Option<Res<crate::ui::widgets::UiWidgetRects>>,
+    presence: Option<Res<super::herdr::AgentPresence>>,
 ) {
     let live = &mut *live;
     if !live.started {
@@ -1719,9 +1769,21 @@ fn live_world(
                     404,
                     json!({"error": "widget positions come with synthetic input: start the canvas with LOCALGPT_SYNTHETIC_INPUT=1"}),
                 ),
-                Some(_) => Reply::ok(json!(
-                    rects.as_ref().map(|r| r.0.clone()).unwrap_or_default()
-                )),
+                // egui's rectangles and the named `bevy_ui` nodes, one map.
+                Some(_) => {
+                    let mut all = rects.as_ref().map(|r| r.0.clone()).unwrap_or_default();
+                    if let Some(ui) = ui_widgets.as_ref() {
+                        all.extend(ui.0.iter().map(|(name, rect)| (name.clone(), *rect)));
+                    }
+                    Reply::ok(json!(all))
+                }
+            },
+            ("GET", "/agents") => match presence.as_deref() {
+                Some(presence) => Reply::ok(presence.to_json(time.elapsed_secs_f64())),
+                None => Reply::status(
+                    404,
+                    json!({"error": "no agent presence: this canvas has no herdr watch"}),
+                ),
             },
             ("GET", "/proposals") => Reply::ok(json!({
                 "review": live.review,

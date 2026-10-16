@@ -140,6 +140,11 @@ local-llm = ["dep:mistralrs", "dep:indexmap"]
 # Linux CI job). The CPU device map can't hold a 5 GB Q4_K_M beside the
 # renderer on a 32 GB Mac.
 local-llm-metal = ["local-llm", "mistralrs/metal"]
+# The world bar on Bevy's own widgets (`bevy_ui` + `bevy_feathers`) in place
+# of the egui one — the spike docs/rfcs/authoring/egui-or-not.md asked for,
+# to price moving the rest. Off by default while feathers calls itself
+# experimental; the egui bar (`inspector/world_info.rs`) stays either way.
+feathers = ["bevy/bevy_feathers"]
 # bevy-tnua floating character controller for the player. Requires `physics`.
 # OFF by default: no Bevy 0.19-compatible bevy-tnua release exists yet, so
 # enabling this currently fails to build. When enabled the player uses the

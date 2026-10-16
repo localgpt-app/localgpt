@@ -98,7 +98,14 @@ impl Plugin for CanvasEditPlugin {
                 (
                     keep_selection,
                     panel_intents,
-                    (handle_edits, pointer_edits, key_edits).run_if(avatar::in_freefly_mode),
+                    // In this order, and only in this order: `pointer_edits`
+                    // leaves a press alone when `handle_edits` has taken it
+                    // (`handles.pressed`), and a tuple inside a chain is not
+                    // chained itself — unordered, Bevy once ran the pointer
+                    // system first, and a press on a ring began a box too.
+                    (handle_edits, pointer_edits, key_edits)
+                        .chain()
+                        .run_if(avatar::in_freefly_mode),
                 )
                     .chain()
                     .in_set(PersonEdits),

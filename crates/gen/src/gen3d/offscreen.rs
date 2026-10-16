@@ -32,22 +32,31 @@ impl Default for OffscreenRenderTarget {
 /// Without a primary window, point every window-targeted camera at an
 /// offscreen image (created once, [`OffscreenRenderTarget`]'s size).
 pub fn attach_offscreen_target(
+    mut commands: Commands,
     mut offscreen: ResMut<OffscreenRenderTarget>,
     windows: Query<(), With<bevy::window::PrimaryWindow>>,
-    mut cameras: Query<&mut bevy::camera::RenderTarget, With<Camera>>,
+    mut cameras: Query<(Entity, &mut bevy::camera::RenderTarget), With<Camera>>,
     mut images: ResMut<Assets<Image>>,
 ) {
     if !windows.is_empty() {
         return;
     }
     let (width, height) = (offscreen.width, offscreen.height);
-    for mut target in &mut cameras {
+    let mut ui_camera_set = false;
+    for (camera, mut target) in &mut cameras {
         if matches!(*target, bevy::camera::RenderTarget::Window(_)) {
             let handle = offscreen
                 .image_handle
                 .get_or_insert_with(|| create_offscreen_image(&mut images, width, height))
                 .clone();
             *target = bevy::camera::RenderTarget::Image(handle.into());
+            // `bevy_ui` draws through the camera that targets the primary
+            // window; with none, its nodes are laid out against nothing
+            // and drawn nowhere. The first retargeted camera is it.
+            if !ui_camera_set {
+                commands.entity(camera).insert(bevy::ui::IsDefaultUiCamera);
+                ui_camera_set = true;
+            }
         }
     }
 }

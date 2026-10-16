@@ -451,7 +451,9 @@ pub fn setup_gen_app(
         // Gallery UI (egui overlay, G toggle)
         .add_plugins(crate::gen3d::gallery_ui::GalleryPlugin)
         // World Inspector Panel (egui overlay, F1 toggle)
-        .add_plugins(crate::inspector::InspectorPlugin);
+        .add_plugins(crate::inspector::InspectorPlugin)
+        // Named `bevy_ui` nodes for `GET /widgets` (the rail, the feathers bar)
+        .add_plugins(crate::ui::widgets::WidgetSeamPlugin);
 }
 
 /// Default scene: ground plane, camera, directional light, ambient light.

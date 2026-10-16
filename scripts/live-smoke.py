@@ -23,6 +23,12 @@ The world must be a live package with the spec's hello-world entities:
 a cuboid (10), a capsule (14) and a lantern (100). `init` on an empty
 folder makes an empty world, so copy the manifest in first. With `--git`
 the checkout and replay checks run too; without it they are skipped.
+`--herdr` starts a headless herdr of the smoke's own (an isolated config
+directory under the world's `.live/`, a socket of its own) and checks the
+bar's agent menu and presence against it; it needs `herdr` on the path.
+Run it against a `--features feathers` build as well (`--binary` names
+the executable, so both builds can be kept): the bar's checks drive
+whichever stack draws it through the same widget names.
 """
 
 import argparse
@@ -30,6 +36,7 @@ import base64
 import json
 import math
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -90,6 +97,56 @@ def click(at):
 def center(rect):
     x, y, w, h = rect
     return (x + w / 2, y + h / 2)
+
+
+class Herdr:
+    """A headless herdr of the smoke's own, so the canvas's agent presence
+    can be checked without a terminal: `herdr server` with an isolated
+    config directory and a socket of its own (short: a Unix socket path
+    has a hundred-odd bytes), and `pane report-agent` standing in for the
+    detected state of an agent. The canvas inherits `HERDR_SOCKET_PATH`."""
+
+    def __init__(self, world):
+        self.sock = os.path.join(os.environ.get("TMPDIR") or "/tmp", f"owf-smoke-{os.getpid()}.sock")
+        self.env = dict(os.environ, XDG_CONFIG_HOME=os.path.join(world, ".live", "herdr"), HERDR_SOCKET_PATH=self.sock)
+        os.makedirs(self.env["XDG_CONFIG_HOME"], exist_ok=True)
+        self.log = open(os.path.join(world, ".live", "smoke-herdr.log"), "w")
+        self.proc = subprocess.Popen(["herdr", "server"], env=self.env, stdout=self.log, stderr=subprocess.STDOUT)
+        for _ in range(40):
+            if os.path.exists(self.sock):
+                break
+            time.sleep(0.25)
+        os.environ["HERDR_SOCKET_PATH"] = self.sock
+
+    def cli(self, *args):
+        return subprocess.run(["herdr", *args], env=self.env, capture_output=True, text=True, timeout=20)
+
+    def report(self, pane, state):
+        """What a detection manifest would conclude, said outright."""
+        return self.cli("pane", "report-agent", pane, "--source", "smoke", "--agent", "claude", "--state", state)
+
+    def rpc(self, method, params):
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(10)
+        s.connect(self.sock)
+        s.sendall((json.dumps({"id": "smoke", "method": method, "params": params}) + "\n").encode())
+        buf = b""
+        while not buf.endswith(b"\n"):
+            chunk = s.recv(65536)
+            if not chunk:
+                break
+            buf += chunk
+        s.close()
+        return json.loads(buf.decode() or "null") or {}
+
+    def stop(self):
+        self.cli("server", "stop")
+        try:
+            self.proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+        os.environ.pop("HERDR_SOCKET_PATH", None)
+        self.log.close()
 
 
 class Canvas:
@@ -154,8 +211,12 @@ class Canvas:
         return reply
 
     def select(self, entity_id):
+        """Select over the inspector socket, and — as a person would before
+        taking hold of the handles — move the camera until none of them is
+        under a panel. The reply is the selection as it then stands."""
         ws_send(WS_PORT, json.dumps({"type": "select_entity", "entity_id": entity_id}))
         time.sleep(0.3)
+        self.clear_of_chrome()
         return call(self.ep, "GET", "/selection")[1]
 
     def entity(self, name):
@@ -173,6 +234,66 @@ class Canvas:
             return False
         self.input(click(center(rect)))
         return True
+
+    def panels(self):
+        """The chrome's rectangles by name (`panel.*` in GET /widgets)."""
+        return {n: r for n, r in self.widgets().items() if n.startswith("panel.")}
+
+    def free_band(self):
+        """The viewport the chrome leaves free, from the panels by name: x
+        from the outliner's right edge to the detail panel's left, y down to
+        the bottom bar — and the history rail's rectangle, which floats
+        inside it."""
+        p = self.panels()
+        x0 = p["panel.outliner"][0] + p["panel.outliner"][2] + 8 if "panel.outliner" in p else 8.0
+        x1 = p["panel.detail"][0] - 8 if "panel.detail" in p else 1272.0
+        y1 = p["panel.world_info"][1] - 8 if "panel.world_info" in p else 712.0
+        return x0, x1, y1, p.get("panel.history_rail")
+
+    @staticmethod
+    def inside(point, rect):
+        return bool(rect) and rect[0] <= point[0] <= rect[0] + rect[2] and rect[1] <= point[1] <= rect[1] + rect[3]
+
+    def park(self):
+        """Rest the pointer in the free viewport, off every panel: over a
+        panel the camera keys are the panel's, and a handle under one is
+        not hot."""
+        x0, x1, y1, rail = self.free_band()
+        at = (x0 + 24.0, 100.0)
+        if self.inside(at, rail):
+            at = (x0 + 24.0, y1 - 24.0)
+        self.input([{"cursor": [at[0], at[1]]}])
+        return at
+
+    def clear_of_chrome(self, tries=8):
+        """Move the camera until no point of the selection's handles — the
+        origin, the arrow tips, the ring points, the scale cube — is under
+        a panel, as a person moves to see what they grab: down (Q) when the
+        panel is below the handles, so the scene rises; sideways otherwise.
+        True when they are clear (at once, mostly: a no-op then)."""
+        names = ("origin", "x", "y", "z", "ring_x", "ring_y", "ring_z", "scale")
+        for _ in range(tries):
+            h = call(self.ep, "GET", "/selection")[1].get("handles") or {}
+            if not h.get("origin"):
+                return False
+            rects = list(self.panels().values())
+            points = [h[k] for k in names if h.get(k)]
+            covered = next((r for pt in points for r in rects if self.inside(pt, r)), None)
+            if covered is None:
+                return True
+            ox, oy = h["origin"]
+            # Only while the entity itself is in the free viewport: a move
+            # that would push it out is worse than a handle under a panel.
+            x0, x1, y1, _ = self.free_band()
+            if not (x0 < ox < x1 and 0 < oy < y1):
+                return False
+            key = "KeyQ" if covered[1] > oy else ("Space" if covered[1] + covered[3] < oy else ("KeyD" if covered[0] > ox else "KeyA"))
+            self.park()
+            self.input([{"key": key, "pressed": True}])
+            time.sleep(0.3)
+            self.input([{"key": key, "pressed": False}])
+            time.sleep(0.3)
+        return False
 
     def hot_after_a_moment(self):
         """The handle under the pointer once the canvas has drawn a frame
@@ -257,14 +378,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("world", help="a live .world folder (see `live -- init`)")
     parser.add_argument("--build", action="store_true", help="cargo build -p localgpt-gen first")
+    parser.add_argument("--binary", default=None, help="the localgpt-gen executable to run (default: target/debug/localgpt-gen)")
     parser.add_argument("--select", type=int, default=100, help="entity id to select over the inspector socket")
     parser.add_argument("--modify", default="cuboid", help="entity the proposed batch moves and recolors")
     parser.add_argument("--other", default="capsule", help="a solid entity to shift-click into the selection")
     parser.add_argument("--offscreen", action="store_true", help="render into an image for the screenshots (a locked or sleeping screen leaves the window black)")
+    parser.add_argument("--herdr", action="store_true", help="start a headless herdr of the smoke's own and check the bar's agent menu and presence against it (needs `herdr` on the path)")
     args = parser.parse_args()
     Canvas.offscreen = args.offscreen
     world = os.path.abspath(args.world)
-    binary = os.path.join(ROOT, "target", "debug", "localgpt-gen")
+    binary = args.binary or os.path.join(ROOT, "target", "debug", "localgpt-gen")
     if args.build or not os.path.exists(binary):
         subprocess.run(["cargo", "build", "-p", "localgpt-gen"], cwd=ROOT, check=True)
     check = Check()
@@ -351,6 +474,12 @@ def main():
 
     # Review off: expected revisions, the gestures, the selection, the
     # receipt's warning.
+    herdr = None
+    if args.herdr:
+        if shutil.which("herdr"):
+            herdr = Herdr(world)
+        else:
+            print("skip the herdr checks: no `herdr` on the path")
     with open(os.path.join(world, ".live", "smoke-commit.log"), "w") as log:
         canvas = Canvas(binary, world, False, log, synthetic=True)
         try:
@@ -484,13 +613,16 @@ def main():
                 time.sleep(0.2)
                 return (call(ep, "GET", "/selection")[1].get("handles") or {}).get("hot")
 
+            canvas.clear_of_chrome()
             near_len, near_origin, _ = arrow_px()
             check(hot_off_arrow(8) == "x" and hot_off_arrow(60) != "x", "hover forgives 8 px off the arrow, not 60")
+            canvas.park()
             canvas.input([{"key": "KeyW", "pressed": True}])
             time.sleep(0.45)
             canvas.input([{"key": "KeyW", "pressed": False}])
             time.sleep(0.4)
             far_len, far_origin, _ = arrow_px()
+            canvas.clear_of_chrome()
             moved_px = ((far_origin[0] - near_origin[0]) ** 2 + (far_origin[1] - near_origin[1]) ** 2) ** 0.5
             check(moved_px > 5 and abs(far_len - near_len) / near_len < 0.3,
                   f"the handles keep their screen size as the camera moves ({near_len:.0f} px -> {far_len:.0f} px, the origin shifted {moved_px:.0f} px)")
@@ -512,12 +644,14 @@ def main():
 
             canvas.input(press("KeyL"))
             time.sleep(0.4)
+            canvas.clear_of_chrome()
             local_now = (call(ep, "GET", "/selection")[1].get("handles") or {}).get("local")
             near_local, far_local = hot_off_arrow_perp(8), hot_off_arrow_perp(60)
             canvas.input(press("KeyL"))
             time.sleep(0.4)
             check(local_now is True and near_local == "x" and far_local != "x",
                   f"on local axes the turned X arrow forgives 8 px off it, not 60 (local {local_now}, {near_local}, {far_local})")
+            canvas.park()
             canvas.input([{"key": "KeyS", "pressed": True}])
             time.sleep(0.45)
             canvas.input([{"key": "KeyS", "pressed": False}])
@@ -562,6 +696,78 @@ def main():
                     time.sleep(1.2)
             parent = canvas.entity(args.other).get("parent")
             check(parent is None and canvas.log_lines() == lines + 1, f"the menu's Unparent frees it (parent {parent})")
+
+            # The world bar by name, whichever stack draws it (egui, or
+            # feathers with `--features feathers`): the rail and its rows
+            # report through the same seam, and a click on the bar's
+            # checkboxes reaches the settings.
+            w = canvas.widgets()
+            rail_rows = sorted(k for k in w if k.startswith("rail.row."))
+            check("panel.history_rail" in w and "rail.row.base" in w and len(rail_rows) > 1, f"GET /widgets reports the history rail and its rows ({len(rail_rows)} rows)")
+            check(all(k in w for k in ("world_info.snap", "world_info.local", "world_info.review")), f"GET /widgets reports the bar's controls ({sorted(k for k in w if k.startswith('world_info.'))})")
+            canvas.select(modified_id)
+            local_before = (call(ep, "GET", "/selection")[1].get("handles") or {}).get("local")
+            if canvas.click_widget("world_info.local"):
+                time.sleep(0.4)
+            local_after = (call(ep, "GET", "/selection")[1].get("handles") or {}).get("local")
+            check(local_after is not None and local_after != local_before, f"the bar's local checkbox switches the handles' axes ({local_before} -> {local_after})")
+            if canvas.click_widget("world_info.local"):
+                time.sleep(0.4)
+            review_before = call(ep, "GET", "/proposals")[1].get("review")
+            if canvas.click_widget("world_info.review"):
+                time.sleep(0.4)
+            review_after = call(ep, "GET", "/proposals")[1].get("review")
+            check(review_after is not None and review_after != review_before, f"the bar's review checkbox switches review ({review_before} -> {review_after})")
+            if canvas.click_widget("world_info.review"):
+                time.sleep(0.4)
+            check(call(ep, "GET", "/proposals")[1].get("review") == review_before, "and switches it back")
+
+            if herdr:
+                # herdr's pane: the bar opens a shell in the world folder,
+                # and what herdr says of the agent in it reaches the canvas
+                # — blocked as a light, a turn's end as a mark on the rail.
+                def agents():
+                    return call(ep, "GET", "/agents")[1] or {}
+
+                def agents_once(pred, seconds):
+                    deadline = time.time() + seconds
+                    while time.time() < deadline:
+                        a = agents()
+                        if pred(a):
+                            return a
+                        time.sleep(0.25)
+                    return agents()
+
+                a = agents_once(lambda a: (a.get("herdr") or {}).get("server"), 8)
+                check(bool((a.get("herdr") or {}).get("server")), f"the canvas sees herdr's socket answer ({a.get('herdr')})")
+                opened = canvas.click_widget("world_info.agent")
+                time.sleep(0.5)
+                w = canvas.widgets()
+                check(opened and "menu.terminal here" in w, f"the bar's agent menu offers a terminal in the world folder ({sorted(k for k in w if k.startswith('menu.'))})")
+                if "menu.terminal here" in w:
+                    canvas.input(click(center(w["menu.terminal here"])))
+                a = agents_once(lambda a: a.get("pane"), 10)
+                pane = (a.get("pane") or {}).get("id")
+                check(bool(pane), f"a pane opens in the world folder ({a.get('pane')}; error {a.get('error')})")
+                if pane:
+                    info = (herdr.rpc("pane.get", {"pane_id": pane}).get("result") or {}).get("pane") or {}
+                    check(os.path.realpath(info.get("cwd") or "") == os.path.realpath(world), f"the pane's working directory is the world ({info.get('cwd')})")
+                    herdr.report(pane, "working")
+                    a = agents_once(lambda a: (a.get("pane") or {}).get("status") == "working", 5)
+                    check((a.get("pane") or {}).get("status") == "working", f"herdr's working state reaches the canvas ({a.get('pane')})")
+                    herdr.report(pane, "blocked")
+                    a = agents_once(lambda a: (a.get("pane") or {}).get("status") == "blocked", 5)
+                    check((a.get("pane") or {}).get("status") == "blocked" and (a.get("pane") or {}).get("agent") == "claude", f"blocked reaches the canvas with the agent's name ({a.get('pane')})")
+                    herdr.report(pane, "working")
+                    time.sleep(0.6)
+                    rows_then = canvas.log_lines()
+                    herdr.report(pane, "idle")
+                    a = agents_once(lambda a: a.get("turns"), 5)
+                    turns = a.get("turns") or []
+                    check(len(turns) == 1 and turns[0].get("rows") == rows_then and turns[0].get("agent") == "claude", f"the turn that ended is marked at the log's length ({turns}; log {rows_then})")
+                    time.sleep(0.6)
+                    w = canvas.widgets()
+                    check("rail.turn.1" in w, f"the rail draws the turn mark ({sorted(k for k in w if k.startswith('rail.turn'))})")
 
             # The detail panel's Parent combo, both ways.
             canvas.select(other_id)
@@ -641,13 +847,16 @@ def main():
                 # Inside the free viewport: a corner on a panel is egui's
                 # press, not the canvas's, and a drag across a panel's fields
                 # edits whatever they hold.
-                w = canvas.widgets()
-                free_x0 = max((r[0] + r[2] for n, r in w.items() if n.startswith("panel.") and r[0] < 200), default=0.0) + 8
-                free_x1 = min((r[0] for n, r in w.items() if n.startswith("panel.") and r[0] > 600), default=1280.0) - 8
-                free_y1 = min((r[1] for n, r in w.items() if n == "panel.world_info"), default=720.0) - 8
+                free_x0, free_x1, free_y1, rail = canvas.free_band()
                 lo = (max(min(a[0], b[0]) - pad, free_x0), max(min(a[1], b[1]) - pad, 80.0))
                 hi = (min(max(a[0], b[0]) + pad, free_x1), min(max(a[1], b[1]) + pad, free_y1))
-                panels = {n: [round(v) for v in r] for n, r in w.items() if n.startswith("panel.")}
+                # The press and the release land off the rail, which floats
+                # in the band; the drag may cross it.
+                if canvas.inside(lo, rail):
+                    lo = (lo[0], min(lo[1], rail[1] - 8))
+                if canvas.inside(hi, rail):
+                    hi = (hi[0], max(hi[1], rail[1] + rail[3] + 8))
+                panels = {n: [round(v) for v in r] for n, r in canvas.panels().items()}
                 canvas.input([{"key": "ShiftLeft", "pressed": True}])
                 mid_box = canvas.drag_box(lo, hi, steps=10)
                 canvas.input([{"key": "ShiftLeft", "pressed": False}])
@@ -1019,10 +1228,10 @@ def main():
                 # detail panel grows to fit the texture's hashed name: sample
                 # the swatch where the free viewport shows it, a little in
                 # from the panel's edge (the swatch is some 230 px wide).
-                w = canvas.widgets()
-                free_x0 = max((r[0] + r[2] for n, r in w.items() if n.startswith("panel.") and r[0] < 200), default=0.0)
-                free_x1 = min((r[0] for n, r in w.items() if n.startswith("panel.") and r[0] > 300), default=1280.0)
+                free_x0, free_x1, _, rail = canvas.free_band()
                 sample = (min(max(at[0], free_x0 + 40), free_x1 - 40), at[1]) if at else None
+                if sample and canvas.inside(sample, rail):
+                    sample = (max(min(sample[0], rail[0] - 40), free_x0 + 40), sample[1])
                 status, body = call(ep, "GET", "/screenshot")
                 shots.append(body.get("path"))
                 mean = png_mean(body.get("path"), int(sample[0]), int(sample[1])) if (sample and body.get("path")) else None
@@ -1033,6 +1242,8 @@ def main():
                 print("skip the checkout and replay checks: not a git world (init with --git)")
         finally:
             canvas.stop()
+            if herdr:
+                herdr.stop()
     with open(os.path.join(world, ".live", "smoke-commit.log")) as f:
         check("panicked" not in f.read(), "no panic with review off")
 

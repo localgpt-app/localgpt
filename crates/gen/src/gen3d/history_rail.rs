@@ -25,11 +25,19 @@
 use std::ops::Range;
 
 use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 
-use super::live::{HistoryRow, LiveHistory, SeekTo};
+use super::live::{HistoryRow, LiveHistory, SeekTo, TurnMark};
+use crate::inspector::{InspectorMode, InspectorState, PanelRects};
+use crate::ui::widgets::{UiWidgetRects, Widget};
 
 /// Most rows on screen at once; the rail windows around the current entry.
 const MAX_ROWS: usize = 16;
+/// With the full inspector open the rail docks above the bottom bar and
+/// keeps to a few rows, so what is left of the viewport stays free in the
+/// middle — for the eye, and for the pointer, since chrome blocks the
+/// handles under it.
+const MAX_ROWS_DOCKED: usize = 3;
 
 const PANEL: Color = Color::srgba(0.04, 0.05, 0.08, 0.84);
 const ROW: Color = Color::srgba(0.0, 0.0, 0.0, 0.0);
@@ -44,7 +52,59 @@ pub struct HistoryRailPlugin;
 impl Plugin for HistoryRailPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_rail)
-            .add_systems(Update, (redraw_rail, click_rows, step_keys));
+            .add_systems(Update, (place_rail, redraw_rail, click_rows, step_keys));
+    }
+}
+
+/// The full inspector is up: the rail docks and keeps short.
+fn docked(state: Option<&InspectorState>) -> bool {
+    state.is_some_and(|s| s.mode == InspectorMode::Full)
+}
+
+/// Where the rail sits: the top right of the window on its own; clear of
+/// the inspector's detail panel when that is up (egui draws over `bevy_ui`,
+/// so under it the rail would be hidden); and with the full inspector,
+/// docked above the bottom bar.
+fn place_rail(
+    state: Option<Res<InspectorState>>,
+    egui_rects: Option<Res<PanelRects>>,
+    ui_rects: Option<Res<UiWidgetRects>>,
+    window: Query<&Window, With<PrimaryWindow>>,
+    mut rail: Query<&mut Node, With<Rail>>,
+) {
+    let Ok(mut node) = rail.single_mut() else {
+        return;
+    };
+    let (width, height) = window
+        .single()
+        .map_or((1280.0, 720.0), |w| (w.width(), w.height()));
+    let shown = state
+        .as_deref()
+        .is_some_and(|s| s.mode != InspectorMode::Hidden);
+    let rect = |name: &str| {
+        egui_rects
+            .as_ref()
+            .and_then(|r| r.0.get(name).copied())
+            .or_else(|| ui_rects.as_ref().and_then(|r| r.0.get(name).copied()))
+    };
+    let right = match rect("panel.detail") {
+        Some([x, _, _, _]) if shown => (width - x).max(0.0) + 12.0,
+        _ => 12.0,
+    };
+    let (top, bottom) = if docked(state.as_deref()) {
+        let bar = rect("panel.world_info").map_or(0.0, |[_, y, _, _]| (height - y).max(0.0));
+        (Val::Auto, Val::Px(bar + 12.0))
+    } else {
+        (Val::Px(12.0), Val::Auto)
+    };
+    if node.right != Val::Px(right) {
+        node.right = Val::Px(right);
+    }
+    if node.top != top {
+        node.top = top;
+    }
+    if node.bottom != bottom {
+        node.bottom = bottom;
     }
 }
 
@@ -63,6 +123,7 @@ fn spawn_rail(mut commands: Commands) {
     commands.spawn((
         Rail,
         Name::new("History rail"),
+        Widget::new("panel.history_rail"),
         Node {
             position_type: PositionType::Absolute,
             top: Val::Px(12.0),
@@ -81,15 +142,25 @@ fn spawn_rail(mut commands: Commands) {
     ));
 }
 
-fn redraw_rail(history: Res<LiveHistory>, rail: Query<Entity, With<Rail>>, mut commands: Commands) {
-    if !history.is_changed() {
+fn redraw_rail(
+    history: Res<LiveHistory>,
+    state: Option<Res<InspectorState>>,
+    rail: Query<Entity, With<Rail>>,
+    mut commands: Commands,
+) {
+    if !history.is_changed() && !state.as_ref().is_some_and(|s| s.is_changed()) {
         return;
     }
     let Ok(rail) = rail.single() else {
         return;
     };
     let current = current_index(&history);
-    let window = window(history.rows.len(), current, MAX_ROWS);
+    let max_rows = if docked(state.as_deref()) {
+        MAX_ROWS_DOCKED
+    } else {
+        MAX_ROWS
+    };
+    let window = window(history.rows.len(), current, max_rows);
     let hidden_newer = history.rows.len() - window.end;
     let hidden_older = window.start;
 
@@ -107,8 +178,12 @@ fn redraw_rail(history: Res<LiveHistory>, rail: Query<Entity, With<Rail>>, mut c
         if hidden_newer > 0 {
             panel.spawn(text(&format!("  … {hidden_newer} newer"), 12.0, INK_MUTED));
         }
-        // Newest at the top, the way a log reads.
+        // Newest at the top, the way a log reads. A turn's end sits above
+        // the newest entry it holds.
         for i in window.clone().rev() {
+            for mark in history.turns.iter().filter(|m| m.rows == i + 1) {
+                spawn_turn(panel, mark);
+            }
             let row = &history.rows[i];
             let is_current = Some(i) == current;
             spawn_row(
@@ -121,22 +196,37 @@ fn redraw_rail(history: Res<LiveHistory>, rail: Query<Entity, With<Rail>>, mut c
         if hidden_older > 0 {
             panel.spawn(text(&format!("  … {hidden_older} older"), 12.0, INK_MUTED));
         }
+        // A turn that ended before anything was written sits above the base.
+        if window.start == 0 {
+            for mark in history.turns.iter().filter(|m| m.rows == 0) {
+                spawn_turn(panel, mark);
+            }
+        }
         // The base is a real place to stand: the world before any entry.
         let at_base = history.current.is_none();
         spawn_row(panel, None, &base_label(at_base), at_base);
-        panel.spawn(text("[ ] step   click a row to show it", 11.0, INK_MUTED));
-        panel.spawn(text(
-            "click select  drag move  , . turn  - = scale  Del  Cmd+D copy  Cmd+Z undo",
-            11.0,
-            INK_MUTED,
-        ));
+        // Docked, the rail keeps to the log: the hints go with the rows.
+        if max_rows == MAX_ROWS {
+            panel.spawn(text("[ ] step   click a row to show it", 11.0, INK_MUTED));
+            panel.spawn(text(
+                "click select  drag move  , . turn  - = scale  Del  Cmd+D copy  Cmd+Z undo",
+                11.0,
+                INK_MUTED,
+            ));
+        }
     });
 }
 
 fn spawn_row(panel: &mut ChildSpawnerCommands, tip: Option<String>, label: &str, current: bool) {
+    // Named for `GET /widgets`, by the entry's short id.
+    let name = match &tip {
+        Some(id) => format!("rail.row.{}", short_id(id)),
+        None => "rail.row.base".to_string(),
+    };
     panel
         .spawn((
             Button,
+            Widget::new(name),
             RailRow { tip, current },
             Node {
                 padding: UiRect::axes(Val::Px(6.0), Val::Px(3.0)),
@@ -148,6 +238,19 @@ fn spawn_row(panel: &mut ChildSpawnerCommands, tip: Option<String>, label: &str,
         .with_children(|row| {
             row.spawn(text(label, 13.0, INK));
         });
+}
+
+/// The line between two turns: the rows above it, down to the previous
+/// mark, are the turn that ended here.
+fn spawn_turn(panel: &mut ChildSpawnerCommands, mark: &TurnMark) {
+    panel.spawn((
+        Widget::new(format!("rail.turn.{}", mark.n)),
+        text(
+            &format!("   -- turn {} · {} --", mark.n, clip(&mark.agent, 12)),
+            11.0,
+            INK_MUTED,
+        ),
+    ));
 }
 
 fn text(s: &str, size: f32, color: Color) -> impl Bundle {
@@ -328,6 +431,7 @@ mod tests {
                 .collect(),
             current: current.map(str::to_string),
             status: None,
+            turns: Vec::new(),
         }
     }
 
@@ -413,6 +517,7 @@ mod tests {
             ],
             current: Some("e2".into()),
             status: None,
+            turns: Vec::new(),
         };
         assert_eq!(
             title(&forked),
