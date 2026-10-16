@@ -728,6 +728,37 @@ def main():
             check(status == 422 and any("base" in e for e in body.get("errors", [])) and canvas.entity("smoke-stray").get("id") is None,
                   f"at null is refused once there is history, not landed on main ({status} {body.get('errors')})")
 
+            # Undo and redo are per path: a branch's undo is the branch's
+            # child, its redo too, and main's own redo is untouched by them
+            # (it brings back the moon, undone above).
+            log = call(ep, "GET", "/log")[1]
+            first_id = (log.get("entries") or [{}])[0].get("id")
+            status, body = call(ep, "POST", "/ops", {"author": "smoke", "at": first_id, "ops": [
+                {"SpawnEntity": {"entity": {"name": "smoke-branch-post", "shape": {"Cylinder": {"radius": 0.05, "height": 2.0}},
+                                            "transform": {"position": [4.0, 1.0, 4.0]}}}}]})
+            b1, b1_rev = body.get("id"), body.get("revision")
+            check(status == 200 and body.get("branch") is True and b1 is not None,
+                  f"a batch at the first entry starts a branch ({status} branch={body.get('branch')})")
+            status, body = call(ep, "POST", "/undo", {"author": "smoke", "at": b1})
+            u1 = body.get("id")
+            check(status == 200 and body.get("branch") is True and body.get("parent") == b1 and body.get("warnings") == [f"undid revision {b1_rev}"],
+                  f"an undo at the branch's tip is the branch's child ({status} {body.get('warnings')})")
+            status, body = call(ep, "GET", "/world?tip=" + str(u1))
+            check(status == 200 and not any(e.get("name") == "smoke-branch-post" for e in body.get("entities", [])),
+                  "the branch after its undo has no post")
+            status, body = call(ep, "POST", "/redo", {"author": "smoke", "at": u1})
+            r1 = body.get("id")
+            check(status == 200 and body.get("branch") is True and body.get("parent") == u1 and body.get("warnings") == [f"redid revision {b1_rev}"],
+                  f"a redo at the undo's tip brings the post back on the branch ({status} {body.get('warnings')})")
+            status, body = call(ep, "GET", "/world?tip=" + str(r1))
+            check(status == 200 and any(e.get("name") == "smoke-branch-post" for e in body.get("entities", [])),
+                  "the branch after its redo has the post again")
+            status, body = call(ep, "POST", "/redo", {"author": "smoke"})
+            check(status == 200 and body.get("branch") is False and body.get("warnings") != [f"redid revision {b1_rev}"]
+                  and canvas.entity("smoke-moon").get("id") is not None,
+                  f"main's own redo is untouched by the branch's: it brings the moon back ({status} {body.get('warnings')})")
+
+
             # Undo and redo. The person's: a nudge of the sphere commits as
             # theirs; Cmd+Z takes back their own newest (not the agent's
             # delete just above), Cmd+Shift+Z brings it back. Anyone's:
@@ -779,6 +810,46 @@ def main():
             check(after_bytes == before_bytes, "a direct write to manifest.json is put back")
             check(status == 200 and any("direct write" in n.get("what", "") for n in notes), f"GET /refusals names it ({len(notes)} note(s))")
 
+            # A modulation committed to the open scene: an offset_y driven by
+            # a free-running oscillator bobs the torus, which shows as its
+            # place on screen moving. Last before the git phase, so that the
+            # checkout of HEAD~1 there is exactly this commit's removal.
+            def torus_bob(samples=8, gap=0.4):
+                """How far the torus travels vertically while sampled, in
+                metres, as the scene draws it: `scene.rendered` is the
+                primary's global transform after modulation and the frame's
+                last propagation. (The handle origin is a `GlobalTransform`
+                read in `Update`, which the physics schedule's own
+                propagation makes the authored pose on any frame with a
+                step — a measurement that read the modulation as absent
+                while it showed on screen.) `torus_bob.saw` keeps the last
+                raw reply, for a failure to explain itself."""
+                canvas.select(15)
+                time.sleep(0.2)
+                ys = []
+                for _ in range(samples):
+                    s = call(ep, "GET", "/selection")[1]
+                    scene = s.get("scene") or {}
+                    torus_bob.saw = {"selected": (s.get("selected") or {}).get("id"), "handles": bool(s.get("handles")),
+                                     "origin": (s.get("handles") or {}).get("origin"), "scene": scene, "clock": s.get("clock")}
+                    rendered = scene.get("rendered")
+                    if rendered:
+                        ys.append(rendered[1])
+                    time.sleep(gap)
+                torus_bob.ys = [round(y, 3) for y in ys]
+                return (max(ys) - min(ys)) if ys else 0.0
+
+            still = torus_bob()
+            status, body = call(ep, "POST", "/ops", {"author": "smoke", "ops": [
+                {"ModifyEntity": {"id": "torus", "patch": {"modulations": [
+                    {"target": "offset_y", "signal": {"oscillator": {"frequency": 0.7}}, "range": [0.0, 1.5]}]}}}]})
+            check(status == 200, f"a modulation batch on the torus commits ({status} {body.get('errors')})")
+            on_screen = body.get("on_screen")
+            bobbing = torus_bob()
+            check(still < 0.01 and bobbing > 0.5,
+                  f"the committed modulation bobs the torus as drawn ({still:.3f} m of travel still, {bobbing:.3f} m with it; "
+                  f"on_screen {on_screen}, saw {torus_bob.saw}, y {torus_bob.ys})")
+
             # In a git world: a checkout under the open window is followed,
             # and a replay walks the commits and comes back to the head.
             if os.path.isdir(os.path.join(world, ".git")):
@@ -790,27 +861,136 @@ def main():
                 dirty = git("status", "--porcelain")
                 check(dirty == "", f"the committer leaves the git tree clean, a restored manifest included ({dirty!r})")
                 rev_before = call(ep, "GET", "/log")[1].get("revision")
-                had_post = canvas.entity("smoke-post").get("id") is not None
+                bob_head = torus_bob()
                 git("checkout", "--quiet", "HEAD~1")
                 time.sleep(1.5)
                 rev_back = call(ep, "GET", "/log")[1].get("revision")
                 check(rev_back == rev_before - 1, f"a checkout under the open window is followed (revision {rev_before} -> {rev_back})")
-                check(had_post and canvas.entity("smoke-post").get("id") is None, "the scene shows the checked-out state (the redone post is gone again)")
+                bob_back = torus_bob()
+                check(bob_head > 0.5 and bob_back < 0.01,
+                      f"the scene shows the checked-out state: the torus's modulation, committed last, is gone ({bob_head:.3f} m -> {bob_back:.3f} m; saw {torus_bob.saw})")
                 git("checkout", "--quiet", branch)
                 time.sleep(1.5)
-                check(call(ep, "GET", "/log")[1].get("revision") == rev_before and canvas.entity("smoke-post").get("id") is not None,
-                      "and back on the branch, the post is back")
-                status, body = call(ep, "POST", "/replay?seconds=0.05", {})
+                check(call(ep, "GET", "/log")[1].get("revision") == rev_before and torus_bob() > 0.5,
+                      "and back on the branch, the torus bobs again")
+
+                # A replay shows each commit's own asset bytes. A swatch
+                # texture goes in through a batch (stored by hash); its stored
+                # copy is then overwritten with other bytes by hand and
+                # committed, so the working tree lies about history — and the
+                # replayed frame of the spawn still draws the committed red.
+                import struct
+                import zlib
+
+                def png_bytes(w, h, rgb):
+                    raw = b"".join(b"\x00" + bytes(rgb) * w for _ in range(h))
+
+                    def chunk(tag, data):
+                        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xffffffff)
+
+                    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+                            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+                def png_mean(path, cx, cy, half=10):
+                    """Mean RGB of a patch of an 8-bit RGB/RGBA PNG, no interlace."""
+                    data = open(path, "rb").read()
+                    pos, idat, w, h, bpp = 8, b"", 0, 0, 4
+                    while pos + 8 <= len(data):
+                        n, tag = struct.unpack(">I4s", data[pos:pos + 8])
+                        body = data[pos + 8:pos + 8 + n]
+                        pos += 12 + n
+                        if tag == b"IHDR":
+                            w, h, depth, ctype, _, _, interlace = struct.unpack(">IIBBBBB", body)
+                            if depth != 8 or interlace != 0 or ctype not in (2, 6):
+                                return None
+                            bpp = 4 if ctype == 6 else 3
+                        elif tag == b"IDAT":
+                            idat += body
+                        elif tag == b"IEND":
+                            break
+                    raw = zlib.decompress(idat)
+                    stride = w * bpp
+                    prev = bytearray(stride)
+                    rows = []
+                    for y in range(min(h, cy + half + 1)):
+                        f = raw[y * (stride + 1)]
+                        line = bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+                        if f:
+                            for i in range(stride):
+                                a = line[i - bpp] if i >= bpp else 0
+                                b = prev[i]
+                                c = prev[i - bpp] if i >= bpp else 0
+                                if f == 1:
+                                    line[i] = (line[i] + a) & 255
+                                elif f == 2:
+                                    line[i] = (line[i] + b) & 255
+                                elif f == 3:
+                                    line[i] = (line[i] + ((a + b) >> 1)) & 255
+                                else:
+                                    pr = a + b - c
+                                    pa, pb, pc = abs(pr - a), abs(pr - b), abs(pr - c)
+                                    line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+                        rows.append(line)
+                        prev = line
+                    sums, n = [0, 0, 0], 0
+                    for y in range(max(0, cy - half), min(len(rows), cy + half)):
+                        for x in range(max(0, cx - half), min(w, cx + half)):
+                            q = rows[y][x * bpp:x * bpp + 3]
+                            sums[0] += q[0]
+                            sums[1] += q[1]
+                            sums[2] += q[2]
+                            n += 1
+                    return tuple(s / max(n, 1) for s in sums)
+
+                red, blue = png_bytes(8, 8, (220, 30, 30)), png_bytes(8, 8, (30, 30, 220))
+                with open(os.path.join(world, "assets", "swatch.png"), "wb") as f:
+                    f.write(red)
+                status, body = call(ep, "POST", "/ops", {"author": "smoke", "message": "a swatch to replay", "ops": [
+                    {"SpawnEntity": {"entity": {"name": "smoke-swatch", "shape": {"Cuboid": {"x": 3.0, "y": 3.0, "z": 0.2}},
+                                                "transform": {"position": [0.0, 2.5, 8.0]},
+                                                "material": {"color": [1.0, 1.0, 1.0, 1.0], "base_color_texture": "swatch.png"}}}}]})
+                swatch_id = (body.get("spawned") or {}).get("smoke-swatch")
+                stored = (body.get("stored") or {}).get("swatch.png")
+                check(status == 200 and swatch_id is not None and bool(stored),
+                      f"a textured swatch spawns, its texture stored by hash ({status} {stored})")
+                spawn_commit = git("log", "-n1", "--format=%H", "--", "manifest.json")
+                if stored:
+                    with open(os.path.join(world, "assets", stored), "wb") as f:
+                        f.write(blue)
+                    git("add", "-A")
+                    git("commit", "--quiet", "-m", "the swatch's stored copy overwritten by hand")
+                    time.sleep(1.5)
+                rev_head = call(ep, "GET", "/log")[1].get("revision")
+                status, body = call(ep, "POST", "/replay?seconds=0.3", {})
                 check(status == 200 and body.get("result") == "replaying", f"a replay starts ({status} {body})")
                 done = False
-                for _ in range(200):
+                for _ in range(400):
                     time.sleep(0.25)
                     with open(os.path.join(world, ".live", "smoke-commit.log")) as f:
                         if "replay done" in f.read():
                             done = True
                             break
                 check(done, "the replay walks every commit and returns to the head")
-                check(call(ep, "GET", "/log")[1].get("revision") == rev_before, "the world is at the head after the replay")
+                check(call(ep, "GET", "/log")[1].get("revision") == rev_head, "the world is at the head after the replay")
+                cached = os.path.join(world, ".live", "replay", spawn_commit, "assets", stored or "")
+                check(bool(stored) and os.path.isfile(cached) and open(cached, "rb").read() == red,
+                      "the spawn's commit was materialized with its own bytes (red), the working tree's being blue")
+                time.sleep(1.5)
+                at = (canvas.select(swatch_id).get("handles") or {}).get("origin") if swatch_id else None
+                # The offscreen image has the panels composited in, and the
+                # detail panel grows to fit the texture's hashed name: sample
+                # the swatch where the free viewport shows it, a little in
+                # from the panel's edge (the swatch is some 230 px wide).
+                w = canvas.widgets()
+                free_x0 = max((r[0] + r[2] for n, r in w.items() if n.startswith("panel.") and r[0] < 200), default=0.0)
+                free_x1 = min((r[0] for n, r in w.items() if n.startswith("panel.") and r[0] > 300), default=1280.0)
+                sample = (min(max(at[0], free_x0 + 40), free_x1 - 40), at[1]) if at else None
+                status, body = call(ep, "GET", "/screenshot")
+                shots.append(body.get("path"))
+                mean = png_mean(body.get("path"), int(sample[0]), int(sample[1])) if (sample and body.get("path")) else None
+                check(mean is not None and mean[0] > mean[2] + 40 and mean[0] > 100,
+                      f"the replayed frame draws the swatch with the committed red, not today's blue (mean RGB {tuple(round(m) for m in mean) if mean else None} "
+                      f"sampled at {tuple(round(v) for v in sample) if sample else None}; origin {at}, free band {free_x0:.0f}..{free_x1:.0f})")
             else:
                 print("skip the checkout and replay checks: not a git world (init with --git)")
         finally:

@@ -630,6 +630,7 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
     .insert_resource(Endpoint(endpoint))
     .insert_resource(LiveEndpoint { url, token })
     .init_resource::<LiveHistory>()
+    .init_resource::<RenderedPrimary>()
     .add_message::<SeekTo>()
     .add_message::<ReviewDecision>()
     .add_plugins((
@@ -639,6 +640,11 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
     ))
     // Inside egui's pass (bevy_egui's own schedule), like every panel.
     .add_systems(EguiPrimaryContextPass, review_bar)
+    // After the frame's last propagation: the pose the renderer gets.
+    .add_systems(
+        PostUpdate,
+        note_rendered.after(bevy::transform::TransformSystems::Propagate),
+    )
     .add_systems(
         Update,
         inject_synthetic_input.before(super::canvas_edit::PersonEdits),
@@ -2103,6 +2109,36 @@ fn live_world(
     }
 }
 
+/// Where the scene drew the primary selection last frame: its global
+/// transform after modulation and the frame's final propagation. A
+/// `GlobalTransform` read in `Update` is not that — the physics schedule
+/// propagates transforms itself each fixed step, from the pose the
+/// modulation restore left, so in `Update` it is the authored pose on any
+/// frame with a step. This is the pose on screen, for a reader without eyes.
+#[derive(Resource, Default)]
+pub(crate) struct RenderedPrimary(Option<(Entity, Vec3)>);
+
+fn note_rendered(
+    selection: Option<Res<InspectorSelection>>,
+    globals: Query<&GlobalTransform>,
+    mut rendered: ResMut<RenderedPrimary>,
+) {
+    rendered.0 = selection
+        .as_ref()
+        .and_then(|s| s.entity)
+        .and_then(|e| globals.get(e).ok().map(|g| (e, g.translation())));
+}
+
+/// An entity as the scene draws it, for the selection reply: its local and
+/// global transform, and whether a modulation or behaviors hold it.
+type Drawn = (
+    &'static Transform,
+    &'static GlobalTransform,
+    Option<&'static localgpt_world_bevy::modulation::Modulated>,
+    Option<&'static super::behaviors::EntityBehaviors>,
+    Option<&'static ChildOf>,
+);
+
 /// The view side: the camera, screenshots, the selection.
 #[allow(clippy::too_many_arguments)] // a Bevy system; the repo's convention
 fn live_view(
@@ -2116,6 +2152,13 @@ fn live_view(
     marquee: Option<Res<super::canvas_edit::CanvasMarquee>>,
     offscreen: Option<Res<super::offscreen::OffscreenRenderTarget>>,
     hovered: Option<Res<crate::inspector::UiHovered>>,
+    // The scene's own state of the selection — what is drawn, which the
+    // document is not while a modulation or a drag holds it — and the
+    // modulation clock, for a test driver without eyes.
+    drawn: Query<Drawn, Without<FlyCam>>,
+    rendered: Res<RenderedPrimary>,
+    time: Res<Time>,
+    soundtrack: Option<Res<localgpt_world_bevy::modulation::Soundtrack>>,
 ) {
     let live = &mut *live;
     if let Some(def) = live.camera.take()
@@ -2175,6 +2218,27 @@ fn live_view(
                 "box": marquee.as_ref().and_then(|m| m.rect()),
                 // Whether a panel has the pointer right now.
                 "ui_hovered": hovered.is_some(),
+                // The primary as the scene draws it.
+                "scene": selection
+                    .as_ref()
+                    .and_then(|s| s.entity)
+                    .and_then(|e| drawn.get(e).ok().map(|d| (e, d)))
+                    .map(|(e, (transform, global, modulated, behaviors, parent))| json!({
+                        "translation": transform.translation.to_array(),
+                        // As of this system: on a frame with a physics step,
+                        // the authored pose — see `RenderedPrimary`.
+                        "global": global.translation().to_array(),
+                        // As drawn last frame: modulation included.
+                        "rendered": rendered.0.filter(|(re, _)| *re == e).map(|(_, v)| v.to_array()),
+                        "modulations": modulated.map(|m| m.defs().count()),
+                        "behaviors": behaviors.map(|b| b.behaviors.len()),
+                        "parented": parent.is_some(),
+                    })),
+                "clock": json!({
+                    "elapsed": time.elapsed_secs(),
+                    "soundtrack_position": soundtrack.as_ref().and_then(|s| s.position),
+                    "soundtrack_def": soundtrack.as_ref().is_some_and(|s| s.def.is_some()),
+                }),
             }))
         };
         let _ = call.reply.send(reply);

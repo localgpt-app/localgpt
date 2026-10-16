@@ -284,8 +284,9 @@ the authority's unit tests and the smoke run (`scripts/live-smoke.py` on a
   later live batch built on (the same entities) is refused naming that
   entry — "take that back first" — never a silent clobber. Undo and redo
   are per path: an undo made at a branch's tip is redone at that tip, and
-  main's own undo and redo are untouched by the branch's (a test holds
-  both). In the canvas Cmd+Z is the person's own newest, Cmd+Shift+Z
+  main's own undo and redo are untouched by the branch's — a unit test
+  holds both, and the smoke does it live over the API, reading the branch
+  with `GET /world?tip=<id>` before and after. In the canvas Cmd+Z is the person's own newest, Cmd+Shift+Z
   their redo, Cmd+Alt+Z anyone's newest; the API's `POST /undo` takes
   `own`, and `POST /redo` exists.
 - **Telling the agent when its direct write was refused.** The guard
@@ -310,6 +311,11 @@ the authority's unit tests and the smoke run (`scripts/live-smoke.py` on a
   can't), and the replay resolves each frame's ops against that root.
   The roots are fetched on a thread when the replay starts, ahead of
   playback; a frame waits for its own only when playback outruns git.
+  Live, the smoke spawns a swatch with a red texture, overwrites the
+  stored copy with blue bytes by hand and commits that, replays, and
+  samples the screenshot where the swatch is: the committed red, with
+  the materialized root holding the red bytes while the working tree
+  holds blue.
 - **Mesh, audio and camera changes in the open scene.** `OpsApplier`
   now applies an entity's `audio` (an emitter named after the entity,
   attached to it; `null` removes it), `mesh_asset` (what the entity drew
@@ -320,7 +326,19 @@ the authority's unit tests and the smoke run (`scripts/live-smoke.py` on a
   canvas's own camera on the next frame (`note_camera`), while the
   applier itself still leaves cameras alone for guests. A patched
   `modulations` list rebuilds the entity's modulation component the way
-  a load builds it, or removes it when nothing valid is left.
+  a load builds it, or removes it when nothing valid is left. Live, the
+  smoke commits an `offset_y` modulation on a free-running oscillator to
+  the torus and watches its place on screen travel some 50 px where it
+  stood still before; the checkout check then takes that commit away and
+  watches it stand still again. Getting that measurement right taught the
+  API something: a `GlobalTransform` read in `Update` (what the handles
+  and the first version of the check used) is not the pose on screen,
+  because the physics schedule runs transform propagation itself each
+  fixed step, from the pose the modulation restore left — so on any frame
+  with a step it is the authored pose, and a slower canvas, with a step
+  every frame, read the modulation as absent while it showed. The
+  selection reply now carries `scene.rendered`, recorded after the
+  frame's last propagation, and that is what the check reads.
 - **The canvas's editor follow-ups** (same day): `L` lays the handles
   along the entity's own axes, an Alt-drag of an arrow scales along that
   axis alone, a drag from empty space or a Shift-drag from anywhere
