@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use std::collections::HashMap;
 
 use super::commands::*;
-use super::registry::NameRegistry;
+use super::registry::{GenEntity, NameRegistry};
 
 // ---------------------------------------------------------------------------
 // Bevy components & resources
@@ -68,7 +68,13 @@ pub fn behavior_tick(
     time: Res<Time>,
     mut state: ResMut<BehaviorState>,
     registry: Res<NameRegistry>,
-    mut query: Query<(Entity, &mut Transform, &mut EntityBehaviors)>,
+    mut query: Query<(
+        Entity,
+        &mut Transform,
+        &mut EntityBehaviors,
+        Option<&GenEntity>,
+    )>,
+    targets: Query<(Entity, &Transform, &GenEntity), Without<EntityBehaviors>>,
 ) {
     if state.paused {
         return;
@@ -77,20 +83,30 @@ pub fn behavior_tick(
     state.elapsed += time.delta_secs_f64();
     let t = state.elapsed;
 
-    // Pre-collect center positions for orbit behaviors that reference entities.
+    // Where every world entity stands, under its name and under its id key
+    // (`__id_<n>`, what an id-form reference converts to). The format's log
+    // carries ids, so a world loaded from disk or edited live refers to its
+    // targets by id, never by name: keyed by name alone, every such orbit
+    // circled the origin and every such look-at did nothing. Entities with
+    // no behaviors are targets too — the lantern a moon orbits — so the
+    // second query covers them.
     let mut center_positions: HashMap<String, Vec3> = HashMap::new();
-    for (_, transform, _) in query.iter() {
-        // We'll look up by name from registry on demand
-        let _ = transform;
-    }
-    // Build name→position map for lookups
-    for (name, entity) in registry.all_names() {
-        if let Ok((_, transform, _)) = query.get(entity) {
-            center_positions.insert(name.to_string(), transform.translation);
+    let mut note = |entity: Entity, tag: Option<&GenEntity>, at: Vec3| {
+        if let Some(name) = registry.get_name(entity) {
+            center_positions.insert(name.to_string(), at);
         }
+        if let Some(tag) = tag {
+            center_positions.insert(super::compat::id_key(tag.world_id.0), at);
+        }
+    };
+    for (entity, transform, _, tag) in query.iter() {
+        note(entity, tag, transform.translation);
+    }
+    for (entity, transform, tag) in targets.iter() {
+        note(entity, Some(tag), transform.translation);
     }
 
-    for (_entity, mut transform, behaviors) in query.iter_mut() {
+    for (_entity, mut transform, behaviors, _) in query.iter_mut() {
         if behaviors.behaviors.is_empty() {
             continue;
         }

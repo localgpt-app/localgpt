@@ -428,8 +428,14 @@ fn reopening_a_package_whose_last_line_is_a_branch_keeps_main_as_the_head() {
 fn a_batch_names_where_it_builds_as_it_names_its_author() {
     let dir = temp("at-in-body");
     let mut live = LiveWorld::open(&dir).expect("open");
+    // On an empty log, null is the head said out loud: there is no history
+    // yet for the base to differ from.
     let e1 = live
-        .submit(&spawn("lighthouse"), "test", None)
+        .submit(
+            &json!({"at": null, "ops": [{"SpawnEntity": {"entity": {"name": "lighthouse"}}}]}),
+            "test",
+            None,
+        )
         .unwrap()
         .entry
         .id
@@ -441,15 +447,18 @@ fn a_batch_names_where_it_builds_as_it_names_its_author() {
     assert!(fork.forked);
     assert_eq!(fork.entry.parent.as_deref(), Some(e1.as_str()));
 
-    // Null is the head said out loud; naming main's tip is the same.
+    // With history, null is the base, as it is for a seek — which can't be
+    // built on, and a batch meant for it must not land on main instead.
+    // Naming main's tip is committing on main.
     let body = json!({"at": null, "ops": [{"SpawnEntity": {"entity": {"name": "pier"}}}]});
-    assert!(!live.submit(&body, "test", None).unwrap().forked);
+    let refused = live.submit(&body, "test", None).unwrap_err();
+    assert!(refused.errors[0].contains("base"), "{:?}", refused.errors);
     let tip = live.main_tip().unwrap();
     let on_tip = live
         .submit_at(Some(&tip), &spawn("crane"), "test", None)
         .unwrap();
     assert!(!on_tip.forked);
-    assert_eq!(names(live.head()), ["crane", "jetty", "lighthouse", "pier"]);
+    assert_eq!(names(live.head()), ["crane", "jetty", "lighthouse"]);
 
     let refused = live
         .submit(

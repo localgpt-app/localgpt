@@ -683,6 +683,51 @@ def main():
             noisy = [v for e in body.get("entities", []) for v in (e.get("transform", {}).get("position") or []) if isinstance(v, float) and len(repr(v)) > 12]
             check(status == 200 and not noisy, f"GET /world prints the numbers manifest.json prints ({noisy[:3]})")
 
+            # An orbit around an entity resolves by the id the op committed
+            # with: the second cold run watched its moon circle the origin,
+            # because the behavior tick knew its targets by name only. The
+            # orbiter's place on screen is by the sphere's, far from the
+            # torus at the origin, and it moves.
+            status, body = call(ep, "POST", "/ops", {"author": "smoke", "ops": [
+                {"SpawnEntity": {"entity": {"name": "smoke-moon", "shape": {"Sphere": {"radius": 0.15}},
+                                            "transform": {"position": [-12.0, 2.0, 0.0]},
+                                            "behaviors": [{"Orbit": {"center": "sphere", "radius": 1.0, "speed": 90}}]}}}]})
+            moon_id = (body.get("spawned") or {}).get("smoke-moon")
+            check(status == 200 and moon_id is not None, f"an orbiter around the sphere spawns ({status} {body.get('errors')})")
+            sphere_at = (canvas.select(11).get("handles") or {}).get("origin")
+            torus_at = (canvas.select(15).get("handles") or {}).get("origin")
+            moon_at = (canvas.select(moon_id).get("handles") or {}).get("origin") if moon_id else None
+            time.sleep(0.5)
+            moon_later = (call(ep, "GET", "/selection")[1].get("handles") or {}).get("origin")
+
+            def px(a, b):
+                return math.hypot(a[0] - b[0], a[1] - b[1]) if a and b else float("inf")
+
+            check(px(moon_at, sphere_at) < 160 and px(moon_at, torus_at) > 250,
+                  f"the orbiter circles the sphere, not the origin ({px(moon_at, sphere_at):.0f} px from the sphere, {px(moon_at, torus_at):.0f} px from the torus)")
+            check(px(moon_at, moon_later) > 2, f"and it moves ({px(moon_at, moon_later):.1f} px in half a second)")
+
+            # Reads the second cold run asked for: the world at any entry by
+            # id, the log's message at the top level, an undo receipt that
+            # names the head like a batch's, and "at": null refused rather
+            # than landed on main.
+            log = call(ep, "GET", "/log")[1]
+            first = (log.get("entries") or [{}])[0]
+            check("message" in first and first.get("message") == (first.get("intent") or {}).get("message"),
+                  f"a log entry carries its message at the top level ({first.get('message')!r})")
+            status, body = call(ep, "GET", "/world?tip=" + str(first.get("id")))
+            names_then = {e.get("name") for e in (body.get("entities") or [])} if isinstance(body, dict) else set()
+            check(status == 200 and "smoke-moon" not in names_then and "cuboid" in names_then,
+                  f"GET /world?tip=<id> folds the world at that entry ({status}, {len(names_then)} entities)")
+            status, body = call(ep, "GET", "/world?tip=no-such-entry")
+            check(status == 404, f"an unknown tip is a 404, not the head ({status})")
+            status, body = call(ep, "POST", "/undo", {"author": "smoke"})
+            check(status == 200 and body.get("head") == body.get("id") and body.get("parent") and body.get("branch") is False,
+                  f"an undo receipt names parent, head and branch like a batch's ({sorted(body.keys()) if isinstance(body, dict) else body})")
+            status, body = call(ep, "POST", "/ops", {"author": "smoke", "at": None, "ops": [{"SpawnEntity": {"entity": {"name": "smoke-stray"}}}]})
+            check(status == 422 and any("base" in e for e in body.get("errors", [])) and canvas.entity("smoke-stray").get("id") is None,
+                  f"at null is refused once there is history, not landed on main ({status} {body.get('errors')})")
+
             # Undo and redo. The person's: a nudge of the sphere commits as
             # theirs; Cmd+Z takes back their own newest (not the agent's
             # delete just above), Cmd+Shift+Z brings it back. Anyone's:

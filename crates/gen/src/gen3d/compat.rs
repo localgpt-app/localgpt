@@ -817,9 +817,17 @@ impl From<&SpawnPrimitiveCmd> for wt::WorldTransform {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// The key an id-form reference converts to. The behavior tick registers
+/// every entity's position under this as well as its name, so an orbit or
+/// a look-at bound to an id — which is what every committed reference is —
+/// finds its target.
+pub(crate) fn id_key(id: u64) -> String {
+    format!("__id_{id}")
+}
+
 fn entity_ref_to_string(r: &wt::EntityRef) -> String {
     match r {
-        wt::EntityRef::Id(id) => format!("__id_{}", id.0),
+        wt::EntityRef::Id(id) => id_key(id.0),
         wt::EntityRef::Name(name) => name.clone(),
     }
 }

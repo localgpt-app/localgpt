@@ -361,7 +361,27 @@ the authority's unit tests and the smoke run (`scripts/live-smoke.py` on a
   entry as it will be logged folds (by the strict fold every reader
   uses) to the world it made in memory — the class of bug the agent
   found — and refuses, naming the entity, if not; and the cold run is
-  the standing check after a guide change, run again against the
-  revised guide (below).
+  the standing check after a guide change. Run again against the revised
+  guide with a different task mix (a stale `expected_revision`, a branch
+  and its state, an orbit by name, a direct write, the undo's author),
+  the second agent did all eight tasks in 27 calls with no guess that
+  went wrong — and found the deepest bug of the day, in the canvas, not
+  the guide: its moon, committed (correctly, now) with the lantern's id
+  as its orbit center, circled the world origin on screen. The behavior
+  tick knew its targets by name only, while every committed reference
+  converts to an id key, and entities without behaviors of their own
+  were not in its map at all; so every id-bound orbit in every world
+  loaded from disk circled the origin, and every id-bound look-at did
+  nothing. Fixed by registering every entity under both keys. Its guide
+  stumbles were smaller and all closed: `"at": null` was taken as the
+  head — a batch meant for the base would have landed on main — and is
+  refused now once there is history; `GET /world?tip=<id>` silently
+  returned the head and now folds any entry (unknown: 404); the log
+  entry's `message` sits at the top level as the guide said; the undo
+  receipt carries the batch receipt's fields; and the guide says how
+  revisions number across branches, that refusals are 422, that the
+  refusals file appears on the first refusal, that entries are one git
+  line with the tree in `ops.jsonl`, and what a behavior looks like read
+  back.
 
 Nothing on the proof of concept's list remains open.

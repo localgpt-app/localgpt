@@ -323,8 +323,19 @@ impl LiveWorld {
                     .or(message.map(str::to_string));
                 let at = match body.get("at") {
                     None => at.map(str::to_string),
-                    // Null is main's tip, said out loud.
-                    Some(Value::Null) => None,
+                    // Null is the base, as it is for `goto`. On an empty log
+                    // that is the head, said out loud; once there is history
+                    // the base can't be built on — an entry always builds on
+                    // an entry, the format has no second root — and a batch
+                    // that asked for it must not land on main instead.
+                    Some(Value::Null) if self.entries.is_empty() => None,
+                    Some(Value::Null) => {
+                        return Err(Rejected::one(
+                            "\"at\": null is the base, which can't be built on once there is \
+                             history: build \"at\" the first entry and undo its ops in the same \
+                             batch, or name an entry id (leave \"at\" out for the head)",
+                        ));
+                    }
                     Some(Value::String(id)) => Some(id.clone()),
                     Some(_) => {
                         return Err(Rejected::one(
@@ -1976,6 +1987,7 @@ if any op is wrong, nothing changes and the reply says which op and why.
 ```sh
 W=/path/to/this/folder   # the folder this file is in; your shell may not be in it
 URL=$(jq -r .url "$W/.live/endpoint.json"); TOKEN=$(jq -r .token "$W/.live/endpoint.json")
+# no jq: URL=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["url"])' "$W/.live/endpoint.json")
 curl -s -X POST "$URL/ops" -H "Authorization: Bearer $TOKEN" -d '{
   "author": "your-name", "message": "what this change is for",
   "ops": [
@@ -1994,12 +2006,18 @@ curl -s -X POST "$URL/ops" -H "Authorization: Bearer $TOKEN" -d '{
   review), `revision` and `id` of the entry, `parent`, `head`, `branch` (true
   when it landed off main), `changes` (one line per op, like `spawn #101
   bench`), `spawned` (name → id), `stored` (asset → its copy), `warnings`
-  and `on_screen`; or `errors`, one per failing op, and nothing changed.
+  and `on_screen`; or `errors`, one per failing op, and nothing changed. A
+  refusal is HTTP 422 with `{"result": "rejected", "errors": [...]}`; a
+  stale revision reads `"the world is at revision 1, not 0: read it again,
+  then decide again"`.
 - Add `"expected_revision": N` — the `revision` you read from `GET /log` (or
   the entry's, when building on one) — when the batch must land on the world
   you read. If anyone moved it since, the batch is refused naming both
   revisions; read again, then decide again. Leave it out to bind by name
-  against the world as it is now.
+  against the world as it is now. Revisions number every entry across the
+  whole tree in the order written, so a branch tip can carry a higher
+  revision than the head; `expected_revision` is always compared with the
+  revision of the entry you build on — the head's, or the `at` entry's.
 - With review on in the canvas, the reply is `proposed` (HTTP 202) and your
   batch waits on the canvas for the person to accept or reject it: poll
   `GET /proposals` for its status, and don't resend meanwhile.
@@ -2023,7 +2041,9 @@ curl -s -X POST "$URL/ops" -H "Authorization: Bearer $TOKEN" -d '{
   `{"Pulse": {"min_scale": 0.9, "max_scale": 1.1, "frequency": 1}}`;
   `{"PathFollow": {"waypoints": [[0, 1, 0], [4, 1, 0]], "speed": 1}}`;
   Bounce. Delete a target later and the receipt warns; the behavior stays
-  and looks at nothing until retargeted or dropped.
+  and looks at nothing until retargeted or dropped. Read back, a behavior
+  carries the id it bound to and every field, defaults filled (`axis`,
+  `phase`, `tilt`), so expect a bigger block than you sent.
 - Meters, Y up. Rotations: `rotation_degrees`, X then Y then Z. Colors: RGBA
   0–1, sRGB; `emissive` is linear and glows above 1.
 - Shapes: copy the forms in `manifest.json` — {"Cuboid": {"x": 1, "y": 1, "z": 1}},
@@ -2118,19 +2138,21 @@ builds on — the branch is the treatment.
 ## See and ask
 
 - `GET $URL/world` — the head as a manifest (what `manifest.json` holds);
-  `?tip=current` for the entry the window shows instead, when the person
-  looks back. `GET $URL/verify` — whether the package agrees with its
-  history (`ok`, `problems`).
+  `?tip=current` for the entry the window shows, `?tip=<id>` for any entry,
+  `?tip=null` for the base — an unknown tip is a 404, never the head by
+  mistake. `GET $URL/verify` — whether the package agrees with its history
+  (`ok`, `problems`).
 - `GET $URL/screenshot` — renders the view now and replies with the PNG's
-  path, `tip`, `revision` and `at_head`. It is the person's camera: look at
+  path, `tip`, `revision` and `at_head`; shots are saved as
+  `.live/shot-N.png`, each kept. It is the person's camera: look at
   `.live/preview.png` first to see whether your corner of the world is in
   frame. There is no framing it from here short of `SetCamera`, which moves
   the shared camera and is a recorded change like any other.
 - `GET $URL/selection` — what the person has selected; "this" means it.
 - `POST $URL/undo -d '{"author": "your-name"}'` — undoes the head's newest
   change by appending its inverse: a new entry under your name (`you` when
-  the body names none), with a receipt like `/ops`'s and `warnings:
-  ["undid revision N"]`. `{"at": "<id>"}`: the newest on that entry's path
+  the body names none), with a receipt like `/ops`'s (the same fields;
+  `spawned` and `stored` empty) and `warnings: ["undid revision N"]`. `{"at": "<id>"}`: the newest on that entry's path
   instead, as a branch. `{"own": true}`: your own newest, skipping others' —
   refused, naming the entry, if someone built on it since. `POST $URL/redo`
   takes the newest undo back the same way (`author` and `own` too); a batch
@@ -2138,8 +2160,8 @@ builds on — the branch is the treatment.
 - `.live/preview.png` refreshes by itself after every change.
 - Writing `manifest.json` or `ops.jsonl` yourself does nothing lasting: the
   committer puts them back and notes it in `.live/refusals.jsonl`
-  (`GET $URL/refusals`). If a change of yours vanished, that is why — send
-  it as a batch.
+  (`GET $URL/refusals`; the file appears on the first refusal). If a change
+  of yours vanished, that is why — send it as a batch.
 
 ## History is a tree
 
@@ -2147,9 +2169,10 @@ Every entry in `ops.jsonl` has an `id` and builds on a `parent`. The head —
 what `manifest.json` holds — is main's tip, and a batch lands there unless it
 says otherwise.
 
-- `GET $URL/log` — the history: each entry's id, parent, revision, author,
-  message, which entry is the `head`, and `revision` — the head's, the one
-  `expected_revision` wants.
+- `GET $URL/log` — the history: each entry's `id`, `parent`, `revision`,
+  `author`, `message` (also under `intent.message`, with `intent.via`:
+  `ops`, `undo` or `redo`), `changes`, which entry is the `head`, and
+  `revision` — the head's, the one `expected_revision` wants.
 - `GET $URL/tips` — every branch end, which one is the `head`, and which entry
   the window is showing (`current`), with its `revision` — the entry on
   screen's, not the head's.
@@ -2162,12 +2185,19 @@ says otherwise.
 - When the folder is a git repository, every entry is also a commit, and a
   `git checkout` made under the open window is followed: within a second the
   window shows the checked-out state and `/log`, `/tips` and `/world` answer
-  from it. Nothing is written back over a checkout.
+  from it. Nothing is written back over a checkout. Entries are consecutive
+  commits on the folder's one git line, branch entries included, in the
+  order written; the tree — who builds on whom — lives in `ops.jsonl`, not
+  in git branches.
 - Add `"at": "<id>"` to a batch to build on that entry instead of the head.
   From an earlier entry this starts a branch: main and `manifest.json` stay as
   they were, and the reply's `id` is the branch's new tip — send the next
   batch `"at"` it to keep going. To try an alternative from what the person
-  is looking at, build `"at"` the `current` from `/tips`.
+  is looking at, build `"at"` the `current` from `/tips` — unless it is
+  `null`: the base, before the first entry, can't be built on once there is
+  history (`"at": null` is refused, never landed on main). To branch from
+  the very beginning, build `"at"` the first entry and undo its ops in the
+  same batch.
 - A reply's `on_screen` says whether the window shows your change. It doesn't
   when the person is looking at another point in the history, and then a
   screenshot won't show it either.

@@ -1081,12 +1081,18 @@ fn take_back(live: &mut Live, applier: &mut OpsApplier<'_, '_>, call: &Call, red
     match outcome {
         Ok(done) => {
             let on_screen = follow(live, applier, &done);
+            // The same receipt a batch gets, so a reader parses one shape.
             Reply::ok(json!({
                 "result": "committed",
                 "revision": done.revision,
                 "id": done.entry.id,
+                "parent": done.entry.parent,
+                "branch": done.forked,
+                "head": live.world.main_tip(),
                 "on_screen": on_screen,
                 "changes": live::describe_ops(&done.ops),
+                "spawned": done.spawned,
+                "stored": done.stored,
                 "warnings": done.warnings,
             }))
         }
@@ -1544,7 +1550,10 @@ fn publish_shots(live: &Live) -> super::shots::LiveShots {
 }
 
 const ENDPOINTS: &[(&str, &str)] = &[
-    ("GET /world", "the world now (manifest.json)"),
+    (
+        "GET /world",
+        "the head as a manifest (manifest.json); ?tip=current for the entry the window shows, ?tip=<id> for any entry, ?tip=null for the base",
+    ),
     (
         "POST /input",
         "tests only, with LOCALGPT_SYNTHETIC_INPUT=1: {\"events\": [{\"cursor\": [x, y]}, {\"button\": \"left\", \"pressed\": true}, {\"key\": \"Enter\", \"pressed\": false}]} — a person's input synthesized, one event per frame; GET /selection reports the handles' window positions",
@@ -1559,7 +1568,15 @@ const ENDPOINTS: &[(&str, &str)] = &[
     ),
     (
         "POST /undo",
-        "undo the head's newest change (appends its inverse); {\"at\": id} undoes on that entry's path instead",
+        "undo the head's newest change (appends its inverse): {\"author\": ..., \"own\": true (your own newest), \"at\": id (on that entry's path, as a branch)}",
+    ),
+    (
+        "POST /redo",
+        "take the newest undo back (appends the undo's inverse); {\"author\": ..., \"own\": true, \"at\": id} as /undo",
+    ),
+    (
+        "GET /refusals",
+        "what was tried outside the API and did not take: direct writes the committer put back (.live/refusals.jsonl, created on the first)",
     ),
     (
         "GET /log",
@@ -1653,13 +1670,23 @@ fn live_world(
             ("GET", "/" | "") => Reply::ok(json!({ "endpoints": endpoints() })),
             // The head — or `?tip=current`, the entry the window shows,
             // which `manifest.json` is not while the person looks back.
-            ("GET", "/world") => {
-                let manifest = match param(&call.query, "tip").as_deref() {
-                    Some("current") => live.view.doc().to_manifest(),
-                    _ => live.world.head_manifest().clone(),
-                };
-                Reply::ok(clean_json(&manifest))
-            }
+            ("GET", "/world") => match param(&call.query, "tip").as_deref() {
+                None | Some("head") => Reply::ok(clean_json(live.world.head_manifest())),
+                Some("current") => Reply::ok(clean_json(&live.view.doc().to_manifest())),
+                Some("null") | Some("base") => {
+                    Reply::ok(clean_json(&live.world.base().to_manifest()))
+                }
+                // Any entry, folded along its own path — without moving the
+                // window. An unknown tip is a 404, never the head by mistake.
+                Some(tip) => match openworldformat::fold_path(
+                    live.world.base(),
+                    live.world.entries(),
+                    Some(tip),
+                ) {
+                    Ok((doc, _)) => Reply::ok(clean_json(&doc.to_manifest())),
+                    Err(e) => Reply::status(404, json!({"error": e.to_string()})),
+                },
+            },
             ("GET", "/board") => match super::board::page(
                 &live.world,
                 &live.view,
@@ -2185,6 +2212,9 @@ fn history(world: &LiveWorld, ids: &localgpt_world_editor::History) -> Value {
                 "parent": id.and_then(|id| ids.parent_of(id)),
                 "revision": entry.revision,
                 "author": entry.author.name,
+                // The message at the top level, as the guide says; the
+                // intent keeps it too, with `via`.
+                "message": intent.as_ref().and_then(|i| i.get("message").cloned()).unwrap_or(Value::Null),
                 "intent": intent,
                 "changes": live::describe_ops(&entry.edit_ops()),
             })
