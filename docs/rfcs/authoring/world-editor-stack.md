@@ -110,6 +110,8 @@ thing that makes a branch rail honest about convergence.
 
 (Evaluated on 2026-10-16 against the inventory then: [`egui-or-not.md`](egui-or-not.md) — the direction stands, the removal is staged per surface, nothing new goes on egui.)
 
+(A reading of Blender's source for what its editor does that ours should — operators, modal keymaps, region-scoped input, the outliner's drop zones, the depsgraph's authored-versus-evaluated split: [`blender-lessons.md`](blender-lessons.md), 2026-10-17.)
+
 This is where "fully utilize Bevy" has recently become the right answer rather
 than the loyal one. Bevy 0.19 ships an editor-widget toolkit.
 

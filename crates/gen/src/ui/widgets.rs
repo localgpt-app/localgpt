@@ -10,11 +10,11 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use bevy::ui::{ComputedNode, UiGlobalTransform, UiSystems};
+use bevy::ui::{CalculatedClip, ComputedNode, UiGlobalTransform, UiSystems};
 
 /// The name a node answers to in `GET /widgets` — dotted, as the egui
 /// widgets are named (`panel.world_info`, `world_info.snap`, `rail.row.r3`).
-#[derive(Component, Debug, Clone)]
+#[derive(Component, Debug, Clone, Default)]
 pub struct Widget(pub String);
 
 impl Widget {
@@ -44,14 +44,28 @@ fn note_widgets(
         &ComputedNode,
         &UiGlobalTransform,
         &InheritedVisibility,
+        Option<&CalculatedClip>,
     )>,
 ) {
     rects.0.clear();
-    for (widget, node, transform, visibility) in &nodes {
+    for (widget, node, transform, visibility, clip) in &nodes {
         if !visibility.get() {
             continue;
         }
-        if let Some(rect) = rect_of(node, transform) {
+        // Inside a scrolling list, only the part a person can see (and
+        // click) counts; a row scrolled out of view is not on screen.
+        if let Some(mut rect) = rect_of(node, transform) {
+            if let Some(clip) = clip {
+                let scale = node.inverse_scale_factor();
+                let (cx0, cy0) = (clip.clip.min.x * scale, clip.clip.min.y * scale);
+                let (cx1, cy1) = (clip.clip.max.x * scale, clip.clip.max.y * scale);
+                let (x0, y0) = (rect[0].max(cx0), rect[1].max(cy0));
+                let (x1, y1) = ((rect[0] + rect[2]).min(cx1), (rect[1] + rect[3]).min(cy1));
+                if x1 <= x0 || y1 <= y0 {
+                    continue;
+                }
+                rect = [x0, y0, x1 - x0, y1 - y0];
+            }
             rects.0.insert(widget.0.clone(), rect);
         }
     }

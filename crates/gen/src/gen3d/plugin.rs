@@ -386,7 +386,9 @@ pub fn setup_gen_app(
             fly_cam_movement.run_if(
                 avatar::in_freefly_mode
                     .and_then(crate::inspector::not_ui_hovered)
-                    .and_then(super::shots::not_looking_through),
+                    .and_then(super::shots::not_looking_through)
+                    // A `bevy_ui` text field with the keyboard has the keys.
+                    .and_then(crate::ui::focus::not_typing),
             ),
         )
         .add_systems(

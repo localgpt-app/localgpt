@@ -6,6 +6,8 @@
 //! duplicate, delete, unparent, group and focus. Each becomes an intent
 //! the canvas commits through the authority, like a gesture.
 
+#![cfg_attr(feature = "feathers", allow(dead_code, unused_imports))] // the egui drawing, when the outliner is `outliner_scene.rs`
+
 use bevy::prelude::*;
 use bevy_egui::egui;
 use std::collections::HashSet;
@@ -48,7 +50,7 @@ pub struct OutlinerCache {
 /// A hash of what the tree shows — every entity's name, parent and
 /// visibility — so a reparent or a rename rebuilds it, not only a change
 /// in how many entities there are (which a reparent keeps).
-fn tree_signature(
+pub(super) fn tree_signature(
     registry: &NameRegistry,
     gen_entities: &Query<&GenEntity>,
     visibility_q: &Query<&mut Visibility>,
@@ -101,7 +103,7 @@ enum Action {
 // ---------------------------------------------------------------------------
 
 /// Build a flat DFS-ordered tree from the registry.
-fn build_tree(
+pub(super) fn build_tree(
     registry: &NameRegistry,
     gen_entities: &Query<&GenEntity>,
     visibility_q: &Query<&mut Visibility>,

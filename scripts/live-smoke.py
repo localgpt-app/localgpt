@@ -27,8 +27,9 @@ the checkout and replay checks run too; without it they are skipped.
 directory under the world's `.live/`, a socket of its own) and checks the
 bar's agent menu and presence against it; it needs `herdr` on the path.
 Run it against a `--features feathers` build as well (`--binary` names
-the executable, so both builds can be kept): the bar's checks drive
-whichever stack draws it through the same widget names.
+the executable, so both builds can be kept): the bar, the outliner, the
+review bar and the gallery checks drive whichever stack draws them
+through the same widget names.
 """
 
 import argparse
@@ -407,6 +408,16 @@ def main():
     def statuses(ep):
         return [p.get("status") for p in call(ep, "GET", "/proposals")[1].get("proposals", [])]
 
+    def buttons_soon(ep, seconds=2.0):
+        """The review bar's buttons, once the bar has drawn them: a widget
+        built on Bevy UI reaches the seam a frame after the proposal lands."""
+        deadline = time.time() + seconds
+        while True:
+            buttons = call(ep, "GET", "/proposals")[1].get("buttons") or {}
+            if buttons or time.time() >= deadline:
+                return buttons
+            time.sleep(0.05)
+
     # Review on, with a synthesized hand: proposals rejected and accepted
     # by key and by the bar's buttons, then one left pending; nothing is
     # written while one waits.
@@ -431,7 +442,7 @@ def main():
             check(not red(canvas.entity(args.modify)), "the world keeps its color after a rejection")
 
             status, body = call(ep, "POST", "/ops", batch)
-            buttons = call(ep, "GET", "/proposals")[1].get("buttons") or {}
+            buttons = buttons_soon(ep)
             check(bool(buttons.get("reject")), f"GET /proposals reports the bar's buttons ({buttons})")
             if buttons.get("reject"):
                 canvas.input(click(center(buttons["reject"])))
@@ -447,7 +458,7 @@ def main():
             check(red(canvas.entity(args.modify)), "the accepted change is in the world")
 
             status, body = call(ep, "POST", "/ops", batch)
-            buttons = call(ep, "GET", "/proposals")[1].get("buttons") or {}
+            buttons = buttons_soon(ep)
             if buttons.get("accept"):
                 canvas.input(click(center(buttons["accept"])))
                 time.sleep(0.6)
@@ -721,6 +732,27 @@ def main():
             if canvas.click_widget("world_info.review"):
                 time.sleep(0.4)
             check(call(ep, "GET", "/proposals")[1].get("review") == review_before, "and switches it back")
+
+            # The gallery (G), on whichever stack reports it by name: Bevy's
+            # own widgets do; egui's window has no named widgets yet, so
+            # there the check is only that G opens and closes something
+            # without a panic.
+            canvas.park()
+            canvas.input(press("KeyG"))
+            time.sleep(0.8)
+            w = canvas.widgets()
+            if "panel.gallery" in w:
+                x0, x1, _, _ = canvas.free_band()
+                g = w["panel.gallery"]
+                check(all(k in w for k in ("gallery.refresh", "gallery.close", "gallery.filter")), f"the gallery opens with its controls ({sorted(k for k in w if k.startswith('gallery.'))[:6]}…)")
+                check(g[0] >= x0 - 1 and g[0] + g[2] <= x1 + 1, f"the gallery sits in the free viewport ({[round(v) for v in g]} within {x0:.0f}..{x1:.0f})")
+                if canvas.click_widget("gallery.close"):
+                    time.sleep(0.5)
+                check("panel.gallery" not in canvas.widgets(), "its Close button closes it")
+            else:
+                canvas.input(press("KeyG"))
+                time.sleep(0.4)
+                print("skip the gallery's named checks: this bar is egui's (G toggled it)")
 
             if herdr:
                 # herdr's pane: the bar opens a shell in the world folder,

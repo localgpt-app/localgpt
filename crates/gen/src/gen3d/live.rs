@@ -33,7 +33,9 @@ use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, 
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use bevy::window::{CursorMoved, PrimaryWindow, WindowEvent};
-use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
+use bevy_egui::egui;
+#[cfg(not(feature = "feathers"))]
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
 use localgpt_world_agent::live::{self, LiveWorld};
 use localgpt_world_types as wt;
 use serde_json::{Value, json};
@@ -451,6 +453,12 @@ impl Live {
         self.status.as_deref()
     }
 
+    /// The agent's batch waiting on the canvas for the person, if one is.
+    #[cfg_attr(not(feature = "feathers"), allow(dead_code))] // the feathers review bar reads it
+    pub(crate) fn proposal(&self) -> Option<&Proposal> {
+        self.proposal.as_ref()
+    }
+
     /// A turn ended (herdr saw the pane's agent stop working): mark it in
     /// the history the rail draws.
     pub(crate) fn note_turn(&mut self, mark: TurnMark) {
@@ -680,24 +688,29 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
         super::shots::ShotsPlugin,
         // herdr's pane in the world folder, when herdr runs (nothing otherwise).
         super::herdr::HerdrPlugin { dir: dir.clone() },
-    ))
-    // Inside egui's pass (bevy_egui's own schedule), like every panel.
-    .add_systems(EguiPrimaryContextPass, review_bar)
-    // After the frame's last propagation: the pose the renderer gets.
-    .add_systems(
-        PostUpdate,
-        note_rendered.after(bevy::transform::TransformSystems::Propagate),
-    )
-    .add_systems(
-        Update,
-        inject_synthetic_input.before(super::canvas_edit::PersonEdits),
-    )
-    .add_systems(
-        Update,
-        (live_world, live_view)
-            .chain()
-            .after(super::canvas_edit::PersonEdits),
-    );
+    ));
+    // The review bar: egui's, inside its pass (bevy_egui's own schedule,
+    // like every panel), or Bevy's own widgets with the `feathers` feature.
+    #[cfg(not(feature = "feathers"))]
+    app.add_systems(EguiPrimaryContextPass, review_bar);
+    #[cfg(feature = "feathers")]
+    app.add_plugins(super::review_ui::ReviewUiPlugin);
+    app
+        // After the frame's last propagation: the pose the renderer gets.
+        .add_systems(
+            PostUpdate,
+            note_rendered.after(bevy::transform::TransformSystems::Propagate),
+        )
+        .add_systems(
+            Update,
+            inject_synthetic_input.before(super::canvas_edit::PersonEdits),
+        )
+        .add_systems(
+            Update,
+            (live_world, live_view)
+                .chain()
+                .after(super::canvas_edit::PersonEdits),
+        );
     if std::env::var("LOCALGPT_OFFSCREEN_SHOTS").is_ok_and(|v| v == "1") {
         app.add_systems(Update, offscreen_canvas);
     }
@@ -705,7 +718,9 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
 }
 
 /// The bar a pending proposal puts at the top of the window: who proposes
-/// what, and Accept / Reject. Enter and Esc do the same.
+/// what, and Accept / Reject. Enter and Esc do the same. (With the
+/// `feathers` feature the bar is `review_ui.rs`, on Bevy's own widgets.)
+#[cfg(not(feature = "feathers"))]
 #[allow(deprecated)] // egui 0.34: bevy_egui hands out a Context, not a root Ui
 fn review_bar(
     mut contexts: EguiContexts,
@@ -1211,7 +1226,7 @@ fn person() -> String {
 /// One line for the rail about a commit.
 fn status_line(done: &live::Committed, what: &str) -> String {
     format!(
-        "r{} · {} · {}{}",
+        "r{} - {} - {}{}",
         done.revision,
         done.entry.author.name,
         what,
@@ -1572,7 +1587,7 @@ fn publish(live: &Live) -> LiveHistory {
                 id: e.id.to_string(),
                 revision: e.entry.revision,
                 author: e.entry.author.name.clone(),
-                summary: live::describe_ops(&e.entry.edit_ops()).join(" · "),
+                summary: live::describe_ops(&e.entry.edit_ops()).join(", "),
                 tip: tips.contains(e.id),
                 head: head.as_deref() == Some(e.id),
             })
@@ -1678,7 +1693,7 @@ fn endpoints() -> Value {
 
 /// The world side: first build, ops, undo, replays, guarding manifest.json.
 #[allow(clippy::too_many_arguments)] // a Bevy system; the repo's convention
-fn live_world(
+pub(super) fn live_world(
     time: Res<Time>,
     mut live: ResMut<Live>,
     mut applier: OpsApplier,
@@ -1790,8 +1805,14 @@ fn live_world(
                 "pending": live.proposal.as_ref().map(|p| p.n),
                 "proposals": live.proposals.iter().map(ProposalRecord::to_json).collect::<Vec<_>>(),
                 // The bar's buttons in window points ([x, y, w, h]), while
-                // a proposal is pending.
-                "buttons": live.review_buttons.map(|[accept, reject]| json!({"accept": accept, "reject": reject})),
+                // a proposal is pending: egui's rectangles, or the widget
+                // seam's when the bar is on Bevy's own widgets.
+                "buttons": live.review_buttons
+                    .or_else(|| {
+                        let ui = ui_widgets.as_ref()?;
+                        Some([*ui.0.get("review.accept")?, *ui.0.get("review.reject")?])
+                    })
+                    .map(|[accept, reject]| json!({"accept": accept, "reject": reject})),
             })),
             // A replay holds the canvas: an undo or a redo would commit under
             // it, and the view would apply the delta onto a replayed frame.

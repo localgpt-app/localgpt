@@ -174,19 +174,19 @@ impl AgentPresence {
             .unwrap_or_else(|| "the pane".to_string());
         let turns = match self.turns.len() {
             0 => String::new(),
-            1 => " · 1 turn".to_string(),
-            n => format!(" · {n} turns"),
+            1 => " - 1 turn".to_string(),
+            n => format!(" - {n} turns"),
         };
         Some(match pane.status {
             AgentStatus::Blocked => (
                 format!("{who} is waiting for you ({})", ago(now - pane.since)),
                 true,
             ),
-            AgentStatus::Working => (format!("{who} · working{turns}"), false),
+            AgentStatus::Working => (format!("{who} - working{turns}"), false),
             AgentStatus::Done | AgentStatus::Idle => {
-                (format!("{who} · {}{turns}", pane.status.as_str()), false)
+                (format!("{who} - {}{turns}", pane.status.as_str()), false)
             }
-            AgentStatus::Unknown => (format!("{who} · no agent yet"), false),
+            AgentStatus::Unknown => (format!("{who} - no agent yet"), false),
         })
     }
 

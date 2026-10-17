@@ -15,6 +15,8 @@ pub mod commands;
 pub mod compat;
 pub mod extras;
 pub mod gallery;
+#[cfg(feature = "feathers")]
+pub mod gallery_scene;
 pub mod gallery_ui;
 pub mod generation_log;
 pub mod gltf_export;
@@ -31,7 +33,11 @@ pub mod plugin;
 pub mod region_dirty;
 pub mod registry;
 pub mod replay;
+#[cfg(feature = "feathers")]
+pub mod review_ui;
 pub mod shots;
+#[cfg(feature = "feathers")]
+pub mod shots_scene;
 pub mod sync;
 pub mod system_prompt;
 pub mod tool_profile;

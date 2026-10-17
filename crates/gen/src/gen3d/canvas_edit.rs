@@ -50,7 +50,9 @@ use bevy::picking::events::{Click, Drag, DragEnd, DragStart, Pointer};
 use bevy::picking::hover::HoverMap;
 use bevy::picking::pointer::{PointerButton, PointerId, PointerLocation};
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
+use bevy_egui::EguiContexts;
+#[cfg(not(feature = "feathers"))]
+use bevy_egui::{EguiPrimaryContextPass, egui};
 use serde_json::Value;
 
 use super::avatar;
@@ -75,8 +77,14 @@ const AXIS_COLORS: [Color; 3] = [
 ];
 const SCALE_HANDLE: Color = Color::srgb(0.9, 0.9, 0.9);
 const HOT: Color = Color::WHITE;
+#[cfg(not(feature = "feathers"))]
 const BOX_FILL: egui::Color32 = egui::Color32::from_rgba_premultiplied(18, 36, 51, 40);
+#[cfg(not(feature = "feathers"))]
 const BOX_LINE: egui::Color32 = egui::Color32::from_rgb(90, 180, 255);
+#[cfg(feature = "feathers")]
+const BOX_FILL_UI: Color = Color::srgba(0.35, 0.7, 1.0, 0.16);
+#[cfg(feature = "feathers")]
+const BOX_LINE_UI: Color = Color::srgb(0.35, 0.7, 1.0);
 
 /// A person's edits in the canvas.
 pub struct CanvasEditPlugin;
@@ -92,7 +100,6 @@ impl Plugin for CanvasEditPlugin {
             .init_resource::<CanvasSettings>()
             .init_resource::<Handles>()
             .init_resource::<CanvasMarquee>()
-            .add_systems(EguiPrimaryContextPass, draw_marquee)
             .add_systems(
                 Update,
                 (
@@ -111,6 +118,13 @@ impl Plugin for CanvasEditPlugin {
                     .in_set(PersonEdits),
             )
             .add_systems(Update, (draw_selection, draw_handles).after(PersonEdits));
+        // The box being drawn: painted by egui, or a `bevy_ui` node with
+        // the `feathers` feature (a layer, not a widget: picking ignores it).
+        #[cfg(not(feature = "feathers"))]
+        app.add_systems(EguiPrimaryContextPass, draw_marquee);
+        #[cfg(feature = "feathers")]
+        app.add_systems(Startup, spawn_marquee)
+            .add_systems(Update, draw_marquee.after(PersonEdits));
     }
 }
 
@@ -1196,6 +1210,7 @@ fn drain_pointer(
 }
 
 /// The box being drawn, over everything.
+#[cfg(not(feature = "feathers"))]
 fn draw_marquee(marquee: Res<CanvasMarquee>, mut egui: EguiContexts) {
     let Some(m) = marquee.0.as_ref().filter(|m| m.moved) else {
         return;
@@ -1217,6 +1232,48 @@ fn draw_marquee(marquee: Res<CanvasMarquee>, mut egui: EguiContexts) {
     );
 }
 
+/// The box being drawn, as a `bevy_ui` node over the scene: a layer the
+/// pointer passes through, sized from the marquee each frame.
+#[cfg(feature = "feathers")]
+#[derive(Component)]
+struct MarqueeNode;
+
+#[cfg(feature = "feathers")]
+fn spawn_marquee(mut commands: Commands) {
+    commands.spawn((
+        MarqueeNode,
+        Name::new("Selection box"),
+        Node {
+            position_type: PositionType::Absolute,
+            display: Display::None,
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        },
+        BackgroundColor(BOX_FILL_UI),
+        BorderColor::all(BOX_LINE_UI),
+        ZIndex(90),
+        bevy::picking::Pickable::IGNORE,
+    ));
+}
+
+#[cfg(feature = "feathers")]
+fn draw_marquee(marquee: Res<CanvasMarquee>, mut node: Query<&mut Node, With<MarqueeNode>>) {
+    let Ok(mut node) = node.single_mut() else {
+        return;
+    };
+    match marquee.rect() {
+        Some([x0, y0, x1, y1]) => {
+            node.display = Display::Flex;
+            node.left = Val::Px(x0.min(x1));
+            node.top = Val::Px(y0.min(y1));
+            node.width = Val::Px((x1 - x0).abs());
+            node.height = Val::Px((y1 - y0).abs());
+        }
+        None if node.display != Display::None => node.display = Display::None,
+        None => {}
+    }
+}
+
 /// Keys edit the selection; a run of presses is one gesture.
 #[allow(clippy::too_many_arguments)]
 fn key_edits(
@@ -1228,11 +1285,13 @@ fn key_edits(
     mut gesture: ResMut<CanvasGesture>,
     mut intents: MessageWriter<PersonIntent>,
     mut scene: Scene,
+    fields: crate::ui::focus::TypingState,
 ) {
     // Typing into a panel is not editing the world.
     let typing = egui
         .ctx_mut()
-        .is_ok_and(|ctx| ctx.egui_wants_keyboard_input());
+        .is_ok_and(|ctx| ctx.egui_wants_keyboard_input())
+        || fields.typing();
     if !typing {
         let command = keys.any_pressed([
             KeyCode::SuperLeft,

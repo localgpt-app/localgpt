@@ -206,3 +206,36 @@ reaches the scene behind it. The bar renders into the camera's image, so an
 offscreen screenshot shows it without the compositing egui needs, and the
 synthetic pointer already targets that image. The fonts are embedded (Fira
 Sans) and the dark theme's tokens fit the inspector without tuning.
+
+## The stages, as they stand (2026-10-17)
+
+Done, each behind the `feathers` feature with the egui version kept and
+chosen by the flag, each written as a scene (`bsn!`, the amendment above)
+and verified by the smoke on both builds:
+
+| Surface | File | Notes |
+|---|---|---|
+| World bar | `inspector/world_bar.rs` | the first spike; bundle constructors (deprecated) — to move to scenes when touched next |
+| Review bar | `gen3d/review_ui.rs` | the first scene; its buttons reach `GET /proposals` through the seam |
+| Box overlay | `gen3d/canvas_edit.rs` | a `bevy_ui` node the pointer passes through |
+| Gallery | `gen3d/gallery_scene.rs` | a filter field on `bevy_input_focus` (the keys stay in the field: `ui/focus.rs`), thumbnails as images, a scrolling list, placed in the free viewport |
+| Shot strip | `gen3d/shots_scene.rs` | rendered thumbnails, a click looks through, a card dragged to a gap reorders through the same `reorder_ops`, the board buttons |
+| Outliner | `inspector/outliner_scene.rs` | the same tree and signature, drag to reparent (`Pointer<DragDrop>`), a context menu, a search field, folds and eyes; rebuilt on change with the folds kept by entity, as Blender keeps row state (`blender-lessons.md`) |
+
+Left on egui: the detail panel (the generic JSON editor, combos, drag
+values — the one to write once for the inspector and a future asset shelf;
+one to two weeks), and the prompt, collaboration and client panels, which
+go when the agent transcript lands (tier 1 of the agents RFC). The
+default build is still egui's; the feature flips when the detail panel is
+across and the flag has been lived with.
+
+What the scene ports met, beyond the first spike's list: the embedded
+fonts have no middle dot, en dash, arrow or warning sign, so every text a
+`bevy_ui` panel shows is ASCII now (the rail's too — it had drawn boxes
+for its separators since it was written); `ImageNode` is no scene
+template and is built through `template(...)`; a column's alignment is
+pinned explicitly in every scene, after an unpinned one centred its rows
+and a drag's drop landed two rows off; `Pointer<Click>` carries the click
+count, so a double click needs no timer; the dragged entity in a
+`DragDrop` is the node under the press (a row's text), so a drop walks up
+to the row.

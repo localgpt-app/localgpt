@@ -2,6 +2,7 @@
 //!
 //! These modules implement signs, HUD, labels, tooltips, and notifications.
 
+pub mod focus;
 pub mod hud;
 pub mod label;
 pub mod notification;

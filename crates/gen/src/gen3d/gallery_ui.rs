@@ -1,22 +1,29 @@
-//! Gallery UI — egui overlay for browsing generated worlds.
+//! Gallery UI — the overlay for browsing generated worlds.
 //!
 //! Triggered by the `G` keybind or `/gallery` slash command.
-//! Displays world cards with thumbnails, filtering, and load actions.
+//! Displays world cards with thumbnails, filtering, and load actions. The
+//! state, the toggle and the load hand-off live here for both stacks; the
+//! egui window is below, and with the `feathers` feature the panel is
+//! `gallery_scene.rs`, on Bevy's own widgets.
 //!
 //! IMPORTANT: Gallery systems are chained and run before InspectorPlugin
 //! systems to avoid egui context contention. The gallery_ui_system only
 //! accesses EguiContexts when gallery.visible is true.
 
+#[cfg(not(feature = "feathers"))]
 use std::collections::HashMap;
+#[cfg(not(feature = "feathers"))]
 use std::path::PathBuf;
 
 use bevy::prelude::*;
+#[cfg(not(feature = "feathers"))]
 use bevy_egui::{EguiContexts, egui};
 
 use super::gallery::{self, WorldGalleryEntry};
 use super::plugin::GenWorkspace;
 
 /// Thumbnail loading state for a single entry.
+#[cfg(not(feature = "feathers"))]
 enum ThumbnailEntry {
     /// We haven't tried to load this yet.
     NotLoaded,
@@ -32,11 +39,13 @@ enum ThumbnailEntry {
 /// time a gallery card is rendered, then cached for the lifetime of the
 /// gallery session. The cache is cleared when the gallery entry list is
 /// refreshed (e.g., the Refresh button).
+#[cfg(not(feature = "feathers"))]
 #[derive(Resource, Default)]
 pub struct ThumbnailCache {
     textures: HashMap<PathBuf, ThumbnailEntry>,
 }
 
+#[cfg(not(feature = "feathers"))]
 impl ThumbnailCache {
     /// Look up or lazily load a thumbnail for the given image path.
     ///
@@ -66,6 +75,7 @@ impl ThumbnailCache {
 }
 
 /// Load an image file from disk and upload it as an egui texture.
+#[cfg(not(feature = "feathers"))]
 fn load_thumbnail_texture(path: &PathBuf, ctx: &egui::Context) -> ThumbnailEntry {
     let image_bytes = match std::fs::read(path) {
         Ok(bytes) => bytes,
@@ -110,6 +120,9 @@ pub struct GalleryState {
     pub selected: Option<usize>,
     /// Path of world to load (set by "Load" button, consumed by command handler).
     pub load_request: Option<String>,
+    /// How many times the entries were scanned; a thumbnail cache that
+    /// kept images for an earlier scan drops them.
+    pub scans: u32,
 }
 
 /// Bevy plugin that adds the gallery UI systems.
@@ -128,10 +141,13 @@ impl Plugin for GalleryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GalleryState>()
             .init_resource::<PendingGalleryLoad>()
-            .init_resource::<ThumbnailCache>()
             .add_systems(Update, gallery_toggle_system)
-            .add_systems(Update, gallery_ui_system)
             .add_systems(Update, gallery_load_system);
+        #[cfg(not(feature = "feathers"))]
+        app.init_resource::<ThumbnailCache>()
+            .add_systems(Update, gallery_ui_system);
+        #[cfg(feature = "feathers")]
+        app.add_plugins(super::gallery_scene::GalleryScenePlugin);
     }
 }
 
@@ -152,26 +168,28 @@ fn gallery_load_system(mut gallery: ResMut<GalleryState>, mut pending: ResMut<Pe
 fn gallery_toggle_system(
     keys: Res<ButtonInput<KeyCode>>,
     mut gallery: ResMut<GalleryState>,
-    mut thumb_cache: ResMut<ThumbnailCache>,
     workspace: Res<GenWorkspace>,
+    typing: crate::ui::focus::TypingState,
 ) {
-    // Plain G only: Cmd/Ctrl + G is the live canvas's "group".
+    // Plain G only: Cmd/Ctrl + G is the live canvas's "group", and a G
+    // typed into a text field is a letter.
     let command = keys.any_pressed([
         KeyCode::SuperLeft,
         KeyCode::SuperRight,
         KeyCode::ControlLeft,
         KeyCode::ControlRight,
     ]);
-    if keys.just_pressed(KeyCode::KeyG) && !command {
+    if keys.just_pressed(KeyCode::KeyG) && !command && !typing.typing() {
         gallery.visible = !gallery.visible;
         if gallery.visible && gallery.entries.is_empty() {
             gallery.entries = gallery::scan_world_gallery(&workspace.path);
-            thumb_cache.clear();
+            gallery.scans += 1;
         }
     }
 }
 
 /// Main gallery UI system — draws the egui window.
+#[cfg(not(feature = "feathers"))]
 fn gallery_ui_system(
     mut contexts: EguiContexts,
     mut gallery: ResMut<GalleryState>,
@@ -219,6 +237,7 @@ fn gallery_ui_system(
                 ui.text_edit_singleline(&mut gallery.filter);
                 if ui.button("Refresh").clicked() {
                     gallery.entries = gallery::scan_world_gallery(&workspace.path);
+                    gallery.scans += 1;
                     thumb_cache.clear();
                 }
                 ui.label(format!("{} worlds", entry_count));

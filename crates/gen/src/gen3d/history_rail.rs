@@ -176,7 +176,11 @@ fn redraw_rail(
             panel.spawn(text(&clip(status, 64), 12.0, color));
         }
         if hidden_newer > 0 {
-            panel.spawn(text(&format!("  … {hidden_newer} newer"), 12.0, INK_MUTED));
+            panel.spawn(text(
+                &format!("  ... {hidden_newer} newer"),
+                12.0,
+                INK_MUTED,
+            ));
         }
         // Newest at the top, the way a log reads. A turn's end sits above
         // the newest entry it holds.
@@ -194,7 +198,11 @@ fn redraw_rail(
             );
         }
         if hidden_older > 0 {
-            panel.spawn(text(&format!("  … {hidden_older} older"), 12.0, INK_MUTED));
+            panel.spawn(text(
+                &format!("  ... {hidden_older} older"),
+                12.0,
+                INK_MUTED,
+            ));
         }
         // A turn that ended before anything was written sits above the base.
         if window.start == 0 {
@@ -246,7 +254,7 @@ fn spawn_turn(panel: &mut ChildSpawnerCommands, mark: &TurnMark) {
     panel.spawn((
         Widget::new(format!("rail.turn.{}", mark.n)),
         text(
-            &format!("   -- turn {} · {} --", mark.n, clip(&mark.agent, 12)),
+            &format!("   -- turn {} - {} --", mark.n, clip(&mark.agent, 12)),
             11.0,
             INK_MUTED,
         ),
@@ -372,17 +380,17 @@ fn title(history: &LiveHistory) -> String {
     let at = match (current, head) {
         (Some(i), Some(h)) if i == h => format!("r{} (head)", history.rows[i].revision),
         (Some(i), Some(h)) => format!(
-            "r{} · head r{}",
+            "r{} - head r{}",
             history.rows[i].revision, history.rows[h].revision
         ),
         (Some(i), None) => format!("r{}", history.rows[i].revision),
-        (None, Some(h)) => format!("the base · head r{}", history.rows[h].revision),
+        (None, Some(h)) => format!("the base - head r{}", history.rows[h].revision),
         (None, None) => "the base".to_string(),
     };
     match tips {
-        0 | 1 => format!("History · {} entries · at {at}", history.rows.len()),
+        0 | 1 => format!("History - {} entries - at {at}", history.rows.len()),
         n => format!(
-            "History · {} entries · {n} branches · at {at}",
+            "History - {} entries - {n} branches - at {at}",
             history.rows.len()
         ),
     }
@@ -503,11 +511,11 @@ mod tests {
     fn the_title_counts_branches_and_says_where_the_head_is() {
         assert_eq!(
             title(&linear(3, Some("e3"))),
-            "History · 3 entries · at r3 (head)"
+            "History - 3 entries - at r3 (head)"
         );
         assert_eq!(
             title(&linear(3, Some("e1"))),
-            "History · 3 entries · at r1 · head r3"
+            "History - 3 entries - at r1 - head r3"
         );
         let forked = LiveHistory {
             rows: vec![
@@ -521,11 +529,11 @@ mod tests {
         };
         assert_eq!(
             title(&forked),
-            "History · 3 entries · 2 branches · at r2 · head r3"
+            "History - 3 entries - 2 branches - at r2 - head r3"
         );
         assert_eq!(
             title(&linear(2, None)),
-            "History · 2 entries · at the base · head r2"
+            "History - 2 entries - at the base - head r2"
         );
     }
 

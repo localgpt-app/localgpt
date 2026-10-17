@@ -6,6 +6,8 @@
 
 pub mod detail;
 pub mod outliner;
+#[cfg(feature = "feathers")]
+pub mod outliner_scene;
 pub mod protocol;
 pub mod selection;
 #[cfg(feature = "feathers")]
@@ -156,6 +158,16 @@ pub struct OtherPanels(pub Vec<[f32; 4]>);
 #[derive(Resource)]
 pub struct UiHovered;
 
+/// A panel's rectangle by name, whichever stack draws it: egui's
+/// ([`PanelRects`]) or `bevy_ui`'s (the widget seam).
+pub fn panel_rect(
+    name: &str,
+    egui: &PanelRects,
+    seam: &crate::ui::widgets::UiWidgetRects,
+) -> Option<[f32; 4]> {
+    egui.0.get(name).or_else(|| seam.0.get(name)).copied()
+}
+
 /// When set, the camera system should fly to focus on this entity's position.
 #[derive(Resource, Default)]
 pub struct PendingFocusEntity {
@@ -261,9 +273,13 @@ impl Plugin for InspectorPlugin {
             .add_systems(EguiPrimaryContextPass, inspector_ui)
             // 3D viewport click-to-select via Bevy's built-in mesh picking
             .add_observer(on_mesh_clicked);
-        // The world bar on Bevy's own widgets, in place of the egui one.
+        // The world bar and the outliner on Bevy's own widgets, in place of
+        // the egui ones.
         #[cfg(feature = "feathers")]
-        app.add_plugins(world_bar::WorldBarPlugin);
+        app.add_plugins((
+            world_bar::WorldBarPlugin,
+            outliner_scene::OutlinerScenePlugin,
+        ));
     }
 }
 
@@ -410,7 +426,8 @@ fn inspector_ui(
         panels.push(world_bar::reserve_space(ctx));
     }
 
-    // --- Outliner (left panel) ---
+    // --- Outliner (left panel) --- (`outliner_scene.rs` with `feathers`)
+    #[cfg(not(feature = "feathers"))]
     {
         let edit = live.as_deref().map(|live| outliner::OutlinerEdit {
             intents: &mut panel_intents.0,

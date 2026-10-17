@@ -30,12 +30,15 @@
 //! [`shot_camera`]: localgpt_world_bevy::camera::shot_camera
 
 use bevy::prelude::*;
+#[cfg(not(feature = "feathers"))]
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, EguiTextureHandle, egui};
 use localgpt_world_bevy::camera::{self, ShotCamera};
 use localgpt_world_types as wt;
 use serde_json::{Value, json};
 
-use super::live::{LiveEndpoint, LiveHistory};
+use super::live::LiveEndpoint;
+#[cfg(not(feature = "feathers"))]
+use super::live::LiveHistory;
 use super::offscreen;
 use super::plugin::FlyCam;
 
@@ -63,10 +66,13 @@ impl Plugin for ShotsPlugin {
                     sync_shot_thumbs,
                 )
                     .chain(),
-            )
-            // The strip draws inside egui's pass, which bevy_egui runs in
-            // its own schedule (multi-pass mode, its default).
-            .add_systems(EguiPrimaryContextPass, shot_strip_ui);
+            );
+        // The strip: egui's, inside its pass (bevy_egui's own schedule), or
+        // Bevy's own widgets with the `feathers` feature (`shots_scene.rs`).
+        #[cfg(not(feature = "feathers"))]
+        app.add_systems(EguiPrimaryContextPass, shot_strip_ui);
+        #[cfg(feature = "feathers")]
+        app.add_plugins(super::shots_scene::ShotsScenePlugin);
     }
 }
 
@@ -308,12 +314,24 @@ pub struct ShotThumbs {
     thumbs: Vec<Thumb>,
 }
 
+impl ShotThumbs {
+    /// The rendered thumbnail of a shot's camera entity, when there is one.
+    #[cfg_attr(not(feature = "feathers"), allow(dead_code))] // the feathers strip reads it
+    pub(super) fn image_of(&self, entity_id: u64) -> Option<Handle<Image>> {
+        self.thumbs
+            .iter()
+            .find(|t| t.entity_id == entity_id)
+            .map(|t| t.image.clone())
+    }
+}
+
 struct Thumb {
     /// The shot's world entity id.
     entity_id: u64,
     /// The offscreen camera.
     camera: Entity,
     image: Handle<Image>,
+    #[cfg(not(feature = "feathers"))]
     texture: Option<egui::TextureId>,
     /// The document entity the last render was placed from.
     doc_entity: wt::WorldEntity,
@@ -381,6 +399,7 @@ fn sync_shot_thumbs(
                         entity_id: id,
                         camera,
                         image,
+                        #[cfg(not(feature = "feathers"))]
                         texture: None,
                         doc_entity: entry.entity.clone(),
                         placed: shot.transform,
@@ -412,6 +431,7 @@ fn sync_shot_thumbs(
 // ---------------------------------------------------------------------------
 
 /// One drop gap: before the first row, or after row `zone - 1`.
+#[cfg(not(feature = "feathers"))]
 fn strip_drop_zone(ui: &mut egui::Ui, zone: usize, drop: &mut Option<(usize, usize)>) {
     let (_inner, payload) = ui.dnd_drop_zone::<usize, _>(
         egui::Frame::new().inner_margin(egui::Margin::symmetric(4, 1)),
@@ -426,6 +446,7 @@ fn strip_drop_zone(ui: &mut egui::Ui, zone: usize, drop: &mut Option<(usize, usi
 
 /// The strip: the shots in order, click or number to look through,
 /// drag to reorder, boards at the bottom.
+#[cfg(not(feature = "feathers"))]
 #[allow(clippy::too_many_arguments)] // a Bevy system; the repo's convention
 fn shot_strip_ui(
     mut contexts: EguiContexts,
@@ -484,6 +505,7 @@ fn shot_strip_ui(
 
 /// One shot's card: thumbnail, name and size, lens and clock,
 /// description; a drag source for reordering, a click to look through.
+#[cfg(not(feature = "feathers"))]
 fn shot_row(
     ui: &mut egui::Ui,
     shots: &LiveShots,
@@ -555,13 +577,14 @@ fn shot_row(
 }
 
 /// `4.50` → `4.5`, for the clock on a card.
-fn trim_seconds(v: f64) -> String {
+pub(super) fn trim_seconds(v: f64) -> String {
     let s = format!("{v:.2}");
     s.trim_end_matches('0').trim_end_matches('.').to_string()
 }
 
 /// The board buttons: this tip's board, or two tips side by side in
 /// the browser (the authority's `GET /board`).
+#[cfg(not(feature = "feathers"))]
 fn board_buttons(ui: &mut egui::Ui, endpoint: &LiveEndpoint, history: Option<&LiveHistory>) {
     let current = history.and_then(|h| h.current.as_deref());
     let head = history.and_then(|h| h.rows.iter().find(|r| r.head).map(|r| r.id.as_str()));
@@ -583,7 +606,7 @@ fn board_buttons(ui: &mut egui::Ui, endpoint: &LiveEndpoint, history: Option<&Li
 
 /// A `/board` URL on the authority, token included (the API takes it
 /// as a query parameter, which is what a browser can send).
-fn board_url(endpoint: &LiveEndpoint, tip: Option<&str>, vs: Option<&str>) -> String {
+pub(super) fn board_url(endpoint: &LiveEndpoint, tip: Option<&str>, vs: Option<&str>) -> String {
     let mut url = format!("{}/board?token={}", endpoint.url, endpoint.token);
     if let Some(tip) = tip {
         url.push_str(&format!("&tip={tip}"));
@@ -597,7 +620,7 @@ fn board_url(endpoint: &LiveEndpoint, tip: Option<&str>, vs: Option<&str>) -> St
 /// Open a URL in the person's browser, best effort; the address is
 /// logged either way (the authority is localhost, the token already
 /// sits in `.live/endpoint.json`).
-fn open_in_browser(url: &str) {
+pub(super) fn open_in_browser(url: &str) {
     eprintln!("[shots] {url}");
     let opener = if cfg!(target_os = "macos") {
         "open"
