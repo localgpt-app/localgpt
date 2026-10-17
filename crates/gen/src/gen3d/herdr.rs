@@ -487,11 +487,7 @@ fn open_pane(
         .ok_or_else(|| "herdr's reply named no pane".to_string())?
         .to_string();
     if let Some(command) = command {
-        request(
-            socket,
-            "pane.send_input",
-            json!({"pane_id": id, "text": command, "keys": ["enter"]}),
-        )?;
+        start_in(socket, &id, command)?;
     }
     Ok(AgentPane {
         id,
@@ -500,6 +496,31 @@ fn open_pane(
         since: 0.0,
         command: command.map(str::to_string),
     })
+}
+
+/// Run `command` in the pane. For an agent herdr knows (`claude`, `codex`,
+/// …) that is herdr's own starter, `agent.start`, which waits until the
+/// agent is ready and labels the pane; herdr can refuse it while the shell
+/// is still coming up, and then — as for any other command — the text goes
+/// in with Enter, what `herdr pane run` does.
+fn start_in(socket: &Path, pane: &str, command: &str) -> Result<(), String> {
+    if AGENTS.contains(&command) {
+        let started = request_with(
+            socket,
+            "agent.start",
+            json!({"name": command, "kind": command, "pane_id": pane, "timeout_ms": 20_000}),
+            Duration::from_secs(25),
+        );
+        if started.is_ok() {
+            return Ok(());
+        }
+    }
+    request(
+        socket,
+        "pane.send_input",
+        json!({"pane_id": pane, "text": command, "keys": ["enter"]}),
+    )
+    .map(|_| ())
 }
 
 /// A connection that stays open for the pane's status changes and its end.
@@ -544,7 +565,19 @@ fn ping(socket: &Path) -> Option<String> {
 
 /// One request, one reply: the `result`, or the error's message.
 fn request(socket: &Path, method: &str, params: Value) -> Result<Value, String> {
+    request_with(socket, method, params, REQUEST_TIMEOUT)
+}
+
+/// [`request`], allowed `wait` for its reply (a start that waits for an
+/// agent to be ready takes longer than a lookup).
+fn request_with(
+    socket: &Path,
+    method: &str,
+    params: Value,
+    wait: Duration,
+) -> Result<Value, String> {
     let mut stream = connect(socket)?;
+    let _ = stream.set_read_timeout(Some(wait));
     let line = json!({"id": format!("gen-{method}"), "method": method, "params": params});
     writeln!(stream, "{line}").map_err(|e| e.to_string())?;
     let mut reply = String::new();
