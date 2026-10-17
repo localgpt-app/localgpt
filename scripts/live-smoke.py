@@ -754,6 +754,85 @@ def main():
                 time.sleep(0.4)
                 print("skip the gallery's named checks: this bar is egui's (G toggled it)")
 
+            # The history panel (H), on plain Bevy UI in either build: the
+            # log as a graph above the bar, the rail put away while it is
+            # open. Its buttons, its scrubber and play all seek — nothing is
+            # written — so `GET /log`'s `current` follows them.
+            def current():
+                return call(ep, "GET", "/log")[1].get("current")
+
+            def current_soon(want, seconds=3.0):
+                deadline = time.time() + seconds
+                while time.time() < deadline:
+                    if current() == want:
+                        return want
+                    time.sleep(0.1)
+                return current()
+
+            ids = [e.get("id") for e in call(ep, "GET", "/log")[1].get("entries") or []]
+            was = current()
+            canvas.park()
+            canvas.input(press("KeyH"))
+            time.sleep(0.8)
+            w = canvas.widgets()
+            nodes = sorted(k for k in w if k.startswith("history.node."))
+            controls = ("history.scrub", "history.first", "history.prev", "history.play", "history.next", "history.last", "history.base")
+            check("panel.history" in w and all(k in w for k in controls), f"H opens the history panel with its controls ({sorted(k for k in w if k.startswith('history.') and not k.startswith('history.node.'))})")
+            check(len(ids) > 2 and len(nodes) == len(ids), f"the graph has a node per entry ({len(nodes)} nodes, {len(ids)} entries)")
+            check("panel.history_rail" not in w, "the rail is put away while the panel is open")
+            if "panel.history" in w:
+                x0, x1, y1, _ = canvas.free_band()
+                p = w["panel.history"]
+                check(p[0] >= x0 - 9 and p[0] + p[2] <= x1 + 9 and p[1] + p[3] <= y1 + 9, f"the panel sits between the side panels, above the bar ({[round(v) for v in p]} within {x0:.0f}..{x1:.0f}, bar at {y1 + 8:.0f})")
+                shots.append((call(ep, "GET", "/screenshot")[1] or {}).get("path"))  # the graph, for a person to look at
+            canvas.click_widget("history.first")
+            check(current_soon(None) is None, f"|< seeks to the base (current {current()})")
+            canvas.click_widget("history.next")
+            check(current_soon(ids[0]) == ids[0], f"> seeks to the first entry (current {current()})")
+            canvas.click_widget("history.last")
+            check(current_soon(ids[-1]) == ids[-1], f">| seeks to the last entry (current {current()})")
+            canvas.click_widget("history.prev")
+            check(current_soon(ids[-2]) == ids[-2], f"< steps one back (current {current()})")
+            # The scrubber: a press at its left end is the base, a drag to
+            # its right end the last entry.
+            s = canvas.widgets().get("history.scrub")
+            if s:
+                x, y, sw, sh = s
+                canvas.input([{"cursor": [x + 1, y + sh / 2]}, {"button": "left", "pressed": True}])
+                check(current_soon(None) is None, f"a press at the scrubber's left end seeks to the base (current {current()})")
+                canvas.input([{"cursor": [x + sw / 2, y + sh / 2]}, {"cursor": [x + sw - 1, y + sh / 2]}, {"button": "left", "pressed": False}])
+                check(current_soon(ids[-1]) == ids[-1], f"dragged to its right end, the last entry (current {current()})")
+            else:
+                check(False, "the scrubber reports through the seam")
+            # Play from the base at 4x: every entry in write order, and it
+            # stops at the last.
+            canvas.click_widget("history.first")
+            current_soon(None)
+            for _ in range(2):
+                canvas.click_widget("history.speed")
+            canvas.click_widget("history.play")
+            seen = []
+            started = time.time()
+            while time.time() - started < 15.0:
+                c = current()
+                if not seen or seen[-1] != c:
+                    seen.append(c)
+                if c == ids[-1]:
+                    break
+                time.sleep(0.05)
+            check(bool(seen) and seen[-1] == ids[-1], f"play walks to the last entry ({len(seen)} states seen in {time.time() - started:.1f}s)")
+            passed = [c for c in seen if c in ids]
+            check(len(passed) >= 3 and all(ids.index(a) < ids.index(b) for a, b in zip(passed, passed[1:])), f"and in write order ({[str(c)[:14] for c in seen]})")
+            time.sleep(0.8)
+            check(current() == ids[-1], "and stops there")
+            canvas.input(press("KeyH"))
+            time.sleep(0.6)
+            w = canvas.widgets()
+            check("panel.history" not in w and "panel.history_rail" in w, "H closes the panel and the rail is back")
+            if current() != was:
+                call(ep, "POST", "/goto", {"tip": was or "head"})
+                time.sleep(0.5)
+
             if herdr:
                 # herdr's pane: the bar opens a shell in the world folder,
                 # and what herdr says of the agent in it reaches the canvas

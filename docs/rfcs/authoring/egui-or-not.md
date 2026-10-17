@@ -82,7 +82,8 @@ decide.**
 
 1. **Nothing new goes on egui.** A transcript, a terminal pane, a tree for
    the rail, any new panel: `bevy_ui`, with `bevy_feathers` behind the
-   feature flag when its widgets fit. The rail already follows this.
+   feature flag when its widgets fit. The rail already follows this, and
+   the history panel (`H`) followed it.
 2. **Spike one panel to price the rest.** The world bar (`world_info.rs`,
    ~40 calls: four checkboxes, two drag values, a menu, a status line) is the
    smallest complete surface. Port it to feathers behind the flag, keep the
@@ -221,6 +222,16 @@ and verified by the smoke on both builds:
 | Gallery | `gen3d/gallery_scene.rs` | a filter field on `bevy_input_focus` (the keys stay in the field: `ui/focus.rs`), thumbnails as images, a scrolling list, placed in the free viewport |
 | Shot strip | `gen3d/shots_scene.rs` | rendered thumbnails, a click looks through, a card dragged to a gap reorders through the same `reorder_ops`, the board buttons |
 | Outliner | `inspector/outliner_scene.rs` | the same tree and signature, drag to reparent (`Pointer<DragDrop>`), a context menu, a search field, folds and eyes; rebuilt on change with the folds kept by entity, as Blender keeps row state (`blender-lessons.md`) |
+
+Beside those, in both builds and on plain `bevy_ui` like the rail: the
+history panel (`gen3d/history_panel.rs`, `H`), the tree the rail was
+waiting for — the log as a horizontal graph, a lane per branch with a line
+to the parent, the head and the current ringed, herdr's turns as ticks, a
+scrubber, and play at a fixed pace or the authors' own. Every move is a
+seek (`SeekTo`, the `POST /goto` path), so it works on any world and
+writes nothing. It needed none of feathers' widgets — its controls are
+graph nodes, a track and eight small buttons, the rail's hand-rolled
+`Button` + `Interaction` — which is why it is not behind the flag.
 
 Left on egui: the detail panel (the generic JSON editor, combos, drag
 values — the one to write once for the inspector and a future asset shelf;

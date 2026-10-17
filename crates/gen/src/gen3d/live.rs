@@ -214,6 +214,7 @@ fn key_code(name: &str) -> Option<KeyCode> {
         "Equal" => KeyCode::Equal,
         "KeyD" => KeyCode::KeyD,
         "KeyG" => KeyCode::KeyG,
+        "KeyH" => KeyCode::KeyH,
         "KeyY" => KeyCode::KeyY,
         "KeyZ" => KeyCode::KeyZ,
         "KeyL" => KeyCode::KeyL,
@@ -558,13 +559,19 @@ pub struct TurnMark {
     pub revision: u64,
 }
 
-/// One entry of the log, as the rail shows it.
+/// One entry of the log, as the rail and the history panel show it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HistoryRow {
     pub id: String,
+    /// The entry it builds on; `None` for one built on the base.
+    pub parent: Option<String>,
     pub revision: u64,
     pub author: String,
     pub summary: String,
+    /// The entry's own message, when the author gave one.
+    pub message: Option<String>,
+    /// When it was written (milliseconds since the epoch).
+    pub timestamp_ms: u64,
     /// Nothing builds on this entry: the end of a branch.
     pub tip: bool,
     /// Main's tip — the entry whose world `manifest.json` holds.
@@ -684,6 +691,7 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
     .add_message::<ReviewDecision>()
     .add_plugins((
         super::history_rail::HistoryRailPlugin,
+        super::history_panel::HistoryPanelPlugin,
         super::canvas_edit::CanvasEditPlugin,
         super::shots::ShotsPlugin,
         // herdr's pane in the world folder, when herdr runs (nothing otherwise).
@@ -1585,9 +1593,12 @@ fn publish(live: &Live) -> LiveHistory {
             .iter()
             .map(|e| HistoryRow {
                 id: e.id.to_string(),
+                parent: e.entry.parent.clone(),
                 revision: e.entry.revision,
                 author: e.entry.author.name.clone(),
                 summary: live::describe_ops(&e.entry.edit_ops()).join(", "),
+                message: e.entry.message.clone(),
+                timestamp_ms: e.entry.timestamp_ms,
                 tip: tips.contains(e.id),
                 head: head.as_deref() == Some(e.id),
             })
@@ -1767,7 +1778,16 @@ pub(super) fn live_world(
                 Ok(html) => Reply::html(html),
                 Err(e) => Reply::status(404, json!({"error": e})),
             },
-            ("GET", "/log") => Reply::ok(history(&live.world, live.view.history())),
+            // The log, and where the canvas stands in it (`current`: an
+            // entry id, or null at the base) — what the history panel's
+            // scrubber and playback move.
+            ("GET", "/log") => {
+                let mut log = history(&live.world, live.view.history());
+                if let Value::Object(map) = &mut log {
+                    map.insert("current".into(), json!(live.view.tip()));
+                }
+                Reply::ok(log)
+            }
             // The panels' widgets by name, for the hand that has no eyes.
             // How many synthesized events still wait to be emitted, one per
             // frame — a driver waits for zero before it reads, so a slow

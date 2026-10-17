@@ -69,12 +69,22 @@ fn place_rail(
     state: Option<Res<InspectorState>>,
     egui_rects: Option<Res<PanelRects>>,
     ui_rects: Option<Res<UiWidgetRects>>,
+    panel: Option<Res<super::history_panel::HistoryPanel>>,
     window: Query<&Window, With<PrimaryWindow>>,
     mut rail: Query<&mut Node, With<Rail>>,
 ) {
     let Ok(mut node) = rail.single_mut() else {
         return;
     };
+    // The history panel is the rail's larger form: one or the other.
+    let open = panel.is_some_and(|p| p.open);
+    let display = if open { Display::None } else { Display::Flex };
+    if node.display != display {
+        node.display = display;
+    }
+    if open {
+        return;
+    }
     let (width, height) = window
         .single()
         .map_or((1280.0, 720.0), |w| (w.width(), w.height()));
@@ -415,9 +425,12 @@ mod tests {
     fn row(id: &str, revision: u64, tip: bool) -> HistoryRow {
         HistoryRow {
             id: id.into(),
+            parent: (revision > 1).then(|| format!("e{}", revision - 1)),
             revision,
             author: "claude".into(),
             summary: format!("spawn #{revision}"),
+            message: None,
+            timestamp_ms: revision * 1000,
             tip,
             head: false,
         }

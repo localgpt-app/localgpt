@@ -1097,8 +1097,9 @@ inverts each of those:
 - **Most of the machinery exists.** MD's sections-to-places pipeline becomes
   scenes-to-sets; Gen has camera, screenshot, depth and ComfyUI preview tools
   (`gen_render_depth`, `gen_preview_world`, `gen_image_to_layout`); the live
-  canvas forks, seeks and draws a history rail (`gen3d/live.rs`,
-  `gen3d/history_rail.rs`); Verse already uses a soundtrack as the clock.
+  canvas forks, seeks and draws a history rail and a history panel that
+  plays the log back (`gen3d/live.rs`, `gen3d/history_rail.rs`,
+  `gen3d/history_panel.rs`); Verse already uses a soundtrack as the clock.
 
 ### 15.2 Between the two references
 

@@ -22,6 +22,7 @@ pub mod generation_log;
 pub mod gltf_export;
 pub mod headless;
 pub mod herdr;
+pub mod history_panel;
 pub mod history_rail;
 pub mod live;
 pub mod mcp_relay;

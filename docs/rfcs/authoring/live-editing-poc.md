@@ -219,9 +219,10 @@ the product.
   put back from the document). `GET /proposals` reports each one's
   status; a second batch, an undo, a seek or a person's edit waits for
   the decision.
-- **A held drag blocks a seek**: the rail refuses to move through
-  history while an entity is where the pointer has it rather than where
-  the document says, so a gesture can't land on the wrong entry.
+- **A held drag blocks a seek**: the rail — and the history panel's
+  scrubber and play (`H`) — refuses to move through history while an
+  entity is where the pointer has it rather than where the document says,
+  so a gesture can't land on the wrong entry.
 - **Camera bookmarks**: the world bar's ★ menu saves the view as a
   waypoint of a `bookmarks` tour in the document (a `ModifyWorld`), so
   they travel with the world; each is a click away, or dropped.
@@ -442,4 +443,8 @@ the world bar exists on Bevy's own widgets behind the `feathers` feature
 (`inspector/world_bar.rs`) — the priced spike of `egui-or-not.md` — while
 `gen3d/herdr.rs` is the agents RFC's tier-0 variant: herdr's pane in the
 world folder from the bar, its agent's `blocked` as a light and its turns
-as marks on the rail.
+as marks on the rail. The day after, the rail's larger form: the history
+panel (`gen3d/history_panel.rs`, `H`), the log as a horizontal graph with
+a lane per branch, a scrubber and play — every move a seek, so a person
+can watch the world being made, and `GET /log` says where the canvas
+stands (`current`) so a driver can too.

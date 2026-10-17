@@ -411,8 +411,8 @@ then holds one `events.subscribe` connection for that pane's
 waiting for you (40 s)" in the refusal colour (click: `pane.focus`);
 `working` → `done` or `idle` pushes a `TurnMark` — the log's length and
 the head's revision then — which the history rail draws as a line between
-the entries ("-- turn 2 · claude --") and `GET /agents` reports with the
-pane and its status. Without herdr nothing shows. herdr's `done` comes
+the entries ("-- turn 2 · claude --"), the history panel (`H`) as a tick
+between its nodes, and `GET /agents` reports with the pane and its status. Without herdr nothing shows. herdr's `done` comes
 from its detection manifests; `idle` after `working` counts as a turn's
 end too, because a state reported through `pane.report_agent` never says
 `done`. The smoke checks it end to end against a headless `herdr server`
