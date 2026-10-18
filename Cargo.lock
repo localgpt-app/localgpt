@@ -8347,7 +8347,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8384,7 +8384,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-app"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "bevy 0.19.1",
@@ -8408,7 +8408,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-bridge"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -8427,7 +8427,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-bridge-cli"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -8444,7 +8444,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-cli-tools"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8466,7 +8466,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-core"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -8515,7 +8515,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-gen"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8566,7 +8566,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-md"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "bevy 0.19.1",
  "blake3",
@@ -8584,7 +8584,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-mobile-ffi"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "localgpt-core",
@@ -8597,7 +8597,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-previs"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "base64 0.22.1",
  "localgpt-world-export",
@@ -8611,7 +8611,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-previs-web"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "localgpt-previs",
  "serde_json",
@@ -8620,7 +8620,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-relay"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "axum",
  "futures",
@@ -8636,7 +8636,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-sandbox"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "directories 6.0.0",
@@ -8653,7 +8653,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-server"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -8690,7 +8690,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-verse"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "bevy 0.19.1",
  "blake3",
@@ -8719,7 +8719,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-agent"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "etcetera",
  "localgpt-world-editor",
@@ -8739,7 +8739,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-audio"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "fundsp",
  "kira",
@@ -8750,7 +8750,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-bevy"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "bevy 0.19.1",
  "localgpt-world-types",
@@ -8759,7 +8759,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-editor"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "localgpt-world-sync",
  "openworldformat",
@@ -8769,7 +8769,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-export"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "base64 0.22.1",
  "localgpt-world-types",
@@ -8779,7 +8779,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-sync"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "localgpt-world-types",
  "openworldformat",
@@ -8789,7 +8789,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-types"
-version = "0.3.6"
+version = "0.4.0"
 dependencies = [
  "openworldformat",
  "ron",
