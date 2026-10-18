@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "The LocalGPT desktop app — one window, every mode: worlds from a prompt (Gen), a document (MD) or a song (Verse); the assistant follows"
+# The desktop app ships as a build, not a crate: nothing published
+# depends on it, and its md and verse dependencies carry no version.
+publish = false
 repository.workspace = true
 keywords = ["localgpt", "desktop", "world", "bevy"]
 

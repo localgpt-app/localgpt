@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "LocalGPT Verse — a desktop app that imagines a 3D world for every song"
+# Not on crates.io: publishing claims the name for good. Drop this line
+# to publish it, with its first release.
+publish = false
 
 # The app is the bin; the lib is what other LocalGPT apps use (`song_world`).
 [lib]

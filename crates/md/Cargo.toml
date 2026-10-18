@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "LocalGPT MD — open a Markdown file and walk through it as a 3D world"
+# Not on crates.io: publishing claims the name for good. Drop this line
+# to publish it, with its first release.
+publish = false
 repository.workspace = true
 
 

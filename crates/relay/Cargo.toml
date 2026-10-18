@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Internet relay for LocalGPT collaborative rooms: forwards WebSocket frames between a host and its guests by room code — never holds world state"
+# Not on crates.io: publishing claims the name for good. Drop this line
+# to publish it, with its first release.
+publish = false
 keywords = ["localgpt", "world", "collaboration", "relay"]
 
 [dependencies]
