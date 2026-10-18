@@ -82,6 +82,15 @@ ignore = [
     { id = "RUSTSEC-2023-0071", reason = "rsa (Marvin timing side channel): transitive via jsonwebtoken; no patched release exists; LocalGPT does not use RSA keys for JWTs" },
     { id = "RUSTSEC-2026-0192", reason = "ttf-parser: unmaintained, transitive via winit -> sctk-adwaita (Wayland window decorations); no upgrade available" },
     { id = "RUSTSEC-2026-0344", reason = "ruzstd 0.8 decompression bomb (DoS only, no memory unsafety): reached through bevy_image's KTX2 zstd path, which no app here feeds untrusted .zst textures; fixed in 0.9.1, which bevy_image 0.19 does not accept — drop when Bevy bumps" },
+    # zip < 9 lets `extract` write outside its destination (symlinks, the
+    # permissions applied through them, SUID/SGID bits). world-agent, which
+    # extracts a `.world` a person opens, is on zip 9. The one zip < 9 left is
+    # candle-core 0.10's (the local-llm tier, via mistral.rs 0.8): it reads
+    # and writes .npz/.pth entries and never calls `extract`. candle 0.11
+    # still wants zip 8; drop these when candle reaches 9.
+    { id = "RUSTSEC-2026-0367", reason = "zip extract keeps SUID/SGID bits: only candle-core 0.10 (local-llm) has zip < 9, and it never calls extract" },
+    { id = "RUSTSEC-2026-0368", reason = "zip extract follows symlinks out of the destination: only candle-core 0.10 (local-llm) has zip < 9, and it never calls extract" },
+    { id = "RUSTSEC-2026-0369", reason = "zip extract applies permissions through symlinks: only candle-core 0.10 (local-llm) has zip < 9, and it never calls extract" },
 ]
 # If this is true, then cargo deny will use the git executable to fetch advisory database.
 # If this is false, then it uses a built-in git library.
