@@ -81,6 +81,32 @@ apps/apple/scripts/build_apple.sh                  # XCFramework + Swift (iOS/ma
 apps/android/scripts/build_android.sh              # cargo-ndk + Kotlin
 ```
 
+### Releasing
+
+cargo-release with one shared version (`[workspace.metadata.release]`).
+Pass `--workspace` to every step: the root's `default-members` is the CLI
+alone, so without it cargo-release selects only `localgpt`. Edit
+`CHANGELOG.md` (Unreleased becomes `## [X.Y.Z] - date`, plus the links at
+the bottom) in its own commit first.
+
+```bash
+cargo release version X.Y.Z --workspace --execute   # bumps every crate and the internal requirements
+cargo release commit --workspace --execute          # the "chore: Release" commit
+git tag -s vX.Y.Z -m vX.Y.Z                         # signed, like every v tag
+git push origin main vX.Y.Z                         # .github/workflows/release.yml publishes
+```
+
+The tag push runs `.github/workflows/release.yml`: it checks the tag
+against the version, asks crates.io which crates are already up
+(`scripts/release-plan.py`, so a rerun finishes a partial publish), builds
+the rest from their packages and uploads them in dependency order, through
+Trusted Publishing. A crate published for the first time needs the
+`CARGO_REGISTRY_TOKEN` secret, since crates.io can only trust a workflow
+for a crate that exists; crates.io also limits how many new crates go up
+at once, and a rerun picks up the rest. Members with `publish = false`
+(app, md, verse, relay, previs-web, mobile-ffi) stay off crates.io.
+`cargo publish --workspace --dry-run` is the local check.
+
 ## Architecture
 
 LocalGPT is a local-only AI assistant with persistent markdown-based memory and

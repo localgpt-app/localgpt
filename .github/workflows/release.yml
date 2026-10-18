@@ -1,0 +1,113 @@
+# Publish the workspace's crates to crates.io when a release tag is pushed.
+#
+# A release is cut locally as before, with --workspace on every cargo-release
+# step (the root's `default-members` is the CLI alone, so without it
+# cargo-release selects only `localgpt`):
+#   cargo release version X.Y.Z --workspace --execute
+#   cargo release commit --workspace --execute
+#   git tag -s vX.Y.Z -m vX.Y.Z
+#   git push origin main vX.Y.Z
+# and this job does the rest. It refuses a tag that is not the workspace's
+# version; asks crates.io which crates are already up at that version
+# (scripts/release-plan.py), so a rerun after a partial publish, such as
+# crates.io's limit on new crates, finishes the release instead of failing
+# on the first crate already there; builds every remaining crate from its
+# package; and only then uploads them, in dependency order.
+#
+# Credentials: Trusted Publishing, so no token lives in the repository.
+# crates.io issues a short-lived token because each crate's settings name
+# this repository, this workflow file and the `crates-io` environment. Set
+# it up once per crate on crates.io, Settings > Trusted Publishing > GitHub:
+# owner `localgpt-app`, repository `localgpt`, workflow `release.yml`,
+# environment `crates-io`. crates.io allows that only for a crate that
+# already exists, so a crate's first release needs an API token instead:
+# put one with the publish-new and publish-update scopes in the
+# `CARGO_REGISTRY_TOKEN` secret and it is used in place of the exchange.
+# Delete the secret once every crate trusts this workflow.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  # Publish whatever is not yet up at the version on the chosen ref: for a
+  # rerun, or a release tagged on a commit that predates this file.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  BEVY_APT_DEPS: libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev libfontconfig1-dev libdbus-1-dev pkg-config
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment:
+      name: crates-io
+      url: https://crates.io/crates/localgpt
+    permissions:
+      contents: read
+      id-token: write # the OIDC token crates.io exchanges; nothing else
+    env:
+      HAS_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: The tag names the workspace version
+        if: github.ref_type == 'tag'
+        run: |
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
+          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "::error::the tag says ${GITHUB_REF_NAME#v}, Cargo.toml says $version"
+            exit 1
+          fi
+
+      - name: What crates.io already has
+        id: plan
+        run: python3 scripts/release-plan.py
+
+      # Building gen, world-bevy and world-audio from their packages needs
+      # the same scratch space and system packages as CI's native-deps job,
+      # and core needs ONNX Runtime as in CI's test job.
+      - name: Free runner disk
+        if: steps.plan.outputs.remaining != '0'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL && df -h /
+      - name: Install Bevy build deps
+        if: steps.plan.outputs.remaining != '0'
+        run: |
+          read -ra deps <<< "$BEVY_APT_DEPS"
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends "${deps[@]}"
+      - uses: ./.github/actions/onnxruntime
+        if: steps.plan.outputs.remaining != '0'
+
+      - name: Package and build every remaining crate from its package
+        if: steps.plan.outputs.remaining != '0'
+        env:
+          EXCLUDES: ${{ steps.plan.outputs.excludes }}
+        run: |
+          read -ra excludes <<< "$EXCLUDES"
+          cargo publish --workspace --dry-run "${excludes[@]}"
+
+      # The token comes after the long build, since it is short-lived.
+      - name: A short-lived token from crates.io
+        id: auth
+        if: steps.plan.outputs.remaining != '0' && env.HAS_TOKEN != 'true'
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Upload
+        if: steps.plan.outputs.remaining != '0'
+        env:
+          EXCLUDES: ${{ steps.plan.outputs.excludes }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
+        run: |
+          read -ra excludes <<< "$EXCLUDES"
+          cargo publish --workspace --no-verify "${excludes[@]}"
