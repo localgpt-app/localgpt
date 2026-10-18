@@ -445,7 +445,9 @@ fn main() -> anyhow::Result<()> {
         path: if canvas { None } else { initial_world },
     });
     if let Some(dir) = &live_canvas {
-        localgpt_gen::gen3d::live::setup_live(&mut app, dir)?;
+        // The app has no `--review` of its own yet: an agent's batch commits
+        // as soon as the authority takes it, as it did before Gen grew one.
+        localgpt_gen::gen3d::live::setup_live(&mut app, dir, false)?;
     } else {
         app.add_plugins(localgpt_gen::net::host::NetHostPlugin {
             options: std::sync::Mutex::new(Some(host_options)),
