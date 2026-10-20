@@ -4,6 +4,16 @@ All notable changes to LocalGPT are documented in this file.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-19
+
+### Added
+
+- **Releases publish from CI (`.github/workflows/release.yml`)** — pushing a signed `vX.Y.Z` tag publishes the workspace's crates to crates.io through Trusted Publishing, with no token in the repository: the tag is checked against the version, crates already up at it are skipped (`scripts/release-plan.py`, so a rerun finishes a partial publish), the rest are built from their packages and then uploaded in dependency order. `scripts/trust-release-workflow.py` registers the workflow on every crate through crates.io's API. A crate's first release still needs a token, which the workflow takes from the `CARGO_REGISTRY_TOKEN` secret when one is set. 0.4.1 is the first release cut this way.
+
+### Changed
+
+- **Every crate's page on crates.io** — the nine crates that had none (`localgpt-bridge-cli`, `localgpt-cli-tools`, `localgpt-previs` and the six world crates) have a README, and all sixteen published crates name the homepage, keywords and categories.
+
 ## [0.4.0] - 2026-10-17
 
 ### Added
@@ -406,7 +416,8 @@ Initial release of LocalGPT — a local-only AI assistant with persistent markdo
 - **Zero-config startup** defaulting to `claude-cli/opus`.
 - **Auto-migration** from OpenClaw config if present.
 
-[Unreleased]: https://github.com/localgpt-app/localgpt/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/localgpt-app/localgpt/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/localgpt-app/localgpt/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/localgpt-app/localgpt/compare/v0.3.6...v0.4.0
 [0.3.6]: https://github.com/localgpt-app/localgpt/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/localgpt-app/localgpt/compare/v0.3.4...v0.3.5
