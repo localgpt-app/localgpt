@@ -84,14 +84,16 @@ apps/android/scripts/build_android.sh              # cargo-ndk + Kotlin
 ### Releasing
 
 cargo-release with one shared version (`[workspace.metadata.release]`).
-Pass `--workspace` to every step: the root's `default-members` is the CLI
-alone, so without it cargo-release selects only `localgpt`. Edit
+Pass `--workspace` to every step that selects packages (`version`,
+`publish`, `tag`, `push`): the root's `default-members` is the CLI alone,
+so without it cargo-release selects only `localgpt`. `commit` takes no
+package flags and always commits the whole workspace. Edit
 `CHANGELOG.md` (Unreleased becomes `## [X.Y.Z] - date`, plus the links at
 the bottom) in its own commit first.
 
 ```bash
 cargo release version X.Y.Z --workspace --execute   # bumps every crate and the internal requirements
-cargo release commit --workspace --execute          # the "chore: Release" commit
+cargo release commit --execute                      # the "chore: Release" commit
 git tag -s vX.Y.Z -m vX.Y.Z                         # signed, like every v tag
 git push origin main vX.Y.Z                         # .github/workflows/release.yml publishes
 ```

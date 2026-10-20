@@ -1,10 +1,10 @@
 # Publish the workspace's crates to crates.io when a release tag is pushed.
 #
 # A release is cut locally as before, with --workspace on every cargo-release
-# step (the root's `default-members` is the CLI alone, so without it
-# cargo-release selects only `localgpt`):
+# step that selects packages (the root's `default-members` is the CLI alone,
+# so without it cargo-release selects only `localgpt`); `commit` takes none:
 #   cargo release version X.Y.Z --workspace --execute
-#   cargo release commit --workspace --execute
+#   cargo release commit --execute
 #   git tag -s vX.Y.Z -m vX.Y.Z
 #   git push origin main vX.Y.Z
 # and this job does the rest. It refuses a tag that is not the workspace's
