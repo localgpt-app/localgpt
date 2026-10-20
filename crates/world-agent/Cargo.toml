@@ -4,8 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 description = "The shared world agent runtime — the tool-call protocol and pure SceneInterpreter that build localgpt-world-types entities, with the mistral.rs session loop behind `llm`"
 keywords = ["localgpt", "world", "3d", "agent"]
+categories = ["game-development", "artificial-intelligence"]
 
 [features]
 # The mistral.rs session loop (`run_session`, `tool_schemas`).

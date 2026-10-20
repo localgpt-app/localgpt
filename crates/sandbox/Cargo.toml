@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+keywords = ["localgpt", "sandbox", "isolation", "security"]
+categories = ["os", "security"]
 description = "LocalGPT shell sandbox — kernel-enforced execution isolation"
 readme = "README.md"
 

@@ -4,8 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 description = "Distribution formats for LocalGPT worlds — the web viewer and self-contained HTML export of a WorldManifest (no Bevy)"
 keywords = ["localgpt", "world", "3d", "threejs", "export"]
+categories = ["web-programming", "rendering"]
 
 [dependencies]
 localgpt-world-types = { workspace = true }

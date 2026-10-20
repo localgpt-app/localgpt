@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+keywords = ["localgpt", "cli", "chat", "assistant", "daemon"]
+categories = ["command-line-utilities"]
 description = "CLI bridge for LocalGPT — interactive chat via the daemon's bridge socket"
 
 [[bin]]

@@ -4,8 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 description = "The one Bevy mapping of the LocalGPT world format — meshes, materials, lights, environment — shared by Gen, MD and Verse"
 keywords = ["localgpt", "world", "3d", "bevy"]
+categories = ["game-development", "rendering"]
 
 [dependencies]
 localgpt-world-types = { workspace = true }

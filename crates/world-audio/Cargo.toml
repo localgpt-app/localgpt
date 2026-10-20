@@ -5,7 +5,9 @@ edition.workspace = true
 license.workspace = true
 description = "The one mapping from the LocalGPT world format's audio to sound: FunDSP synthesis inside a kira mixer"
 repository.workspace = true
+homepage.workspace = true
 keywords = ["localgpt", "world", "audio", "dsp"]
+categories = ["multimedia::audio", "game-development"]
 
 [dependencies]
 localgpt-world-types = { workspace = true }

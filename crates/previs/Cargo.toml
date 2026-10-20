@@ -4,8 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 description = "LocalGPT Previs — a screenplay in (Fountain, a Final Draft .fdx, a PDF, or Markdown script pages), per-scene .world packages with set/cast/coverage, a printable board and a shot-list CSV out. Deterministic: no model, no network, no renderer"
 keywords = ["localgpt", "previs", "screenplay", "fountain", "markdown"]
+categories = ["multimedia::video", "parser-implementations"]
 
 [features]
 default = ["pdf"]

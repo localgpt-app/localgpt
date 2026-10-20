@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+keywords = ["localgpt", "server", "http", "assistant"]
+categories = ["web-programming::http-server"]
 description = "LocalGPT HTTP server"
 readme = "README.md"
 

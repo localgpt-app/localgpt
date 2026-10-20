@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+keywords = ["localgpt", "ai", "agent", "memory", "assistant"]
+categories = ["artificial-intelligence"]
 description = "Core library for LocalGPT — agent, memory, config, security"
 readme = "README.md"
 

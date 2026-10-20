@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+keywords = ["localgpt", "ipc", "bridge", "daemon"]
+categories = ["network-programming"]
 description = "Secure IPC protocol for LocalGPT bridge daemons"
 readme = "README.md"
 
