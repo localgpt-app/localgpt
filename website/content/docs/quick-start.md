@@ -6,6 +6,8 @@ title: "Quick Start"
 
 This guide will get you chatting with LocalGPT in just a few minutes.
 
+> This is the assistant's quick start. For worlds, see [the desktop app](/docs/app/) and [LocalGPT Gen](/docs/gen/); to previs a screenplay with nothing installed, drop it on [localgpt.md](https://localgpt.md).
+
 ## 1. Configure a Model Provider
 
 Choose one of the following options:

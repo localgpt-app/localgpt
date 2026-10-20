@@ -93,10 +93,10 @@ Generative Game Engine (GGE) from Moonlake AI that transforms text descriptions 
 
 ### LocalGPT Gen
 
-Open-source, local-first 3D world generation powered by Bevy. Features procedural audio synthesis, data-driven behaviors, and full glTF export. Runs entirely on your machine without cloud dependencies.
+Open-source, local-first 3D world generation powered by Bevy. Features procedural audio synthesis, data-driven behaviors, glTF and HTML export, collaborative sessions, and a [live canvas](/docs/gen/live-canvas/) where outside agents edit a `.world` package through a logged, branchable history. Runs entirely on your machine without cloud dependencies.
 
 **Showcases:**
-- [localgpt-gen-workspace](https://github.com/localgpt-app/localgpt-gen-workspace) — "World as skill" examples: complete explorable worlds saved as reusable, shareable skills
+- [localgpt.world](https://localgpt.world/) — worlds from every LocalGPT app, playable in the browser with their behaviors, audio and tours
 - [proofof.video](https://proofof.video/) — Video gallery comparing world generations across different models using the same or similar prompts
 
 See the [Gen documentation](/docs/gen) for details on LocalGPT's world generation capabilities.

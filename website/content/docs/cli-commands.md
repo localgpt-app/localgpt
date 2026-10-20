@@ -16,6 +16,7 @@ Commands:
   tui         Launch terminal UI (TUI) with streaming display
   ask         Single question and response
   gen         Launch world generation mode (Bevy renderer)
+  world       Work on a .world package: commit batches, read the log, verify, serve its tools over MCP
   daemon      Manage the background daemon
   memory      Memory management operations
   config      Configuration management
@@ -60,6 +61,7 @@ Options:
 | `tui` | Terminal UI with streaming responses and slash commands |
 | [`ask`](/docs/cli-ask) | Single-turn question answering |
 | [`gen`](/docs/gen) | Launch world generation mode (Bevy renderer) |
+| [`world`](#world) | A `.world` package's command line: commit batches, read the log and tips, undo, verify, and serve an open canvas's tools over MCP |
 | [`daemon`](/docs/cli-daemon) | Start/stop/status of the background daemon |
 | [`memory`](/docs/cli-memory) | Search, reindex, and manage memory |
 | `config` | Init, show, get, and set configuration values |
@@ -115,6 +117,12 @@ localgpt sandbox status
 # Launch world generation (separate binary)
 localgpt-gen "create a solar system with planets"
 
+# Work on a .world package (see below)
+localgpt world init demo.world --git
+localgpt world submit demo.world batch.json --author me --message "lift the cube"
+localgpt world log demo.world
+localgpt world mcp demo.world          # the open canvas's tools, over stdio, for any MCP agent
+
 # Test web search provider
 localgpt search test
 
@@ -160,6 +168,29 @@ localgpt mcp-server
 # Manage TLS certificates for the HTTP server
 localgpt cert info                # Show certificate expiry, SANs, and paths
 localgpt cert regenerate          # Force certificate regeneration
+```
+
+## `localgpt world` {#world}
+
+A `.world` package is a folder — `manifest.json` (the world now), `ops.jsonl` (every change), `assets/` — and `localgpt world` is its command line: the same authority the [live canvas](/docs/gen/live-canvas/) uses in the window, with no window, for scripts, CI and the terminal. It refuses to write while an app answers at the folder's endpoint, so there is one authority at a time.
+
+```bash
+localgpt world init <dir> [--git]                 # open a folder as a package, creating one if needed; --git: every batch a commit
+localgpt world submit <dir> <batch.json | ->      # commit a batch of edit ops — whole, or not at all
+    --author <name> --message <why>               #   attribution and the commit message
+    --at <entry-id>                               #   build on an earlier entry: a branch; the head stays where it is
+localgpt world undo <dir> --author <name>         # take back the newest edit by appending its inverse
+localgpt world log <dir>                          # every committed batch, oldest first, with ids
+localgpt world tips <dir>                         # every branch end, the head marked
+localgpt world verify <dir>                       # the fold of the log still equals the head; assets match their hashes
+localgpt world history <dir> [--rev <ref>]        # the git history, when the world is in git
+localgpt world mcp [<dir>]                        # serve the open canvas's tools over stdio (submit, undo, log, verify, screenshot, selection)
+```
+
+A batch is JSON: `[op, …]` or `{"ops": [op, …]}`, with the op kinds `SpawnEntity`, `ModifyEntity`, `DeleteEntity`, `SetEnvironment`, `SetCamera` and `Batch`; `-` reads it from stdin. Names bind wherever the format marks a reference and commit as ids; a refusal names the op and the reason. The folder's `AGENTS.md` describes the same rules for an agent.
+
+```bash
+claude mcp add scene -- localgpt world mcp scene-1.world    # Claude Code edits the open world
 ```
 
 ## Built-in Chat Commands

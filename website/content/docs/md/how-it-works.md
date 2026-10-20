@@ -27,9 +27,9 @@ Worlds use [`localgpt-world-types`](https://crates.io/crates/localgpt-world-type
 ## Develop {#develop}
 
 ```bash
-cargo test
-cargo clippy --all-targets -- -D warnings
+cargo test -p localgpt-md
+cargo clippy -p localgpt-md --all-targets -- -D warnings
 cargo fmt --check
 ```
 
-LocalGPT MD is open source under Apache-2.0; the code is at [github.com/localgpt-app/localgpt-md](https://github.com/localgpt-app/localgpt-md).
+LocalGPT MD is open source under Apache-2.0; the code is `crates/md` in [github.com/localgpt-app/localgpt](https://github.com/localgpt-app/localgpt/tree/main/crates/md). The desktop app compiles documents with the same pure library (`--no-default-features`: no Bevy) and renders them in Gen's viewport.

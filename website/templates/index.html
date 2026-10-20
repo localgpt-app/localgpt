@@ -11,25 +11,31 @@
 
       <div class="install-wrap">
         <div class="install-row">
-          <span class="install-label">World Building</span>
+          <span class="install-label">Worlds</span>
           <span class="install-code">cargo install localgpt-gen</span>
           <button class="copy-btn" onclick="copyCmd(this, 'cargo install localgpt-gen')">Copy</button>
         </div>
         <div class="install-row">
-          <span class="install-label">AI Assistant</span>
+          <span class="install-label">Previs</span>
+          <span class="install-code">cargo install localgpt-previs</span>
+          <button class="copy-btn" onclick="copyCmd(this, 'cargo install localgpt-previs')">Copy</button>
+        </div>
+        <div class="install-row">
+          <span class="install-label">Assistant</span>
           <span class="install-code">cargo install localgpt</span>
           <button class="copy-btn" onclick="copyCmd(this, 'cargo install localgpt')">Copy</button>
         </div>
       </div>
 
       <p class="hero-subtitle">
-        A local AI assistant with persistent memory, and apps that turn words, songs, and notes into explorable 3D worlds.
+        A local AI agent with persistent memory, and a desktop app where a prompt, a document, a song or a screenplay becomes a <code>.world</code> you can walk through — a package with a history that people and agents edit together.
         <br>
         Open source, runs locally.
       </p>
 
-      <div class="hero-buttons">
-        <a href="/docs/gen/" class="btn btn-primary">Start Building</a>
+      <div class="hero-buttons" style="flex-wrap: wrap;">
+        <a href="/docs/app/" class="btn btn-primary">The desktop app</a>
+        <a href="https://localgpt.md/" class="btn btn-secondary">Try previs ↗</a>
         <a href="/docs/intro/" class="btn btn-secondary">Documentation</a>
       </div>
     </div>
@@ -50,40 +56,44 @@
 <!-- Features Grid -->
 <section class="section-features">
   <div class="container">
-    <h2 class="section-title">Built for Local-First Creation</h2>
-    <p class="section-subtitle">Everything runs directly on your machine without cloud dependencies or telemetry.</p>
+    <h2 class="section-title">Worlds with a history, built where your data lives</h2>
+    <p class="section-subtitle">Everything runs on your machine — no cloud dependency, no telemetry, nothing uploaded.</p>
     <div class="features-grid">
       <div class="feature-card">
-        <h3>Build Worlds with Language</h3>
-        <p>Describe a scene in natural language and watch it come to life. Spawn primitives, load glTF models, apply materials, set lighting, and position the camera — all through conversational prompts.</p>
+        <h3>A world is a package</h3>
+        <p>A <code>.world</code> is a folder: the world now, the log of every change ever made to it, and its assets by content hash. The state at any revision is a fold of the log, so undo, branches, replay and sharing are reads over one history — the <a href="https://openworldformat.org" target="_blank" rel="noopener">Open World Format</a>, which any viewer of the format opens.</p>
       </div>
       <div class="feature-card">
-        <h3>Procedural Audio</h3>
-        <p>Add ambient soundscapes (wind, rain, forest, ocean, cave, stream) and spatial audio emitters attached to entities. Real-time synthesis — no audio files required.</p>
+        <h3>Agents edit from outside</h3>
+        <p>Open a package as a live canvas and no agent runs in the window. Claude Code, Codex, a script or <code>localgpt</code> itself sends a batch of ops to the folder's local API; it commits whole or is refused with a reason per op. Review each batch before it lands, if you like. <a href="/docs/gen/live-canvas/">Learn more &rarr;</a></p>
       </div>
       <div class="feature-card">
-        <h3>Data-Driven Behaviors</h3>
-        <p>Animate entities without scripting: orbit, spin, bob, look_at, pulse, path_follow, and bounce. Stack multiple behaviors on a single entity for complex motion.</p>
+        <h3>One desktop app</h3>
+        <p>A prompt, a Markdown document, a song or a package — each opens as a world in the same window. A document rebuilds in place as you type while the model authors each section's place; a song's analysis picks and performs its world with no model at all. <a href="/docs/app/">Learn more &rarr;</a></p>
       </div>
       <div class="feature-card">
-        <h3>Build Together</h3>
-        <p>Host a world on your network and let friends join with a PIN. Everyone explores in their own window and asks your AI to build where they're looking — joiners can only edit the scene, never your machine. <a href="/docs/gen/multiplayer/">Learn more &rarr;</a></p>
+        <h3>Script to board</h3>
+        <p>Drop a screenplay — PDF, Final Draft, Fountain or Markdown — on <a href="https://localgpt.md/">localgpt.md</a> and get a previs board in the tab: a set, stand-ins and coverage per scene with real lenses and measured cameras. Then revise the shots by asking, and compare treatments as branches. <a href="/docs/gen/previs/">Learn more &rarr;</a></p>
       </div>
       <div class="feature-card">
-        <h3>World Skills</h3>
-        <p>Save complete worlds as reusable skills — scene geometry, behaviors, audio configuration, camera tours. Load them instantly or share with others. Export to glTF for use in other engines.</p>
+        <h3>Build together</h3>
+        <p>Host a world; friends join from their own window or a browser with the invite link, walk the same world live, and ask your AI to build where they're looking. A relay reaches guests beyond the LAN. Every session is a package with per-user undo and replay. <a href="/docs/gen/multiplayer/">Learn more &rarr;</a></p>
       </div>
       <div class="feature-card">
-        <h3>Local &amp; Private</h3>
-        <p>Single Rust binary. All data stays on your machine — no cloud storage, no telemetry. Works with Claude CLI, Anthropic API, OpenAI, Ollama, and GLM. Just <code>cargo install localgpt-gen</code>.</p>
+        <h3>Behaviors and procedural audio</h3>
+        <p>Animate without scripting — orbit, spin, bob, look-at, pulse, path-follow, bounce — and add ambient soundscapes and spatial emitters synthesized in real time. Song worlds bind entity parameters to the music's energy, beat and stems.</p>
       </div>
       <div class="feature-card">
-        <h3>MCP Server</h3>
-        <p>Run standalone or as an MCP server to integrate with Claude Desktop, Codex Desktop/CLI, Gemini CLI, and MCP-compatible editors. Drive the 3D window from your favorite AI coding assistant.</p>
+        <h3>MCP in both directions</h3>
+        <p><code>localgpt-gen mcp-server</code> lets Claude Desktop, Claude Code, Codex, Gemini CLI and editors drive the 3D window; <code>localgpt world mcp</code> serves an open canvas's tools to any agent; <code>localgpt mcp-server</code> offers memory and web tools; and the assistant consumes external MCP servers too.</p>
       </div>
       <div class="feature-card">
-        <h3>Persistent Memory</h3>
-        <p>Markdown-based memory with hybrid search — SQLite FTS5 plus local vector embeddings. Your AI remembers context across sessions and can reference previous world-building decisions.</p>
+        <h3>Memory that persists, work that runs unattended</h3>
+        <p>A Markdown workspace with hybrid search — SQLite FTS5 plus local embeddings — recalled before each reply and consolidated in the background. A heartbeat and cron jobs do scheduled work with a durable outbox. <a href="/docs/memory-system/">Learn more &rarr;</a></p>
+      </div>
+      <div class="feature-card">
+        <h3>Local &amp; private</h3>
+        <p>Single Rust binaries, your choice of model — Claude, Gemini and Codex CLIs, Anthropic, OpenAI, Ollama, GLM, or a GGUF running in-process — behind a kernel-enforced shell sandbox and standing instructions the agent cannot rewrite. <a href="/docs/sandbox/">Learn more &rarr;</a></p>
       </div>
     </div>
   </div>
@@ -93,31 +103,43 @@
 <section class="section-apps">
   <div class="container">
     <h2 class="section-title">The LocalGPT Family</h2>
-    <p class="section-subtitle">Open source apps that turn what you type, write, and listen to into places you can explore — all running locally.</p>
+    <p class="section-subtitle">One desktop app with several doors, the binary other tools drive, a previs page that installs nothing, and a gallery that opens every world in the browser — all open source, all running locally.</p>
     <div class="apps-grid">
+      <a href="/docs/app/" class="app-card">
+        <span class="app-tagline">One window, every mode</span>
+        <h3 class="app-name">LocalGPT</h3>
+        <p class="app-desc">The desktop app. A prompt, a document, a song or a <code>.world</code> package opens as a place you can walk through; agents edit it from outside while you watch, and every change is in the history.</p>
+        <span class="app-cta">The desktop app &rarr;</span>
+      </a>
       <a href="/docs/gen/" class="app-card">
         <span class="app-tagline">Worlds from words</span>
         <h3 class="app-name">LocalGPT Gen</h3>
-        <p class="app-desc">Describe a place and walk into it — geometry, materials, lighting, behaviors, and sound. Build alone or host a session and build with friends.</p>
+        <p class="app-desc">Describe a place and walk into it — geometry, materials, lighting, behaviors, sound. The binary behind the app's prompt mode, an MCP server, a headless generator, and the host of collaborative sessions.</p>
         <span class="app-cta">Start building &rarr;</span>
-      </a>
-      <a href="https://verse.localgpt.app/" class="app-card" target="_blank" rel="noopener">
-        <span class="app-tagline">A world for every song</span>
-        <h3 class="app-name">LocalGPT Verse</h3>
-        <p class="app-desc">Listens to your music and imagines a living 3D world for each track — analyzed, staged, and performed entirely on your machine.</p>
-        <span class="app-cta">verse.localgpt.app ↗</span>
-      </a>
-      <a href="https://md.localgpt.app/" class="app-card" target="_blank" rel="noopener">
-        <span class="app-tagline">Walk through your notes</span>
-        <h3 class="app-name">LocalGPT MD</h3>
-        <p class="app-desc">Open a Markdown file as a 3D world. Every section becomes a place, and saving the file rebuilds the world while you watch.</p>
-        <span class="app-cta">md.localgpt.app ↗</span>
       </a>
       <a href="https://localgpt.md/" class="app-card" target="_blank" rel="noopener">
         <span class="app-tagline">A previs board from a screenplay</span>
         <h3 class="app-name">localgpt.md</h3>
-        <p class="app-desc">Drop a Final Draft file, Fountain or Markdown pages and get a set, stand-ins and coverage per scene — real lenses, measured cameras — drafted in the tab, nothing uploaded. Then revise the shots in Gen's live canvas.</p>
+        <p class="app-desc">Drop a PDF, a Final Draft file, Fountain or Markdown pages and get a set, stand-ins and coverage per scene — real lenses, measured cameras — drafted in the tab, nothing uploaded. Then revise the shots in the live canvas.</p>
         <span class="app-cta">localgpt.md ↗</span>
+      </a>
+      <a href="/docs/verse/" class="app-card">
+        <span class="app-tagline">A world for every song</span>
+        <h3 class="app-name">LocalGPT Verse</h3>
+        <p class="app-desc">Listens to your music and imagines a living 3D world for each track — analyzed, staged and performed entirely on your machine. A mode of the desktop app, and a window of its own.</p>
+        <span class="app-cta">Verse docs &rarr;</span>
+      </a>
+      <a href="/docs/md/" class="app-card">
+        <span class="app-tagline">Walk through your notes</span>
+        <h3 class="app-name">LocalGPT MD</h3>
+        <p class="app-desc">Open a Markdown file as a 3D world. Every section becomes a place, saving rebuilds the world while you watch, and in the desktop app a local or hosted model authors each place from what the prose says.</p>
+        <span class="app-cta">MD docs &rarr;</span>
+      </a>
+      <a href="https://localgpt.world/" class="app-card" target="_blank" rel="noopener">
+        <span class="app-tagline">Worlds in your browser</span>
+        <h3 class="app-name">localgpt.world</h3>
+        <p class="app-desc">The gallery, and the one web viewer: worlds from every app, playable in the browser with their behaviors, audio, tours and soundtracks — the same renderer the exported HTML pages carry.</p>
+        <span class="app-cta">localgpt.world ↗</span>
       </a>
     </div>
   </div>

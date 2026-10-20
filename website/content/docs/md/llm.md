@@ -7,11 +7,13 @@ title: "The LLM tier"
 
 *Optional: a local model authors each section from what the prose says.*
 
+In the [desktop app](/docs/app/#document) the same per-section authoring runs on whichever model the app is set to, with no feature flag; this page is the standalone `localgpt-md` window's local-GGUF tier.
+
 ```bash
-./scripts/fetch-bonsai.sh                              # ~5.2 GB model, once
-./scripts/fetch-assets.sh                              # the CC0 3D asset pack (optional)
-cargo run --features llm-metal --                      # authored live, in-app
-cargo run --features llm-metal -- notes.md --generate  # headless: author all, exit
+scripts/fetch-model.sh                                        # ~5.2 GB model, once for every LocalGPT app
+scripts/fetch-assets.sh                                       # the CC0 3D asset pack (optional)
+cargo run -p localgpt-md --features llm-metal --              # authored live, in-app
+cargo run -p localgpt-md --features llm-metal -- notes.md --generate  # headless: author all, exit
 ```
 
 With the feature and a model present, a background worker authors every section that has no cached output, and each region upgrades in place as its result lands. Results live in `notes.md` → `notes.world.json` — a lockfile keyed by each section's content hash: unchanged sections are never regenerated, and a `.md` plus its sidecar renders identically on any machine, even in the default (no-`llm`) build, which still applies cached output.
@@ -30,7 +32,7 @@ Every model-authored value is clamped on the Rust side (position, colours, light
 
 ## The asset pack
 
-`place_asset` and `scatter_field` place real models from a 171-model CC0 Poly Haven pack (the same one Verse uses), grouped by semantic kind (`rock`, `tree`, `lamp`, …) so the model names a kind and the app picks and varies the concrete model. The pack resolves from `$LOCALGPT_MD_ASSETS` → `assets/` → the sibling [`localgpt-verse-assets`](https://github.com/localgpt-app/localgpt-verse-assets) checkout, and `scripts/fetch-assets.sh` copies it locally (about 520 MB). Without a pack the agent tier still works, with primitives only. Placed GLBs render in the app, and `--export *.html` copies every referenced model beside the page so the web viewer can load them.
+`place_asset` and `scatter_field` place real models from a 171-model CC0 Poly Haven pack (the same one Verse uses), grouped by semantic kind (`rock`, `tree`, `lamp`, …) so the model names a kind and the app picks and varies the concrete model. The pack resolves from `$LOCALGPT_MD_ASSETS`, then `assets/`, then the folder every LocalGPT app shares — `~/.local/share/localgpt/models/pack`, where `scripts/fetch-assets.sh` puts it (about 520 MB) — or a sibling [`localgpt-world-assets`](https://github.com/localgpt-app/localgpt-world-assets) checkout. Without a pack the agent tier still works, with primitives only. Placed GLBs render in the app, and `--export *.html` copies every referenced model beside the page so the web viewer can load them.
 
 ## What gets cached
 

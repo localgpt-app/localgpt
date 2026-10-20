@@ -5,7 +5,7 @@ The official documentation and landing site for [LocalGPT](https://localgpt.app)
 ## Features
 
 - **Zero Node.js dependencies**: Fast single-binary static site generator written in Rust.
-- **Full documentation**: Guides and API reference for LocalGPT CLI, Gen, Verse, and MD.
+- **Full documentation**: the desktop app, Gen (with the live canvas and previs), Verse, MD, and the assistant's CLI and API.
 - **World Templates**: Interactive catalog of pre-configured 3D world templates.
 - **Client-side search**: Integrated Elasticlunr full-text search index.
 

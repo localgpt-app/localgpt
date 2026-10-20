@@ -10,7 +10,7 @@ title: "Development"
 ## Repository layout {#layout}
 
 ```text
-localgpt-verse/
+crates/verse/             # a member of the localgpt workspace
 ├── src/
 │   ├── main.rs           app wiring, schedules, states
 │   ├── theme.rs          design tokens + the world-mood registry
@@ -26,8 +26,10 @@ localgpt-verse/
 │   ├── llm.rs            WorldRecipe generation            (feature: llm)
 │   └── agent.rs          tool-calling scene builder        (feature: llm)
 ├── assets/               fonts, models (synced), ml/, llm/
-├── scripts/              fetch-*.sh model fetchers, bundle.sh
-└── website/              verse.localgpt.app, the landing page
+└── scripts/              fetch-clap.sh, fetch-demucs.sh, bundle.sh
+
+website-verse/            verse.localgpt.app, the landing page (at the workspace root)
+scripts/                  fetch-model.sh and fetch-assets.sh — the downloads every app shares
 ```
 
 Threading is channels-and-atomics only across boundaries (the single shared-state exception is a microsecond `Mutex` around the audio manager). No `unsafe`, no GPL dependencies.
@@ -37,8 +39,8 @@ Threading is channels-and-atomics only across boundaries (the single shared-stat
 | Flag | What it adds | Fetch first |
 |---|---|---|
 | `(default)` | Playback, DSP analysis, rule-mapped worlds | — |
-| `ml` | CLAP zero-shot moods, embedding-ranked placement, Demucs stems | `scripts/fetch-clap.sh` (~78 MB) |
-| `llm` | WorldRecipe generation + agent scene builder | `scripts/fetch-bonsai.sh` (~5.2 GB, into the shared `~/.local/share/localgpt/models/llm/`) |
+| `ml` | CLAP zero-shot moods, embedding-ranked placement, Demucs stems | `crates/verse/scripts/fetch-clap.sh` (~78 MB) |
+| `llm` | WorldRecipe generation + agent scene builder | `scripts/fetch-model.sh` (~5.2 GB, into the shared `~/.local/share/localgpt/models/llm/`) |
 | `llm-metal` | Apple-Silicon GPU inference for the LLM tiers (macOS only) | same as `llm` |
 
 CI compiles both optional tiers so they can't rot, and every tier falls back to the rule-derived world when its model is absent.
@@ -48,8 +50,8 @@ CI compiles both optional tiers so they can't rot, and every tier falls back to 
 Boots through every screen, then exits — the fastest way to catch a broken overlay:
 
 ```bash
-VERSE_SMOKE=1 cargo run                    # walk every screen, then quit
-VERSE_SMOKE=1 VERSE_SHOT=/tmp cargo run  # + save verse-hud.png / verse-overlays.png
+VERSE_SMOKE=1 cargo run -p localgpt-verse                    # walk every screen, then quit
+VERSE_SMOKE=1 VERSE_SHOT=/tmp cargo run -p localgpt-verse  # + save verse-hud.png / verse-overlays.png
 ```
 
 :::note
@@ -61,8 +63,8 @@ Screenshot readback can intermittently return black frames on some machines (tha
 ## Perf stress test {#stress}
 
 ```bash
-VERSE_STRESS=5000 cargo run --release   # 5000 extra props, fps log, exit after 30s
-VERSE_STRESS=0 cargo run --release      # control run: report only
+VERSE_STRESS=5000 cargo run -p localgpt-verse --release   # 5000 extra props, fps log, exit after 30s
+VERSE_STRESS=0 cargo run -p localgpt-verse --release      # control run: report only
 ```
 
 Runs uncapped so the numbers show true frame cost. On the dev machine (2026-07): baseline world ~60 fps, ~1k props ≈ 14 fps, 5k ≈ 9 fps — CPU-side entity overhead dominates, so ~70–90 props is the comfortable ceiling until real instancing lands. Treat dense-pack budgets as measured, not promised.
@@ -70,10 +72,10 @@ Runs uncapped so the numbers show true frame cost. On the dev machine (2026-07):
 ## Packaging {#bundle}
 
 ```bash
-scripts/bundle.sh   # assembles dist/: release binary + fonts + models from verse-assets
+crates/verse/scripts/bundle.sh   # assembles dist/: release binary + fonts + models from localgpt-world-assets
 ```
 
-The 171-model CC0 pack lives in the separate `verse-assets` repository; `fetch_polyhaven.py` downloads it and writes the manifest (with a semantic `kind` per asset — 19 kinds), `normalize.py` packs each model to a single uncompressed `.glb` (bevy_gltf supports neither quantized nor meshopt-compressed geometry) and syncs the manifest-referenced set into `assets/models/`.
+The 171-model CC0 pack lives in the separate `localgpt-world-assets` repository (formerly `localgpt-verse-assets`); its `fetch_polyhaven.py` downloads it and writes the manifest (with a semantic `kind` per asset — 19 kinds), `normalize.py` packs each model to a single uncompressed `.glb` (bevy_gltf supports neither quantized nor meshopt-compressed geometry), and the workspace's `scripts/fetch-assets.sh` copies the manifest-referenced set into the folder every LocalGPT app reads. The macOS `LocalGPT.app` bundle does not carry the pack; that script fetches it once per machine.
 
 ## Architecture at a glance {#architecture}
 
@@ -96,15 +98,15 @@ The 171-model CC0 pack lives in the separate `verse-assets` repository; `fetch_p
                                                └───────────────────────────┘
 ```
 
-The full review — load-bearing decisions, findings, and the LLM tier details — lives in [ARCHITECTURE.md](https://github.com/localgpt-app/localgpt-verse/blob/main/ARCHITECTURE.md); milestone status in [PLAN.md](https://github.com/localgpt-app/localgpt-verse/blob/main/PLAN.md).
+The full review — load-bearing decisions, findings, and the LLM tier details — lives in [ARCHITECTURE.md](https://github.com/localgpt-app/localgpt/blob/main/crates/verse/ARCHITECTURE.md); milestone status in [PLAN.md](https://github.com/localgpt-app/localgpt/blob/main/crates/verse/PLAN.md). The audio engine is now the shared `localgpt-world-audio` crate (one kira mixer, FunDSP graphs as sources), and the GGUF loader the shared `localgpt-world-agent`; Verse's own code keeps its analysis, moods, placement and performance.
 
 ## Licenses {#licenses}
 
 | Part | License |
 |---|---|
-| LocalGPT Verse code | [Apache License 2.0](https://github.com/localgpt-app/localgpt-verse/blob/main/LICENSE) |
+| LocalGPT Verse code | [Apache License 2.0](https://github.com/localgpt-app/localgpt/blob/main/LICENSE) |
 | Marcellus & Hanken Grotesk fonts | SIL Open Font License 1.1 |
-| 3D model pack & starter music (`verse-assets`) | CC0 1.0 (public domain) |
+| 3D model pack & starter music (`localgpt-world-assets`) | CC0 1.0 (public domain) |
 | Bonsai-8B LLM weights | Apache-2.0 |
 | CLAP audio model weights | CC-BY-NC-4.0 — non-commercial only |
 

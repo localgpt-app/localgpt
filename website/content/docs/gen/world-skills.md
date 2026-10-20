@@ -202,4 +202,5 @@ The exported HTML includes:
 
 ## Showcase
 
-- **[localgpt-gen-workspace](https://github.com/localgpt-app/localgpt-gen-workspace)** — "World as skill" examples: complete explorable worlds saved as reusable, shareable skills
+- **[localgpt.world](https://localgpt.world/)** — worlds from every LocalGPT app, playable in the browser; `localgpt-gen --world <url>` opens any of them to keep building
+- **[Explorable World as Agent Skill](https://localgpt.rs/world-as-skill/)** — the devlog post on saving a whole world as a skill

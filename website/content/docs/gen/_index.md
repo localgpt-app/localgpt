@@ -4,7 +4,7 @@ title: "LocalGPT Gen"
 
 # LocalGPT Gen
 
-**LocalGPT Gen** is a built-in world generation mode. You type natural language, and the AI builds explorable worlds — geometry, materials, lighting, behaviors, audio, and camera. All inside the same single Rust binary, powered by [Bevy](https://bevyengine.org/).
+**LocalGPT Gen** builds explorable worlds from natural language — geometry, materials, lighting, behaviors, audio, and camera — on [Bevy](https://bevyengine.org/). It is the binary behind the [desktop app](/docs/app/)'s prompt mode, an MCP server other agents drive, a headless generator, the host of [collaborative sessions](/docs/gen/multiplayer/), and the canvas of a live `.world` that agents edit from outside ([live canvas](/docs/gen/live-canvas/)).
 
 ## Demo Videos
 
@@ -57,6 +57,17 @@ localgpt-gen -v -s ./scene.glb "add warm lighting"
 
 # Custom agent ID (default: "gen")
 localgpt-gen --agent my-gen-agent
+
+# Open a .world folder as a live canvas: no agent in the window, agents edit
+# it from outside through the folder's API (see Live canvas)
+localgpt-gen --live scene-1.world
+localgpt-gen --live scene-1.world --review     # accept or reject each agent batch before it commits
+
+# Replay a session or a .world's history as a time-lapse, no agent
+localgpt-gen --replay <session | package dir | ops.jsonl | .world>
+
+# Host a session and let browsers join with the invite link
+localgpt-gen --host --web
 ```
 
 The agent receives your prompt and iteratively builds a world — spawning shapes, adjusting materials, positioning the camera, and taking screenshots to course-correct. Type `/quit` or `/exit` to close, or close the window.
@@ -72,7 +83,7 @@ You don't need to keep a terminal beside the window. Press **F2** in the Gen win
 localgpt-gen --desktop
 ```
 
-Gen switches to desktop mode on its own when it isn't started from a terminal. The same shell is the LocalGPT desktop app, which also opens documents and songs as worlds; build its macOS bundle with `apps/app-desktop/macos/build-app.sh` from the repository.
+Gen switches to desktop mode on its own when it isn't started from a terminal. The same shell is the [LocalGPT desktop app](/docs/app/), which also opens documents, songs and `.world` packages; build its macOS bundle with `apps/app-desktop/macos/build-app.sh` from the repository.
 
 | Key | What it does |
 |-----|--------------|
@@ -215,7 +226,9 @@ See [Headless Mode & Experiment Queue](/docs/gen/headless) for full details.
 
 ## Features
 
-- **[Tools](/docs/gen/tools)** — 32 core tools plus 50+ MCP-only tools for characters, interactions, terrain, UI, physics, worldgen, and experiments
+- **[Live canvas](/docs/gen/live-canvas)** — open a `.world` folder; agents edit it from outside through a local API while you edit by hand; every change is one entry in a history that branches
+- **[Previs](/docs/gen/previs)** — a screenplay's scenes as sets with cast and coverage, revised by asking, treatments compared as boards
+- **[Tools](/docs/gen/tools)** — 77 `gen_*` tools in three profiles (`--tools core|standard|full`) for scenes, characters, interactions, terrain, UI, physics, worldgen and experiments
 - **[WorldGen Pipeline](/docs/gen/worldgen)** — Structured world generation: blockout → navmesh → three-tier placement → evaluation
 - **[Behaviors](/docs/gen/behaviors)** — Data-driven animations (orbit, spin, bounce, etc.)
 - **[Audio](/docs/gen/audio)** — Procedural environmental audio with spatial emitters
@@ -226,17 +239,17 @@ See [Headless Mode & Experiment Queue](/docs/gen/headless) for full details.
 - **[CLI Mode](/docs/gen/cli-mode)** — MCP relay for Claude CLI, Gemini CLI, and Codex (no API key needed)
 - **[Headless Mode](/docs/gen/headless)** — Batch generation, experiment queue, and creative memory
 - **[External Services](/docs/gen/external-services)** — Optional local services for NPC brains, depth preview, and 3D asset generation
-- **Undo/Redo** — Full undo/redo support for all scene edits with persistence
+- **Undo/Redo** — per author, with redo, through the same history the live canvas keeps
 - **Streaming Chat** — Real-time tool call display and streaming responses
 
 ## Templates
 
 Jumpstart your project with ready-to-customize world templates:
 
-- **Fantasy** — [Medieval Village](/templates/fantasy/medieval-village), [Enchanted Forest](/templates/fantasy/enchanted-forest), [Japanese Temple](/templates/fantasy/japanese-temple), [Cozy Farm](/templates/fantasy/cozy-farm), [Winter Wonderland](/templates/fantasy/winter-wonderland)
-- **Sci-Fi** — [Space Station](/templates/sci-fi/space-station), [Underwater World](/templates/sci-fi/underwater-world), [Alien World](/templates/sci-fi/alien-world)
-- **Horror** — [Haunted House](/templates/horror/haunted-house), [Backrooms](/templates/horror/backrooms)
-- **Urban** — [Cyberpunk City](/templates/urban/cyberpunk-city), [Modern City](/templates/urban/modern-city)
+- **Fantasy** — [Medieval Village](/templates/medieval-village), [Enchanted Forest](/templates/enchanted-forest), [Japanese Temple](/templates/japanese-temple), [Cozy Farm](/templates/cozy-farm), [Winter Wonderland](/templates/winter-wonderland)
+- **Sci-Fi** — [Space Station](/templates/space-station), [Underwater World](/templates/underwater-world), [Alien World](/templates/alien-world)
+- **Horror** — [Haunted House](/templates/haunted-house), [Backrooms](/templates/backrooms)
+- **Urban** — [Cyberpunk City](/templates/cyberpunk-city), [Modern City](/templates/modern-city)
 
 [Browse all templates →](/templates)
 
@@ -247,8 +260,7 @@ Jumpstart your project with ready-to-customize world templates:
 
 ## More LocalGPT Apps
 
-- **[LocalGPT Verse](/docs/verse)** — listens to your music and imagines a living 3D world for every song, on your machine
-- **[LocalGPT MD](/docs/md)** — open a Markdown file and walk through it as a 3D world; every section becomes a place
+Gen's shell is also the **[LocalGPT desktop app](/docs/app/)**, where a prompt, a document, a song or a `.world` package opens in the same window. Documents are **[LocalGPT MD](/docs/md)**'s pipeline with an editor pane and in-place rebuilds; songs are **[LocalGPT Verse](/docs/verse)**'s analysis and performance. Both also run as windows of their own from the repository.
 
 ## Showcase
 

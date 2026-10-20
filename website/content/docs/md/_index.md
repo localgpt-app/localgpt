@@ -5,28 +5,31 @@ title: "LocalGPT MD"
 
 # LocalGPT MD
 
-**LocalGPT MD** opens a Markdown file and lets you walk through it as a 3D world. Every `##` section becomes a place, and saving the file rebuilds the world while you watch. It is built with [Bevy](https://bevyengine.org/); see [md.localgpt.app](https://md.localgpt.app/) for the overview.
+**LocalGPT MD** opens a Markdown file and lets you walk through it as a 3D world. Every `##` section becomes a place, and saving the file rebuilds the world while you watch. It is built with [Bevy](https://bevyengine.org/), and it is a mode of the [LocalGPT desktop app](/docs/app/#document) — `localgpt-app --md notes.md` opens the document with an editor pane beside the world, rebuilding in place as you type — as well as a window of its own, `localgpt-md`.
 
-Worlds start from a fast rule-based draft, then a local LLM (feature `llm`) takes over per section: an agent composes each place through tool calls — primitives, lights, and real [CC0 assets](../verse/index.md) from the shared Poly Haven pack — with a one-JSON recipe tier as fallback, and a `world` fence for exact overrides. Everything is cached per section in a sidecar next to the document, so nothing is generated twice. The on-device model and inference path are ported from [LocalGPT Verse](../verse/index.md) (Bonsai-8B via mistral.rs; see [PLAN.md](https://github.com/localgpt-app/localgpt-md/blob/main/PLAN.md)).
+Worlds start from a fast rule-based draft, then a local LLM (feature `llm`) takes over per section: an agent composes each place through tool calls — primitives, lights, and real [CC0 assets](../verse/index.md) from the shared Poly Haven pack — with a one-JSON recipe tier as fallback, and a `world` fence for exact overrides. Everything is cached per section in a sidecar next to the document, so nothing is generated twice. The on-device model and inference path are ported from [LocalGPT Verse](../verse/index.md) (Bonsai-8B via mistral.rs; see [PLAN.md](https://github.com/localgpt-app/localgpt/blob/main/crates/md/PLAN.md)). In the desktop app the same per-section protocol runs on whichever model the app is set to — a signed-in CLI backend, an API model or a local GGUF — with no feature flag.
 
 ## Run {#run}
 
 ```bash
-git clone https://github.com/localgpt-app/localgpt-md.git
-cd localgpt-md
+git clone https://github.com/localgpt-app/localgpt.git
+cd localgpt
 
 # Open samples/hello.md
-cargo run
+cargo run -p localgpt-md
 # Present a Marp-style deck as a 3D talk
-cargo run -- samples/deck.md
+cargo run -p localgpt-md -- crates/md/samples/deck.md
 # Open any Markdown file
-cargo run -- path/to/notes.md
+cargo run -p localgpt-md -- path/to/notes.md
 # Print the compiled world as RON and exit
-cargo run -- notes.md --print-ron
+cargo run -p localgpt-md -- notes.md --print-ron
 # Write a self-contained page with the web viewer
-cargo run -- notes.md --export notes.html
+cargo run -p localgpt-md -- notes.md --export notes.html
 # Write the LocalGPT world format, for localgpt.world
-cargo run -- notes.md --export notes.json
+cargo run -p localgpt-md -- notes.md --export notes.json
+
+# The same document in the desktop app, with the editor pane
+cargo run -p localgpt-app -- --md path/to/notes.md
 ```
 
 ## Genres {#genres}
@@ -45,4 +48,4 @@ Two genres: the default `world` makes every `##` section a place on a winding pa
 
 ## Screenshot mode {#screenshot}
 
-`LOCALGPT_MD_SCREENSHOT=out.png cargo run` renders the first stop to a PNG and exits, for a quick check without a human. It renders offscreen with no window, so it also works over SSH or while the screen is locked.
+`LOCALGPT_MD_SCREENSHOT=out.png cargo run -p localgpt-md` renders the first stop to a PNG and exits, for a quick check without a human. It renders offscreen with no window, so it also works over SSH or while the screen is locked.

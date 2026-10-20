@@ -11,15 +11,15 @@ title: "LocalGPT Verse"
 
 ## Run LocalGPT Verse {#run}
 
-LocalGPT Verse is a standalone Cargo project built with [Bevy](https://bevyengine.org/). All you need is a stable Rust toolchain — there are no services, accounts, or API keys:
+LocalGPT Verse is built with [Bevy](https://bevyengine.org/). All you need is a stable Rust toolchain — there are no services, accounts, or API keys:
 
 ```bash
-git clone https://github.com/localgpt-app/localgpt-verse.git
-cd localgpt-verse
-cargo run
+git clone https://github.com/localgpt-app/localgpt.git
+cd localgpt
+cargo run -p localgpt-verse
 ```
 
-A window titled **LocalGPT Verse** opens. Because it declares its own `[workspace]`, the project builds the same on its own or checked out inside another Cargo workspace.
+A window titled **LocalGPT Verse** opens. Verse is a member of the `localgpt` workspace (`crates/verse`), and a song is also a mode of the [desktop app](/docs/app/#song): `cargo run -p localgpt-app -- --song track.mp3` opens one song as its world in the one window, with the same analysis and the same performance.
 
 ## Onboarding {#onboarding}
 
@@ -43,7 +43,7 @@ Analysis results are cached as JSON sidecars, keyed by a blake3 content hash and
 
 :::note[Dev shortcut]
 
-`VERSE_IMPORT=<dir> cargo run` imports that folder at startup. Without an import (or an audio device), LocalGPT Verse falls back to a silent simulated transport so the HUD and worlds still run.
+`VERSE_IMPORT=<dir> cargo run -p localgpt-verse` imports that folder at startup. Without an import (or an audio device), LocalGPT Verse falls back to a silent simulated transport so the HUD and worlds still run.
 
 :::
 
@@ -52,8 +52,8 @@ Analysis results are cached as JSON sidecars, keyed by a blake3 content hash and
 The default mood mapper is pure, deterministic DSP. For a research-grade upgrade, build with the `ml` feature and fetch the CLAP audio model once:
 
 ```bash
-scripts/fetch-clap.sh   # ~78 MB CLAP model (LAION / Xenova ONNX)
-cargo run --features ml
+crates/verse/scripts/fetch-clap.sh   # ~78 MB CLAP model (LAION / Xenova ONNX)
+cargo run -p localgpt-verse --features ml
 ```
 
 Each track then gets a 512-dimensional CLAP embedding (three windows averaged) and a zero-shot mood vote, and the embedding is stored in the sidecar where it also ranks which assets a world plants. Without the feature or the model file, the rule mapper runs unchanged.
@@ -69,8 +69,8 @@ The CLAP weights are **CC-BY-NC** — fine for personal and research use, not cl
 A second opt-in tier puts a small local language model in charge of imagining within a world. Build with `llm` and fetch the model once:
 
 ```bash
-scripts/fetch-bonsai.sh   # ~5.2 GB GGUF, once for Verse, MD and Gen (any standard Q4_K_M GGUF works)
-cargo run --features llm          # Apple Silicon: --features llm-metal
+scripts/fetch-model.sh                      # ~5.2 GB GGUF, once for Verse, MD, Gen and the app (any standard Q4_K_M GGUF works)
+cargo run -p localgpt-verse --features llm  # Apple Silicon: --features llm-metal
 ```
 
 The model goes to `~/.local/share/localgpt/models/llm/` (`$LOCALGPT_LLM_DIR` moves it), which [MD](/docs/md) and [Gen](/docs/gen) read too, so a model already fetched for either app isn't downloaded again.
@@ -84,4 +84,4 @@ Without the feature or the model, LocalGPT Verse keeps the rule-derived world ve
 
 ## The asset pack {#assets}
 
-Worlds are furnished from a pack of 171 CC0 Poly Haven models that lives in the separate `verse-assets` repository and syncs into `assets/models/`. The manifest records every model's source, author, license, and a semantic **kind** (19 kinds, from `rock` ×29 variants to `lamp` ×17) — and doubles as the in-app Credits screen. The pack is bundled when the app is packaged, so there is nothing to download at runtime.
+Worlds are furnished from a pack of 171 CC0 Poly Haven models that lives in the separate [`localgpt-world-assets`](https://github.com/localgpt-app/localgpt-world-assets) repository; `scripts/fetch-assets.sh` copies it once per machine into the folder every LocalGPT app reads (`~/.local/share/localgpt/models/pack`), and a sibling checkout is found on its own. The manifest records every model's source, author, license, and a semantic **kind** (19 kinds, from `rock` ×29 variants to `lamp` ×17) — and doubles as the in-app Credits screen. The pack is bundled when Verse is packaged with its `bundle.sh`, so there is nothing to download at runtime.
