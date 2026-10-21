@@ -146,6 +146,19 @@ pub fn shape_to_primitive(shape: &wt::Shape) -> (PrimitiveShape, HashMap<String,
             dims.insert("z".into(), *z);
             (PrimitiveShape::Wedge, dims)
         }
+        // Gen's vocabulary has no prism yet (the format's is experimental):
+        // the nearest primitive, with the side count kept in the dims.
+        wt::Shape::Prism {
+            sides,
+            radius,
+            height,
+        } => {
+            let mut dims = HashMap::new();
+            dims.insert("sides".into(), f32::from(*sides));
+            dims.insert("radius".into(), *radius);
+            dims.insert("height".into(), *height);
+            (PrimitiveShape::Cylinder, dims)
+        }
     }
 }
 

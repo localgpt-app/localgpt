@@ -30,6 +30,7 @@ pub fn spawn_entry(id: &str, parent: Option<&str>, revision: u64) -> OpLogEntry 
         author: Author {
             peer: None,
             name: "test".into(),
+            source: None,
         },
         ops: vec![SessionOp::Edit(Box::new(EditOp::SpawnEntity {
             entity: cube(1_000 + revision, &format!("spawned-{revision}")),
@@ -53,6 +54,7 @@ pub fn move_entry(target: u64, id: Option<&str>, revision: u64) -> OpLogEntry {
         author: Author {
             peer: None,
             name: "test".into(),
+            source: None,
         },
         ops: vec![SessionOp::Edit(Box::new(EditOp::ModifyEntity {
             id: EntityId(target),

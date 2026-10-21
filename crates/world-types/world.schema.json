@@ -1972,6 +1972,41 @@
           "required": [
             "Wedge"
           ]
+        },
+        {
+          "description": "A right prism on a regular polygon, `sides` long (experimental: spec/world.md \"The prism\"). Origin at the centroid, axis along local +Y, flat caps at y = ±height/2. `radius` is the circumradius: cap vertex i sits at (radius·cos θ, ±height/2, −radius·sin θ) with θ = 2π·i/sides, so the first vertex is on +X and the ring runs counter-clockwise seen from above. Faces wind outward; no segment parameter beyond `sides`.",
+          "type": "object",
+          "properties": {
+            "Prism": {
+              "type": "object",
+              "properties": {
+                "height": {
+                  "description": "Cap to cap along +Y.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 1.0
+                },
+                "radius": {
+                  "description": "The circumradius: centre to any cap vertex.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                },
+                "sides": {
+                  "description": "How many sides, 3 to 8 (6 is a hexagonal prism, 5 a pentagonal one).",
+                  "type": "integer",
+                  "format": "uint8",
+                  "default": 6,
+                  "maximum": 8,
+                  "minimum": 3
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Prism"
+          ]
         }
       ]
     },

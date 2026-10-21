@@ -259,6 +259,7 @@ impl WebRoom {
             author: sync::Author {
                 peer: None,
                 name: author.into(),
+                source: None,
             },
             ops: vec![op],
             timestamp_ms: now_ms(),

@@ -728,6 +728,7 @@ fn shape_label(shape: &wt::Shape) -> &'static str {
         wt::Shape::Tetrahedron { .. } => "tetrahedron",
         wt::Shape::Icosahedron { .. } => "icosahedron",
         wt::Shape::Wedge { .. } => "wedge",
+        wt::Shape::Prism { .. } => "prism",
     }
 }
 

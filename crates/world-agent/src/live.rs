@@ -1471,6 +1471,9 @@ fn entry(revision: u64, author: &str, intent: Value, ops: &[EditOp]) -> OpLogEnt
         author: Author {
             peer: None,
             name: author.to_string(),
+            // The batch envelope names its author; whether a person or a
+            // model sent it is not something this intake can vouch for.
+            source: None,
         },
         ops: session_ops,
         timestamp_ms: now_ms(),

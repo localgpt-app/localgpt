@@ -91,6 +91,7 @@ fn package_entries(
             author: sync::Author {
                 peer: None,
                 name: "base".into(),
+                source: None,
             },
             ops: base_ops,
             timestamp_ms: 0,
@@ -177,6 +178,7 @@ mod tests {
                 author: Author {
                     peer: None,
                     name: "maya".into(),
+                    source: None,
                 },
                 ops: vec![SessionOp::Edit(Box::new(wt::EditOp::spawn(
                     wt::WorldEntity::new(2, "lighthouse"),

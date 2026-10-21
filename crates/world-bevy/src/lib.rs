@@ -332,16 +332,20 @@ pub fn shape_mesh(shape: &wt::Shape) -> Mesh {
         wt::Shape::Tetrahedron { radius } => {
             Mesh::from(Tetrahedron::default()).scaled_by(Vec3::splat(radius / 0.75_f32.sqrt()))
         }
-        wt::Shape::Icosahedron { radius } => Sphere::new(radius)
-            .mesh()
-            .ico(0)
-            .unwrap_or_else(|_| Sphere::new(radius).mesh().uv(8, 6)),
+        // The spec's icosahedron sits on the three golden rectangles; Bevy's
+        // `ico(0)` stands on a vertex, so it is built by hand like the pyramid.
+        wt::Shape::Icosahedron { radius } => icosahedron_mesh(radius),
         wt::Shape::Wedge { x, y, z } => {
             let (hx, hy) = (x / 2.0, y / 2.0);
             let profile =
                 Triangle2d::new(Vec2::new(-hx, -hy), Vec2::new(hx, -hy), Vec2::new(-hx, hy));
             Extrusion::new(profile, z).into()
         }
+        wt::Shape::Prism {
+            sides,
+            radius,
+            height,
+        } => prism_mesh(sides, radius, height),
     }
 }
 
@@ -391,6 +395,83 @@ fn pyramid_mesh(base_x: f32, base_z: f32, height: f32) -> Mesh {
         [a, b, d],
         [b, c, d],
     ])
+}
+
+/// The experimental prism, as spec/world.md "The geometry of the shapes"
+/// states it: `sides` 3..=8, `radius` the circumradius, axis +Y, cap vertex
+/// i at (r cos θ, ±h/2, −r sin θ) with θ = 2πi/sides — the first vertex on
+/// +X, the ring counter-clockwise seen from above — sides as quads, caps as
+/// fans from vertex 0, all outward, flat-shaded.
+fn prism_mesh(sides: u8, radius: f32, height: f32) -> Mesh {
+    let n = usize::from(sides.clamp(3, 8));
+    let hy = height / 2.0;
+    let ring = |y: f32| -> Vec<[f32; 3]> {
+        (0..n)
+            .map(|i| {
+                let theta = std::f32::consts::TAU * i as f32 / n as f32;
+                [radius * theta.cos(), y, -radius * theta.sin()]
+            })
+            .collect()
+    };
+    let (top, bottom) = (ring(hy), ring(-hy));
+    let mut triangles = Vec::with_capacity(4 * n - 4);
+    for i in 0..n {
+        let j = (i + 1) % n;
+        triangles.push([bottom[i], bottom[j], top[j]]);
+        triangles.push([bottom[i], top[j], top[i]]);
+    }
+    for i in 1..n - 1 {
+        triangles.push([top[0], top[i], top[i + 1]]);
+        triangles.push([bottom[0], bottom[i + 1], bottom[i]]);
+    }
+    flat_mesh(&triangles)
+}
+
+/// The regular icosahedron on the three golden rectangles, as the spec
+/// states it: vertices (±1, ±φ, 0), (0, ±1, ±φ), (±φ, 0, ±1) scaled to the
+/// circumradius, twenty outward faces, flat-shaded.
+fn icosahedron_mesh(radius: f32) -> Mesh {
+    let t = (1.0 + 5f32.sqrt()) / 2.0;
+    let scale = radius / (1.0 + t * t).sqrt();
+    let v: [[f32; 3]; 12] = [
+        [-1.0, t, 0.0],
+        [1.0, t, 0.0],
+        [-1.0, -t, 0.0],
+        [1.0, -t, 0.0],
+        [0.0, -1.0, t],
+        [0.0, 1.0, t],
+        [0.0, -1.0, -t],
+        [0.0, 1.0, -t],
+        [t, 0.0, -1.0],
+        [t, 0.0, 1.0],
+        [-t, 0.0, -1.0],
+        [-t, 0.0, 1.0],
+    ]
+    .map(|p| [p[0] * scale, p[1] * scale, p[2] * scale]);
+    const FACES: [[usize; 3]; 20] = [
+        [0, 11, 5],
+        [0, 5, 1],
+        [0, 1, 7],
+        [0, 7, 10],
+        [0, 10, 11],
+        [1, 5, 9],
+        [5, 11, 4],
+        [11, 10, 2],
+        [10, 7, 6],
+        [7, 1, 8],
+        [3, 9, 4],
+        [3, 4, 2],
+        [3, 2, 6],
+        [3, 6, 8],
+        [3, 8, 9],
+        [4, 9, 5],
+        [2, 4, 11],
+        [6, 2, 10],
+        [8, 6, 7],
+        [9, 8, 1],
+    ];
+    let triangles: Vec<[[f32; 3]; 3]> = FACES.iter().map(|f| [v[f[0]], v[f[1]], v[f[2]]]).collect();
+    flat_mesh(&triangles)
 }
 
 /// Rotate a pyramid so its base edges align with the axes when it is built
@@ -452,6 +533,11 @@ mod tests {
                 y: 1.0,
                 z: 2.0,
             },
+            wt::Shape::Prism {
+                sides: 6,
+                radius: 0.6,
+                height: 1.5,
+            },
         ]
     }
 
@@ -465,9 +551,13 @@ mod tests {
             let center = aabb.center.to_array();
             let half = half_extents(&mesh);
             let declared = shape.local_aabb_half();
+            // The polyhedra's declared box is their circumsphere's and the
+            // prism's is its inscribing cylinder's: conservative, not tight.
             let tight = !matches!(
                 shape,
-                wt::Shape::Tetrahedron { .. } | wt::Shape::Icosahedron { .. }
+                wt::Shape::Tetrahedron { .. }
+                    | wt::Shape::Icosahedron { .. }
+                    | wt::Shape::Prism { .. }
             );
             for axis in 0..3 {
                 assert!(

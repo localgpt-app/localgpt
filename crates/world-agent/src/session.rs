@@ -475,6 +475,7 @@ mod tests {
             author: Author {
                 peer: None,
                 name: "maya".into(),
+                source: None,
             },
             ops: vec![SessionOp::Edit(Box::new(wt::EditOp::spawn(
                 wt::WorldEntity::new(100 + revision, name),

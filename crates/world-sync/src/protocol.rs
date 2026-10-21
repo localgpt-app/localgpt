@@ -336,6 +336,7 @@ mod tests {
                 from: Author {
                     peer: Some(2),
                     name: "maya".into(),
+                    source: None,
                 },
                 text: "hi".into(),
                 kind: ChatKind::Human,

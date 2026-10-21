@@ -45,7 +45,11 @@ rate-limit.new-packages = 10
 # ops that carry ids for the deeper references.
 # 0.3.6: validation warns about a behavior whose target is gone — the
 # dangling-target diagnostic the inspector and the live canvas show.
-openworldformat = "0.3.6"
+# 0.4.0: the experimental Prism shape (world-bevy draws it, the second
+# renderer), `Author.source` (hand/library/ai), the ext-h3 geo frame
+# extension, and the geometry table every shape now follows — breaking
+# for exhaustive `Shape` matches and spelled-out `Author` literals.
+openworldformat = "0.4.0"
 
 # Async runtime
 tokio = { version = "1.50", features = ["full"] }

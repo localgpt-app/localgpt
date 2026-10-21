@@ -162,6 +162,8 @@ pub fn auto_collider_system(
                 half_length,
             } => Collider::capsule(*radius, *half_length),
             Shape::Icosahedron { radius } => Collider::sphere(*radius),
+            // A prism's circumradius makes its inscribing cylinder, like the cone's.
+            Shape::Prism { radius, height, .. } => Collider::cylinder(*radius, height / 2.0),
             Shape::Plane { x, z } => Collider::cuboid(x / 2.0, 0.005, z / 2.0),
             // Complex shapes: use AABB bounding box
             Shape::Torus { .. }

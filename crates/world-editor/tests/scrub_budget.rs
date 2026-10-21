@@ -42,6 +42,7 @@ fn long_session(n: u64) -> Vec<OpLogEntry> {
             author: Author {
                 peer: None,
                 name: "bench".into(),
+                source: None,
             },
             ops: vec![SessionOp::Edit(Box::new(EditOp::SpawnEntity {
                 entity: WorldEntity::new(i, format!("entity-{i}")),
@@ -135,6 +136,7 @@ fn seeking_between_two_long_branches_costs_the_branches_not_the_trunk() {
                 author: Author {
                     peer: None,
                     name: side.into(),
+                    source: None,
                 },
                 ops: vec![SessionOp::Edit(Box::new(EditOp::SpawnEntity {
                     entity: WorldEntity::new(offset + i, format!("{side}-{i}")),

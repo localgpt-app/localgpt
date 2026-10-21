@@ -286,6 +286,7 @@ impl Authority {
                 from: Author {
                     peer: Some(id),
                     name: peer.info.name.clone(),
+                    source: None,
                 },
                 text,
                 kind: ChatKind::Human,
@@ -304,6 +305,7 @@ impl Authority {
                 from: Author {
                     peer: None,
                     name: author.to_string(),
+                    source: None,
                 },
                 text,
                 kind,
@@ -489,6 +491,7 @@ impl Authority {
                 author: Author {
                     peer: Some(id),
                     name: peer_name,
+                    source: None,
                 },
                 ops,
                 client_seq: Some(client_seq),
@@ -506,7 +509,8 @@ impl Authority {
         ops: Vec<EditOp>,
     ) -> Result<Vec<Outbound>, ApplyError> {
         let key = undo_key_for_local(author);
-        self.record_ops_inner(author, None, ops, key)
+        // Tool calls and the host's own edits share this path: unlabelled.
+        self.record_ops_inner(author, None, None, ops, key)
     }
 
     /// Host-local changes made on behalf of a peer — today, the AI building
@@ -521,13 +525,16 @@ impl Authority {
             .get(&peer)
             .map(|p| p.info.name.clone())
             .unwrap_or_else(|| "guest".to_string());
-        self.record_ops_inner(&name, Some(peer), ops, undo_key_for_peer(peer))
+        // The one path the format's `author.source` can label honestly today:
+        // this is the AI's work (spec/session.md, "The entry").
+        self.record_ops_inner(&name, Some(peer), Some("ai"), ops, undo_key_for_peer(peer))
     }
 
     fn record_ops_inner(
         &mut self,
         author: &str,
         peer: Option<PeerId>,
+        source: Option<&str>,
         ops: Vec<EditOp>,
         undo_key: String,
     ) -> Result<Vec<Outbound>, ApplyError> {
@@ -545,6 +552,7 @@ impl Authority {
                 author: Author {
                     peer,
                     name: author.to_string(),
+                    source: source.map(str::to_string),
                 },
                 ops,
                 client_seq: None,
@@ -601,6 +609,7 @@ impl Authority {
                 author: Author {
                     peer: Some(id),
                     name,
+                    source: None,
                 },
                 ops: inverse,
                 client_seq: None,
@@ -634,6 +643,7 @@ impl Authority {
                 from: Author {
                     peer: None,
                     name: "room".to_string(),
+                    source: None,
                 },
                 text,
                 kind: ChatKind::System,
