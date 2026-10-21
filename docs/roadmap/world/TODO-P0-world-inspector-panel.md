@@ -455,7 +455,7 @@ The inspector has three tiers:
 - iPad has no egui — Bevy/egui can't run natively on iOS with full App Store compliance. SwiftUI + SceneKit/RealityKit is the only production path.
 - Android similarly needs Jetpack Compose + Filament/SceneView for native 3D.
 - Native apps get platform-standard gestures (pinch-zoom, swipe, haptics), accessibility (VoiceOver, TalkBack), and multitasking (Split View on iPad, freeform on Android).
-- The Hexagon Place project already has mature Swift and Kotlin clients with the same pattern: Rust data authority → native UI clients via WebSocket (SpacetimeDB protocol). The inspector follows the same architecture.
+- A connected 3D app in this ecosystem already has mature Swift and Kotlin clients with the same pattern: Rust data authority → native UI clients via WebSocket. The inspector follows the same architecture.
 
 ---
 
@@ -580,7 +580,7 @@ The inspector has three tiers:
 - **iPad is a first-class creative surface.** Creators should be able to inspect and navigate their world on an iPad while the Gen process runs on a Mac (or the same device via localhost).
 - **Apple HIG compliance.** SwiftUI provides standard navigation patterns (sidebar, detail, toolbar), accessibility (VoiceOver, Dynamic Type), and multitasking (Split View, Stage Manager) for free.
 - **SceneKit / RealityKit** for 3D viewport. Load the GLB scene snapshot, render with native Metal pipeline. No Bevy dependency on iOS.
-- **Hexagon Place precedent.** The iOS app already has a mature Swift codebase with SpacetimeDB WebSocket client, SceneKit globe rendering, and SwiftUI control panels. This inspector follows the same pattern.
+- **Precedent in the ecosystem.** A connected 3D app's iOS client already has a mature Swift codebase with a WebSocket data client, SceneKit rendering, and SwiftUI control panels. This inspector follows the same pattern.
 
 ### Implementation
 
@@ -656,7 +656,7 @@ The inspector has three tiers:
 
 ### Files to Create/Modify
 
-- `hexagonplace/apps/ios/WorldInspector/` — new Xcode project or target within existing iOS app
+- `apps/ios/WorldInspector/` (in the inspector's own repository) — new Xcode project or target within an existing iOS app
 - `WorldInspectorApp.swift` — app entry point, connection setup
 - `InspectorWebSocket.swift` — WebSocket client, message parsing, reconnect logic
 - `EntityOutlinerView.swift` — sidebar tree
@@ -677,7 +677,7 @@ The inspector has three tiers:
 - **Material Design 3 + Jetpack Compose** provides standard navigation (NavigationRail, adaptive layouts), accessibility (TalkBack, content descriptions), and large-screen support (foldables, tablets, Chromebooks) for free.
 - **Filament** (Google's physically-based rendering engine) for 3D viewport. Android-native, Metal-grade quality, loads glTF/GLB directly. Used by Google's Scene Viewer and AR apps.
 - **Oboe / OpenSL ES** for audio. Android's native low-latency audio APIs for spatial audio preview.
-- **Hexagon Place precedent.** The Android app already has a mature Kotlin codebase with SpacetimeDB WebSocket client, native 3D rendering, and Compose UI panels.
+- **Precedent in the ecosystem.** A connected 3D app's Android client already has a mature Kotlin codebase with a WebSocket data client, native 3D rendering, and Compose UI panels.
 
 ### Implementation
 
@@ -758,7 +758,7 @@ The inspector has three tiers:
 
 ### Files to Create/Modify
 
-- `hexagonplace/apps/android/app/src/main/java/place/hexagon/inspector/` — new package
+- `apps/android/app/src/main/java/<app package>/inspector/` (in the inspector's own repository) — new package
 - `InspectorActivity.kt` — entry point, adaptive layout scaffold
 - `InspectorWebSocket.kt` — OkHttp WebSocket client, message parsing, reconnect
 - `EntityOutlinerScreen.kt` — Compose tree with expand/collapse
