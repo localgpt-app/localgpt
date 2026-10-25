@@ -40,7 +40,7 @@ import { cameraOf, frameOf, viewOf, aimPointOf, shotList } from './cinematograph
 /** @typedef {import('./index.js').EnvironmentDef} EnvironmentDef */
 /** @typedef {import('./index.js').Shape} Shape */
 
-export const VIEWER_VERSION = '0.3.5'; // the package version — js/test/version.test.mjs pins it to package.json
+export const VIEWER_VERSION = '0.3.6'; // the package version — js/test/version.test.mjs pins it to package.json
 
 /// Calibration between Bevy's light units and three.js', in one place.
 /// Bevy renders physical units through an exposure; three's lights are
@@ -255,6 +255,57 @@ function wedgeGeometry(x, y, z) {
   ]);
 }
 
+// ---------------------------------------------------------------------------
+// The prism (experimental; spec/world.md "The geometry of the shapes") — the
+// normative triangles as plain arrays, exported so node can test the vertex
+// order with no renderer (js/test/prism.test.mjs). Origin at the centroid,
+// axis +Y, flat caps at y = ±height/2; `radius` is the circumradius: cap
+// vertex i sits at (radius·cos θ, ±height/2, −radius·sin θ), θ = 2π·i/sides —
+// the first vertex on +X, the ring counter-clockwise seen from above. Sides
+// are quads, caps are fans from vertex 0, all wound outward; `sides` clamps
+// to the schema's 3..8. Kept in this file on purpose: the renderer is one
+// file plus cinematography.js wherever it is vendored, and a third module
+// would have to travel with it.
+// ---------------------------------------------------------------------------
+
+/** The side count drawn for a declared `sides`: an integer in 3..8.
+ * @param {number} sides @returns {number} */
+export function prismSides(sides) {
+  const n = Math.round(Number(sides));
+  return Number.isFinite(n) ? Math.min(8, Math.max(3, n)) : 6;
+}
+
+/** One cap's ring of vertices at height `y`, vertex 0 on +X, counter-clockwise from above.
+ * @param {number} sides @param {number} radius @param {number} y @returns {Vec3[]} */
+export function prismRing(sides, radius, y) {
+  const n = prismSides(sides);
+  return Array.from({ length: n }, (_, i) => {
+    const theta = (2 * Math.PI * i) / n;
+    return /** @type {Vec3} */ ([radius * Math.cos(theta), y, -radius * Math.sin(theta)]);
+  });
+}
+
+/** The prism as triangles — `sides` side quads (two triangles each) and two
+ * fanned caps: 4·sides − 4 triangles, all wound outward.
+ * @param {number} sides @param {number} radius @param {number} height
+ * @returns {Vec3[][]} */
+export function prismTriangles(sides, radius, height) {
+  const n = prismSides(sides);
+  const top = prismRing(n, radius, height / 2);
+  const bottom = prismRing(n, radius, -height / 2);
+  /** @type {Vec3[][]} */
+  const triangles = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    triangles.push([bottom[i], bottom[j], top[j]], [bottom[i], top[j], top[i]]);
+  }
+  for (let i = 1; i < n - 1; i++) {
+    triangles.push([top[0], top[i], top[i + 1]]); // seen from +Y: counter-clockwise
+    triangles.push([bottom[0], bottom[i + 1], bottom[i]]); // seen from −Y: counter-clockwise
+  }
+  return triangles;
+}
+
 /** @param {Shape} [shape]
  *  @returns {THREE.BufferGeometry} */
 export function createGeometry(shape) {
@@ -265,12 +316,16 @@ export function createGeometry(shape) {
     case 'Cylinder': return new THREE.CylinderGeometry(p.radius ?? 0.5, p.radius ?? 0.5, p.height ?? 1, 32);
     case 'Cone': return new THREE.ConeGeometry(p.radius ?? 0.5, p.height ?? 1, 32);
     case 'Capsule': return new THREE.CapsuleGeometry(p.radius ?? 0.5, (p.half_length ?? 0.5) * 2, 16, 32);
-    case 'Torus': return new THREE.TorusGeometry(p.major_radius ?? 1, p.minor_radius ?? 0.25, 24, 48);
+    // three's torus lies in the XY plane; the format's lies flat in XZ, the ring around +Y
+    // (spec/world.md "The geometry of the shapes"), like its bounds say.
+    case 'Torus': { const g = new THREE.TorusGeometry(p.major_radius ?? 1, p.minor_radius ?? 0.25, 24, 48); g.rotateX(-Math.PI / 2); return g; }
     case 'Plane': { const g = new THREE.PlaneGeometry(p.x ?? 10, p.z ?? 10); g.rotateX(-Math.PI / 2); return g; }
     case 'Pyramid': return pyramidGeometry(p.base_x ?? 1, p.base_z ?? 1, p.height ?? 1);
     case 'Tetrahedron': return new THREE.TetrahedronGeometry(p.radius ?? 1);
     case 'Icosahedron': return new THREE.IcosahedronGeometry(p.radius ?? 1, 0);
     case 'Wedge': return wedgeGeometry(p.x ?? 1, p.y ?? 1, p.z ?? 1);
+    // Experimental (spec/world.md "The prism"): the normative triangles, flat-shaded.
+    case 'Prism': return flatGeometry(prismTriangles(p.sides ?? 6, p.radius ?? 0.5, p.height ?? 1));
     default: return new THREE.BoxGeometry(1, 1, 1);
   }
 }
@@ -706,7 +761,7 @@ export function shapeHalfExtents(shape) {
   switch (kind) {
     case 'Cuboid': case 'Wedge': return [a.x / 2, a.y / 2, a.z / 2];
     case 'Sphere': case 'Tetrahedron': case 'Icosahedron': return [a.radius, a.radius, a.radius];
-    case 'Cylinder': case 'Cone': return [a.radius, a.height / 2, a.radius];
+    case 'Cylinder': case 'Cone': case 'Prism': return [a.radius, a.height / 2, a.radius];
     case 'Capsule': return [a.radius, a.half_length + a.radius, a.radius];
     case 'Torus': return [a.major_radius + a.minor_radius, a.minor_radius, a.major_radius + a.minor_radius];
     case 'Plane': return [a.x / 2, 0, a.z / 2];
