@@ -79,7 +79,7 @@ ignore = [
     { id = "RUSTSEC-2025-0057", reason = "fxhash: unmaintained, transitive via bm25 -> mistralrs-core (the local-llm tier); migrate to rustc-hash when mistral.rs does" },
     { id = "RUSTSEC-2025-0119", reason = "number_prefix: unmaintained, transitive via indicatif -> hf-hub -> fastembed (local embeddings); no upgrade available" },
     { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: unmaintained, via axum-server (server TLS); only reads PEM files, no code execution risk" },
-    { id = "RUSTSEC-2023-0071", reason = "rsa (Marvin timing side channel): transitive via jsonwebtoken; no patched release exists; LocalGPT does not use RSA keys for JWTs" },
+    { id = "RUSTSEC-2023-0071", reason = "rsa (Marvin timing side channel): transitive via jsonwebtoken, its only user; no patched release exists (0.9.10 and 0.10 rc alike). The one RSA private-key operation is the Vertex AI provider signing its own token-request JWT (RS256) with the service-account key, about once an hour, on this machine: no peer chooses the input or times the signing, which the attack needs" },
     { id = "RUSTSEC-2026-0192", reason = "ttf-parser: unmaintained, transitive via winit -> sctk-adwaita (Wayland window decorations); no upgrade available" },
     { id = "RUSTSEC-2026-0344", reason = "ruzstd 0.8 decompression bomb (DoS only, no memory unsafety): reached through bevy_image's KTX2 zstd path, which no app here feeds untrusted .zst textures; fixed in 0.9.1, which bevy_image 0.19 does not accept — drop when Bevy bumps" },
     # zip < 9 lets `extract` write outside its destination (symlinks, the
