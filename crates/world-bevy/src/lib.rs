@@ -397,7 +397,7 @@ fn pyramid_mesh(base_x: f32, base_z: f32, height: f32) -> Mesh {
     ])
 }
 
-/// The experimental prism, as spec/world.md "The geometry of the shapes"
+/// The prism, as spec/world.md "The geometry of the shapes"
 /// states it: `sides` 3..=8, `radius` the circumradius, axis +Y, cap vertex
 /// i at (r cos θ, ±h/2, −r sin θ) with θ = 2πi/sides — the first vertex on
 /// +X, the ring counter-clockwise seen from above — sides as quads, caps as
