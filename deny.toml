@@ -91,6 +91,8 @@ ignore = [
     { id = "RUSTSEC-2026-0367", reason = "zip extract keeps SUID/SGID bits: only candle-core 0.10 (local-llm) has zip < 9, and it never calls extract" },
     { id = "RUSTSEC-2026-0368", reason = "zip extract follows symlinks out of the destination: only candle-core 0.10 (local-llm) has zip < 9, and it never calls extract" },
     { id = "RUSTSEC-2026-0369", reason = "zip extract applies permissions through symlinks: only candle-core 0.10 (local-llm) has zip < 9, and it never calls extract" },
+    { id = "RUSTSEC-2026-0374", reason = "basic-toml: unmaintained, read at compile time only by askama_derive (askama's template config) inside uniffi_bindgen, the mobile bindings generator; askama 0.16 still depends on it — drop when uniffi moves off it" },
+    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 timing variability: its only user is elliptic-curve 0.13 (p256/p384 in jsonwebtoken's rust_crypto backend), and LocalGPT signs JWTs with RS256 alone, so no ECDSA runs; jsonwebtoken 11 still pins p256 0.13 — drop when it moves to elliptic-curve 0.14" },
 ]
 # If this is true, then cargo deny will use the git executable to fetch advisory database.
 # If this is false, then it uses a built-in git library.
