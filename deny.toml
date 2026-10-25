@@ -79,7 +79,6 @@ ignore = [
     { id = "RUSTSEC-2025-0057", reason = "fxhash: unmaintained, transitive via bm25 -> mistralrs-core (the local-llm tier); migrate to rustc-hash when mistral.rs does" },
     { id = "RUSTSEC-2025-0119", reason = "number_prefix: unmaintained, transitive via indicatif -> hf-hub -> fastembed (local embeddings); no upgrade available" },
     { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: unmaintained, via axum-server (server TLS); only reads PEM files, no code execution risk" },
-    { id = "RUSTSEC-2023-0071", reason = "rsa (Marvin timing side channel): transitive via jsonwebtoken, its only user; no patched release exists (0.9.10 and 0.10 rc alike). The one RSA private-key operation is the Vertex AI provider signing its own token-request JWT (RS256) with the service-account key, about once an hour, on this machine: no peer chooses the input or times the signing, which the attack needs" },
     { id = "RUSTSEC-2026-0192", reason = "ttf-parser: unmaintained, transitive via winit -> sctk-adwaita (Wayland window decorations); no upgrade available" },
     { id = "RUSTSEC-2026-0344", reason = "ruzstd 0.8 decompression bomb (DoS only, no memory unsafety): reached through bevy_image's KTX2 zstd path, which no app here feeds untrusted .zst textures; fixed in 0.9.1, which bevy_image 0.19 does not accept — drop when Bevy bumps" },
     # zip < 9 lets `extract` write outside its destination (symlinks, the
@@ -92,7 +91,6 @@ ignore = [
     { id = "RUSTSEC-2026-0368", reason = "zip extract follows symlinks out of the destination: only candle-core 0.10 (local-llm) has zip < 9, and it never calls extract" },
     { id = "RUSTSEC-2026-0369", reason = "zip extract applies permissions through symlinks: only candle-core 0.10 (local-llm) has zip < 9, and it never calls extract" },
     { id = "RUSTSEC-2026-0374", reason = "basic-toml: unmaintained, read at compile time only by askama_derive (askama's template config) inside uniffi_bindgen, the mobile bindings generator; askama 0.16 still depends on it — drop when uniffi moves off it" },
-    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 timing variability: its only user is elliptic-curve 0.13 (p256/p384 in jsonwebtoken's rust_crypto backend), and LocalGPT signs JWTs with RS256 alone, so no ECDSA runs; jsonwebtoken 11 still pins p256 0.13 — drop when it moves to elliptic-curve 0.14" },
 ]
 # If this is true, then cargo deny will use the git executable to fetch advisory database.
 # If this is false, then it uses a built-in git library.

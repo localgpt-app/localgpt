@@ -98,8 +98,13 @@ tempfile = "3.27"
 # Security (hashing for memory index & media cache)
 sha2 = "0.11"
 
-# JWT signing (for Vertex AI service account auth)
-jsonwebtoken = { version = "10", features = ["rust_crypto"] }
+# JWT signing (for Vertex AI service account auth: RS256 with the service
+# account's key). The AWS-LC backend, not `rust_crypto`: the latter brings the
+# `rsa` crate, whose private-key operations are not constant-time
+# (RUSTSEC-2023-0071, no fixed release), and the ECDSA stack over
+# crypto-bigint 0.5 (RUSTSEC-2026-0387), for algorithms LocalGPT never signs
+# with. AWS-LC builds for iOS and Android like the rest of core.
+jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
 
 [target.'cfg(target_os = "linux")'.build-dependencies]
 cc = "1"
@@ -108,3 +113,6 @@ cc = "1"
 tempfile = "3.27"
 mockall = "0.14"
 filetime = "0.2"
+# A throwaway RSA key for the service-account signing test, made at test time
+# so no private key is committed; jsonwebtoken already brings the crate.
+aws-lc-rs = "1.18"

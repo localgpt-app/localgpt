@@ -4313,6 +4313,55 @@ mod providers_test;
 
 #[cfg(test)]
 mod tests {
+    /// Vertex AI signs its token request RS256 with the service account's
+    /// key, a PKCS#8 PEM as Google issues them, through jsonwebtoken's AWS-LC
+    /// backend. A key made here, so none is committed, signs an assertion that
+    /// verifies against its public half with the claims the endpoint reads.
+    #[test]
+    fn a_service_account_assertion_signs_rs256_with_a_pkcs8_key() {
+        use aws_lc_rs::encoding::{AsDer, Pkcs8V1Der, PublicKeyX509Der};
+        use aws_lc_rs::signature::KeyPair as _;
+        use base64::Engine as _;
+
+        let pem = |label: &str, der: &[u8]| {
+            let body = base64::engine::general_purpose::STANDARD.encode(der);
+            let lines: Vec<&str> = body
+                .as_bytes()
+                .chunks(64)
+                .map(|line| std::str::from_utf8(line).unwrap())
+                .collect();
+            format!(
+                "-----BEGIN {label}-----\n{}\n-----END {label}-----\n",
+                lines.join("\n")
+            )
+        };
+        let key = aws_lc_rs::rsa::KeyPair::generate(aws_lc_rs::rsa::KeySize::Rsa2048).unwrap();
+        let private_der: Pkcs8V1Der<'static> = key.as_der().unwrap();
+        let public_der: PublicKeyX509Der<'static> = key.public_key().as_der().unwrap();
+        let private = pem("PRIVATE KEY", private_der.as_ref());
+        let public = pem("PUBLIC KEY", public_der.as_ref());
+
+        let email = "agent@project.iam.gserviceaccount.com";
+        let jwt = super::service_account_assertion(email, &private, 1_790_000_000).unwrap();
+
+        let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::RS256);
+        validation.set_audience(&["https://oauth2.googleapis.com/token"]);
+        validation.set_issuer(&[email]);
+        validation.validate_exp = false; // the fixed clock is in the past
+        let token = jsonwebtoken::decode::<serde_json::Value>(
+            &jwt,
+            &jsonwebtoken::DecodingKey::from_rsa_pem(public.as_bytes()).unwrap(),
+            &validation,
+        )
+        .unwrap();
+        assert_eq!(token.header.alg, jsonwebtoken::Algorithm::RS256);
+        assert_eq!(
+            token.claims["scope"],
+            "https://www.googleapis.com/auth/cloud-platform"
+        );
+        assert_eq!(token.claims["exp"], 1_790_003_600u64);
+    }
+
     /// The "not configured" messages have always told users to set an env var;
     /// now one actually works. Uses a name no real provider reads, so the test
     /// needs no env mutation.
@@ -4970,6 +5019,26 @@ struct TokenResponse {
     expires_in: u64,
 }
 
+/// The signed assertion Google's token endpoint trades for an access token:
+/// RS256 over the service account's claims, with its private key — the
+/// PKCS#8 PEM a service-account JSON key carries. The token lives an hour.
+fn service_account_assertion(email: &str, private_key_pem: &str, now: u64) -> Result<String> {
+    let claims = json!({
+        "iss": email,
+        "scope": "https://www.googleapis.com/auth/cloud-platform",
+        "aud": "https://oauth2.googleapis.com/token",
+        "iat": now,
+        "exp": now + 3600,
+    });
+
+    let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
+    let encoding_key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key_pem.as_bytes())
+        .map_err(|e| anyhow::anyhow!("Invalid RSA private key: {}", e))?;
+
+    jsonwebtoken::encode(&header, &claims, &encoding_key)
+        .map_err(|e| anyhow::anyhow!("Failed to sign JWT: {}", e))
+}
+
 impl VertexAiProvider {
     pub fn new(
         service_account_key_path: &str,
@@ -5008,20 +5077,8 @@ impl VertexAiProvider {
             .duration_since(std::time::UNIX_EPOCH)?
             .as_secs();
 
-        let claims = json!({
-            "iss": self.service_account_email,
-            "scope": "https://www.googleapis.com/auth/cloud-platform",
-            "aud": "https://oauth2.googleapis.com/token",
-            "iat": now,
-            "exp": now + 3600,
-        });
-
-        let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
-        let encoding_key = jsonwebtoken::EncodingKey::from_rsa_pem(self.private_key_pem.as_bytes())
-            .map_err(|e| anyhow::anyhow!("Invalid RSA private key: {}", e))?;
-
-        let jwt = jsonwebtoken::encode(&header, &claims, &encoding_key)
-            .map_err(|e| anyhow::anyhow!("Failed to sign JWT: {}", e))?;
+        let jwt =
+            service_account_assertion(&self.service_account_email, &self.private_key_pem, now)?;
 
         let response = self
             .client
