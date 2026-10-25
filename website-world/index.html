@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
   <title>LocalGPT World — The Portal for Local 3D Worlds</title>
-  <meta name="description" content="localgpt.world is the upcoming spatial hub for explorable 3D worlds created with LocalGPT. Explore worlds from LocalGPT's apps — Gen, Verse, MD — and the previs boards drafted at localgpt.md.">
+  <meta name="description" content="localgpt.world is the gallery and web viewer for explorable 3D worlds made with LocalGPT — from a prompt, a Markdown document, a song or a screenplay at localgpt.md — all Open World Format packages, playable in the browser.">
   <link rel="canonical" href="https://localgpt.world/">
   <link rel="icon" href="localgpt-icon.svg" type="image/svg+xml">
 
@@ -621,6 +621,15 @@
       font-weight: 700;
       margin-bottom: 6px;
     }
+    .vision-content a,
+    .pillar-item a {
+      color: var(--accent);
+      border-bottom: 1px solid var(--accent-glow);
+    }
+    .vision-content a:hover,
+    .pillar-item a:hover {
+      border-bottom-color: var(--accent);
+    }
     .pillar-item p {
       font-size: 0.88rem;
       color: var(--ink-muted);
@@ -809,7 +818,7 @@
             Most AI world-generation platforms isolate experiences inside proprietary cloud servers and closed walled gardens. LocalGPT takes the opposite stance: your machine generates the meshes, compiles the shaders, and simulates the physics.
           </p>
           <p>
-            <strong>localgpt.world</strong> serves as the umbrella portal where standalone world formats converge. Whether born from a single paragraph prompt, an outline in a Markdown document, or a symphonic track, worlds are represented in portable, open formats.
+            Whether it was born from a prompt, a Markdown document, a song or a screenplay, every world here is written in one format: the <a href="https://openworldformat.org" target="_blank" rel="noopener">Open World Format</a>, an open standard LocalGPT doesn't own. The apps save a world as a <code>.world</code> package — a folder holding the world, the log of every edit that built it, and its assets by content hash — so the one viewer on <strong>localgpt.world</strong> plays them all, and any other reader of the format opens them too.
           </p>
         </div>
 
@@ -826,13 +835,13 @@
           </div>
           <div class="pillar-item">
             <div class="pillar-icon">🌐</div>
-            <h4>Interconnected Portals</h4>
-            <p>Step seamlessly from a document world directly into a music-reactive concert hall.</p>
+            <h4>One App, Every Source</h4>
+            <p>A prompt, a document, a song or a package each opens as a world in the same window.</p>
           </div>
           <div class="pillar-item">
             <div class="pillar-icon">📦</div>
-            <h4>Open Formats</h4>
-            <p>Built on standard glTF, RON, and reproducible JSON sidecar definitions.</p>
+            <h4>Open Format</h4>
+            <p><a href="https://openworldformat.org" target="_blank" rel="noopener">Open World Format</a> packages: a JSON Schema, conformance worlds, and readers for JavaScript, Python, Rust, Swift and Kotlin. Meshes stay glTF.</p>
           </div>
         </div>
       </div>
@@ -848,10 +857,11 @@
 
 <span class="comment"># 2. Or previs a screenplay with nothing installed: drop it on https://localgpt.md</span>
 
-<span class="comment"># 3. Or run LocalGPT MD and Verse from the one workspace</span>
-<span class="cmd">git clone https://github.com/localgpt-app/localgpt.git</span>
-<span class="cmd">cd localgpt && cargo run -p localgpt-md -- path/to/notes.md</span>
-<span class="cmd">cargo run -p localgpt-verse</span></code></pre>
+<span class="comment"># 3. Or run the desktop app from source: a document, a song or a package as a world</span>
+<span class="cmd">git clone https://github.com/localgpt-app/localgpt.git && cd localgpt</span>
+<span class="cmd">cargo run -p localgpt-app -- --md path/to/notes.md</span>
+<span class="cmd">cargo run -p localgpt-app -- --song track.mp3</span>
+<span class="cmd">cargo run -p localgpt-app -- --world scene-1.world</span></code></pre>
       </div>
 
     </div>
@@ -1067,7 +1077,7 @@
       const copyBtn = document.getElementById('copy-btn');
       if (copyBtn) {
         copyBtn.addEventListener('click', () => {
-          const codeText = `cargo install localgpt-gen\n\n# previs a screenplay with nothing installed: drop it on https://localgpt.md\n\ngit clone https://github.com/localgpt-app/localgpt.git\ncd localgpt && cargo run -p localgpt-md -- path/to/notes.md\ncargo run -p localgpt-verse`;
+          const codeText = `cargo install localgpt-gen\n\n# previs a screenplay with nothing installed: drop it on https://localgpt.md\n\ngit clone https://github.com/localgpt-app/localgpt.git && cd localgpt\ncargo run -p localgpt-app -- --md path/to/notes.md\ncargo run -p localgpt-app -- --song track.mp3\ncargo run -p localgpt-app -- --world scene-1.world`;
           navigator.clipboard.writeText(codeText).then(() => {
             const prevText = copyBtn.textContent;
             copyBtn.textContent = 'Copied!';

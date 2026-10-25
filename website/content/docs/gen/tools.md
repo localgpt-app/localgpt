@@ -18,7 +18,7 @@ The gen agent has access to 32 specialized tools organized by category. When run
 
 | Tool | Description |
 |------|-------------|
-| `gen_spawn_primitive` | Spawn geometric primitives (sphere, cube, cylinder, torus, pyramid, etc.) |
+| `gen_spawn_primitive` | Spawn a parametric shape: cuboid, sphere, cylinder, cone, capsule, torus, plane, pyramid, tetrahedron, icosahedron or wedge |
 | `gen_spawn_batch` | Spawn multiple primitives in one call; all or nothing |
 | `gen_spawn_mesh` | Spawn custom mesh geometry from raw vertex data |
 | `gen_load_gltf` | Load entities from a glTF/GLB file |
