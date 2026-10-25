@@ -101,7 +101,32 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends $BEVY_APT_DEPS
       - uses: ./.github/actions/onnxruntime
       - run: cargo clippy -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -p localgpt-world-audio -p localgpt-app -- -D warnings
-      - run: cargo test -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -p localgpt-world-audio -p localgpt-app
+      - id: test
+        run: cargo test -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -p localgpt-world-audio -p localgpt-app
+      # Since the Ubuntu 26.04 images, Gen's tests abort with a stack overflow
+      # on the thread that opens the audio device. A thread given 8 MiB
+      # overflowed as readily as the 2 MiB one, so something recurses, and no
+      # Ubuntu 26.04 container reproduces it — bare, with PipeWire's ALSA
+      # plugin with and without its daemon, amd64 and arm64, Gen's own test
+      # binary included. When the tests fail, Gen's run again under gdb,
+      # which stops at the overflow: the innermost frames say what recursed,
+      # the outermost how it was entered, and the runner's audio state why
+      # only here.
+      - name: Where Gen's audio bring-up overflows
+        if: failure() && steps.test.outcome == 'failure'
+        run: |
+          set +e
+          echo "::group::Audio on this runner"
+          cat /proc/asound/cards; ls -la /dev/snd
+          ls -la /etc/alsa/conf.d /usr/share/alsa/alsa.conf.d
+          cat /etc/asound.conf ~/.asoundrc ~/.config/alsa/asoundrc
+          dpkg -l | grep -E 'pipewire|pulseaudio|wireplumber|jack|libasound'
+          env | grep -E '^(XDG_|PULSE|PIPEWIRE|ALSA|DBUS)'
+          pgrep -af 'pipewire|pulse|wireplumber'
+          echo "::endgroup::"
+          sudo apt-get install -y --no-install-recommends gdb > /dev/null
+          bin=$(find target/debug/deps -maxdepth 1 -type f -perm -u+x -name 'localgpt_gen-*' | head -1)
+          timeout 900 gdb -q -batch -ex 'set pagination off' -ex run -ex 'bt 40' -ex 'bt -15' --args "$bin"
 
   # The opt-in tiers are compiled by none of the jobs above, so without this
   # the gated code rots broken while default-feature CI stays green. MD and
