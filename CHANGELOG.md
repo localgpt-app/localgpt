@@ -14,7 +14,7 @@ All notable changes to LocalGPT are documented in this file.
 
 ### Security
 
-- **JWT signing moved to the AWS-LC backend** (`crates/core`) — `jsonwebtoken` ran on `rust_crypto`, which brought the `rsa` crate, whose private-key operations are not constant-time (RUSTSEC-2023-0071, no fixed release), and an ECDSA stack over `crypto-bigint` 0.5 (RUSTSEC-2026-0387). The Vertex AI provider's RS256 signing now runs on AWS-LC, which builds for every target core supports, iOS and Android included; `rsa`, the ECDSA crates and their two advisory ignores are gone. A test signs with a PKCS#8 key made at test time and verifies the assertion. Also updated: `rustls-webpki` 0.103.16 (RUSTSEC-2026-0382), `webpki-roots` and `webpki-root-certs` 1.0.11 (RUSTSEC-2026-0383), `ctutils` 0.4.5 (RUSTSEC-2026-0385), and the yanked `clipboard-win`.
+- **JWT signing moved to the AWS-LC backend** (`crates/core`) — `jsonwebtoken` ran on `rust_crypto`, which brought the `rsa` crate, whose private-key operations are not constant-time (RUSTSEC-2023-0071, no fixed release), and an ECDSA stack over `crypto-bigint` 0.5 (RUSTSEC-2026-0387). The Vertex AI provider's RS256 signing now runs on AWS-LC, which builds for every target core supports, iOS and Android included; `rsa`, the ECDSA crates and their two advisory ignores are gone. A test signs with a PKCS#8 key made at test time and verifies the assertion. Also updated: `rustls-webpki` 0.103.16 (RUSTSEC-2026-0382), `webpki-roots` and `webpki-root-certs` 1.0.11 (RUSTSEC-2026-0383), `ctutils` 0.4.5 (RUSTSEC-2026-0385), `tokio` 1.54.1 (RUSTSEC-2026-0386: `AsyncFd`'s safe constructors violate I/O safety; nothing in the workspace calls them), and the yanked `clipboard-win`.
 
 ## [0.4.1] - 2026-10-19
 
