@@ -10,6 +10,6 @@
     "check:all": "npm run assemble:all && node scripts/check-worlds.mjs"
   },
   "devDependencies": {
-    "playwright": "1.56.1"
+    "playwright": "1.64.1"
   }
 }
