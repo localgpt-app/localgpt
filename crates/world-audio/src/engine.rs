@@ -69,16 +69,6 @@ struct Emitter {
     _voice: FundspHandle,
 }
 
-/// The stack device bring-up runs on — what a main thread gets on Linux.
-/// Opening the output device goes through cpal into the platform's native
-/// audio stack (on desktop Linux, alsa-lib and the PipeWire or PulseAudio
-/// plugin it loads), and that code can want more than the 2 MiB Rust gives a
-/// spawned thread: Gen's audio thread overflowed its stack there on the
-/// Ubuntu 26.04 CI runners, the first images with an output device to open.
-/// Callers run on whatever thread they have — Gen's audio thread, a Bevy
-/// system on a task-pool thread — so bring-up takes its own.
-const BRING_UP_STACK_BYTES: usize = 8 << 20;
-
 /// The audio device, the mixer and everything currently sounding.
 pub struct Engine {
     manager: AudioManager,
@@ -93,28 +83,12 @@ impl Engine {
     /// CI runner, a machine with no sound card — which every caller treats as
     /// "the world is silent" rather than an error, exactly as Gen's
     /// `start_audio_engine` did.
-    ///
-    /// The device opens on a thread of its own with a main thread's stack
-    /// ([`BRING_UP_STACK_BYTES`]), whatever thread calls this; the manager
-    /// is `Send`, and comes back to the caller.
     pub fn new() -> Option<Self> {
-        let bring_up = std::thread::Builder::new()
-            .name("audio-bring-up".into())
-            .stack_size(BRING_UP_STACK_BYTES)
-            .spawn(|| {
-                AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())
-                    .map_err(|e| e.to_string())
-            });
-        let mut manager = match bring_up.map(std::thread::JoinHandle::join) {
-            Ok(Ok(Ok(manager))) => manager,
-            Ok(Ok(Err(e))) => {
+        let mut manager = match AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())
+        {
+            Ok(manager) => manager,
+            Err(e) => {
                 warn!("audio: no output device ({e}) — worlds will be silent");
-                return None;
-            }
-            // No thread to open it on, or the native stack panicked while
-            // opening: silent, the same as no device.
-            Err(_) | Ok(Err(_)) => {
-                warn!("audio: the output device could not be opened — worlds will be silent");
                 return None;
             }
         };

@@ -8,10 +8,6 @@ All notable changes to LocalGPT are documented in this file.
 
 - **Open World Format 0.4.0** — the workspace rides the `openworldformat` 0.4.0 crate and the npm 0.3.6 renderer. Gen and the other Bevy apps draw the new `Prism` shape (three to eight sides, as the format's geometry table states it), the icosahedron is built on the golden rectangles the table names rather than Bevy's vertex-up one, and the web viewer lays the torus flat in the XZ plane like every other renderer. The live authority labels the AI's builds on a guest's behalf with the format's `author.source = "ai"`.
 
-### Fixed
-
-- **Gen could abort on Linux desktops while opening the audio device** (`crates/world-audio`) — `Engine::new` opened the device on its caller's thread, and the native audio stack (cpal over alsa-lib and the PipeWire or PulseAudio plugin) could overflow the 2 MiB stack Rust gives a spawned thread: Gen's audio thread did on Ubuntu 26.04. The device now opens on a thread of its own with 8 MiB, whoever calls it, so Gen and Verse are both covered.
-
 ### Security
 
 - **JWT signing moved to the AWS-LC backend** (`crates/core`) — `jsonwebtoken` ran on `rust_crypto`, which brought the `rsa` crate, whose private-key operations are not constant-time (RUSTSEC-2023-0071, no fixed release), and an ECDSA stack over `crypto-bigint` 0.5 (RUSTSEC-2026-0387). The Vertex AI provider's RS256 signing now runs on AWS-LC, which builds for every target core supports, iOS and Android included; `rsa`, the ECDSA crates and their two advisory ignores are gone. A test signs with a PKCS#8 key made at test time and verifies the assertion. Also updated: `rustls-webpki` 0.103.16 (RUSTSEC-2026-0382), `webpki-roots` and `webpki-root-certs` 1.0.11 (RUSTSEC-2026-0383), `ctutils` 0.4.5 (RUSTSEC-2026-0385), `tokio` 1.54.1 (RUSTSEC-2026-0386: `AsyncFd`'s safe constructors violate I/O safety; nothing in the workspace calls them), and the yanked `clipboard-win`.
