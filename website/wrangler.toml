@@ -3,6 +3,12 @@
 name = "localgpt-app"
 compatibility_date = "2026-09-22"
 
+# The custom domain: localgpt.app is a zone on this account, and a deploy
+# attaches the Worker to it (DNS and the certificate are Cloudflare's).
+routes = [
+  { pattern = "localgpt.app", custom_domain = true }
+]
+
 [assets]
 directory = "./public"
 # Zola writes pretty URLs (path/index.html) and a root 404.html.

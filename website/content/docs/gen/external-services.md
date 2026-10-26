@@ -139,7 +139,7 @@ path it didn't write.
 | `LOCALGPT_GEN_COMFYUI_URL` | `http://127.0.0.1:8188` | ComfyUI server |
 | `LOCALGPT_GEN_COMFYUI_CHECKPOINT` | `v1-5-pruned-emaonly.safetensors` | Checkpoint in `models/checkpoints/` |
 | `LOCALGPT_GEN_COMFYUI_CONTROLNET` | `control_v11f1p_sd15_depth.safetensors` | Depth ControlNet in `models/controlnet/` |
-| `LOCALGPT_GEN_COMFYUI_WORKFLOW` | — | Your own workflow (API format) instead of the built-in one; `{{prompt}}`, `{{negative}}`, `{{depth_image}}`, `{{width}}`, `{{height}}` and `{{seed}}` are filled in |
+| `LOCALGPT_GEN_COMFYUI_WORKFLOW` | — | Your own workflow (API format) instead of the built-in one; {% raw %}`{{prompt}}`, `{{negative}}`, `{{depth_image}}`, `{{width}}`, `{{height}}` and `{{seed}}`{% endraw %} are filled in |
 
 ### Style Presets
 

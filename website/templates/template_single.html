@@ -71,7 +71,7 @@
     <h2>Explore More Templates</h2>
     <div class="templates-grid">
       {% set templates_section = get_section(path="templates/_index.md") %}
-      {% for t in templates_section.pages | slice(end=3) %}
+      {% for t in templates_section.pages[:3] %}
         {% if t.permalink != page.permalink %}
         <a href="{{ t.permalink }}" class="template-card">
           <span class="template-cat">{{ t.extra.category }}</span>

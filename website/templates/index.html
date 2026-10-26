@@ -152,7 +152,7 @@
     <p class="section-subtitle">Jumpstart your project with production-ready environments. Fully explorable, customizable, and free.</p>
     <div class="templates-grid">
       {% set templates_section = get_section(path="templates/_index.md") %}
-      {% for t in templates_section.pages | slice(end=8) %}
+      {% for t in templates_section.pages[:8] %}
       <a href="{{ t.permalink }}" class="template-card">
         <span class="template-cat">{{ t.extra.category | default(value="World") }}</span>
         <h4 class="template-title">{{ t.title }}</h4>
