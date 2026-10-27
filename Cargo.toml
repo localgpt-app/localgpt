@@ -27,7 +27,7 @@ default-members = ["crates/cli"]
 resolver = "3"
 
 [workspace.package]
-version = "0.4.1"
+version = "0.4.2"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/localgpt-app/localgpt"
@@ -93,21 +93,21 @@ rand = "0.10"
 base64 = "0.22"
 
 # Internal crates
-localgpt-core = { version = "0.4.1", path = "crates/core" }
-localgpt-server = { version = "0.4.1", path = "crates/server" }
-localgpt-sandbox = { version = "0.4.1", path = "crates/sandbox" }
-localgpt-bridge = { version = "0.4.1", path = "crates/bridge" }
-localgpt-world-types = { version = "0.4.1", path = "crates/world-types" }
-localgpt-world-export = { version = "0.4.1", path = "crates/world-export" }
-localgpt-world-bevy = { version = "0.4.1", path = "crates/world-bevy" }
-localgpt-world-audio = { version = "0.4.1", path = "crates/world-audio" }
-localgpt-world-sync = { version = "0.4.1", path = "crates/world-sync" }
-localgpt-world-editor = { version = "0.4.1", path = "crates/world-editor" }
-localgpt-world-agent = { version = "0.4.1", path = "crates/world-agent" }
+localgpt-core = { version = "0.4.2", path = "crates/core" }
+localgpt-server = { version = "0.4.2", path = "crates/server" }
+localgpt-sandbox = { version = "0.4.2", path = "crates/sandbox" }
+localgpt-bridge = { version = "0.4.2", path = "crates/bridge" }
+localgpt-world-types = { version = "0.4.2", path = "crates/world-types" }
+localgpt-world-export = { version = "0.4.2", path = "crates/world-export" }
+localgpt-world-bevy = { version = "0.4.2", path = "crates/world-bevy" }
+localgpt-world-audio = { version = "0.4.2", path = "crates/world-audio" }
+localgpt-world-sync = { version = "0.4.2", path = "crates/world-sync" }
+localgpt-world-editor = { version = "0.4.2", path = "crates/world-editor" }
+localgpt-world-agent = { version = "0.4.2", path = "crates/world-agent" }
 # Without its `pdf` feature here: Gen stages and boards and needs no PDF
 # reader; the previs binary and previs-web turn it on themselves.
-localgpt-previs = { version = "0.4.1", path = "crates/previs", default-features = false }
-localgpt-cli-tools = { version = "0.4.1", path = "crates/cli-tools" }
+localgpt-previs = { version = "0.4.2", path = "crates/previs", default-features = false }
+localgpt-cli-tools = { version = "0.4.2", path = "crates/cli-tools" }
 
 [profile.release]
 lto = true
