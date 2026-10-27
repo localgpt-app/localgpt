@@ -1,9 +1,12 @@
 # What the CLI is for, once the world is the product
 
-**Status:** decided 2026-10-04, partly built. `localgpt world` and
-`localgpt world mcp` exist (`crates/cli/src/cli/`, over
-`world-agent::headless` and the open app's API); the world-shaped autonomy
-below does not.
+**Status:** decided 2026-10-04, partly built; §3, §4 and *What to stop* are
+superseded 2026-10-26 by [the-harness-goes.md](the-harness-goes.md), which
+removes the harness in 0.5.0 instead of keeping it as plumbing. §1 and §2
+stand: `localgpt world` and `localgpt world mcp` exist
+(`crates/cli/src/cli/`, over `world-agent::headless` and the open app's API)
+and are what 0.5.0 keeps. The world-shaped autonomy of §3 was never built and
+is no longer planned.
 
 ## The question
 
