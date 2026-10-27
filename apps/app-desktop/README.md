@@ -76,6 +76,42 @@ The shared downloads — the CC0 asset pack and, for local models, the GGUF —
 are not in the bundle; `scripts/fetch-assets.sh` and `scripts/fetch-model.sh`
 fetch them once per machine for every LocalGPT app.
 
+## Release
+
+`.github/workflows/desktop.yml` builds the bundle on GitHub's macOS runners,
+Apple silicon and Intel, with this script (`--dmg`), so a release and a
+bundle made on a Mac are the same build. A `desktop-v<version>` tag — the
+workspace's version, as `Cargo.toml` has it — makes a draft release holding
+`LocalGPT-<version>-arm64.dmg`, `LocalGPT-<version>-x86_64.dmg` and
+`localgpt.rb`, the Homebrew cask rendered with their checksums
+(`packaging/homebrew/cask.sh`). A tag with a hyphen after the version
+(`desktop-v0.5.0-beta.1`) is a pre-release. Run by hand, the workflow keeps
+the files as artifacts and makes no release.
+
+```bash
+git tag -s desktop-v0.4.2 -m desktop-v0.4.2 && git push origin desktop-v0.4.2
+```
+
+Then, by hand: check the draft and publish it, and put `localgpt.rb` in the
+tap (`localgpt-app/homebrew-tap`, as `Casks/localgpt.rb`), after which
+`brew install --cask localgpt-app/tap/localgpt` installs the app. The cask's
+URLs are the release's, so the release is published first.
+
+Signing and notarization run when the secrets are set in the repository
+(Settings > Secrets and variables > Actions); without them the release is
+ad-hoc signed and opens only with a Gatekeeper override:
+
+| Secret | |
+|---|---|
+| `APPLE_CERTIFICATE` | the Developer ID Application certificate as a base64 `.p12` (`base64 -i cert.p12 \| pbcopy`) |
+| `APPLE_CERTIFICATE_PASSWORD` | its password |
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: <name> (<team id>)` |
+| `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | the Apple ID, an app-specific password and the team, for notarization; all three or none |
+
+The workflow imports the certificate into a keychain of its own, makes the
+`notarytool` profile from the three notarization secrets, and runs this
+script as the section above does.
+
 ## Linux launcher
 
 `linux/localgpt.desktop` adds the app to the app menu. It hasn't been tested
@@ -91,9 +127,9 @@ install -Dm644 website/static/logo/localgpt-icon.svg \
 
 ## Not done yet
 
-- **A release pipeline.** Nothing builds or publishes the bundle
-  automatically; the signing path above has not been run, since no
-  Developer ID is set up where it was written.
+- **The signing path has not been run** — no Developer ID is set up where
+  it was written — and neither has the workflow: the first `desktop-v` tag
+  is its first run.
 - **Windows and Linux packages.** No Windows installer or Linux AppImage
   yet, and `local-llm-metal` is macOS-only: those builds need `local-llm`
   (CPU) or a GPU backend chosen per platform.

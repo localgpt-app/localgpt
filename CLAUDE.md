@@ -123,6 +123,13 @@ at once, and a rerun picks up the rest. Members with `publish = false`
 (app, md, verse, relay, previs-web, mobile-ffi) stay off crates.io.
 `cargo publish --workspace --dry-run` is the local check.
 
+The desktop app releases on its own tag: `desktop-vX.Y.Z` (the same
+version) runs `.github/workflows/desktop.yml`, which builds `LocalGPT.app`
+for Apple silicon and Intel with `apps/app-desktop/macos/build-app.sh`
+and drafts a GitHub release with the two `.dmg` files and the Homebrew
+cask; `apps/app-desktop/README.md` has the secrets and the steps after
+the draft.
+
 ## Architecture
 
 LocalGPT is a local-only AI assistant with persistent markdown-based memory and

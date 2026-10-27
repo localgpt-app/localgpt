@@ -102,7 +102,7 @@ are the two lines a Mac needs.
 | Version | What | When |
 |---|---|---|
 | **0.4.2** | what is in *Unreleased* now (Open World Format 0.4.0, the AWS-LC move), plus a deprecation line in `README.md` and `CHANGELOG.md`: 0.5.0 removes the assistant; `cargo install localgpt --version 0.4.2` keeps it. The crate has 62 downloads in the last 90 days: nobody should be surprised twice | now |
-| **release pipeline** | cargo-dist for the CLI, `desktop.yml` for the app, the tap, the cask, the Install page. Independent of the removal, and the first release of the app ever | two to three days |
+| **release pipeline** | `desktop.yml` for the app, the cask, the tap, the Install page: independent of the removal, and the first release of the app ever. cargo-dist for the CLI waits for 0.5.0's CLI — the 0.4.2 binary needs ONNX Runtime and eframe's system libraries on each of six targets, work the removal makes moot | two to three days |
 | **0.5.0** | the removal (next section). The CLI is `world`, `world mcp`, `doctor`, `setup`. `localgpt-gen mcp-server` stays and is marked deprecated | about two weeks, most of it the app's panel and the docs |
 | **0.6.0** | Gen's tools re-fronted over the ops API through the shim; the `localgpt-gen` binary's agent half retired; one MCP entry point | one to two weeks |
 
@@ -245,8 +245,12 @@ decided* because it is not this document's to make alone.
 
 ## Status
 
-- [ ] 0.4.2 released with the deprecation line
-- [ ] cargo-dist, `desktop.yml`, the tap and cask, the Install page; the
-      first release of `LocalGPT.app`
+- [ ] 0.4.2 released with the deprecation line (the lines are in `README.md`
+      and `CHANGELOG.md` since 2026-10-27; the tag is the release)
+- [x] `.github/workflows/desktop.yml` and `packaging/homebrew/cask.sh`,
+      2026-10-27 — written, not yet run; the first `desktop-v` tag is the
+      first run
+- [ ] the first release of `LocalGPT.app`; the tap; the Install page
+- [ ] cargo-dist for the 0.5.0 CLI
 - [ ] 0.5.0: the removal; `doctor` and `setup`
 - [ ] 0.6.0: Gen's tools behind the shim; one MCP entry point

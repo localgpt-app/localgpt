@@ -1,0 +1,168 @@
+name: desktop
+
+# Builds LocalGPT.app for macOS, Apple silicon and Intel. A tag such as
+# desktop-v0.4.2 makes a draft GitHub release holding the two .dmg files and
+# the Homebrew cask rendered with their checksums; a tag with a hyphen after
+# the version, such as desktop-v0.5.0-beta.1, makes a pre-release. The tag's
+# version must be the workspace's (Cargo.toml). Run by hand, the workflow
+# builds and keeps the files as artifacts, and makes no release.
+#
+# The build is apps/app-desktop/macos/build-app.sh --dmg, so a release and a
+# bundle made on a Mac are the same build. Signing and notarization run when
+# their secrets are set (Settings > Secrets and variables > Actions):
+#   APPLE_CERTIFICATE           the Developer ID Application certificate, a base64 .p12
+#   APPLE_CERTIFICATE_PASSWORD  its password
+#   APPLE_SIGNING_IDENTITY      "Developer ID Application: <name> (<team id>)"
+#   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+#                               the Apple ID, an app-specific password and the
+#                               team, for notarization: all three or none
+# Without them the app is ad-hoc signed and opens only with a Gatekeeper
+# override, as for your own use. apps/app-desktop/README.md has the steps
+# after the draft: publish it, then put the cask in the tap.
+
+on:
+  push:
+    tags: ["desktop-v*"]
+  workflow_dispatch:
+    inputs:
+      features:
+        description: "APP_FEATURES for build-app.sh: 'default' keeps the script's choice (local-llm-metal on Apple silicon); anything else, including empty, replaces it"
+        required: false
+        default: default
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS, os: macos-latest, arch: arm64 }
+          - { name: macOS-Intel, os: macos-15-intel, arch: x86_64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The tag matches the version
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' Cargo.toml | head -1)
+          case "$TAG" in
+            "desktop-v$version" | "desktop-v$version-"*) ;;
+            *) echo "The tag is $TAG but the workspace version is $version"; exit 1 ;;
+          esac
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: desktop-${{ matrix.arch }}
+          cache-on-failure: true
+
+      - name: Signing, where its secrets are set
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            echo "No APPLE_CERTIFICATE: the app will be ad-hoc signed."
+            exit 0
+          fi
+          if [ -z "$APPLE_SIGNING_IDENTITY" ]; then
+            echo "APPLE_CERTIFICATE is set but APPLE_SIGNING_IDENTITY is not." >&2
+            exit 1
+          fi
+          # The certificate goes into a keychain of its own, the way GitHub's
+          # docs show; it exists for this job only.
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(openssl rand -hex 16)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$keychain"
+          rm -f "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple: -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+            xcrun notarytool store-credentials localgpt-notary \
+              --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_PASSWORD" \
+              --keychain "$keychain"
+            echo "APPLE_NOTARY_PROFILE=localgpt-notary" >> "$GITHUB_ENV"
+          else
+            echo "Signing without notarization: APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID are not all set."
+          fi
+
+      - name: Features from the dispatch input
+        if: github.event_name == 'workflow_dispatch' && inputs.features != 'default'
+        env:
+          FEATURES: ${{ inputs.features }}
+        run: echo "APP_FEATURES=$FEATURES" >> "$GITHUB_ENV"
+
+      - name: LocalGPT.app and the .dmg
+        run: apps/app-desktop/macos/build-app.sh --dmg
+
+      - name: Name the .dmg by architecture
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          version=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' Cargo.toml | head -1)
+          mv "apps/app-desktop/dist/LocalGPT-$version.dmg" "apps/app-desktop/dist/LocalGPT-$version-$ARCH.dmg"
+          ls -l apps/app-desktop/dist/*.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalGPT-${{ matrix.arch }}
+          path: apps/app-desktop/dist/*.dmg
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dmg
+          merge-multiple: true
+
+      - name: The cask, rendered with this release's checksums
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#desktop-v}"
+          packaging/homebrew/cask.sh "$version" \
+            "dmg/LocalGPT-$version-arm64.dmg" "dmg/LocalGPT-$version-x86_64.dmg" > dmg/localgpt.rb
+          cat dmg/localgpt.rb
+
+      - name: The draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#desktop-v}"
+          prerelease=""
+          case "$version" in *-*) prerelease="--prerelease" ;; esac
+          notes="LocalGPT.app for macOS: LocalGPT-$version-arm64.dmg for Apple silicon, LocalGPT-$version-x86_64.dmg for Intel. Open the .dmg and drag LocalGPT to Applications. localgpt.rb is the Homebrew cask for this release, for the tap. Docs: https://localgpt.app/docs/app/"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dmg/*.dmg dmg/localgpt.rb --clobber
+          else
+            # shellcheck disable=SC2086 # $prerelease is one flag or nothing
+            gh release create "$TAG" dmg/*.dmg dmg/localgpt.rb --draft $prerelease --verify-tag \
+              --title "LocalGPT $version" --notes "$notes"
+          fi
