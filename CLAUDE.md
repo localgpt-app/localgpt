@@ -9,7 +9,7 @@ to scripts in `bin/{web,build,ops}/`, `apps/` and `scripts/`, each of which
 also runs directly:
 
 ```bash
-bin/lg build app gen                    # cargo build, by name: cli app gen previs md verse headless all
+bin/lg build app gen                    # cargo build, by name: cli app gen previs md verse all
 bin/lg build cli --release -- --features mcp-http
 bin/lg build mobile ios|android         # localgpt-mobile-ffi + Swift/Kotlin bindings
 bin/lg build bundle --dmg               # LocalGPT.app for macOS
@@ -77,9 +77,6 @@ scripts/fetch-model.sh                             # ~5 GB GGUF
 scripts/fetch-assets.sh                            # 522 MB CC0 pack, once;
                                                    # symlinks it into md's and
                                                    # verse's asset roots
-
-# Headless build (no desktop GUI)
-cargo build -p localgpt --no-default-features
 
 # Generate UniFFI bindings (after building mobile crate)
 cargo build -p localgpt-mobile-ffi

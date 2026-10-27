@@ -1,59 +1,21 @@
+//! `localgpt` — a `.world` package's command line, and the shim that gives
+//! any MCP agent tools against the world an app has open.
+//!
+//! The assistant this binary was through 0.4.x — chat, tui, daemon, memory,
+//! heartbeat and cron, the sandbox, the APIs, the bridges — went in 0.5.0:
+//! the coding agents are the better harness, and a world is edited from
+//! outside the window (`docs/rfcs/authoring/the-harness-goes.md`).
+//! `cargo install localgpt --version 0.4.2` keeps it.
+
 use anyhow::Result;
 use clap::Parser;
 
 mod cli;
-#[cfg(feature = "desktop")]
-mod desktop;
 
 use cli::{Cli, Commands};
 
 fn main() -> Result<()> {
-    // argv[0] dispatch: if re-exec'd as "localgpt-sandbox", enter sandbox child path
-    // immediately — before Tokio, Clap, or any other initialization.
-    #[cfg(unix)]
-    if let Some(arg0) = std::env::args_os().next()
-        && arg0.to_string_lossy().ends_with("localgpt-sandbox")
-    {
-        localgpt_sandbox::sandbox_child_main();
-    }
-
     let cli = Cli::parse();
-
-    // Set LOCALGPT_PROFILE env var if --profile was provided
-    // This must be done early before any paths are resolved
-    if let Some(ref profile) = cli.profile {
-        // SAFETY: Setting env var early before any multi-threaded code runs
-        #[allow(unsafe_code)]
-        unsafe {
-            std::env::set_var("LOCALGPT_PROFILE", profile);
-        }
-    }
-
-    // Handle Gen mode before tokio — it spawns a subprocess (sync)
-    if let Commands::Gen(args) = cli.command {
-        return crate::cli::gen3d::run(args, &cli.agent, cli.verbose);
-    }
-
-    // Handle daemon start/restart specially - must fork BEFORE starting Tokio runtime
-    #[cfg(unix)]
-    if let Commands::Daemon(ref args) = cli.command {
-        match args.command {
-            crate::cli::daemon::DaemonCommands::Start {
-                foreground: false, ..
-            } => {
-                // Do the fork synchronously, then start Tokio in the child
-                return crate::cli::daemon::daemonize_and_run(&cli.agent);
-            }
-            crate::cli::daemon::DaemonCommands::Restart { foreground: false } => {
-                // Stop first (synchronously), then fork and start
-                crate::cli::daemon::stop_sync()?;
-                return crate::cli::daemon::daemonize_and_run(&cli.agent);
-            }
-            _ => {}
-        }
-    }
-
-    // For all other commands, start the async runtime normally
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?
@@ -61,15 +23,8 @@ fn main() -> Result<()> {
 }
 
 async fn async_main(cli: Cli) -> Result<()> {
-    // Initialize logging
-    // Use "warn" by default for cleaner TUI, "info" for daemon mode, "debug" with --verbose
-    let log_level = if cli.verbose {
-        "debug"
-    } else if matches!(&cli.command, Commands::Daemon(_)) {
-        "info"
-    } else {
-        "warn"
-    };
+    // Logs go to stderr: stdout is the transport while `world mcp` serves.
+    let log_level = if cli.verbose { "debug" } else { "warn" };
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -79,32 +34,7 @@ async fn async_main(cli: Cli) -> Result<()> {
         .init();
 
     match cli.command {
-        Commands::Chat(args) => crate::cli::chat::run(args, &cli.agent).await,
-        Commands::Tui(args) => crate::cli::tui::run(args, &cli.agent).await,
-        Commands::Ask(args) => crate::cli::ask::run(args, &cli.agent).await,
-        #[cfg(feature = "desktop")]
-        Commands::Desktop(args) => crate::cli::desktop::run(args, &cli.agent),
-        Commands::Gen(_) => unreachable!("Gen is handled before tokio runtime starts"),
         Commands::World { command } => crate::cli::world::run(command).await,
-        Commands::Daemon(args) => crate::cli::daemon::run(args, &cli.agent).await,
-        Commands::Memory(args) => crate::cli::memory::run(args, &cli.agent).await,
-        Commands::Config(args) => crate::cli::config::run(args).await,
-        Commands::Paths => crate::cli::paths::run(),
-        Commands::Policy(args) => crate::cli::policy::run(args).await,
-        Commands::Sandbox(args) => crate::cli::sandbox::run(args).await,
-        Commands::Search(args) => crate::cli::search::run(args).await,
-        Commands::Init(args) => crate::cli::init::run(args),
-        Commands::Bridge(args) => crate::cli::bridge::run(args).await,
-        Commands::Doctor(args) => crate::cli::doctor::run(args).await,
-        Commands::Tool(args) | Commands::Plugin(args) => crate::cli::tool::run(args).await,
         Commands::Completion(args) => crate::cli::completion::run(args),
-        Commands::Cron(args) => crate::cli::cron::run(args),
-        Commands::Hooks(args) => crate::cli::hooks::run(args),
-        Commands::McpServer(args) => crate::cli::mcp_server::run(args).await,
-        Commands::Session(args) => crate::cli::session::run(args).await,
-        Commands::Cert(args) => {
-            let config = localgpt_core::Config::load()?;
-            crate::cli::cert::run(&args, &config)
-        }
     }
 }
