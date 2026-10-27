@@ -3,5 +3,11 @@
 name = "localgpt-world"
 compatibility_date = "2026-09-23"
 
+# The custom domain: a deploy attaches the Worker to it (DNS and the
+# certificate are Cloudflare's).
+routes = [
+  { pattern = "localgpt.world", custom_domain = true }
+]
+
 [assets]
 directory = "."

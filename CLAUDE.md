@@ -4,6 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Development Commands
 
+`bin/lg` is the one entry point for building and releasing — it only routes
+to scripts in `bin/{web,build,ops}/`, `apps/` and `scripts/`, each of which
+also runs directly:
+
+```bash
+bin/lg build app gen                    # cargo build, by name: cli app gen previs md verse headless all
+bin/lg build cli --release -- --features mcp-http
+bin/lg build mobile ios|android         # localgpt-mobile-ffi + Swift/Kotlin bindings
+bin/lg build bundle --dmg               # LocalGPT.app for macOS
+bin/lg verify                           # the CI checks on this machine (--rust --bevy --features --web --deps)
+bin/lg web deploy world --dry-run       # the family's sites: app gen verse md world, or all
+bin/lg fetch model|assets               # the two shared downloads
+```
+
 ```bash
 # Build
 cargo build                     # Debug build (default-members = crates/cli)

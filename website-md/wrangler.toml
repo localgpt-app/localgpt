@@ -1,9 +1,16 @@
 # Cloudflare Worker for localgpt.md, the previs page: static assets only,
 # no Worker script, nothing to build. Deploy with ./deploy.sh from this
-# directory. Routing is in the dashboard: localgpt.md is the canonical
-# host, md.localgpt.app 301s to it.
+# directory. localgpt.md is the canonical host; the 301 from
+# md.localgpt.app is a redirect rule on the localgpt.app zone, not this
+# Worker's.
 name = "localgpt-md"
 compatibility_date = "2026-09-21"
+
+# The custom domain: a deploy attaches the Worker to it (DNS and the
+# certificate are Cloudflare's).
+routes = [
+  { pattern = "localgpt.md", custom_domain = true }
+]
 
 [assets]
 directory = "."

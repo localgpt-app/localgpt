@@ -9,4 +9,4 @@ if ! npx --yes wrangler whoami 2>&1 | grep -q "Account Name"; then
 fi
 
 zola build
-npx --yes wrangler deploy
+npx --yes wrangler deploy "$@"
