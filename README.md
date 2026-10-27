@@ -18,7 +18,7 @@
 | **LocalGPT**, the desktop app | `crates/app` | One window, every mode: a world from a prompt (Gen), from a Markdown document (MD) or from a song (Verse), or any `.world` package opened as a live canvas. |
 | **LocalGPT Gen**, the binary | `crates/gen` · `cargo install localgpt-gen` | The world builder on its own: interactive, an MCP server for Claude Desktop, Claude Code, Codex, Gemini CLI and editors, headless batch generation, collaborative sessions on the LAN or through a relay. |
 | **Previs** | `crates/previs` · `cargo install localgpt-previs` · [localgpt.md](https://localgpt.md) | A screenplay in — PDF, Final Draft, Fountain or Markdown — and per scene a `.world` with the set, the cast and the coverage, plus a printable board and a shot list. Deterministic, no model; the same code runs in the browser tab. |
-| **The assistant** | `crates/cli` · `cargo install localgpt` | Chat, TUI, daemon, persistent Markdown memory, heartbeat and cron, a kernel-enforced shell sandbox, an HTTP API, an MCP server — and `localgpt world`, a `.world` package's command line. |
+| **The assistant** | `crates/cli` · `cargo install localgpt` | Chat, TUI, daemon, persistent Markdown memory, heartbeat and cron, a kernel-enforced shell sandbox, an HTTP API, an MCP server — and `localgpt world`, a `.world` package's command line. **0.4.2 is the assistant's last release:** 0.5.0 removes it and keeps the world commands, adding `doctor` and `setup` ([why](docs/rfcs/authoring/the-harness-goes.md)). |
 | **The world crates** | `crates/world-*` | `world-types`, `world-bevy`, `world-audio`, `world-export`, `world-sync`, `world-editor`, `world-agent`: one format for every app, over the [Open World Format](https://openworldformat.org) reference crate. |
 | **The sites** | `website*/` | [localgpt.app](https://localgpt.app) (hub and the only docs site) · [gen.localgpt.app](https://gen.localgpt.app) · [verse.localgpt.app](https://verse.localgpt.app) · [localgpt.md](https://localgpt.md) (previs) · [localgpt.world](https://localgpt.world) (gallery and web viewer) · [localgpt.rs](https://localgpt.rs) (devlog) |
 
@@ -28,7 +28,7 @@
 # From crates.io
 cargo install localgpt-gen       # the world builder: MCP server, headless generation, sessions
 cargo install localgpt-previs    # a screenplay to a previs board, on the command line
-cargo install localgpt           # the assistant, and `localgpt world`
+cargo install localgpt           # `localgpt world` and the shim; the assistant until 0.5.0 (pin 0.4.2 to keep it)
 
 # From source — the desktop app ships as a build, not a crate
 git clone https://github.com/localgpt-app/localgpt.git
