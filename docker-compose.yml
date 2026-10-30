@@ -1,0 +1,62 @@
+name: localgpt
+
+services:
+  localgpt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: localgpt:local
+    container_name: localgpt
+    init: true
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:31327:31327"
+
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      FASTEMBED_CACHE_DIR: /home/localgpt/.cache/localgpt/models
+
+    volumes:
+      - ./.localgpt:/home/localgpt/.localgpt
+      - ./.localgpt-cache:/home/localgpt/.cache/localgpt
+      - ./:/home/localgpt/.localgpt/workspace/repo:rw
+      # Bridge state: encrypted credentials for connected bridges
+      - localgpt-bridges:/home/localgpt/.local/share/localgpt/bridges
+
+    working_dir: /home/localgpt/.localgpt/workspace
+
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        set -eu
+        mkdir -p /home/localgpt/.localgpt/workspace
+
+        if [ ! -f /home/localgpt/.localgpt/config.toml ]; then
+          localgpt config init
+        fi
+
+        localgpt config set heartbeat.enabled false
+        localgpt config set server.enabled true
+        localgpt config set server.bind 0.0.0.0
+        localgpt config set server.port 31327
+        localgpt config set memory.workspace /home/localgpt/.localgpt/workspace
+
+        exec localgpt daemon start --foreground
+
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+      - /run:rw,nosuid,nodev,size=16m
+      # Bridge socket directory (Unix domain socket for IPC)
+      - /home/localgpt/.local/state/localgpt/locks:rw,nosuid,nodev,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+
+volumes:
+  localgpt-bridges:

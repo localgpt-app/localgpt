@@ -9,7 +9,7 @@
 # those also runs directly:
 #
 #   web deploy <site…|all> [--dry-run]       the family's sites: app gen verse md world
-#   build <target…> [--release] [-- args…]   cli app gen previs md verse all
+#   build <target…> [--release] [-- args…]   cli app gen previs md verse headless all
 #   build mobile ios|android                 the UniFFI library + Swift/Kotlin bindings
 #   build bundle [--debug] [--dmg]           LocalGPT.app for macOS (signed and notarized when given)
 #   verify [--rust|--bevy|--features|--web|--deps]   the CI checks, on this machine
@@ -24,7 +24,7 @@ lg_usage() { # to stdout when asked for help; callers redirect >&2 on errors
 usage: bin/lg <domain> <command> [args…]   |   bin/lg <command> [args…]
 
   lg web deploy <site…|all> [--dry-run]   app gen verse md world -> their Cloudflare Workers
-  lg build <target…> [--release]          cli app gen previs md verse all (cargo args after --)
+  lg build <target…> [--release]          cli app gen previs md verse headless all (cargo args after --)
   lg build mobile ios|android             localgpt-mobile-ffi + bindings
   lg build bundle [--debug] [--dmg]       LocalGPT.app (apps/app-desktop/macos/build-app.sh)
   lg verify [--rust|--bevy|…]             the CI checks locally; run before a release or a deploy
@@ -42,7 +42,7 @@ lg_domain_help() { # $1 = domain
 EOF
  ;;
     build) cat >&2 <<'EOF'
-  lg build <target…> [--release] [-- <cargo args…>]   cli app gen previs md verse all
+  lg build <target…> [--release] [-- <cargo args…>]   cli app gen previs md verse headless all
   lg build mobile ios|android                        apps/apple and apps/android build scripts
   lg build bundle [--debug] [--dmg]                  LocalGPT.app, and a .dmg
 EOF

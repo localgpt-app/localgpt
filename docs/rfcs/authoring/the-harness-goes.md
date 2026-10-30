@@ -49,7 +49,7 @@ Four commands. Two exist.
 | Command | | What it does |
 |---|---|---|
 | `localgpt world …` | built | `init`, `submit` (`--at` forks), `undo`, `log`, `tips`, `verify`, `history`: the headless authority, `world-agent::headless`, one implementation of commit with the app's |
-| `localgpt world mcp [dir]` | built | the shim: a stdio MCP server the agent starts, eight tools over the open world's API (`crates/cli/src/cli/world_mcp.rs`) |
+| `localgpt world mcp [dir]` | built | the shim: a stdio MCP server the agent starts, six tools over the open world's API (`crates/cli/src/cli/world_mcp.rs`) |
 | `localgpt doctor` | new | what this machine has: the app and its version; which of `claude`, `codex`, `gemini`, `kimi`, `agy`, `copilot`, `opencode` are on `PATH`, with versions; whether the shim is registered in each one's MCP configuration |
 | `localgpt setup [agent…]` | new | registers the shim with each agent found — `claude mcp add world -- localgpt world mcp` for Claude Code, the `mcp_servers` table in Codex's `config.toml`, `mcpServers` in Gemini CLI's `settings.json` — and prints the maker's install line for one that is missing |
 
@@ -154,8 +154,8 @@ Three exist today and the docs name all three: `localgpt-gen mcp-server`
 Claude Code, Codex, Gemini CLI, Zed and Cursor), `localgpt-app mcp-server
 --connect` (the relay the prompt panel's CLI backend used), and `localgpt
 world mcp`. After 0.6.0 there is one: the shim, with Gen's vocabulary behind
-it. Until then the shim's eight tools (`submit`, `undo`, `log`, `tips`,
-`goto`, `verify`, `screenshot`, `selection`) mean an agent writes ops by hand from the world's
+it. Until then the shim's six tools (`submit`, `undo`, `log`, `verify`,
+`screenshot`, `selection`) mean an agent writes ops by hand from the world's
 `AGENTS.md` — workable, and the reason the re-fronting is sequenced before
 the retirement rather than after.
 
