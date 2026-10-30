@@ -4,6 +4,8 @@ All notable changes to LocalGPT are documented in this file.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-30
+
 ### Changed
 
 - **Open World Format 0.4.0** — the workspace rides the `openworldformat` 0.4.0 crate and the npm 0.3.6 renderer. Gen and the other Bevy apps draw the new `Prism` shape (three to eight sides, as the format's geometry table states it), the icosahedron is built on the golden rectangles the table names rather than Bevy's vertex-up one, and the web viewer lays the torus flat in the XZ plane like every other renderer. The live authority labels the AI's builds on a guest's behalf with the format's `author.source = "ai"`.
@@ -428,7 +430,8 @@ Initial release of LocalGPT — a local-only AI assistant with persistent markdo
 - **Zero-config startup** defaulting to `claude-cli/opus`.
 - **Auto-migration** from OpenClaw config if present.
 
-[Unreleased]: https://github.com/localgpt-app/localgpt/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/localgpt-app/localgpt/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/localgpt-app/localgpt/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/localgpt-app/localgpt/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/localgpt-app/localgpt/compare/v0.3.6...v0.4.0
 [0.3.6]: https://github.com/localgpt-app/localgpt/compare/v0.3.5...v0.3.6
