@@ -5,7 +5,9 @@
 // showing them needs: the timeline's clock plays and seeks, a drag moves
 // the shot it let go of, and an inspector's edit lands in the harbour's
 // entities as the authority would fold it — or is refused as it would be,
-// for a name that is taken.
+// for a name that is taken. A row let go in the outliner changes parents
+// standing where it stood, as far as positions alone say: the harbour's
+// groups don't turn or scale.
 
 import { entities as harbour } from "../design/scene-fixtures";
 import type { DocumentView, FromPage, HistoryRow, SceneView, TimelineView, ToPage, TrackIn } from "./bridge";
@@ -213,8 +215,27 @@ export function preview(kind: string) {
   if (!messages) return;
   let scene: SceneView | null =
     kind === "world"
-      ? { entities: harbour, editable: true, world: { name: "harbour", sky: [0.66, 0.47, 0.52, 1], song: "Tidewater — Starter pack", tours: 1 } }
+      ? {
+          entities: harbour,
+          editable: true,
+          world: { name: "harbour", sky: [0.66, 0.47, 0.52, 1], song: "Tidewater — Starter pack", tours: 1 },
+          person: "person",
+          proposal: null,
+          tracks: { "37": ["mod:emissive:beat:0.4:2"], "38": ["mod:light_intensity:beat:0.4:2"], "40": ["mod:height:stem:bass:-0.1:0.1"] },
+        }
       : null;
+  /** Commit a change to the harbour as the person: a new entry, the head. */
+  const commit = (entities: SceneView["entities"], what: string) => {
+    if (!scene) return;
+    scene = { ...scene, entities };
+    const parent = log.at(-1)!;
+    log = [
+      ...log.map((row) => ({ ...row, tip: false, head: false })),
+      { ...entry(`${(log.length + 1).toString(16).padStart(2, "0")}aa${Date.now().toString(16)}`, null, "person", what, 0, true), parent: parent.id, revision: log.length + 1 },
+    ];
+    recv({ t: "history", rows: log, current: log.at(-1)!.id, status: `r${log.length} - person - ${what}`, turns });
+    recv({ t: "scene", view: scene });
+  };
   let log = [...rows];
   const turns = [{ n: 1, agent: "claude", rows: 3, revision: 3 }];
   // A document's world keeps no time: the timeline is its one quiet line.
@@ -242,14 +263,32 @@ export function preview(kind: string) {
           recv({ t: "history", rows: log, current: log.at(-1)!.id, status: `refused: an entity named '${taken.patch.name}' already exists`, turns });
           break;
         }
-        scene = { ...shown, entities: shown.entities.map((e) => m.edits.reduce((at, edit) => (edit.id === e.id ? patched(at, edit.patch) : at), e)) };
-        const parent = log.at(-1)!;
-        log = [
-          ...log.map((row) => ({ ...row, tip: false, head: false })),
-          { ...entry(`${(log.length + 1).toString(16).padStart(2, "0")}aa${Date.now().toString(16)}`, null, "person", m.what, 0, true), parent: parent.id, revision: log.length + 1 },
-        ];
-        recv({ t: "scene", view: scene });
-        recv({ t: "history", rows: log, current: log.at(-1)!.id, status: `r${log.length} - person - ${m.what}`, turns });
+        commit(
+          shown.entities.map((e) => m.edits.reduce((at, edit) => (edit.id === e.id ? patched(at, edit.patch) : at), e)),
+          m.what,
+        );
+        break;
+      }
+      case "entity.parent": {
+        if (!scene) break;
+        const all = scene.entities;
+        const byId = new Map(all.map((e) => [e.id, e]));
+        // Where a thing stands, by positions alone.
+        const at = (id: number | null | undefined): number[] => {
+          const e = id == null ? undefined : byId.get(id);
+          if (!e) return [0, 0, 0];
+          const up = at(e.parent);
+          return e.transform.position.map((v, i) => v + up[i]);
+        };
+        const names = m.ids.map((id) => byId.get(id)?.name ?? "").join(", ");
+        commit(
+          all.map((e) => {
+            if (!m.ids.includes(e.id)) return e;
+            const position = m.keep ? e.transform.position : (at(e.id).map((v, i) => Math.round((v - at(m.parent)[i]) * 1000) / 1000) as [number, number, number]);
+            return { ...e, parent: m.parent, transform: { ...e.transform, position } };
+          }),
+          m.parent == null ? `unparent ${names}` : `put ${names} in ${byId.get(m.parent)?.name}`,
+        );
         break;
       }
       case "doc.go":
@@ -296,6 +335,15 @@ export function preview(kind: string) {
           ),
         };
         recv({ t: "timeline", view });
+        if (scene)
+          commit(
+            scene.entities.map((e) => {
+              const edit = m.edits.find((x) => x.id === e.id);
+              const cine = e["ext-cinematography"];
+              return edit && cine?.shot ? { ...e, "ext-cinematography": { ...cine, shot: { ...cine.shot, in_s: edit.in_s, out_s: edit.out_s } } } : e;
+            }),
+            `retime ${m.edits.map((x) => scene!.entities.find((e) => e.id === x.id)?.name).join(", ")}`,
+          );
         break;
     }
   });

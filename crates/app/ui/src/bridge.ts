@@ -104,6 +104,14 @@ export type SceneView = {
   editable: boolean;
   /** The world in a few lines, for when nothing is selected. */
   world: { name: string; sky: Rgba | null; song: string | null; tours: number };
+  /** Who the history names for the person at the keyboard, on a canvas:
+   *  every other author is someone else at work. */
+  person: string | null;
+  /** An agent's proposal waiting on the canvas: whose, and the things on
+   *  screen it would change. */
+  proposal: { author: string; ids: number[] } | null;
+  /** The timeline's track for each of an entity's modulations, by id. */
+  tracks: Record<string, string[]>;
 };
 
 /** One thing a field edit changes: its merge patch, as ModifyEntity takes
@@ -150,6 +158,7 @@ export type FromPage =
   | { t: "entity.patch"; edits: EntityEdit[]; what: string }
   | { t: "entity.preview"; edits: EntityEdit[] }
   | { t: "entity.hide"; ids: number[] }
+  | { t: "entity.parent"; ids: number[]; parent: number | null; keep: boolean }
   | { t: "doc.edit"; text: string }
   | { t: "doc.caret"; line: number }
   | { t: "doc.go"; section: number; line: number | null }

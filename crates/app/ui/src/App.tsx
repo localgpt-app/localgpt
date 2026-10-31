@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AgentsPanel } from "./AgentsPanel";
 import type { DocumentView, History, Mode, TimelineView } from "./bridge";
 import { inApp, listen, send } from "./bridge";
@@ -36,6 +36,9 @@ export function App() {
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [tab, setTab] = useState<LeftTab>(startTab);
   const [things, setThings] = useState(0);
+  /** A track the inspector asked the timeline to show. */
+  const [reveal, setReveal] = useState<{ id: string; n: number } | null>(null);
+  const trackIds = useMemo(() => new Set(timeline?.tracks.map((track) => track.id)), [timeline]);
 
   useEffect(() => {
     const stop = listen((m) => {
@@ -120,7 +123,7 @@ export function App() {
             <PlaybackBar history={history} playing={playing} />
           </div>
           <div className={tab === "Outliner" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
-            <ScenePanel className="flex-1" />
+            <ScenePanel className="flex-1" tracks={trackIds} onTrack={(id) => setReveal({ id, n: Date.now() })} />
           </div>
         </div>
       )}
@@ -131,7 +134,7 @@ export function App() {
       {/* Across the window: the timeline is the panel that wants width. */}
       {timeline && (
         <div className="col-span-full min-w-0 border-t border-line">
-          <LiveTimeline timeline={timeline} clock={clock} thumbs={thumbs} />
+          <LiveTimeline timeline={timeline} clock={clock} thumbs={thumbs} reveal={reveal} />
         </div>
       )}
     </div>

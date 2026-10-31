@@ -13,20 +13,25 @@
 //!
 //! **The eye** in the outliner hides a thing in the window alone, as the
 //! timeline's does: the document keeps it as it was.
+//!
+//! **Others at work** are the page's to mark — it has the history and the
+//! document before and after — given who the person is, and what an
+//! agent's waiting proposal touches.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use bevy::camera::visibility::VisibilitySystems;
 use bevy::ecs::message::Messages;
 use bevy::prelude::*;
-use localgpt_gen::gen3d::canvas_edit::{Patched, PersonIntent, PersonPreview};
+use localgpt_gen::gen3d::canvas_edit::{Named, Patched, PersonIntent, PersonPreview};
+use localgpt_gen::gen3d::live::PendingReview;
 use localgpt_gen::gen3d::registry::NameRegistry;
 use localgpt_gen::inspector::{InspectorSelection, PendingFocusEntity};
 use localgpt_world_types as wt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::timeline::{Timeline, WorldRead};
+use crate::timeline::{Timeline, WorldRead, modulation_track};
 
 pub struct ScenePlugin;
 
@@ -58,6 +63,20 @@ pub struct SceneView {
     pub editable: bool,
     /// The world in a few lines, for when nothing is selected.
     pub world: WorldLines,
+    /// Who the history names for the person at the keyboard, on a canvas:
+    /// every other author is someone else at work.
+    pub person: Option<String>,
+    /// An agent's proposal waiting on the canvas: whose, and the things
+    /// on screen it would change.
+    pub proposal: Option<ProposalLines>,
+    /// The timeline's track for each of an entity's modulations, in order.
+    pub tracks: BTreeMap<u64, Vec<String>>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct ProposalLines {
+    pub author: String,
+    pub ids: Vec<u64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
@@ -68,7 +87,11 @@ pub struct WorldLines {
     pub tours: usize,
 }
 
-pub fn view_of(world: &wt::WorldManifest, editable: bool) -> SceneView {
+pub fn view_of(
+    world: &wt::WorldManifest,
+    editable: bool,
+    review: Option<&PendingReview>,
+) -> SceneView {
     SceneView {
         entities: world
             .entities
@@ -92,6 +115,22 @@ pub fn view_of(world: &wt::WorldManifest, editable: bool) -> SceneView {
                 }),
             tours: world.tours.len(),
         },
+        person: editable.then(localgpt_gen::gen3d::live::person),
+        proposal: review.map(|review| ProposalLines {
+            author: review.author.clone(),
+            ids: review.entities.clone(),
+        }),
+        tracks: world
+            .entities
+            .iter()
+            .filter(|entity| !entity.modulations.is_empty())
+            .map(|entity| {
+                (
+                    entity.id.0,
+                    entity.modulations.iter().map(modulation_track).collect(),
+                )
+            })
+            .collect(),
     }
 }
 
@@ -125,6 +164,13 @@ pub enum SceneAsk {
     Preview(Vec<SceneEdit>),
     /// What the eye hides in the window, by id; the rest show.
     Hide(Vec<u64>),
+    /// Hang these under another (`None`: at the top), standing where they
+    /// stand — or carried at their offset, with `keep_offset`.
+    Reparent {
+        ids: Vec<u64>,
+        parent: Option<u64>,
+        keep_offset: bool,
+    },
 }
 
 /// One thing a field edit changes: its merge patch, as `ModifyEntity`
@@ -154,7 +200,7 @@ fn build_view(timeline: Res<Timeline>, mut scene: ResMut<Scene>) {
     scene.built = Some(timeline.rev);
     let view = timeline
         .world()
-        .map(|world| view_of(world, timeline.editable()));
+        .map(|world| view_of(world, timeline.editable(), timeline.review()));
     if view != scene.view {
         scene.view = view;
         scene.rev += 1;
@@ -196,7 +242,29 @@ fn answer_asks(
                 }
             }
             // A world that isn't a canvas reads: its own source changes it.
-            SceneAsk::Patch { .. } | SceneAsk::Preview(_) if !timeline.editable() => {}
+            SceneAsk::Patch { .. } | SceneAsk::Preview(_) | SceneAsk::Reparent { .. }
+                if !timeline.editable() => {}
+            SceneAsk::Reparent {
+                ids,
+                parent,
+                keep_offset,
+            } => {
+                let named = |id: &u64| {
+                    let world = timeline.world()?;
+                    let entity = world.entities.iter().find(|e| e.id.0 == *id)?;
+                    Some(Named {
+                        id: *id,
+                        name: entity.name.0.clone(),
+                    })
+                };
+                if let Some(intents) = intents.as_deref_mut() {
+                    intents.write(PersonIntent::Reparent {
+                        moved: ids.iter().filter_map(named).collect(),
+                        parent: parent.as_ref().and_then(named),
+                        keep_offset: *keep_offset,
+                    });
+                }
+            }
             SceneAsk::Patch { edits, what } => {
                 if let Some(intents) = intents.as_deref_mut() {
                     intents.write(PersonIntent::Patch {
@@ -296,7 +364,8 @@ mod tests {
                 {"id": 37, "name": "lantern", "parent": 30,
                  "transform": {"position": [0.7, 1.35, -8.4]},
                  "shape": {"Cylinder": {"radius": 0.1, "height": 0.3}},
-                 "material": {"color": [0.2, 0.2, 0.2, 1.0], "roughness": 0.6}},
+                 "material": {"color": [0.2, 0.2, 0.2, 1.0], "roughness": 0.6},
+                 "modulations": [{"target": "emissive", "signal": "beat", "range": [0.4, 2.0]}]},
                 {"id": 2, "name": "sea", "transform": {"position": [0.0, 0.02, -18.0], "visible": false},
                  "shape": {"Plane": {"x": 80.0, "z": 30.0}}}
             ],
@@ -350,7 +419,7 @@ mod tests {
     #[test]
     fn the_page_gets_the_documents_entities_and_the_world_in_a_few_lines() {
         let world = harbour();
-        let view = view_of(&world, true);
+        let view = view_of(&world, true, None);
         assert_eq!(view.entities.len(), 3);
         assert_eq!(view.entities[1]["name"], "lantern");
         assert_eq!(view.entities[1]["parent"], 30);
@@ -367,6 +436,31 @@ mod tests {
                 song: None,
                 tours: 1,
             }
+        );
+        assert_eq!(
+            view.person,
+            Some(localgpt_gen::gen3d::live::person()),
+            "on a canvas, the person is named, so the page can tell the agents from them"
+        );
+        assert_eq!(view_of(&world, false, None).person, None);
+        assert_eq!(
+            view.tracks.get(&37).map(Vec::as_slice),
+            Some(["mod:emissive:beat:0.4:2".to_string()].as_slice()),
+            "each modulation's track on the timeline"
+        );
+        let review = PendingReview {
+            n: 1,
+            author: "gemini".into(),
+            changes: vec!["modify lantern".into()],
+            entities: vec![37],
+            shots: Vec::new(),
+        };
+        assert_eq!(
+            view_of(&world, true, Some(&review)).proposal,
+            Some(ProposalLines {
+                author: "gemini".into(),
+                ids: vec![37],
+            })
         );
 
         let (app, _) = canvas(true);
@@ -436,6 +530,43 @@ mod tests {
                 }],
                 what: "move lantern".into(),
             }]
+        );
+    }
+
+    #[test]
+    fn a_row_let_go_in_the_outliner_is_the_persons_reparent() {
+        let (mut app, _) = canvas(true);
+        app.world_mut().write_message(SceneAsk::Reparent {
+            ids: vec![37, 999],
+            parent: None,
+            keep_offset: false,
+        });
+        app.world_mut().write_message(SceneAsk::Reparent {
+            ids: vec![2],
+            parent: Some(30),
+            keep_offset: true,
+        });
+        app.update();
+        let intents: Vec<PersonIntent> = drained(&mut app);
+        let named = |id: u64, name: &str| Named {
+            id,
+            name: name.into(),
+        };
+        assert_eq!(
+            intents,
+            [
+                PersonIntent::Reparent {
+                    moved: vec![named(37, "lantern")],
+                    parent: None,
+                    keep_offset: false,
+                },
+                PersonIntent::Reparent {
+                    moved: vec![named(2, "sea")],
+                    parent: Some(named(30, "jetty")),
+                    keep_offset: true,
+                },
+            ],
+            "by name for the history; what isn't in the world is left out"
         );
     }
 

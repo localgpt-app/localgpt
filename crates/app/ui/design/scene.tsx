@@ -140,6 +140,11 @@ function Page() {
             <p>
               <b>Others at work</b>: a row an agent just changed says who, for a while; one its waiting proposal touches is dashed, under its name.
             </p>
+            <p>
+              <b>A drag</b> takes a row, or the selection when it is held by a selected row. Over the middle of another row it goes into it; near its edge it joins what
+              holds that row, or goes to the top. It stands where it stood unless ⌥ is held, which keeps its offset instead. Among its new siblings it takes its place
+              in the document's order, which no edit changes.
+            </p>
           </>
         }
       >
@@ -188,13 +193,13 @@ function Page() {
               />
             </Alone>
           </Figure>
-          <Figure title="Beside a row" caption="Its light held after the posts: it leaves the lantern for the jetty. ⌥ keeps its offset instead of its place.">
+          <Figure title="Beside a row" caption="Its light held beside the posts, ⌥ down: it leaves the lantern for the jetty, and keeps the offset it had from the lantern.">
             <Alone height={300}>
               <Outliner
                 nodes={harbour.nodes}
                 roots={harbour.roots}
                 expanded={new Set([30, 37])}
-                drop={{ held: 38, id: 32, zone: "after", label: "into the jetty, after posts" }}
+                drop={{ held: 38, id: 32, zone: "after", label: "into the jetty · keeps its offset" }}
               />
             </Alone>
           </Figure>
@@ -318,6 +323,59 @@ function Page() {
           </Figure>
           <Figure title="In the panel" caption="Both at once, as the left panel holds them.">
             <Scene height={460} selected={[64]} expanded={new Set([60])} inspector={<Inspector entity={byId(64)} parent="shots" editable />} />
+          </Figure>
+        </Row>
+      </Section>
+
+      <Section
+        title="Behaviors and kinds"
+        lede="Adding a behavior, a behavior's own fields, and another kind for a shape or a light: drawn for review, not wired yet."
+        notes={
+          <>
+            <p>
+              <b>+ add</b> offers the format's seven behaviors, each fitted to where the thing stands as it is added: a spin about Y, a bob, a pulse; an orbit or a
+              bounce about the place it stood; a loop of four points around it. <b>Look at</b> needs a thing to look at: it asks, and the next click, in the world or
+              in the outliner, gives it.
+            </p>
+            <p>
+              <b>A behavior's line</b> opens to its fields, which edit as every field here does: a drag scrubs, the world following. What a behavior names — what it
+              orbits, what it looks at — is a chip that selects it.
+            </p>
+            <p>
+              <b>Another kind</b> keeps the size a shape fills: a cylinder 0.20 m across and 0.30 m tall becomes a cuboid 0.20 × 0.30 × 0.20, or a sphere 0.20
+              across. A light keeps its colour and how bright it is; a point that becomes a spot opens to 45°, looking the way the light faces.
+            </p>
+            <p>Each is one entry in the history, through the authority, as every edit here is.</p>
+          </>
+        }
+      >
+        <Row cols={3}>
+          <Figure title="Adding a behavior" caption="The gulls' group has none: + add offers the seven, each fitted to where it stands.">
+            <Alone height={500}>
+              <Inspector entity={byId(50)} children={2} editable menu="behavior" />
+            </Alone>
+          </Figure>
+          <Figure title="An orbit, opened" caption="What it circles is a chip that selects the lighthouse.">
+            <Alone height={500}>
+              <Inspector entity={byId(51)} parent="gulls" editable opened={[0]} />
+            </Alone>
+          </Figure>
+          <Figure title="A bob, opened" caption="The boat rocks on the swell, and the song lifts it too.">
+            <Alone height={500}>
+              <Inspector entity={byId(40)} editable opened={[0]} />
+            </Alone>
+          </Figure>
+        </Row>
+        <Row cols={3}>
+          <Figure title="Another kind of shape" caption="The lantern as a cuboid keeps its 0.20 × 0.30 × 0.20 m.">
+            <Alone height={540}>
+              <Inspector entity={lantern} parent="jetty" children={1} editable menu="shape" />
+            </Alone>
+          </Figure>
+          <Figure title="Another kind of light" caption="The lamp as a spot: its colour and brightness kept, opened to 45°.">
+            <Alone height={540}>
+              <Inspector entity={byId(23)} parent="lighthouse" editable menu="light" />
+            </Alone>
           </Figure>
         </Row>
       </Section>

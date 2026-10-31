@@ -1,3 +1,4 @@
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "../Icon";
 import { type Kind, KINDS, matching, type Node } from "./model";
 
@@ -28,7 +29,13 @@ export type OutlinerActions = {
   eye: (id: number) => void;
   /** A double-click: the camera goes to it. */
   focus: (id: number) => void;
+  /** Rows let go over another: hang them under `parent` (none: at the
+   *  top), where they stand — or, with ⌥, carried at their offset. */
+  reparent?: (ids: number[], parent: number | null, keep: boolean) => void;
 };
+
+/** A drag on its way: what it holds, and where it would land. */
+type Landing = Drop & { ids: number[]; parent: number | null; keep: boolean };
 
 export type OutlinerProps = {
   nodes: Map<number, Node>;
@@ -55,6 +62,89 @@ export type OutlinerProps = {
  *  what moves it. Selecting here is selecting in the world. */
 export function Outliner({ nodes, roots, expanded, selected = [], query = "", kinds = [], changed, proposed, drop, hover, hidden, on }: OutlinerProps) {
   const keep = matching(nodes, query, kinds);
+  const scroller = useRef<HTMLDivElement>(null);
+  const press = useRef<{ x: number; y: number; ids: number[]; moving: boolean } | null>(null);
+  const [landing, setLanding] = useState<Landing | null>(null);
+  const [pressing, setPressing] = useState(false);
+  /** The click that ends a drag selects nothing. */
+  const swallow = useRef(false);
+
+  /** Where held rows would land under the pointer: into a row in its
+   *  middle, beside it — joining what holds it — near its edges; never
+   *  into itself or anything it holds. */
+  const landAt = (x: number, y: number, alt: boolean): Landing | null => {
+    const held = press.current?.ids ?? [];
+    const row = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-id]");
+    if (!row || !scroller.current?.contains(row)) return null;
+    const id = Number(row.dataset.id);
+    const target = nodes.get(id);
+    if (!target) return null;
+    const box = row.getBoundingClientRect();
+    const f = (y - box.top) / box.height;
+    const zone = f < 0.3 ? "before" : f > 0.7 ? "after" : "into";
+    const parent = zone === "into" ? id : target.parent;
+    const within = (at: number | null): boolean => at != null && (held.includes(at) || within(nodes.get(at)?.parent ?? null));
+    if (within(parent) || held.includes(id)) return null;
+    const where = parent == null ? "to the top" : `into ${nodes.get(parent)?.name}`;
+    return { held: held[0], id, zone, label: `${where} · ${alt ? "keeps its offset" : "stays where it is"}`, ids: held, parent, keep: alt };
+  };
+
+  useEffect(() => {
+    if (!pressing || !on?.reparent) return;
+    const move = (e: PointerEvent) => {
+      const p = press.current;
+      if (!p) return;
+      if (!p.moving && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 5) return;
+      p.moving = true;
+      // Near an edge, the list scrolls under the drag.
+      const box = scroller.current?.getBoundingClientRect();
+      if (box && e.clientY < box.top + 20) scroller.current!.scrollTop -= 8;
+      if (box && e.clientY > box.bottom - 20) scroller.current!.scrollTop += 8;
+      setLanding(landAt(e.clientX, e.clientY, e.altKey));
+    };
+    const up = (e: PointerEvent) => {
+      const p = press.current;
+      const land = p?.moving ? landAt(e.clientX, e.clientY, e.altKey) : null;
+      press.current = null;
+      setPressing(false);
+      setLanding(null);
+      if (!p?.moving) return;
+      // The click this release makes, if any, comes in the same task.
+      swallow.current = true;
+      setTimeout(() => (swallow.current = false), 0);
+      if (land) on.reparent?.(land.ids, land.parent, land.keep);
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      press.current = null;
+      setPressing(false);
+      setLanding(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("keydown", key);
+    };
+  });
+
+  const grab =
+    on?.reparent &&
+    ((e: ReactPointerEvent, id: number) => {
+      if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
+      // A selected row carries the whole selection; any other, itself.
+      press.current = { x: e.clientX, y: e.clientY, ids: selected.includes(id) ? selected : [id], moving: false };
+      setPressing(true);
+    });
+  const rowsOn: OutlinerActions | undefined = on && {
+    ...on,
+    select: (id, extend) => {
+      if (!swallow.current) on.select(id, extend);
+    },
+  };
+  const shownDrop: Drop | null = landing ?? drop ?? null;
   const rows: { node: Node; depth: number }[] = [];
   const walk = (id: number, depth: number) => {
     const node = nodes.get(id);
@@ -117,7 +207,7 @@ export function Outliner({ nodes, roots, expanded, selected = [], query = "", ki
           })}
         </span>
       </div>
-      <div className="relative min-h-0 flex-1 overflow-y-auto py-1">
+      <div ref={scroller} className={`relative min-h-0 flex-1 overflow-y-auto py-1 ${landing ? "cursor-grabbing" : ""}`}>
         {rows.map(({ node, depth }) => (
           <Line
             key={node.id}
@@ -130,11 +220,12 @@ export function Outliner({ nodes, roots, expanded, selected = [], query = "", ki
             dimmed={!!keep && !matchesSelf(node, query, kinds)}
             changed={changed?.get(node.id)}
             proposed={proposed?.get(node.id)}
-            drop={drop?.id === node.id ? drop : null}
-            held={drop?.held === node.id}
+            drop={shownDrop?.id === node.id ? shownDrop : null}
+            held={landing ? landing.ids.includes(node.id) : drop?.held === node.id}
             hovered={hover === node.id}
             shut={hidden ? hidden.has(node.id) : !node.visible}
-            on={on}
+            on={rowsOn}
+            grab={grab}
           />
         ))}
         {rows.length === 0 && (
@@ -182,8 +273,9 @@ function Line(props: {
   /** The eye is shut. */
   shut: boolean;
   on?: OutlinerActions;
+  grab?: (e: ReactPointerEvent, id: number) => void;
 }) {
-  const { node, depth, open, primary, also, query, dimmed, changed, proposed, drop, held, hovered, shut, on } = props;
+  const { node, depth, open, primary, also, query, dimmed, changed, proposed, drop, held, hovered, shut, on, grab } = props;
   const indent = 6 + depth * 14;
   const faint = shut || !node.visible;
   const bg = primary ? "bg-accent/20" : also ? "bg-accent/10" : drop?.zone === "into" ? "bg-accent/10" : hovered ? "bg-raised" : on ? "hover:bg-raised" : "";
@@ -194,6 +286,7 @@ function Line(props: {
       className={`group relative flex h-6 items-center gap-1.5 pr-2 ${on ? "cursor-default select-none" : ""} ${bg} ${held ? "opacity-40" : ""} ${drop?.zone === "into" ? "ring-1 ring-accent ring-inset" : ""} ${proposed ? "outline-1 -outline-offset-1 outline-head/70 outline-dashed" : ""}`}
       style={{ paddingLeft: indent }}
       onClick={on && ((e) => on.select(node.id, e.shiftKey || e.metaKey || e.ctrlKey))}
+      onPointerDown={grab && ((e) => grab(e, node.id))}
       onDoubleClick={on && (() => on.focus(node.id))}
       title={on && !node.visible ? "Visible is off in the world" : undefined}
     >

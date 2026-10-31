@@ -130,7 +130,19 @@ type Holding = { track: string; tour: string; stop: number; at: number; was: num
  *  keeps only what the page alone knows — the zoom, the selection, a drag
  *  in progress, the headers' toggles — and asks the app for the rest, so a
  *  trim lands as an entry in the history before the page draws it for good. */
-export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineView; clock: ClockState | null; thumbs: Record<string, string> }) {
+/** `reveal`: a track to bring into view and ring for a moment — asked for
+ *  again with a new `n`. */
+export function LiveTimeline({
+  timeline,
+  clock,
+  thumbs,
+  reveal,
+}: {
+  timeline: TimelineView;
+  clock: ClockState | null;
+  thumbs: Record<string, string>;
+  reveal?: { id: string; n: number } | null;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(800);
   const [maxLanes, setMaxLanes] = useState(280);
@@ -150,6 +162,14 @@ export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineVi
   const [pendingSections, setPendingSections] = useState<number[] | null>(null);
   const [pendingHold, setPendingHold] = useState<{ track: string; stop: number; hold: number } | null>(null);
   const [scrub, setScrub] = useState<number | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+  useEffect(() => {
+    if (!reveal) return;
+    setFlash(reveal.id);
+    box.current?.querySelector(`[data-track="${CSS.escape(reveal.id)}"]`)?.scrollIntoView({ block: "nearest" });
+    const off = setTimeout(() => setFlash(null), 1500);
+    return () => clearTimeout(off);
+  }, [reveal]);
   const running = usePlayhead(clock, duration);
   const playhead = scrub ?? running;
   const playing = clock?.playing ?? false;
@@ -679,6 +699,7 @@ export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineVi
         editable={timeline.editable}
         maxLanes={maxLanes}
         snapMenu={menu}
+        flash={flash}
         on={on}
       />
     </div>

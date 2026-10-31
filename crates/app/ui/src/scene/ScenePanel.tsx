@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { EntityEdit, SceneView } from "../bridge";
+import type { EntityEdit, History, SceneView } from "../bridge";
 import { last, listen, send } from "../bridge";
 import type { FieldEdit, Mark } from "./fields";
 import { Inspector, type InspectorActions, type WorldSummary } from "./Inspector";
-import { type Entity, type Kind, KINDS, patched, tree, valueAt } from "./model";
+import { changes, type Entity, type Kind, KINDS, patched, tree, valueAt } from "./model";
 import { Outliner } from "./Outliner";
 
 // The outliner over the inspector, as the left panel's Outliner tab holds
@@ -12,7 +12,9 @@ import { Outliner } from "./Outliner";
 // the eye hid are the page's own, kept by id, so an agent's edit never
 // folds what was opened. A field let go of is one patch for every
 // selected thing that has it — one entry in the history — and while a
-// drag holds it, the canvas shows it ahead of the document.
+// drag holds it, the canvas shows it ahead of the document. What an agent
+// just changed is marked with who, for a while, and what its waiting
+// proposal would change is dashed under its name.
 
 /** What the format leaves out, as the format means it. */
 const DEFAULTS: Record<string, unknown> = {
@@ -21,7 +23,12 @@ const DEFAULTS: Record<string, unknown> = {
   "transform.visible": true,
   "material.roughness": 0.5,
   "material.metallic": 0,
+  "camera.focal_length_mm": 35,
+  "audio.volume": 1,
 };
+
+/** How long a change someone else made stays marked, in milliseconds. */
+const MARKED = 120_000;
 
 /** A field's value on an entity, the format's default where it says none. */
 function read(entity: Entity, path: string): unknown {
@@ -60,6 +67,22 @@ function patchAt(entity: Entity, path: string, value: unknown): Record<string, u
     case "material":
     case "light":
       return entity[part] ? { [part]: { [key]: value } } : null;
+    // A sound and the cinematography extension are replaced whole.
+    case "audio":
+      return entity.audio ? { audio: { ...entity.audio, [key]: value } } : null;
+    case "camera":
+    case "shot": {
+      const cine = entity["ext-cinematography"];
+      const block = cine?.[part] as Record<string, unknown> | undefined;
+      if (!block) return null;
+      let next: unknown = value;
+      if (axis !== undefined) {
+        const now = block[key];
+        if (!Array.isArray(now)) return null;
+        next = Object.assign([...now], { [Number(axis)]: value });
+      }
+      return { "ext-cinematography": { ...cine, [part]: { ...block, [key]: next } } };
+    }
   }
   return null;
 }
@@ -67,7 +90,9 @@ function patchAt(entity: Entity, path: string, value: unknown): Record<string, u
 /** The fields a selection of several can differ in. */
 function comparable(primary: Entity): string[] {
   const paths = ["transform.position", "transform.rotation_degrees", "transform.scale"].flatMap((v) => [0, 1, 2].map((i) => `${v}.${i}`));
-  paths.push("transform.visible", "material.color", "material.roughness", "material.metallic", "light.color", "light.intensity");
+  paths.push("transform.visible", "material.color", "material.roughness", "material.metallic", "material.emissive");
+  paths.push("light.color", "light.intensity", "light.range", "light.inner_angle", "light.outer_angle", "light.shadows");
+  paths.push("camera.focal_length_mm", "camera.aim.0", "camera.aim.1", "camera.aim.2", "audio.volume", "audio.radius");
   for (const key of Object.keys(Object.values(primary.shape ?? {})[0] ?? {})) paths.push(`shape.${key}`);
   return paths;
 }
@@ -82,14 +107,30 @@ function describe(path: string, edits: EntityEdit[], value: unknown, was: unknow
     return key === "position" ? `move ${names}` : key === "rotation_degrees" ? `turn ${names}` : key === "scale" ? `scale ${names}` : `${value ? "show" : "hide"} ${names}`;
   if (part === "shape") return `resize ${names}`;
   if (key === "color") return `recolour ${names}`;
+  if (key === "emissive") return `recolour the glow of ${names}`;
   if (key === "intensity") return `${Number(value) > Number(was) ? "brighten" : "dim"} ${names}`;
-  return `${key} ${Number(value).toFixed(2)} on ${names}`;
+  if (key === "inner_angle" || key === "outer_angle") return `${Number(value) > Number(was) ? "widen" : "narrow"} the cone of ${names}`;
+  if (key === "shadows") return `${value ? "shadows from" : "no shadows from"} ${names}`;
+  if (key === "focal_length_mm") return `${Math.round(Number(value))} mm lens on ${names}`;
+  if (key === "aim") return `aim ${names}`;
+  if (key === "radius" && part === "audio") return `${names} heard to ${Math.round(Number(value))} m`;
+  return `${key.replace(/_/g, " ")} ${Number(value).toFixed(2)} on ${names}`;
 }
+
+/** Someone else's change, by entity: who, when, and the fields. */
+type Change = { by: string; at: number; paths: Set<string> };
+
+const since = (at: number, now: number) => {
+  const s = Math.max(1, Math.round((now - at) / 1000));
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min`;
+};
 
 /** An edit waiting for the world's word: the history's next status says. */
 type Awaiting = { path: string; what: string; at: number };
 
-export function ScenePanel({ className = "" }: { className?: string }) {
+/** `tracks`: the timeline's own, by id, so a link to one goes nowhere only
+ *  where it would go nowhere. */
+export function ScenePanel({ className = "", tracks, onTrack }: { className?: string; tracks?: Set<string>; onTrack?: (id: string) => void }) {
   const [view, setView] = useState<SceneView | null>(() => last("scene")?.view ?? null);
   const [selected, setSelected] = useState<number[]>(() => last("selection")?.ids ?? []);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -104,15 +145,40 @@ export function ScenePanel({ className = "" }: { className?: string }) {
   const frame = useRef(0);
   const list = useRef<HTMLDivElement>(null);
   const revealed = useRef<number | undefined>(undefined);
+  /** The history as last told, and the entries there were at the last
+   *  document: a document after a new entry by someone else is theirs. */
+  const history = useRef<History | null>(last("history") ?? null);
+  const seen = useRef<Set<string> | null>(null);
+  const shownView = useRef<SceneView | null>(view);
+  const [others, setOthers] = useState<Map<number, Change>>(new Map());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(
     () =>
       listen((m) => {
         if (m.t === "scene") {
+          const before = shownView.current;
+          const told = history.current;
+          const newest = told?.rows.at(-1);
+          // The canvas moved onto a new entry, and its author isn't the
+          // person: whatever changed is theirs. A seek is no one's change.
+          if (before && m.view && newest && seen.current && !seen.current.has(newest.id) && told?.current === newest.id && newest.author !== m.view.person) {
+            const found = changes(before.entities, m.view.entities);
+            if (found.size) setNow(Date.now());
+            if (found.size)
+              setOthers((marked) => {
+                const next = new Map(marked);
+                for (const [id, paths] of found) next.set(id, { by: newest.author, at: newest.timestamp_ms, paths });
+                return next;
+              });
+          }
+          seen.current = new Set(told?.rows.map((row) => row.id));
+          shownView.current = m.view;
           setView(m.view);
           setHeld(null);
         } else if (m.t === "selection") setSelected(m.ids);
-        else if (m.t === "history" && awaiting.current) {
+        else if (m.t === "history") history.current = m;
+        if (m.t === "history" && awaiting.current) {
           const wait = awaiting.current;
           if (performance.now() - wait.at > 5000) awaiting.current = null;
           else if (m.status?.startsWith("refused")) {
@@ -124,6 +190,20 @@ export function ScenePanel({ className = "" }: { className?: string }) {
       }),
     [],
   );
+
+  // Marks of others' changes count up, and go after a while.
+  useEffect(() => {
+    if (others.size === 0) return;
+    const tick = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      setOthers((marked) => {
+        const kept = new Map([...marked].filter(([, change]) => t - change.at < MARKED));
+        return kept.size === marked.size ? marked : kept;
+      });
+    }, 5000);
+    return () => clearInterval(tick);
+  }, [others.size]);
 
   const scene = useMemo(() => tree(view?.entities ?? []), [view]);
   const byId = useMemo(() => new Map((view?.entities ?? []).map((e) => [e.id, e])), [view]);
@@ -228,6 +308,22 @@ export function ScenePanel({ className = "" }: { className?: string }) {
         focus: () => send({ t: "focus", id: primary.id }),
         look: primary["ext-cinematography"]?.shot ? () => send({ t: "shot.look", id: primary.id }) : undefined,
         parent: primary.parent != null && byId.has(primary.parent) ? () => select([primary.parent!]) : undefined,
+        shotTime: (inS, outS) => {
+          const round = (t: number) => Math.round(t * 100) / 100;
+          const cine = primary["ext-cinematography"];
+          if (!cine?.shot) return;
+          setHeld(new Map([[primary.id, { ...primary, "ext-cinematography": { ...cine, shot: { ...cine.shot, in_s: round(inS), out_s: round(outS) } } }]]));
+          send({ t: "shot.time", edits: [{ id: primary.id, in_s: round(inS), out_s: round(outS) }] });
+        },
+        unbehave: (i) => {
+          const behaviors = primary.behaviors ?? [];
+          const kind = Object.keys(behaviors[i] ?? {})[0] ?? "behavior";
+          commit(`behaviors.${i}`, [{ id: primary.id, name: primary.name, patch: { behaviors: behaviors.filter((_, j) => j !== i) } }], `remove ${kind} from ${primary.name}`);
+        },
+        track: (i) => {
+          const id = view?.tracks[String(primary.id)]?.[i];
+          return id && tracks?.has(id) ? () => onTrack?.(id) : undefined;
+        },
       }
     : undefined;
 
@@ -246,6 +342,12 @@ export function ScenePanel({ className = "" }: { className?: string }) {
     : undefined;
 
   const mixed = primary ? comparable(primary).filter((path) => chosen.some((e) => e !== primary && !same(read(e, path), read(primary, path)))) : [];
+  // What someone else changed, under the person's own marks.
+  const theirs = primary && others.get(primary.id);
+  const shownMarks: Record<string, Mark> = theirs ? Object.fromEntries([...theirs.paths].map((path) => [path, { changed: `${theirs.by} · ${since(theirs.at, now)} ago` }])) : {};
+  Object.assign(shownMarks, marks);
+  const changed = new Map([...others].map(([id, change]) => [id, `${change.by} · ${since(change.at, now)}`]));
+  const proposed = new Map((view?.proposal?.ids ?? []).map((id) => [id, view!.proposal!.author]));
   const parent = primary?.parent != null ? byId.get(primary.parent)?.name : undefined;
 
   return (
@@ -259,6 +361,8 @@ export function ScenePanel({ className = "" }: { className?: string }) {
           query={query}
           kinds={kinds}
           hidden={hidden}
+          changed={changed}
+          proposed={proposed}
           on={{
             select: (id, extend) => {
               if (!extend) return select([id]);
@@ -278,6 +382,7 @@ export function ScenePanel({ className = "" }: { className?: string }) {
               send({ t: "entity.hide", ids: [...next] });
             },
             focus: (id) => send({ t: "focus", id }),
+            reparent: view?.editable ? (ids, parent, keep) => send({ t: "entity.parent", ids, parent, keep }) : undefined,
           }}
         />
       </div>
@@ -290,7 +395,7 @@ export function ScenePanel({ className = "" }: { className?: string }) {
             parent={parent}
             children={primary ? (scene.nodes.get(primary.id)?.children.length ?? 0) : 0}
             editable={view.editable}
-            marks={marks}
+            marks={shownMarks}
             mixed={mixed}
             world={world}
             actions={actions}

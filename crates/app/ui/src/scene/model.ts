@@ -156,10 +156,56 @@ export function patched(entity: Entity, patch: Record<string, unknown>): Entity 
 }
 
 /** A field's value by its path — `transform.position.1`, `shape.radius`
- *  (the shape's own kind is skipped) — or `undefined` where there is none. */
+ *  (the shape's own kind is skipped), `camera.aim.0` (in the
+ *  cinematography extension) — or `undefined` where there is none. */
 export function valueAt(entity: Entity, path: string): unknown {
   const [part, ...rest] = path.split(".");
-  let at: unknown = part === "shape" ? Object.values(entity.shape ?? {})[0] : (entity as Record<string, unknown>)[part];
+  let at: unknown =
+    part === "shape"
+      ? Object.values(entity.shape ?? {})[0]
+      : part === "camera" || part === "shot"
+        ? entity["ext-cinematography"]?.[part]
+        : (entity as Record<string, unknown>)[part];
   for (const key of rest) at = isObject(at) || Array.isArray(at) ? (at as Record<string, unknown>)[key] : undefined;
   return at;
+}
+
+/** Every field an entity has, by the path the inspector marks it with —
+ *  `transform.position.0`, `shape.radius`, `material.color`, `camera.aim`,
+ *  `behaviors.1` — and its value, as text to compare. */
+export function leaves(entity: Entity): Map<string, string> {
+  const out = new Map<string, string>();
+  const put = (path: string, value: unknown) => out.set(path, JSON.stringify(value ?? null));
+  put("name", entity.name);
+  put("parent", entity.parent ?? null);
+  const t = entity.transform;
+  t.position.forEach((v, i) => put(`transform.position.${i}`, v));
+  (t.rotation_degrees ?? [0, 0, 0]).forEach((v, i) => put(`transform.rotation_degrees.${i}`, v));
+  (t.scale ?? [1, 1, 1]).forEach((v, i) => put(`transform.scale.${i}`, v));
+  put("transform.visible", t.visible !== false);
+  const [kind, fields] = Object.entries(entity.shape ?? {})[0] ?? [];
+  put("shape", kind ?? null);
+  for (const [key, value] of Object.entries(fields ?? {})) put(`shape.${key}`, value);
+  for (const part of ["material", "light", "audio"] as const)
+    for (const [key, value] of Object.entries(entity[part] ?? {})) put(`${part}.${key}`, value);
+  const cine = entity["ext-cinematography"];
+  for (const part of ["camera", "shot"] as const) for (const [key, value] of Object.entries(cine?.[part] ?? {})) put(`${part}.${key}`, value);
+  (entity.behaviors ?? []).forEach((b, i) => put(`behaviors.${i}`, b));
+  (entity.modulations ?? []).forEach((m, i) => put(`modulations.${i}`, m));
+  put("mesh_asset", entity.mesh_asset?.path ?? null);
+  return out;
+}
+
+/** What changed between two documents, by entity: the paths whose values
+ *  differ, and every path of a thing that is new. */
+export function changes(before: Entity[], after: Entity[]): Map<number, Set<string>> {
+  const was = new Map(before.map((e) => [e.id, leaves(e)]));
+  const out = new Map<number, Set<string>>();
+  for (const entity of after) {
+    const now = leaves(entity);
+    const then = was.get(entity.id);
+    const paths = new Set([...now.keys(), ...(then?.keys() ?? [])].filter((path) => now.get(path) !== then?.get(path)));
+    if (paths.size) out.set(entity.id, paths);
+  }
+  return out;
 }

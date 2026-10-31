@@ -112,6 +112,8 @@ export type TimelineProps = {
   snapMenu?: boolean;
   /** Edits write: a live canvas. Without it a timeline plays and selects. */
   editable?: boolean;
+  /** A track ringed for a moment: one the inspector asked to see. */
+  flash?: string | null;
   on?: TimelineHandlers;
 };
 
@@ -140,7 +142,7 @@ function trackHeight(track: Track): number {
 /** World time: the shots, the song and what the song moves, on one clock.
  *  Authoring time — who changed what, and when — is the history's. */
 export function Timeline(props: TimelineProps) {
-  const { clock, tracks, view, width, playhead, loop, drag, recut, bare, maxLanes, editable = false, on } = props;
+  const { clock, tracks, view, width, playhead, loop, drag, recut, bare, maxLanes, editable = false, flash, on } = props;
   const s: Scale = useMemo(() => ({ from: view[0], to: view[1], width }), [view, width]);
   const heights = useMemo(() => tracks.map(trackHeight), [tracks]);
   const lanes = heights.reduce((sum, h) => sum + h, 0);
@@ -170,7 +172,17 @@ export function Timeline(props: TimelineProps) {
         >
           <Grid clock={clock} s={s} height={lanes} loop={loop ?? null} />
           {tracks.map((track, i) => (
-            <TrackRow key={track.id} track={track} height={heights[i]} s={s} clock={clock} drag={drag?.track === track.id ? drag : null} editable={editable} on={on} />
+            <TrackRow
+              key={track.id}
+              track={track}
+              height={heights[i]}
+              s={s}
+              clock={clock}
+              drag={drag?.track === track.id ? drag : null}
+              editable={editable}
+              flash={flash === track.id}
+              on={on}
+            />
           ))}
         </div>
         {recut && inView(recut.to) && (
@@ -404,9 +416,9 @@ const Grid = memo(function Grid({ clock, s, height, loop }: { clock: Clock; s: S
   );
 });
 
-const TrackRow = memo(function TrackRow(props: { track: Track; height: number; s: Scale; clock: Clock; drag: Drag | null; editable: boolean; on?: TimelineHandlers }) {
+const TrackRow = memo(function TrackRow(props: { track: Track; height: number; s: Scale; clock: Clock; drag: Drag | null; editable: boolean; flash?: boolean; on?: TimelineHandlers }) {
   return (
-    <div className="flex border-b border-line/60">
+    <div data-track={props.track.id} className={`flex border-b border-line/60 transition-shadow ${props.flash ? "ring-1 ring-accent ring-inset" : ""}`}>
       <TrackHeader track={props.track} height={props.height} on={props.on} />
       <Lane {...props} />
     </div>

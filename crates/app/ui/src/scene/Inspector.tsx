@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { Icon } from "../Icon";
+import { BehaviorCard, BehaviorMenu } from "./behaviors";
 import { ChoiceRow, ColorRow, type FieldEdit, hex, type Mark, Num, Part, Row, ring, SliderRow, TextRow, ToggleRow, Vec3Row } from "./fields";
+import { extent, KindMenu, LIGHTS, SHAPES } from "./kinds";
 import { type Entity, type Kind, kindOf, type Rgba } from "./model";
 import { GLYPH, TONE } from "./Outliner";
 
@@ -32,6 +34,9 @@ export type InspectorProps = {
   /** What the fields and the header do. Without it the inspector only
    *  draws, as a design sheet has it; with it, only what is wired shows. */
   actions?: InspectorActions;
+  /** On a sheet: a menu drawn open, and the behaviors drawn opened. */
+  menu?: "behavior" | "shape" | "light";
+  opened?: number[];
 };
 
 export type InspectorActions = {
@@ -46,6 +51,30 @@ export type InspectorActions = {
   look?: () => void;
   /** Select what holds it. */
   parent?: () => void;
+  /** A shot's place on the clock, set as the timeline's drag sets it. */
+  shotTime?: (inS: number, outS: number) => void;
+  /** Take a behavior off it, by its place in the list. */
+  unbehave?: (i: number) => void;
+  /** Its modulation's track on the timeline, shown — where there is one. */
+  track?: (i: number) => (() => void) | undefined;
+};
+
+const RAD = Math.PI / 180;
+
+/** An edit in degrees of a field the format keeps in radians. */
+const inDegrees = (edit?: FieldEdit<number>): FieldEdit<number> | undefined =>
+  edit && {
+    held: (v, absolute) => edit.held(v * RAD, absolute),
+    set: (v, absolute) => edit.set(v * RAD, absolute),
+    cancel: edit.cancel,
+    from: edit.from === undefined ? undefined : edit.from / RAD,
+  };
+
+/** An edit of a glow's colour that keeps how bright it is. */
+const atStrength = (edit: FieldEdit<Rgba> | undefined, by: number, alpha: number): FieldEdit<Rgba> | undefined => {
+  if (!edit) return undefined;
+  const times = ([r, g, b]: Rgba): Rgba => [...[r, g, b].map((c) => Math.round(c * by * 1e4) / 1e4), alpha] as Rgba;
+  return { held: (c, absolute) => edit.held(times(c), absolute), set: (c, absolute) => edit.set(times(c), absolute), cancel: edit.cancel };
 };
 
 const LABEL: Record<Kind, string> = { shape: "Shape", mesh: "Mesh", light: "Light", camera: "Camera", sound: "Sound", group: "Group" };
@@ -54,7 +83,7 @@ const MANY: Record<Kind, string> = { shape: "shapes", mesh: "meshes", light: "li
 /** The selected thing's fields as the world's document has them, part by
  *  part. On a live canvas a field edits — a drag or a typed value is one
  *  entry in the history, as a gesture is — and elsewhere it reads. */
-export function Inspector({ entity, others = [], parent, children = 0, editable, marks = {}, mixed = [], world, actions }: InspectorProps) {
+export function Inspector({ entity, others = [], parent, children = 0, editable, marks = {}, mixed = [], world, actions, menu, opened = [] }: InspectorProps) {
   if (!entity) return <Nothing world={world} />;
   // On a sheet everything designed is drawn; in the app, what is wired.
   const drawn = !actions;
@@ -65,6 +94,14 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
   const vec = (path: string, value: number[]) => value.map((v, i) => (mixed.includes(`${path}.${i}`) ? null : v));
   const shapeKind = entity.shape && Object.keys(entity.shape)[0];
   const cine = entity["ext-cinematography"];
+  const shown = (path: string, value: number) => (mixed.includes(path) ? null : value);
+  /** A shot's end on the clock, set through the timeline's own edit. */
+  const timed = (end: "in" | "out"): FieldEdit<number> | undefined => {
+    const shot = cine?.shot;
+    const set = editable ? actions?.shotTime : undefined;
+    if (!shot || !set) return undefined;
+    return { held: () => {}, set: (v) => (end === "in" ? set(v, shot.out_s ?? v) : set(shot.in_s ?? 0, v)), cancel: () => {} };
+  };
   return (
     <aside className="flex min-h-0 flex-col bg-panel">
       <header className="shrink-0 border-b border-line px-3 py-2.5">
@@ -168,19 +205,26 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
 
         {entity.shape && shapeKind && (
           <Part title="Shape" icon="cube">
-            <ChoiceRow label="Kind" value={shapeKind} mark={m("shape")} fixed={!drawn} />
+            <div className="relative">
+              <ChoiceRow label="Kind" value={shapeKind} mark={m("shape")} fixed={!drawn} />
+              {menu === "shape" && (
+                <div className="absolute top-full left-[96px] z-20 mt-0.5">
+                  <KindMenu kinds={SHAPES} current={shapeKind} keeps={`Another kind keeps its size: ${extent(entity.shape).map((v) => v.toFixed(2)).join(" × ")} m.`} />
+                </div>
+              )}
+            </div>
             {Object.entries(entity.shape[shapeKind]).map(
               ([key, value]) =>
                 typeof value === "number" && (
                   <Row key={key} label={key.replace(/_/g, " ")} mark={m(`shape.${key}`)}>
+                    {/* A prism's sides are counted, not measured. */}
                     <Num
-                      value={mixed.includes(`shape.${key}`) ? null : value}
-                      unit="m"
+                      value={shown(`shape.${key}`, value)}
+                      unit={key === "sides" ? undefined : "m"}
                       wide
                       mark={m(`shape.${key}`)}
                       edit={f<number>(`shape.${key}`)}
-                      step={0.01}
-                      min={0.01}
+                      {...(key === "sides" ? { digits: 0, step: 1, min: 3, max: 64, whole: true } : { step: 0.01, min: 0.01 })}
                     />
                   </Row>
                 ),
@@ -194,7 +238,13 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
             <SliderRow label="Roughness" value={entity.material.roughness ?? 0.5} mark={m("material.roughness")} edit={f<number>("material.roughness")} />
             <SliderRow label="Metallic" value={entity.material.metallic ?? 0} mark={m("material.metallic")} edit={f<number>("material.metallic")} />
             {entity.material.emissive && glows(entity.material.emissive) && (
-              <ColorRow label="Glow" value={unit(entity.material.emissive)} strength={strength(entity.material.emissive)} mark={m("material.emissive")} />
+              <ColorRow
+                label="Glow"
+                value={unit(entity.material.emissive)}
+                strength={strength(entity.material.emissive)}
+                mark={m("material.emissive")}
+                edit={atStrength(f<Rgba>("material.emissive"), strength(entity.material.emissive), entity.material.emissive[3])}
+              />
             )}
             {entity.material.base_color_texture && <TextRow label="Texture" value={entity.material.base_color_texture} mono />}
           </Part>
@@ -202,7 +252,18 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
 
         {entity.light && (
           <Part title="Light" icon="bulb" tone="text-head">
-            <ChoiceRow label="Kind" value={entity.light.light_type} mark={m("light.light_type")} fixed={!drawn} />
+            <div className="relative">
+              <ChoiceRow label="Kind" value={entity.light.light_type} mark={m("light.light_type")} fixed={!drawn} />
+              {menu === "light" && (
+                <div className="absolute top-full left-[96px] z-20 mt-0.5">
+                  <KindMenu
+                    kinds={LIGHTS}
+                    current={entity.light.light_type}
+                    keeps="Another kind keeps its colour and how bright it is; a spot opens to 45°, looking the way the light faces."
+                  />
+                </div>
+              )}
+            </div>
             <ColorRow label="Colour" value={entity.light.color} mark={m("light.color")} edit={f<Rgba>("light.color")} />
             <Row label="Intensity" mark={m("light.intensity")}>
               <Num
@@ -216,37 +277,80 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
               />
             </Row>
             {entity.light.range !== undefined && (
-              <Row label="Range">
-                <Num value={entity.light.range} digits={1} unit="m" wide />
+              <Row label="Range" mark={m("light.range")}>
+                <Num value={shown("light.range", entity.light.range)} digits={1} unit="m" wide mark={m("light.range")} edit={f<number>("light.range")} step={0.1} min={0} />
               </Row>
             )}
             {entity.light.outer_angle !== undefined && (
-              <Row label="Cone">
-                <Num value={((entity.light.inner_angle ?? 0) * 180) / Math.PI} digits={0} unit="°" />
+              <Row label="Cone" mark={m("light.inner_angle") ?? m("light.outer_angle")}>
+                {/* The inner cone stays inside the outer, and a spot opens to a right angle at most. */}
+                <Num
+                  value={shown("light.inner_angle", (entity.light.inner_angle ?? 0) / RAD)}
+                  digits={0}
+                  unit="°"
+                  mark={m("light.inner_angle")}
+                  edit={inDegrees(f<number>("light.inner_angle"))}
+                  step={0.5}
+                  min={0}
+                  max={entity.light.outer_angle / RAD}
+                />
                 <span className="text-faint">to</span>
-                <Num value={(entity.light.outer_angle * 180) / Math.PI} digits={0} unit="°" />
+                <Num
+                  value={shown("light.outer_angle", entity.light.outer_angle / RAD)}
+                  digits={0}
+                  unit="°"
+                  mark={m("light.outer_angle")}
+                  edit={inDegrees(f<number>("light.outer_angle"))}
+                  step={0.5}
+                  min={(entity.light.inner_angle ?? 0) / RAD}
+                  max={90}
+                />
               </Row>
             )}
-            <ToggleRow label="Shadows" on={!!entity.light.shadows} />
+            <ToggleRow
+              label="Shadows"
+              on={!!entity.light.shadows}
+              mark={m("light.shadows")}
+              onToggle={editable && actions ? () => actions.toggle("light.shadows") : undefined}
+            />
           </Part>
         )}
 
         {cine?.camera && (
           <Part title="Camera" icon="camera" tone="text-camera">
-            <Row label="Lens">
-              <Num value={cine.camera.focal_length_mm ?? 35} digits={0} unit="mm" wide mark={m("camera.focal_length_mm")} />
+            <Row label="Lens" mark={m("camera.focal_length_mm")}>
+              <Num
+                value={shown("camera.focal_length_mm", cine.camera.focal_length_mm ?? 35)}
+                digits={0}
+                unit="mm"
+                wide
+                mark={m("camera.focal_length_mm")}
+                edit={f<number>("camera.focal_length_mm")}
+                step={1}
+                min={1}
+              />
             </Row>
             <TextRow label="Sensor" value={`${(cine.camera.sensor_mm ?? [24.89, 18.66]).join(" × ")} mm`} />
-            {cine.camera.aim && <Vec3Row label="Aims at" value={cine.camera.aim} digits={1} unit="m" />}
+            {cine.camera.aim && (
+              <Vec3Row
+                label="Aims at"
+                value={cine.camera.aim.map((v, i) => shown(`camera.aim.${i}`, v))}
+                digits={1}
+                unit="m"
+                marks={[0, 1, 2].map((i) => m(`camera.aim.${i}`))}
+                edit={(i) => f<number>(`camera.aim.${i}`)}
+                step={0.05}
+              />
+            )}
           </Part>
         )}
         {cine?.shot && (
           <Part title="Shot" icon="film" tone="text-shot" aside={cine.shot.scene && `scene ${cine.shot.scene}`}>
             <ChoiceRow label="Size" value={cine.shot.size ?? "—"} fixed={!drawn} />
-            <Row label="On the clock" mark={m("shot.in_s")}>
-              <Num value={cine.shot.in_s ?? 0} unit="s" mark={m("shot.in_s")} />
+            <Row label="On the clock" mark={m("shot.in_s") ?? m("shot.out_s")}>
+              <Num value={cine.shot.in_s ?? 0} unit="s" mark={m("shot.in_s")} edit={timed("in")} step={0.05} min={0} max={(cine.shot.out_s ?? 0) - 0.1} />
               <span className="text-faint">to</span>
-              <Num value={cine.shot.out_s ?? 0} unit="s" mark={m("shot.out_s")} />
+              <Num value={cine.shot.out_s ?? 0} unit="s" mark={m("shot.out_s")} edit={timed("out")} step={0.05} min={(cine.shot.in_s ?? 0) + 0.1} />
             </Row>
             {cine.shot.description && (
               <Row label="Says">
@@ -262,38 +366,55 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
           </Part>
         )}
 
-        {(entity.behaviors?.length ?? 0) > 0 && (
+        {((entity.behaviors?.length ?? 0) > 0 || (editable && drawn)) && (
           <Part title="Behaviors" icon="spin" tone="text-behavior" aside={editable && drawn && "+ add"}>
-            {entity.behaviors!.map((behavior, i) => {
-              const [name, fields] = Object.entries(behavior)[0];
-              return (
-                <div key={i} className={`mx-3 mb-1 flex items-center gap-2 rounded bg-raised px-2 py-1.5 ${m(`behaviors.${i}`) ? "ring-1 ring-head/50" : ""}`}>
-                  <span className="font-medium text-behavior">{name}</span>
-                  <span className="min-w-0 flex-1 truncate text-muted">{describeBehavior(name, fields)}</span>
-                  {editable && drawn && <Icon name="close" className="size-3 shrink-0 text-faint" />}
+            {menu === "behavior" && (
+              <div className="relative">
+                <div className="absolute top-0 right-3 left-3 z-20">
+                  <BehaviorMenu />
                 </div>
-              );
-            })}
+              </div>
+            )}
+            {(entity.behaviors?.length ?? 0) === 0 && <p className="px-3 pb-1 text-muted">Nothing moves it on its own.</p>}
+            {(entity.behaviors ?? []).map((behavior, i) => (
+              <BehaviorCard
+                key={i}
+                behavior={behavior as Record<string, Record<string, unknown>>}
+                open={opened.includes(i)}
+                editable={editable}
+                mark={m(`behaviors.${i}`)}
+                drawn={drawn}
+                remove={actions?.unbehave && (() => actions.unbehave!(i))}
+              />
+            ))}
           </Part>
         )}
 
         {(entity.modulations?.length ?? 0) > 0 && (
           <Part title="Moved by the song" icon="wave" tone="text-mod">
-            {entity.modulations!.map((mod, i) => (
-              <div key={i} className="mx-3 mb-1 flex items-center gap-2 rounded bg-raised px-2 py-1.5">
-                <span className="text-ink">{mod.target.replace(/_/g, " ")}</span>
-                <span className="text-faint">←</span>
-                <span className="text-mod">{signalName(mod.signal)}</span>
-                <span className="text-muted tabular-nums">
-                  {mod.range[0]}–{mod.range[1]}
-                </span>
-                {drawn && (
-                  <span className="ml-auto flex items-center gap-0.5 text-[10px] text-faint">
-                    timeline <Icon name="out" className="size-3" />
+            {entity.modulations!.map((mod, i) => {
+              const show = actions?.track?.(i);
+              return (
+                <div key={i} className={`mx-3 mb-1 flex items-center gap-2 rounded bg-raised px-2 py-1.5 ${m(`modulations.${i}`) ? "ring-1 ring-head/50" : ""}`}>
+                  <span className="text-ink">{mod.target.replace(/_/g, " ")}</span>
+                  <span className="text-faint">←</span>
+                  <span className="text-mod">{signalName(mod.signal)}</span>
+                  <span className="text-muted tabular-nums">
+                    {mod.range[0]}–{mod.range[1]}
                   </span>
-                )}
-              </div>
-            ))}
+                  {drawn && (
+                    <span className="ml-auto flex items-center gap-0.5 text-[10px] text-faint">
+                      timeline <Icon name="out" className="size-3" />
+                    </span>
+                  )}
+                  {show && (
+                    <button onClick={show} title="Its track on the timeline" className="ml-auto flex items-center gap-0.5 text-[10px] text-faint hover:text-ink">
+                      timeline <Icon name="out" className="size-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </Part>
         )}
 
@@ -301,10 +422,10 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
           <Part title="Sound" icon="speaker" tone="text-ambience">
             <ChoiceRow label="Kind" value={entity.audio.kind ?? "ambient"} fixed={!drawn} />
             <TextRow label="Source" value={sourceName(entity.audio.source)} />
-            <SliderRow label="Volume" value={entity.audio.volume ?? 1} />
+            <SliderRow label="Volume" value={entity.audio.volume ?? 1} max={Math.max(1, entity.audio.volume ?? 1)} mark={m("audio.volume")} edit={f<number>("audio.volume")} />
             {entity.audio.radius !== undefined && (
-              <Row label="Heard to">
-                <Num value={entity.audio.radius} digits={0} unit="m" wide />
+              <Row label="Heard to" mark={m("audio.radius")}>
+                <Num value={shown("audio.radius", entity.audio.radius)} digits={0} unit="m" wide mark={m("audio.radius")} edit={f<number>("audio.radius")} step={0.5} min={0} />
               </Row>
             )}
           </Part>
@@ -413,33 +534,4 @@ function sourceName(source: Record<string, Record<string, number>> | string): st
     .map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`)
     .join(", ");
   return said ? `${kind} · ${said}` : kind;
-}
-
-/** A behavior in a line, as a person says it. */
-function describeBehavior(name: string, f: Record<string, unknown>): string {
-  const n = (k: string) => Number(f[k] ?? 0);
-  const axis = (k: string) => {
-    const a = f[k] as number[] | undefined;
-    if (!a) return "Y";
-    const i = a.map(Math.abs).indexOf(Math.max(...a.map(Math.abs)));
-    return "XYZ"[i];
-  };
-  switch (name) {
-    case "Spin":
-      return `${n("speed")}° a second about ${axis("axis")}`;
-    case "Bob":
-      return `${n("amplitude")} m at ${n("frequency")} Hz`;
-    case "Pulse":
-      return `${n("min_scale")}–${n("max_scale")} at ${n("frequency")} Hz`;
-    case "Orbit":
-      return `around ${f.center ?? "a point"}, ${n("radius")} m at ${n("speed")}°/s`;
-    case "LookAt":
-      return `turns to ${f.target}`;
-    case "PathFollow":
-      return `${(f.waypoints as unknown[] | undefined)?.length ?? 0} stops at ${n("speed")} m/s`;
-    case "Bounce":
-      return `${n("height")} m high`;
-    default:
-      return "";
-  }
 }

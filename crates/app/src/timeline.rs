@@ -396,7 +396,7 @@ pub fn view_of(
 }
 
 /// The track a modulation is drawn on: things moved alike share one.
-fn modulation_track(def: &wt::ModulationDef) -> String {
+pub(crate) fn modulation_track(def: &wt::ModulationDef) -> String {
     let (target, source) = (target_label(def.target), signal_key(&def.signal));
     format!("mod:{target}:{source}:{}:{}", def.range[0], def.range[1])
 }
@@ -846,6 +846,11 @@ impl Timeline {
     /// The world edits here: a live canvas.
     pub fn editable(&self) -> bool {
         self.editable
+    }
+
+    /// An agent's proposal waiting on the canvas.
+    pub fn review(&self) -> Option<&PendingReview> {
+        self.review.as_ref()
     }
 
     fn rebuild(&mut self) {
@@ -1764,6 +1769,7 @@ mod tests {
             n: 1,
             author: "claude".into(),
             changes: vec!["modify 3B".into()],
+            entities: vec![2],
             shots: localgpt_previs::shots::shot_list(&proposed),
         };
         let view = view_of(&doc, None, true, Some(&review));

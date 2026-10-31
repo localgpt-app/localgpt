@@ -263,6 +263,14 @@ enum FromPage {
     /// What the outliner's eye hides in the window.
     #[serde(rename = "entity.hide")]
     EntityHide { ids: Vec<u64> },
+    /// A drag let go in the outliner: hang these under `parent` (none: at
+    /// the top), where they stand, or carried at their offset (`keep`).
+    #[serde(rename = "entity.parent")]
+    EntityParent {
+        ids: Vec<u64>,
+        parent: Option<u64>,
+        keep: bool,
+    },
     #[serde(rename = "doc.edit")]
     DocEdit { text: String },
     #[serde(rename = "doc.caret")]
@@ -518,6 +526,14 @@ fn read_page(
             }
             FromPage::EntityPreview { edits } => ask(&mut asks.scene, SceneAsk::Preview(edits)),
             FromPage::EntityHide { ids } => ask(&mut asks.scene, SceneAsk::Hide(ids)),
+            FromPage::EntityParent { ids, parent, keep } => ask(
+                &mut asks.scene,
+                SceneAsk::Reparent {
+                    ids,
+                    parent,
+                    keep_offset: keep,
+                },
+            ),
             FromPage::DocEdit { text } => ask(&mut asks.document, DocumentAsk::Edit(text)),
             FromPage::DocCaret { line } => ask(&mut asks.document, DocumentAsk::Caret(line)),
             FromPage::DocGo { section, line } => {

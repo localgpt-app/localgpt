@@ -49,7 +49,8 @@ function useEscape(active: boolean, cancel: () => void) {
 
 /** A number in a box. With an edit, a drag along it scrubs it — `step` a
  *  pixel, a tenth with Shift — and a click types a value instead: Enter
- *  sets it, Esc lets it go. */
+ *  sets it, Esc lets it go. It keeps to `min` and `max`, and to whole
+ *  numbers when it counts something. */
 export function Num({
   value,
   digits = 2,
@@ -60,6 +61,8 @@ export function Num({
   edit,
   step,
   min,
+  max,
+  whole,
 }: {
   value: number | null;
   digits?: number;
@@ -70,6 +73,8 @@ export function Num({
   edit?: FieldEdit<number>;
   step?: number;
   min?: number;
+  max?: number;
+  whole?: boolean;
 }) {
   const [typing, setTyping] = useState<string | null>(null);
   const [dragged, setDragged] = useState<number | null>(null);
@@ -78,6 +83,10 @@ export function Num({
   const dropped = useRef(false);
   const shown = dragged ?? value;
   const box = `flex h-6 min-w-0 items-center gap-1 rounded bg-raised px-1.5 tabular-nums ${wide ? "flex-1" : "w-[68px]"}`;
+  const kept = (v: number) => {
+    const bounded = Math.min(max ?? Infinity, Math.max(min ?? -Infinity, v));
+    return whole ? Math.round(bounded) : bounded;
+  };
 
   useEscape(dragged !== null, () => {
     press.current = null;
@@ -106,8 +115,8 @@ export function Num({
       return;
     }
     const v = Number(text);
-    if (text === "" || !Number.isFinite(v) || v === value) return;
-    edit.set(min === undefined ? v : Math.max(min, v), true);
+    if (text === "" || !Number.isFinite(v) || kept(v) === value) return;
+    edit.set(kept(v), true);
   };
   return (
     <span
@@ -125,8 +134,7 @@ export function Num({
         if (!p.moved && Math.abs(dx) < 3) return;
         p.moved = true;
         const per = (step ?? Math.max(10 ** -digits, Math.abs(p.from) * 0.005)) * (e.shiftKey ? 0.1 : 1);
-        let v = round(p.from + dx * per, digits);
-        if (min !== undefined) v = Math.max(min, v);
+        const v = kept(round(p.from + dx * per, digits));
         if (v === p.last) return;
         p.last = v;
         setDragged(v);
