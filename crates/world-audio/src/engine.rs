@@ -75,7 +75,17 @@ pub struct Engine {
     listener: ListenerHandle,
     ambience: Vec<Layer>,
     emitters: HashMap<String, Emitter>,
-    soundtrack: Option<StreamingSoundHandle<FromFileError>>,
+    soundtrack: Option<Song>,
+}
+
+/// The song streaming, and what restarting it needs: a seek while paused
+/// is a fresh stream from there (kira's decoder reads a seek only once its
+/// buffer has room, and a paused song's buffer stays full).
+struct Song {
+    handle: StreamingSoundHandle<FromFileError>,
+    path: std::path::PathBuf,
+    amplitude: f32,
+    paused: bool,
 }
 
 impl Engine {
@@ -299,41 +309,101 @@ impl Engine {
     /// already playing. Returns its decoded length in seconds.
     pub fn play_soundtrack(&mut self, path: &Path, amplitude: f32) -> Result<f32, String> {
         self.stop_soundtrack();
+        let (handle, seconds) = self.stream(path, amplitude, 0.0)?;
+        debug!("soundtrack: {} ({seconds:.1} s)", path.display());
+        self.soundtrack = Some(Song {
+            handle,
+            path: path.to_path_buf(),
+            amplitude,
+            paused: false,
+        });
+        Ok(seconds)
+    }
+
+    /// The song from `path`, looping, from `start` seconds.
+    fn stream(
+        &mut self,
+        path: &Path,
+        amplitude: f32,
+        start: f64,
+    ) -> Result<(StreamingSoundHandle<FromFileError>, f32), String> {
         let sound = StreamingSoundData::from_file(path)
             .map_err(|e| format!("can't decode {}: {e}", path.display()))?;
         let seconds = sound.duration().as_secs_f32();
-        let sound = sound.loop_region(..).volume(amplitude_to_db(amplitude));
+        let sound = sound
+            .loop_region(..)
+            .start_position(start)
+            .volume(amplitude_to_db(amplitude));
         let handle = self
             .manager
             .play(sound)
             .map_err(|e| format!("can't play {}: {e}", path.display()))?;
-        debug!("soundtrack: {} ({seconds:.1} s)", path.display());
-        self.soundtrack = Some(handle);
-        Ok(seconds)
+        Ok((handle, seconds))
     }
 
     /// Stop the song, with a short fade.
     pub fn stop_soundtrack(&mut self) {
-        if let Some(mut handle) = self.soundtrack.take() {
-            handle.stop(fade());
+        if let Some(mut song) = self.soundtrack.take() {
+            song.handle.stop(fade());
         }
     }
 
     /// Pause or resume the song where it is.
     pub fn pause_soundtrack(&mut self, paused: bool) {
-        if let Some(handle) = &mut self.soundtrack {
+        if let Some(song) = &mut self.soundtrack {
+            song.paused = paused;
             if paused {
-                handle.pause(fade());
+                song.handle.pause(fade());
             } else {
-                handle.resume(fade());
+                song.handle.resume(fade());
             }
+        }
+    }
+
+    /// Move the song to `seconds`, playing or paused: a paused song resumes
+    /// from there.
+    pub fn seek_soundtrack(&mut self, seconds: f32) {
+        let seconds = f64::from(seconds.max(0.0));
+        let Some(song) = &mut self.soundtrack else {
+            return;
+        };
+        if !song.paused {
+            song.handle.seek_to(seconds);
+            return;
+        }
+        // A fresh stream from there, silent until it is paused, so nothing
+        // of it is heard before the resume.
+        let (path, amplitude) = (song.path.clone(), song.amplitude);
+        match self.stream(&path, 0.0, seconds) {
+            Ok((mut handle, _)) => {
+                handle.pause(instant());
+                handle.set_volume(amplitude_to_db(amplitude), instant());
+                if let Some(mut old) = self.soundtrack.replace(Song {
+                    handle,
+                    path,
+                    amplitude,
+                    paused: true,
+                }) {
+                    old.handle.stop(instant());
+                }
+            }
+            Err(e) => warn!("soundtrack: {e}"),
+        }
+    }
+
+    /// The song's volume, as amplitude: `0` silences it without stopping it,
+    /// so its position keeps the world's clock.
+    pub fn set_soundtrack_volume(&mut self, amplitude: f32) {
+        if let Some(song) = &mut self.soundtrack {
+            song.amplitude = amplitude;
+            song.handle.set_volume(amplitude_to_db(amplitude), fade());
         }
     }
 
     /// Where the song is, in seconds, while it is audibly playing; `None`
     /// when there is no song, or it is paused or stopped.
     pub fn soundtrack_position(&self) -> Option<f32> {
-        let handle = self.soundtrack.as_ref()?;
+        let handle = &self.soundtrack.as_ref()?.handle;
         (handle.state() == PlaybackState::Playing).then(|| handle.position() as f32)
     }
 }
@@ -395,6 +465,16 @@ mod tests {
         engine.pause_soundtrack(true);
         std::thread::sleep(std::time::Duration::from_millis(500));
         assert_eq!(engine.soundtrack_position(), None, "paused");
+
+        // A seek while paused is where it resumes.
+        engine.seek_soundtrack(1.4);
+        engine.pause_soundtrack(false);
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let position = engine.soundtrack_position().expect("playing again");
+        assert!(
+            (1.4..2.0).contains(&position),
+            "resumed from the seek, at {position}"
+        );
 
         engine.stop_soundtrack();
         assert!(

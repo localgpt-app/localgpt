@@ -297,6 +297,9 @@ fn drive_shot_view(
 #[derive(Resource, Default)]
 pub struct ShotThumbs {
     thumbs: Vec<Thumb>,
+    /// Shots whose thumbnail finished a render since the last
+    /// [`ShotThumbs::take_rendered`].
+    rendered: Vec<u64>,
 }
 
 impl ShotThumbs {
@@ -306,6 +309,15 @@ impl ShotThumbs {
             .iter()
             .find(|t| t.entity_id == entity_id)
             .map(|t| t.image.clone())
+    }
+
+    /// The thumbnails rendered afresh since the last call, each with its
+    /// shot's entity id — for a panel that reads the pixels back.
+    pub fn take_rendered(&mut self) -> Vec<(u64, Handle<Image>)> {
+        let ids = std::mem::take(&mut self.rendered);
+        ids.into_iter()
+            .filter_map(|id| Some((id, self.image_of(id)?)))
+            .collect()
     }
 }
 
@@ -396,11 +408,16 @@ fn sync_shot_thumbs(
             thumb.frames_left = thumb.frames_left.max(2);
         }
     }
+    let thumbs = &mut *thumbs;
     for thumb in &mut thumbs.thumbs {
         if thumb.frames_left > 0 {
             thumb.frames_left -= 1;
             if let Ok(mut camera) = cameras.get_mut(thumb.camera) {
                 camera.is_active = thumb.frames_left > 0;
+            }
+            // Its last active frame has rendered: the image holds the shot.
+            if thumb.frames_left == 0 && !thumbs.rendered.contains(&thumb.entity_id) {
+                thumbs.rendered.push(thumb.entity_id);
             }
         }
     }

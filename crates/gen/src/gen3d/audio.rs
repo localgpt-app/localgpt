@@ -160,6 +160,43 @@ impl AudioEngine {
         let _ = self.update_tx.send(AudioUpdate::PauseSoundtrack(paused));
     }
 
+    /// Move the song to `seconds`, playing or paused.
+    pub fn seek_soundtrack(&mut self, seconds: f32) {
+        let _ = self.update_tx.send(AudioUpdate::SeekSoundtrack(seconds));
+    }
+
+    /// Silence the song, or let it be heard again. It keeps playing, so its
+    /// position still keeps the world's clock, and the next song plays as
+    /// this one was left.
+    pub fn mute_soundtrack(&mut self, muted: bool) {
+        let _ = self.update_tx.send(AudioUpdate::MuteSoundtrack(muted));
+    }
+
+    /// Silence an ambience layer or an emitter by name, or give it back the
+    /// volume the world gives it. `false` when nothing sounds by that name.
+    pub fn mute(&mut self, name: &str, muted: bool) -> bool {
+        let at = |volume: f32| if muted { 0.0 } else { volume };
+        if let Some(meta) = self.emitter_meta.get(name) {
+            let _ = self.update_tx.send(AudioUpdate::SetEmitterVolume {
+                name: name.to_string(),
+                volume: at(meta.base_volume),
+            });
+            return true;
+        }
+        let layer = self
+            .last_ambience
+            .as_ref()
+            .and_then(|ambience| ambience.layers.iter().find(|layer| layer.name == name));
+        if let Some(layer) = layer {
+            let _ = self.update_tx.send(AudioUpdate::AmbienceVolume {
+                name: name.to_string(),
+                volume: at(layer.volume),
+            });
+            return true;
+        }
+        false
+    }
+
     /// Where the song is, in seconds, while it is audibly playing.
     pub fn soundtrack_position(&self) -> Option<f32> {
         let seconds = f32::from_bits(self.soundtrack_position.load(Ordering::Relaxed));
@@ -207,6 +244,12 @@ enum AudioUpdate {
     },
     StopSoundtrack,
     PauseSoundtrack(bool),
+    SeekSoundtrack(f32),
+    MuteSoundtrack(bool),
+    AmbienceVolume {
+        name: String,
+        volume: f32,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -267,6 +310,8 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioUpdate>, soundtrack_position: &Atom
     engine.set_master_volume(0.8);
 
     let mut emitters: HashMap<String, ThreadEmitter> = HashMap::new();
+    // Muted stays muted across songs: the next one starts silent too.
+    let mut song_muted = false;
 
     loop {
         let update = match rx.recv_timeout(SOUNDTRACK_POLL) {
@@ -275,7 +320,7 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioUpdate>, soundtrack_position: &Atom
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         };
         if let Some(update) = update {
-            apply_update(&mut engine, &mut emitters, update);
+            apply_update(&mut engine, &mut emitters, &mut song_muted, update);
         }
         let position = engine.soundtrack_position().unwrap_or(f32::NAN);
         soundtrack_position.store(position.to_bits(), Ordering::Relaxed);
@@ -287,6 +332,7 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioUpdate>, soundtrack_position: &Atom
 fn apply_update(
     engine: &mut localgpt_world_audio::Engine,
     emitters: &mut HashMap<String, ThreadEmitter>,
+    song_muted: &mut bool,
     update: AudioUpdate,
 ) {
     {
@@ -354,12 +400,21 @@ fn apply_update(
                 engine.set_emitter_position(&name, position);
             }
             AudioUpdate::PlaySoundtrack { path } => {
-                if let Err(e) = engine.play_soundtrack(&path, 1.0) {
+                let volume = if *song_muted { 0.0 } else { 1.0 };
+                if let Err(e) = engine.play_soundtrack(&path, volume) {
                     tracing::warn!("soundtrack: {e}");
                 }
             }
             AudioUpdate::StopSoundtrack => engine.stop_soundtrack(),
             AudioUpdate::PauseSoundtrack(paused) => engine.pause_soundtrack(paused),
+            AudioUpdate::SeekSoundtrack(seconds) => engine.seek_soundtrack(seconds),
+            AudioUpdate::MuteSoundtrack(muted) => {
+                *song_muted = muted;
+                engine.set_soundtrack_volume(if muted { 0.0 } else { 1.0 });
+            }
+            AudioUpdate::AmbienceVolume { name, volume } => {
+                engine.set_ambience_volume(&name, volume);
+            }
         }
     }
 }

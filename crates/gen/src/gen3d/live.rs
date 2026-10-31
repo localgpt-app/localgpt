@@ -490,6 +490,23 @@ impl ProposalRecord {
 #[derive(Message, Debug, Clone)]
 pub struct ReviewDecision(pub bool);
 
+/// What a panel draws of the proposal on the canvas, published when one
+/// arrives and when it is decided: who proposes, what changes, and the
+/// shot list as it would be — what the timeline draws dashed.
+#[derive(Resource, Debug, Clone, Default, PartialEq)]
+pub struct LiveReview {
+    pub pending: Option<PendingReview>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PendingReview {
+    pub n: u64,
+    pub author: String,
+    pub changes: Vec<String>,
+    /// The proposal's world's shots, in `shot.order`.
+    pub shots: Vec<localgpt_previs::ShotRow>,
+}
+
 /// What a history panel draws: the log as rows, and where the canvas is.
 ///
 /// Published by `live_world` whenever the history or the canvas's place in it
@@ -653,6 +670,7 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
     .insert_resource(Endpoint(endpoint))
     .insert_resource(LiveEndpoint { url, token })
     .init_resource::<LiveHistory>()
+    .init_resource::<LiveReview>()
     .init_resource::<RenderedPrimary>()
     .add_message::<SeekTo>()
     .add_message::<ReviewDecision>()
@@ -673,7 +691,7 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
         )
         .add_systems(
             Update,
-            (live_world, live_view)
+            (live_world, live_view, perform_song)
                 .chain()
                 .after(super::canvas_edit::PersonEdits),
         );
@@ -1538,6 +1556,46 @@ fn publish_shots(live: &Live) -> super::shots::LiveShots {
     super::shots::LiveShots { shots, manifest }
 }
 
+/// The review's snapshot: the pending proposal, with the shot list of the
+/// world it would make.
+fn publish_review(live: &Live) -> LiveReview {
+    LiveReview {
+        pending: live.proposal.as_ref().map(|proposal| PendingReview {
+            n: proposal.n,
+            author: proposal.author.clone(),
+            changes: proposal.changes.clone(),
+            shots: localgpt_previs::shots::shot_list(&proposal.shown),
+        }),
+    }
+}
+
+/// The canvas performs its document's song, as a loaded world does: the
+/// curves drive the modulations, and the file in the package's `assets/`
+/// plays. Seeking to an entry with another song, or none, changes it; an
+/// entry that only revises the curves leaves the song playing where it is.
+fn perform_song(
+    live: Res<Live>,
+    shots: Res<super::shots::LiveShots>,
+    mut soundtrack: ResMut<localgpt_world_bevy::modulation::Soundtrack>,
+    audio: Option<ResMut<super::audio::AudioEngine>>,
+) {
+    if !shots.is_changed() || soundtrack.def == shots.manifest.soundtrack {
+        return;
+    }
+    let file = |def: &Option<wt::SoundtrackDef>| def.as_ref().and_then(|song| song.path.clone());
+    let same_file = file(&soundtrack.def) == file(&shots.manifest.soundtrack);
+    soundtrack.def = shots.manifest.soundtrack.clone();
+    if same_file {
+        return;
+    }
+    if let Some(mut audio) = audio {
+        match file(&soundtrack.def) {
+            Some(path) => audio.play_soundtrack(live.world.dir().join("assets").join(path)),
+            None => audio.stop_soundtrack(),
+        }
+    }
+}
+
 const ENDPOINTS: &[(&str, &str)] = &[
     (
         "GET /world",
@@ -1615,6 +1673,7 @@ pub(super) fn live_world(
     mut applier: OpsApplier,
     mut snapshot: ResMut<LiveHistory>,
     mut shots_snapshot: ResMut<super::shots::LiveShots>,
+    mut review: ResMut<LiveReview>,
     mut thumbs_dirty: ResMut<super::shots::ThumbsDirty>,
     mut seeks: MessageReader<SeekTo>,
     mut intents: MessageReader<PersonIntent>,
@@ -1691,7 +1750,6 @@ pub(super) fn live_world(
                 }
                 Reply::ok(log)
             }
-            // The panels' widgets by name, for the hand that has no eyes.
             // How many synthesized events still wait to be emitted, one per
             // frame — a driver waits for zero before it reads, so a slow
             // stretch of frames never makes a check read too early.
@@ -2017,6 +2075,7 @@ pub(super) fn live_world(
         live.history_dirty = false;
         snapshot.set_if_neq(publish(live));
         shots_snapshot.set_if_neq(publish_shots(live));
+        review.set_if_neq(publish_review(live));
     }
 
     // A replay steps keyframe to keyframe, then returns to the head.
