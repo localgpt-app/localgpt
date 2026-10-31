@@ -133,13 +133,19 @@ the authority's own fold, so what is shown is what the commit makes. The
 name, the transform, visibility, a shape's sizes, a material's colour,
 roughness and metallic, and a light's colour and intensity edit first. The
 eye in the outliner hides a thing in the window alone, as the timeline's
-does.
+does. A row dragged onto another is a `PersonIntent::Reparent`: it stands
+where it stood — its new transform is its place in the world, by the
+document's transforms, seen from the new parent — or keeps its offset with
+⌥. Order among siblings is the document's; the format has no op that moves
+a thing within it. Others at work are the page's to mark: it has the
+history and the document before and after, and is told who the person is
+and what a waiting proposal touches.
 
 ## Next
 
-1. The inspector's other parts — behaviors, what the song moves, sound,
-   the camera — and reparenting by a drag in the outliner; the marks for
-   an agent's change and a waiting proposal the sheet draws.
+1. Adding a behavior and a behavior's own fields, and another kind for a
+   shape or a light (a shape keeps the size it fills), drawn on
+   `design/scene.html` for review.
 2. Turn marks from the page's own terminals (`TurnEnded`).
 3. The Windows host; then Linux.
 4. A render check of the page in CI, through `?preview=`.
