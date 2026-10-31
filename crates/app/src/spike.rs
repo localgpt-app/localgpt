@@ -19,6 +19,9 @@
 //!   the window's size first (`# monitor`, `# window`).
 //! - `LOCALGPT_SPIKE_CASCADES=<n>`: the directional lights' shadows in `n`
 //!   cascades, where Bevy's default is four; three.js draws one map.
+//! - `LOCALGPT_SPIKE_CAMERA=fps`: from the `# play` mark, the world camera
+//!   walks a first-person path through the scene ([`fps_pose`]), the same
+//!   path the page's stress bench drives, so both draw the same moving view.
 
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -91,7 +94,45 @@ impl Plugin for SpikePlugin {
             app.insert_resource(Cascades(n.max(1.0) as usize))
                 .add_systems(Update, cascades);
         }
+        if std::env::var("LOCALGPT_SPIKE_CAMERA").is_ok_and(|v| v == "fps") {
+            // After the fly-cam's own Update, before the pose reaches the GPU.
+            app.add_systems(
+                PostUpdate,
+                fps_camera.before(bevy::transform::TransformSystems::Propagate),
+            );
+        }
     }
+}
+
+/// `LOCALGPT_SPIKE_CAMERA=fps`: the world camera on [`fps_pose`], timed from
+/// the `# play` mark (from the start when there is none).
+fn fps_camera(
+    time: Res<Time<Real>>,
+    play: Option<Res<PlayAt>>,
+    mut cameras: Query<&mut Transform, With<FlyCam>>,
+) {
+    let t = (time.elapsed_secs_f64() - play.map_or(0.0, |p| p.0)).max(0.0) as f32;
+    let (eye, target) = fps_pose(t);
+    for mut transform in &mut cameras {
+        *transform = Transform::from_translation(eye).looking_at(target, Vec3::Y);
+    }
+}
+
+/// A first-person walk `t` seconds in: a loop through the stress scenes'
+/// field at eye height with a head bob, the view sweeping and flicking left
+/// and right and nodding. Returns the eye and the point it looks at. The
+/// page's stress bench computes the same from the same seconds.
+pub fn fps_pose(t: f32) -> (Vec3, Vec3) {
+    use std::f32::consts::{PI, TAU};
+    let eye = Vec3::new(
+        18.0 * (TAU * t / 23.0).sin(),
+        1.7 + 0.06 * (TAU * t * 1.8).sin(),
+        -14.0 + 26.0 * (TAU * t / 31.0).cos(),
+    );
+    let yaw = PI + 0.9 * (TAU * t / 5.3).sin() + 0.5 * (TAU * t / 1.9).sin();
+    let pitch = -0.12 + 0.18 * (TAU * t / 6.7).sin();
+    let look = Vec3::new(yaw.sin() * pitch.cos(), pitch.sin(), yaw.cos() * pitch.cos());
+    (eye, eye + look * 10.0)
 }
 
 /// `LOCALGPT_SPIKE_CASCADES=<n>`: each directional light's shadow in `n`
