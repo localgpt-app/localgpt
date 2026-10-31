@@ -1,5 +1,9 @@
 # egui Mobile Platform Support
 
+**Status:** superseded. The app's interface is a web page, not egui
+([the-page.md](../rfcs/authoring/the-page.md)), and a phone gets the same page
+([mobile-remote.md](../rfcs/authoring/mobile-remote.md)).
+
 This document summarizes egui's mobile platform support status as of February 2026, relevant to LocalGPT's desktop GUI implementation.
 
 ## Current Desktop Implementation

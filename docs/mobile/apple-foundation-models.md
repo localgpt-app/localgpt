@@ -1,5 +1,11 @@
 # Apple Foundation Models Integration
 
+**Status:** superseded 2026-10-31. The iOS app this plans for leaves with
+`mobile-ffi` in 0.5.0 ([the-harness-goes.md](../rfcs/authoring/the-harness-goes.md));
+a phone is now a remote for the desktop app
+([mobile-remote.md](../rfcs/authoring/mobile-remote.md)), and on-device
+authoring, if it is wanted, is worldwalk's question.
+
 ## Overview
 
 Integrate Apple's on-device Foundation Models framework into LocalGPT for iOS, providing a privacy-preserving, zero-cost LLM option that works offline.

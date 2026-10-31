@@ -63,11 +63,14 @@ previs; this is where that claim is checked.
 
 ## Afterwards (ten minutes)
 
-Three questions, answers verbatim:
+Four questions, answers verbatim:
 
 1. "What did the board get wrong about your scene?"
 2. "What did you have to do that you shouldn't have had to?"
 3. "Would you use this for the next thing you shoot? For what?"
+4. "Would you want any of this on a phone or an iPad: on set, on a scout,
+   away from the desk? To do what?" (added 2026-10-31, for
+   `rfcs/authoring/mobile-remote.md`)
 
 ## Reading the sheets
 
@@ -79,5 +82,8 @@ Three questions, answers verbatim:
   two steps, not in posing or animatics; those keep waiting.
 - Nobody reads a number → the measured plan needs a different surface (the
   shot list on the board, a recce sheet), not more numbers.
+- Anyone wants it on an iPad or a phone, for a set or a scout → steps 3 and
+  4 of [mobile-remote.md](rfcs/authoring/mobile-remote.md) have a user;
+  nobody does → they keep waiting.
 
 Publish the counts and the verbatim answers, with names off; keep the sheets.

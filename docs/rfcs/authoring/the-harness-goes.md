@@ -6,7 +6,9 @@ its §1 and §2, `localgpt world` and the shim, stand and are what 0.5.0 keeps.
 Builds on [agents-outside-the-window.md](agents-outside-the-window.md), whose
 tier 0 is built (the herdr pane, `crates/gen/src/gen3d/herdr.rs`), and on
 `docs/world-strategy.md` §13.6 (surface reduction) and §13.3 (the generation
-tiers, which this does not touch).
+tiers, which this does not touch). Two of its open questions were decided
+2026-10-31: the mobile apps go ([mobile-remote.md](mobile-remote.md)), and
+`setup` registers once ([cad-lessons.md](cad-lessons.md) §6).
 
 ## The problem
 
@@ -51,11 +53,21 @@ Four commands. Two exist.
 | `localgpt world …` | built | `init`, `submit` (`--at` forks), `undo`, `log`, `tips`, `verify`, `history`: the headless authority, `world-agent::headless`, one implementation of commit with the app's |
 | `localgpt world mcp [dir]` | built | the shim: a stdio MCP server the agent starts, eight tools over the open world's API (`crates/cli/src/cli/world_mcp.rs`) |
 | `localgpt doctor` | new | what this machine has: the app and its version; which of `claude`, `codex`, `gemini`, `kimi`, `agy`, `copilot`, `opencode` are on `PATH`, with versions; whether the shim is registered in each one's MCP configuration |
-| `localgpt setup [agent…]` | new | registers the shim with each agent found — `claude mcp add world -- localgpt world mcp` for Claude Code, the `mcp_servers` table in Codex's `config.toml`, `mcpServers` in Gemini CLI's `settings.json` — and prints the maker's install line for one that is missing |
+| `localgpt setup [agent…]` | new | registers the shim with each agent found — the `world` entry `claude mcp add world -- localgpt world mcp` would write for Claude Code, the `mcp_servers` table in Codex's `config.toml`, `mcpServers` in Gemini CLI's `settings.json` — and prints the maker's install line for one that is missing |
 
 `setup` is the one install-shaped job nobody else does: it is what makes
 "agents outside the window" work on a fresh machine. Everything else named
 "install" belongs to a package manager, below.
+
+How it edits, decided 2026-10-31 after SolidCraft's `mcp setup`
+([cad-lessons.md](cad-lessons.md) §6): each agent's own file in place, only
+the `world` entry, a `.bak` copy first. A file it cannot parse, or an entry
+the person changed, is left alone; an agent counts as installed when its
+configuration folder exists, and no agent program is run. It registers once,
+not per world: `localgpt world mcp` with no folder finds the world the app
+opened last, through a file the app writes in the user's state directory, as
+`solidcraft-cli mcp` finds its app through `control/current.port`. A folder
+argument stays for headless use.
 
 ### What it does not do
 
@@ -113,10 +125,10 @@ is 180,317.
 
 | Crate or part | Lines | Fate |
 |---|---|---|
-| `core` | 37,950 | **goes**, after about 1,300 lines move out (below) |
+| `core` | 37,950 | **goes**, after about 900 lines move out (below) |
 | `cli` | 8,766 | `world.rs` (375) and `world_mcp.rs` (433) **stay**; `chat`, `tui`, `ask`, `daemon`, `memory`, `cron`, `hooks`, `bridge`, `session`, `cert`, `policy`, `sandbox`, `init`, `config`, `search`, `tool`, `mcp-server`, `desktop`, `gen3d`, `completion` and the `desktop` feature (eframe) **go**; `doctor` is rewritten |
 | `server` (and `apps/web`, its UI) | 4,337 | **goes** |
-| `cli-tools` (including `pty.rs`, 742) | 1,785 | **goes** — tier 2 of agents-outside-the-window was never built and herdr is the pane |
+| `cli-tools` (including `pty.rs`, 742) | 1,785 | **goes** — tier 2 of agents-outside-the-window was built in the page instead, on `portable-pty` directly (`crates/app/src/webui/term.rs`); nothing outside the harness uses `core::pty` |
 | `sandbox` | 1,542 | **goes** — see *What this gives up* |
 | `bridge`, `bridges/cli` | 1,261 | **go** |
 | `mobile-ffi` | 511 | **goes** — see *Mobile* |
@@ -139,13 +151,44 @@ already depend on and the one that owns the agent-facing side of a world:
 |---|---|---|
 | `mcp/server.rs`, `transport.rs`, `tools.rs`, `mod.rs` — the stdio MCP server; `world_mcp.rs:64` calls `run_mcp_stdio_server` | ~680 | `world-agent::mcp` |
 | the `Tool` trait and `ToolSchema` (from `agent/tools/mod.rs`; the safe tools around them go) | ~150 | `world-agent::mcp` |
-| `herdr.rs` — the self-report state the pane reads | 416 | `world-agent::herdr` |
 | `text.rs` (`ellipsize_chars`, `prefix_chars_with_ellipsis`) | 100 | `app` |
 | the two `LOCALGPT_GEN_*` names in `env.rs` that the external-services tools read | | `gen` |
 
 Everything else Gen and the app import from `core` — `Config` (25 sites),
 `MemoryManager`, `providers`, `Role`, `skills`, `Agent`, `memory_tools`,
-`local_embeddings_cached`, `commands` — is the loop's and goes with it.
+`local_embeddings_cached`, `commands` — is the loop's and goes with it. So
+does `herdr.rs` (416 lines), on this list until 2026-10-31 for herdr's pane:
+the pane went with [the-page.md](the-page.md), and its one caller left is
+Gen's chat (`crates/gen/src/desktop/chat.rs:56`).
+
+### Before 0.5.0: the app and Gen off `core`'s defaults
+
+The CLI takes `core` with `default-features = false, features =
+["embeddings-none"]` (`crates/cli/Cargo.toml:22`). The app
+(`crates/app/Cargo.toml:23`) and Gen (`crates/gen/Cargo.toml:18`) take its
+defaults, so both build fastembed, `ort` (ONNX Runtime's bindings),
+sqlite-vec and tokenizers for local embeddings neither needs: the app uses
+only `Config`, `Paths` and the providers (`crates/app/src/authoring.rs:32–33`,
+`main.rs:84`, `open.rs:23`), and Gen's memory is the loop's. It matters
+before the app's first release: `desktop.yml` has no ONNX Runtime step, and
+`ort-sys` downloads its library from `cdn.pyke.io`, which the composite
+action says GitHub's runners cannot reach
+(`.github/actions/onnxruntime/action.yml`), so the first `desktop-v` run may
+stop there. The lines:
+
+```toml
+# crates/app/Cargo.toml: document authoring keeps the CLI backends
+localgpt-core = { workspace = true, default-features = false, features = ["embeddings-none", "claude-cli", "codex-cli", "gemini-cli"] }
+# crates/gen/Cargo.toml
+localgpt-core = { workspace = true, default-features = false, features = ["mcp-http", "embeddings-none", "claude-cli", "codex-cli", "gemini-cli", "image-resize"] }
+```
+
+The three CLI features are empty (`crates/core/Cargo.toml`), and
+`local_embeddings_cached`, which Gen's settings call
+(`crates/gen/src/config.rs:79`), is not behind the embeddings feature
+(`crates/core/src/memory/mod.rs:56`). Gen's memory then searches by keyword
+(FTS5) until the loop goes, and the *Native deps* CI job should no longer
+need the ONNX Runtime action; Clippy and Test keep it for `core` until 0.5.0.
 
 ### One MCP entry point
 
@@ -168,10 +211,12 @@ holds the on-device authoring §13.3 counts as built
 the parallel world format §13.6 already marks as debt. worldwalk is the
 format's viewer on Apple and Android and adds no semantics of its own.
 
-This RFC removes the FFI crate and proposes that the two app trees leave this
-repository with it: the viewer is worldwalk's, and on-device authoring, if it
-is wanted, is a worldwalk question. That is a decision, listed under *Not
-decided* because it is not this document's to make alone.
+This RFC removes the FFI crate, and the two app trees leave this repository
+with it: the viewer is worldwalk's, and on-device authoring, if it is wanted,
+is a worldwalk question. Decided 2026-10-31 in
+[mobile-remote.md](mobile-remote.md), which also says what a phone does
+instead: it runs no agent, and is a remote for the desktop app through the
+app's own page.
 
 ### Docs and CI
 
@@ -188,6 +233,11 @@ decided* because it is not this document's to make alone.
   `verse llm`, `gen feathers` and `verse ml` (§13.3's local tier is not the
   harness) and loses `gen local-llm`. `deny.toml` loses the `daemonize`
   ignore.
+- `CLAUDE.md` and `AGENTS.md`: the harness's sections (`core`'s modules and
+  feature flags, the tool split, mobile) and the rule that `core` compiles
+  for iOS and Android go with it. The rules that outlive it name the check
+  that enforces them ([cad-lessons.md](cad-lessons.md) §9), starting with one
+  that has none today: the format crates depend on neither `core` nor Bevy.
 - crates.io: `localgpt-core`, `-server`, `-sandbox`, `-cli-tools` and
   `-bridge` publish no further versions. Nothing is yanked.
 
@@ -224,12 +274,12 @@ decided* because it is not this document's to make alone.
 - **The daemon, the HTTP and OpenAI-compatible APIs, the Telegram and other
   bridges, the outbox, eleven providers, OpenClaw compatibility.** The
   assistant. 0.4.2 is its last release, and it stays installable by version.
-- **The mobile apps**, unless worldwalk takes their authoring half.
+- **The mobile apps.** A phone becomes a remote for the desktop app instead
+  ([mobile-remote.md](mobile-remote.md)); their on-device authoring is
+  worldwalk's question.
 
 ## Not decided
 
-- Mobile: whether `apps/apple` and `apps/android` leave with `mobile-ffi`, or
-  one of them is kept as a viewer here rather than in worldwalk.
 - How a document's regions are authored once there is no model menu. The
   app's document mode is the one that most wants a model (§13.3), and
   `crates/app/src/authoring.rs` runs the app's own; whether that becomes an
@@ -239,9 +289,6 @@ decided* because it is not this document's to make alone.
 - Whether the `localgpt-gen` crate stays on crates.io as a library once its
   binary's agent half is gone, or the app's shell stops being a published
   crate.
-- Whether `setup` writes a *per-world* registration (an agent's config names
-  the folder) or one `localgpt world mcp` that finds the open world — the
-  10-04 RFC's open question, now the only thing `setup` has to decide.
 
 ## Status
 
@@ -254,6 +301,8 @@ decided* because it is not this document's to make alone.
       `mcp-server --connect`, the collaboration panel and Gen's desktop mode,
       2026-10-30 — with the interface's move to a web page
       ([the-page.md](the-page.md)); document authoring keeps its model
+- [ ] the app and Gen off `core`'s default features (*Before 0.5.0*), ahead
+      of the first release of `LocalGPT.app`
 - [ ] the first release of `LocalGPT.app`; the tap; the Install page
 - [ ] cargo-dist for the 0.5.0 CLI
 - [ ] 0.5.0: the removal; `doctor` and `setup`

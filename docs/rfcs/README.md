@@ -33,6 +33,16 @@ this order; each answers what the previous one left open.
 | [authoring/the-harness-goes.md](authoring/the-harness-goes.md) | proposal — 0.5.0 removes the agent harness: `localgpt` becomes `world`, `world mcp`, `doctor` and `setup`; the app ships through cargo-dist and a desktop workflow; the agents come from their makers, never from here |
 | [authoring/world-editor-stack.md](authoring/world-editor-stack.md) | proposal, partly built — the stack when history is the product. One rule: the ECS is a one-way projection of a fold. The headless core is `crates/world-editor`; its chrome section is superseded by the next row |
 | [authoring/the-page.md](authoring/the-page.md) | decided, built on macOS — one interface: a web page (React, CodeMirror, xterm.js) over the Bevy viewport, with the agents' own terminals in it. egui and the `bevy_ui` chrome went; [egui-or-not.md](authoring/egui-or-not.md) is superseded |
+| [authoring/mobile-remote.md](authoring/mobile-remote.md) | decided; step 1 built 2026-10-31, not yet tried on a phone in a hand — a phone or an iPad runs no agent: it is a remote for the desktop app, which serves it the page, pairs it by a QR code, mirrors the terminals and sends the world as frames. `apps/apple` and `apps/android` go with `mobile-ffi` |
+
+## Lessons from other tools
+
+Readings of other applications' source, for designs to adopt, adapt or avoid.
+
+| Report | What it covers |
+|---|---|
+| [authoring/blender-lessons.md](authoring/blender-lessons.md) | Blender 5.4 (GPL, read only): schema and migrations, undo, operators, transform, the outliner, IDs, the Python API as the agent surface |
+| [authoring/cad-lessons.md](authoring/cad-lessons.md) | research — SolidCraft and CADCraft, two agent-built CAD apps: one command catalog, contracts an agent can read, never crash, headless parity, `setup`, an in-app ACP chat |
 
 ## Multiplayer — collaborative rooms
 

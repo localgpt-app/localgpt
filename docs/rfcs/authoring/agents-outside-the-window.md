@@ -153,8 +153,8 @@ CLA and an explicit inbound-licence statement:
 | `agent-client-protocol` (crates.io) | Apache-2.0, the runtime crate, 4.9M downloads; `rust-sdk` pushed 2026-10-02 |
 | `agent-client-protocol-schema` | Apache-2.0, the wire types alone, for tooling and codegen |
 | Official SDKs | Rust, TypeScript, Python, Kotlin, Java — all Apache-2.0 |
-| `claude-agent-acp` / `@zed-industries/claude-code-acp` | Apache-2.0 |
-| `codex-acp` | Apache-2.0, **copyright JetBrains s.r.o.** (GitHub reports NOASSERTION; the LICENSE file is plainly Apache-2.0) |
+| `@agentclientprotocol/claude-agent-acp` (was `@zed-industries/claude-code-acp`, now deprecated) | Apache-2.0; it runs on `@anthropic-ai/claude-agent-sdk`, under Anthropic's own terms, so the user installs it and nothing vendors it |
+| `@agentclientprotocol/codex-acp` (was `@zed-industries/codex-acp`) | Apache-2.0, **copyright JetBrains s.r.o.** (GitHub reports NOASSERTION; the LICENSE file is plainly Apache-2.0) |
 | `registry` | Apache-2.0 — a CI-verified index of **~50 agents** |
 
 The registry is the adoption argument: `claude-acp`, `codex-acp`, `gemini`,
@@ -305,7 +305,7 @@ user's own terminal — tier 0 with tools — with no emulator, no second way in
 and no agent logic inside Gen. `mcp_server.rs` is 251 lines and is most of it
 already.
 
-Then tier 1, in this order: spawn an ACP server (`claude-code-acp`,
+Then tier 1, in this order: spawn an ACP server (`claude-agent-acp`,
 `codex-acp`), render `SessionUpdate` into the existing `ChatEvent` channel,
 and tie tool calls to the revisions their ops produced — which is the thing
 neither a terminal pane nor a transcript can do, and the reason to prefer
@@ -423,6 +423,35 @@ of its own (`scripts/live-smoke.py --herdr`: an isolated config directory
 under the world's `.live/`, a socket of its own, `pane report-agent`
 standing in for detection). Not done, by design: nothing opens herdr for
 the person, and no pane output is read.
+
+## SolidCraft built tier 1 (added 2026-10-31)
+
+`external/3d/solidcraft`, a CAD application under `MIT OR Apache-2.0`, ships
+this RFC's tier 1 as an egui panel (`crates/ui-egui/src/agent_chat/`, read in
+[cad-lessons.md](cad-lessons.md) §7): the agent a child process speaking ACP
+over stdio, its events drawn as a transcript with tool calls and the plan,
+its permission questions as buttons, and the app's MCP server its only way
+to the design. It is not a terminal, and it has met what this RFC only
+predicted:
+
+- **Logins still want a terminal**, as *Three things that bite regardless*
+  says below. Claude's adapter offers its logins as commands to run
+  (`claude-agent-acp --cli auth login --claudeai`), and only to a client that
+  declares terminal login; the panel shows the command with a Copy button.
+- **The adapters moved.** Both are now published by the protocol's
+  organisation, as `@agentclientprotocol/claude-agent-acp` and
+  `@agentclientprotocol/codex-acp`. Antigravity's `agy` rejects `--acp` and
+  needs a separate ACP server of about 330 MB.
+- **An agent is a process tree.** An adapter starts the CLI it wraps, which
+  starts its MCP servers, so each agent gets a process group and is stopped
+  as one (`process.rs`).
+- **Claude Code's own tools stay on unless asked.** The session turns them
+  off (`_meta.claudeCode.options.disallowedTools`), so the agent works only
+  through the app's tools.
+
+What not to take is its second backend, `api_client.rs`, which runs the tool
+loop itself against a model API: that is the harness, on the wrong side of
+*The line to hold*.
 
 ## Three things that bite regardless
 
