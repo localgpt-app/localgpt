@@ -31,6 +31,7 @@ mod peaks;
 mod scene;
 mod screenshot;
 mod song;
+mod spike;
 mod starter;
 mod timeline;
 mod webui;
@@ -177,6 +178,7 @@ fn main() -> anyhow::Result<()> {
         // then its world, which Gen loads and plays.
         eprintln!("localgpt-app: listening to {} …", track.display());
         let (dir, world) = song::prepare(track, &workspace)?;
+        spike::write_manifest(&dir, &world);
         let soundtrack = world.soundtrack.as_ref();
         eprintln!(
             "localgpt-app: {} -> {} ({} entities; {} — {}, {:.0} bpm)",
@@ -359,6 +361,7 @@ fn main() -> anyhow::Result<()> {
     if let Some(shot) = screenshot::ScreenshotPlugin::from_env() {
         app.add_plugins(shot);
     }
+    app.add_plugins(spike::SpikePlugin);
     // The interface: a page over the viewport, its terminals in the folder
     // of what is open.
     if let Some(ui) = webui::WebUiPlugin::from_env(

@@ -110,5 +110,5 @@ export function Terminal({ id, kind, visible, attach = false }: { id: string; ki
     }
   }, [visible]);
 
-  return <div ref={ref} className={`absolute inset-0 ${visible ? "" : "invisible"}`} />;
+  return <div ref={ref} data-term={id} className={`absolute inset-0 ${visible ? "" : "invisible"}`} />;
 }

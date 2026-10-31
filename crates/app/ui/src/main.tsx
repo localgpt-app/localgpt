@@ -4,6 +4,7 @@ import { inApp } from "./bridge";
 import { Phone } from "./phone/Phone";
 import { preview } from "./preview";
 import { isRemote, start } from "./remote";
+import { startSpike } from "./spike";
 import "./styles.css";
 
 // Served to a paired phone or tablet by the app (`remote.rs`): its own
@@ -19,3 +20,6 @@ if (remote) {
 
 // No StrictMode: its doubled effects would open every terminal's PTY twice.
 createRoot(document.getElementById("root")!).render(remote ? <Phone /> : <App />);
+
+// The world-in-the-page measurement (spike.ts), when `?spike=` asks for one.
+if (!remote) startSpike();
