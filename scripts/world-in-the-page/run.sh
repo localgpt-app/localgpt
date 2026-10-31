@@ -35,6 +35,10 @@ PACK=${LOCALGPT_WORLD_ASSETS:-$HOME/.local/share/localgpt/models/pack}
 ENVDIR=$OUT/env
 mkdir -p "$ENVDIR/data" "$ENVDIR/state" "$ENVDIR/cache"
 
+# The display stays awake while this runs: when it sleeps, the Mac locks,
+# and a run in a locked session measures nothing.
+command -v caffeinate >/dev/null && caffeinate -d -w $$ &
+
 python3 "$HERE/serve.py" "$ROOT/crates/app/ui/dist" "$ENVDIR/data/gen-workspace/songs" "$OUT" "$PORT" &
 SERVER=$!
 trap 'kill $SERVER 2>/dev/null' EXIT

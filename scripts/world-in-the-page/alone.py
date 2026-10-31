@@ -47,6 +47,11 @@ env = dict(
     LOCALGPT_SPIKE_PLAY=str(play),
     LOCALGPT_SPIKE_EXIT=str(play + 4 + secs + 2),
 )
+if sys.platform == "darwin":
+    # The display stays awake while this runs: when it sleeps, the Mac
+    # locks, and Bevy's frames in a locked session are paced at 60 whatever
+    # they cost.
+    subprocess.Popen(["caffeinate", "-d", "-w", str(os.getpid())])
 print(f"alone-idle: the app draws for about {play + secs + 6:.0f} s; leave its window in front")
 with open(out / "alone-idle-app.log", "w") as log:
     # From the repository's root: the app finds a sibling checkout of
