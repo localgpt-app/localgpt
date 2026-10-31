@@ -7,7 +7,8 @@ All notable changes to LocalGPT are documented in this file.
 ### Added
 
 - **Your coding agents, in the desktop app.** A tab per agent — Claude Code, Codex, agy, Gemini CLI, OpenCode, or a shell — each a full terminal (xterm.js over a PTY) started through the login shell in the folder of what is open, so a package's agent finds its `AGENTS.md` and endpoint where it starts. The app knows each agent by its command's name only: no keys, models or settings.
-- **The timeline**, across the desktop app's window in every mode: the world's clock — the song's waveform over its bars and sections, the shots with their frames, the tour, what the song moves and the ambience — played, looped, zoomed and moved through from the page, and the world shown at the playhead. On a live canvas a drag trims or moves a shot (where two meet, the cut rolls), snapped to beats, sections or cuts, and lands as one history entry through the authority; with review on, an agent's proposal waits there, dashed, for Accept or Reject. The clock is the song's position while it plays, else the app's own; `localgpt-world-audio` and Gen's audio engine can now seek and mute the song.
+- **The timeline**, across the desktop app's window in every mode: the world's clock — the song's waveform over its bars and sections, the shots with their frames, the tour, what the song moves and the ambience — played, looped, zoomed and moved through from the page, and the world shown at the playhead; the eye hides what a modulation or behavior track moves. On a live canvas a drag trims or moves a shot (where two meet, the cut rolls), snapped to beats, sections or cuts, and lands as one history entry through the authority; with review on, an agent's proposal waits there, dashed, for Accept or Reject. The clock is the song's position while it plays, else the app's own; `localgpt-world-audio` and Gen's audio engine can now seek and mute the song.
+- **`ModifyWorld` on a live canvas**: agents, and a person's edits from a panel, change a world's scene-wide fields — its song, tours, environment, camera, avatar — through the authority. A song's file is stored like any asset, and a partial patch merges, so an agent can send just a soundtrack's `sections`. The folder's `AGENTS.md` says how to give a world its song.
 - **Design sheets for the interface** (`npm run design` in `crates/app/ui`): static pages drawn with the app's own components and fixtures, reviewed before anything is wired. The first is the timeline — the song, shots, tour, modulations, behaviors and ambience on one clock, across the window's whole width.
 
 ### Changed
@@ -15,6 +16,10 @@ All notable changes to LocalGPT are documented in this file.
 - **The desktop app's interface is one web page over the world** — React, Tailwind, CodeMirror and xterm.js in a transparent web view over the Bevy viewport, carried inside the release binary (`crates/app/ui`). The world is drawn natively in the page's hole, and a click there goes to it. The document panel (outline, place card, the text in CodeMirror), the history as a graph with its own transport, the timeline and Open… are the page's. macOS for now; on Windows and Linux the window shows the world alone until their hosts land. `apps/app-desktop/macos/build-app.sh` builds the page first and needs node 22. The decision is `docs/rfcs/authoring/the-page.md`.
 - **A live canvas performs its document's song**, as a loaded world does: the soundtrack's file in the package's `assets/` plays, and its curves drive the modulations.
 - **`localgpt-gen` takes its prompts from the terminal.** It draws no panels; the windowed app without a terminal is `localgpt-app`.
+
+### Fixed
+
+- **A live package's `manifest.json` carries every scene-wide field its log changes.** The head was composed with the base's ambience, tours and song, so a committed `SetAmbience` never reached the file.
 
 ### Removed
 

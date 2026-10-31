@@ -112,10 +112,12 @@ panel. A shot's frame is read back from the thumbnail its camera renders.
 
 ## Next
 
-1. The timeline's rest: hiding what a modulation or a behavior moves; the
-   tour and the song's sections edited there; and `ModifyWorld` through
-   the canvas's authority, which refuses it today, so an agent can give a
-   package its song (until then only the file does).
+1. The timeline's rest: the tour and the song's sections edited there —
+   recutting a section and holding a stop longer are drawn on the sheet
+   (2026-10-31), for review before they are wired. The authority takes `ModifyWorld` now, so a
+   recut section is one entry like a trim, and an agent can give a package
+   its song; hiding a modulation's or a behavior's track stands what it
+   moves still, as a mute silences.
 2. The outliner and inspector in the page, over the remote inspector's
    builders and `PanelIntents` patches.
 3. Turn marks from the page's own terminals (`TurnEnded`).

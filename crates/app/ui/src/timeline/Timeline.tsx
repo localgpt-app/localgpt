@@ -48,6 +48,11 @@ export const SNAPS: Snap[] = ["beats", "sections", "shots", "off"];
  *  it snapped to, if it did. Nothing is written until it is let go. */
 export type Drag = { track: string; from: number; to: number; label: string; snapped?: { at: number; label: string } };
 
+/** A section's start dragged along the ruler's band: which section (from
+ *  1; the first starts the song), where its start would go, and what it
+ *  lands on. */
+export type Recut = { section: number; to: number; label: string };
+
 /** Where a clip was pressed: an edge trims it, the middle moves it. */
 export type Edge = "in" | "out" | "body";
 
@@ -92,6 +97,7 @@ export type TimelineProps = {
   /** An agent's change waiting for the person: the toolbar asks. */
   proposal?: { author: string; what: string } | null;
   drag?: Drag | null;
+  recut?: Recut | null;
   /** The lanes alone, without the toolbar. */
   bare?: boolean;
   /** The lanes scroll past this height. */
@@ -126,7 +132,7 @@ function trackHeight(track: Track): number {
 /** World time: the shots, the song and what the song moves, on one clock.
  *  Authoring time — who changed what, and when — is the history's. */
 export function Timeline(props: TimelineProps) {
-  const { clock, tracks, view, width, playhead, loop, drag, bare, maxLanes, on } = props;
+  const { clock, tracks, view, width, playhead, loop, drag, recut, bare, maxLanes, on } = props;
   const s: Scale = useMemo(() => ({ from: view[0], to: view[1], width }), [view, width]);
   const heights = useMemo(() => tracks.map(trackHeight), [tracks]);
   const lanes = heights.reduce((sum, h) => sum + h, 0);
@@ -148,7 +154,7 @@ export function Timeline(props: TimelineProps) {
       <div className="relative">
         <div className="flex border-b border-line">
           <div className="shrink-0 border-r border-line" style={{ width: HEADER, height: RULER }} />
-          <Ruler clock={clock} s={s} loop={loop ?? null} on={on} />
+          <Ruler clock={clock} s={s} loop={loop ?? null} recut={recut ?? null} on={on} />
         </div>
         <div
           className={maxLanes !== undefined ? "relative overflow-x-hidden overflow-y-auto" : "relative"}
@@ -159,6 +165,12 @@ export function Timeline(props: TimelineProps) {
             <TrackRow key={track.id} track={track} height={heights[i]} s={s} clock={clock} drag={drag?.track === track.id ? drag : null} on={on} />
           ))}
         </div>
+        {recut && inView(recut.to) && (
+          <div className="pointer-events-none absolute top-0 bottom-0 border-l border-dashed border-accent" style={{ left: at(recut.to) }}>
+            {/* Beside the band's own § label, which shows where it is. */}
+            <span className="absolute top-0 left-6 rounded bg-accent px-1 text-[10px] leading-[14px] whitespace-nowrap text-panel">{recut.label}</span>
+          </div>
+        )}
         {drag?.snapped && inView(drag.snapped.at) && (
           <div className="pointer-events-none absolute top-0 bottom-0 border-l border-dashed border-head" style={{ left: at(drag.snapped.at) }}>
             <span className="absolute top-0.5 left-1 rounded bg-head px-1 text-[10px] whitespace-nowrap text-panel">{drag.snapped.label}</span>
@@ -282,9 +294,22 @@ function Tool({ icon, label, on, onClick }: { icon: IconName; label: string; on?
 
 /** Time along the bottom, bar numbers above it, the song's sections on top,
  *  and the loop as a band. */
-const Ruler = memo(function Ruler({ clock, s, loop, on }: { clock: Clock; s: Scale; loop: [number, number] | null; on?: TimelineHandlers }) {
+const Ruler = memo(function Ruler({
+  clock,
+  s,
+  loop,
+  recut,
+  on,
+}: {
+  clock: Clock;
+  s: Scale;
+  loop: [number, number] | null;
+  recut: Recut | null;
+  on?: TimelineHandlers;
+}) {
   const { major, minor } = ticks(s);
-  const starts = sectionStarts(clock);
+  // A section being recut is drawn where it would start.
+  const starts = sectionStarts(clock).map((t, i) => (recut && i === recut.section ? recut.to : t));
   const { bars } = beatGrid(clock, s);
   return (
     <div className={`relative overflow-hidden ${on ? "cursor-pointer" : ""}`} style={{ width: s.width, height: RULER }} onPointerDown={on?.rulerDown}>
@@ -296,7 +321,7 @@ const Ruler = memo(function Ruler({ clock, s, loop, on }: { clock: Clock; s: Sca
           return (
             <div
               key={t}
-              className={`absolute top-0 h-3.5 border-l border-line pl-1 text-[9px] leading-[14px] text-faint ${i % 2 ? "bg-raised" : ""}`}
+              className={`absolute top-0 h-3.5 border-l pl-1 text-[9px] leading-[14px] ${recut?.section === i ? "border-accent text-accent" : "border-line text-faint"} ${i % 2 ? "bg-raised" : ""}`}
               style={{ left, width: right - left }}
             >
               §{i + 1}

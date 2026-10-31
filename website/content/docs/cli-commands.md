@@ -187,7 +187,7 @@ localgpt world history <dir> [--rev <ref>]        # the git history, when the wo
 localgpt world mcp [<dir>]                        # serve the open canvas's tools over stdio (submit, undo, log, verify, screenshot, selection)
 ```
 
-A batch is JSON: `[op, …]` or `{"ops": [op, …]}`, with the op kinds `SpawnEntity`, `ModifyEntity`, `DeleteEntity`, `SetEnvironment`, `SetCamera` and `Batch`; `-` reads it from stdin. Names bind wherever the format marks a reference and commit as ids; a refusal names the op and the reason. The folder's `AGENTS.md` describes the same rules for an agent.
+A batch is JSON: `[op, …]` or `{"ops": [op, …]}`, with the op kinds `SpawnEntity`, `ModifyEntity`, `DeleteEntity`, `SetEnvironment`, `SetCamera`, `ModifyWorld` (the world's scene-wide fields: its song, tours, environment) and `Batch`; `-` reads it from stdin. Names bind wherever the format marks a reference and commit as ids; a refusal names the op and the reason. The folder's `AGENTS.md` describes the same rules for an agent.
 
 ```bash
 claude mcp add scene -- localgpt world mcp scene-1.world    # Claude Code edits the open world

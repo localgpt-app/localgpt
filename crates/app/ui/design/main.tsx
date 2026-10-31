@@ -224,6 +224,15 @@ function Page() {
               <b>An agent's change waits</b> as a dashed clip with its author's name. Enter accepts and Esc rejects, as the canvas's review does; until then the world
               plays as it was.
             </p>
+            <p>
+              <b>The song's sections</b> are the ruler's § band: a boundary dragged along it moves where one section ends and the next begins, snapped to a bar. A
+              double-click on the band starts a section there; a boundary dragged onto its neighbour joins the two. The song's curves stay as they are — only where
+              its sections fall changes, one entry, as a trim is.
+            </p>
+            <p>
+              <b>A tour's stops</b> hold: dragging the end of a hold lengthens the camera's wait there, and the stops after it come later by as much. The travel
+              between stops is the tour's speed, and stays.
+            </p>
           </>
         }
       >
@@ -272,6 +281,30 @@ function Page() {
               playhead={118}
               snap="sections"
               proposal={{ author: "claude", what: "3B two bars later" }}
+            />
+          </Figure>
+        </Row>
+        <Row>
+          <Figure title="Recut a section" caption="The bridge, §5, drawn back a bar: the chorus before it ends there, and the shots and the curves stay put.">
+            <Timeline
+              clock={w.clock}
+              tracks={editTracks(w.shotsIn({}))}
+              view={[100, 156]}
+              width={HALF}
+              playhead={118}
+              snap="beats"
+              recut={{ section: 4, to: w.bar(44), label: "bar 44 · 1:52.57" }}
+            />
+          </Figure>
+          <Figure title="Hold a stop longer" caption="The camera waits 1.5 s more at the third stop; the stops after it come 1.5 s later.">
+            <Timeline
+              clock={w.clock}
+              tracks={[w.camera, w.soundtrack(false), w.modulations[0]]}
+              view={[70, 126]}
+              width={HALF}
+              playhead={84}
+              snap="beats"
+              drag={{ track: w.camera.id, from: w.sectionAt(3), to: w.sectionAt(3) + 4.5, label: "holds 4.5 s · the stops after +1.5 s" }}
             />
           </Figure>
         </Row>
