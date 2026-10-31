@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { Inspector } from "../src/scene/Inspector";
+import { PanelTabs } from "../src/PanelTabs";
 import { Outliner } from "../src/scene/Outliner";
 import { Frame } from "../src/timeline/Frame";
 import { HEADER, Timeline } from "../src/timeline/Timeline";
@@ -18,27 +19,13 @@ const W = 1440;
 const H = 860;
 const PANEL = 300;
 
-/** The left panel's tabs: the history and the outliner share it. */
-function Tabs({ active }: { active: "History" | "Outliner" }) {
-  return (
-    <div className="flex h-9 shrink-0 items-center gap-1 border-b border-line px-2">
-      {(["History", "Outliner"] as const).map((tab) => (
-        <span key={tab} className={`rounded px-2 py-1 ${tab === active ? "bg-raised text-ink" : "text-muted"}`}>
-          {tab}
-        </span>
-      ))}
-      <span className="ml-auto pr-1 text-muted tabular-nums">{active === "Outliner" ? `${harbour.nodes.size} things` : "7 entries"}</span>
-    </div>
-  );
-}
-
 const lanternOpen = new Set([30, 37]);
 
 /** The outliner over the inspector, as the left panel holds them. */
 function Scene({ height, selected = [37], expanded = lanternOpen, inspector }: { height: number; selected?: number[]; expanded?: Set<number>; inspector?: ReactNode }) {
   return (
     <div className="flex flex-col bg-panel text-[12px] text-ink" style={{ width: PANEL, height }}>
-      <Tabs active="Outliner" />
+      <PanelTabs active="Outliner" count={`${harbour.nodes.size} things`} />
       <div className="flex min-h-0 flex-[11] flex-col [&>aside]:flex-1">
         <Outliner nodes={harbour.nodes} roots={harbour.roots} expanded={expanded} selected={selected} />
       </div>
@@ -258,14 +245,15 @@ function Page() {
         notes={
           <>
             <p>
-              <b>A drag on a label</b> scrubs the value, the world following; let go, and it is one entry in the history. A click types a value instead; Enter commits it,
-              Esc lets it go.
+              <b>A drag on a number</b> scrubs it, the world following, Shift for a tenth as fast; let go, and it is one entry in the history, and Esc before then puts
+              the world back. A click types a value instead; Enter commits it, Esc lets it go.
             </p>
             <p>
               <b>A refusal</b> is the authority's own words under the field, and the field goes back to what the world holds.
             </p>
             <p>
-              <b>A selection of several</b> edits them together: a field they hold alike shows its value, one they differ in shows a dash until it is set.
+              <b>A selection of several</b> edits them together: a field they hold alike shows its value, one they differ in shows a dash until it is set. A drag
+              moves each by as much as it moves the one shown; a typed value is every one's.
             </p>
           </>
         }
@@ -276,15 +264,9 @@ function Page() {
               <Inspector entity={lifted} parent="jetty" children={1} editable marks={{ "transform.position.1": { scrub: "+0.40 m · one entry when let go" } }} />
             </Alone>
           </Figure>
-          <Figure title="Refused" caption="A radius of 0 isn't a cylinder; the world keeps the one it had.">
+          <Figure title="Refused" caption="The lantern renamed lamp: a name is one thing's in a world, and the lighthouse's lamp has it.">
             <Alone height={470}>
-              <Inspector
-                entity={lantern}
-                parent="jetty"
-                children={1}
-                editable
-                marks={{ "shape.radius": { refused: "refused: a cylinder's radius is above 0 — the world is as it was" } }}
-              />
+              <Inspector entity={lantern} parent="jetty" children={1} editable marks={{ name: { refused: "refused: an entity named 'lamp' already exists" } }} />
             </Alone>
           </Figure>
           <Figure title="Changed by an agent" caption="claude moved the lantern along the jetty; the fields say so for a while.">

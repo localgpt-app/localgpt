@@ -24,7 +24,7 @@ The interface is macOS's for now. On Windows and Linux the window shows the worl
 
 ## The window {#window}
 
-What is open has its panel on the left — a document, or a package's history — the world is in the middle, the agents are on the right, and the [timeline](#timeline) runs across the foot of all three. A click in the world gives it the mouse and the keys; a click in a panel or a terminal gives them back to the page.
+What is open has its panel on the left — a document, or a package's history with its [outliner](#outliner) in a tab beside it — the world is in the middle, the agents are on the right, and the [timeline](#timeline) runs across the foot of all three. A click in the world gives it the mouse and the keys; a click in a panel or a terminal gives them back to the page.
 
 ## The modes {#modes}
 
@@ -59,6 +59,12 @@ Across the foot of the window runs the world's clock, in every mode: the shots, 
 The clock is the song while one plays; otherwise the app keeps it, and a previs with no song runs on its shot list. Where the playhead stands is when the world is shown: paused, the modulations hold there, and a click or a drag on the ruler moves it. Double-click a shot to look through it from its in point; while you look through a shot, moving the playhead cuts to the shot under it, so playing plays the cut. The toolbar plays and pauses, steps from cut to cut, loops the selected shot (else the section under the playhead) and zooms; a pinch, or ⌘ with the wheel, zooms about the pointer, and a sideways swipe pans. **S** and the speaker solo and mute the song and the ambience; the eye hides what a modulation or behavior track moves, and it stands still where the world puts it — like a mute, the world is not changed.
 
 On a live canvas the timeline edits the world. Drag a shot to move it, or an edge to trim it; where two shots meet, the cut between them rolls. The song's sections are the ruler's § band: drag a section's start along it to recut the song, double-click the band to start a section there, or drag a start onto its neighbour to join the two. Drag the end of a tour stop's hold, and the camera waits longer there while the stops after it come later by as much. The lock keeps a track's drags off. A drag snaps to beats, sections or cuts as the toolbar says (hold **⌥** to drag freely), draws a ghost while it is held, and writes nothing until it is let go — then it is one entry in the history, through the same authority the agents use, so it undoes like any other edit. **Esc** lets go without writing. With review on (`LOCALGPT_REVIEW=1`), an agent's proposal waits in the timeline too: the toolbar asks, and the shots it moves wait dashed under its name until you accept or reject it.
+
+## The outliner and the inspector {#outliner}
+
+On a live canvas the left panel has a second tab, **Outliner**: the world's things as a tree — what holds what, what kind each is, what moves it (a behavior, the song) and a camera's shot — read from the world's document, so a lantern pulsing on the beat shows the glow it was given and the timeline shows what the song does to it. Find a thing by name, or keep only shapes, meshes, lights, cameras, sounds or groups. The eye on a row hides it in the window alone; the world keeps it. A click selects, as a click in the world does, and Shift or ⌘ adds to the selection; a double-click, or **Fly to**, takes the camera to it, and a shot's **Look through** looks through its camera.
+
+Under the tree the inspector shows the selected thing part by part. Its name, transform, visibility, a shape's sizes, a material's colour, roughness and metallic, and a light's colour and intensity edit: drag a number to scrub it, the world following (Shift for a tenth as fast), or click it to type one; a slider sets where it is pressed, and a colour opens a picker. Letting go is one entry in the history for every selected thing that has the field, through the same authority the agents use — a drag moves each by as much as the one shown, a typed value is every one's — and **Esc** before then puts the world back. A refusal, such as a name another thing has, is said under the field, and the field shows the world's value again. Behaviors, what the song moves, sound and the camera read for now.
 
 ## The agents {#agents}
 
@@ -98,10 +104,10 @@ apps/app-desktop/macos/build-app.sh --debug    # a quick bundle of the debug bui
 
 The script builds the interface first (`crates/app/ui`, which needs node 22) and the release binary carries it inside. Without credentials the bundle is ad-hoc signed and runs on the Mac that built it. Given `APPLE_SIGNING_IDENTITY` and `APPLE_NOTARY_PROFILE`, the script signs with a Developer ID, enables the hardened runtime and notarizes. The shared downloads — the asset pack and, for local models, the GGUF — are not in the bundle: `scripts/fetch-assets.sh` and `scripts/fetch-model.sh` fetch them once per machine.
 
-For work on the interface itself: `npm run dev` in `crates/app/ui` serves it with reload, and `LOCALGPT_APP_UI_URL=http://localhost:5174` points the app at it; `LOCALGPT_APP_UI_OPEN=claude,shell` starts with those tabs; `LOCALGPT_APP_UI=none` leaves the interface out. In a plain browser, `?preview=document`, `world` or `song` shows the page with stand-in data, and `npm run design` serves the design sheets new interface is reviewed on before it is built.
+For work on the interface itself: `npm run dev` in `crates/app/ui` serves it with reload, and `LOCALGPT_APP_UI_URL=http://localhost:5174` points the app at it; `LOCALGPT_APP_UI_OPEN=claude,shell` starts with those tabs (`outliner` starts the left panel on its Outliner tab); `LOCALGPT_APP_UI=none` leaves the interface out. In a plain browser, `?preview=document`, `world` or `song` shows the page with stand-in data, and `npm run design` serves the design sheets new interface is reviewed on before it is built.
 
 `localgpt-gen` stays a binary of its own for the MCP server, headless generation and `--host`/`--join`, and `cargo install localgpt-gen` keeps working; it takes its prompts from the terminal it runs in, and there is no second desktop bundle.
 
 ## What is next {#next}
 
-The outliner and inspector in the page; turn marks in the history from the agents' own terminals; and the Windows host. `docs/rfcs/authoring/the-page.md` in the repository records the decision and the order.
+The inspector's other parts — behaviors, what the song moves, sound and the camera — and reparenting by a drag in the outliner; turn marks in the history from the agents' own terminals; and the Windows host. `docs/rfcs/authoring/the-page.md` in the repository records the decision and the order.

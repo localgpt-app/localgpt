@@ -93,7 +93,7 @@ The person has the same authority as the agents, and uses it through the window:
 - **Selection:** click; Shift- or Cmd/Ctrl-click adds; a drag from empty space (or a Shift-drag from anywhere) box-selects; Alt + right-drag orbits the camera around the selection.
 - **Keys on the selection:** Cmd+G groups, Cmd+D duplicates, Delete deletes; `,` and `.` turn by the angle step, `=` and `-` scale.
 
-Every gesture is one batch through the same authority, so it lands in the history as one entry, is undone with Cmd+Z, and is rolled back when the authority refuses it. The fly camera descends with **Q** (Shift is the selection's). In the [desktop app](/docs/app/) the window around the world is a page with the history and your agents in it; the outliner and an inspector for every field come back there next.
+Every gesture is one batch through the same authority, so it lands in the history as one entry, is undone with Cmd+Z, and is rolled back when the authority refuses it. The fly camera descends with **Q** (Shift is the selection's). In the [desktop app](/docs/app/) the window around the world is a page with the history, the [outliner and the inspector](/docs/app/#outliner) and your agents in it; a field let go of in the inspector is one batch the same way.
 
 ## History {#history}
 

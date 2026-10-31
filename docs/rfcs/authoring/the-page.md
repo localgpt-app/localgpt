@@ -124,11 +124,22 @@ scene, so a lantern pulsing on the beat shows the glow it was given, and the
 timeline shows what the song does to it. The remote inspector's builders,
 which read the scene, stay for the tablet and phone inspectors.
 
+The app sends the entities and the selection (`crates/app/src/scene.rs`;
+the page's half is `ui/src/scene/ScenePanel.tsx`). A field let go of is one
+`PersonIntent::Patch` — a merge patch for each selected thing that has the
+field, one entry in the history — and while a drag holds it a
+`PersonPreview` shows it on the canvas, folded by `live::patched_entity`,
+the authority's own fold, so what is shown is what the commit makes. The
+name, the transform, visibility, a shape's sizes, a material's colour,
+roughness and metallic, and a light's colour and intensity edit first. The
+eye in the outliner hides a thing in the window alone, as the timeline's
+does.
+
 ## Next
 
-1. The inspector's edits: name, transform, visibility, shape, material and
-   light first, each a `PersonIntent::Patch` batch; then behaviors, what
-   the song moves, sound and the camera.
+1. The inspector's other parts — behaviors, what the song moves, sound,
+   the camera — and reparenting by a drag in the outliner; the marks for
+   an agent's change and a waiting proposal the sheet draws.
 2. Turn marks from the page's own terminals (`TurnEnded`).
 3. The Windows host; then Linux.
 4. A render check of the page in CI, through `?preview=`.
