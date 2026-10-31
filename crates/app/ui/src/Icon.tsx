@@ -10,7 +10,25 @@ const PATHS = {
   close: "M4.5 4.5l7 7M11.5 4.5l-7 7",
   open: "M2.5 4.5h4l1.5 1.5h5.5v6.5h-11z",
   document: "M4 2.5h5l3 3v8h-8zM9 2.5v3h3M6 8.5h4M6 11h4",
+  // The timeline's kinds of track.
+  film: "M2.5 4.5h11v7h-11zM5 4.5v7M11 4.5v7",
+  camera: "M2.5 5.5h7.5v5h-7.5zM10 7.25l3.5-2v5.5l-3.5-2",
   music: "M6 11.5V4l6-1.5v7.5M4.5 11.5a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0M10.5 10a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0",
+  wave: "M1.5 8c1.5-4.5 3-4.5 4.5 0s3 4.5 4.5 0 2.5-3 4-1.5",
+  spin: "M12.5 8a4.5 4.5 0 1 1-1.3-3.2M12.5 2.5v2.75H9.75",
+  wind: "M2.5 6h7.5a2 2 0 1 0-2-2M2.5 10h9a2 2 0 1 1-2 2M2.5 8h4",
+  // Track and timeline controls.
+  eye: "M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8zM8 6.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3",
+  hidden: "M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8zM3 13 13 3",
+  speaker: "M2.5 6h2.5l3.5-3v10l-3.5-3h-2.5zM11 5.5a3.5 3.5 0 0 1 0 5",
+  mute: "M2.5 6h2.5l3.5-3v10l-3.5-3h-2.5zM10.5 6l3 4M13.5 6l-3 4",
+  lock: "M4.5 7.5h7v6h-7zM6 7.5V5.5a2 2 0 1 1 4 0v2",
+  loop: "M3 7.5V6.5a2 2 0 0 1 2-2h7.5M10.5 2.5l2 2-2 2M13 8.5v1a2 2 0 0 1-2 2H3.5M5.5 13.5l-2-2 2-2",
+  magnet: "M4 2.5v5.5a4 4 0 0 0 8 0V2.5h-2.5v5.5a1.5 1.5 0 0 1-3 0V2.5zM4 5h2.5M9.5 5H12",
+  zoomIn: "M7 3a4 4 0 1 0 0 8a4 4 0 1 0 0-8M10 10l3.5 3.5M5 7h4M7 5v4",
+  zoomOut: "M7 3a4 4 0 1 0 0 8a4 4 0 1 0 0-8M10 10l3.5 3.5M5 7h4",
+  chevronRight: "M6 4l4 4-4 4",
+  chevronDown: "M4 6l4 4 4-4",
 } as const;
 
 export type IconName = keyof typeof PATHS;

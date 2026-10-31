@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "design": "vite --config vite.design.config.ts",
+    "design:build": "vite build --config vite.design.config.ts"
   },
   "dependencies": {
     "@codemirror/commands": "6.11.1",

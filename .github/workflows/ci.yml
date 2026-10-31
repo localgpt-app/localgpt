@@ -174,11 +174,12 @@ jobs:
 
   # The desktop app's interface: one page (crates/app/ui — React, Tailwind,
   # CodeMirror, xterm.js) over the Bevy viewport, carried inside the release
-  # binary (docs/rfcs/authoring/the-page.md). The Rust side builds without
+  # binary, and the design sheets its components are reviewed on before they
+  # are wired (docs/rfcs/authoring/the-page.md). The Rust side builds without
   # it — the bevy job's app is a build with no page in it — so the page's
   # types and its build are checked here.
   interface:
-    name: The app's interface
+    name: The app's interface (page and design sheets)
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     defaults:
@@ -194,6 +195,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      - run: npm run design:build
 
   # The one web renderer. Until localgpt.world folded in here, this check lived
   # in that repository and ran against a *copy* of

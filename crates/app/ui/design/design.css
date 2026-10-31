@@ -1,0 +1,24 @@
+@import "tailwindcss";
+@import "../src/theme.css";
+@source "../src";
+
+/* The paper under the mock-ups: the sheet's own colours, never the app's. */
+@theme {
+  --color-paper: #f2f1ec;
+  --color-paper-ink: #1d2027;
+  --color-paper-muted: #5c6270;
+  --color-paper-line: #d8d5cc;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--color-paper);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
