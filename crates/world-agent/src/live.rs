@@ -1121,7 +1121,7 @@ impl Ingest {
                         self.resolve(parent)?;
                     }
                     if let Some(current) = current {
-                        for field in ["transform", "material", "light"] {
+                        for field in MERGED_FIELDS {
                             if let (Some(change @ Value::Object(_)), Some(now @ Value::Object(_))) =
                                 (patch.get_mut(field), current.get(field))
                             {
@@ -1345,6 +1345,33 @@ fn referenced_assets(manifest: &WorldManifest) -> Vec<String> {
     paths.sort();
     paths.dedup();
     paths
+}
+
+/// The entity fields a `ModifyEntity` patch merges into what is there; the
+/// rest it replaces whole.
+const MERGED_FIELDS: [&str; 3] = ["transform", "material", "light"];
+
+/// The entity a `ModifyEntity` patch would leave, folded as a batch folds
+/// it — transform, material and light merge into what is there, the rest
+/// replace it, `null` clears — with nothing committed: what a panel shows
+/// on the canvas while a drag on one of its fields is held.
+pub fn patched_entity(current: &WorldEntity, patch: &Value) -> Result<WorldEntity, String> {
+    let mut entity = to_value(current);
+    let (Some(fields), Some(patch)) = (entity.as_object_mut(), patch.as_object()) else {
+        return Err("a patch is an object".into());
+    };
+    for (field, change) in patch {
+        if change.is_null() {
+            fields.remove(field);
+            continue;
+        }
+        let next = match fields.get(field) {
+            Some(now) if MERGED_FIELDS.contains(&field.as_str()) => merged(now, change),
+            _ => change.clone(),
+        };
+        fields.insert(field.clone(), next);
+    }
+    serde_json::from_value(entity).map_err(|e| e.to_string())
 }
 
 /// JSON merge patch (RFC 7396) of `change` over `current`: objects merge
@@ -2466,6 +2493,45 @@ mod tests {
             !is_package(dir.join(MANIFEST).as_path()),
             "a file is not a package"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_patch_held_on_a_field_shows_the_entity_its_commit_makes() {
+        let (dir, mut live) = world();
+        let crate_now = on_disk(&dir).entities[1].clone();
+        let patch = json!({
+            "transform": {"position": [3.0, 0.5, 0.0]},
+            "material": {"roughness": 0.3},
+            "shape": {"Cylinder": {"radius": 0.5, "height": 1.0}}
+        });
+
+        let shown = patched_entity(&crate_now, &patch).unwrap();
+        assert_eq!(
+            shown.transform.scale,
+            [2.0, 2.0, 2.0],
+            "the transform merges"
+        );
+        assert_eq!(
+            shown.material.as_ref().map(|m| m.color),
+            Some([0.6, 0.4, 0.2, 1.0]),
+            "so does the material"
+        );
+        live.submit(
+            &json!([{"ModifyEntity": {"id": 2, "patch": patch}}]),
+            "person",
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            on_disk(&dir).entities[1],
+            shown,
+            "the commit makes what was shown"
+        );
+
+        let cleared = patched_entity(&shown, &json!({"material": null})).unwrap();
+        assert!(cleared.material.is_none(), "null clears");
+        assert!(patched_entity(&shown, &json!(["not", "a", "patch"])).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

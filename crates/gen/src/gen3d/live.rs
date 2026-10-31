@@ -37,7 +37,7 @@ use localgpt_world_agent::live::{self, LiveWorld};
 use localgpt_world_types as wt;
 use serde_json::{Value, json};
 
-use super::canvas_edit::{Named, PersonIntent};
+use super::canvas_edit::{Named, Patched, PersonIntent, PersonPreview};
 use super::ops_apply::OpsApplier;
 use super::plugin::FlyCam;
 use super::registry::GenEntity;
@@ -1188,7 +1188,7 @@ fn person_edit(
     // back from it on a refusal.
     let restore: Vec<u64> = match &intent {
         PersonIntent::Transform(moves) => moves.iter().map(|m| m.id).collect(),
-        PersonIntent::Patch { id, .. } => vec![*id],
+        PersonIntent::Patch { edits, .. } => edits.iter().map(|e| e.id).collect(),
         _ => Vec::new(),
     };
     let refuse = |live: &mut Live, applier: &mut OpsApplier<'_, '_>, why: String| {
@@ -1201,6 +1201,9 @@ fn person_edit(
                     name: Some(entity.name.clone()),
                     transform: Some(entity.transform.clone()),
                     parent: Some(entity.parent),
+                    // A shape only where there is one: clearing it would
+                    // take a mesh's away.
+                    shape: entity.shape.clone().map(Some),
                     material: Some(entity.material.clone()),
                     light: Some(entity.light.clone()),
                     ..Default::default()
@@ -1350,27 +1353,20 @@ fn person_edit(
             }
             Err(why) => return refuse(live, applier, why),
         },
-        PersonIntent::Patch {
-            id,
-            name,
-            patch,
-            what,
-        } => {
-            if live.view.doc().get(id).is_none() {
+        PersonIntent::Patch { edits, what } => {
+            let doc = live.view.doc();
+            if let Some(gone) = edits.iter().find(|e| doc.get(e.id).is_none()) {
                 return refuse(
                     live,
                     applier,
-                    format!("{name} is not in the world on screen"),
+                    format!("{} is not in the world on screen", gone.name),
                 );
             }
-            (
-                submit(
-                    live,
-                    json!([{"ModifyEntity": {"id": id, "patch": patch}}]),
-                    &what,
-                ),
-                what,
-            )
+            let ops: Vec<Value> = edits
+                .iter()
+                .map(|e| json!({"ModifyEntity": {"id": e.id, "patch": e.patch}}))
+                .collect();
+            (submit(live, Value::Array(ops), &what), what)
         }
         PersonIntent::World { patch, what } => (
             submit(live, json!([{"ModifyWorld": {"patch": patch}}]), &what),
@@ -1414,6 +1410,39 @@ fn person_edit(
             }
         }
         Err(why) => refuse(live, applier, why),
+    }
+}
+
+/// A panel's held edit on the canvas: each entity as its patch would
+/// leave it, folded as the authority folds a batch, applied to the scene
+/// alone. Nothing is committed, and the next thing the canvas applies —
+/// the commit the drag lets go as, a seek — shows the document again.
+/// While a replay or a proposal holds the canvas, a preview waits for it.
+fn person_preview(live: &Live, applier: &mut OpsApplier<'_, '_>, edits: &[Patched]) {
+    if live.replay.is_some() || live.proposal.is_some() {
+        return;
+    }
+    let ops: Vec<wt::EditOp> = edits
+        .iter()
+        .filter_map(|edit| {
+            let entity = live.view.doc().get(edit.id)?;
+            let shown = live::patched_entity(entity, &edit.patch).ok()?;
+            let touched = |field: &str| edit.patch.get(field).is_some();
+            Some(wt::EditOp::ModifyEntity {
+                id: entity.id,
+                patch: wt::EntityPatch {
+                    name: touched("name").then(|| shown.name.clone()),
+                    transform: touched("transform").then(|| shown.transform.clone()),
+                    shape: touched("shape").then(|| shown.shape.clone()),
+                    material: touched("material").then(|| shown.material.clone()),
+                    light: touched("light").then(|| shown.light.clone()),
+                    ..Default::default()
+                },
+            })
+        })
+        .collect();
+    if !ops.is_empty() {
+        applier.apply_ops(&for_scene(&ops, live.world.dir()));
     }
 }
 
@@ -1677,6 +1706,7 @@ pub(super) fn live_world(
     mut thumbs_dirty: ResMut<super::shots::ThumbsDirty>,
     mut seeks: MessageReader<SeekTo>,
     mut intents: MessageReader<PersonIntent>,
+    mut previews: MessageReader<PersonPreview>,
     mut shot_ops: MessageReader<super::shots::ShotOps>,
     mut decisions: MessageReader<ReviewDecision>,
     mut selection: Option<ResMut<InspectorSelection>>,
@@ -2002,6 +2032,12 @@ pub(super) fn live_world(
     let decided: Vec<bool> = decisions.read().map(|d| d.0).collect();
     for accept in decided {
         decide(live, &mut applier, accept);
+    }
+
+    // A panel's held edits, shown ahead of the document — before the
+    // commits, so a drag let go in the same frame lands as committed.
+    for preview in previews.read() {
+        person_preview(live, &mut applier, &preview.0);
     }
 
     // A person's edits, committed at the entry on screen.

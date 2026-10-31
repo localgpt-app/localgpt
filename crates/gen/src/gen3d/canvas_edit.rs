@@ -87,6 +87,7 @@ pub struct PersonEdits;
 impl Plugin for CanvasEditPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<PersonIntent>()
+            .add_message::<PersonPreview>()
             .init_resource::<CanvasGesture>()
             .init_resource::<CanvasSettings>()
             .init_resource::<Handles>()
@@ -156,14 +157,10 @@ pub enum PersonIntent {
     Duplicate(Vec<u64>),
     /// Gather entities under a new empty at their centroid.
     Group(Vec<Named>),
-    /// A field edit from a panel: a merge patch for one entity, as
-    /// `ModifyEntity` takes it, and what to call the change.
-    Patch {
-        id: u64,
-        name: String,
-        patch: Value,
-        what: String,
-    },
+    /// A field edit from a panel: a merge patch for each entity it
+    /// changes, as `ModifyEntity` takes it — several when several are
+    /// selected, one entry all the same — and what to call the change.
+    Patch { edits: Vec<Patched>, what: String },
     /// A scene-wide edit from a panel: a `ModifyWorld` patch.
     World { patch: Value, what: String },
     /// Undo on the path to the entry on screen: the person's own newest
@@ -172,6 +169,23 @@ pub enum PersonIntent {
     /// Take the person's own newest undo back.
     Redo,
 }
+
+/// One entity a panel's edit changes: its merge patch, and its name for
+/// the history to read.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Patched {
+    pub id: u64,
+    pub name: String,
+    pub patch: Value,
+}
+
+/// A panel's edit while it is held — a drag on a field — shown on the
+/// canvas ahead of the document: each entity as its patch would leave it,
+/// nothing committed. The [`PersonIntent::Patch`] the drag lets go as
+/// commits it; a preview of the values the document holds puts the scene
+/// back.
+#[derive(Message, Debug, Clone, PartialEq)]
+pub struct PersonPreview(pub Vec<Patched>);
 
 /// One entity a gesture took.
 #[derive(Debug, Clone, PartialEq)]
