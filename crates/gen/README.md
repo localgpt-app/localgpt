@@ -14,19 +14,14 @@ Or via Docker:
 docker pull ghcr.io/localgpt-app/localgpt-gen:latest
 ```
 
-## Prompt panel and desktop mode
+## The terminal and the window
 
-Run `localgpt-gen` and type prompts in the terminal, or press **F2** to type
-them in a panel inside the window. The panel shows replies and tool calls as
-they happen, and has a menu of the models this machine can use (installed
-Claude CLI, Gemini CLI, or Codex, and local Ollama models).
-
-Started without a terminal (for example as a macOS app) or with `--desktop`,
-Gen runs in **desktop mode**: the panel opens at startup and replaces the
-terminal. **Enter** jumps from the 3D view to the prompt box and **Esc**
-leaves it. Gen's desktop shell is also the LocalGPT app's (`crates/app`),
-which opens documents and songs as worlds too; its macOS bundle is built by
-`apps/app-desktop/` in the repository.
+Run `localgpt-gen` and type prompts in the terminal; the replies stream there
+and the window shows the world being built. Gen draws no panels of its own.
+The windowed app without a terminal is the LocalGPT app (`crates/app`), which
+opens documents, songs and `.world` packages as worlds, and puts the coding
+agents you already use — Claude Code, Codex and the rest — in tabs beside the
+world; its macOS bundle is built by `apps/app-desktop/` in the repository.
 
 ## MCP Server Setup
 

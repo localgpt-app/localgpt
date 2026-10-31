@@ -1,6 +1,11 @@
 # Should egui go?
 
-**Status:** evaluation, 2026-10-16. Answers one question for the Bevy apps
+**Status:** superseded, 2026-10-30, by [the-page.md](the-page.md): egui
+went, and so did the `bevy_ui` and feathers chrome this evaluation staged it
+onto; the app's interface is one web page over the viewport. Kept for the
+inventory and the reasons.
+
+**Was:** evaluation, 2026-10-16. Answers one question for the Bevy apps
 (`crates/gen`, `crates/app`): remove `bevy_egui`, and if so when. The pure
 egui apps — `localgpt desktop` (`crates/cli`, eframe) and `worldprobe`
 (eframe, its own repository) — are not in scope: there egui is the whole

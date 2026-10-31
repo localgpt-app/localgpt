@@ -2,7 +2,10 @@
 
 **Status:** proposal, partly built — the headless core is
 `crates/world-editor` (see [Built, and what it found](#built-and-what-it-found));
-the chrome and the reconciler are not. Greenfield: it assumes no existing
+the reconciler is not. Its chrome section is superseded (2026-10-30) by
+[the-page.md](the-page.md): the chrome is a web page over the viewport, not
+Bevy's own widgets; the rule that the ECS is a projection of a fold stands.
+Greenfield: it assumes no existing
 choice in `crates/gen` is load-bearing. Companion to
 [agents-outside-the-window.md](agents-outside-the-window.md), which answers
 where the person types; this answers what the editor is built out of when
@@ -108,7 +111,7 @@ thing that makes a branch rail honest about convergence.
 
 ## Chrome: Bevy's own widgets, not egui
 
-(Evaluated on 2026-10-16 against the inventory then: [`egui-or-not.md`](egui-or-not.md) — the direction stands, the removal is staged per surface, nothing new goes on egui.)
+(Superseded 2026-10-30 by [`the-page.md`](the-page.md): neither — the chrome is a web page over the viewport. Evaluated on 2026-10-16 against the inventory then: [`egui-or-not.md`](egui-or-not.md).)
 
 (A reading of Blender's source for what its editor does that ours should — operators, modal keymaps, region-scoped input, the outliner's drop zones, the depsgraph's authored-versus-evaluated split: [`blender-lessons.md`](blender-lessons.md), 2026-10-17.)
 

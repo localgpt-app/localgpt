@@ -52,16 +52,21 @@ cargo run -p localgpt-gen -- -v                    # Verbose logging
 cargo run -p localgpt-gen -- --host                # Host a collaborative session (mDNS, UDP 9879)
 cargo run -p localgpt-gen -- --join 192.168.1.5    # Join a session (or --join to browse)
 
-# The one desktop app — Gen's shell, documents and songs as modes
+# The one desktop app — Gen's world, one web page around it (crates/app/ui:
+# React, Tailwind, CodeMirror, xterm.js) with the agents' own terminals in it
+(cd crates/app/ui && npm ci && npm run build)      # the page, once; the binary carries it
 cargo run -p localgpt-app                          # reopens what was opened last
 cargo run -p localgpt-app -- --md notes.md         # edit a document, the world rebuilds
 cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
-cargo run -p localgpt-app -- --prompt "a quiet harbor at dusk"
 cargo run -p localgpt-app -- --world harbour.world  # a .world package opens as a live canvas:
                                                    # agents edit through its API ("at" an
-                                                   # earlier entry forks), the history rail
-                                                   # shows branches, head @ ([ ] to step)
+                                                   # earlier entry forks), the history panel
+                                                   # draws the branches and plays them
 cargo run -p localgpt-app --features local-llm-metal -- --md doc.md   # in-process GGUF
+(cd crates/app/ui && npm run dev)                  # the page with reload; run the app with
+                                                   # LOCALGPT_APP_UI_URL=http://localhost:5174
+(cd crates/app/ui && npm run design)               # the design sheets: new interface is drawn
+                                                   # there and reviewed before it is wired
 
 # MD — a Markdown file as a walkable world
 cargo run -p localgpt-md                           # samples/hello.md
@@ -151,7 +156,7 @@ crates/
 ├── sandbox/      # localgpt-sandbox — Landlock/Seatbelt kernel-enforced shell isolation
 ├── mobile-ffi/   # localgpt-mobile-ffi — UniFFI bindings for iOS/Android
 ├── gen/          # localgpt-gen — Bevy 3D scene generation binary
-├── app/          # localgpt-app — the one desktop app: Gen's shell, documents and songs as modes
+├── app/          # localgpt-app — the one desktop app: Gen's world, documents and songs as modes; its interface is the web page in app/ui (docs/rfcs/authoring/the-page.md)
 ├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
 ├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin; `song_world`)
 ├── previs/       # localgpt-previs — screenplay (Fountain, Final Draft .fdx, PDF or Markdown pages) → per-scene .world with set/cast/coverage + board (deterministic)
@@ -530,7 +535,8 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
   (`.github/workflows/ci.yml`) runs fmt, clippy and tests for the workspace
   with the four Bevy crates (`gen`, `md`, `verse`, `world-bevy`) in their own
   job, a `features` job for the opt-in tiers (`llm`, `local-llm`, `ml` — gated
-  code is not compiled by anything else), a `viewer` job running
+  code is not compiled by anything else), an `interface` job that typechecks
+  and builds the app's page and its design sheets (`crates/app/ui`), a `viewer` job running
   `website-world`'s headless render check, plus cargo-deny (`deny.toml`); advisories run on main and weekly, never on
   pull requests. ONNX Runtime setup is the local composite action
   `.github/actions/onnxruntime`.

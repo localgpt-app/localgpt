@@ -45,9 +45,9 @@ The window shows the set, the stand-ins and the cameras, and prints the folder's
 
 In the window:
 
-- **Look through a shot** — click its card in the shot strip, or press its number (1–9). The free camera becomes that shot's camera, letterboxed to its frame; Esc hands the free camera back.
-- **Reorder** — drag cards in the strip. The reorder is one history entry, undoable like any edit.
-- **The board** — the strip's buttons open the folder's `GET /board` in the browser: the tip on screen as a printable board, or two tips side by side with the changed shots marked.
+- **Look through a shot** — press its number (1–9). The free camera becomes that shot's camera, letterboxed to its frame; Esc hands the free camera back.
+- **The board** — the folder's `GET /board` is the tip on screen as a printable board, or two tips side by side with the changed shots marked (`?vs=<id>`); open it in the browser.
+- **The shots on a timeline** — cut to the song, reordered and trimmed like clips — are designed and next in the [desktop app](/docs/app/#next).
 
 `localgpt-app --world previs/scene-1.world` opens the same package in the one-app window: it recognizes a package and opens it live.
 
@@ -84,7 +84,7 @@ A revision batch sent `at` an earlier entry (`POST /ops?at=<id>`, an id from `GE
 GET /board?tip=<a>&vs=<b>
 ```
 
-The history rail in the window draws every branch, and `POST /goto` moves the canvas to any point without writing anything — a view move, not an edit.
+The desktop app's history panel draws every branch, and `POST /goto` moves the canvas to any point without writing anything — a view move, not an edit.
 
 ## Where this is going {#next}
 

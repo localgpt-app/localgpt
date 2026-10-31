@@ -4,6 +4,22 @@ All notable changes to LocalGPT are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Your coding agents, in the desktop app.** A tab per agent — Claude Code, Codex, agy, Gemini CLI, OpenCode, or a shell — each a full terminal (xterm.js over a PTY) started through the login shell in the folder of what is open, so a package's agent finds its `AGENTS.md` and endpoint where it starts. The app knows each agent by its command's name only: no keys, models or settings.
+- **Design sheets for the interface** (`npm run design` in `crates/app/ui`): static pages drawn with the app's own components and fixtures, reviewed before anything is wired. The first is the timeline — the song, shots, tour, modulations, behaviors and ambience on one clock, across the window's whole width.
+
+### Changed
+
+- **The desktop app's interface is one web page over the world** — React, Tailwind, CodeMirror and xterm.js in a transparent web view over the Bevy viewport, carried inside the release binary (`crates/app/ui`). The world is drawn natively in the page's hole, and a click there goes to it. The document panel (outline, place card, the text in CodeMirror), the history as a graph with its own transport, the song's transport and Open… are the page's. macOS for now; on Windows and Linux the window shows the world alone until their hosts land. `apps/app-desktop/macos/build-app.sh` builds the page first and needs node 22. The decision is `docs/rfcs/authoring/the-page.md`.
+- **`localgpt-gen` takes its prompts from the terminal.** It draws no panels; the windowed app without a terminal is `localgpt-app`.
+
+### Removed
+
+- **egui and the `bevy_ui` chrome**: `bevy_egui` and the `feathers` feature, Gen's inspector (outliner, detail panel, world bar), gallery, shot strip, review bar, history rail and history panel, and the app's egui panes. Selection, the canvas's gestures and keys, review by Enter and Esc, shot look-through, and the remote inspector's WebSocket stay. `GET /widgets` went with the widgets.
+- **The app's half of the harness** (`docs/rfcs/authoring/the-harness-goes.md`): the prompt panel, the model menu, `--prompt`, `--tools`, `mcp-server --connect` and the Collaborate section; and Gen's desktop mode, `--desktop`, with the viewer's prompt panel. Collaboration stays on `localgpt-gen --host` and `--join`; document authoring keeps its model.
+- **herdr as the pane host**, and `GET /agents`: the app hosts the agents' terminals itself. Turn marks in the history arrive as a `TurnEnded` message.
+
 ## [0.4.2] - 2026-10-30
 
 ### Changed

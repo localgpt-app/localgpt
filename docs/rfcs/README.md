@@ -31,7 +31,8 @@ this order; each answers what the previous one left open.
 | [authoring/agents-outside-the-window.md](authoring/agents-outside-the-window.md) | proposal — where the person types once Gen has no agent of its own: launch, speak ACP, or emulate a terminal. Adopt ACP at protocol v1; Zed's code is GPL and cannot be used |
 | [authoring/the-cli-and-the-world.md](authoring/the-cli-and-the-world.md) | decided, partly built — the CLI is the world's command line and the services other agents use, not another coding agent. `localgpt world` and `localgpt world mcp` exist. Its §3–4 are superseded by the next row |
 | [authoring/the-harness-goes.md](authoring/the-harness-goes.md) | proposal — 0.5.0 removes the agent harness: `localgpt` becomes `world`, `world mcp`, `doctor` and `setup`; the app ships through cargo-dist and a desktop workflow; the agents come from their makers, never from here |
-| [authoring/world-editor-stack.md](authoring/world-editor-stack.md) | proposal, partly built — the stack when history is the product. One rule: the ECS is a one-way projection of a fold. The headless core is `crates/world-editor` |
+| [authoring/world-editor-stack.md](authoring/world-editor-stack.md) | proposal, partly built — the stack when history is the product. One rule: the ECS is a one-way projection of a fold. The headless core is `crates/world-editor`; its chrome section is superseded by the next row |
+| [authoring/the-page.md](authoring/the-page.md) | decided, built on macOS — one interface: a web page (React, CodeMirror, xterm.js) over the Bevy viewport, with the agents' own terminals in it. egui and the `bevy_ui` chrome went; [egui-or-not.md](authoring/egui-or-not.md) is superseded |
 
 ## Multiplayer — collaborative rooms
 

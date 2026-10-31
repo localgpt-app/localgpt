@@ -33,10 +33,10 @@ cargo install localgpt           # `localgpt world` and the shim; the assistant 
 # From source — the desktop app ships as a build, not a crate
 git clone https://github.com/localgpt-app/localgpt.git
 cd localgpt
+(cd crates/app/ui && npm ci && npm run build)         # the app's interface, once (node 22)
 cargo run -p localgpt-app                             # reopens what was opened last
 cargo run -p localgpt-app -- --md notes.md            # a document as a world
 cargo run -p localgpt-app -- --song track.mp3         # a song as a world that performs it
-cargo run -p localgpt-app -- --prompt "a quiet harbor at dusk"
 cargo run -p localgpt-app -- --world scene-1.world    # a package, opened as a live canvas
 apps/app-desktop/macos/build-app.sh                   # LocalGPT.app for macOS
 
@@ -49,15 +49,13 @@ Rust stable (edition 2024, so 1.85 or newer). On Linux the desktop crates need B
 
 ## The desktop app: one window, every mode
 
-`localgpt-app` is Gen's shell — a Bevy viewport, a prompt panel, an agent loop — with documents, songs and packages as inputs. **Open…** at the top of the window takes any of them; the launch flags above do the same.
+`localgpt-app` is Gen's world in a Bevy viewport with one interface around it — a web page over the window — and your own coding agents in it: **Claude Code**, **Codex**, **agy**, **Gemini CLI**, **OpenCode** or a shell, each a full terminal in a tab, started in the folder of what is open. The app runs no agent of its own and manages no agent's configuration. **Open…** at the top of the window takes a document, a song or a world; the launch flags above do the same.
 
-- **A prompt.** Type in the panel (**F2**), watch the reply stream in with each tool call as it runs. The model menu lists what this machine can use right now: installed CLI backends (Claude CLI, Gemini CLI, Codex), models pulled into a local Ollama, and every GGUF in the shared model folder, run in-process when built with `local-llm` (`local-llm-metal` on Apple Silicon). The app reads no `config.toml`; the choice is remembered in Gen's own settings.
-- **A document.** An editor pane (**F3**) beside the viewport. The file saves and the world rebuilds shortly after typing stops, in place, changing only the sections whose text changed. The app's model authors each section's place in the background; the cursor moving into a section flies the camera there, and picking a thing in the world selects it in the inspector (**F1**). Builds are cached beside the document, so a restart reopens them without a model call.
-- **A song.** Verse's on-device analysis — tempo, a beat grid, sections, an energy curve, a mood — picks and furnishes the world; the soundtrack plays on the shared mixer and the world's modulations follow it. No model, no key, no upload.
-- **A package.** A `.world` folder opens as a live canvas: the window holds the authority and serves the folder's API, and agents edit from outside (next section).
-- **Together.** Host or join a collaborative session from the panel's Collaborate section; guests' prompts run on a scene-only agent.
+- **A document.** The outline, the selected section's place and the text in an editor beside the world. The file saves and the world rebuilds shortly after typing stops, in place, changing only the sections whose text changed. A model authors each section's place in the background; the cursor moving into a section flies the camera there, and clicking a thing in the world brings its section into view. Builds are cached beside the document, so a restart reopens them without a model call.
+- **A song.** Verse's on-device analysis — tempo, a beat grid, sections, an energy curve, a mood — picks and furnishes the world; the soundtrack plays on the shared mixer, the world's modulations follow it, and a transport under the world pauses it. No model, no key, no upload.
+- **A package.** A `.world` folder opens as a live canvas: the window holds the authority and serves the folder's API, the history is drawn as a graph you step and play through, and agents edit from outside (next section) — from the tabs beside it, or anywhere else.
 
-Docs: [The desktop app](https://localgpt.app/docs/app/). `localgpt-gen` stays a binary of its own for the MCP server, headless generation and `--host`/`--join`; there is one desktop bundle, `LocalGPT.app`, built by `apps/app-desktop/`.
+The interface is macOS's for now; on Windows and Linux the window shows the world alone. A timeline for the world's clock — song, shots, tour — is designed and next. Docs: [The desktop app](https://localgpt.app/docs/app/). `localgpt-gen` stays a binary of its own for the MCP server, headless generation and `--host`/`--join`; there is one desktop bundle, `LocalGPT.app`, built by `apps/app-desktop/`.
 
 ## A world is a package, and agents edit it from outside
 
@@ -90,8 +88,8 @@ localgpt world mcp scene-1.world
 claude mcp add scene -- localgpt world mcp scene-1.world     # then ask Claude Code to change the world
 ```
 
-- **People edit too.** Handles in the viewport (move, turn, scale, with snapping), an inspector that edits every field of the selected entity, an outliner that reparents by drag. Every gesture is one batch through the same authority, one entry in the history, undone with Cmd+Z. Undo is per author, with redo. With `--review`, an agent's batch shows on the canvas before it commits and you accept or reject it.
-- **History is a tree.** A batch sent `at` an earlier entry starts a branch while the head stays put. The history rail draws every branch; **H** opens the history panel — the log as a graph with a scrubber and playback, so you watch the world being made. `POST /goto` moves the canvas to any point without writing anything. `localgpt-gen --replay` plays a session back as a time-lapse.
+- **People edit too.** Handles in the viewport (move, turn, scale, with snapping), and keys to group, duplicate and delete. Every gesture is one batch through the same authority, one entry in the history, undone with Cmd+Z. Undo is per author, with redo. With `--review`, an agent's batch shows on the canvas before it commits and you accept or reject it.
+- **History is a tree.** A batch sent `at` an earlier entry starts a branch while the head stays put. The desktop app draws the log as a graph, a lane per branch, with a transport that steps, scrubs and plays it, so you watch the world being made. `POST /goto` moves the canvas to any point without writing anything. `localgpt-gen --replay` plays a session back as a time-lapse.
 - **Git, if you want it.** `localgpt world init demo.world --git` makes every batch a commit by whoever sent it; a checkout under the open app is followed; `verify` checks that folding the log gives the manifest.
 - **Guards.** A direct write to `manifest.json` is put back and noted; a batch may carry the revision it was decided on and is refused if the world moved; a name nothing has refuses the batch, naming it.
 
@@ -138,7 +136,7 @@ Posing, animatics and a generated look wait until people who previs today have u
 `localgpt-gen` builds explorable worlds from natural language with the Bevy engine, and is the piece other tools drive.
 
 ```bash
-localgpt-gen                                        # interactive: type prompts in the terminal, or press F2 for the panel
+localgpt-gen                                        # interactive: type prompts in the terminal, the world in the window
 localgpt-gen "a desert at dusk, pyramids, a UFO hovering above"
 localgpt-gen --world https://localgpt.world/worlds/md-deck.json   # open a world folder, a saved name, a manifest or a URL
 localgpt-gen --live demo.world                      # the live canvas (above)
@@ -243,7 +241,7 @@ CI runs fmt, clippy and tests, the Bevy crates in their own job, a job for the o
 
 ## Built With
 
-Rust, Tokio, Axum, Bevy, egui, kira and FunDSP, three.js, SQLite (FTS5 + sqlite-vec), fastembed, mistral.rs, wasm-bindgen, Zola, Cloudflare Workers
+Rust, Tokio, Axum, Bevy, React and Tailwind, CodeMirror, xterm.js, kira and FunDSP, three.js, SQLite (FTS5 + sqlite-vec), fastembed, mistral.rs, wasm-bindgen, Zola, Cloudflare Workers
 
 ## Contributors
 

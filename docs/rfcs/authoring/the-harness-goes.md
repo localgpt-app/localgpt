@@ -250,6 +250,10 @@ decided* because it is not this document's to make alone.
 - [x] `.github/workflows/desktop.yml` and `packaging/homebrew/cask.sh`,
       2026-10-27 — written, not yet run; the first `desktop-v` tag is the
       first run
+- [x] the app's half: the prompt panel, the model menu, `--prompt`,
+      `mcp-server --connect`, the collaboration panel and Gen's desktop mode,
+      2026-10-30 — with the interface's move to a web page
+      ([the-page.md](the-page.md)); document authoring keeps its model
 - [ ] the first release of `LocalGPT.app`; the tap; the Install page
 - [ ] cargo-dist for the 0.5.0 CLI
 - [ ] 0.5.0: the removal; `doctor` and `setup`

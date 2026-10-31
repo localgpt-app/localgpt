@@ -1,6 +1,9 @@
 # Agents outside the window: what gives Gen a prompt back when the harness goes
 
-**Status:** proposal. Assumes the embedded harness in `crates/gen` is removed
+**Status:** proposal; tier 2 built (2026-10-30). The app hosts each agent's
+terminal in its page — xterm.js over a PTY, the third door below — and
+herdr's pane (tier 0) went with the bar that opened it: see
+[the-page.md](the-page.md). Assumes the embedded harness in `crates/gen` is removed
 in favour of the filesystem-and-API pattern proved in
 [live-editing-poc.md](live-editing-poc.md). Evidence from two editors that
 already made this choice: `external/orca` (Electron, xterm.js, node-pty) and

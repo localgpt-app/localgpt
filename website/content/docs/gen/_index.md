@@ -74,31 +74,14 @@ The agent receives your prompt and iteratively builds a world — spawning shape
 
 `--world` imports a world file or URL into `skills/<name>/` in your workspace, with the meshes and audio it references, then opens it; from there it saves like any world you made. Running the same command again opens that copy rather than importing over your edits; delete the folder to import afresh.
 
-## Prompt Panel & Desktop Mode
+## The terminal and the window
 
-You don't need to keep a terminal beside the window. Press **F2** in the Gen window to open the **prompt panel**: type a prompt, press **Enter**, and watch the reply stream in, with each tool call shown as it runs. Prompts you send while Gen is busy wait in a queue.
+`localgpt-gen` takes its prompts from the terminal it was started in: the reply streams there, and the window shows the world being built. The windowed app without a terminal is the [LocalGPT desktop app](/docs/app/), which opens documents, songs and `.world` packages, and hosts your own coding agents — Claude Code, Codex and the rest — in tabs beside the world; build its macOS bundle with `apps/app-desktop/macos/build-app.sh` from the repository.
 
-```bash
-# Desktop mode: the panel opens at startup and replaces the terminal prompt
-localgpt-gen --desktop
-```
+- **The model** is the one named in Gen's settings (`default_model` in `~/.local/state/localgpt/gen-settings.json`), else a local GGUF, else the first installed CLI backend (Claude CLI, Gemini CLI, Codex); `/model <name>` switches it in the terminal. Gen reads no `config.toml`.
+- **Slash commands:** `/model <name>`, `/new`, `/clear`, and `/quit`.
 
-Gen switches to desktop mode on its own when it isn't started from a terminal. The same shell is the [LocalGPT desktop app](/docs/app/), which also opens documents, songs and `.world` packages; build its macOS bundle with `apps/app-desktop/macos/build-app.sh` from the repository.
-
-| Key | What it does |
-|-----|--------------|
-| **F2** | Show or hide the panel |
-| **Enter** | Send the prompt (in the prompt box), or jump to the prompt box (in the 3D view) |
-| **Shift+Enter** | Start a new line |
-| **Esc** | Leave the prompt box so WASD moves you again |
-
-- **Model menu:** lists the models this machine can use right now, meaning installed CLI backends (Claude CLI, Gemini CLI, Codex), models pulled into a local Ollama, and — in a build with `local-llm` or `local-llm-metal` — every GGUF in the shared model folder (`~/.local/share/localgpt/models/llm`). A switch is remembered in Gen's own settings (`~/.local/state/localgpt/gen-settings.json`); Gen reads no `config.toml`. A CLI backend only appears if Gen started on that backend, because its tool connection is set up at startup.
-- **Slash commands:** `/model <name>`, `/new`, `/clear`, and `/quit` work in the panel. The other commands print their results in the terminal.
-- **First run:** if your model is a CLI backend that isn't installed, the panel says so instead of failing silently. Opened from Finder, Gen reads your login shell's `PATH`, so `claude`, `gemini`, and `codex` installed with Homebrew, npm, or into `~/.local/bin` are found.
-- **Logs:** desktop mode has no terminal, so it logs to `~/.local/state/localgpt/logs/gen-desktop.log`.
-- **Hosting:** with `--host`, the panel shows the session name and the current PIN, and friends' prompts appear in it as they run.
-
-With a CLI backend, tools run through the [MCP relay](/docs/gen/cli-mode), so the panel shows the model's text but not each tool call.
+With a CLI backend, tools run through the [MCP relay](/docs/gen/cli-mode).
 
 ## Three Ways to Use Gen (with Bevy Window)
 

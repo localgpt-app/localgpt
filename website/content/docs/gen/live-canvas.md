@@ -1,6 +1,6 @@
 ---
 title: "Live canvas"
-description: "A .world package opened as a live canvas: agents change it from outside through a local API while you watch, people edit it with handles and panels, and every change is one entry in a history that branches — undo per author, review, replay, git."
+description: "A .world package opened as a live canvas: agents change it from outside through a local API while you watch, people edit it with handles, and every change is one entry in a history that branches — undo per author, review, replay, git."
 ---
 
 # Live canvas
@@ -91,22 +91,21 @@ The person has the same authority as the agents, and uses it through the window:
 
 - **Handles** on the selection: three arrows move along an axis, three rings turn about one (red X, green Y, blue Z), a cube scales uniformly; Alt-drag an arrow to scale along that axis alone. **Y** toggles grid and angle snapping (Cmd/Ctrl held inverts); **L** switches the handles to the entity's own axes. Arrow keys nudge and turn.
 - **Selection:** click; Shift- or Cmd/Ctrl-click adds; a drag from empty space (or a Shift-drag from anywhere) box-selects; Alt + right-drag orbits the camera around the selection.
-- **The inspector** (**F1**): the detail panel edits every field of the selected entity — name, transform, shape, material, light, behaviors and their targets, audio, mesh, parent — and the outliner reparents by drag and offers duplicate, delete, unparent, group and focus from its context menu. Cmd+G groups, Cmd+D duplicates, Delete deletes.
-- **The bottom bar** keeps camera bookmarks (a `bookmarks` tour in the document), the review toggle, and the status line that names a refused direct write.
+- **Keys on the selection:** Cmd+G groups, Cmd+D duplicates, Delete deletes; `,` and `.` turn by the angle step, `=` and `-` scale.
 
-Every gesture is one batch through the same authority, so it lands in the history as one entry, is undone with Cmd+Z, and is rolled back when the authority refuses it. The fly camera descends with **Q** (Shift is the selection's).
+Every gesture is one batch through the same authority, so it lands in the history as one entry, is undone with Cmd+Z, and is rolled back when the authority refuses it. The fly camera descends with **Q** (Shift is the selection's). In the [desktop app](/docs/app/) the window around the world is a page with the history and your agents in it; the outliner and an inspector for every field come back there next.
 
 ## History {#history}
 
 The history is a tree, and the canvas can show any point in it without writing anything.
 
 - **Undo is per author, with redo.** Cmd+Z takes back your own newest change, Cmd+Alt+Z anyone's, Cmd+Shift+Z redoes. An undo appends the inverse — nothing is ever removed from the log — and an own undo that a later batch built on is refused naming that entry. Over the API: `POST /undo` (with an `own` flag) and `POST /redo`.
-- **Branches.** A batch sent `at` an earlier entry (`POST /ops?at=<id>`, an id from `GET /log` or `GET /tips`) starts a branch there; the head — `manifest.json`, main's tip — stays where it was. The canvas follows a commit that continues what is on screen and otherwise only grows the rail, so an agent working on main never yanks a person off the point they chose.
-- **The history rail** lists the log and draws every branch; **H** opens the **history panel**: every entry a node left to right in write order, one lane per branch, the head and the entry on screen marked, authors by colour, the message of the node under the pointer below. Click a node to seek there; drag the scrubber; press play to walk the entries at 1x to 8x, at a fixed pace or at the pace they were written, and watch the world being made. Every move is a seek — `POST /goto` — so nothing is written.
+- **Branches.** A batch sent `at` an earlier entry (`POST /ops?at=<id>`, an id from `GET /log` or `GET /tips`) starts a branch there; the head — `manifest.json`, main's tip — stays where it was. The canvas follows a commit that continues what is on screen and otherwise only grows the history, so an agent working on main never yanks a person off the point they chose.
+- **The history panel** in the [desktop app](/docs/app/#package) draws the log as `git log --graph` does: newest at the top, one lane per branch, main's head and the entry on screen marked. Click an entry to seek there; the transport under it steps through the entries in write order, scrubs, and plays them, so you watch the world being made. Every move is a seek — `POST /goto` — so nothing is written.
 - **Replay.** `localgpt-gen --replay <ops.jsonl | package | .world archive>` rebuilds a world batch by batch in the window as a time-lapse, loading each commit's own assets.
 - **Git.** In a package made with `--git`, every batch is a commit authored by whoever sent it; `localgpt world history` walks them, and a `git checkout` under the open app is followed within a moment.
 - **Verify.** `GET /verify` or `localgpt world verify` checks that folding the log gives the manifest, and that the assets match their hashes.
-- **Guards.** A direct write to `manifest.json` is put back as it was and noted in `.live/refusals.jsonl` (`GET /refusals`) and on the bottom bar: the world changes only through ops.
+- **Guards.** A direct write to `manifest.json` is put back as it was and noted in `.live/refusals.jsonl` (`GET /refusals`) and in the history's status line: the world changes only through ops.
 
 ## The API at a glance {#routes}
 
@@ -144,4 +143,4 @@ See [CLI Commands](/docs/cli-commands/#world).
 
 ## Where this is going {#next}
 
-Where the person types once the window has no agent of its own — launch a coding agent beside the canvas, speak the Agent Client Protocol, or host a terminal pane — is the open question; the window already follows an agent pane's status when [herdr](https://github.com/herdrdev/herdr) hosts one. The RFCs are in the repository under `docs/rfcs/authoring/`, and the [previs](/docs/gen/previs/) walk is the live canvas in use.
+The window has no agent of its own, and the [desktop app](/docs/app/#agents) hosts yours instead: Claude Code, Codex and the rest, each in a full terminal in a tab beside the world, started in the package's folder. A timeline for the world's clock is designed and next. The RFCs are in the repository under `docs/rfcs/authoring/`, and the [previs](/docs/gen/previs/) walk is the live canvas in use.
