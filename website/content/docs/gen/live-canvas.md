@@ -40,7 +40,7 @@ The window prints the API:
 [live] scene-1.world · revision 0 · API http://127.0.0.1:57822 (see scene-1.world/AGENTS.md)
 ```
 
-Any folder with a `manifest.json` will do — a previs draft from [localgpt.md](https://localgpt.md), a world Gen saved, an example from the format's repository. A package drafted elsewhere gets its `AGENTS.md` and `assets/` when it opens. To start from nothing:
+Any folder with a `manifest.json` will do — a previs draft from [localgpt.md](https://localgpt.md), a world Gen saved, an example from the format's repository. A package drafted elsewhere gets its `AGENTS.md` and `assets/` when it opens. A world with a soundtrack performs it, as a loaded world does: the file in its `assets/` plays, and the curves drive the modulations. To start from nothing:
 
 ```bash
 localgpt world init demo.world --git       # a new package; --git makes every batch a commit

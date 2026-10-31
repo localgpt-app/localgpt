@@ -1,12 +1,12 @@
 ---
 slug: "/app"
 title: "The desktop app"
-description: "LocalGPT's one desktop app: a Markdown document, a song or a .world package opens as a world in the same window, with the history, the document, the song and your own coding agents around it — the modes, the agents' tabs, the keys, and how to build LocalGPT.app."
+description: "LocalGPT's one desktop app: a Markdown document, a song or a .world package opens as a world in the same window, with the history, the document, the timeline and your own coding agents around it — the modes, the agents' tabs, the keys, and how to build LocalGPT.app."
 ---
 
 # The desktop app
 
-There is one LocalGPT desktop app, `localgpt-app`, and its modes are the apps that used to be separate: a world from a **Markdown document** (MD), from a **song** (Verse), or any **`.world` package** opened as a live canvas, which agents change from outside. The world is Gen's Bevy viewport; around it is one interface — the document and its outline, the history and its playback, the song's transport — and, in tabs, the coding agents you already use, each in a full terminal.
+There is one LocalGPT desktop app, `localgpt-app`, and its modes are the apps that used to be separate: a world from a **Markdown document** (MD), from a **song** (Verse), or any **`.world` package** opened as a live canvas, which agents change from outside. The world is Gen's Bevy viewport; around it is one interface — the document and its outline, the history and its playback, the timeline of the world's clock — and, in tabs, the coding agents you already use, each in a full terminal.
 
 ```bash
 # from a checkout of the repository
@@ -24,7 +24,7 @@ The interface is macOS's for now. On Windows and Linux the window shows the worl
 
 ## The window {#window}
 
-What is open has its panel on the left — a document, or a package's history — the world is in the middle with the song it performs under it, and the agents are on the right. A click in the world gives it the mouse and the keys; a click in a panel or a terminal gives them back to the page.
+What is open has its panel on the left — a document, or a package's history — the world is in the middle, the agents are on the right, and the [timeline](#timeline) runs across the foot of all three. A click in the world gives it the mouse and the keys; a click in a panel or a terminal gives them back to the page.
 
 ## The modes {#modes}
 
@@ -40,11 +40,25 @@ The model is the one named in Gen's settings (`default_model` in `gen-settings.j
 
 ### A song {#song}
 
-A song opens as the world Verse builds for it. The on-device analysis — tempo, a beat grid, section boundaries, an energy curve, a mood — picks the world and furnishes it from the shared CC0 pack; nothing is uploaded and no model is involved. The soundtrack plays on the shared audio engine and the world's **modulations** follow it: the heroes' scale breathes with the energy, the glow follows the beat. The transport under the world shows the song and where it is, and pauses it. The analysis is cached as a content-keyed sidecar, so a track is analyzed once.
+A song opens as the world Verse builds for it. The on-device analysis — tempo, a beat grid, section boundaries, an energy curve, a mood — picks the world and furnishes it from the shared CC0 pack; nothing is uploaded and no model is involved. The soundtrack plays on the shared audio engine and the world's **modulations** follow it: the heroes' scale breathes with the energy, the glow follows the beat. The song is on the [timeline](#timeline), its waveform over its bars and sections, and it is played, paused and moved through there. The analysis is cached as a content-keyed sidecar, so a track is analyzed once.
 
 ### A package {#package}
 
-A folder holding a `.world`'s `manifest.json` opens as a **live canvas**: the window holds the world's authority and serves the folder's local API, and no agent runs in the window. Agents — Claude Code, Codex, `localgpt world`, a script — change the world through batches of ops, each committed whole or refused with a reason; you edit by hand with handles in the viewport. The history panel draws the log as a graph, newest at the top and one lane per branch, with **main**'s head marked; a click on an entry shows the world as it was then, and the transport under the graph steps through the entries in the order they were written, or plays them. Moving through history writes nothing. This is the mode previs boards open in; the whole of it, the editing keys included, is on the [Live canvas](/docs/gen/live-canvas/) page.
+A folder holding a `.world`'s `manifest.json` opens as a **live canvas**: the window holds the world's authority and serves the folder's local API, and no agent runs in the window. Agents — Claude Code, Codex, `localgpt world`, a script — change the world through batches of ops, each committed whole or refused with a reason; you edit by hand with handles in the viewport. The history panel draws the log as a graph, newest at the top and one lane per branch, with **main**'s head marked; a click on an entry shows the world as it was then, and the transport under the graph steps through the entries in the order they were written, or plays them. Moving through history writes nothing. A previs package's shots are on the [timeline](#timeline), where they are trimmed and moved like clips. This is the mode previs boards open in; the whole of it, the editing keys included, is on the [Live canvas](/docs/gen/live-canvas/) page.
+
+## The timeline {#timeline}
+
+Across the foot of the window runs the world's clock, in every mode: the shots, the song and what the song moves, on one ruler of bars and sections. Each track is read from the world's document, not kept beside it:
+
+- **Shots** — the cameras that carry a shot, a previs package's coverage, each from its in point to its out point with its frame rendered from its own camera. Coverage that overlaps its master stacks under it.
+- **Camera** — a tour's stops, timed by its speed and the pause at each.
+- **Soundtrack** — the song's waveform; its stems fold out under it when the analysis separated them.
+- **Modulations** and **behaviors** — what the song moves, and what loops. Things moved alike, every boulder breathing with the energy, share one track.
+- **Ambience** — the world's ambient layers and emitters.
+
+The clock is the song while one plays; otherwise the app keeps it, and a previs with no song runs on its shot list. Where the playhead stands is when the world is shown: paused, the modulations hold there, and a click or a drag on the ruler moves it. Double-click a shot to look through it from its in point; while you look through a shot, moving the playhead cuts to the shot under it, so playing plays the cut. The toolbar plays and pauses, steps from cut to cut, loops the selected shot (else the section under the playhead) and zooms; a pinch, or ⌘ with the wheel, zooms about the pointer, and a sideways swipe pans. **S** and the speaker solo and mute the song and the ambience.
+
+On a live canvas the shots are edited here. Drag a shot to move it, or an edge to trim it; where two shots meet, the cut between them rolls. A drag snaps to beats, sections or cuts as the toolbar says (hold **⌥** to drag freely), draws a ghost while it is held, and writes nothing until it is let go — then it is one entry in the history, through the same authority the agents use, so it undoes like any other edit. **Esc** lets go without writing. With review on (`LOCALGPT_REVIEW=1`), an agent's proposal waits in the timeline too: the toolbar asks, and the shots it moves wait dashed under its name until you accept or reject it.
 
 ## The agents {#agents}
 
@@ -59,6 +73,11 @@ The app knows each agent by its command's name and nothing more: no keys, no mod
 | **W A S D**, mouse | In the world: fly and look; **Q** descends, Space rises |
 | **1–9** | Look through a shot (a previs package); **Esc** hands the free camera back |
 | **Esc** | Clear the selection |
+| **Space** | In the timeline: play and pause |
+| **← →**, **Shift+← →** | In the timeline: a beat back or on (a second with no beat grid); the previous or the next cut |
+| **Home**, **End** | In the timeline: to the start, to the end |
+| **Enter**, **Esc** | Accept or reject an agent's proposal, in the world or the timeline |
+| **⌥** while dragging | In the timeline: no snapping |
 | **⌘C ⌘V ⌘A ⌘Z** | In the page: copy, paste, select all, undo |
 | **⌘F** | In the document editor: find |
 | **Shift+Enter** | In an agent's terminal: a new line |
@@ -85,4 +104,4 @@ For work on the interface itself: `npm run dev` in `crates/app/ui` serves it wit
 
 ## What is next {#next}
 
-A timeline for the world's clock — the song, the shots, the tour and what the song moves, on one ruler, edited like the rest — across the window's whole width, as its reviewed design draws it; the outliner and inspector in the page; and the Windows host. `docs/rfcs/authoring/the-page.md` in the repository records the decision and the order.
+On the timeline, hiding what a modulation or a behavior moves, and the tour and the song's sections edited there; the outliner and inspector in the page; and the Windows host. `docs/rfcs/authoring/the-page.md` in the repository records the decision and the order.

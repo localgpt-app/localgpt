@@ -89,8 +89,8 @@ New interface is designed first, as a static sheet drawn with the app's own
 components and fixtures (`npm run design`, `crates/app/ui/design/`), and
 wired only once the sheet is reviewed. The timeline is the first.
 
-**The timeline runs across the window** (reviewed 2026-10-30), under the
-left panel, the world and the agents. It is the one panel that wants
+**The timeline runs across the window** (reviewed and built 2026-10-30),
+under the left panel, the world and the agents. It is the one panel that wants
 width: across the window its lanes get 1,264 px of a 1,440 px window,
 under the world alone 484 px — a three-minute song at 2.5 px a second,
 enough to see the cuts and too little to see a beat. Its height comes from
@@ -99,11 +99,23 @@ into the timeline's toolbar; the history keeps its own transport, because
 stepping through entries is authoring time and the timeline's is world
 time.
 
+The app reads the timeline from the world's document — the canvas's on
+screen, or the folder the scene loaded — and sends it as one view
+(`crates/app/src/timeline.rs`; the page's half is
+`ui/src/timeline/LiveTimeline.tsx`). The clock is the song's position while
+it plays and is heard, else the app's own, and the world is shown at it:
+`Soundtrack::position` holds while paused, so the modulations do. A drag
+lets go as one `ShotOps` batch, the path a reorder took, so a trim is an
+entry in the history; the cut between two shots that meet rolls. Things
+moved alike share a track, or a song world's boulders would fill the
+panel. A shot's frame is read back from the thumbnail its camera renders.
+
 ## Next
 
-1. The timeline, across the window as its sheet draws it: the soundtrack,
-   shots, the tour, modulations, behaviors and ambience on one clock,
-   edits as ops.
+1. The timeline's rest: hiding what a modulation or a behavior moves; the
+   tour and the song's sections edited there; and `ModifyWorld` through
+   the canvas's authority, which refuses it today, so an agent can give a
+   package its song (until then only the file does).
 2. The outliner and inspector in the page, over the remote inspector's
    builders and `PanelIntents` patches.
 3. Turn marks from the page's own terminals (`TurnEnded`).

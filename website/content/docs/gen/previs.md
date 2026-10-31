@@ -47,7 +47,7 @@ In the window:
 
 - **Look through a shot** — press its number (1–9). The free camera becomes that shot's camera, letterboxed to its frame; Esc hands the free camera back.
 - **The board** — the folder's `GET /board` is the tip on screen as a printable board, or two tips side by side with the changed shots marked (`?vs=<id>`); open it in the browser.
-- **The shots on a timeline** — cut to the song, reordered and trimmed like clips — are designed and next in the [desktop app](/docs/app/#next).
+- **The shots on a timeline** — in the [desktop app](/docs/app/#timeline): each shot from its in point to its out point, under the song when the scene has one, trimmed and moved like clips, each drag one entry in the history.
 
 `localgpt-app --world previs/scene-1.world` opens the same package in the one-app window: it recognizes a package and opens it live.
 

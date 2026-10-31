@@ -55,7 +55,7 @@ Rust stable (edition 2024, so 1.85 or newer). On Linux the desktop crates need B
 - **A song.** Verse's on-device analysis — tempo, a beat grid, sections, an energy curve, a mood — picks and furnishes the world; the soundtrack plays on the shared mixer, the world's modulations follow it, and a transport under the world pauses it. No model, no key, no upload.
 - **A package.** A `.world` folder opens as a live canvas: the window holds the authority and serves the folder's API, the history is drawn as a graph you step and play through, and agents edit from outside (next section) — from the tabs beside it, or anywhere else.
 
-The interface is macOS's for now; on Windows and Linux the window shows the world alone. A timeline for the world's clock — song, shots, tour — is designed and next. Docs: [The desktop app](https://localgpt.app/docs/app/). `localgpt-gen` stays a binary of its own for the MCP server, headless generation and `--host`/`--join`; there is one desktop bundle, `LocalGPT.app`, built by `apps/app-desktop/`.
+The interface is macOS's for now; on Windows and Linux the window shows the world alone. A timeline across the window plays the world's clock — the song, the shots, the tour — and trims and moves a package's shots, each drag an entry in the history. Docs: [The desktop app](https://localgpt.app/docs/app/). `localgpt-gen` stays a binary of its own for the MCP server, headless generation and `--host`/`--join`; there is one desktop bundle, `LocalGPT.app`, built by `apps/app-desktop/`.
 
 ## A world is a package, and agents edit it from outside
 
