@@ -157,6 +157,14 @@ pub enum PersonIntent {
     Duplicate(Vec<u64>),
     /// Gather entities under a new empty at their centroid.
     Group(Vec<Named>),
+    /// Hang entities under another — `None`: at the top — each standing
+    /// where it stood, or, with `keep_offset`, carried by its new parent at
+    /// the offset it had from the old one.
+    Reparent {
+        moved: Vec<Named>,
+        parent: Option<Named>,
+        keep_offset: bool,
+    },
     /// A field edit from a panel: a merge patch for each entity it
     /// changes, as `ModifyEntity` takes it — several when several are
     /// selected, one entry all the same — and what to call the change.

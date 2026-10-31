@@ -503,6 +503,8 @@ pub struct PendingReview {
     pub n: u64,
     pub author: String,
     pub changes: Vec<String>,
+    /// The entities on screen it would change or delete, by id.
+    pub entities: Vec<u64>,
     /// The proposal's world's shots, in `shot.order`.
     pub shots: Vec<localgpt_previs::ShotRow>,
 }
@@ -1155,7 +1157,8 @@ fn clean_json<T: serde::Serialize>(value: &T) -> Value {
 }
 
 /// The person at the keyboard, as the history names them.
-fn person() -> String {
+/// The person at the keyboard, as the history names them.
+pub fn person() -> String {
     std::env::var("USER")
         .ok()
         .filter(|u| !u.is_empty())
@@ -1189,6 +1192,7 @@ fn person_edit(
     let restore: Vec<u64> = match &intent {
         PersonIntent::Transform(moves) => moves.iter().map(|m| m.id).collect(),
         PersonIntent::Patch { edits, .. } => edits.iter().map(|e| e.id).collect(),
+        PersonIntent::Reparent { moved, .. } => moved.iter().map(|m| m.id).collect(),
         _ => Vec::new(),
     };
     let refuse = |live: &mut Live, applier: &mut OpsApplier<'_, '_>, why: String| {
@@ -1372,6 +1376,27 @@ fn person_edit(
             submit(live, json!([{"ModifyWorld": {"patch": patch}}]), &what),
             what,
         ),
+        PersonIntent::Reparent {
+            moved,
+            parent,
+            keep_offset,
+        } => match reparent_ops(live.view.doc(), &moved, parent.as_ref(), keep_offset) {
+            // Everything already hangs there.
+            Ok(None) => return,
+            Ok(Some(ops)) => {
+                let names = moved
+                    .iter()
+                    .map(|m| m.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let what = match &parent {
+                    Some(parent) => format!("put {names} in {}", parent.name),
+                    None => format!("unparent {names}"),
+                };
+                (submit(live, ops, &what), what)
+            }
+            Err(why) => return refuse(live, applier, why),
+        },
         PersonIntent::Undo { own } => (
             live.world
                 .undo_scoped(at.as_deref(), &author, scope_of(own))
@@ -1446,6 +1471,78 @@ fn person_preview(live: &Live, applier: &mut OpsApplier<'_, '_>, edits: &[Patche
     }
 }
 
+/// The batch hanging `moved` under `parent` (`None`: at the top), each
+/// standing where it stood: its new transform is its place in the world
+/// seen from the new parent — the document's transforms composed, not the
+/// scene's, which the song and behaviors move. With `keep_offset` the
+/// transforms stay as they are, and the new parent carries them. `None`
+/// when everything already hangs there. A parent inside what it would
+/// hold is the authority's to refuse, in its own words.
+fn reparent_ops(
+    doc: &openworldformat::WorldDoc,
+    moved: &[Named],
+    parent: Option<&Named>,
+    keep_offset: bool,
+) -> Result<Option<Value>, String> {
+    if let Some(parent) = parent
+        && doc.get(parent.id).is_none()
+    {
+        return Err(format!("{} is not in the world on screen", parent.name));
+    }
+    let under = parent.map(|p| p.id);
+    let frame = under.map_or(GlobalTransform::IDENTITY, |id| placed(doc, id));
+    let mut ops = Vec::with_capacity(moved.len());
+    for m in moved {
+        let Some(entity) = doc.get(m.id) else {
+            return Err(format!("{} is not in the world on screen", m.name));
+        };
+        if entity.parent.map(|p| p.0) == under {
+            continue;
+        }
+        let mut patch = json!({ "parent": under });
+        if !keep_offset {
+            let local = placed(doc, m.id).reparented_to(&frame);
+            let t = localgpt_world_bevy::world_transform(&local, entity.transform.visible);
+            patch["transform"] = json!({
+                "position": t.position.map(|v| rounded(v, 1000.0)),
+                "rotation_degrees": t.rotation_degrees.map(|v| rounded(v, 100.0)),
+                "scale": t.scale.map(|v| rounded(v, 1000.0)),
+            });
+        }
+        ops.push(json!({"ModifyEntity": {"id": m.id, "patch": patch}}));
+    }
+    Ok((!ops.is_empty()).then_some(Value::Array(ops)))
+}
+
+/// Where an entity stands in the world by its document: its transform and
+/// every parent's, composed.
+fn placed(doc: &openworldformat::WorldDoc, id: u64) -> GlobalTransform {
+    let mut chain = Vec::new();
+    let mut at = doc.get(id);
+    while let Some(entity) = at {
+        chain.push(localgpt_world_bevy::transform(&entity.transform));
+        // A folded document has no cycle; this only stops a broken one.
+        if chain.len() > doc.len() {
+            break;
+        }
+        at = entity.parent.and_then(|p| doc.get(p.0));
+    }
+    chain
+        .into_iter()
+        .rev()
+        .fold(GlobalTransform::IDENTITY, |placed, t| {
+            placed.mul_transform(t)
+        })
+}
+
+/// Rounded, then read as the f32's shortest decimal — widening an f32 to
+/// JSON's f64 directly writes 2.122999906539917 for 2.123. The `+ 0.0`
+/// turns a -0.0 into 0.0.
+fn rounded(v: f32, by: f32) -> f64 {
+    let r = (v * by).round() / by + 0.0;
+    r.to_string().parse().unwrap_or(f64::from(r))
+}
+
 /// The transform patch a gesture makes, from the document's current value:
 /// the position the canvas left it at, a turn (in the parent's frame), a
 /// scale along the entity's own axes. Only what changed, rounded so the
@@ -1456,13 +1553,7 @@ fn gesture_patch(
     turn: Quat,
     scale_by: [f32; 3],
 ) -> serde_json::Map<String, Value> {
-    // Rounded, then read as the f32's shortest decimal — widening an f32
-    // to JSON's f64 directly writes 2.122999906539917 for 2.123. The `+ 0.0`
-    // turns a -0.0 into 0.0.
-    let round = |v: f32, by: f32| -> f64 {
-        let r = (v * by).round() / by + 0.0;
-        r.to_string().parse().unwrap_or(f64::from(r))
-    };
+    let round = rounded;
     let mut patch = serde_json::Map::new();
     if let Some(p) = position {
         let p = p.map(|v| round(v, 1000.0));
@@ -1593,6 +1684,15 @@ fn publish_review(live: &Live) -> LiveReview {
             n: proposal.n,
             author: proposal.author.clone(),
             changes: proposal.changes.clone(),
+            entities: live::diff_manifests(&live.view.doc().to_manifest(), &proposal.shown)
+                .iter()
+                .filter_map(|op| match op {
+                    wt::EditOp::ModifyEntity { id, .. } | wt::EditOp::DeleteEntity { id } => {
+                        Some(id.0)
+                    }
+                    _ => None,
+                })
+                .collect(),
             shots: localgpt_previs::shots::shot_list(&proposal.shown),
         }),
     }
@@ -2597,6 +2697,57 @@ mod tests {
             rotation_degrees: rotation,
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn reparenting_keeps_a_thing_where_it_stands_unless_it_keeps_its_offset() {
+        let manifest: wt::WorldManifest = serde_json::from_value(json!({
+            "version": 3,
+            "meta": {"name": "harbour"},
+            "entities": [
+                {"id": 1, "name": "jetty", "transform": {"position": [4.0, 0.0, -3.0],
+                 "rotation_degrees": [0.0, 90.0, 0.0], "scale": [2.0, 2.0, 2.0]}},
+                {"id": 2, "name": "lantern", "parent": 1, "transform": {"position": [1.0, 0.5, 0.0]}},
+                {"id": 3, "name": "posts", "transform": {"position": [0.0, 0.0, 0.0]}}
+            ],
+            "next_entity_id": 4
+        }))
+        .unwrap();
+        let doc = openworldformat::WorldDoc::from_manifest(&manifest).unwrap();
+        let named = |id: u64, name: &str| Named {
+            id,
+            name: name.into(),
+        };
+        let lantern = [named(2, "lantern")];
+
+        // Out from under the turned, doubled jetty: where it stood, with
+        // the jetty's turn and size now its own.
+        let ops = reparent_ops(&doc, &lantern, None, false).unwrap().unwrap();
+        let patch = &ops[0]["ModifyEntity"]["patch"];
+        assert_eq!(patch["parent"], Value::Null);
+        assert_eq!(patch["transform"]["position"], json!([4.0, 1.0, -5.0]));
+        assert_eq!(
+            patch["transform"]["rotation_degrees"],
+            json!([0.0, 90.0, 0.0])
+        );
+        assert_eq!(patch["transform"]["scale"], json!([2.0, 2.0, 2.0]));
+
+        // Keeping its offset, only the parent changes.
+        let ops = reparent_ops(&doc, &lantern, Some(&named(3, "posts")), true)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            ops,
+            json!([{"ModifyEntity": {"id": 2, "patch": {"parent": 3}}}])
+        );
+
+        // Already there, nothing to do; a parent that isn't, refused.
+        assert!(
+            reparent_ops(&doc, &lantern, Some(&named(1, "jetty")), false)
+                .unwrap()
+                .is_none()
+        );
+        assert!(reparent_ops(&doc, &lantern, Some(&named(9, "pier")), false).is_err());
     }
 
     #[test]
