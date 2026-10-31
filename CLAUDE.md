@@ -10,8 +10,6 @@ also runs directly:
 
 ```bash
 bin/lg build app gen                    # cargo build, by name: cli app gen previs md verse all
-bin/lg build cli --release -- --features mcp-http
-bin/lg build mobile ios|android         # localgpt-mobile-ffi + Swift/Kotlin bindings
 bin/lg build bundle --dmg               # LocalGPT.app for macOS
 bin/lg verify                           # the CI checks on this machine (--rust --bevy --features --web --deps)
 bin/lg web deploy world --dry-run       # the family's sites: app gen verse md world, or all
@@ -25,11 +23,9 @@ cargo build --release           # Release build (LTO, stripped — slow)
 cargo build --workspace         # Build all workspace crates
 
 # Run
-cargo run -- chat               # Interactive chat (REPL)
-cargo run -- tui                # Ratatui terminal UI
-cargo run -- ask "question"     # Single question, print answer
-cargo run -- daemon start       # HTTP server + bridges + heartbeat + cron
-cargo run -- doctor             # Diagnose setup (config, keys, providers)
+cargo run -- world init demo.world   # a .world package's command line (init, submit,
+                                     # undo, log, tips, verify, history)
+cargo run -- world mcp               # the shim: a stdio MCP server over an app's open canvas
 
 # Test
 cargo test --workspace          # All tests
@@ -39,10 +35,6 @@ cargo test -- --nocapture       # Show stdout
 # Lint (required before commits)
 cargo clippy --workspace -- -D warnings
 cargo fmt --check
-
-# Cross-compile checks (mobile) — core must compile for these targets
-cargo check -p localgpt-mobile-ffi --target aarch64-apple-ios
-cargo check -p localgpt-mobile-ffi --target aarch64-apple-ios-sim
 
 # Gen (3D scene generation with Bevy)
 cargo run -p localgpt-gen                          # Interactive mode
@@ -85,19 +77,6 @@ scripts/fetch-model.sh                             # ~5 GB GGUF
 scripts/fetch-assets.sh                            # 522 MB CC0 pack, once;
                                                    # symlinks it into md's and
                                                    # verse's asset roots
-
-# Generate UniFFI bindings (after building mobile crate)
-cargo build -p localgpt-mobile-ffi
-target/debug/uniffi-bindgen generate \
-  --library target/debug/liblocalgpt_mobile.dylib \
-  --language swift --out-dir apps/apple/Generated
-target/debug/uniffi-bindgen generate \
-  --library target/debug/liblocalgpt_mobile.dylib \
-  --language kotlin --out-dir apps/android/Generated
-
-# Mobile app builds (wrap the above)
-apps/apple/scripts/build_apple.sh                  # XCFramework + Swift (iOS/macOS)
-apps/android/scripts/build_android.sh              # cargo-ndk + Kotlin
 ```
 
 ### Releasing
@@ -125,7 +104,8 @@ Trusted Publishing. A crate published for the first time needs the
 `CARGO_REGISTRY_TOKEN` secret, since crates.io can only trust a workflow
 for a crate that exists; crates.io also limits how many new crates go up
 at once, and a rerun picks up the rest. Members with `publish = false`
-(app, md, verse, relay, previs-web, mobile-ffi) stay off crates.io.
+(app, md, verse, relay, previs-web) stay off crates.io; core publishes no
+version after 0.4.2.
 `cargo publish --workspace --dry-run` is the local check.
 
 The desktop app releases on its own tag: `desktop-vX.Y.Z` (the same
@@ -137,14 +117,18 @@ the draft.
 
 ## Architecture
 
-LocalGPT is a local-only AI assistant with persistent markdown-based memory and
-optional autonomous operation via heartbeat and cron. It speaks to many LLM
-providers, runs across CLI / TUI / desktop GUI / HTTP server / chat bridges /
-mobile, and includes a Bevy-based 3D world generator.
+LocalGPT is the desktop app where a prompt, a document, a song or a
+screenplay becomes a walkable `.world`, with the coding agents in its page's
+terminals; the `localgpt` CLI, a `.world` package's command line and the MCP
+shim; Gen, MD, Verse and Previs; and the format crates. The assistant (chat,
+daemon, memory, heartbeat) had its last release in 0.4.2: its daemon, server,
+bridges, sandbox, shell tools and mobile apps are gone from the tree, and what
+is left of it is `localgpt-core`, the agent loop Gen's own chat still runs on
+(`docs/rfcs/authoring/the-harness-goes.md`).
 
 ### Workspace
 
-`Cargo.toml` defines 21 members. **MD and Verse are members**, not separate
+`Cargo.toml` defines 16 members. **MD and Verse are members**, not separate
 repositories — they were folded in so the world format cannot drift between
 apps (see `docs/world-strategy.md` §13.6). `crates/spacetime` is a **standalone** crate
 (its own `[workspace]`) excluded from the main build because it targets
@@ -152,12 +136,8 @@ SpacetimeDB's wasm/module toolchain.
 
 ```
 crates/
-├── core/         # localgpt-core — shared library (agent, memory, config, security, mcp, cron, hooks)
-├── cli/          # localgpt — main binary: clap CLI, TUI, desktop GUI, daemon
-├── cli-tools/    # localgpt-cli-tools — dangerous tools (bash, read/write/edit_file, browser)
-├── server/       # localgpt-server — HTTP/WS API, OpenAI-compat API, TLS, BridgeManager
-├── sandbox/      # localgpt-sandbox — Landlock/Seatbelt kernel-enforced shell isolation
-├── mobile-ffi/   # localgpt-mobile-ffi — UniFFI bindings for iOS/Android
+├── core/         # localgpt-core — the assistant's agent loop, memory, config, providers, MCP (goes in 0.5.0)
+├── cli/          # localgpt — `localgpt world` (a .world package's command line) and `world mcp` (the shim)
 ├── gen/          # localgpt-gen — Bevy 3D scene generation binary
 ├── app/          # localgpt-app — the one desktop app: Gen's world, documents and songs as modes; its interface is the web page in app/ui (docs/rfcs/authoring/the-page.md)
 ├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
@@ -172,17 +152,10 @@ crates/
 ├── world-editor/ # localgpt-world-editor — the non-linear editing model: tips, forks, folds, deltas (no engine, no I/O)
 ├── world-agent/  # localgpt-world-agent — tool-call protocol, interpreter, shared paths
 ├── relay/        # localgpt-relay — internet reach for collaborative rooms
-├── bridge/       # localgpt-bridge — secure IPC protocol for bridge daemons
 └── spacetime/    # localgpt-spacetime — SpacetimeDB multiplayer world server (standalone)
 
-bridges/          # Standalone bridge binaries (depend on core + bridge)
-└── cli/          # localgpt-bridge-cli — connects to a running daemon over the IPC socket
-
-apps/             # Native client projects
-├── apple/        # iOS/macOS (Swift)
-├── android/      # Android (Kotlin)
-├── app-desktop/  # LocalGPT.app bundler for the one app (Developer ID + notarization when given; replaced gen-desktop)
-└── web/          # Web client
+apps/
+└── app-desktop/  # LocalGPT.app bundler for the one app (Developer ID + notarization when given; replaced gen-desktop)
 
 scripts/          # The shared downloads, fetched once for every app
 ├── fetch-model.sh   # the ~5 GB GGUF -> ~/.local/share/localgpt/models/llm
@@ -199,36 +172,12 @@ website*/         # One Cloudflare Worker each, all deployed by hand
 ### Dependency Graph
 
 ```
-                        ┌─────────────────┐
-                        │ localgpt-core   │  (no internal deps)
-                        └────────┬────────┘
-         ┌───────────────┬───────┼────────┬──────────────┐
-         ▼               ▼       ▼        ▼              ▼
-┌──────────────┐ ┌────────────┐ ┌──────┐ ┌────────┐ ┌──────────────┐
-│ localgpt-    │ │ localgpt-  │ │ gen  │ │ mobile │ │ world-types  │
-│ bridge       │ │ sandbox    │ │      │ │ -ffi   │ │ (serde only) │
-│ (no internal)│ └─────┬──────┘ └──────┘ └────────┘ └──────┬───────┘
-└──────┬───────┘       │                                   │
-       │               ▼                          ┌────────┴───────┐
-       │     ┌──────────────────┐                 ▼                ▼
-       │     │ localgpt-cli-    │            gen, spacetime (multiplayer)
-       │     │ tools (core+     │
-       │     │  sandbox)        │
-       │     └────────┬─────────┘
-       ▼              │
-┌─────────────────┐   │
-│ localgpt-server │   │
-│ (core + bridge) │   │
-└────────┬────────┘   │
-         ▼            ▼
-      ┌──────────────────────────┐
-      │ localgpt (CLI)           │
-      │ core + server + sandbox  │
-      │ + cli-tools + gen        │
-      └──────────────────────────┘
+localgpt (CLI)  → core (no default features), world-agent, world-editor
+localgpt-gen    → core (agent loop, config, MCP server), previs, world-*
+localgpt-app    → core (config, paths, providers for document authoring),
+                  gen, md, verse, previs, world-agent, world-bevy, world-types
+md, verse, previs, relay, world-*  → no core
 
-Bridge daemons (core + bridge): cli
-Mobile: mobile-ffi → core (default-features=false, embeddings-local + sqlite-vec)
 World format: world-types → world-bevy (bevy, no windowing) and world-export
   (three.js viewer + HTML, no Bevy); gen depends on both. LocalGPT MD and
   Verse depend on these three crates from this repository too.
@@ -245,53 +194,37 @@ and `generate_html`. Reference scenes live in
 `crates/world-types/conformance/`; render them before and after changing a
 mapping. Add fields to world-types, never a parallel format.
 
-**Critical rule:** `localgpt-core` must have zero platform-specific dependencies
-and must compile cleanly for `aarch64-apple-ios` and `aarch64-linux-android`.
-No clap, eframe, axum (except behind `mcp-http`), teloxide, landlock, nix,
-tarpc, headless_chrome, `localgpt-bridge`, etc. Dangerous filesystem/shell
-tools live in `localgpt-cli-tools` (depends on `localgpt-sandbox`), **not** core.
+**`localgpt-core` takes nothing new.** It goes in 0.5.0, after its stdio MCP
+server and `Tool` trait move to `world-agent`; new code goes in the crate that
+outlives it. It has no shell or file tools: the coding agents in the app's
+terminals do that work with their own.
 
 ### Feature Flags (`localgpt-core`)
 
-Default: `embeddings-local`, `claude-cli`, `gemini-cli`, `codex-cli`,
-`sqlite-vec`, `image-resize`.
+Default: `claude-cli`, `gemini-cli`, `codex-cli`, `image-resize`. Memory
+searches by keyword (SQLite FTS5), with vectors from an embeddings API when
+`memory.embedding_provider` is `openai` or `gemini`; the in-process models
+(fastembed over ONNX Runtime, llama.cpp) and sqlite-vec are gone.
 
 | Feature | Default | Purpose |
 |---------|---------|---------|
-| `embeddings-local` | yes | fastembed/ONNX local embeddings (works on mobile) |
-| `embeddings-openai` | no | OpenAI API embeddings |
-| `embeddings-gguf` (`gguf`) | no | llama.cpp GGUF embeddings (needs C++ compiler) |
-| `embeddings-none` | no | FTS5 keyword search only |
-| `sqlite-vec` | yes | sqlite-vec vector search extension (works on mobile) |
-| `claude-cli` | yes | ClaudeCliProvider (subprocess — excluded on mobile) |
-| `gemini-cli` | yes | GeminiCliProvider (subprocess — excluded on mobile) |
-| `codex-cli` | yes | CodexCliProvider (subprocess — excluded on mobile) |
+| `claude-cli` | yes | ClaudeCliProvider (a subprocess) |
+| `gemini-cli` | yes | GeminiCliProvider (a subprocess) |
+| `codex-cli` | yes | CodexCliProvider (a subprocess) |
 | `image-resize` | yes | Resize images before sending to vision models |
-| `mcp-http` | no | MCP streamable HTTP transport (adds axum + tower-http — not mobile) |
-
-Mobile crate uses `default-features = false, features = ["embeddings-local", "sqlite-vec"]`
-— excludes all subprocess CLI providers and HTTP.
+| `mcp-http` | no | MCP streamable HTTP transport (adds axum + tower-http) |
 
 ### Key Patterns
 
-**Tool safety split:** `Agent::new()` registers safe tools only via
-`tools::create_safe_tools()` (memory_search, memory_get, web_fetch, web_search,
-document_load, wiki, audio_transcribe, spawn_agent). The CLI/daemon inject
-dangerous tools (bash, read_file, write_file, edit_file, browser) via
-`agent.extend_tools(localgpt_cli_tools::create_cli_tools(&config)?)`. Server
-agents and chat bridges intentionally get safe tools only.
-
-**Heartbeat / cron tool injection:** `HeartbeatRunner` and the cron runner
-accept an optional `ToolFactory` callback to extend the agent. The CLI daemon
-passes `create_cli_tools` so autonomous runs can touch the filesystem and shell.
-Without the factory, they run with safe tools only.
+**Safe tools only:** `Agent::new()` registers `tools::create_safe_tools()`
+(memory_search, memory_get, web_fetch, web_search, document_load, wiki,
+audio_transcribe, spawn_agent). There are no bash or file tools any more.
 
 **Custom tool sets:** `Agent::new_with_tools()` replaces all tools — used by Gen
 mode for its own Bevy/world tools (spawn_entity, modify_entity, etc.).
 
-**Thread safety:** Agent is not `Send+Sync` (SQLite). Use `AgentHandle`
-(`Arc<tokio::sync::Mutex<Agent>>`) for mobile/server; the HTTP handler uses
-`spawn_blocking`.
+**Thread safety:** Agent is not `Send+Sync` (SQLite); keep one on the task
+that made it.
 
 **Bevy main thread:** Bevy must own the main thread (macOS windowing/GPU). Gen
 mode spawns tokio on a background thread.
@@ -303,9 +236,9 @@ truncated). See `agent/compaction.rs`.
 **Provider failover:** `agent/failover.rs` can fall back across configured
 providers when a primary errors out.
 
-**Memory context:** New sessions auto-load `MEMORY.md`, recent daily logs, and
-`HEARTBEAT.md`. Active recall (`memory/active_recall.rs`) can search memory
-before each reply and inject results.
+**Memory context:** New sessions auto-load `MEMORY.md` and recent daily logs.
+Active recall (`memory/active_recall.rs`) can search memory before each reply
+and inject results.
 
 **Audio:** `localgpt-world-audio` is the one mapping from the format's audio
 types to sound, the counterpart to `world-bevy` for meshes. **kira owns the
@@ -325,8 +258,7 @@ because all three depend on that crate and none of them can depend on
 and `LOCALGPT_WORLD_ASSETS` override.
 
 **Path expansion & safety:** Tools use `shellexpand::tilde()` for `~`; path
-handling and traversal guards live in `agent/path_utils.rs` and
-`security/protected_files.rs`.
+handling and traversal guards live in `agent/path_utils.rs`.
 
 **Provider routing:** Prefer the explicit `provider/model` form
 (OpenClaw-compatible). Bare model names are routed by prefix in
@@ -367,48 +299,25 @@ Aliases resolve first (e.g. `opus` → `anthropic/claude-opus-4-6`, `sonnet`,
 - **agent/approval.rs** — human-in-the-loop tool approval (HTTP approve flow).
 - **agent/tools/** — safe tool set: `spawn_agent` (hierarchical delegation),
   `web_search`, plus memory/web/document/wiki/audio tools.
-- **memory/** — SQLite FTS5 + sqlite-vec backends (`backend_sqlite.rs`,
-  `backend_markdown.rs`, `backend_none.rs`), file watcher, embeddings, query
-  expansion, session index, **dreaming** (background consolidation of session
-  transcripts into memory), **active_recall**, and **wiki** (claims/evidence
-  with staleness tracking).
-- **heartbeat/** — autonomous task runner on a configurable interval.
-- **cron/** — cron-expression + "every X" job scheduler with overlap
-  prevention; each job runs in a fresh agent session.
-- **hooks/** — lifecycle shell hooks (before/after_tool_call, on_message,
-  on_session_start/end); `before_tool_call` can block.
+- **memory/** — SQLite FTS5 (`backend_sqlite.rs`, `backend_markdown.rs`,
+  `backend_none.rs`), file watcher, an embeddings API when one is configured,
+  query expansion, session index, **active_recall**, and **wiki**
+  (claims/evidence with staleness tracking).
 - **mcp/** — MCP client (stdio + HTTP/SSE transports) that exposes external MCP
-  server tools as LocalGPT tools, plus an MCP **server** exposing memory tools.
+  server tools as LocalGPT tools, plus the stdio MCP **server** the shim runs.
 - **media/** — document loading, audio transcription, TTS, image optimization.
-- **outbox.rs** — durable outbound message queue (SQLite-backed) with
-  exponential-backoff retry; replays pending messages on daemon startup.
-- **config/** — TOML config: `mod.rs` (schema), `migrate.rs`, `watcher.rs`.
-  `Config::load()` (desktop), `Config::load_from_dir()` (mobile).
-- **paths.rs** — XDG dirs. `Paths::resolve()` (desktop), `Paths::from_root()`
-  (mobile). **env.rs** centralizes all `LOCALGPT_*` env var names.
-- **commands.rs** — shared slash command definitions (CLI + bridges).
-- **concurrency/** — TurnGate (one agent turn at a time) + WorkspaceLock.
+- **config/** — the TOML schema (`mod.rs`); `Config::load()`. A config written
+  for the assistant keeps its `[heartbeat]`, `[server]`, `[sandbox]`, `[cron]`
+  and `[hooks]` tables, which are ignored.
+- **paths.rs** — XDG dirs, `Paths::resolve()`. **env.rs** centralizes all
+  `LOCALGPT_*` env var names.
+- **commands.rs** — the slash commands of Gen's chat.
 - **security/** — POLICY.md policy loading (with legacy `LocalGPT.md`
-  fallback) and injection sanitization, the
-  protected-files deny list, and the hardcoded security suffix.
-
-### Server (`crates/server/src/`)
-
-- **http.rs** — Axum REST/WS API with RustEmbed'd Web UI. Routes include
-  `/health`, `/api/status`, `/api/chat`, `/api/memory/search`,
-  `/api/memory/stats`, plus the tool-approval endpoint.
-- **openai_compat.rs** — OpenAI-compatible API surface so external clients can
-  talk to LocalGPT as if it were the OpenAI API.
-- **tls.rs** — TLS termination (see `localgpt cert` and `--no-tls`).
-- **rate_limiter.rs**, **security/** — request rate limiting and bridge auth.
+  fallback) and injection sanitization, and the hardcoded security suffix.
 
 ### CLI Subcommands (`crates/cli/src/cli/`)
 
-`chat`, `tui`, `ask`, `desktop` (feature-gated), `gen`, `daemon`, `memory`,
-`config`, `policy` (POLICY.md management; alias `md`), `paths`, `sandbox`,
-`search`, `init`, `bridge`, `doctor`, `tool`/`plugin` (MCP servers),
-`completion`, `cron`, `hooks`, `mcp-server` (run as stdio MCP server
-exposing memory), `session`, `cert`, `world` (a `.world` package's command
+`world` (a `.world` package's command
 line — init, submit (`--at <id>` forks), undo, log, tips, verify, history — and
 `world mcp`, a stdio MCP server over an app's open canvas;
 `crates/cli/src/cli/world.rs` over `world-agent::headless`, which is shared with
@@ -476,12 +385,12 @@ incremental blockout editing, semantic scene decomposition, depth/2D preview.
 `docs/gen/external-services.md` for external services (Ollama, ComfyUI, model
 server).
 
-### Mobile
+### A phone or a tablet
 
-UniFFI proc-macro bindings (`crates/mobile-ffi/`). `LocalGPTClient` owns its own
-tokio runtime and wraps `AgentHandle`. Error type: `MobileError` enum (Init,
-Chat, Memory, Config). Apple → `apps/apple/scripts/build_apple.sh` (XCFramework +
-Swift); Android → `apps/android/scripts/build_android.sh` (cargo-ndk + Kotlin).
+No native app: the desktop app serves its own page to a paired device's
+browser (`crates/app/src/webui/remote.rs`, `crates/app/ui/src/phone/`;
+`docs/rfcs/authoring/mobile-remote.md`). `scripts/remote-smoke.mjs` plays a
+device against a running app.
 
 ## Configuration
 
@@ -499,10 +408,8 @@ Key settings:
   `${ENV_VAR}` interpolation.
 - `memory.workspace` — workspace dir. Default
   `~/.local/share/localgpt/workspace`.
-- `memory.embedding_provider` — `"local"` (default), `"openai"`, or `"none"`.
-- `server.port` — HTTP port (default 31327); TLS via `cert` / `--no-tls`.
-- `cron` / `hooks` / bridge sections — autonomous jobs, lifecycle hooks, chat
-  bridge credentials.
+- `memory.embedding_provider` — `"none"` (default, keyword search),
+  `"openai"` or `"gemini"`.
 
 Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
 `memory.workspace` config > `~/.local/share/localgpt/workspace`. All
@@ -516,19 +423,17 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
 ~/.local/share/localgpt/                 # XDG_DATA_HOME
 ├── workspace/                           # Memory workspace
 │   ├── MEMORY.md                        # Long-term curated memory
-│   ├── HEARTBEAT.md                     # Pending autonomous tasks
 │   ├── SOUL.md                          # Persona/tone
 │   ├── memory/YYYY-MM-DD.md             # Daily logs
 │   ├── knowledge/                       # Knowledge repository
 │   └── skills/*/SKILL.md                # Custom skills
-├── localgpt.device.key                  # Device key (master key for bridge credential encryption)
 └── skills/                              # Managed skills
 ~/.local/state/localgpt/                 # XDG_STATE_HOME
 ├── agents/{agent_id}/sessions/          # Session transcripts (JSONL)
+├── app-remote.json                      # The phone remote's paired devices (key hashes, 0600)
 └── logs/                                # Application logs
 ~/.cache/localgpt/                       # XDG_CACHE_HOME
-├── memory/{agent_id}.sqlite             # Search index (regenerable)
-└── embeddings/                          # Embedding model cache
+└── memory/{agent_id}.sqlite             # Search index (regenerable)
 ```
 
 ## Conventions
@@ -541,18 +446,17 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
   code is not compiled by anything else), an `interface` job that typechecks
   and builds the app's page and its design sheets (`crates/app/ui`), a `viewer` job running
   `website-world`'s headless render check, plus cargo-deny (`deny.toml`); advisories run on main and weekly, never on
-  pull requests. ONNX Runtime setup is the local composite action
-  `.github/actions/onnxruntime`.
+  pull requests. Only Verse's `ml` tier links ONNX Runtime; the `features`
+  job fetches the version it pins.
 - **Commits:** conventional commits (`feat:`, `fix:`, `docs:`, `chore:`,
   `refactor:`, scoped like `feat(gen):`), with no Co-Authored-By or
   Claude-Session trailers.
-- **Keep `localgpt-core` portable:** never add platform/desktop-only deps to it;
-  put them in `cli`, `cli-tools`, `server`, `sandbox`, or `gen`. Verify with the
-  mobile `cargo check` targets above.
-- **Dangerous tools belong in `cli-tools`,** never in core's safe tool set.
-- **Edition 2024**, workspace-shared version (`0.3.x`), `resolver = "3"`.
-- Related docs live under `docs/` (architecture, gen, mobile, security, rfcs,
-  roadmap). `AGENTS.md` is the longer-form contributor guide.
+- **Nothing new in `localgpt-core`:** it goes in 0.5.0. Put new code in the
+  crate that outlives it (`world-agent`, `gen`, `app`).
+- **Edition 2024**, workspace-shared version (`0.4.x`), `resolver = "3"`.
+- Related docs live under `docs/` (architecture, gen, security, rfcs,
+  roadmap; retired designs in `docs/archived/`). `AGENTS.md` is the
+  longer-form contributor guide.
 - **Websites:** `website/` is the Zola site for localgpt.app, the
   family hub and its only docs site: the assistant's docs plus
   `website/docs/gen`, `docs/verse` and `docs/md` (Verse and MD keep only

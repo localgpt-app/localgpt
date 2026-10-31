@@ -1226,7 +1226,6 @@ pub async fn run_agent_loop(
         bridge.clone(),
     ));
     tools.extend(crate::mcp::multifile_tools::create_multifile_tools(bridge));
-    tools.extend(localgpt_cli_tools::create_cli_tools(&config)?);
     tools = gen3d::tool_profile::apply_tool_profile(tools, tool_profile);
     if tool_profile != gen3d::tool_profile::ToolProfile::Full {
         eprintln!(

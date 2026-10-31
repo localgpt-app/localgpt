@@ -76,8 +76,7 @@ jobs:
         run: python3 scripts/release-plan.py
 
       # Building gen, world-bevy and world-audio from their packages needs
-      # the same scratch space and system packages as CI's native-deps job,
-      # and core needs ONNX Runtime as in CI's test job.
+      # the same scratch space and system packages as CI's native-deps job.
       - name: Free runner disk
         if: steps.plan.outputs.remaining != '0'
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL && df -h /
@@ -86,8 +85,6 @@ jobs:
         run: |
           read -ra deps <<< "$BEVY_APT_DEPS"
           sudo apt-get update && sudo apt-get install -y --no-install-recommends "${deps[@]}"
-      - uses: ./.github/actions/onnxruntime
-        if: steps.plan.outputs.remaining != '0'
 
       - name: Package and build every remaining crate from its package
         if: steps.plan.outputs.remaining != '0'

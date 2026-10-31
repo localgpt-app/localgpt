@@ -23,8 +23,6 @@ target
 #.idea/
 .DS_Store
 
-# User data files (may be created during testing)
-.fastembed_cache/
 .*
 !.gitignore
 !.gitattributes
@@ -44,13 +42,6 @@ target
 
 # Website dependencies
 website/node_modules/
-
-# Xcode / Apple app build artifacts
-**/DerivedData/
-**/xcuserdata/
-*.xcuserstate
-*.ipa
-*.dSYM.zip
 
 # Opencode
 opencode.json

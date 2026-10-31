@@ -9,7 +9,7 @@
 | Author | Yi / LocalGPT |
 | Status | Research — no commitment |
 | Subject | `stablyai/orca` @ `b5b727bd` (2026-09-19), MIT |
-| Related | [rust-ecosystem-integration-spec.md](./rust-ecosystem-integration-spec.md), [../architecture/bridge-development.md](../architecture/bridge-development.md), [../architecture/pairing-auth-plane.md](../architecture/pairing-auth-plane.md) |
+| Related | [rust-ecosystem-integration-spec.md](./rust-ecosystem-integration-spec.md), [../archived/architecture/bridge-development.md](../archived/architecture/bridge-development.md), [../archived/architecture/pairing-auth-plane.md](../archived/architecture/pairing-auth-plane.md) |
 
 ---
 
@@ -347,7 +347,7 @@ Ranges, not estimates — anchored to a small team.
 5. **Treat `login.onorca.dev` as the real moat.** The relay being open is not the same as the
    product being self-hostable. If LocalGPT ever ships a companion app, the auth plane is the
    part to design first, because Orca demonstrates it is the part everyone keeps private.
-   Design follow-up: [../architecture/pairing-auth-plane.md](../architecture/pairing-auth-plane.md),
+   Design follow-up: [../archived/architecture/pairing-auth-plane.md](../archived/architecture/pairing-auth-plane.md),
    which argues the plane can be built with no identity provider at all.
 
 ---

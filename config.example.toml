@@ -143,78 +143,24 @@ base_url = "https://api.anthropic.com"
 #
 # Usage: vertex/claude-opus-4-6, vertex/gemini-2.0-flash
 
-[heartbeat]
-# Enable automatic heartbeat
-enabled = true
-
-# How often to check HEARTBEAT.md
-interval = "30m"
-
-# Maximum wall-clock time for a single heartbeat run (optional).
-# If the heartbeat LLM turn exceeds this deadline it is cancelled and
-# a TimedOut event is recorded so the next interval can run on schedule.
-# Defaults to half the interval (e.g., "15m" when interval = "30m").
-# timeout = "15m"
-
-# Only run during these hours (optional)
-# [heartbeat.active_hours]
-# start = "09:00"
-# end = "22:00"
-
 [memory]
 # Where to store memory files
 # workspace = "~/.local/share/localgpt/workspace"
 
-# Embedding provider for semantic search: "local" (default), "gguf", "openai", or "none"
-# - "local": Uses FastEmbed/ONNX (all-MiniLM-L6-v2), no API key needed
-# - "gguf": Uses llama.cpp for GGUF models (requires --features gguf build)
-# - "openai": Uses OpenAI embeddings (requires providers.openai config)
-# - "none": FTS-only search, no vector embeddings
-embedding_provider = "local"
+# Search is by keyword (SQLite FTS5). An embeddings API adds vectors:
+# - "none": keyword search only (default)
+# - "openai": OpenAI embeddings (requires providers.openai config)
+# - "gemini": Gemini embeddings (memory.gemini_api_key or providers.gemini)
+embedding_provider = "none"
 
-# Embedding model for local provider (FastEmbed):
-#
-# English:
-#   - all-MiniLM-L6-v2   (default, ~80MB, fastest)
-#   - bge-base-en-v1.5   (~430MB, higher quality)
-#
-# Chinese:
-#   - bge-small-zh-v1.5  (~95MB, Chinese-specific)
-#
-# Multilingual (Chinese, Japanese, Korean, 100+ languages):
-#   - multilingual-e5-small  (~470MB, compact)
-#   - multilingual-e5-base   (~1.1GB, recommended for Chinese)
-#   - bge-m3                 (~2.2GB, best quality)
-#
-# For OpenAI provider: text-embedding-3-small, text-embedding-3-large
-#
-# For GGUF provider (requires --features gguf):
-#   - embeddinggemma-300M-Q8_0.gguf  (~320MB, 1024 dims, multilingual)
-#   - nomic-embed-text-v1.5.Q8_0.gguf (~270MB, 768 dims)
-#   Note: Download models from HuggingFace and place in embedding_cache_dir
-embedding_model = "all-MiniLM-L6-v2"
-
-# Cache directory for local embedding models (ONNX format)
-# Models are downloaded from HuggingFace on first use
-# Default: ~/.cache/localgpt/models
-# Can also be set via FASTEMBED_CACHE_DIR environment variable
-# embedding_cache_dir = "~/.cache/localgpt/models"
+# For OpenAI: text-embedding-3-small (default), text-embedding-3-large
+# embedding_model = "text-embedding-3-small"
 
 # Chunk size for indexing (tokens)
 chunk_size = 400
 
 # Overlap between chunks (tokens)
 chunk_overlap = 80
-
-[server]
-# Enable HTTP server
-enabled = true
-
-# Port to listen on
-port = 31327
-
-# Bind address (127.0.0.1 for localhost only)
-bind = "127.0.0.1"
 
 # Web search (optional)
 # [tools.web_search]
@@ -243,43 +189,6 @@ bind = "127.0.0.1"
 # [tools.web_search.perplexity]
 # api_key = "${PERPLEXITY_API_KEY}"
 # model = "sonar"                 # sonar | sonar-pro | sonar-reasoning-pro
-
-# Sandbox configuration for shell command isolation
-# Every tool-executed shell command runs in a kernel-enforced sandbox
-[sandbox]
-# Enable sandbox (default: true)
-enabled = true
-
-# Sandbox enforcement level (default: "auto")
-# Options:
-#   - "auto"     — Use highest available level for your platform
-#   - "full"     — Landlock V4+ + seccomp + userns (Linux only)
-#   - "standard" — Landlock V1+ + seccomp (Linux) or Seatbelt (macOS)
-#   - "minimal"  — seccomp network blocking only (Linux)
-#   - "none"     — rlimits only, no filesystem or network isolation
-level = "auto"
-
-# Command timeout (default: 120 seconds)
-timeout_secs = 120
-
-# Maximum stdout+stderr bytes (default: 1MB = 1048576)
-max_output_bytes = 1048576
-
-# Maximum file size via RLIMIT_FSIZE (default: 50MB = 52428800)
-max_file_size_bytes = 52428800
-
-# Maximum child processes via RLIMIT_NPROC (default: 64)
-max_processes = 64
-
-# Network policy (default: "deny")
-# Options: "deny" (block all network) or "proxy" (future: allow via socket)
-[sandbox.network]
-policy = "deny"
-
-# Additional filesystem access beyond workspace and system directories
-# [sandbox.allow_paths]
-# read = ["/opt/data", "/mnt/shared"]
-# write = ["/tmp/scratch"]
 
 [security]
 # LocalGPT injects a security block at the end of every LLM context window.

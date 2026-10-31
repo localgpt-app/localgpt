@@ -241,7 +241,7 @@ CI runs fmt, clippy and tests, the Bevy crates in their own job, a job for the o
 
 ## Built With
 
-Rust, Tokio, Axum, Bevy, React and Tailwind, CodeMirror, xterm.js, kira and FunDSP, three.js, SQLite (FTS5 + sqlite-vec), fastembed, mistral.rs, wasm-bindgen, Zola, Cloudflare Workers
+Rust, Tokio, Axum, Bevy, React and Tailwind, CodeMirror, xterm.js, kira and FunDSP, three.js, SQLite (FTS5), mistral.rs, wasm-bindgen, Zola, Cloudflare Workers
 
 ## Contributors
 

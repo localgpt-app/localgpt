@@ -17,9 +17,9 @@ path = "src/main.rs"
 [dependencies]
 # The shim stands on core's stdio MCP server and `Tool` trait until they move
 # to world-agent (docs/rfcs/authoring/the-harness-goes.md, "What moves out of
-# core first"). No default features: none of the assistant's providers,
-# embeddings or models is wanted here, and ONNX Runtime least of all.
-localgpt-core = { workspace = true, default-features = false, features = ["embeddings-none"] }
+# core first"). No default features: none of the assistant's providers is
+# wanted here.
+localgpt-core = { workspace = true, default-features = false }
 # The world authority, for `localgpt world`. Bevy-free, so the CLI stays light.
 localgpt-world-agent = { workspace = true }
 # The view, for `localgpt world tips` and the ids in `world log`: the CLI

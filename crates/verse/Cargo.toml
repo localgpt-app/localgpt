@@ -97,9 +97,8 @@ llm = ["dep:mistralrs", "dep:schemars", "dep:tokio", "localgpt-world-agent/llm",
 llm-metal = ["llm", "mistralrs/metal"]
 
 [dependencies.ort]
-# Pinned to rc.11 to match `stem-splitter-core` (which pins =2.0.0-rc.11). The
-# LocalGPT's fastembed uses rc.12, but LocalGPT Verse is a standalone workspace and its
-# ort API usage (Session/Tensor/run) is identical across rc.11↔rc.12.
+# Pinned to rc.11 to match `stem-splitter-core` (which pins =2.0.0-rc.11). Since
+# core's fastembed left, this `ml` tier is the workspace's only ONNX Runtime.
 version = "=2.0.0-rc.11"
 optional = true
 

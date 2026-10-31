@@ -91,7 +91,6 @@ pub enum MemorySource {
     Tools,
     Memory,
     DailyLog,
-    Heartbeat,
     Other,
 }
 
@@ -105,7 +104,6 @@ impl MemorySource {
             MemorySource::Tools => "Tool Notes",
             MemorySource::Memory => "Long-term Memory",
             MemorySource::DailyLog => "Daily Log",
-            MemorySource::Heartbeat => "Pending Tasks",
             MemorySource::Other => "Context",
         }
     }

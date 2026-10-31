@@ -301,9 +301,23 @@ app's own page.
       `mcp-server --connect`, the collaboration panel and Gen's desktop mode,
       2026-10-30 — with the interface's move to a web page
       ([the-page.md](the-page.md)); document authoring keeps its model
-- [ ] the app and Gen off `core`'s default features (*Before 0.5.0*), ahead
-      of the first release of `LocalGPT.app`
+- [x] the app and Gen off `core`'s embeddings (*Before 0.5.0*), 2026-10-31,
+      and further than planned: fastembed, ONNX Runtime, llama.cpp
+      embeddings and sqlite-vec left `core` itself, so no build needs the
+      ONNX Runtime action, which went too. Memory searches by keyword, or
+      through an embeddings API when one is configured
+- [x] ahead of 0.5.0, everything nothing used, 2026-10-31: `mobile-ffi`,
+      `apps/apple` and `apps/android`; `server` and `apps/web`; `bridge` and
+      `bridges/cli`; `cli-tools` and `sandbox` (Gen's chat loses its shell
+      and file tools); and in `core`, heartbeat, cron, hooks, the outbox,
+      dreaming, `pty`, the concurrency gate, the config watcher and
+      migration, `AgentHandle`, the device key, the protected-files list,
+      `HEARTBEAT.md`, and the `[heartbeat]`, `[server]`, `[sandbox]`, `[cron]`
+      and `[hooks]` tables (an old config keeps them, ignored). What is left
+      of `core` is what Gen's chat, the app's document authoring and the
+      shim still call
 - [ ] the first release of `LocalGPT.app`; the tap; the Install page
 - [ ] cargo-dist for the 0.5.0 CLI
-- [ ] 0.5.0: the removal; `doctor` and `setup`
+- [ ] 0.5.0: the rest of the removal (`core`, once the MCP server and the
+      `Tool` trait are in `world-agent`); `doctor` and `setup`
 - [ ] 0.6.0: Gen's tools behind the shim; one MCP entry point

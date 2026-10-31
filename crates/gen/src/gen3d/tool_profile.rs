@@ -1,14 +1,14 @@
 //! Tool profiles: how much of the toolbelt a generation agent sees.
 //!
 //! The full host agent carries 77 `gen_*` tools — measured at ~58KB of JSON
-//! schema, ~14k tokens on every request — plus the safe and CLI tools. That's
+//! schema, ~14k tokens on every request — plus the safe tools. That's
 //! a rounding error on a 128k cloud context but a third of a 32k local
 //! model's window before it sees a word of the conversation. Profiles trade
 //! capability for context:
 //!
 //! - **core** — 24 scene-editing essentials, ~17KB / ~4.3k tokens: spawn,
 //!   modify, delete, reusable creations, query, camera/environment/light,
-//!   behaviors, undo, world save/load/clear. No CLI tools (shell/files), no
+//!   behaviors, undo, world save/load/clear. No
 //!   avatar/terrain/ui/physics/multifile/WorldGen modules. For small local
 //!   models (e.g. a 27B at 32k context) that mostly drive spawn/modify.
 //! - **standard** — 49 tools, ~37KB / ~9.4k tokens: core + the rest of
@@ -117,16 +117,11 @@ const STANDARD_GEN_TOOLS: &[&str] = &[
     "gen_render_depth",
 ];
 
-/// Host-side CLI tools (shell / filesystem / browser) — dropped below
-/// [`ToolProfile::Full`] so "small context" really means small.
-const CLI_TOOLS: &[&str] = &["bash", "read_file", "write_file", "edit_file", "browser"];
-
-/// Tools the profile filter is allowed to drop: the `gen_*` scene toolbelt
-/// and the host CLI tools. Anything else (memory_search, web_search,
-/// spawn_agent, …) passes at every profile — safe default for tools added
-/// in the future.
+/// Tools the profile filter is allowed to drop: the `gen_*` scene toolbelt.
+/// Anything else (memory_search, web_search, spawn_agent, …) passes at every
+/// profile — safe default for tools added in the future.
 fn is_profile_scoped(name: &str) -> bool {
-    name.starts_with("gen_") || CLI_TOOLS.contains(&name)
+    name.starts_with("gen_")
 }
 
 impl ToolProfile {
@@ -245,9 +240,7 @@ mod tests {
         // Non-scoped tools (safe tools, spawn_agent) pass at every profile.
         assert!(p.allows("memory_search"));
         assert!(p.allows("spawn_agent"));
-        // Dropped at core: CLI tools, pipelines, modules, mesh/export/audio.
-        assert!(!p.allows("bash"));
-        assert!(!p.allows("read_file"));
+        // Dropped at core: pipelines, modules, mesh/export/audio.
         assert!(!p.allows("gen_plan_layout"));
         assert!(!p.allows("gen_add_npc"));
         assert!(!p.allows("gen_load_gltf"));
@@ -256,7 +249,7 @@ mod tests {
     }
 
     #[test]
-    fn standard_adds_pipelines_but_not_modules_or_cli() {
+    fn standard_adds_pipelines_but_not_modules() {
         let p = ToolProfile::Standard;
         for name in [
             "gen_plan_layout",
@@ -276,8 +269,6 @@ mod tests {
             "gen_add_hud",      // ui
             "gen_add_door",     // interaction
             "gen_spawn_player", // interaction
-            "bash",
-            "edit_file",
         ] {
             assert!(!p.allows(name), "standard should drop {name}");
         }
@@ -290,7 +281,6 @@ mod tests {
             "gen_spawn_primitive",
             "gen_add_npc",
             "gen_plan_layout",
-            "bash",
             "anything_at_all",
         ] {
             assert!(p.allows(name));

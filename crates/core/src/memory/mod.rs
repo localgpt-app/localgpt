@@ -3,7 +3,6 @@ pub mod backend;
 mod backend_markdown;
 mod backend_none;
 mod backend_sqlite;
-pub mod dreaming;
 mod embeddings;
 mod index;
 pub mod query_expansion;
@@ -17,10 +16,6 @@ pub use backend::{MemoryBackend, MemoryBackendKind};
 pub use backend_markdown::MarkdownBackend;
 pub use backend_none::NoneBackend;
 pub use backend_sqlite::SqliteBackend;
-#[cfg(feature = "embeddings-local")]
-pub use embeddings::FastEmbedProvider;
-#[cfg(feature = "gguf")]
-pub use embeddings::LlamaCppProvider;
 pub use embeddings::{
     EmbeddingProvider, GeminiEmbeddingProvider, OpenAIEmbeddingProvider, hash_text,
 };
@@ -40,23 +35,6 @@ use tokio::runtime::Handle;
 use tracing::{debug, info, warn};
 
 use crate::config::{Config, MemoryConfig};
-
-/// The local model and cache directory `memory` asks for: `None` means
-/// fastembed's default model (an empty setting, or the OpenAI default left in
-/// a config written for it) or fastembed's own cache.
-fn local_embedding_settings(memory: &MemoryConfig) -> (Option<&str>, Option<&str>) {
-    let model = memory.embedding_model.as_str();
-    let model = (!model.is_empty() && model != "text-embedding-3-small").then_some(model);
-    let cache = memory.embedding_cache_dir.as_str();
-    (model, (!cache.is_empty()).then_some(cache))
-}
-
-/// Whether `memory`'s local embedding model is already on disk, so turning
-/// local embeddings on costs no download.
-pub fn local_embeddings_cached(memory: &MemoryConfig) -> bool {
-    let (model, cache) = local_embedding_settings(memory);
-    embeddings::local_model_cached(model, cache)
-}
 
 #[derive(Clone)]
 pub struct MemoryManager {
@@ -158,32 +136,6 @@ impl MemoryManager {
             .embedding_provider
             .as_str()
         {
-            "local" => {
-                #[cfg(feature = "embeddings-local")]
-                {
-                    let (model_name, cache_dir) = local_embedding_settings(memory_config);
-                    match FastEmbedProvider::new_with_cache_dir(model_name, cache_dir) {
-                        Ok(provider) => {
-                            info!("Using local embedding provider: {}", provider.model());
-                            Some(Arc::new(provider))
-                        }
-                        Err(e) => {
-                            warn!(
-                                "Failed to initialize local embeddings: {}. Falling back to FTS-only search.",
-                                e
-                            );
-                            None
-                        }
-                    }
-                }
-                #[cfg(not(feature = "embeddings-local"))]
-                {
-                    warn!(
-                        "Local embeddings requested but `embeddings-local` feature is disabled. Falling back to FTS-only search."
-                    );
-                    None
-                }
-            }
             "openai" => {
                 // Need OpenAI config for API key
                 if let Some(config) = app_config {
@@ -244,35 +196,10 @@ impl MemoryManager {
                     None
                 }
             }
-            #[cfg(feature = "gguf")]
-            "gguf" => {
-                let cache_dir = if memory_config.embedding_cache_dir.is_empty() {
-                    None
-                } else {
-                    Some(memory_config.embedding_cache_dir.as_str())
-                };
-                match LlamaCppProvider::new(&memory_config.embedding_model, cache_dir) {
-                    Ok(provider) => {
-                        info!("Using GGUF embedding provider: {}", provider.model());
-                        Some(Arc::new(provider))
-                    }
-                    Err(e) => {
-                        warn!(
-                            "Failed to initialize GGUF embeddings: {}. Falling back to FTS-only search.",
-                            e
-                        );
-                        None
-                    }
-                }
-            }
-            #[cfg(not(feature = "gguf"))]
-            "gguf" => {
-                warn!(
-                    "GGUF embedding provider requested but 'gguf' feature is not enabled. Build with --features gguf. Falling back to FTS-only search."
-                );
-                None
-            }
-            "none" => {
+            // "local" (fastembed) and "gguf" (llama.cpp) ran a model in this
+            // process; both left with the harness's on-device tiers. An old
+            // config's "local", the former default, searches by keyword.
+            "none" | "local" | "gguf" => {
                 debug!("Embeddings disabled, using FTS-only search");
                 None
             }
@@ -323,16 +250,6 @@ impl MemoryManager {
     /// Read the main MEMORY.md file
     pub fn read_memory_file(&self) -> Result<String> {
         let path = self.workspace.join("MEMORY.md");
-        if path.exists() {
-            Ok(fs::read_to_string(&path)?)
-        } else {
-            Ok(String::new())
-        }
-    }
-
-    /// Read the HEARTBEAT.md file
-    pub fn read_heartbeat_file(&self) -> Result<String> {
-        let path = self.workspace.join("HEARTBEAT.md");
         if path.exists() {
             Ok(fs::read_to_string(&path)?)
         } else {

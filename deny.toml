@@ -74,11 +74,9 @@ feature-depth = 1
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
 ignore = [
-    { id = "RUSTSEC-2025-0069", reason = "daemonize: unmaintained but no alternative; transitive dep only" },
     { id = "RUSTSEC-2024-0436", reason = "paste: unmaintained, transitive dep of tokenizers/rav1e; no upgrade available" },
     { id = "RUSTSEC-2025-0057", reason = "fxhash: unmaintained, transitive via bm25 -> mistralrs-core (the local-llm tier); migrate to rustc-hash when mistral.rs does" },
-    { id = "RUSTSEC-2025-0119", reason = "number_prefix: unmaintained, transitive via indicatif -> hf-hub -> fastembed (local embeddings); no upgrade available" },
-    { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: unmaintained, via axum-server (server TLS); only reads PEM files, no code execution risk" },
+    { id = "RUSTSEC-2025-0119", reason = "number_prefix: unmaintained, transitive via indicatif -> hf-hub -> mistral.rs (the opt-in local-llm and llm tiers); no upgrade available" },
     { id = "RUSTSEC-2026-0192", reason = "ttf-parser: unmaintained, transitive via winit -> sctk-adwaita (Wayland window decorations); no upgrade available" },
     { id = "RUSTSEC-2026-0344", reason = "ruzstd 0.8 decompression bomb (DoS only, no memory unsafety): reached through bevy_image's KTX2 zstd path, which no app here feeds untrusted .zst textures; fixed in 0.9.1, which bevy_image 0.19 does not accept — drop when Bevy bumps" },
     # zip < 9 lets `extract` write outside its destination (symlinks, the
@@ -90,7 +88,6 @@ ignore = [
     { id = "RUSTSEC-2026-0367", reason = "zip extract keeps SUID/SGID bits: only candle-core 0.10 (local-llm) has zip < 9, and it never calls extract" },
     { id = "RUSTSEC-2026-0368", reason = "zip extract follows symlinks out of the destination: only candle-core 0.10 (local-llm) has zip < 9, and it never calls extract" },
     { id = "RUSTSEC-2026-0369", reason = "zip extract applies permissions through symlinks: only candle-core 0.10 (local-llm) has zip < 9, and it never calls extract" },
-    { id = "RUSTSEC-2026-0374", reason = "basic-toml: unmaintained, read at compile time only by askama_derive (askama's template config) inside uniffi_bindgen, the mobile bindings generator; askama 0.16 still depends on it — drop when uniffi moves off it" },
 ]
 # If this is true, then cargo deny will use the git executable to fetch advisory database.
 # If this is false, then it uses a built-in git library.

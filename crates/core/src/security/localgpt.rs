@@ -10,15 +10,16 @@
 //! ┌──────────────────────────────────────────────────────────────────┐
 //! │                  localgpt.rs (you are here)                      │
 //! │                  Public API facade & documentation               │
-//! ├──────────────────────┬──────────────────────┬───────────────────┤
-//! │  policy.rs           │  device_key.rs       │ protected_files.rs│
-//! │  Load + sanitize     │  Device-local key    │ Agent write deny  │
-//! │  the POLICY.md       │  for bridge          │ list for security-│
-//! │  policy pipeline     │  credential encryption│ critical files   │
-//! ├──────────────────────┴──────────────────────┴───────────────────┤
+//! ├──────────────────────────────────────────────────────────────────┤
+//! │  policy.rs — load + sanitize the POLICY.md policy pipeline       │
+//! ├──────────────────────────────────────────────────────────────────┤
 //! │  suffix.rs — Hardcoded security suffix (always last in context) │
 //! └──────────────────────────────────────────────────────────────────┘
 //! ```
+//!
+//! The protected-files deny list and the device key went with the shell and
+//! file tools and the bridges they guarded: the agent has no tool that writes
+//! a file outside its memory.
 //!
 //! ## Security Model
 //!
@@ -31,13 +32,7 @@
 //!    content is rejected — the agent then runs with the hardcoded
 //!    suffix only. The system never fails open.
 //!
-//! 3. **Agent-proof**: A protected files list blocks the agent from
-//!    writing to `POLICY.md` (or the legacy `LocalGPT.md`) or reading
-//!    the device key via
-//!    `write_file`/`edit_file` tools. Bash commands get a best-effort
-//!    heuristic check (true enforcement requires OS-level sandboxing).
-//!
-//! 4. **Recency-reinforced**: The hardcoded security suffix is always
+//! 3. **Recency-reinforced**: The hardcoded security suffix is always
 //!    the last content in the context window, exploiting transformer
 //!    recency bias to keep security rules in the model's high-attention
 //!    zone even in long sessions.
@@ -64,11 +59,9 @@
 //! └── config.toml                           # User configuration
 //!
 //! ~/.local/share/localgpt/                  # Data directory (XDG_DATA_HOME)
-//! ├── localgpt.device.key                   # 32-byte bridge key (0600)
 //! └── workspace/                            # Memory workspace
 //!     ├── POLICY.md                         # User security policy
-//!     ├── MEMORY.md                         # Long-term memory
-//!     └── HEARTBEAT.md                      # Autonomous tasks
+//!     └── MEMORY.md                         # Long-term memory
 //!
 //! ~/.local/state/localgpt/                  # State directory (XDG_STATE_HOME)
 //! ├── agents/{agent_id}/sessions/           # Session transcripts
@@ -82,27 +75,13 @@
 //!
 //! | Threat | Defense Layer |
 //! |--------|--------------|
-//! | Agent writes to `POLICY.md` via tool | Protected files deny list |
-//! | Agent writes via `bash` | Heuristic check + OS sandbox (separate) |
 //! | Injected content in policy file | Sanitization pipeline (blocking) |
 //! | Policy weakens hardcoded rules | Hardcoded suffix always last in context |
 //! | Policy floods context window | 4096 char limit |
-//! | Bridge credentials read from disk | ChaCha20Poly1305 with device key (see `localgpt-server`) |
 
 // ── Policy Loading ──────────────────────────────────────────────────
 
 pub use super::policy::{MAX_POLICY_CHARS, find_policy_file, load_policy, sanitize_policy_content};
-
-// ── Device Key ──────────────────────────────────────────────────────
-
-pub use super::device_key::{ensure_device_key, read_device_key};
-
-// ── Protected Files ─────────────────────────────────────────────────
-
-pub use super::protected_files::{
-    PROTECTED_EXTERNAL_PATHS, PROTECTED_FILES, check_bash_command, is_path_protected,
-    is_workspace_file_protected,
-};
 
 // ── Context Window Suffix ───────────────────────────────────────────
 
@@ -112,12 +91,11 @@ pub use super::suffix::{HARDCODED_SECURITY_SUFFIX, build_ending_security_block};
 
 /// The filename for the user-editable security policy.
 ///
-/// This file lives in the workspace alongside `MEMORY.md`, `HEARTBEAT.md`,
-/// and other markdown files. It follows the same plain-markdown convention.
+/// This file lives in the workspace alongside `MEMORY.md` and the other
+/// markdown files. It follows the same plain-markdown convention.
 pub const POLICY_FILENAME: &str = "POLICY.md";
 
 /// The pre-rename filename for the user security policy.
 ///
 /// Workspaces created before the rename still load their `LocalGPT.md`.
-/// The legacy name also stays on the protected-files deny list.
 pub const LEGACY_POLICY_FILENAME: &str = "LocalGPT.md";

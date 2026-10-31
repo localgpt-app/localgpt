@@ -53,6 +53,3 @@ pub const LOCALGPT_GEN_OLLAMA_URL: &str = "LOCALGPT_GEN_OLLAMA_URL";
 
 /// Test URL for SearXNG integration tests
 pub const LOCALGPT_TEST_SEARXNG_URL: &str = "LOCALGPT_TEST_SEARXNG_URL";
-
-/// Internal: macOS sandbox profile passing (private)
-pub const _LOCALGPT_SBPL_PROFILE: &str = "_LOCALGPT_SBPL_PROFILE";

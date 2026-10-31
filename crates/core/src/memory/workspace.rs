@@ -19,11 +19,7 @@ pub fn init_workspace(workspace: &Path, paths: &crate::paths::Paths) -> Result<b
     init_state_dir(paths)?;
 
     // Check if this is a brand new workspace (all key files missing)
-    let key_files = [
-        workspace.join("MEMORY.md"),
-        workspace.join("HEARTBEAT.md"),
-        workspace.join("SOUL.md"),
-    ];
+    let key_files = [workspace.join("MEMORY.md"), workspace.join("SOUL.md")];
     let is_brand_new = key_files.iter().all(|p| !p.exists());
 
     // Create MEMORY.md if it doesn't exist
@@ -31,13 +27,6 @@ pub fn init_workspace(workspace: &Path, paths: &crate::paths::Paths) -> Result<b
     if !memory_path.exists() {
         fs::write(&memory_path, MEMORY_TEMPLATE)?;
         info!("Created {}", memory_path.display());
-    }
-
-    // Create HEARTBEAT.md if it doesn't exist
-    let heartbeat_path = workspace.join("HEARTBEAT.md");
-    if !heartbeat_path.exists() {
-        fs::write(&heartbeat_path, HEARTBEAT_TEMPLATE)?;
-        info!("Created {}", heartbeat_path.display());
     }
 
     // Create SOUL.md if it doesn't exist
@@ -98,19 +87,6 @@ This file stores important, curated knowledge that persists across sessions.
 
 ---
 
-"#;
-
-const HEARTBEAT_TEMPLATE: &str = r#"# HEARTBEAT.md - Pending Tasks
-
-Tasks listed here will be executed during heartbeat cycles (autonomous mode).
-
-## Format
-
-- [ ] Task description (include context needed to complete it)
-
-## Current Tasks
-
-(No pending tasks)
 "#;
 
 const SOUL_TEMPLATE: &str = r#"# SOUL.md - Who You Are
@@ -176,7 +152,6 @@ const GITIGNORE_TEMPLATE: &str = r#"# LocalGPT workspace .gitignore
 # Nothing to ignore in workspace by default
 # All memory files should be version controlled:
 # - MEMORY.md (curated knowledge)
-# - HEARTBEAT.md (pending tasks)
 # - SOUL.md (persona)
 # - POLICY.md (security policy)
 # - memory/*.md (daily logs)
@@ -213,15 +188,10 @@ const GEMINI_SETTINGS_TEMPLATE: &str = r#"{
 }
 "#;
 
-/// Initialize state directory with .gitignore and device key.
-/// Ensures all XDG directories exist and device key is present.
+/// Ensure the state, data and cache directories exist.
 pub fn init_state_dir(paths: &crate::paths::Paths) -> Result<()> {
     fs::create_dir_all(&paths.state_dir)?;
     fs::create_dir_all(&paths.data_dir)?;
     fs::create_dir_all(&paths.cache_dir)?;
-
-    // Ensure device key exists for bridge credential encryption (lives in data_dir)
-    crate::security::ensure_device_key(&paths.data_dir)?;
-
     Ok(())
 }

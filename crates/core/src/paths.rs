@@ -44,7 +44,7 @@ pub struct Paths {
     /// Config directory: config.toml lives here
     pub config_dir: PathBuf,
 
-    /// Data directory root: contains workspace/ and localgpt.device.key
+    /// Data directory root: contains workspace/
     pub data_dir: PathBuf,
 
     /// Workspace: markdown files, knowledge, skills.
@@ -123,11 +123,6 @@ impl Paths {
         self.config_dir.join("config.toml")
     }
 
-    /// Device key: data_dir/localgpt.device.key
-    pub fn device_key(&self) -> PathBuf {
-        self.data_dir.join("localgpt.device.key")
-    }
-
     pub fn last_heartbeat(&self) -> PathBuf {
         self.state_dir.join("last_heartbeat")
     }
@@ -188,27 +183,6 @@ impl Paths {
     /// Managed skills directory: data_dir/skills
     pub fn managed_skills_dir(&self) -> PathBuf {
         self.data_dir.join("skills")
-    }
-
-    /// Embedding cache directory: cache_dir/embeddings
-    pub fn embedding_cache_dir(&self) -> PathBuf {
-        self.cache_dir.join("embeddings")
-    }
-
-    /// Create Paths with all directories rooted under a single base path.
-    ///
-    /// Mobile apps use this to point everything at their app-specific
-    /// document or library directory.
-    pub fn from_root(root: impl Into<PathBuf>) -> Self {
-        let root = root.into();
-        Self {
-            config_dir: root.join("config"),
-            data_dir: root.join("data"),
-            workspace: root.join("data").join("workspace"),
-            state_dir: root.join("state"),
-            cache_dir: root.join("cache"),
-            runtime_dir: None,
-        }
     }
 
     /// Create all directories with appropriate permissions.
@@ -518,12 +492,10 @@ mod tests {
         let paths = Paths::resolve_with_env(make_env(env)).unwrap();
 
         assert!(paths.config_file().ends_with("config.toml"));
-        assert!(paths.device_key().ends_with("localgpt.device.key"));
         assert!(paths.search_index("main").ends_with("memory/main.sqlite"));
         assert!(paths.sessions_dir("main").ends_with("agents/main/sessions"));
         assert!(paths.logs_dir().ends_with("logs"));
         assert!(paths.managed_skills_dir().ends_with("skills"));
-        assert!(paths.embedding_cache_dir().ends_with("embeddings"));
     }
 
     #[test]

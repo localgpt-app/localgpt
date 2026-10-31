@@ -40,7 +40,6 @@ localgpt-world-editor = { workspace = true }
 # The one audio mapping: kira owns the device, FunDSP graphs are sources.
 # Gen's hand-rolled cpal engine and its per-frame attenuation moved here.
 localgpt-world-audio = { workspace = true }
-localgpt-cli-tools = { workspace = true }
 
 tokio = { workspace = true }
 serde = { workspace = true }

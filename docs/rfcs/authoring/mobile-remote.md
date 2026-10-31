@@ -4,8 +4,8 @@
 a phone in a hand. It was checked by a protocol test and a headless browser
 at an iPhone's size; *Step 1, as built* says what that covered. Answers the
 *Mobile* question [the-harness-goes.md](the-harness-goes.md) left open:
-`apps/apple` and `apps/android` leave with `mobile-ffi` in 0.5.0, and no
-native app takes their place. Builds on [the-page.md](the-page.md). The
+`apps/apple` and `apps/android` left with `mobile-ffi` on 2026-10-31, ahead
+of 0.5.0, and no native app takes their place. Builds on [the-page.md](the-page.md). The
 readings behind it are Orca's mobile notes (`external/ade/orca/mobile/`,
 MIT) and [cad-lessons.md](cad-lessons.md) §7.
 
@@ -281,7 +281,7 @@ the previs user test to say, and
 - Notifications while the phone's page is closed, until step 2.
 - The Apple app's on-device authoring with Apple's Foundation Models
   (`AppleFoundationModelsService.swift`,
-  [apple-foundation-models.md](../../mobile/apple-foundation-models.md)). If
+  [apple-foundation-models.md](../../archived/mobile/apple-foundation-models.md)). If
   it is wanted, it is worldwalk's question, as the-harness-goes.md says.
 - A phone that works with no network path to the desktop.
 
@@ -297,8 +297,8 @@ the previs user test to say, and
 
 ## Status
 
-- [ ] `apps/apple`, `apps/android` and `mobile-ffi` removed (0.5.0,
-      the-harness-goes.md)
+- [x] `apps/apple`, `apps/android` and `mobile-ffi` removed, 2026-10-31,
+      ahead of 0.5.0 (the-harness-goes.md)
 - [x] turn marks from the page's terminals, from the agents' titles
 - [x] the live API's token: random, the owner's alone, in a query only to
       a board page

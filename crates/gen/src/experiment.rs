@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 pub struct Experiment {
     /// Unique experiment ID (e.g., "exp-20260316-143022-enchanted-forest").
     pub id: String,
-    /// Original prompt from HEARTBEAT.md or MCP.
+    /// Original prompt (from MCP or the command line).
     pub prompt: String,
     /// Optional style hint (from memory or inline).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -309,29 +309,6 @@ pub fn prompt_preview(prompt: &str, max_chars: usize) -> String {
     prefix_chars_with_ellipsis(prompt, max_chars)
 }
 
-/// Detect if HEARTBEAT.md content contains gen experiment entries.
-pub fn has_gen_experiments(heartbeat_content: &str) -> bool {
-    let lower = heartbeat_content.to_lowercase();
-    // Explicit section header
-    if lower.contains("## gen experiments") || lower.contains("## world experiments") {
-        return true;
-    }
-    // Heuristic: unchecked items with gen-like verbs
-    if lower.contains("- [ ]") {
-        let gen_verbs = [
-            "build a ",
-            "generate a ",
-            "create a world",
-            "create a scene",
-            "variation:",
-            "lighting variation",
-            "headless gen",
-        ];
-        return gen_verbs.iter().any(|v| lower.contains(v));
-    }
-    false
-}
-
 /// Lock a file for exclusive access (blocking, with timeout via retry).
 #[cfg(unix)]
 fn lock_file_exclusive(file: &std::fs::File) -> anyhow::Result<()> {
@@ -400,22 +377,6 @@ mod tests {
 
         assert_eq!(preview.chars().filter(|&c| c == '✅').count(), 50);
         assert!(preview.ends_with("..."));
-    }
-
-    #[test]
-    fn test_has_gen_experiments_section() {
-        assert!(has_gen_experiments(
-            "## Gen Experiments\n- [ ] Build a castle"
-        ));
-        assert!(has_gen_experiments("## World Experiments\n- [ ] foo"));
-    }
-
-    #[test]
-    fn test_has_gen_experiments_heuristic() {
-        assert!(has_gen_experiments("- [ ] Build a cozy cabin in the woods"));
-        assert!(has_gen_experiments("- [ ] Generate a sci-fi world"));
-        assert!(!has_gen_experiments("- [ ] Fix the CI pipeline"));
-        assert!(!has_gen_experiments("- [x] Build a castle")); // already checked
     }
 
     #[test]

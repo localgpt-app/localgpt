@@ -17,8 +17,6 @@ docs/
 ├── architecture/            # Current system architecture docs
 │   └── plugin/              # Plugin lifecycle reviews (apply/unapply without restart)
 ├── gen/                     # Gen mode reference (audio, MCP tools, UX)
-├── mobile/                  # Mobile platform research
-├── security/                # Security specs and roadmap
 ├── ecosystem/               # Rust ecosystem integration
 ├── roadmap/                 # Implementation tracking (actively maintained)
 │   ├── gen/                 # Phase 1-4 RFCs + tracker (Doc-0)
@@ -27,8 +25,11 @@ docs/
 └── archived/                # Fully implemented or superseded docs
     ├── rfcs/                # 7 completed RFCs (XDG, security policy, monorepo, etc.)
     ├── gen/                 # Superseded gen docs
-    ├── security/            # Merged security comparison
-    └── ecosystem/           # Redundant checklist
+    ├── security/            # The shell sandbox's spec, the sandbox comparison,
+    │                        #   the assistant's security TODO
+    ├── mobile/              # The native apps' research (gone 2026-10-31)
+    └── architecture/        # Bridges, messaging, pairing, process isolation,
+                             #   local embeddings (gone 2026-10-31)
 ```
 
 ## Key Entry Points
@@ -36,7 +37,6 @@ docs/
 - **Roadmap status**: `roadmap/gen/Doc-0-Implementation-Tracker.md` (living document, updated each session)
 - **World systems**: `roadmap/world/TODO-START.md` (92% complete, 76/83 specs done)
 - **Headless pipeline**: `roadmap/headless/TODO-START.md` (81% complete, 25/31 specs done)
-- **Security roadmap**: `security/SECURITY-TODO.md` (consolidated comparison + TODO)
 - **RFC index**: `rfcs/README.md` — every RFC with its status, what supersedes what, and how to write one
 
 ## Relationship to Website Docs

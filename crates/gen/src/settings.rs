@@ -42,13 +42,6 @@ pub struct GenSettings {
     #[serde(default)]
     pub tool_profile: Option<String>,
 
-    /// Local embeddings for Gen's memory (style recall). `None`: on when the
-    /// model is already on disk, so a first launch never waits on a download.
-    /// `Some(true)`: always, fetching the ~80 MB model the first time.
-    /// `Some(false)`: never — keyword search only.
-    #[serde(default)]
-    pub embeddings: Option<bool>,
-
     /// What the app opened last, so a bare launch reopens where the user
     /// left off — a document with its editor, anything else as its world
     /// (a song's world plays again on its own).
@@ -76,7 +69,6 @@ impl Default for GenSettings {
             version: VERSION,
             default_model: None,
             tool_profile: None,
-            embeddings: None,
             last_opened: None,
         }
     }
@@ -173,7 +165,6 @@ mod tests {
             version: VERSION,
             default_model: Some("gguf/bonsai".into()),
             tool_profile: Some("core".into()),
-            embeddings: Some(false),
             last_opened: Some(LastOpened::Document {
                 path: "/tmp/notes.md".into(),
             }),

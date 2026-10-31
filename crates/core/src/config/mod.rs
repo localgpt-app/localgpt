@@ -1,11 +1,3 @@
-mod migrate;
-mod schema;
-pub mod watcher;
-
-pub use migrate::check_openclaw_detected;
-pub use schema::*;
-pub use watcher::{ConfigWatcher, spawn_sighup_handler};
-
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -53,13 +45,7 @@ pub struct Config {
     pub providers: ProvidersConfig,
 
     #[serde(default)]
-    pub heartbeat: HeartbeatConfig,
-
-    #[serde(default)]
     pub memory: MemoryConfig,
-
-    #[serde(default)]
-    pub server: ServerConfig,
 
     #[serde(default)]
     pub logging: LoggingConfig,
@@ -71,20 +57,7 @@ pub struct Config {
     pub security: SecurityConfig,
 
     #[serde(default)]
-    pub sandbox: SandboxConfig,
-
-    #[serde(default)]
-    pub cron: CronConfig,
-
-    #[serde(default)]
-    pub hooks: HooksConfig,
-
-    #[serde(default)]
     pub mcp: McpConfig,
-
-    /// Settings for the Gen 3D app, from the `[gen]` table.
-    #[serde(default)]
-    pub r#gen: GenConfig,
 }
 
 /// What Gen imports once from a config file written before it kept its own
@@ -105,27 +78,6 @@ impl GenMigration {
             && self.gen_tool_profile.is_none()
             && self.agent_default_model.is_none()
     }
-}
-
-/// The `[gen]` table of a config file written before Gen kept its own
-/// settings (`gen-settings.json`, in Gen's state directory).
-///
-/// Migration-only: nothing reads these fields. Gen imports the table once
-/// through [`Config::peek_gen_migration`], which parses the file itself;
-/// this type exists so that [`Config::save`], which reserializes the whole
-/// struct, keeps the table for that import rather than dropping it. Delete
-/// it with `peek_gen_migration` and Gen's `import_legacy_settings` once
-/// upgrades from releases without gen-settings.json (0.3.6 and older) are no
-/// longer supported.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct GenConfig {
-    /// Gen's model, as its old model menu wrote it.
-    #[serde(default)]
-    pub default_model: Option<String>,
-
-    /// Gen's tool profile: "core", "standard" or "full".
-    #[serde(default)]
-    pub tool_profile: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -242,16 +194,12 @@ fn default_permission_level() -> crate::agent::tools::PermissionLevel {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolsConfig {
-    /// Bash command timeout in milliseconds
-    #[serde(default = "default_bash_timeout")]
-    pub bash_timeout_ms: u64,
-
     /// Maximum bytes to return from web_fetch
     #[serde(default = "default_web_fetch_max_bytes")]
     pub web_fetch_max_bytes: usize,
 
     /// Tools that require user approval before execution
-    /// e.g., ["bash", "write_file", "edit_file"]
+    /// e.g., ["web_fetch", "spawn_agent"]
     #[serde(default)]
     pub require_approval: Vec<String>,
 
@@ -296,16 +244,8 @@ pub struct ToolsConfig {
     #[serde(default = "default_media_cache_max_mb")]
     pub media_cache_max_mb: u64,
 
-    /// Enable browser automation tool via Chrome DevTools Protocol (default: false)
-    #[serde(default)]
-    pub browser_enabled: bool,
-
-    /// Chrome CDP debug port (default: 9222)
-    #[serde(default = "default_browser_port")]
-    pub browser_port: u16,
-
     /// Per-tool input filters (deny/allow patterns and substrings).
-    /// Keys are tool names (e.g. "bash", "web_fetch").
+    /// Keys are tool names (e.g. "web_fetch").
     #[serde(default)]
     pub filters: std::collections::HashMap<String, crate::agent::tool_filters::ToolFilter>,
 }
@@ -421,100 +361,6 @@ pub struct SecurityConfig {
     /// long sessions due to attention decay ("lost in the middle" effect).
     #[serde(default)]
     pub disable_suffix: bool,
-
-    /// Restrict file tools to these directories (empty = unrestricted).
-    /// Paths are canonicalized at startup. Symlinks are resolved before checking.
-    #[serde(default)]
-    pub allowed_directories: Vec<String>,
-
-    /// Container sandbox backend: "disabled" (default), "auto", "docker", "podman"
-    /// "auto" tries Docker then Podman, falls back to kernel sandbox.
-    #[serde(default = "default_sandbox_backend")]
-    pub sandbox_backend: String,
-
-    /// Docker image for container sandbox (default: "ubuntu:24.04")
-    #[serde(default)]
-    pub sandbox_image: Option<String>,
-
-    /// Memory limit for sandbox container (e.g., "512m", "1g")
-    #[serde(default)]
-    pub sandbox_memory: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SandboxConfig {
-    /// Enable shell command sandboxing (default: true)
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-
-    /// Sandbox level: "auto" | "full" | "standard" | "minimal" | "none"
-    #[serde(default = "default_sandbox_level")]
-    pub level: String,
-
-    /// Command timeout in seconds (default: 120)
-    #[serde(default = "default_sandbox_timeout")]
-    pub timeout_secs: u64,
-
-    /// Maximum output bytes (default: 1MB)
-    #[serde(default = "default_sandbox_max_output")]
-    pub max_output_bytes: u64,
-
-    /// Maximum file size in bytes (RLIMIT_FSIZE, default: 50MB)
-    #[serde(default = "default_sandbox_max_file_size")]
-    pub max_file_size_bytes: u64,
-
-    /// Maximum child processes (RLIMIT_NPROC, default: 64)
-    #[serde(default = "default_sandbox_max_processes")]
-    pub max_processes: u32,
-
-    /// Additional path allowances
-    #[serde(default)]
-    pub allow_paths: AllowPathsConfig,
-
-    /// Network policy
-    #[serde(default)]
-    pub network: SandboxNetworkConfig,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct AllowPathsConfig {
-    /// Additional read-only paths
-    #[serde(default)]
-    pub read: Vec<String>,
-
-    /// Additional writable paths
-    #[serde(default)]
-    pub write: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SandboxNetworkConfig {
-    /// Network policy: "deny" | "proxy"
-    #[serde(default = "default_sandbox_network_policy")]
-    pub policy: String,
-}
-
-impl Default for SandboxConfig {
-    fn default() -> Self {
-        Self {
-            enabled: default_true(),
-            level: default_sandbox_level(),
-            timeout_secs: default_sandbox_timeout(),
-            max_output_bytes: default_sandbox_max_output(),
-            max_file_size_bytes: default_sandbox_max_file_size(),
-            max_processes: default_sandbox_max_processes(),
-            allow_paths: AllowPathsConfig::default(),
-            network: SandboxNetworkConfig::default(),
-        }
-    }
-}
-
-impl Default for SandboxNetworkConfig {
-    fn default() -> Self {
-        Self {
-            policy: default_sandbox_network_policy(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -690,44 +536,6 @@ pub struct GeminiConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HeartbeatConfig {
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-
-    #[serde(default = "default_interval")]
-    pub interval: String,
-
-    #[serde(default = "default_overdue_delay")]
-    pub overdue_delay: String,
-
-    /// Maximum duration for a single heartbeat run.
-    /// If not set, defaults to half the heartbeat interval.
-    /// Accepts the same format as `interval` (e.g., "15m", "1h").
-    #[serde(default)]
-    pub timeout: Option<String>,
-
-    #[serde(default)]
-    pub active_hours: Option<ActiveHours>,
-
-    #[serde(default)]
-    pub timezone: Option<String>,
-
-    /// Dreaming configuration — background memory consolidation
-    #[serde(default)]
-    pub dreaming: crate::memory::dreaming::DreamingConfig,
-
-    /// MCP server allowlist for heartbeat. Empty = all servers. Case-insensitive.
-    #[serde(default)]
-    pub mcp_servers: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActiveHours {
-    pub start: String,
-    pub end: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryConfig {
     /// Memory search backend: "sqlite" (default), "markdown", or "none"
     #[serde(default)]
@@ -736,7 +544,9 @@ pub struct MemoryConfig {
     #[serde(default = "default_workspace")]
     pub workspace: String,
 
-    /// Embedding provider: "local" (fastembed, default), "openai", "gemini", or "none"
+    /// Embedding provider: "none" (keyword search, default), "openai" or
+    /// "gemini". "local" and "gguf", the in-process models, are gone and read
+    /// as "none".
     #[serde(default = "default_embedding_provider")]
     pub embedding_provider: String,
 
@@ -754,12 +564,6 @@ pub struct MemoryConfig {
     /// Enable multimodal embeddings for images (requires gemini-embedding-2-preview model)
     #[serde(default)]
     pub multimodal_embeddings: bool,
-
-    /// Cache directory for local embedding models (optional)
-    /// Default: ~/.cache/localgpt/models
-    /// Can also be set via FASTEMBED_CACHE_DIR environment variable
-    #[serde(default = "default_embedding_cache_dir")]
-    pub embedding_cache_dir: String,
 
     #[serde(default = "default_chunk_size")]
     pub chunk_size: usize,
@@ -820,108 +624,6 @@ pub struct MemoryIndexPath {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServerConfig {
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-
-    #[serde(default = "default_port")]
-    pub port: u16,
-
-    #[serde(default = "default_bind")]
-    pub bind: String,
-
-    /// Bearer token for API authentication.
-    /// If set, all /api/* routes require Authorization: Bearer <token>.
-    /// Supports ${ENV_VAR} expansion.
-    /// If unset, auth is disabled (backward compatible for local-only use).
-    #[serde(default)]
-    pub auth_token: Option<String>,
-
-    #[serde(default)]
-    pub rate_limit: RateLimitConfig,
-
-    /// Allowed CORS origins. If empty, defaults to localhost only (any port,
-    /// http/https, 127.0.0.1, localhost, and [::1]).
-    #[serde(default)]
-    pub cors_origins: Vec<String>,
-
-    /// Maximum request body size in bytes.
-    /// Requests larger than this return 413 Payload Too Large.
-    /// Default: 10MB
-    #[serde(default = "default_max_request_body")]
-    pub max_request_body: usize,
-
-    /// HMAC-SHA256 secret for webhook signature verification.
-    /// When set, incoming webhook requests must include X-Signature-256 header.
-    /// Supports ${ENV_VAR} expansion.
-    #[serde(default)]
-    pub webhook_secret: Option<String>,
-
-    /// Enable durable outbound message queue with retry on send failure.
-    /// Default: false.
-    #[serde(default)]
-    pub outbox_enabled: bool,
-
-    /// Maximum retry attempts for outbox messages. Default: 5.
-    #[serde(default = "default_outbox_max_attempts")]
-    pub outbox_max_attempts: i64,
-
-    /// Days to retain delivered messages before cleanup. Default: 7.
-    #[serde(default = "default_outbox_retain_days")]
-    pub outbox_retain_days: u32,
-
-    /// Enable auto-generated TLS certificates for HTTPS. Default: false.
-    /// Requires the `tls` feature on localgpt-server.
-    #[serde(default)]
-    pub tls_enabled: bool,
-
-    /// Directory for TLS certificate storage. Default: ~/.config/localgpt/certs
-    #[serde(default = "default_tls_cert_dir")]
-    pub tls_cert_dir: String,
-
-    /// Regenerate certificates when they expire within this many days. Default: 30.
-    #[serde(default = "default_tls_renew_threshold")]
-    pub tls_renew_threshold_days: u32,
-}
-
-fn default_max_request_body() -> usize {
-    10 * 1024 * 1024 // 10MB
-}
-fn default_outbox_max_attempts() -> i64 {
-    5
-}
-fn default_outbox_retain_days() -> u32 {
-    7
-}
-fn default_tls_cert_dir() -> String {
-    if let Some(proj) = directories::ProjectDirs::from("app", "LocalGPT", "localgpt") {
-        proj.config_dir()
-            .join("certs")
-            .to_string_lossy()
-            .to_string()
-    } else {
-        "~/.config/localgpt/certs".to_string()
-    }
-}
-fn default_tls_renew_threshold() -> u32 {
-    30
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RateLimitConfig {
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-
-    /// Maximum requests per minute per IP
-    #[serde(default = "default_requests_per_minute")]
-    pub requests_per_minute: u32,
-
-    /// Burst allowance (extra requests above steady rate)
-    #[serde(default = "default_burst")]
-    pub burst: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoggingConfig {
     #[serde(default = "default_log_level")]
     pub level: String,
@@ -932,64 +634,6 @@ pub struct LoggingConfig {
     /// Days to keep log files (0 = keep forever, no auto-deletion)
     #[serde(default)]
     pub retention_days: u32,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct CronConfig {
-    #[serde(default)]
-    pub jobs: Vec<CronJob>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CronJob {
-    pub name: String,
-
-    /// Cron expression ("0 */6 * * *") or interval ("every 30m", "every 2h", "every 1d")
-    pub schedule: String,
-
-    /// Prompt to send to a fresh agent session
-    pub prompt: String,
-
-    /// Optional channel/chat to route output to
-    #[serde(default)]
-    pub channel: Option<String>,
-
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-
-    /// Timeout for the job (e.g., "5m", "1h"). Default: 10m
-    #[serde(default = "default_cron_timeout")]
-    pub timeout: String,
-
-    /// MCP server allowlist for this job. Empty = all servers. Case-insensitive.
-    #[serde(default)]
-    pub mcp_servers: Vec<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct HooksConfig {
-    #[serde(default)]
-    pub hooks: Vec<HookConfig>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HookConfig {
-    /// Unique name for this hook
-    pub name: String,
-
-    /// Event type: onMessage, onToolCall, onSessionStart, onSessionEnd, beforeToolCall, afterToolCall
-    pub event: String,
-
-    /// Command to execute (shell command)
-    pub command: String,
-
-    /// Optional filter (e.g., "tool:bash" for beforeToolCall)
-    #[serde(default)]
-    pub filter: Option<String>,
-
-    /// Whether this hook is enabled
-    #[serde(default = "default_true")]
-    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -1064,9 +708,6 @@ fn default_reserve_tokens() -> usize {
 fn default_max_tokens() -> usize {
     4096
 }
-fn default_bash_timeout() -> u64 {
-    30000 // 30 seconds
-}
 fn default_web_fetch_max_bytes() -> usize {
     10000
 }
@@ -1078,12 +719,6 @@ fn default_document_max_bytes() -> usize {
 }
 fn default_media_cache_max_mb() -> u64 {
     100
-}
-fn default_browser_port() -> u16 {
-    9222
-}
-fn default_sandbox_backend() -> String {
-    "disabled".to_string()
 }
 fn default_image_max_dimension() -> u32 {
     1568 // Moltis-compatible, conservative for token cost
@@ -1139,24 +774,14 @@ fn default_vertex_location() -> String {
 fn default_true() -> bool {
     true
 }
-fn default_interval() -> String {
-    "30m".to_string()
-}
-
-fn default_overdue_delay() -> String {
-    "1m".to_string()
-}
 fn default_workspace() -> String {
     format!("{}/workspace", DEFAULT_DATA_DIR_STR)
 }
 fn default_embedding_provider() -> String {
-    "local".to_string() // Local embeddings via fastembed (no API key needed)
+    "none".to_string()
 }
 fn default_embedding_model() -> String {
-    "all-MiniLM-L6-v2".to_string() // Local model via fastembed (no API key needed)
-}
-fn default_embedding_cache_dir() -> String {
-    crate::paths::DEFAULT_CACHE_DIR_STR.to_string() + "/embeddings"
+    "text-embedding-3-small".to_string() // OpenAI's; Gemini reads it as its own default
 }
 fn default_chunk_size() -> usize {
     400
@@ -1182,44 +807,11 @@ fn default_wiki_fresh_days() -> u32 {
 fn default_wiki_stale_days() -> u32 {
     90
 }
-fn default_port() -> u16 {
-    31327
-}
-fn default_cron_timeout() -> String {
-    "10m".to_string()
-}
-fn default_requests_per_minute() -> u32 {
-    60
-}
-fn default_burst() -> u32 {
-    10
-}
-fn default_bind() -> String {
-    "127.0.0.1".to_string()
-}
 fn default_log_level() -> String {
     "info".to_string()
 }
 fn default_log_path() -> String {
     format!("{}/logs", DEFAULT_STATE_DIR_STR)
-}
-fn default_sandbox_level() -> String {
-    "auto".to_string()
-}
-fn default_sandbox_timeout() -> u64 {
-    120
-}
-fn default_sandbox_max_output() -> u64 {
-    1_048_576 // 1MB
-}
-fn default_sandbox_max_file_size() -> u64 {
-    52_428_800 // 50MB
-}
-fn default_sandbox_max_processes() -> u32 {
-    64
-}
-fn default_sandbox_network_policy() -> String {
-    "deny".to_string()
 }
 fn default_cache_ttl() -> u64 {
     900 // 15 minutes
@@ -1262,7 +854,6 @@ impl Default for AgentConfig {
 impl Default for ToolsConfig {
     fn default() -> Self {
         Self {
-            bash_timeout_ms: default_bash_timeout(),
             web_fetch_max_bytes: default_web_fetch_max_bytes(),
             require_approval: Vec::new(),
             tool_output_max_chars: default_tool_output_max_chars(),
@@ -1275,24 +866,7 @@ impl Default for ToolsConfig {
             image_max_dimension: default_image_max_dimension(),
             media_cache_enabled: true,
             media_cache_max_mb: default_media_cache_max_mb(),
-            browser_enabled: false,
-            browser_port: default_browser_port(),
             filters: std::collections::HashMap::new(),
-        }
-    }
-}
-
-impl Default for HeartbeatConfig {
-    fn default() -> Self {
-        Self {
-            enabled: default_true(),
-            interval: default_interval(),
-            overdue_delay: default_overdue_delay(),
-            timeout: None,
-            active_hours: None,
-            timezone: None,
-            dreaming: Default::default(),
-            mcp_servers: Vec::new(),
         }
     }
 }
@@ -1304,7 +878,6 @@ impl Default for MemoryConfig {
             workspace: default_workspace(),
             embedding_provider: default_embedding_provider(),
             embedding_model: default_embedding_model(),
-            embedding_cache_dir: default_embedding_cache_dir(),
             chunk_size: default_chunk_size(),
             chunk_overlap: default_chunk_overlap(),
             paths: default_index_paths(),
@@ -1318,37 +891,6 @@ impl Default for MemoryConfig {
             wiki_enabled: false,
             wiki_fresh_days: default_wiki_fresh_days(),
             wiki_stale_days: default_wiki_stale_days(),
-        }
-    }
-}
-
-impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
-            enabled: default_true(),
-            port: default_port(),
-            bind: default_bind(),
-            auth_token: None,
-            rate_limit: RateLimitConfig::default(),
-            cors_origins: Vec::new(),
-            max_request_body: default_max_request_body(),
-            webhook_secret: None,
-            outbox_enabled: false,
-            outbox_max_attempts: default_outbox_max_attempts(),
-            outbox_retain_days: default_outbox_retain_days(),
-            tls_enabled: false,
-            tls_cert_dir: default_tls_cert_dir(),
-            tls_renew_threshold_days: default_tls_renew_threshold(),
-        }
-    }
-}
-
-impl Default for RateLimitConfig {
-    fn default() -> Self {
-        Self {
-            enabled: default_true(),
-            requests_per_minute: default_requests_per_minute(),
-            burst: default_burst(),
         }
     }
 }
@@ -1398,44 +940,6 @@ impl Config {
         }
 
         Ok(config)
-    }
-
-    /// Load (or create default) config with all directories rooted under `data_dir`.
-    ///
-    /// Mobile apps use this instead of `load()` since they don't have XDG dirs.
-    pub fn load_from_dir(data_dir: &str) -> Result<Self> {
-        let paths = Paths::from_root(data_dir);
-        paths.ensure_dirs()?;
-        let path = paths.config_file();
-
-        if !path.exists() {
-            let config = Config {
-                paths,
-                ..Config::default()
-            };
-            config.save()?;
-            return Ok(config);
-        }
-
-        let content = fs::read_to_string(&path)?;
-        let mut config: Config = toml::from_str(&content)?;
-        config.paths = paths;
-        config.expand_env_vars();
-        Ok(config)
-    }
-
-    pub fn save(&self) -> Result<()> {
-        let path = self.paths.config_file();
-
-        // Create parent directories
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-
-        let content = toml::to_string_pretty(self)?;
-        fs::write(&path, content)?;
-
-        Ok(())
     }
 
     /// Read Gen's settings out of the config file **only if it already
@@ -1535,50 +1039,6 @@ impl Config {
         if let Some(ref mut gemini_key) = self.memory.gemini_api_key {
             *gemini_key = expand_env(gemini_key);
         }
-        if let Some(ref mut auth_token) = self.server.auth_token {
-            *auth_token = expand_env(auth_token);
-        }
-        if let Some(ref mut webhook_secret) = self.server.webhook_secret {
-            *webhook_secret = expand_env(webhook_secret);
-        }
-    }
-
-    pub fn get_value(&self, key: &str) -> Result<String> {
-        let parts: Vec<&str> = key.split('.').collect();
-
-        match parts.as_slice() {
-            ["agent", "default_model"] => Ok(self.agent.default_model.clone()),
-            ["agent", "context_window"] => Ok(self.agent.context_window.to_string()),
-            ["agent", "reserve_tokens"] => Ok(self.agent.reserve_tokens.to_string()),
-            ["heartbeat", "enabled"] => Ok(self.heartbeat.enabled.to_string()),
-            ["heartbeat", "interval"] => Ok(self.heartbeat.interval.clone()),
-            ["server", "enabled"] => Ok(self.server.enabled.to_string()),
-            ["server", "port"] => Ok(self.server.port.to_string()),
-            ["server", "bind"] => Ok(self.server.bind.clone()),
-            ["memory", "workspace"] => Ok(self.memory.workspace.clone()),
-            ["logging", "level"] => Ok(self.logging.level.clone()),
-            _ => anyhow::bail!("Unknown config key: {}", key),
-        }
-    }
-
-    pub fn set_value(&mut self, key: &str, value: &str) -> Result<()> {
-        let parts: Vec<&str> = key.split('.').collect();
-
-        match parts.as_slice() {
-            ["agent", "default_model"] => self.agent.default_model = value.to_string(),
-            ["agent", "context_window"] => self.agent.context_window = value.parse()?,
-            ["agent", "reserve_tokens"] => self.agent.reserve_tokens = value.parse()?,
-            ["heartbeat", "enabled"] => self.heartbeat.enabled = value.parse()?,
-            ["heartbeat", "interval"] => self.heartbeat.interval = value.to_string(),
-            ["server", "enabled"] => self.server.enabled = value.parse()?,
-            ["server", "port"] => self.server.port = value.parse()?,
-            ["server", "bind"] => self.server.bind = value.to_string(),
-            ["memory", "workspace"] => self.memory.workspace = value.to_string(),
-            ["logging", "level"] => self.logging.level = value.to_string(),
-            _ => anyhow::bail!("Unknown config key: {}", key),
-        }
-
-        Ok(())
     }
 
     /// Get workspace path from resolved Paths.
@@ -1667,23 +1127,8 @@ command = "claude"
 # # for you; you don't need to edit it by hand.
 # default_model = "auto"
 
-[heartbeat]
-enabled = true
-interval = "30m"
-
-# Maximum wall-clock time for a single heartbeat run (optional).
-# If the heartbeat LLM turn exceeds this deadline it is cancelled and
-# a TimedOut event is recorded so the next interval can run on schedule.
-# Defaults to half the interval (e.g., "15m" when interval = "30m").
-# timeout = "15m"
-
-# Only run during these hours (optional)
-# [heartbeat.active_hours]
-# start = "09:00"
-# end = "22:00"
-
 [memory]
-# Workspace directory for memory files (MEMORY.md, HEARTBEAT.md, etc.)
+# Workspace directory for memory files (MEMORY.md, etc.)
 # Default: XDG data dir (~/.local/share/localgpt/workspace)
 # Override with environment variables:
 #   LOCALGPT_WORKSPACE=/path/to/workspace  - absolute path override
@@ -1694,31 +1139,8 @@ interval = "30m"
 # session_max_messages = 15    # Max messages to save (0 = unlimited)
 # session_max_chars = 0        # Max chars per message (0 = unlimited, preserves full content)
 
-[server]
-enabled = true
-port = 31327
-bind = "127.0.0.1"
-# Optional bearer token for API authentication
-# auth_token = "${LOCALGPT_AUTH_TOKEN}"
-# Allowed CORS origins. If empty (default), allows localhost only (any port).
-# cors_origins = ["https://myapp.example.com", "http://localhost:5173"]
-
 [logging]
 level = "info"
-
-# Shell sandbox (kernel-enforced isolation for LLM-generated commands)
-# [sandbox]
-# enabled = true                        # default: true
-# level = "auto"                        # auto | full | standard | minimal | none
-# timeout_secs = 120                    # default: 120
-# max_output_bytes = 1048576            # default: 1MB
-#
-# [sandbox.allow_paths]
-# read = ["/data/datasets"]             # additional read-only paths
-# write = ["/tmp/builds"]               # additional writable paths
-#
-# [sandbox.network]
-# policy = "deny"                       # deny | proxy
 
 # Web search (optional)
 # [tools.web_search]
@@ -1749,20 +1171,6 @@ level = "info"
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// A `[gen]` table written before Gen kept its own settings survives the
-    /// assistant rewriting config.toml (`Config::save` reserializes the whole
-    /// struct), so Gen's one-time import can still find it. This is all
-    /// `GenConfig` is for now.
-    #[test]
-    fn a_pre_upgrade_gen_table_survives_a_config_rewrite() {
-        let parsed: Config =
-            toml::from_str("[gen]\ndefault_model = \"auto\"\ntool_profile = \"core\"\n").unwrap();
-        let rewritten = toml::to_string_pretty(&parsed).unwrap();
-        let value: toml::Value = toml::from_str(&rewritten).unwrap();
-        assert_eq!(value["gen"]["default_model"].as_str(), Some("auto"));
-        assert_eq!(value["gen"]["tool_profile"].as_str(), Some("core"));
-    }
 
     #[test]
     fn test_mcp_server_config_enabled_default() {

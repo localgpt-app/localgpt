@@ -1,24 +1,20 @@
-//! LocalGPT Core — shared library for agent, memory, config, and security.
+//! LocalGPT Core — what is left of the assistant's library: the agent loop,
+//! its memory, config and providers, which Gen's own chat still runs on, and
+//! the stdio MCP server and `Tool` trait under `localgpt world mcp`.
 //!
-//! This crate contains the platform-independent logic consumed by the CLI,
-//! server, mobile, and gen crates. It has zero platform-specific dependencies
-//! and compiles cleanly for `aarch64-apple-ios` and `aarch64-linux-android`.
+//! It publishes no further versions: the harness goes in 0.5.0
+//! (docs/rfcs/authoring/the-harness-goes.md), and what the world needs moves
+//! to `localgpt-world-agent` first.
 
 pub mod agent;
 pub mod commands;
-pub mod concurrency;
 pub mod config;
-pub mod cron;
 pub mod env;
-pub mod heartbeat;
 pub mod herdr;
-pub mod hooks;
 pub mod mcp;
 pub mod media;
 pub mod memory;
-pub mod outbox;
 pub mod paths;
-pub mod pty;
 pub mod security;
 pub mod text;
 

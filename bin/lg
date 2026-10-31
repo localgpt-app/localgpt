@@ -10,7 +10,6 @@
 #
 #   web deploy <site…|all> [--dry-run]       the family's sites: app gen verse md world
 #   build <target…> [--release] [-- args…]   cli app gen previs md verse all
-#   build mobile ios|android                 the UniFFI library + Swift/Kotlin bindings
 #   build bundle [--debug] [--dmg]           LocalGPT.app for macOS (signed and notarized when given)
 #   verify [--rust|--bevy|--features|--web|--deps]   the CI checks, on this machine
 #   fetch model|assets                       the two shared downloads, once per machine
@@ -25,7 +24,6 @@ usage: bin/lg <domain> <command> [args…]   |   bin/lg <command> [args…]
 
   lg web deploy <site…|all> [--dry-run]   app gen verse md world -> their Cloudflare Workers
   lg build <target…> [--release]          cli app gen previs md verse all (cargo args after --)
-  lg build mobile ios|android             localgpt-mobile-ffi + bindings
   lg build bundle [--debug] [--dmg]       LocalGPT.app (apps/app-desktop/macos/build-app.sh)
   lg verify [--rust|--bevy|…]             the CI checks locally; run before a release or a deploy
   lg fetch model|assets                   the ~5 GB GGUF, the 522 MB CC0 pack
@@ -43,7 +41,6 @@ EOF
  ;;
     build) cat >&2 <<'EOF'
   lg build <target…> [--release] [-- <cargo args…>]   cli app gen previs md verse all
-  lg build mobile ios|android                        apps/apple and apps/android build scripts
   lg build bundle [--debug] [--dmg]                  LocalGPT.app, and a .dmg
 EOF
  ;;
@@ -88,7 +85,6 @@ case "$cmd" in
   build)
     [ $# -gt 0 ] || { lg_domain_help build; exit 2; }
     case "$1" in
-      mobile) shift; lg_exec "$LG_HOME/build/mobile.sh" "$@" ;;
       bundle) shift; lg_exec "$LG_HOME/../apps/app-desktop/macos/build-app.sh" "$@" ;;
       *) lg_exec "$LG_HOME/build/target.sh" "$@" ;;
     esac ;;

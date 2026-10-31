@@ -1,11 +1,13 @@
 # LocalGPT Core
 
-The fundamental building blocks of the LocalGPT system. This crate provides the essential logic for agent reasoning, memory management, configuration handling, and security modules.
+What is left of the assistant's library: the agent loop, its memory, configuration and providers, which `localgpt-gen`'s own chat still runs on, and the stdio MCP server and `Tool` trait under `localgpt world mcp`.
 
-## Features
+0.4.2 is its last release. It goes in 0.5.0, after the MCP server and the `Tool` trait move to `localgpt-world-agent` ([the-harness-goes.md](../../docs/rfcs/authoring/the-harness-goes.md)).
 
-- **Agent Framework**: Trait-based tool definitions and task orchestration.
-- **Memory System**: Persistent knowledge storage using SQLite with FTS5 and semantic search.
-- **Security**: OS-level sandbox integration, prompt policy injection with sanitization, and protected-files deny lists.
-- **Configuration**: Robust handling of JSON5/TOML configuration with environment variable overrides.
-- **Embeddings**: Support for local ONNX embeddings via `fastembed`, OpenAI API, and GGUF models.
+## What it has
+
+- **Agent**: the conversation loop, sessions and compaction, the safe tool set, and the providers (Anthropic, OpenAI, xAI, Gemini, Vertex AI, GLM, Ollama, OpenAI-compatible endpoints, and the Claude, Gemini and Codex CLIs).
+- **Memory**: a Markdown workspace indexed with SQLite FTS5, with vectors from an embeddings API (OpenAI or Gemini) when one is configured.
+- **Security**: `POLICY.md` injection with sanitization, the hardcoded suffix, and the protected-files deny list.
+- **Configuration**: TOML with environment variable expansion and XDG paths.
+- **MCP**: a client for external servers, and the stdio server the shim runs.

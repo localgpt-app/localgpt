@@ -57,7 +57,6 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/onnxruntime
       - run: |
           cargo clippy --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
             --exclude localgpt-md --exclude localgpt-verse \
@@ -71,7 +70,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/onnxruntime
       - run: |
           cargo test --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
             --exclude localgpt-md --exclude localgpt-verse \
@@ -93,13 +91,12 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      # Bevy + avian + lightyear + core's ONNX stack need more scratch space
-      # than the runner image leaves free; drop toolchains this job never uses.
+      # Bevy + avian + lightyear need more scratch space than the runner image
+      # leaves free; drop toolchains this job never uses.
       - name: Free runner disk
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL && df -h /
       - name: Install Bevy build deps
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends $BEVY_APT_DEPS
-      - uses: ./.github/actions/onnxruntime
       - run: cargo clippy -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -p localgpt-world-audio -p localgpt-app -- -D warnings
       - id: test
         run: cargo test -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -p localgpt-world-audio -p localgpt-app
@@ -152,8 +149,8 @@ jobs:
       - run: cargo check -p localgpt-verse --features llm
       - run: cargo check -p localgpt-gen --features local-llm
       # Verse's `ml` tier pins ort =2.0.0-rc.11, which targets ONNX Runtime
-      # 1.23 — not the 1.24.2 the shared onnxruntime action installs for
-      # rc.12 — so it gets its own, as it did in Verse's own CI.
+      # 1.23; nothing else in the workspace links ONNX Runtime any more, so
+      # this job fetches that version for it.
       - name: Cache ONNX Runtime 1.23.2
         id: cache-ort
         uses: actions/cache@v4

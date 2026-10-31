@@ -15,8 +15,8 @@
 #
 # Everything after `--` goes to cargo: `-- --features local-llm-metal`, say.
 # Binaries land in target/debug/ (or target/release/ with --release, which is
-# LTO and stripped, so slow). Mobile and the macOS bundle are their own
-# commands: bin/lg build mobile ios|android, bin/lg build bundle.
+# LTO and stripped, so slow). The macOS bundle is its own command: bin/lg
+# build bundle.
 
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/common.sh"

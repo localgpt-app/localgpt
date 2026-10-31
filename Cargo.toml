@@ -2,10 +2,6 @@
 members = [
     "crates/core",
     "crates/cli",
-    "crates/cli-tools",
-    "crates/server",
-    "crates/sandbox",
-    "crates/mobile-ffi",
     "crates/gen",
     "crates/app",
     "crates/md",
@@ -20,8 +16,6 @@ members = [
     "crates/world-editor",
     "crates/world-agent",
     "crates/relay",
-    "crates/bridge",
-    "bridges/cli",
 ]
 default-members = ["crates/cli"]
 resolver = "3"
@@ -58,8 +52,7 @@ tokio = { version = "1.50", features = ["full"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "multipart", "form", "native-tls-vendored"] }
 
 # Database
-rusqlite = { version = "0.40", features = ["bundled", "functions", "vtab", "load_extension"] }
-sqlite-vec = "0.1.7-alpha.10"
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -94,9 +87,6 @@ base64 = "0.22"
 
 # Internal crates
 localgpt-core = { version = "0.4.2", path = "crates/core" }
-localgpt-server = { version = "0.4.2", path = "crates/server" }
-localgpt-sandbox = { version = "0.4.2", path = "crates/sandbox" }
-localgpt-bridge = { version = "0.4.2", path = "crates/bridge" }
 localgpt-world-types = { version = "0.4.2", path = "crates/world-types" }
 localgpt-world-export = { version = "0.4.2", path = "crates/world-export" }
 localgpt-world-bevy = { version = "0.4.2", path = "crates/world-bevy" }
@@ -107,7 +97,6 @@ localgpt-world-agent = { version = "0.4.2", path = "crates/world-agent" }
 # Without its `pdf` feature here: Gen stages and boards and needs no PDF
 # reader; the previs binary and previs-web turn it on themselves.
 localgpt-previs = { version = "0.4.2", path = "crates/previs", default-features = false }
-localgpt-cli-tools = { version = "0.4.2", path = "crates/cli-tools" }
 
 [profile.release]
 lto = true

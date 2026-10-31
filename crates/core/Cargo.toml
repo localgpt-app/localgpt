@@ -11,35 +11,23 @@ description = "Core library for LocalGPT — agent, memory, config, security"
 readme = "README.md"
 
 [features]
-default = ["embeddings-local", "claude-cli", "gemini-cli", "codex-cli", "sqlite-vec", "image-resize"]
-# Local embeddings via fastembed (ONNX). Works on desktop and mobile.
-embeddings-local = ["fastembed"]
-# Claude CLI provider (requires subprocess execution — not available on mobile)
+# Memory searches by keyword (SQLite FTS5), or with an embeddings API when
+# one is configured; the in-process models (fastembed over ONNX Runtime,
+# llama.cpp) and sqlite-vec left with the mobile apps.
+default = ["claude-cli", "gemini-cli", "codex-cli", "image-resize"]
+# The CLI providers: each runs its agent as a subprocess.
 claude-cli = []
-# Gemini CLI provider (requires subprocess execution — not available on mobile)
 gemini-cli = []
-# Codex CLI provider (requires subprocess execution — not available on mobile)
 codex-cli = []
-# GGUF embedding model support via llama.cpp (requires C++ compiler)
-embeddings-gguf = ["llama-cpp-2"]
-# OpenAI API embeddings (no native deps, requires API key)
-embeddings-openai = []
-# Disable all embeddings — FTS5 keyword search only
-embeddings-none = []
-# Sqlite vector search extension (works on mobile)
-sqlite-vec = ["dep:sqlite-vec"]
 # Image optimization for vision models (resizes before sending to LLM)
 image-resize = ["dep:image"]
-# MCP streamable HTTP transport (adds axum + tower-http — not for mobile)
+# MCP streamable HTTP transport (adds axum + tower-http)
 mcp-http = ["dep:axum", "dep:tower-http"]
-# Legacy alias
-gguf = ["embeddings-gguf"]
 
 [dependencies]
 tokio = { workspace = true }
 reqwest = { workspace = true }
 rusqlite = { workspace = true }
-sqlite-vec = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde-saphyr = { workspace = true }
@@ -50,45 +38,29 @@ uuid = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 anyhow = { workspace = true }
-thiserror = { workspace = true }
 shellexpand = { workspace = true }
-rand = { workspace = true }
-
-# Local embeddings (default - no API key needed)
-fastembed = { version = "5.12", optional = true }
-# GGUF embeddings via llama.cpp (optional)
-llama-cpp-2 = { version = "0.1", optional = true }
 
 # Image optimization
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"], optional = true }
 
-# MCP HTTP transport (optional — desktop only)
+# MCP HTTP transport (optional)
 axum = { version = "0.8", features = ["macros"], optional = true }
 tower-http = { version = "0.6", features = ["cors"], optional = true }
-
-# Cron expression parsing
-croner = "3"
-
-# Config
-json5 = "1.3"
 
 # File watching
 notify = "8.2"
 
 # Path resolution
-directories = "6.0"
 etcetera = "0.11"
 libc = "0.2"
 
 # Utilities
 which = "8"
-tokio-stream = "0.1"
 async-stream = "0.3"
 glob = "0.3"
 base64 = "0.22"
 regex = "1"
 once_cell = "1"
-fs2 = "0.4"
 # default-features = false drops readability's optional reqwest 0.11 client (and its
 # unpatched hyper 0.14 / h2 0.3 line); LocalGPT fetches with its own reqwest and
 # only calls `extractor::extract` on the bytes.
@@ -103,11 +75,8 @@ sha2 = "0.11"
 # `rsa` crate, whose private-key operations are not constant-time
 # (RUSTSEC-2023-0071, no fixed release), and the ECDSA stack over
 # crypto-bigint 0.5 (RUSTSEC-2026-0387), for algorithms LocalGPT never signs
-# with. AWS-LC builds for iOS and Android like the rest of core.
+# with.
 jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
-
-[target.'cfg(target_os = "linux")'.build-dependencies]
-cc = "1"
 
 [dev-dependencies]
 tempfile = "3.27"
