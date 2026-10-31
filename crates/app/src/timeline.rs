@@ -67,7 +67,7 @@ impl Plugin for TimelinePlugin {
         .add_systems(
             Update,
             (
-                read_world,
+                read_world.in_set(WorldRead),
                 answer_asks,
                 hide_tracks,
                 drive_clock,
@@ -79,6 +79,11 @@ impl Plugin for TimelinePlugin {
         );
     }
 }
+
+/// Where the world's document is read, each frame: what reads it from the
+/// timeline goes after.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct WorldRead;
 
 // ---------------------------------------------------------------------------
 // What the page draws
@@ -832,6 +837,17 @@ pub struct Timeline {
 }
 
 impl Timeline {
+    /// The world's document the view was built from: the canvas's on
+    /// screen, or the folder the scene loaded.
+    pub fn world(&self) -> Option<&wt::WorldManifest> {
+        self.world.as_ref()
+    }
+
+    /// The world edits here: a live canvas.
+    pub fn editable(&self) -> bool {
+        self.editable
+    }
+
     fn rebuild(&mut self) {
         let file = self.song_file();
         let peaks = self

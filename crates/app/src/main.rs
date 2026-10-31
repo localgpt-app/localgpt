@@ -28,6 +28,7 @@ mod authoring;
 mod document;
 mod open;
 mod peaks;
+mod scene;
 mod screenshot;
 mod song;
 mod starter;
@@ -344,10 +345,14 @@ fn main() -> anyhow::Result<()> {
     } else {
         app.add_plugins((document::DocumentPlugin, open::OpenPlugin));
     }
-    // World time — the song, the shots, the tour — on one clock, in every mode.
-    app.add_plugins(timeline::TimelinePlugin {
-        canvas: live_canvas.clone(),
-    });
+    // World time — the song, the shots, the tour — on one clock, in every
+    // mode; and the world's things, from the same document.
+    app.add_plugins((
+        timeline::TimelinePlugin {
+            canvas: live_canvas.clone(),
+        },
+        scene::ScenePlugin,
+    ));
     if let Some(live) = live_document {
         app.insert_resource(live);
     }

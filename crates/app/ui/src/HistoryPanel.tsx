@@ -38,8 +38,9 @@ function ago(ms: number) {
 }
 
 /** The log as `git log --graph` draws it: newest at the top, one lane per
- *  branch, the base at the bottom. A click shows that entry in the world. */
-export function HistoryPanel({ history }: { history: History }) {
+ *  branch, the base at the bottom. A click shows that entry in the world.
+ *  `bare`: under a tab bar that names it already. */
+export function HistoryPanel({ history, bare }: { history: History; bare?: boolean }) {
   const { rows, current, turns } = history;
   const n = rows.length;
   const { lane, count } = lanes(rows);
@@ -63,10 +64,14 @@ export function HistoryPanel({ history }: { history: History }) {
 
   return (
     <aside className="flex min-h-0 flex-col border-r border-line bg-panel">
-      <header className="flex h-9 shrink-0 items-center justify-between border-b border-line px-3">
-        <span className="font-medium">History</span>
-        <span className="text-muted tabular-nums">{n} entries</span>
-      </header>
+      {!bare && (
+        <header className="flex h-9 shrink-0 items-center justify-between border-b border-line px-3">
+          <span className="font-medium">History</span>
+          <span className="text-muted tabular-nums">
+            {n} {n === 1 ? "entry" : "entries"}
+          </span>
+        </header>
+      )}
       <div className="relative min-h-0 flex-1 overflow-y-auto">
         {n === 0 ? (
           <p className="p-4 leading-relaxed text-muted">

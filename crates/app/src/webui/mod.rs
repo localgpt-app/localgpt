@@ -22,7 +22,8 @@
 //!
 //! `LOCALGPT_APP_UI_URL` loads a dev server instead of the built page (`npm
 //! run dev` in `crates/app/ui`, which reloads as the page is edited);
-//! `LOCALGPT_APP_UI_OPEN=claude,shell` starts with those tabs open; and
+//! `LOCALGPT_APP_UI_OPEN=claude,shell` starts with those tabs open
+//! (`outliner` starts the left panel on its Outliner tab); and
 //! `LOCALGPT_APP_UI=none` leaves the page out, the world alone in the window.
 
 #[cfg(target_os = "macos")]
@@ -45,6 +46,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::document::{Document, DocumentAsk, DocumentView};
 use crate::open::{OpenFile, Opener, Showing};
+use crate::scene::{Scene, SceneAsk, SceneEdit, SceneView};
 use crate::timeline::{ShotTime, Thumbs, Timeline, TimelineAsk, TimelineView, WorldClock};
 use term::{TermOut, Terms};
 
@@ -132,6 +134,8 @@ struct Sent {
     document: Option<String>,
     text_rev: u64,
     timeline_rev: Option<u64>,
+    scene_rev: Option<u64>,
+    selection: Option<Vec<u64>>,
     clock: Option<ClockSent>,
     thumbs_rev: u64,
 }
@@ -244,6 +248,21 @@ enum FromPage {
         stop: usize,
         hold: f32,
     },
+    /// Select these in the world, the primary first.
+    #[serde(rename = "select")]
+    Select { ids: Vec<u64> },
+    /// The camera flies to it.
+    #[serde(rename = "focus")]
+    Focus { id: u64 },
+    /// A field let go of: one edit, for each thing it changes.
+    #[serde(rename = "entity.patch")]
+    EntityPatch { edits: Vec<SceneEdit>, what: String },
+    /// A field held: shown on the canvas, not committed.
+    #[serde(rename = "entity.preview")]
+    EntityPreview { edits: Vec<SceneEdit> },
+    /// What the outliner's eye hides in the window.
+    #[serde(rename = "entity.hide")]
+    EntityHide { ids: Vec<u64> },
     #[serde(rename = "doc.edit")]
     DocEdit { text: String },
     #[serde(rename = "doc.caret")]
@@ -314,6 +333,12 @@ enum ToPage<'a> {
     /// The world's clock and its tracks, or none before a world is open.
     #[serde(rename = "timeline")]
     Timeline { view: Option<&'a TimelineView> },
+    /// The world's things as its document has them, or none.
+    #[serde(rename = "scene")]
+    Scene { view: Option<&'a SceneView> },
+    /// What is selected, by world id, the primary first.
+    #[serde(rename = "selection")]
+    Selection { ids: &'a [u64] },
     /// Where the clock is. While it plays, the page runs it on between these.
     #[serde(rename = "clock")]
     Clock {
@@ -404,6 +429,7 @@ struct Asks<'w> {
     document: Option<ResMut<'w, Messages<DocumentAsk>>>,
     open: Option<ResMut<'w, Messages<OpenFile>>>,
     timeline: Option<ResMut<'w, Messages<TimelineAsk>>>,
+    scene: Option<ResMut<'w, Messages<SceneAsk>>>,
 }
 
 fn ask<T: Message>(messages: &mut Option<ResMut<Messages<T>>>, message: T) {
@@ -485,6 +511,13 @@ fn read_page(
             FromPage::TourHold { tour, stop, hold } => {
                 ask(&mut asks.timeline, TimelineAsk::Hold { tour, stop, hold })
             }
+            FromPage::Select { ids } => ask(&mut asks.scene, SceneAsk::Select(ids)),
+            FromPage::Focus { id } => ask(&mut asks.scene, SceneAsk::Focus(id)),
+            FromPage::EntityPatch { edits, what } => {
+                ask(&mut asks.scene, SceneAsk::Patch { edits, what })
+            }
+            FromPage::EntityPreview { edits } => ask(&mut asks.scene, SceneAsk::Preview(edits)),
+            FromPage::EntityHide { ids } => ask(&mut asks.scene, SceneAsk::Hide(ids)),
             FromPage::DocEdit { text } => ask(&mut asks.document, DocumentAsk::Edit(text)),
             FromPage::DocCaret { line } => ask(&mut asks.document, DocumentAsk::Caret(line)),
             FromPage::DocGo { section, line } => {
@@ -588,6 +621,7 @@ struct Shown<'w> {
     opener: Option<Res<'w, Opener>>,
     document: Option<ResMut<'w, Document>>,
     timeline: Option<Res<'w, Timeline>>,
+    scene: Option<Res<'w, Scene>>,
     clock: Option<Res<'w, WorldClock>>,
     thumbs: Option<Res<'w, Thumbs>>,
 }
@@ -664,6 +698,20 @@ fn push_page(page: Option<NonSendMut<Page>>, mut shown: Shown, play: Res<Play>, 
         page.send(&ToPage::Timeline {
             view: timeline.view.as_ref(),
         });
+    }
+    if let Some(scene) = &shown.scene {
+        if page.sent.scene_rev != Some(scene.rev) {
+            page.sent.scene_rev = Some(scene.rev);
+            page.send(&ToPage::Scene {
+                view: scene.view.as_ref(),
+            });
+        }
+        if page.sent.selection.as_deref() != Some(scene.selected.as_slice()) {
+            page.send(&ToPage::Selection {
+                ids: &scene.selected,
+            });
+            page.sent.selection = Some(scene.selected.clone());
+        }
     }
     if let Some(clock) = &shown.clock {
         let now = time.elapsed_secs_f64();

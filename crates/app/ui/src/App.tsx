@@ -5,16 +5,25 @@ import { inApp, listen, send } from "./bridge";
 import { DocumentPanel } from "./DocumentPanel";
 import { HistoryPanel } from "./HistoryPanel";
 import { Icon } from "./Icon";
+import { type LeftTab, PanelTabs } from "./PanelTabs";
 import { PlaybackBar } from "./PlaybackBar";
+import { ScenePanel } from "./scene/ScenePanel";
 import { type ClockState, LiveTimeline } from "./timeline/LiveTimeline";
 import { Viewport } from "./Viewport";
 
 const EMPTY: History = { rows: [], current: null, status: null, turns: [] };
 
+/** `?open=outliner` starts the left panel on the Outliner tab, as
+ *  `?open=claude` starts a terminal. */
+const startTab = (): LeftTab => ((new URLSearchParams(location.search).get("open") ?? "").split(",").includes("outliner") ? "Outliner" : "History");
+
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
 /** The window: what is open has its panel on the left — a live world's
- *  history, with its own transport, or a document — the world is in the
- *  middle, the agents are on the right, and the timeline of the world's
- *  clock runs across the foot of all three. */
+ *  history, with its own transport, and its outliner over the inspector in
+ *  a tab beside it; or a document — the world is in the middle, the agents
+ *  are on the right, and the timeline of the world's clock runs across the
+ *  foot of all three. */
 export function App() {
   const [mode, setMode] = useState<Mode>({ history: false, document: false });
   const [history, setHistory] = useState<History>(EMPTY);
@@ -25,6 +34,8 @@ export function App() {
   const [timeline, setTimeline] = useState<TimelineView | null>(null);
   const [clock, setClock] = useState<ClockState | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const [tab, setTab] = useState<LeftTab>(startTab);
+  const [things, setThings] = useState(0);
 
   useEffect(() => {
     const stop = listen((m) => {
@@ -55,6 +66,9 @@ export function App() {
           break;
         case "thumb":
           setThumbs((all) => ({ ...all, [m.id]: m.url }));
+          break;
+        case "scene":
+          setThings(m.view?.entities.length ?? 0);
           break;
       }
     });
@@ -94,9 +108,20 @@ export function App() {
       </header>
       {mode.document && <DocumentPanel doc={doc} />}
       {!mode.document && mode.history && (
-        <div className="flex min-h-0 flex-col border-r border-line [&>aside]:flex-1 [&>aside]:border-r-0">
-          <HistoryPanel history={history} />
-          <PlaybackBar history={history} playing={playing} />
+        <div className="flex min-h-0 flex-col border-r border-line bg-panel">
+          <PanelTabs
+            active={tab}
+            count={tab === "History" ? count(history.rows.length, "entry", "entries") : count(things, "thing", "things")}
+            choose={setTab}
+          />
+          {/* Both stay mounted: the outliner keeps what was opened and found. */}
+          <div className={tab === "History" ? "flex min-h-0 flex-1 flex-col [&>aside]:flex-1 [&>aside]:border-r-0" : "hidden"}>
+            <HistoryPanel history={history} bare />
+            <PlaybackBar history={history} playing={playing} />
+          </div>
+          <div className={tab === "Outliner" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+            <ScenePanel className="flex-1" />
+          </div>
         </div>
       )}
       <main className="flex min-h-0 flex-col">

@@ -2,11 +2,15 @@
 // page gets a stand-in for the app: the messages the app would send for that
 // mode, from fixtures. It is how the page is looked at — and checked
 // headlessly — with nothing behind it. Asks are answered only as far as
-// showing them needs: the timeline's clock plays and seeks, and a drag
-// moves the shot it let go of.
+// showing them needs: the timeline's clock plays and seeks, a drag moves
+// the shot it let go of, and an inspector's edit lands in the harbour's
+// entities as the authority would fold it — or is refused as it would be,
+// for a name that is taken.
 
-import type { DocumentView, FromPage, HistoryRow, TimelineView, ToPage, TrackIn } from "./bridge";
+import { entities as harbour } from "../design/scene-fixtures";
+import type { DocumentView, FromPage, HistoryRow, SceneView, TimelineView, ToPage, TrackIn } from "./bridge";
 import { setStandIn } from "./bridge";
+import { patched } from "./scene/model";
 import type { Shot, Signal } from "./timeline/model";
 
 const recv = (m: ToPage) => window.__lg!.recv(m);
@@ -207,6 +211,12 @@ function standInClock() {
 export function preview(kind: string) {
   const messages = MODES[kind];
   if (!messages) return;
+  let scene: SceneView | null =
+    kind === "world"
+      ? { entities: harbour, editable: true, world: { name: "harbour", sky: [0.66, 0.47, 0.52, 1], song: "Tidewater — Starter pack", tours: 1 } }
+      : null;
+  let log = [...rows];
+  const turns = [{ n: 1, agent: "claude", rows: 3, revision: 3 }];
   // A document's world keeps no time: the timeline is its one quiet line.
   let view: TimelineView = kind === "document" ? { clock: null, tracks: [], signals: {}, editable: false, proposal: null } : timeline(kind === "world");
   const clock = standInClock();
@@ -216,7 +226,32 @@ export function preview(kind: string) {
         messages.forEach(recv);
         recv({ t: "timeline", view });
         clock.tell();
+        if (scene) {
+          recv({ t: "scene", view: scene });
+          recv({ t: "selection", ids: [] });
+        }
         break;
+      case "select":
+        recv({ t: "selection", ids: m.ids });
+        break;
+      case "entity.patch": {
+        if (!scene) break;
+        const shown = scene;
+        const taken = m.edits.find((e) => typeof e.patch.name === "string" && shown.entities.some((o) => o.name === e.patch.name && o.id !== e.id));
+        if (taken) {
+          recv({ t: "history", rows: log, current: log.at(-1)!.id, status: `refused: an entity named '${taken.patch.name}' already exists`, turns });
+          break;
+        }
+        scene = { ...shown, entities: shown.entities.map((e) => m.edits.reduce((at, edit) => (edit.id === e.id ? patched(at, edit.patch) : at), e)) };
+        const parent = log.at(-1)!;
+        log = [
+          ...log.map((row) => ({ ...row, tip: false, head: false })),
+          { ...entry(`${(log.length + 1).toString(16).padStart(2, "0")}aa${Date.now().toString(16)}`, null, "person", m.what, 0, true), parent: parent.id, revision: log.length + 1 },
+        ];
+        recv({ t: "scene", view: scene });
+        recv({ t: "history", rows: log, current: log.at(-1)!.id, status: `r${log.length} - person - ${m.what}`, turns });
+        break;
+      }
       case "doc.go":
         recv({ t: "document", doc: { ...doc, selected: m.section } });
         break;

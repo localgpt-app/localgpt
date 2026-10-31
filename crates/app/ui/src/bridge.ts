@@ -3,6 +3,7 @@
 // browser — the dev server without the app — sends go nowhere and the page
 // still draws, which is how it is designed and checked.
 
+import type { Entity, Rgba } from "./scene/model";
 import type { Clock, Shot, Signal, Track } from "./timeline/model";
 
 export type HistoryRow = {
@@ -95,6 +96,20 @@ export type TimelineView = {
 /** A shot's new in and out points, as a drag lets go of it. */
 export type ShotEdit = { id: number; in_s: number; out_s: number };
 
+/** The world's things as its document has them. */
+export type SceneView = {
+  /** The format's own JSON, in the document's order. */
+  entities: Entity[];
+  /** Fields edit: a live canvas. */
+  editable: boolean;
+  /** The world in a few lines, for when nothing is selected. */
+  world: { name: string; sky: Rgba | null; song: string | null; tours: number };
+};
+
+/** One thing a field edit changes: its merge patch, as ModifyEntity takes
+ *  it, and its name for the history. */
+export type EntityEdit = { id: number; name: string; patch: Record<string, unknown> };
+
 export type ToPage =
   | ({ t: "mode" } & Mode)
   | ({ t: "history" } & History)
@@ -107,6 +122,8 @@ export type ToPage =
   | { t: "timeline"; view: TimelineView | null }
   | { t: "clock"; at: number; playing: boolean; loop: [number, number] | null }
   | { t: "thumb"; id: string; url: string }
+  | { t: "scene"; view: SceneView | null }
+  | { t: "selection"; ids: number[] }
   | { t: "term.data"; id: string; b64: string }
   | { t: "term.exit"; id: string; code: number | null; error: string | null };
 
@@ -128,6 +145,11 @@ export type FromPage =
   | { t: "hide"; ids: string[] }
   | { t: "song.sections"; sections: number[] }
   | { t: "tour.hold"; tour: string; stop: number; hold: number }
+  | { t: "select"; ids: number[] }
+  | { t: "focus"; id: number }
+  | { t: "entity.patch"; edits: EntityEdit[]; what: string }
+  | { t: "entity.preview"; edits: EntityEdit[] }
+  | { t: "entity.hide"; ids: number[] }
   | { t: "doc.edit"; text: string }
   | { t: "doc.caret"; line: number }
   | { t: "doc.go"; section: number; line: number | null }

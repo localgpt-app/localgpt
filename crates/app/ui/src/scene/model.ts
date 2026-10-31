@@ -1,7 +1,8 @@
 // What the outliner and the inspector draw: the world's entities as its
 // document has them — the format's own JSON, as manifest.json holds it —
-// and the tree they make. A panel edits by sending a patch for one entity,
-// as ModifyEntity takes it; nothing here keeps a second copy of the world.
+// and the tree they make. A panel edits by sending a merge patch for each
+// thing it changes, as ModifyEntity takes it; nothing here keeps a second
+// copy of the world.
 
 export type Vec3 = [number, number, number];
 export type Rgba = [number, number, number, number];
@@ -123,4 +124,42 @@ export function matching(nodes: Map<number, Node>, query: string, kinds: Kind[])
     for (let at: Node | undefined = node; at && !keep.has(at.id); at = at.parent == null ? undefined : nodes.get(at.parent)) keep.add(at.id);
   }
   return keep;
+}
+
+/** The fields a patch merges into what is there; the rest it replaces. */
+const MERGED = ["transform", "material", "light"];
+
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** JSON merge patch: objects merge key by key, `null` removes, anything
+ *  else replaces. */
+function merged(now: unknown, change: unknown): unknown {
+  if (!isObject(now) || !isObject(change)) return change;
+  const out: Record<string, unknown> = { ...now };
+  for (const [key, value] of Object.entries(change)) {
+    if (value === null) delete out[key];
+    else out[key] = merged(out[key], value);
+  }
+  return out;
+}
+
+/** The entity a patch would leave, folded as the authority folds it —
+ *  what the inspector shows between letting go of a field and the
+ *  document's answer. */
+export function patched(entity: Entity, patch: Record<string, unknown>): Entity {
+  const out: Record<string, unknown> = { ...entity };
+  for (const [field, change] of Object.entries(patch)) {
+    if (change === null) delete out[field];
+    else out[field] = MERGED.includes(field) ? merged(out[field], change) : change;
+  }
+  return out as Entity;
+}
+
+/** A field's value by its path — `transform.position.1`, `shape.radius`
+ *  (the shape's own kind is skipped) — or `undefined` where there is none. */
+export function valueAt(entity: Entity, path: string): unknown {
+  const [part, ...rest] = path.split(".");
+  let at: unknown = part === "shape" ? Object.values(entity.shape ?? {})[0] : (entity as Record<string, unknown>)[part];
+  for (const key of rest) at = isObject(at) || Array.isArray(at) ? (at as Record<string, unknown>)[key] : undefined;
+  return at;
 }

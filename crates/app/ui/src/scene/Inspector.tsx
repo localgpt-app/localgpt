@@ -1,5 +1,6 @@
+import { useRef, useState } from "react";
 import { Icon } from "../Icon";
-import { ChoiceRow, ColorRow, hex, type Mark, Num, Part, Row, SliderRow, TextRow, ToggleRow, Vec3Row } from "./fields";
+import { ChoiceRow, ColorRow, type FieldEdit, hex, type Mark, Num, Part, Row, ring, SliderRow, TextRow, ToggleRow, Vec3Row } from "./fields";
 import { type Entity, type Kind, kindOf, type Rgba } from "./model";
 import { GLYPH, TONE } from "./Outliner";
 
@@ -28,6 +29,23 @@ export type InspectorProps = {
   mixed?: string[];
   /** With nothing selected: the world in a few lines. */
   world?: WorldSummary;
+  /** What the fields and the header do. Without it the inspector only
+   *  draws, as a design sheet has it; with it, only what is wired shows. */
+  actions?: InspectorActions;
+};
+
+export type InspectorActions = {
+  /** A field's edit, by its path; none where the field only reads. */
+  field: <T>(path: string) => FieldEdit<T> | undefined;
+  /** Flip a switch, by its path. */
+  toggle: (path: string) => void;
+  rename: (name: string) => void;
+  /** The camera goes to it. */
+  focus: () => void;
+  /** Look through its camera: a shot. */
+  look?: () => void;
+  /** Select what holds it. */
+  parent?: () => void;
 };
 
 const LABEL: Record<Kind, string> = { shape: "Shape", mesh: "Mesh", light: "Light", camera: "Camera", sound: "Sound", group: "Group" };
@@ -36,8 +54,11 @@ const MANY: Record<Kind, string> = { shape: "shapes", mesh: "meshes", light: "li
 /** The selected thing's fields as the world's document has them, part by
  *  part. On a live canvas a field edits — a drag or a typed value is one
  *  entry in the history, as a gesture is — and elsewhere it reads. */
-export function Inspector({ entity, others = [], parent, children = 0, editable, marks = {}, mixed = [], world }: InspectorProps) {
+export function Inspector({ entity, others = [], parent, children = 0, editable, marks = {}, mixed = [], world, actions }: InspectorProps) {
   if (!entity) return <Nothing world={world} />;
+  // On a sheet everything designed is drawn; in the app, what is wired.
+  const drawn = !actions;
+  const f = <T,>(path: string) => (editable ? actions?.field<T>(path) : undefined);
   const kind = kindOf(entity, children > 0);
   const m = (path: string) => marks[path];
   const t = entity.transform;
@@ -49,19 +70,35 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
       <header className="shrink-0 border-b border-line px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Icon name={GLYPH[kind]} className={`size-4 shrink-0 ${TONE[kind]}`} />
-          <span className={`min-w-0 flex-1 truncate rounded px-1 text-[13px] font-semibold text-ink ${editable ? "hover:bg-raised" : ""} ${m("name") ? "ring-1 ring-head/50" : ""}`}>
-            {entity.name}
-          </span>
-          {cine?.camera && (
-            <span className="flex shrink-0 items-center gap-1 rounded bg-camera/15 px-1.5 py-0.5 text-[10px] text-camera">
-              <Icon name="camera" className="size-3" />
-              Look through
+          <Name name={entity.name} mark={m("name")} rename={editable ? actions?.rename : undefined} hover={editable && drawn} />
+          {cine?.camera &&
+            (drawn || actions?.look) &&
+            (actions?.look ? (
+              <button onClick={actions.look} className="flex shrink-0 items-center gap-1 rounded bg-camera/15 px-1.5 py-0.5 text-[10px] text-camera hover:bg-camera/25">
+                <Icon name="camera" className="size-3" />
+                Look through
+              </button>
+            ) : (
+              <span className="flex shrink-0 items-center gap-1 rounded bg-camera/15 px-1.5 py-0.5 text-[10px] text-camera">
+                <Icon name="camera" className="size-3" />
+                Look through
+              </span>
+            ))}
+          {actions ? (
+            <button
+              onClick={actions.focus}
+              className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted ring-1 ring-line hover:bg-raised hover:text-ink"
+              title="The camera goes to it"
+            >
+              <Icon name="aim" className="size-3" />
+              Fly to
+            </button>
+          ) : (
+            <span className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted ring-1 ring-line" title="The camera goes to it">
+              <Icon name="aim" className="size-3" />
+              Fly to
             </span>
           )}
-          <span className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted ring-1 ring-line" title="The camera goes to it">
-            <Icon name="aim" className="size-3" />
-            Fly to
-          </span>
         </div>
         <p className="mt-1 truncate pl-6 text-[11px] text-faint">
           #{entity.id} · {LABEL[kind]}
@@ -69,11 +106,18 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
           {parent && (
             <>
               {" · in "}
-              <span className="text-muted underline decoration-line underline-offset-2">{parent}</span>
+              {actions?.parent ? (
+                <button onClick={actions.parent} className="text-muted underline decoration-line underline-offset-2 hover:text-ink">
+                  {parent}
+                </button>
+              ) : (
+                <span className="text-muted underline decoration-line underline-offset-2">{parent}</span>
+              )}
             </>
           )}
           {children > 0 && ` · holds ${children}`}
         </p>
+        {m("name")?.refused && <p className="mt-1 pl-6 text-[10px] leading-snug text-danger">{m("name")!.refused}</p>}
         {others.length > 0 && (
           <p className="mt-1.5 rounded bg-accent/10 px-2 py-1 text-[11px] leading-snug text-accent">
             And {others.length === 1 ? others[0] : `${others.slice(0, -1).join(", ")} and ${others.at(-1)}`}: a change here goes to all {others.length + 1}.
@@ -85,14 +129,17 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
           </p>
         )}
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+      {/* Keyed by the thing: another one starts at its top. */}
+      <div key={entity.id} className="min-h-0 flex-1 overflow-y-auto pb-6">
         <Part title="Transform" icon="move" aside={t.visible === false ? "hidden" : undefined}>
           <Vec3Row
             label="Position"
             value={vec("transform.position", t.position)}
             unit="m"
             marks={[0, 1, 2].map((i) => m(`transform.position.${i}`))}
-            hint="Drag a label to move it along that axis"
+            hint="Drag a number to move it along that axis; click it to type one"
+            edit={(i) => f<number>(`transform.position.${i}`)}
+            step={0.01}
           />
           <Vec3Row
             label="Rotation"
@@ -100,27 +147,52 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
             digits={0}
             unit="°"
             marks={[0, 1, 2].map((i) => m(`transform.rotation_degrees.${i}`))}
+            edit={(i) => f<number>(`transform.rotation_degrees.${i}`)}
+            step={1}
           />
-          <Vec3Row label="Scale" value={vec("transform.scale", t.scale ?? [1, 1, 1])} marks={[0, 1, 2].map((i) => m(`transform.scale.${i}`))} />
-          <ToggleRow label="Visible" on={t.visible !== false} mark={m("transform.visible")} />
+          <Vec3Row
+            label="Scale"
+            value={vec("transform.scale", t.scale ?? [1, 1, 1])}
+            marks={[0, 1, 2].map((i) => m(`transform.scale.${i}`))}
+            edit={(i) => f<number>(`transform.scale.${i}`)}
+            step={0.01}
+            min={0.01}
+          />
+          <ToggleRow
+            label="Visible"
+            on={t.visible !== false}
+            mark={m("transform.visible")}
+            onToggle={editable && actions ? () => actions.toggle("transform.visible") : undefined}
+          />
         </Part>
 
         {entity.shape && shapeKind && (
           <Part title="Shape" icon="cube">
-            <ChoiceRow label="Kind" value={shapeKind} mark={m("shape")} />
-            {Object.entries(entity.shape[shapeKind]).map(([key, value]) => (
-              <Row key={key} label={key.replace(/_/g, " ")} mark={m(`shape.${key}`)}>
-                <Num value={value} unit="m" wide mark={m(`shape.${key}`)} />
-              </Row>
-            ))}
+            <ChoiceRow label="Kind" value={shapeKind} mark={m("shape")} fixed={!drawn} />
+            {Object.entries(entity.shape[shapeKind]).map(
+              ([key, value]) =>
+                typeof value === "number" && (
+                  <Row key={key} label={key.replace(/_/g, " ")} mark={m(`shape.${key}`)}>
+                    <Num
+                      value={mixed.includes(`shape.${key}`) ? null : value}
+                      unit="m"
+                      wide
+                      mark={m(`shape.${key}`)}
+                      edit={f<number>(`shape.${key}`)}
+                      step={0.01}
+                      min={0.01}
+                    />
+                  </Row>
+                ),
+            )}
           </Part>
         )}
 
         {entity.material && (
           <Part title="Material" icon="cube" tone="text-sound">
-            {entity.material.color && <ColorRow label="Colour" value={entity.material.color} mark={m("material.color")} />}
-            <SliderRow label="Roughness" value={entity.material.roughness ?? 0.5} mark={m("material.roughness")} />
-            <SliderRow label="Metallic" value={entity.material.metallic ?? 0} mark={m("material.metallic")} />
+            {entity.material.color && <ColorRow label="Colour" value={entity.material.color} mark={m("material.color")} edit={f<Rgba>("material.color")} />}
+            <SliderRow label="Roughness" value={entity.material.roughness ?? 0.5} mark={m("material.roughness")} edit={f<number>("material.roughness")} />
+            <SliderRow label="Metallic" value={entity.material.metallic ?? 0} mark={m("material.metallic")} edit={f<number>("material.metallic")} />
             {entity.material.emissive && glows(entity.material.emissive) && (
               <ColorRow label="Glow" value={unit(entity.material.emissive)} strength={strength(entity.material.emissive)} mark={m("material.emissive")} />
             )}
@@ -130,10 +202,18 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
 
         {entity.light && (
           <Part title="Light" icon="bulb" tone="text-head">
-            <ChoiceRow label="Kind" value={entity.light.light_type} mark={m("light.light_type")} />
-            <ColorRow label="Colour" value={entity.light.color} mark={m("light.color")} />
+            <ChoiceRow label="Kind" value={entity.light.light_type} mark={m("light.light_type")} fixed={!drawn} />
+            <ColorRow label="Colour" value={entity.light.color} mark={m("light.color")} edit={f<Rgba>("light.color")} />
             <Row label="Intensity" mark={m("light.intensity")}>
-              <Num value={entity.light.intensity} digits={0} unit={entity.light.light_type === "directional" ? "lux" : "lm"} wide mark={m("light.intensity")} />
+              <Num
+                value={mixed.includes("light.intensity") ? null : entity.light.intensity}
+                digits={0}
+                unit={entity.light.light_type === "directional" ? "lux" : "lm"}
+                wide
+                mark={m("light.intensity")}
+                edit={f<number>("light.intensity")}
+                min={0}
+              />
             </Row>
             {entity.light.range !== undefined && (
               <Row label="Range">
@@ -162,7 +242,7 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
         )}
         {cine?.shot && (
           <Part title="Shot" icon="film" tone="text-shot" aside={cine.shot.scene && `scene ${cine.shot.scene}`}>
-            <ChoiceRow label="Size" value={cine.shot.size ?? "—"} />
+            <ChoiceRow label="Size" value={cine.shot.size ?? "—"} fixed={!drawn} />
             <Row label="On the clock" mark={m("shot.in_s")}>
               <Num value={cine.shot.in_s ?? 0} unit="s" mark={m("shot.in_s")} />
               <span className="text-faint">to</span>
@@ -183,14 +263,14 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
         )}
 
         {(entity.behaviors?.length ?? 0) > 0 && (
-          <Part title="Behaviors" icon="spin" tone="text-behavior" aside={editable && "+ add"}>
+          <Part title="Behaviors" icon="spin" tone="text-behavior" aside={editable && drawn && "+ add"}>
             {entity.behaviors!.map((behavior, i) => {
               const [name, fields] = Object.entries(behavior)[0];
               return (
                 <div key={i} className={`mx-3 mb-1 flex items-center gap-2 rounded bg-raised px-2 py-1.5 ${m(`behaviors.${i}`) ? "ring-1 ring-head/50" : ""}`}>
                   <span className="font-medium text-behavior">{name}</span>
                   <span className="min-w-0 flex-1 truncate text-muted">{describeBehavior(name, fields)}</span>
-                  {editable && <Icon name="close" className="size-3 shrink-0 text-faint" />}
+                  {editable && drawn && <Icon name="close" className="size-3 shrink-0 text-faint" />}
                 </div>
               );
             })}
@@ -207,9 +287,11 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
                 <span className="text-muted tabular-nums">
                   {mod.range[0]}–{mod.range[1]}
                 </span>
-                <span className="ml-auto flex items-center gap-0.5 text-[10px] text-faint">
-                  timeline <Icon name="out" className="size-3" />
-                </span>
+                {drawn && (
+                  <span className="ml-auto flex items-center gap-0.5 text-[10px] text-faint">
+                    timeline <Icon name="out" className="size-3" />
+                  </span>
+                )}
               </div>
             ))}
           </Part>
@@ -217,7 +299,7 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
 
         {entity.audio && (
           <Part title="Sound" icon="speaker" tone="text-ambience">
-            <ChoiceRow label="Kind" value={entity.audio.kind ?? "ambient"} />
+            <ChoiceRow label="Kind" value={entity.audio.kind ?? "ambient"} fixed={!drawn} />
             <TextRow label="Source" value={sourceName(entity.audio.source)} />
             <SliderRow label="Volume" value={entity.audio.volume ?? 1} />
             {entity.audio.radius !== undefined && (
@@ -229,6 +311,43 @@ export function Inspector({ entity, others = [], parent, children = 0, editable,
         )}
       </div>
     </aside>
+  );
+}
+
+/** The thing's name. With `rename`, a click types a new one: Enter sets
+ *  it, Esc lets it go. */
+function Name({ name, mark, rename, hover }: { name: string; mark?: Mark; rename?: (name: string) => void; hover: boolean }) {
+  const [typing, setTyping] = useState<string | null>(null);
+  const dropped = useRef(false);
+  const look = `min-w-0 flex-1 truncate rounded px-1 text-[13px] font-semibold text-ink ${ring(mark)}`;
+  if (!rename) return <span className={`${look} ${hover ? "hover:bg-raised" : ""}`}>{name}</span>;
+  if (typing === null)
+    return (
+      <button onClick={() => setTyping(name)} title="Rename" className={`${look} text-left hover:bg-raised`}>
+        {name}
+      </button>
+    );
+  // Leaving the box sets it, as a number's does; Esc leaves it unset.
+  const leave = () => {
+    const next = typing.trim();
+    setTyping(null);
+    if (dropped.current) dropped.current = false;
+    else if (next && next !== name) rename(next);
+  };
+  return (
+    <input
+      autoFocus
+      value={typing}
+      aria-label="Name"
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setTyping(e.currentTarget.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") dropped.current = true;
+        if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
+      }}
+      onBlur={leave}
+      className={`${look} bg-raised outline-none ring-1 ring-accent/60`}
+    />
   );
 }
 
