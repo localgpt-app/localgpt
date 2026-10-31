@@ -134,9 +134,9 @@ function timeline(shots: boolean): TimelineView {
     },
     { kind: "stem", id: "stem:drums", name: "Drums", envelope: curve(1, (t, i) => swell(t) * (0.6 + 0.4 * Math.abs(wobble(i + 7)))) },
     { kind: "stem", id: "stem:bass", name: "Bass", envelope: curve(1, (t, i) => swell(t) * (0.5 + 0.5 * Math.abs(wobble(i + 13)))) },
-    { kind: "modulation", id: "mod:7:0", name: "lantern", target: "emissive", signal: "beat", source: "beat", range: [0.4, 2] },
-    { kind: "modulation", id: "mod:9:0", name: "boat", target: "height", signal: "bass stem", source: "stem:bass", range: [-0.1, 0.1] },
-    { kind: "behavior", id: "behavior:4:0", name: "beacon", what: "spin", period: 6, from: 0, to: DURATION },
+    { kind: "modulation", id: "mod:emissive:beat:0.4:2", name: "lantern", target: "emissive", signal: "beat", source: "beat", range: [0.4, 2], toggles: ["hide"] },
+    { kind: "modulation", id: "mod:height:stem:bass:-0.1:0.1", name: "boat", target: "height", signal: "bass stem", source: "stem:bass", range: [-0.1, 0.1], toggles: ["hide"] },
+    { kind: "behavior", id: "behavior:spin:6", name: "beacon", what: "spin", period: 6, from: 0, to: DURATION, toggles: ["hide"] },
     { kind: "ambience", id: "ambience:ocean", name: "ocean", from: 0, to: DURATION, fade: [0, 0], toggles: ["mute", "solo"] },
   );
   return {

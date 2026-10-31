@@ -231,6 +231,9 @@ enum FromPage {
     /// The heard tracks to silence (a solo is the others muted).
     #[serde(rename = "mute")]
     Mute { ids: Vec<String> },
+    /// The seen tracks to hide.
+    #[serde(rename = "hide")]
+    Hide { ids: Vec<String> },
     #[serde(rename = "doc.edit")]
     DocEdit { text: String },
     #[serde(rename = "doc.caret")]
@@ -465,6 +468,7 @@ fn read_page(
             FromPage::ShotTimes { edits } => ask(&mut asks.timeline, TimelineAsk::Shots(edits)),
             FromPage::Review { accept } => ask(&mut asks.timeline, TimelineAsk::Review(accept)),
             FromPage::Mute { ids } => ask(&mut asks.timeline, TimelineAsk::Mute(ids)),
+            FromPage::Hide { ids } => ask(&mut asks.timeline, TimelineAsk::Hide(ids)),
             FromPage::DocEdit { text } => ask(&mut asks.document, DocumentAsk::Edit(text)),
             FromPage::DocCaret { line } => ask(&mut asks.document, DocumentAsk::Caret(line)),
             FromPage::DocGo { section, line } => {

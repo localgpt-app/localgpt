@@ -125,6 +125,7 @@ export type FromPage =
   | { t: "shot.time"; edits: ShotEdit[] }
   | { t: "review"; accept: boolean }
   | { t: "mute"; ids: string[] }
+  | { t: "hide"; ids: string[] }
   | { t: "doc.edit"; text: string }
   | { t: "doc.caret"; line: number }
   | { t: "doc.go"; section: number; line: number | null }

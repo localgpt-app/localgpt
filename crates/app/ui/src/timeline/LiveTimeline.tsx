@@ -204,6 +204,17 @@ export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineVi
     send({ t: "mute", ids: mutedKey ? mutedKey.split("\n") : [] });
   }, [mutedKey]);
 
+  // What is hidden: the seen tracks whose eye is shut — what they move
+  // stands still.
+  const hidable = timeline.tracks.filter((track) => track.toggles?.includes("hide")).map((track) => track.id);
+  const hiddenKey = hidable.filter((id) => flags[id]?.hidden).join("\n");
+  const sentHidden = useRef("");
+  useEffect(() => {
+    if (sentHidden.current === hiddenKey) return;
+    sentHidden.current = hiddenKey;
+    send({ t: "hide", ids: hiddenKey ? hiddenKey.split("\n") : [] });
+  }, [hiddenKey]);
+
   // Playing past the edge of the view turns the page.
   useEffect(() => {
     if (!playing || held || scrub !== null) return;

@@ -28,13 +28,15 @@ use bevy::prelude::*;
 use bevy::render::gpu_readback::{Readback, ReadbackComplete};
 use bevy::render::renderer::RenderDevice;
 use localgpt_gen::gen3d::audio::{AudioEngine, sync_soundtrack_clock};
+use localgpt_gen::gen3d::behaviors::{BehaviorInstance, EntityBehaviors};
 use localgpt_gen::gen3d::live::{LiveReview, PendingReview, ReviewDecision};
 use localgpt_gen::gen3d::plugin::CurrentWorld;
+use localgpt_gen::gen3d::registry::GenEntity;
 use localgpt_gen::gen3d::shots::{
     LiveShots, LookThrough, ShotOps, ShotThumbs, ShotView, ThumbsDirty,
 };
 use localgpt_previs::ShotRow;
-use localgpt_world_bevy::modulation::Soundtrack;
+use localgpt_world_bevy::modulation::{Modulated, Soundtrack};
 use localgpt_world_types as wt;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -66,6 +68,7 @@ impl Plugin for TimelinePlugin {
             (
                 read_world,
                 answer_asks,
+                hide_tracks,
                 drive_clock,
                 follow_cut,
                 capture_thumbs,
@@ -157,6 +160,7 @@ pub enum TrackView {
         /// The key of its samples in [`TimelineView::signals`].
         source: String,
         range: [f32; 2],
+        toggles: Vec<&'static str>,
     },
     Behavior {
         id: String,
@@ -165,6 +169,7 @@ pub enum TrackView {
         period: f32,
         from: f32,
         to: f32,
+        toggles: Vec<&'static str>,
     },
     Ambience {
         id: String,
@@ -308,14 +313,14 @@ pub fn view_of(
             signals
                 .entry(source.clone())
                 .or_insert_with(|| sample(&performing, &def.signal, duration));
-            let target = target_label(def.target);
             let track = TrackView::Modulation {
-                id: format!("mod:{target}:{source}:{}:{}", def.range[0], def.range[1]),
+                id: modulation_track(def),
                 name: entity.name.as_str().to_string(),
-                target,
+                target: target_label(def.target),
                 signal: signal_label(&def.signal),
                 source,
                 range: def.range,
+                toggles: vec!["hide"],
             };
             add(track);
         }
@@ -323,14 +328,14 @@ pub fn view_of(
     for entity in &world.entities {
         for behavior in &entity.behaviors {
             if let Some((what, period)) = cycle(behavior) {
-                let period = round2(period);
                 let track = TrackView::Behavior {
-                    id: format!("behavior:{what}:{period}"),
+                    id: behavior_track(behavior).unwrap_or_default(),
                     name: entity.name.as_str().to_string(),
                     what,
-                    period,
+                    period: round2(period),
                     from: 0.0,
                     to: duration,
+                    toggles: vec!["hide"],
                 };
                 add(track);
             }
@@ -380,6 +385,18 @@ pub fn view_of(
         editable,
         proposal,
     }
+}
+
+/// The track a modulation is drawn on: things moved alike share one.
+fn modulation_track(def: &wt::ModulationDef) -> String {
+    let (target, source) = (target_label(def.target), signal_key(&def.signal));
+    format!("mod:{target}:{source}:{}:{}", def.range[0], def.range[1])
+}
+
+/// The track a behavior is drawn on, when it has a cycle to draw.
+fn behavior_track(behavior: &wt::BehaviorDef) -> Option<String> {
+    let (what, period) = cycle(behavior)?;
+    Some(format!("behavior:{what}:{}", round2(period)))
 }
 
 fn track_id(track: &TrackView) -> &str {
@@ -730,6 +747,10 @@ pub struct Timeline {
     muted: Vec<String>,
     /// The mutes are to be applied again: asked for, or the tracks changed.
     remute: bool,
+    /// The seen tracks the page hid, by track id.
+    hidden: Vec<String>,
+    /// The hidden are to be gone over again.
+    rehide: bool,
 }
 
 impl Timeline {
@@ -748,6 +769,14 @@ impl Timeline {
         let heard: Vec<String> = self.heard().map(|(id, _)| id.to_string()).collect();
         self.muted.retain(|id| heard.contains(id));
         self.remute = true;
+        let tracks: Vec<String> = self
+            .view
+            .iter()
+            .flat_map(|view| &view.tracks)
+            .map(|track| track_id(track).to_string())
+            .collect();
+        self.hidden.retain(|id| tracks.contains(id));
+        self.rehide = true;
     }
 
     fn duration(&self) -> Option<f32> {
@@ -955,6 +984,8 @@ pub enum TimelineAsk {
     Review(bool),
     /// The heard tracks to silence, by id; the rest are heard.
     Mute(Vec<String>),
+    /// The seen tracks to hide, by id: what they move stands still.
+    Hide(Vec<String>),
 }
 
 /// Whether the song is what keeps time: the world ships its audio, and an
@@ -1024,6 +1055,10 @@ fn answer_asks(
                 timeline.muted = ids.clone();
                 timeline.remute = true;
             }
+            TimelineAsk::Hide(ids) => {
+                timeline.hidden = ids.clone();
+                timeline.rehide = true;
+            }
         }
     }
     if timeline.remute
@@ -1040,6 +1075,125 @@ fn answer_asks(
             }
         }
     }
+}
+
+/// What a hidden track's things keep while it is hidden: their own lists,
+/// as the world gives them, and what was left on them — so a list the
+/// world replaces meanwhile (an edit, a rebuild) is the one restored.
+#[derive(Component)]
+struct HeldModulations {
+    all: Vec<wt::ModulationDef>,
+    shown: Vec<wt::ModulationDef>,
+}
+
+#[derive(Component)]
+struct HeldBehaviors {
+    all: Vec<BehaviorInstance>,
+    /// The ids of the instances left on the entity.
+    shown: Vec<String>,
+}
+
+/// A hidden modulation or behavior track stands its things still: its
+/// modulations stop driving them, its behaviors stop moving them, and a
+/// thing a behavior let go of stands where the world puts it. Nothing is
+/// written — like a mute, it is the person's view.
+fn hide_tracks(
+    mut commands: Commands,
+    mut timeline: ResMut<Timeline>,
+    modulated: Query<(Entity, Ref<Modulated>, Option<&HeldModulations>)>,
+    mut behaving: Query<(
+        Entity,
+        &GenEntity,
+        &mut EntityBehaviors,
+        Option<&HeldBehaviors>,
+        &mut Transform,
+    )>,
+) {
+    let again = std::mem::take(&mut timeline.rehide);
+    let timeline = &*timeline;
+    let hidden = |track: &str| timeline.hidden.iter().any(|id| id == track);
+
+    for (entity, component, held) in &modulated {
+        if !again && !component.is_changed() {
+            continue;
+        }
+        let current: Vec<wt::ModulationDef> = component.defs().cloned().collect();
+        let all = match held {
+            Some(held) if held.shown == current => held.all.clone(),
+            _ => current.clone(),
+        };
+        let shown: Vec<wt::ModulationDef> = all
+            .iter()
+            .filter(|def| !hidden(&modulation_track(def)))
+            .cloned()
+            .collect();
+        if shown.len() == all.len() {
+            if held.is_some() {
+                if current != all {
+                    commands.entity(entity).insert(modulated_from(&all));
+                }
+                commands.entity(entity).remove::<HeldModulations>();
+            }
+            continue;
+        }
+        if shown != current {
+            commands.entity(entity).insert(modulated_from(&shown));
+        }
+        if held.is_none_or(|held| held.shown != shown) {
+            commands
+                .entity(entity)
+                .insert(HeldModulations { all, shown });
+        }
+    }
+
+    for (entity, tag, mut behaviors, held, mut transform) in &mut behaving {
+        if !again && !behaviors.is_changed() {
+            continue;
+        }
+        let current: Vec<String> = behaviors.behaviors.iter().map(|b| b.id.clone()).collect();
+        let all = match held {
+            Some(held) if held.shown == current => held.all.clone(),
+            _ => behaviors.behaviors.clone(),
+        };
+        let shown: Vec<BehaviorInstance> = all
+            .iter()
+            .filter(|b| behavior_track(&(&b.def).into()).is_none_or(|track| !hidden(&track)))
+            .cloned()
+            .collect();
+        if shown.len() == all.len() {
+            if held.is_some() {
+                if current.len() != all.len() {
+                    behaviors.behaviors = all;
+                }
+                commands.entity(entity).remove::<HeldBehaviors>();
+            }
+            continue;
+        }
+        let ids: Vec<String> = shown.iter().map(|b| b.id.clone()).collect();
+        if ids != current {
+            behaviors.behaviors = shown;
+            let authored = timeline
+                .world
+                .as_ref()
+                .and_then(|world| world.entities.iter().find(|e| e.id == tag.world_id));
+            if let Some(authored) = authored {
+                *transform = localgpt_world_bevy::transform(&authored.transform);
+            }
+        }
+        if held.is_none_or(|held| held.shown != ids) {
+            commands
+                .entity(entity)
+                .insert(HeldBehaviors { all, shown: ids });
+        }
+    }
+}
+
+/// The component for these modulations; one that drives nothing when there
+/// are none, so the entity stays in the query that brings them back.
+fn modulated_from(defs: &[wt::ModulationDef]) -> Modulated {
+    let mut probe = wt::WorldEntity::new(0, "");
+    probe.modulations = defs.to_vec();
+    localgpt_world_bevy::modulation::modulated(&probe).unwrap_or_default()
 }
 
 /// The clock `dt` later, when the app keeps it: it repeats the loop span
@@ -1585,6 +1739,99 @@ mod tests {
         );
         assert_eq!(timeline.shot_at(30.0), Some(1), "out points are exclusive");
         assert_eq!(timeline.shot_at(61.0), None);
+    }
+
+    /// Hiding the tracks of a lantern's spin and its glow stands it still,
+    /// where the world puts it; showing them gives it both back.
+    #[test]
+    fn a_hidden_track_stands_its_things_still_until_it_is_shown() {
+        let mut lantern: wt::WorldEntity = serde_json::from_value(
+            json!({"id": 7, "name": "lantern", "transform": {"position": [0.0, 2.0, 0.0]}}),
+        )
+        .unwrap();
+        lantern.modulations = vec![wt::ModulationDef {
+            target: wt::ModulationTarget::Emissive,
+            signal: wt::SignalSource::Beat,
+            range: [0.4, 2.0],
+            smoothing: 0.0,
+        }];
+        lantern.behaviors = vec![wt::BehaviorDef::Spin {
+            axis: [0.0, 1.0, 0.0],
+            speed: 60.0,
+        }];
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<Soundtrack>()
+            .add_plugins(TimelinePlugin {
+                canvas: Some(PathBuf::from("harbour.world")),
+            })
+            .insert_resource(LiveShots {
+                shots: Vec::new(),
+                manifest: world(vec![lantern.clone()], Some(song())),
+            });
+        let spun = Transform::from_xyz(0.0, 2.0, 0.0).with_rotation(Quat::from_rotation_y(1.0));
+        let thing = app
+            .world_mut()
+            .spawn((
+                GenEntity {
+                    entity_type: localgpt_gen::gen3d::registry::GenEntityType::Primitive,
+                    world_id: wt::EntityId(7),
+                },
+                EntityBehaviors {
+                    behaviors: vec![BehaviorInstance {
+                        id: "b1".into(),
+                        def: (&lantern.behaviors[0]).into(),
+                        base_position: Vec3::new(0.0, 2.0, 0.0),
+                        base_scale: Vec3::ONE,
+                    }],
+                },
+                localgpt_world_bevy::modulation::modulated(&lantern).unwrap(),
+                spun,
+            ))
+            .id();
+        app.update();
+
+        let spin = behavior_track(&lantern.behaviors[0]).unwrap();
+        let glow = modulation_track(&lantern.modulations[0]);
+        app.world_mut()
+            .write_message(TimelineAsk::Hide(vec![spin, glow]));
+        app.update();
+        let entity = app.world().entity(thing);
+        assert!(
+            entity
+                .get::<EntityBehaviors>()
+                .unwrap()
+                .behaviors
+                .is_empty(),
+            "the spin stops"
+        );
+        assert_eq!(
+            entity.get::<Modulated>().unwrap().defs().count(),
+            0,
+            "the glow stops"
+        );
+        assert_eq!(
+            *entity.get::<Transform>().unwrap(),
+            localgpt_world_bevy::transform(&lantern.transform),
+            "it stands where the world puts it"
+        );
+
+        app.world_mut().write_message(TimelineAsk::Hide(Vec::new()));
+        app.update();
+        let entity = app.world().entity(thing);
+        assert_eq!(
+            entity.get::<EntityBehaviors>().unwrap().behaviors.len(),
+            1,
+            "the spin is back"
+        );
+        assert_eq!(
+            entity.get::<Modulated>().unwrap().defs().count(),
+            1,
+            "and the glow"
+        );
+        assert!(
+            entity.get::<HeldBehaviors>().is_none() && entity.get::<HeldModulations>().is_none()
+        );
     }
 
     /// The plugin on a canvas, with no window and no audio: the page's asks
