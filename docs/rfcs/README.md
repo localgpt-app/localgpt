@@ -34,6 +34,7 @@ this order; each answers what the previous one left open.
 | [authoring/world-editor-stack.md](authoring/world-editor-stack.md) | proposal, partly built — the stack when history is the product. One rule: the ECS is a one-way projection of a fold. The headless core is `crates/world-editor`; its chrome section is superseded by the next row |
 | [authoring/the-page.md](authoring/the-page.md) | decided, built on macOS — one interface: a web page (React, CodeMirror, xterm.js) over the Bevy viewport, with the agents' own terminals in it. egui and the `bevy_ui` chrome went; [egui-or-not.md](authoring/egui-or-not.md) is superseded |
 | [authoring/mobile-remote.md](authoring/mobile-remote.md) | decided; step 1 built 2026-10-31, not yet tried on a phone in a hand — a phone or an iPad runs no agent: it is a remote for the desktop app, which serves it the page, pairs it by a QR code, mirrors the terminals and sends the world as frames. `apps/apple` and `apps/android` go with `mobile-ffi` |
+| [authoring/the-world-in-the-page.md](authoring/the-world-in-the-page.md) | measured in part, not decided — should the window's world move into the page, drawn by the format's web viewer? Headless, the page held 60 fps with the world under every load an agent makes, and WebKit gave way only at ~10 MB/s of terminal output; the world's cost is the GPU's, not the page's thread. The app's half (Bevy's frames, 120 Hz) waits on an unlocked screen |
 
 ## Lessons from other tools
 
