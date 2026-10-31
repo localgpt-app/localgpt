@@ -64,6 +64,8 @@ fn parse(command: &str, rest: &[String]) -> Result<Command, Box<dyn std::error::
         }
         "undo" => Command::Undo {
             author: "cli".into(),
+            at: None,
+            own: false,
         },
         "log" => Command::Log,
         "verify" => Command::Verify,

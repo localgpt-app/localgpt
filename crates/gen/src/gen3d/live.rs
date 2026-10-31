@@ -1100,19 +1100,9 @@ fn take_back(live: &mut Live, applier: &mut OpsApplier<'_, '_>, call: &Call, red
         Ok(done) => {
             let on_screen = follow(live, applier, &done);
             // The same receipt a batch gets, so a reader parses one shape.
-            Reply::ok(json!({
-                "result": "committed",
-                "revision": done.revision,
-                "id": done.entry.id,
-                "parent": done.entry.parent,
-                "branch": done.forked,
-                "head": live.world.main_tip(),
-                "on_screen": on_screen,
-                "changes": live::describe_ops(&done.ops),
-                "spawned": done.spawned,
-                "stored": done.stored,
-                "warnings": done.warnings,
-            }))
+            let mut receipt = live::receipt(&done, live.world.main_tip());
+            receipt["on_screen"] = json!(on_screen);
+            Reply::ok(receipt)
         }
         Err(refused) => Reply::status(409, json!({"result": "rejected", "errors": refused.errors})),
     }
@@ -1169,7 +1159,6 @@ fn clean_json<T: serde::Serialize>(value: &T) -> Value {
         .unwrap_or_default()
 }
 
-/// The person at the keyboard, as the history names them.
 /// The person at the keyboard, as the history names them.
 pub fn person() -> String {
     std::env::var("USER")
@@ -1954,23 +1943,13 @@ pub(super) fn live_world(
                             if done.forked { " (a branch)" } else { "" },
                             live::describe_ops(&done.ops).join(" · ")
                         );
-                        Reply::ok(json!({
-                            "result": "committed",
-                            "revision": done.revision,
-                            "id": done.entry.id,
-                            "parent": done.entry.parent,
-                            // A branch leaves the head where it was.
-                            "branch": done.forked,
-                            "head": live.world.main_tip(),
-                            // Whether the canvas shows it: not when the person
-                            // is looking elsewhere in the history, which is
-                            // also what a screenshot would show.
-                            "on_screen": on_screen,
-                            "changes": live::describe_ops(&done.ops),
-                            "spawned": done.spawned,
-                            "stored": done.stored,
-                            "warnings": done.warnings,
-                        }))
+                        // The receipt every writer gets, `localgpt world`'s
+                        // too, and whether the canvas shows it: not when the
+                        // person is looking elsewhere in the history, which
+                        // is also what a screenshot would show.
+                        let mut receipt = live::receipt(&done, live.world.main_tip());
+                        receipt["on_screen"] = json!(on_screen);
+                        Reply::ok(receipt)
                     }
                     Err(refused) => {
                         eprintln!("[live] refused: {}", refused.errors.join(" · "));

@@ -241,7 +241,14 @@ fn translate(command: WorldCommands) -> Result<(PathBuf, WorldCommand)> {
                 },
             )
         }
-        WorldCommands::Undo { dir, author } => (dir, WorldCommand::Undo { author }),
+        WorldCommands::Undo { dir, author } => (
+            dir,
+            WorldCommand::Undo {
+                author,
+                at: None,
+                own: false,
+            },
+        ),
         WorldCommands::Log { dir } => (dir, WorldCommand::Log),
         WorldCommands::Verify { dir } => (dir, WorldCommand::Verify),
         WorldCommands::History { dir, rev } => (dir, WorldCommand::History { rev }),

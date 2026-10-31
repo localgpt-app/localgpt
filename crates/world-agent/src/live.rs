@@ -153,6 +153,25 @@ impl Rejected {
     }
 }
 
+/// What a writer is handed back for a commit: the open app's reply to
+/// `/ops`, `/undo` and `/redo`, and `localgpt world`'s when no app has the
+/// world, so a reader parses one shape whoever holds it. `head` is main's
+/// tip after the commit; a branch commit leaves it where it was.
+pub fn receipt(done: &Committed, head: Option<String>) -> Value {
+    json!({
+        "result": "committed",
+        "revision": done.revision,
+        "id": done.entry.id,
+        "parent": done.entry.parent,
+        "branch": done.forked,
+        "head": head,
+        "changes": describe_ops(&done.ops),
+        "spawned": done.spawned,
+        "stored": done.stored,
+        "warnings": done.warnings,
+    })
+}
+
 /// A live `.world` package and the authority over it.
 pub struct LiveWorld {
     dir: PathBuf,
@@ -453,6 +472,16 @@ impl LiveWorld {
     /// `None` for the base.
     pub fn main_tip(&self) -> Option<String> {
         openworldformat::main_tip(&self.meta, &self.entries)
+    }
+
+    /// The world at entry `tip`, folded along its own path — a branch's tip
+    /// or anything earlier — without moving the head: what the open app's
+    /// `GET /world?tip=<id>` answers. An id the log doesn't have is an
+    /// error, never the head by mistake.
+    pub fn manifest_at(&self, tip: &str) -> Result<WorldManifest, LiveError> {
+        openworldformat::fold_path(&self.base, &self.entries, Some(tip))
+            .map(|(doc, _)| doc.to_manifest())
+            .map_err(|e| LiveError(e.to_string()))
     }
 
     /// The next revision. Revisions are the authority's total order across
@@ -1567,6 +1596,22 @@ fn entry(revision: u64, author: &str, intent: Value, ops: &[EditOp]) -> OpLogEnt
         // history; this is the field readers and the content hash use.
         message,
     }
+}
+
+/// An entry's commit message: its own (draft 0.3), else the one its intake
+/// recorded, which a log from before entries carried messages has instead.
+pub fn message_of(entry: &OpLogEntry) -> Option<String> {
+    entry.message.clone().or_else(|| {
+        entry.ops.iter().find_map(|op| match op {
+            SessionOp::Tool(t) if t.tool == "live" => t
+                .args
+                .get("message")?
+                .as_str()
+                .filter(|m| !m.is_empty())
+                .map(str::to_string),
+            _ => None,
+        })
+    })
 }
 
 /// An entry as a commit: author, subject (the sender's message, or what the

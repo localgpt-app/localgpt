@@ -46,7 +46,20 @@ pub enum Command {
         at: Option<String>,
     },
     /// Take back the newest edit by appending its inverse.
-    Undo { author: String },
+    Undo {
+        author: String,
+        /// Undo on the path to this entry instead of the head's: off main
+        /// the undo is a branch commit, and the head stays.
+        at: Option<String>,
+        /// The author's own newest, skipping others'.
+        own: bool,
+    },
+    /// Take the newest undo back, by appending the undo's inverse.
+    Redo {
+        author: String,
+        at: Option<String>,
+        own: bool,
+    },
     /// Every committed batch.
     Log,
     /// Check that the fold still equals the head and the assets match.
@@ -59,20 +72,33 @@ impl Command {
     /// True when this would append to the log, and so needs the folder to
     /// itself.
     pub fn writes(&self) -> bool {
-        matches!(self, Self::Submit { .. } | Self::Undo { .. })
+        matches!(
+            self,
+            Self::Submit { .. } | Self::Undo { .. } | Self::Redo { .. }
+        )
     }
 }
 
-/// Lines for the caller to print.
+/// Lines for the caller to print, and for a commit the receipt the open
+/// app's API would have replied with ([`live::receipt`]).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Report {
     pub lines: Vec<String>,
+    pub receipt: Option<Value>,
 }
 
 impl Report {
     fn one(line: impl Into<String>) -> Self {
         Self {
             lines: vec![line.into()],
+            receipt: None,
+        }
+    }
+
+    fn committed(lines: Vec<String>, done: &live::Committed, world: &LiveWorld) -> Self {
+        Self {
+            lines,
+            receipt: Some(live::receipt(done, world.main_tip())),
         }
     }
 }
@@ -168,6 +194,7 @@ pub fn run(dir: &Path, command: Command) -> Result<Report, HeadlessError> {
             url,
             send_to: match command {
                 Command::Undo { .. } => "undo".into(),
+                Command::Redo { .. } => "redo".into(),
                 _ => "ops".into(),
             },
         });
@@ -202,8 +229,8 @@ pub fn run(dir: &Path, command: Command) -> Result<Report, HeadlessError> {
         } => {
             let mut world = LiveWorld::open(dir)?;
             match world.submit_at(at.as_deref(), &batch, &author, message.as_deref()) {
-                Ok(done) if done.forked => Ok(Report {
-                    lines: vec![
+                Ok(done) if done.forked => {
+                    let lines = vec![
                         format!(
                             "committed revision {} on a branch: {}",
                             done.revision,
@@ -217,30 +244,26 @@ pub fn run(dir: &Path, command: Command) -> Result<Report, HeadlessError> {
                             done.entry.parent.as_deref().unwrap_or("the base"),
                             world.revision()
                         ),
-                    ],
-                }),
-                Ok(done) => Ok(Report::one(format!(
-                    "committed revision {}: {}",
-                    done.revision,
-                    live::describe_ops(&done.ops).join(" · ")
-                ))),
+                    ];
+                    Ok(Report::committed(lines, &done, &world))
+                }
+                Ok(done) => {
+                    let line = format!(
+                        "committed revision {}: {}",
+                        done.revision,
+                        live::describe_ops(&done.ops).join(" · ")
+                    );
+                    Ok(Report::committed(vec![line], &done, &world))
+                }
                 Err(refused) => Err(HeadlessError::Refused(refused.errors)),
             }
         }
-        Command::Undo { author } => {
-            let mut world = LiveWorld::open(dir)?;
-            match world.undo(&author) {
-                Ok(done) => Ok(Report::one(format!(
-                    "committed revision {}: {}",
-                    done.revision,
-                    done.warnings.join(" ")
-                ))),
-                Err(refused) => Err(HeadlessError::Refused(refused.errors)),
-            }
-        }
+        Command::Undo { author, at, own } => take_back(dir, &author, at.as_deref(), own, false),
+        Command::Redo { author, at, own } => take_back(dir, &author, at.as_deref(), own, true),
         Command::Log => {
             let world = LiveWorld::open(dir)?;
             Ok(Report {
+                receipt: None,
                 lines: world
                     .entries()
                     .iter()
@@ -271,6 +294,7 @@ pub fn run(dir: &Path, command: Command) -> Result<Report, HeadlessError> {
             let steps = live::git_history(dir, rev.as_deref())
                 .map_err(|e| HeadlessError::Failed(e.to_string()))?;
             Ok(Report {
+                receipt: None,
                 lines: steps
                     .iter()
                     .map(|s| {
@@ -288,10 +312,52 @@ pub fn run(dir: &Path, command: Command) -> Result<Report, HeadlessError> {
     }
 }
 
+/// An undo, or a redo: the newest on the path to `at` (the head's when
+/// `None`) — or the author's own newest — taken back by appending its
+/// inverse, as the open app's `/undo` and `/redo` do.
+fn take_back(
+    dir: &Path,
+    author: &str,
+    at: Option<&str>,
+    own: bool,
+    redo: bool,
+) -> Result<Report, HeadlessError> {
+    let scope = if own {
+        live::UndoScope::Own
+    } else {
+        live::UndoScope::Anyone
+    };
+    let mut world = LiveWorld::open(dir)?;
+    let outcome = if redo {
+        world.redo_at(at, author, scope)
+    } else {
+        world.undo_scoped(at, author, scope)
+    };
+    match outcome {
+        Ok(done) => {
+            let line = format!(
+                "committed revision {}: {}",
+                done.revision,
+                done.warnings.join(" ")
+            );
+            Ok(Report::committed(vec![line], &done, &world))
+        }
+        Err(refused) => Err(HeadlessError::Refused(refused.errors)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn undo(author: &str) -> Command {
+        Command::Undo {
+            author: author.into(),
+            at: None,
+            own: false,
+        }
+    }
 
     fn temp(name: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!(
@@ -404,16 +470,89 @@ mod tests {
             },
         )
         .unwrap();
-        run(
-            &dir,
-            Command::Undo {
-                author: "test".into(),
-            },
-        )
-        .expect("undo");
+        run(&dir, undo("test")).expect("undo");
 
         let log = run(&dir, Command::Log).unwrap();
         assert_eq!(log.lines.len(), 2, "the log grew: {:?}", log.lines);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_commit_hands_back_the_receipt_the_open_app_would() {
+        let dir = temp("receipt");
+        run(&dir, Command::Init { git: false }).unwrap();
+        let report = run(
+            &dir,
+            Command::Submit {
+                batch: json!({"ops": [{"SpawnEntity": {"entity": {"name": "lamp"}}}]}),
+                author: "test".into(),
+                message: Some("hang a lamp".into()),
+                at: None,
+            },
+        )
+        .unwrap();
+        let receipt = report.receipt.expect("a commit has a receipt");
+        assert_eq!(receipt["result"], "committed");
+        assert_eq!(receipt["revision"], 1);
+        assert_eq!(receipt["branch"], false);
+        // The head is the entry just written, and the spawn is named.
+        assert_eq!(receipt["head"], receipt["id"], "{receipt}");
+        assert!(receipt["spawned"]["lamp"].is_u64(), "{receipt}");
+        assert!(
+            receipt["changes"][0].as_str().unwrap().contains("lamp"),
+            "{receipt}"
+        );
+        // Reads have none.
+        assert!(run(&dir, Command::Log).unwrap().receipt.is_none());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn redo_takes_an_undo_back_and_own_undo_skips_others() {
+        let dir = temp("redo");
+        run(&dir, Command::Init { git: false }).unwrap();
+        for (author, name) in [("ann", "lamp"), ("bo", "bench")] {
+            run(
+                &dir,
+                Command::Submit {
+                    batch: json!([{"SpawnEntity": {"entity": {"name": name}}}]),
+                    author: author.into(),
+                    message: None,
+                    at: None,
+                },
+            )
+            .unwrap();
+        }
+        // Ann's own undo takes back her lamp, past Bo's newer bench.
+        let undone = run(
+            &dir,
+            Command::Undo {
+                author: "ann".into(),
+                at: None,
+                own: true,
+            },
+        )
+        .expect("ann's own undo");
+        let receipt = undone.receipt.unwrap();
+        assert_eq!(
+            receipt["warnings"],
+            json!(["undid revision 1"]),
+            "{receipt}"
+        );
+        assert_eq!(receipt["changes"], json!(["delete #1"]), "{receipt}");
+
+        let redone = run(
+            &dir,
+            Command::Redo {
+                author: "ann".into(),
+                at: None,
+                own: true,
+            },
+        )
+        .expect("redo");
+        let receipt = redone.receipt.unwrap();
+        assert_eq!(receipt["revision"], 4, "{receipt}");
+        assert!(receipt["changes"].to_string().contains("lamp"), "{receipt}");
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -428,7 +567,15 @@ mod tests {
             }
             .writes()
         );
-        assert!(Command::Undo { author: "a".into() }.writes());
+        assert!(undo("a").writes());
+        assert!(
+            Command::Redo {
+                author: "a".into(),
+                at: None,
+                own: false
+            }
+            .writes()
+        );
         for read_only in [
             Command::Log,
             Command::Verify,
