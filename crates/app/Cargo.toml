@@ -29,8 +29,14 @@ localgpt-md = { path = "../md", default-features = false }
 # props, soundtrack curves and modulations), and Gen's viewport plays it.
 localgpt-verse = { path = "../verse" }
 localgpt-world-types = { workspace = true }
-# The soundtrack the loaded world performs, for the now-playing transport.
+# The soundtrack the loaded world performs, for the timeline's clock.
 localgpt-world-bevy = { workspace = true }
+# The timeline's shot track is the shot list the previs board draws.
+localgpt-previs = { workspace = true }
+# The song's waveform for the timeline, decoded as Verse decodes songs.
+symphonia = { version = "0.5", features = ["mp3", "aac", "alac", "isomp4", "aiff"] }
+# The shots' thumbnails go to the page as JPEG.
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
 # The world-building protocol (tool specs, section prompt, Session) that the
 # app drives with its configured model, as MD drives it with a local GGUF.
 localgpt-world-agent = { workspace = true }

@@ -3,7 +3,7 @@
 //! Bevy owns the window and draws the world; the page — React, Tailwind,
 //! CodeMirror and xterm.js, built from `crates/app/ui` — draws everything
 //! else: the history graph and its playback, the document and its outline,
-//! the song's transport, Open…, and the agents' terminals. It leaves a hole
+//! the timeline, Open…, and the agents' terminals. It leaves a hole
 //! where the world shows through and reports where it is: clicks inside it
 //! fall through to Bevy (`mac::HoleView`), and the world camera draws into
 //! it. Nothing else draws chrome; Gen has no panels of its own.
@@ -11,7 +11,7 @@
 //! The page posts [`FromPage`] as JSON through `window.ipc`; the app answers
 //! with [`ToPage`] through `window.__lg.recv(…)`. Each side keeps its own
 //! state: the page asks with the app's messages ([`SeekTo`], [`DocumentAsk`],
-//! [`OpenFile`], [`ToggleSong`]) and the app sends it snapshots, so the page
+//! [`OpenFile`], [`TimelineAsk`]) and the app sends it snapshots, so the page
 //! also opens in a plain browser, with nothing behind it, to be designed.
 //!
 //! The window's side is a [`Host`]: on macOS a WKWebView over Bevy's view
@@ -39,15 +39,13 @@ use bevy::ecs::message::Messages;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use localgpt_gen::gen3d::audio::AudioEngine;
 use localgpt_gen::gen3d::live::{LiveHistory, SeekTo};
 use localgpt_gen::gen3d::plugin::FlyCam;
-use localgpt_world_bevy::modulation::Soundtrack;
 use serde::{Deserialize, Serialize};
 
 use crate::document::{Document, DocumentAsk, DocumentView};
-use crate::now_playing::{NowPlaying, ToggleSong, Transport};
 use crate::open::{OpenFile, Opener, Showing};
+use crate::timeline::{ShotTime, Thumbs, Timeline, TimelineAsk, TimelineView, WorldClock};
 use term::{TermOut, Terms};
 
 pub const LOCALGPT_APP_UI: &str = "LOCALGPT_APP_UI";
@@ -133,7 +131,34 @@ struct Sent {
     opener: Option<(bool, Option<String>)>,
     document: Option<String>,
     text_rev: u64,
-    song: Option<String>,
+    timeline_rev: Option<u64>,
+    clock: Option<ClockSent>,
+    thumbs_rev: u64,
+}
+
+/// The clock as the page was last told it, and when: while it plays, the
+/// page runs it on from there.
+struct ClockSent {
+    at: f32,
+    playing: bool,
+    looping: Option<[f32; 2]>,
+    when: f64,
+}
+
+impl ClockSent {
+    /// The page's clock has drifted from the app's, or is told too seldom.
+    fn stale(&self, clock: &WorldClock, now: f64) -> bool {
+        if self.playing != clock.playing || self.looping != clock.looping {
+            return true;
+        }
+        let since = (now - self.when) as f32;
+        let expected = if self.playing {
+            self.at + since
+        } else {
+            self.at
+        };
+        (clock.at - expected).abs() > 0.05 || (self.playing && since > 1.0)
+    }
 }
 
 impl Page {
@@ -189,8 +214,23 @@ enum FromPage {
     /// The top bar's Open…: the native picker.
     #[serde(rename = "open.file")]
     OpenFile,
-    #[serde(rename = "song.toggle")]
-    SongToggle,
+    #[serde(rename = "clock.seek")]
+    ClockSeek { at: f32 },
+    #[serde(rename = "clock.play")]
+    ClockPlay { playing: bool },
+    #[serde(rename = "clock.loop")]
+    ClockLoop { span: Option<[f32; 2]> },
+    /// Look through a shot's camera; `None`, back to the free camera.
+    #[serde(rename = "shot.look")]
+    ShotLook { id: Option<u64> },
+    /// A drag let go: the shots' new in and out points, one edit.
+    #[serde(rename = "shot.time")]
+    ShotTimes { edits: Vec<ShotTime> },
+    #[serde(rename = "review")]
+    Review { accept: bool },
+    /// The heard tracks to silence (a solo is the others muted).
+    #[serde(rename = "mute")]
+    Mute { ids: Vec<String> },
     #[serde(rename = "doc.edit")]
     DocEdit { text: String },
     #[serde(rename = "doc.caret")]
@@ -258,9 +298,20 @@ enum ToPage<'a> {
     /// Bring a line of the text into view.
     #[serde(rename = "doc.reveal")]
     DocReveal { line: usize },
-    /// The song the world performs, or none.
-    #[serde(rename = "song")]
-    Song { song: Option<&'a NowPlaying> },
+    /// The world's clock and its tracks, or none before a world is open.
+    #[serde(rename = "timeline")]
+    Timeline { view: Option<&'a TimelineView> },
+    /// Where the clock is. While it plays, the page runs it on between these.
+    #[serde(rename = "clock")]
+    Clock {
+        at: f32,
+        playing: bool,
+        #[serde(rename = "loop")]
+        looping: Option<[f32; 2]>,
+    },
+    /// A shot's newest frame, by its camera entity's id.
+    #[serde(rename = "thumb")]
+    Thumb { id: String, url: &'a str },
     #[serde(rename = "term.data")]
     TermData { id: &'a str, b64: String },
     #[serde(rename = "term.exit")]
@@ -339,7 +390,7 @@ struct Asks<'w> {
     seeks: Option<ResMut<'w, Messages<SeekTo>>>,
     document: Option<ResMut<'w, Messages<DocumentAsk>>>,
     open: Option<ResMut<'w, Messages<OpenFile>>>,
-    song: Option<ResMut<'w, Messages<ToggleSong>>>,
+    timeline: Option<ResMut<'w, Messages<TimelineAsk>>>,
 }
 
 fn ask<T: Message>(messages: &mut Option<ResMut<Messages<T>>>, message: T) {
@@ -407,7 +458,13 @@ fn read_page(
                 }
             }
             FromPage::OpenFile => ask(&mut asks.open, OpenFile),
-            FromPage::SongToggle => ask(&mut asks.song, ToggleSong),
+            FromPage::ClockSeek { at } => ask(&mut asks.timeline, TimelineAsk::Seek(at)),
+            FromPage::ClockPlay { playing } => ask(&mut asks.timeline, TimelineAsk::Play(playing)),
+            FromPage::ClockLoop { span } => ask(&mut asks.timeline, TimelineAsk::Loop(span)),
+            FromPage::ShotLook { id } => ask(&mut asks.timeline, TimelineAsk::Look(id)),
+            FromPage::ShotTimes { edits } => ask(&mut asks.timeline, TimelineAsk::Shots(edits)),
+            FromPage::Review { accept } => ask(&mut asks.timeline, TimelineAsk::Review(accept)),
+            FromPage::Mute { ids } => ask(&mut asks.timeline, TimelineAsk::Mute(ids)),
             FromPage::DocEdit { text } => ask(&mut asks.document, DocumentAsk::Edit(text)),
             FromPage::DocCaret { line } => ask(&mut asks.document, DocumentAsk::Caret(line)),
             FromPage::DocGo { section, line } => {
@@ -510,12 +567,12 @@ struct Shown<'w> {
     showing: Option<Res<'w, Showing>>,
     opener: Option<Res<'w, Opener>>,
     document: Option<ResMut<'w, Document>>,
-    soundtrack: Option<Res<'w, Soundtrack>>,
-    transport: Option<Res<'w, Transport>>,
-    audio: Option<Res<'w, AudioEngine>>,
+    timeline: Option<Res<'w, Timeline>>,
+    clock: Option<Res<'w, WorldClock>>,
+    thumbs: Option<Res<'w, Thumbs>>,
 }
 
-fn push_page(page: Option<NonSendMut<Page>>, mut shown: Shown, play: Res<Play>) {
+fn push_page(page: Option<NonSendMut<Page>>, mut shown: Shown, play: Res<Play>, time: Res<Time>) {
     let Some(mut page) = page else {
         return;
     };
@@ -580,20 +637,47 @@ fn push_page(page: Option<NonSendMut<Page>>, mut shown: Shown, play: Res<Play>) 
             page.send(&ToPage::DocReveal { line });
         }
     }
-    if let (Some(soundtrack), Some(transport)) = (&shown.soundtrack, &shown.transport) {
-        let mut song =
-            crate::now_playing::now_playing(soundtrack, transport, shown.audio.is_some());
-        // A tenth of a second is as fine as the transport draws.
-        if let Some(song) = song.as_mut() {
-            song.position = (song.position * 10.0).round() / 10.0;
-        }
-        let json = serde_json::to_string(&song).unwrap_or_default();
-        if page.sent.song.as_deref() != Some(json.as_str()) {
-            page.send(&ToPage::Song {
-                song: song.as_ref(),
+    if let Some(timeline) = &shown.timeline
+        && page.sent.timeline_rev != Some(timeline.rev)
+    {
+        page.sent.timeline_rev = Some(timeline.rev);
+        page.send(&ToPage::Timeline {
+            view: timeline.view.as_ref(),
+        });
+    }
+    if let Some(clock) = &shown.clock {
+        let now = time.elapsed_secs_f64();
+        if page
+            .sent
+            .clock
+            .as_ref()
+            .is_none_or(|sent| sent.stale(clock, now))
+        {
+            page.send(&ToPage::Clock {
+                at: (clock.at * 100.0).round() / 100.0,
+                playing: clock.playing,
+                looping: clock.looping,
             });
-            page.sent.song = Some(json);
+            page.sent.clock = Some(ClockSent {
+                at: clock.at,
+                playing: clock.playing,
+                looping: clock.looping,
+                when: now,
+            });
         }
+    }
+    if let Some(thumbs) = &shown.thumbs
+        && thumbs.rev > page.sent.thumbs_rev
+    {
+        for (id, (rev, url)) in &thumbs.urls {
+            if *rev > page.sent.thumbs_rev {
+                page.send(&ToPage::Thumb {
+                    id: id.to_string(),
+                    url,
+                });
+            }
+        }
+        page.sent.thumbs_rev = thumbs.rev;
     }
 }
 
@@ -733,6 +817,49 @@ mod tests {
             status: None,
             turns: Vec::new(),
         }
+    }
+
+    /// The timeline's asks as `ui/src/bridge.ts` writes them.
+    #[test]
+    fn the_timeline_asks_read_as_the_page_writes_them() {
+        let read = |json: &str| serde_json::from_str::<FromPage>(json).expect(json);
+        assert!(
+            matches!(read(r#"{"t":"clock.seek","at":12.5}"#), FromPage::ClockSeek { at } if at == 12.5)
+        );
+        assert!(matches!(
+            read(r#"{"t":"clock.play","playing":true}"#),
+            FromPage::ClockPlay { playing: true }
+        ));
+        assert!(matches!(
+            read(r#"{"t":"clock.loop","span":null}"#),
+            FromPage::ClockLoop { span: None }
+        ));
+        assert!(matches!(
+            read(r#"{"t":"clock.loop","span":[60,90.5]}"#),
+            FromPage::ClockLoop {
+                span: Some([60.0, 90.5])
+            }
+        ));
+        assert!(matches!(
+            read(r#"{"t":"shot.look","id":7}"#),
+            FromPage::ShotLook { id: Some(7) }
+        ));
+        let FromPage::ShotTimes { edits } =
+            read(r#"{"t":"shot.time","edits":[{"id":2,"in_s":87.78,"out_s":105.22}]}"#)
+        else {
+            panic!("a shot edit");
+        };
+        assert_eq!(
+            (edits[0].id, edits[0].in_s, edits[0].out_s),
+            (2, 87.78, 105.22)
+        );
+        assert!(matches!(
+            read(r#"{"t":"review","accept":false}"#),
+            FromPage::Review { accept: false }
+        ));
+        assert!(
+            matches!(read(r#"{"t":"mute","ids":["soundtrack"]}"#), FromPage::Mute { ids } if ids == ["soundtrack"])
+        );
     }
 
     #[test]

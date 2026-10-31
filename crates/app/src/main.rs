@@ -2,9 +2,9 @@
 //!
 //! Gen's world in a Bevy window, and around it the app's interface: one web
 //! page over the viewport (`webui`, built from `ui/`) with the history and
-//! its playback, the document and its outline, the song's transport, Open…,
-//! and the agents' own terminals — Claude Code, Codex and the rest, a tab
-//! each, started in the world's folder. The app runs no agent of its own and
+//! its playback, the document and its outline, the timeline of the world's
+//! clock across the window, Open…, and the agents' own terminals — Claude
+//! Code, Codex and the rest, a tab each, started in the world's folder. The app runs no agent of its own and
 //! manages no agent's configuration (`docs/rfcs/authoring/the-page.md`).
 //!
 //! ```sh
@@ -26,11 +26,12 @@
 
 mod authoring;
 mod document;
-mod now_playing;
 mod open;
+mod peaks;
 mod screenshot;
 mod song;
 mod starter;
+mod timeline;
 mod webui;
 
 use std::path::{Path, PathBuf};
@@ -341,12 +342,12 @@ fn main() -> anyhow::Result<()> {
         // as soon as the authority takes it, as it did before Gen grew one.
         localgpt_gen::gen3d::live::setup_live(&mut app, dir, false)?;
     } else {
-        app.add_plugins((
-            document::DocumentPlugin,
-            now_playing::NowPlayingPlugin,
-            open::OpenPlugin,
-        ));
+        app.add_plugins((document::DocumentPlugin, open::OpenPlugin));
     }
+    // World time — the song, the shots, the tour — on one clock, in every mode.
+    app.add_plugins(timeline::TimelinePlugin {
+        canvas: live_canvas.clone(),
+    });
     if let Some(live) = live_document {
         app.insert_resource(live);
     }

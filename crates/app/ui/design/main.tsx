@@ -3,15 +3,16 @@ import { HistoryPanel } from "../src/HistoryPanel";
 import { Icon } from "../src/Icon";
 import { PlaybackBar } from "../src/PlaybackBar";
 import { Frame } from "../src/timeline/Frame";
-import type { Clock, Shot, Track } from "../src/timeline/model";
+import type { Clock, FrameLook, Shot, Track } from "../src/timeline/model";
 import { HEADER, Timeline } from "../src/timeline/Timeline";
 import * as w from "./fixtures";
 import { Figure, Row, Section, Sheet } from "./Sheet";
 import "./design.css";
 
-// The timeline, for review before any of it is wired: where it sits in the
-// window, the whole of it on one world, the edits as states, the worlds
-// with less in them, and the track headers' toggles.
+// The timeline's design: where it sits in the window, the whole of it on one
+// world, the edits as states, the worlds with less in them, and the track
+// headers' toggles — drawn with the component the app wires
+// (`src/timeline/LiveTimeline.tsx`), so the sheet stays its reference.
 
 const W = 1440;
 const H = 860;
@@ -127,14 +128,14 @@ const previsShots: Shot[] = [
   lens: Number(lens),
   from: Number(from),
   to: Number(to),
-  look: { horizon: 0.6, sun: [0.7, 0.4], subject: subject as Shot["look"]["subject"], at: Number(at) },
+  look: { horizon: 0.6, sun: [0.7, 0.4], subject: subject as FrameLook["subject"], at: Number(at) },
 }));
 
 function Page() {
   return (
     <Sheet
       title="Timeline"
-      lede="World time — the shots, the song and what the song moves — on one clock, across the window. For review before any of it is wired: nothing here is behaviour, so every state is drawn beside the others."
+      lede="World time — the shots, the song and what the song moves — on one clock, across the window. Nothing here is behaviour: every state is drawn beside the others, with the component the app wires."
     >
       <Section
         title="Where it lives"

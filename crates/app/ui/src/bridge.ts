@@ -3,6 +3,8 @@
 // browser — the dev server without the app — sends go nowhere and the page
 // still draws, which is how it is designed and checked.
 
+import type { Clock, Shot, Signal, Track } from "./timeline/model";
+
 export type HistoryRow = {
   id: string;
   /** The entry it builds on; null for one built on the base. */
@@ -73,14 +75,25 @@ export type DocumentView = {
   card: PlaceCard | null;
 };
 
-export type NowPlaying = {
-  title: string;
-  artist: string | null;
-  duration: number;
-  position: number;
-  playing: boolean;
-  playable: boolean;
+/** A track as the app sends it: a modulation names its signal (`source`,
+ *  a key of `signals`) rather than carrying the samples. */
+export type TrackIn = Exclude<Track, { kind: "modulation" }> | (Omit<Extract<Track, { kind: "modulation" }>, "samples"> & { source: string });
+
+/** The world's clock and its tracks, read from the world's document. */
+export type TimelineView = {
+  /** None: the world keeps no time. */
+  clock: Clock | null;
+  tracks: TrackIn[];
+  /** The signals modulations read, sampled on the clock. */
+  signals: Record<string, Signal>;
+  /** Shots can be trimmed and moved: a live canvas. */
+  editable: boolean;
+  /** An agent's change waiting for the person, with the shots it moves. */
+  proposal: { author: string; what: string; shots: Shot[] } | null;
 };
+
+/** A shot's new in and out points, as a drag lets go of it. */
+export type ShotEdit = { id: number; in_s: number; out_s: number };
 
 export type ToPage =
   | ({ t: "mode" } & Mode)
@@ -91,7 +104,9 @@ export type ToPage =
   | { t: "document"; doc: DocumentView }
   | { t: "doc.text"; text: string; rev: number }
   | { t: "doc.reveal"; line: number }
-  | { t: "song"; song: NowPlaying | null }
+  | { t: "timeline"; view: TimelineView | null }
+  | { t: "clock"; at: number; playing: boolean; loop: [number, number] | null }
+  | { t: "thumb"; id: string; url: string }
   | { t: "term.data"; id: string; b64: string }
   | { t: "term.exit"; id: string; code: number | null; error: string | null };
 
@@ -103,7 +118,13 @@ export type FromPage =
   | { t: "play"; playing: boolean }
   | { t: "open"; url: string }
   | { t: "open.file" }
-  | { t: "song.toggle" }
+  | { t: "clock.seek"; at: number }
+  | { t: "clock.play"; playing: boolean }
+  | { t: "clock.loop"; span: [number, number] | null }
+  | { t: "shot.look"; id: number | null }
+  | { t: "shot.time"; edits: ShotEdit[] }
+  | { t: "review"; accept: boolean }
+  | { t: "mute"; ids: string[] }
   | { t: "doc.edit"; text: string }
   | { t: "doc.caret"; line: number }
   | { t: "doc.go"; section: number; line: number | null }
@@ -126,11 +147,12 @@ declare global {
 const listeners = new Set<(message: ToPage) => void>();
 /** The newest of each snapshot the app sends, for a panel that mounts after
  *  it arrived: the document's text comes in the same breath as the mode
- *  that makes its panel appear. A terminal's bytes are a stream, not kept. */
+ *  that makes its panel appear. A terminal's bytes are a stream, not kept;
+ *  thumbnails are one per shot, and the app's own view keeps them. */
 const newest = new Map<ToPage["t"], ToPage>();
 window.__lg = {
   recv: (message) => {
-    if (!message.t.startsWith("term.")) newest.set(message.t, message);
+    if (!message.t.startsWith("term.") && message.t !== "thumb") newest.set(message.t, message);
     listeners.forEach((listener) => listener(message));
   },
 };

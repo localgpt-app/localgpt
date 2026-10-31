@@ -68,9 +68,39 @@ export function barBeat(clock: Clock, t: number): [number, number] | null {
   return [Math.floor(beats / 4) + 1, Math.floor(beats % 4) + 1];
 }
 
-function points(signal: Signal, s: Scale): [number, number][] {
+/** A signal's points in view (and one either side). Where samples crowd
+ *  several to a pixel — a song's waveform at fit — each pixel keeps its
+ *  loudest, and for a line its quietest too, in the order they came. */
+function points(signal: Signal, s: Scale, line = false): [number, number][] {
   const from = signal.from ?? 0;
-  return signal.values.map((v, i) => [xOf(s, from + i / signal.rate), v]);
+  const n = signal.values.length;
+  if (n === 0) return [];
+  const first = Math.max(0, Math.floor((s.from - from) * signal.rate) - 1);
+  const last = Math.min(n - 1, Math.ceil((s.to - from) * signal.rate) + 1);
+  const out: [number, number][] = [];
+  if (signal.rate / pxPerSecond(s) <= 4) {
+    for (let i = first; i <= last; i++) out.push([xOf(s, from + i / signal.rate), signal.values[i]]);
+    return out;
+  }
+  let px = Number.NaN;
+  let [lo, hi, loAt, hiAt] = [0, 0, 0, 0];
+  const flush = () => {
+    if (Number.isNaN(px)) return;
+    if (!line) out.push([px, hi]);
+    else if (loAt < hiAt) out.push([px, lo], [px, hi]);
+    else out.push([px, hi], [px, lo]);
+  };
+  for (let i = first; i <= last; i++) {
+    const x = Math.round(xOf(s, from + i / signal.rate));
+    const v = signal.values[i];
+    if (x !== px) {
+      flush();
+      [px, lo, hi, loAt, hiAt] = [x, v, v, i, i];
+    } else if (v > hi) [hi, hiAt] = [v, i];
+    else if (v < lo) [lo, loAt] = [v, i];
+  }
+  flush();
+  return out;
 }
 
 const f = (n: number) => n.toFixed(1);
@@ -92,6 +122,6 @@ export function areaPath(signal: Signal, s: Scale, h: number, mirror: boolean): 
 
 /** A signal as a line over a lane `h` px tall, 0 at the bottom. */
 export function linePath(signal: Signal, s: Scale, h: number): string {
-  const pts = points(signal, s);
+  const pts = points(signal, s, true);
   return pts.length === 0 ? "" : `M${pts.map(([x, v]) => `${f(x)} ${f(h - 3 - v * (h - 6))}`).join("L")}`;
 }

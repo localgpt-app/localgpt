@@ -1,20 +1,20 @@
 import { useEffect, useState } from "react";
 import { AgentsPanel } from "./AgentsPanel";
-import type { DocumentView, History, Mode, NowPlaying } from "./bridge";
+import type { DocumentView, History, Mode, TimelineView } from "./bridge";
 import { inApp, listen, send } from "./bridge";
 import { DocumentPanel } from "./DocumentPanel";
 import { HistoryPanel } from "./HistoryPanel";
 import { Icon } from "./Icon";
 import { PlaybackBar } from "./PlaybackBar";
-import { SongBar } from "./SongBar";
+import { type ClockState, LiveTimeline } from "./timeline/LiveTimeline";
 import { Viewport } from "./Viewport";
 
 const EMPTY: History = { rows: [], current: null, status: null, turns: [] };
 
 /** The window: what is open has its panel on the left — a live world's
  *  history, with its own transport, or a document — the world is in the
- *  middle with the song it performs under it, and the agents are on the
- *  right. */
+ *  middle, the agents are on the right, and the timeline of the world's
+ *  clock runs across the foot of all three. */
 export function App() {
   const [mode, setMode] = useState<Mode>({ history: false, document: false });
   const [history, setHistory] = useState<History>(EMPTY);
@@ -22,7 +22,9 @@ export function App() {
   const [title, setTitle] = useState<string | null>(null);
   const [opener, setOpener] = useState<{ busy: boolean; status: string | null }>({ busy: false, status: null });
   const [doc, setDoc] = useState<DocumentView | null>(null);
-  const [song, setSong] = useState<NowPlaying | null>(null);
+  const [timeline, setTimeline] = useState<TimelineView | null>(null);
+  const [clock, setClock] = useState<ClockState | null>(null);
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const stop = listen((m) => {
@@ -45,8 +47,14 @@ export function App() {
         case "document":
           setDoc(m.doc);
           break;
-        case "song":
-          setSong(m.song);
+        case "timeline":
+          setTimeline(m.view);
+          break;
+        case "clock":
+          setClock({ at: m.at, playing: m.playing, loop: m.loop, received: performance.now() });
+          break;
+        case "thumb":
+          setThumbs((all) => ({ ...all, [m.id]: m.url }));
           break;
       }
     });
@@ -61,8 +69,11 @@ export function App() {
 
   return (
     <div
-      className="grid h-full grid-rows-[36px_minmax(0,1fr)]"
-      style={{ gridTemplateColumns: left ? `${left} minmax(0,1fr) 480px` : "minmax(0,1fr) 480px" }}
+      className="grid h-full"
+      style={{
+        gridTemplateColumns: left ? `${left} minmax(0,1fr) 480px` : "minmax(0,1fr) 480px",
+        gridTemplateRows: timeline ? "36px minmax(0,1fr) auto" : "36px minmax(0,1fr)",
+      }}
     >
       <header className="col-span-full flex items-center gap-3 border-b border-line bg-panel px-4">
         <span className="font-semibold tracking-tight">LocalGPT</span>
@@ -90,9 +101,14 @@ export function App() {
       )}
       <main className="flex min-h-0 flex-col">
         <Viewport />
-        {song && <SongBar song={song} />}
       </main>
       <AgentsPanel />
+      {/* Across the window: the timeline is the panel that wants width. */}
+      {timeline && (
+        <div className="col-span-full min-w-0 border-t border-line">
+          <LiveTimeline timeline={timeline} clock={clock} thumbs={thumbs} />
+        </div>
+      )}
     </div>
   );
 }

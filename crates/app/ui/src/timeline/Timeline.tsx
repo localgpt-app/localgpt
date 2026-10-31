@@ -1,8 +1,9 @@
+import { memo, useMemo, type PointerEvent as ReactPointerEvent } from "react";
 import { Icon, type IconName } from "../Icon";
 import { timecode } from "../timecode";
 import { Frame } from "./Frame";
 import { areaPath, barBeat, beatGrid, linePath, type Scale, sectionStarts, ticks, xOf } from "./geometry";
-import type { Clock, Shot, Track, TrackKind } from "./model";
+import type { Clock, Shot, Toggle, Track, TrackFlags, TrackKind } from "./model";
 
 /** The track headers' column; the lanes start after it. */
 export const HEADER = 176;
@@ -16,6 +17,9 @@ const HEIGHT: Record<TrackKind, number> = {
   behavior: 22,
   ambience: 22,
 };
+/** A row of overlapping shots — coverage under its master — and the gap
+ *  between rows. */
+const SHOT_ROW = 40;
 const GLYPH: Record<TrackKind, IconName> = {
   shots: "film",
   camera: "camera",
@@ -38,10 +42,38 @@ const AUDIO = new Set<TrackKind>(["soundtrack", "stem", "ambience"]);
 
 export type Snap = "beats" | "sections" | "shots" | "off";
 const SNAP_LABEL: Record<Snap, string> = { beats: "Beats", sections: "Sections", shots: "Cuts", off: "Snap off" };
+export const SNAPS: Snap[] = ["beats", "sections", "shots", "off"];
 
 /** A drag while it is held: the clip's new place on its track, and the line
  *  it snapped to, if it did. Nothing is written until it is let go. */
 export type Drag = { track: string; from: number; to: number; label: string; snapped?: { at: number; label: string } };
+
+/** Where a clip was pressed: an edge trims it, the middle moves it. */
+export type Edge = "in" | "out" | "body";
+
+/** What a timeline in use does when it is pressed. The design sheets pass
+ *  none: there every state is drawn rather than reached. */
+export type TimelineHandlers = {
+  /** The ruler: the playhead goes there and follows the drag. */
+  rulerDown(e: ReactPointerEvent): void;
+  clipDown(e: ReactPointerEvent, shot: Shot, edge: Edge): void;
+  /** A clip double-clicked: look through it. */
+  clipOpen(shot: Shot): void;
+  /** An empty stretch of lane: nothing selected. */
+  laneDown(e: ReactPointerEvent): void;
+  play(): void;
+  /** To the previous cut (-1) or the next (1). */
+  step(direction: -1 | 1): void;
+  loop(): void;
+  zoom(factor: number): void;
+  fit(): void;
+  snapMenu(): void;
+  snap(snap: Snap): void;
+  toggle(track: string, toggle: Toggle): void;
+  /** The soundtrack's stems, shown or folded. */
+  open(track: string): void;
+  review(accept: boolean): void;
+};
 
 export type TimelineProps = {
   /** None: the world keeps no time — no soundtrack, no shots, no tour. */
@@ -62,14 +94,42 @@ export type TimelineProps = {
   drag?: Drag | null;
   /** The lanes alone, without the toolbar. */
   bare?: boolean;
+  /** The lanes scroll past this height. */
+  maxLanes?: number;
+  /** The snap menu is open. */
+  snapMenu?: boolean;
+  on?: TimelineHandlers;
 };
+
+/** Overlapping shots stack: each in the first row it fits. A proposed shot
+ *  drawn beside the shot it moves sits in that shot's row. */
+function pack(shots: Shot[]): { placed: Shot[]; row: Map<string, number>; rows: number } {
+  const ends: number[] = [];
+  const row = new Map<string, number>();
+  const twins = new Set(shots.filter((shot) => shot.state !== "proposed").map((shot) => shot.id));
+  const placed = shots.filter((shot) => shot.state !== "proposed" || !twins.has(shot.id)).sort((a, b) => a.from - b.from || a.to - b.to);
+  for (const shot of placed) {
+    let r = ends.findIndex((end) => end <= shot.from + 1e-6);
+    if (r < 0) r = ends.push(shot.to) - 1;
+    else ends[r] = shot.to;
+    row.set(shot.id, r);
+  }
+  return { placed, row, rows: Math.max(1, ends.length) };
+}
+
+function trackHeight(track: Track): number {
+  if (track.kind !== "shots") return HEIGHT[track.kind];
+  const { rows } = pack(track.shots);
+  return rows === 1 ? HEIGHT.shots : 4 + rows * (SHOT_ROW + 4);
+}
 
 /** World time: the shots, the song and what the song moves, on one clock.
  *  Authoring time — who changed what, and when — is the history's. */
 export function Timeline(props: TimelineProps) {
-  const { clock, tracks, view, width, playhead, loop, drag, bare } = props;
-  const s: Scale = { from: view[0], to: view[1], width };
-  const lanes = tracks.reduce((sum, track) => sum + HEIGHT[track.kind], 0);
+  const { clock, tracks, view, width, playhead, loop, drag, bare, maxLanes, on } = props;
+  const s: Scale = useMemo(() => ({ from: view[0], to: view[1], width }), [view, width]);
+  const heights = useMemo(() => tracks.map(trackHeight), [tracks]);
+  const lanes = heights.reduce((sum, h) => sum + h, 0);
   const at = (t: number) => HEADER + xOf(s, t);
   const inView = (t: number) => t >= view[0] && t <= view[1];
   if (clock === null) {
@@ -88,15 +148,15 @@ export function Timeline(props: TimelineProps) {
       <div className="relative">
         <div className="flex border-b border-line">
           <div className="shrink-0 border-r border-line" style={{ width: HEADER, height: RULER }} />
-          <Ruler clock={clock} s={s} loop={loop ?? null} />
+          <Ruler clock={clock} s={s} loop={loop ?? null} on={on} />
         </div>
-        <div className="relative">
+        <div
+          className={maxLanes !== undefined ? "relative overflow-x-hidden overflow-y-auto" : "relative"}
+          style={maxLanes !== undefined ? { maxHeight: maxLanes } : undefined}
+        >
           <Grid clock={clock} s={s} height={lanes} loop={loop ?? null} />
-          {tracks.map((track) => (
-            <div key={track.id} className="flex border-b border-line/60">
-              <TrackHeader track={track} />
-              <Lane track={track} s={s} clock={clock} drag={drag?.track === track.id ? drag : null} />
-            </div>
+          {tracks.map((track, i) => (
+            <TrackRow key={track.id} track={track} height={heights[i]} s={s} clock={clock} drag={drag?.track === track.id ? drag : null} on={on} />
           ))}
         </div>
         {drag?.snapped && inView(drag.snapped.at) && (
@@ -116,16 +176,16 @@ export function Timeline(props: TimelineProps) {
   );
 }
 
-function Toolbar({ clock, view, playhead, playing, loop, snap = "off", selection, proposal }: TimelineProps) {
+function Toolbar({ clock, view, playhead, playing, loop, snap = "off", selection, proposal, snapMenu, on }: TimelineProps) {
   const bb = clock && barBeat(clock, playhead);
   const span = view[1] - view[0];
   const zoom = clock ? Math.min(1, Math.max(0.04, Math.log2(clock.duration / span) / 5)) : 0;
   return (
     <div className="@container flex h-8 shrink-0 items-center gap-0.5 border-b border-line px-1.5 whitespace-nowrap">
-      <Tool icon="first" label="Previous cut" />
-      <Tool icon={playing ? "pause" : "play"} label={playing ? "Pause" : "Play"} />
-      <Tool icon="last" label="Next cut" />
-      <Tool icon="loop" label="Loop" on={!!loop} />
+      <Tool icon="first" label="Previous cut" onClick={on && (() => on.step(-1))} />
+      <Tool icon={playing ? "pause" : "play"} label={playing ? "Pause" : "Play"} onClick={on?.play} />
+      <Tool icon="last" label="Next cut" onClick={on && (() => on.step(1))} />
+      <Tool icon="loop" label="Loop" on={!!loop} onClick={on?.loop} />
       <span className="ml-2 shrink-0 font-mono tabular-nums">
         <span className="text-ink">{timecode(playhead, true)}</span>
         <span className="text-faint"> / {timecode(clock?.duration ?? 0, true)}</span>
@@ -140,8 +200,12 @@ function Toolbar({ clock, view, playhead, playing, loop, snap = "off", selection
         {proposal ? (
           <span className="flex min-w-0 items-center gap-1.5 overflow-hidden rounded border border-dashed border-head/60 bg-head/[0.08] py-px pr-px pl-2">
             <span className="shrink-0 text-head">{proposal.author} proposes</span>
-            <span className="shrink-0 rounded-sm bg-head px-1.5 text-panel">Accept ⏎</span>
-            <span className="shrink-0 rounded-sm px-1 text-muted">Reject ⎋</span>
+            <Press className="shrink-0 rounded-sm bg-head px-1.5 text-panel" title="Accept the proposal (Enter)" onClick={on && (() => on.review(true))}>
+              Accept ⏎
+            </Press>
+            <Press className="shrink-0 rounded-sm px-1 text-muted hover:text-ink" title="Reject the proposal (Esc)" onClick={on && (() => on.review(false))}>
+              Reject ⎋
+            </Press>
             <span className="min-w-0 truncate pr-1.5 text-ink">{proposal.what}</span>
           </span>
         ) : (
@@ -155,56 +219,90 @@ function Toolbar({ clock, view, playhead, playing, loop, snap = "off", selection
         )}
       </span>
       <span className="flex shrink-0 items-center gap-0.5">
-        <span className={`flex h-6 items-center gap-1 rounded px-1.5 ${snap === "off" ? "text-faint" : "bg-accent/10 text-accent"}`}>
-          <Icon name="magnet" className="size-3.5" />
-          {SNAP_LABEL[snap]}
-          <Icon name="chevronDown" className="size-3" />
+        <span className="relative">
+          <Press
+            className={`flex h-6 items-center gap-1 rounded px-1.5 ${snap === "off" ? "text-faint" : "bg-accent/10 text-accent"}`}
+            title="What a drag snaps to (hold ⌥ to drag freely)"
+            onClick={on?.snapMenu}
+          >
+            <Icon name="magnet" className="size-3.5" />
+            {SNAP_LABEL[snap]}
+            <Icon name="chevronDown" className="size-3" />
+          </Press>
+          {snapMenu && on && (
+            <span className="absolute right-0 bottom-7 z-10 flex w-28 flex-col rounded border border-line bg-raised p-1 shadow-lg">
+              {SNAPS.map((option) => (
+                <button
+                  key={option}
+                  onClick={() => on.snap(option)}
+                  className={`rounded px-2 py-1 text-left hover:bg-panel ${option === snap ? "text-accent" : "text-ink"}`}
+                >
+                  {SNAP_LABEL[option]}
+                </button>
+              ))}
+            </span>
+          )}
         </span>
         {/* In a narrow window the zoom gives way; a pinch still zooms. */}
         <span className="flex items-center gap-0.5 @max-2xl:hidden">
-          <Tool icon="zoomOut" label="Zoom out" />
+          <Tool icon="zoomOut" label="Zoom out" onClick={on && (() => on.zoom(1 / 1.6))} />
           <span className="h-1 w-14 rounded bg-line">
             <span className="block h-1 rounded bg-muted" style={{ width: `${zoom * 100}%` }} />
           </span>
-          <Tool icon="zoomIn" label="Zoom in" />
-          <span className="ml-1 rounded px-1.5 py-0.5 text-muted">Fit</span>
+          <Tool icon="zoomIn" label="Zoom in" onClick={on && (() => on.zoom(1.6))} />
+          <Press className="ml-1 rounded px-1.5 py-0.5 text-muted hover:text-ink" title="The whole clock" onClick={on?.fit}>
+            Fit
+          </Press>
         </span>
       </span>
     </div>
   );
 }
 
-function Tool({ icon, label, on }: { icon: IconName; label: string; on?: boolean }) {
-  return (
-    <span title={label} className={`grid size-6 place-items-center rounded ${on ? "bg-accent/10 text-accent" : "text-muted"}`}>
-      <Icon name={icon} className="size-3.5" />
+/** A button when there is something to do, its drawing when there isn't. */
+function Press({ className, title, onClick, children }: { className: string; title?: string; onClick?: () => void; children: React.ReactNode }) {
+  return onClick ? (
+    <button className={className} title={title} onClick={onClick}>
+      {children}
+    </button>
+  ) : (
+    <span className={className} title={title}>
+      {children}
     </span>
+  );
+}
+
+function Tool({ icon, label, on, onClick }: { icon: IconName; label: string; on?: boolean; onClick?: () => void }) {
+  return (
+    <Press className={`grid size-6 place-items-center rounded ${on ? "bg-accent/10 text-accent" : "text-muted"} ${onClick ? "hover:bg-raised hover:text-ink" : ""}`} title={label} onClick={onClick}>
+      <Icon name={icon} className="size-3.5" />
+    </Press>
   );
 }
 
 /** Time along the bottom, bar numbers above it, the song's sections on top,
  *  and the loop as a band. */
-function Ruler({ clock, s, loop }: { clock: Clock; s: Scale; loop: [number, number] | null }) {
+const Ruler = memo(function Ruler({ clock, s, loop, on }: { clock: Clock; s: Scale; loop: [number, number] | null; on?: TimelineHandlers }) {
   const { major, minor } = ticks(s);
   const starts = sectionStarts(clock);
   const { bars } = beatGrid(clock, s);
   return (
-    <div className="relative overflow-hidden" style={{ width: s.width, height: RULER }}>
+    <div className={`relative overflow-hidden ${on ? "cursor-pointer" : ""}`} style={{ width: s.width, height: RULER }} onPointerDown={on?.rulerDown}>
       {/* One section is no form at all: a song without sections, or no song. */}
       {starts.length > 1 &&
         starts.map((t, i) => {
-        const left = xOf(s, t);
-        const right = xOf(s, starts[i + 1] ?? clock.duration);
-        return (
-          <div
-            key={t}
-            className={`absolute top-0 h-3.5 border-l border-line pl-1 text-[9px] leading-[14px] text-faint ${i % 2 ? "bg-raised" : ""}`}
-            style={{ left, width: right - left }}
-          >
-            §{i + 1}
-          </div>
-        );
-      })}
+          const left = xOf(s, t);
+          const right = xOf(s, starts[i + 1] ?? clock.duration);
+          return (
+            <div
+              key={t}
+              className={`absolute top-0 h-3.5 border-l border-line pl-1 text-[9px] leading-[14px] text-faint ${i % 2 ? "bg-raised" : ""}`}
+              style={{ left, width: right - left }}
+            >
+              §{i + 1}
+            </div>
+          );
+        })}
       {loop && <div className="absolute top-3.5 bottom-0 border-x border-accent/70 bg-accent/15" style={{ left: xOf(s, loop[0]), width: xOf(s, loop[1]) - xOf(s, loop[0]) }} />}
       {bars
         .filter((bar) => bar.label)
@@ -231,11 +329,11 @@ function Ruler({ clock, s, loop }: { clock: Clock; s: Scale; loop: [number, numb
       ))}
     </div>
   );
-}
+});
 
 /** Bars, beats and sections behind every lane, so a cut can be seen to land
  *  on the music. */
-function Grid({ clock, s, height, loop }: { clock: Clock; s: Scale; height: number; loop: [number, number] | null }) {
+const Grid = memo(function Grid({ clock, s, height, loop }: { clock: Clock; s: Scale; height: number; loop: [number, number] | null }) {
   const { bars, beats } = beatGrid(clock, s);
   return (
     <svg className="pointer-events-none absolute top-0" style={{ left: HEADER }} width={s.width} height={height}>
@@ -251,16 +349,25 @@ function Grid({ clock, s, height, loop }: { clock: Clock; s: Scale; height: numb
       ))}
     </svg>
   );
-}
+});
+
+const TrackRow = memo(function TrackRow(props: { track: Track; height: number; s: Scale; clock: Clock; drag: Drag | null; on?: TimelineHandlers }) {
+  return (
+    <div className="flex border-b border-line/60">
+      <TrackHeader track={props.track} height={props.height} on={props.on} />
+      <Lane {...props} />
+    </div>
+  );
+});
 
 function subtitle(track: Track): string | null {
   switch (track.kind) {
     case "shots":
-      return `${track.shots.length} shots`;
+      return `${new Set(track.shots.map((shot) => shot.id)).size} shots`;
     case "camera":
       return `tour · ${track.tour}`;
     case "soundtrack":
-      return `${track.title} — ${track.artist}`;
+      return track.artist ? `${track.title} — ${track.artist}` : track.title;
     case "modulation":
       return `${track.target} ← ${track.signal} · ${track.range[0]}–${track.range[1]}`;
     default:
@@ -268,54 +375,68 @@ function subtitle(track: Track): string | null {
   }
 }
 
-function TrackHeader({ track }: { track: Track }) {
-  const h = HEIGHT[track.kind];
+/** The toggles a header draws: the ones the app says do something, else the
+ *  designed set for the kind. */
+function toggles(track: Track): Toggle[] {
+  if (track.toggles) return track.toggles;
+  return AUDIO.has(track.kind) ? ["solo", "mute", "lock"] : ["hide", "lock"];
+}
+
+const FLAG: Record<Toggle, keyof TrackFlags> = { hide: "hidden", mute: "muted", solo: "solo", lock: "locked" };
+
+function TrackHeader({ track, height, on }: { track: Track; height: number; on?: TimelineHandlers }) {
   const flags = track.flags ?? {};
-  const sub = h >= 26 ? subtitle(track) : null;
+  const sub = height >= 26 ? subtitle(track) : null;
   const quiet = flags.hidden || flags.muted;
+  const order: Toggle[] = ["solo", "mute", "hide", "lock"];
+  const shown = toggles(track).sort((a, b) => order.indexOf(a) - order.indexOf(b));
   return (
     <div
       className="flex shrink-0 items-center gap-1.5 border-r border-line bg-panel pr-1.5"
-      style={{ width: HEADER, height: h, paddingLeft: track.kind === "stem" ? 30 : 8 }}
+      style={{ width: HEADER, height, paddingLeft: track.kind === "stem" ? 30 : 8 }}
     >
-      {track.kind === "soundtrack" && <Icon name={track.open ? "chevronDown" : "chevronRight"} className="-mr-1 -ml-1 size-3 shrink-0 text-faint" />}
+      {track.kind === "soundtrack" && track.open !== undefined && (
+        <Press className="-mr-1 -ml-1 shrink-0 text-faint hover:text-ink" title={track.open ? "Fold its stems" : "Its stems"} onClick={on && (() => on.open(track.id))}>
+          <Icon name={track.open ? "chevronDown" : "chevronRight"} className="size-3" />
+        </Press>
+      )}
       <Icon name={GLYPH[track.kind]} className={`size-3.5 shrink-0 ${TEXT[track.kind]} ${quiet ? "opacity-40" : ""}`} />
       <span className="min-w-0 flex-1 leading-tight">
         <span className={`block truncate ${quiet ? "text-faint" : track.kind === "stem" ? "text-muted" : "text-ink"}`}>{track.name}</span>
         {sub && <span className="block truncate text-[10px] text-faint">{sub}</span>}
       </span>
       <span className="flex shrink-0 items-center">
-        {AUDIO.has(track.kind) ? (
-          <>
-            <span className={`grid size-4 place-items-center rounded-sm text-[9px] font-semibold ${flags.solo ? "bg-head text-panel" : "text-faint/70"}`}>S</span>
-            <Flag icon={flags.muted ? "mute" : "speaker"} on={flags.muted} tone="text-danger" />
-          </>
-        ) : (
-          <Flag icon={flags.hidden ? "hidden" : "eye"} on={flags.hidden} tone="text-muted" />
-        )}
-        <Flag icon="lock" on={flags.locked} tone="text-ink" />
+        {shown.map((toggle) => {
+          const set = !!flags[FLAG[toggle]];
+          const press = on && (() => on.toggle(track.id, toggle));
+          if (toggle === "solo")
+            return (
+              <Press key={toggle} className={`grid size-4 place-items-center rounded-sm text-[9px] font-semibold ${set ? "bg-head text-panel" : "text-faint/70"}`} title="Solo" onClick={press}>
+                S
+              </Press>
+            );
+          const icon: IconName = toggle === "mute" ? (set ? "mute" : "speaker") : toggle === "hide" ? (set ? "hidden" : "eye") : "lock";
+          const tone = toggle === "mute" ? "text-danger" : toggle === "hide" ? "text-muted" : "text-ink";
+          const title = { mute: set ? "Unmute" : "Mute", hide: set ? "Show" : "Hide", lock: set ? "Unlock" : "Lock" }[toggle];
+          return (
+            <Press key={toggle} className={`grid size-4 place-items-center ${set ? tone : "text-faint/50"}`} title={title} onClick={press}>
+              <Icon name={icon} className="size-3" />
+            </Press>
+          );
+        })}
       </span>
     </div>
   );
 }
 
-function Flag({ icon, on, tone }: { icon: IconName; on?: boolean; tone: string }) {
-  return (
-    <span className={`grid size-4 place-items-center ${on ? tone : "text-faint/50"}`}>
-      <Icon name={icon} className="size-3" />
-    </span>
-  );
-}
-
-function Lane({ track, s, clock, drag }: { track: Track; s: Scale; clock: Clock; drag: Drag | null }) {
-  const h = HEIGHT[track.kind];
+function Lane({ track, height: h, s, clock, drag, on }: { track: Track; height: number; s: Scale; clock: Clock; drag: Drag | null; on?: TimelineHandlers }) {
   const flags = track.flags ?? {};
   return (
-    <div className={`relative overflow-hidden ${flags.hidden || flags.muted ? "opacity-35" : ""}`} style={{ width: s.width, height: h }}>
-      <LaneBody track={track} s={s} h={h} clock={clock} />
+    <div className={`relative overflow-hidden ${flags.hidden || flags.muted ? "opacity-35" : ""}`} style={{ width: s.width, height: h }} onPointerDown={on?.laneDown}>
+      <LaneBody track={track} s={s} h={h} clock={clock} on={on} />
       {drag && (
         <div
-          className="absolute top-1 bottom-1 flex items-end rounded-[3px] border border-dashed border-accent bg-accent/10 p-1 text-[10px] whitespace-nowrap text-accent"
+          className="pointer-events-none absolute top-1 bottom-1 flex items-end rounded-[3px] border border-dashed border-accent bg-accent/10 p-1 text-[10px] whitespace-nowrap text-accent"
           style={{ left: xOf(s, drag.from) + 1, width: xOf(s, drag.to) - xOf(s, drag.from) - 2 }}
         >
           <span className="rounded-sm bg-panel/85 px-1">{drag.label}</span>
@@ -331,10 +452,10 @@ function Lane({ track, s, clock, drag }: { track: Track; s: Scale; clock: Clock;
   );
 }
 
-function LaneBody({ track, s, h, clock }: { track: Track; s: Scale; h: number; clock: Clock }) {
+function LaneBody({ track, s, h, clock, on }: { track: Track; s: Scale; h: number; clock: Clock; on?: TimelineHandlers }) {
   switch (track.kind) {
     case "shots":
-      return <Shots shots={track.shots} s={s} />;
+      return <Shots shots={track.shots} s={s} h={h} on={on} />;
     case "camera": {
       const y = h / 2;
       const keys = track.keys;
@@ -362,8 +483,8 @@ function LaneBody({ track, s, h, clock }: { track: Track; s: Scale; h: number; c
           </svg>
           <span className="absolute top-1.5 left-2 flex items-center gap-1 rounded bg-panel/75 px-1 text-[10px] leading-4" style={{ left: Math.max(4, xOf(s, 0) + 6) }}>
             <span className="text-ink">{track.title}</span>
-            <span className="text-muted">{track.artist}</span>
-            <span className="rounded-sm bg-sound/20 px-1 text-[9px] text-sound">{track.licence}</span>
+            {track.artist && <span className="text-muted">{track.artist}</span>}
+            {track.licence && <span className="rounded-sm bg-sound/20 px-1 text-[9px] text-sound">{track.licence}</span>}
           </span>
         </>
       );
@@ -392,7 +513,7 @@ function LaneBody({ track, s, h, clock }: { track: Track; s: Scale; h: number; c
               return <line key={i} x1={cx} x2={cx} y1={3} y2={h - 11} stroke="var(--color-behavior)" strokeOpacity={0.35} />;
             })}
           </svg>
-          <span className="absolute top-0 left-1.5 leading-[12px] text-[10px] text-behavior">
+          <span className="absolute top-0 leading-[12px] text-[10px] text-behavior" style={{ left: Math.max(6, -left + 6) }}>
             {track.what} · every {track.period} s
           </span>
         </div>
@@ -406,7 +527,7 @@ function LaneBody({ track, s, h, clock }: { track: Track; s: Scale; h: number; c
           <svg className="absolute inset-0" width={s.width} height={h}>
             <path d={`M${a} ${h - 3}L${a + fi} 3H${b - fo}L${b} ${h - 3}Z`} fill="var(--color-ambience)" fillOpacity={0.16} stroke="var(--color-ambience)" strokeOpacity={0.45} />
           </svg>
-          <span className="absolute top-[4px] leading-[12px] text-[10px] text-ambience" style={{ left: a + fi + 4 }}>
+          <span className="absolute top-[4px] leading-[12px] text-[10px] text-ambience" style={{ left: Math.max(a + fi + 4, 4) }}>
             {track.name} bed
           </span>
         </>
@@ -419,21 +540,29 @@ function seconds(span: number) {
   return span < 60 ? `${span.toFixed(1)} s` : timecode(span);
 }
 
-function Shots({ shots, s }: { shots: Shot[]; s: Scale }) {
-  const gaps = shots.slice(1).flatMap((shot, i) => (shot.from - shots[i].to > 0.5 ? [[shots[i].to, shot.from]] : []));
+function Shots({ shots, s, h, on }: { shots: Shot[]; s: Scale; h: number; on?: TimelineHandlers }) {
+  const { placed, row, rows } = pack(shots);
+  // The gaps in the first row: time on the clock that no shot covers there.
+  const first = placed.filter((shot) => row.get(shot.id) === 0);
+  const gaps = first.slice(1).flatMap((shot, i) => (shot.from - first[i].to > 0.5 ? [[first[i].to, shot.from]] : []));
+  const place = (shot: Shot) => {
+    if (rows === 1) return { top: 4, height: h - 8 };
+    const r = row.get(shot.id) ?? 0;
+    return { top: 4 + r * (SHOT_ROW + 4), height: SHOT_ROW };
+  };
   return (
     <>
       {gaps.map(([from, to]) => (
         <div
           key={from}
-          className="absolute top-1 bottom-1 grid place-items-center rounded-[3px] border border-dashed border-line text-[10px] text-faint"
-          style={{ left: xOf(s, from) + 1, width: xOf(s, to) - xOf(s, from) - 2 }}
+          className="absolute grid place-items-center rounded-[3px] border border-dashed border-line text-[10px] text-faint"
+          style={{ left: xOf(s, from) + 1, width: xOf(s, to) - xOf(s, from) - 2, top: 4, height: rows === 1 ? h - 8 : SHOT_ROW }}
         >
           {xOf(s, to) - xOf(s, from) > 44 && seconds(to - from)}
         </div>
       ))}
       {shots.map((shot) => (
-        <ShotClip key={shot.id} shot={shot} s={s} />
+        <ShotClip key={`${shot.id}:${shot.state === "proposed" ? "p" : ""}`} shot={shot} s={s} at={place(shot)} on={on} />
       ))}
     </>
   );
@@ -447,16 +576,31 @@ const CLIP: Record<NonNullable<Shot["state"]>, string> = {
   locked: "border-line bg-raised",
 };
 
-function ShotClip({ shot, s }: { shot: Shot; s: Scale }) {
+/** An edge's grip, px. */
+const GRIP = 6;
+
+function ShotClip({ shot, s, at, on }: { shot: Shot; s: Scale; at: { top: number; height: number }; on?: TimelineHandlers }) {
   const left = xOf(s, shot.from);
   const width = xOf(s, shot.to) - left - 2;
   const state = shot.state ?? "idle";
   const thumb = width >= 120 ? Math.min(74, width * 0.42) : 0;
+  const live = on && state !== "proposed";
+  const editable = live && state !== "locked";
   return (
-    <div className={`absolute top-1 bottom-1 flex overflow-hidden rounded-[3px] border ${CLIP[state]}`} style={{ left: left + 1, width: Math.max(2, width) }}>
-      {thumb > 0 && (
+    <div
+      className={`absolute flex overflow-hidden rounded-[3px] border ${CLIP[state]} ${live && state === "idle" ? "hover:border-shot/80 hover:bg-shot/[0.2]" : ""} ${state === "proposed" ? "pointer-events-none" : ""} ${editable ? "cursor-grab" : ""}`}
+      style={{ left: left + 1, width: Math.max(2, width), top: at.top, height: at.height }}
+      onPointerDown={live ? (e) => (e.stopPropagation(), on.clipDown(e, shot, "body")) : undefined}
+      onDoubleClick={live ? () => on.clipOpen(shot) : undefined}
+      title={live ? `${shot.name} — double-click to look through it` : undefined}
+    >
+      {thumb > 0 && (shot.thumb || shot.look) && (
         <span className="block h-full shrink-0" style={{ width: thumb }}>
-          <Frame look={shot.look} className={`size-full ${state === "locked" ? "opacity-50 grayscale" : ""}`} />
+          {shot.thumb ? (
+            <img src={shot.thumb} alt="" draggable={false} className={`size-full object-cover ${state === "locked" ? "opacity-50 grayscale" : ""}`} />
+          ) : (
+            <Frame look={shot.look!} className={`size-full ${state === "locked" ? "opacity-50 grayscale" : ""}`} />
+          )}
         </span>
       )}
       <span className="min-w-0 flex-1 px-1.5 py-1 leading-tight" style={{ maxWidth: width - thumb }}>
@@ -470,7 +614,7 @@ function ShotClip({ shot, s }: { shot: Shot; s: Scale }) {
         </span>
         {width - thumb > 40 && <span className="block text-faint tabular-nums">{seconds(shot.to - shot.from)}</span>}
       </span>
-      {state === "proposed" && shot.author && (
+      {state === "proposed" && shot.author && width > 56 && (
         <span className="absolute right-1 bottom-1 rounded-sm bg-head/20 px-1 text-[9px] leading-[13px] text-head">{shot.author}</span>
       )}
       {state === "selected" && (
@@ -480,6 +624,12 @@ function ShotClip({ shot, s }: { shot: Shot; s: Scale }) {
         </>
       )}
       {state === "locked" && <Icon name="lock" className="absolute top-1 right-1 size-3 text-faint" />}
+      {editable && width > 3 * GRIP && (
+        <>
+          <span className="absolute inset-y-0 left-0 cursor-ew-resize" style={{ width: GRIP }} onPointerDown={(e) => (e.stopPropagation(), on.clipDown(e, shot, "in"))} />
+          <span className="absolute inset-y-0 right-0 cursor-ew-resize" style={{ width: GRIP }} onPointerDown={(e) => (e.stopPropagation(), on.clipDown(e, shot, "out"))} />
+        </>
+      )}
     </div>
   );
 }

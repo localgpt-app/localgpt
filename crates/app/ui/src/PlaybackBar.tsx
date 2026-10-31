@@ -31,7 +31,7 @@ export function PlaybackBar({ history, playing }: { history: History; playing: b
     <div className="flex h-11 shrink-0 items-center gap-0.5 border-t border-line bg-panel px-2">
       <Button icon="first" label="Base" onClick={() => send({ t: "step", to: "first" })} />
       <Button icon="prev" label="Previous entry" onClick={() => send({ t: "step", to: "prev" })} />
-      <Button icon={playing ? "pause" : "play"} label={playing ? "Pause" : "Play"} onClick={() => send({ t: "play", playing: !playing })} />
+      <Button icon={playing ? "pause" : "play"} label={playing ? "Pause the history" : "Play the history"} onClick={() => send({ t: "play", playing: !playing })} />
       <Button icon="next" label="Next entry" onClick={() => send({ t: "step", to: "next" })} />
       <Button icon="last" label="Head" onClick={() => send({ t: "step", to: "last" })} />
       <input

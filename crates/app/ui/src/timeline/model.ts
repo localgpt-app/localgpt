@@ -39,7 +39,10 @@ export type Shot = {
   lens: number;
   from: number;
   to: number;
-  look: FrameLook;
+  /** The shot's frame, rendered by the app (a data URL). */
+  thumb?: string;
+  /** The design sheets' stand-in for `thumb`. */
+  look?: FrameLook;
   state?: ClipState;
   /** Who proposed it, while it waits for review. */
   author?: string;
@@ -50,9 +53,13 @@ export type CameraKey = { t: number; hold?: number };
 
 export type TrackFlags = { hidden?: boolean; muted?: boolean; solo?: boolean; locked?: boolean };
 
+/** A header's toggles. The app names the ones that do something for each
+ *  track; without them a header draws the full set, as designed. */
+export type Toggle = "hide" | "mute" | "solo" | "lock";
+
 export type Track =
-  | { kind: "shots"; id: string; name: string; shots: Shot[]; flags?: TrackFlags }
-  | { kind: "camera"; id: string; name: string; tour: string; keys: CameraKey[]; flags?: TrackFlags }
+  | { kind: "shots"; id: string; name: string; shots: Shot[]; flags?: TrackFlags; toggles?: Toggle[] }
+  | { kind: "camera"; id: string; name: string; tour: string; keys: CameraKey[]; flags?: TrackFlags; toggles?: Toggle[] }
   | {
       kind: "soundtrack";
       id: string;
@@ -62,11 +69,12 @@ export type Track =
       licence: string;
       /** The waveform's outline. */
       peaks: Signal;
-      /** Its stems are listed under it. */
+      /** Its stems are listed under it; unset, it has none to list. */
       open?: boolean;
       flags?: TrackFlags;
+      toggles?: Toggle[];
     }
-  | { kind: "stem"; id: string; name: string; envelope: Signal; flags?: TrackFlags }
+  | { kind: "stem"; id: string; name: string; envelope: Signal; flags?: TrackFlags; toggles?: Toggle[] }
   | {
       kind: "modulation";
       id: string;
@@ -77,8 +85,9 @@ export type Track =
       range: [number, number];
       samples: Signal;
       flags?: TrackFlags;
+      toggles?: Toggle[];
     }
-  | { kind: "behavior"; id: string; name: string; what: string; period: number; from: number; to: number; flags?: TrackFlags }
-  | { kind: "ambience"; id: string; name: string; from: number; to: number; fade: [number, number]; flags?: TrackFlags };
+  | { kind: "behavior"; id: string; name: string; what: string; period: number; from: number; to: number; flags?: TrackFlags; toggles?: Toggle[] }
+  | { kind: "ambience"; id: string; name: string; from: number; to: number; fade: [number, number]; flags?: TrackFlags; toggles?: Toggle[] };
 
 export type TrackKind = Track["kind"];
