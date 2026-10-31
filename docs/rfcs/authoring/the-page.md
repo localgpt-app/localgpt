@@ -109,20 +109,17 @@ lets go as one `ShotOps` batch, the path a reorder took, so a trim is an
 entry in the history; the cut between two shots that meet rolls. Things
 moved alike share a track, or a song world's boulders would fill the
 panel. A shot's frame is read back from the thumbnail its camera renders.
+A recut of the song's sections or a stop held longer is the person's
+scene-wide edit (`PersonIntent::World`, a `ModifyWorld` the authority
+merges), one entry the same way.
 
 ## Next
 
-1. The timeline's rest: the tour and the song's sections edited there —
-   recutting a section and holding a stop longer are drawn on the sheet
-   (2026-10-31), for review before they are wired. The authority takes `ModifyWorld` now, so a
-   recut section is one entry like a trim, and an agent can give a package
-   its song; hiding a modulation's or a behavior's track stands what it
-   moves still, as a mute silences.
-2. The outliner and inspector in the page, over the remote inspector's
+1. The outliner and inspector in the page, over the remote inspector's
    builders and `PanelIntents` patches.
-3. Turn marks from the page's own terminals (`TurnEnded`).
-4. The Windows host; then Linux.
-5. A render check of the page in CI, through `?preview=`.
+2. Turn marks from the page's own terminals (`TurnEnded`).
+3. The Windows host; then Linux.
+4. A render check of the page in CI, through `?preview=`.
 
 ## Not decided
 

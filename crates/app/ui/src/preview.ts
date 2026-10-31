@@ -121,6 +121,15 @@ function timeline(shots: boolean): TimelineView {
       toggles: ["lock"],
       shots: SHOTS.map(([name, size, lens, from, to], i): Shot => ({ id: String(i + 1), name, size, lens, from, to })),
     });
+  if (shots)
+    tracks.push({
+      kind: "camera",
+      id: "tour:harbour approach",
+      name: "Camera",
+      tour: "harbour approach",
+      toggles: ["lock"],
+      keys: [{ t: 0, hold: 4 }, { t: 19.2 }, { t: 36.4, hold: 6 }, { t: 51.84 }, { t: 82.56, hold: 3 }, { t: 115.2 }, { t: 149.72, hold: 8 }, { t: DURATION }],
+    });
   tracks.push(
     {
       kind: "soundtrack",
@@ -219,6 +228,22 @@ export function preview(kind: string) {
         break;
       case "clock.loop":
         clock.loop(m.span);
+        break;
+      case "song.sections":
+        if (view.clock) view = { ...view, clock: { ...view.clock, sections: m.sections } };
+        recv({ t: "timeline", view });
+        break;
+      case "tour.hold":
+        view = {
+          ...view,
+          tracks: view.tracks.map((track) => {
+            if (track.kind !== "camera" || track.tour !== m.tour) return track;
+            const by = m.hold - (track.keys[m.stop]?.hold ?? 0);
+            const keys = track.keys.map((key, i) => (i === m.stop ? { ...key, hold: m.hold || undefined } : i > m.stop ? { ...key, t: key.t + by } : key));
+            return { ...track, keys };
+          }),
+        };
+        recv({ t: "timeline", view });
         break;
       case "shot.time":
         view = {

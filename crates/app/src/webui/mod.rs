@@ -234,6 +234,16 @@ enum FromPage {
     /// The seen tracks to hide.
     #[serde(rename = "hide")]
     Hide { ids: Vec<String> },
+    /// The song's sections as a recut lets go of them, fractions from 0.
+    #[serde(rename = "song.sections")]
+    SongSections { sections: Vec<f32> },
+    /// How long the camera waits at a tour's stop, in seconds.
+    #[serde(rename = "tour.hold")]
+    TourHold {
+        tour: String,
+        stop: usize,
+        hold: f32,
+    },
     #[serde(rename = "doc.edit")]
     DocEdit { text: String },
     #[serde(rename = "doc.caret")]
@@ -469,6 +479,12 @@ fn read_page(
             FromPage::Review { accept } => ask(&mut asks.timeline, TimelineAsk::Review(accept)),
             FromPage::Mute { ids } => ask(&mut asks.timeline, TimelineAsk::Mute(ids)),
             FromPage::Hide { ids } => ask(&mut asks.timeline, TimelineAsk::Hide(ids)),
+            FromPage::SongSections { sections } => {
+                ask(&mut asks.timeline, TimelineAsk::Sections(sections))
+            }
+            FromPage::TourHold { tour, stop, hold } => {
+                ask(&mut asks.timeline, TimelineAsk::Hold { tour, stop, hold })
+            }
             FromPage::DocEdit { text } => ask(&mut asks.document, DocumentAsk::Edit(text)),
             FromPage::DocCaret { line } => ask(&mut asks.document, DocumentAsk::Caret(line)),
             FromPage::DocGo { section, line } => {
@@ -864,6 +880,16 @@ mod tests {
         assert!(
             matches!(read(r#"{"t":"mute","ids":["soundtrack"]}"#), FromPage::Mute { ids } if ids == ["soundtrack"])
         );
+        let FromPage::SongSections { sections } =
+            read(r#"{"t":"song.sections","sections":[0,0.25,0.55]}"#)
+        else {
+            panic!("a recut");
+        };
+        assert_eq!(sections, [0.0, 0.25, 0.55]);
+        assert!(matches!(
+            read(r#"{"t":"tour.hold","tour":"dusk","stop":1,"hold":4.5}"#),
+            FromPage::TourHold { tour, stop: 1, hold } if tour == "dusk" && hold == 4.5
+        ));
     }
 
     #[test]

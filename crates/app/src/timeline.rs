@@ -29,6 +29,7 @@ use bevy::render::gpu_readback::{Readback, ReadbackComplete};
 use bevy::render::renderer::RenderDevice;
 use localgpt_gen::gen3d::audio::{AudioEngine, sync_soundtrack_clock};
 use localgpt_gen::gen3d::behaviors::{BehaviorInstance, EntityBehaviors};
+use localgpt_gen::gen3d::canvas_edit::PersonIntent;
 use localgpt_gen::gen3d::live::{LiveReview, PendingReview, ReviewDecision};
 use localgpt_gen::gen3d::plugin::CurrentWorld;
 use localgpt_gen::gen3d::registry::GenEntity;
@@ -136,6 +137,7 @@ pub enum TrackView {
         name: String,
         tour: String,
         keys: Vec<CameraKey>,
+        toggles: Vec<&'static str>,
     },
     Soundtrack {
         id: String,
@@ -245,6 +247,7 @@ pub fn view_of(
             name: "Camera".into(),
             tour: tour.name.clone(),
             keys: tour_keys(tour),
+            toggles: if editable { vec!["lock"] } else { Vec::new() },
         });
     }
     if let Some(song) = song_of(world) {
@@ -668,6 +671,81 @@ pub fn shot_edit(world: &wt::WorldManifest, times: &[ShotTime]) -> Option<(Value
     (!ops.is_empty()).then(|| (json!(ops), describe(&moved)))
 }
 
+/// A recut of the song — its sections as the page lets go of them, each a
+/// fraction of the song from 0 — as the `ModifyWorld` patch that sets them
+/// (the authority merges it into the soundtrack, so nothing else of the
+/// song changes) and the history's line for it. `None` when the world has
+/// no song, the list isn't a song's sections, or nothing moves.
+pub fn recut(world: &wt::WorldManifest, sections: &[f32]) -> Option<(Value, String)> {
+    let song = song_of(world)?;
+    // To the ten-thousandth, as f64: an f32 would write 0.55 as 0.5500000119.
+    let new: Vec<f64> = sections
+        .iter()
+        .map(|&f| (f64::from(f) * 10_000.0).round() / 10_000.0)
+        .collect();
+    let valid = new.first() == Some(&0.0)
+        && new.windows(2).all(|pair| pair[0] < pair[1])
+        && new.iter().all(|f| (0.0..1.0).contains(f));
+    let old: Vec<f64> = if song.sections.is_empty() {
+        vec![0.0]
+    } else {
+        song.sections.iter().map(|&f| f64::from(f)).collect()
+    };
+    let apart = |a: f64, b: f64| (a - b).abs() > 1e-4;
+    let same = old.len() == new.len() && old.iter().zip(&new).all(|(a, b)| !apart(*a, *b));
+    if !valid || same {
+        return None;
+    }
+    let at = |f: f64| timecode(f * f64::from(song.duration));
+    // The first place the two lists part: what moved, came or went.
+    let parts = |a: &[f64], b: &[f64]| (0..a.len().min(b.len())).find(|&i| apart(a[i], b[i]));
+    let what = match new.len() as isize - old.len() as isize {
+        0 => {
+            let moved: Vec<usize> = (0..new.len()).filter(|&i| apart(new[i], old[i])).collect();
+            match moved[..] {
+                [i] => format!("§{} to {}", i + 1, at(new[i])),
+                _ => "recut the song".into(),
+            }
+        }
+        1 => format!(
+            "a section at {}",
+            at(new[parts(&new, &old).unwrap_or(old.len())])
+        ),
+        -1 => {
+            let gone = parts(&new, &old).unwrap_or(new.len());
+            format!("§{} and §{} join", gone, gone + 1)
+        }
+        _ => "recut the song".into(),
+    };
+    Some((json!({"soundtrack": {"sections": new}}), what))
+}
+
+/// A tour stop's hold as a drag lets go of it, as the `ModifyWorld` patch
+/// that replaces the tours with it — a list goes whole — and the history's
+/// line. The stops after it come later by as much; the travel between them
+/// is the tour's speed, and stays. `None` when there is no such stop or its
+/// hold doesn't change.
+pub fn held_longer(
+    world: &wt::WorldManifest,
+    tour: &str,
+    stop: usize,
+    seconds: f32,
+) -> Option<(Value, String)> {
+    let seconds = round2(seconds.max(0.0));
+    let mut tours = world.tours.clone();
+    let waypoint = tours
+        .iter_mut()
+        .find(|t| t.name == tour)?
+        .waypoints
+        .get_mut(stop)?;
+    if (waypoint.pause_duration - seconds).abs() < 0.005 {
+        return None;
+    }
+    waypoint.pause_duration = seconds;
+    let what = format!("{tour} holds {seconds} s at stop {}", stop + 1);
+    Some((json!({"tours": tours}), what))
+}
+
 /// Times as the format writes them: to the hundredth of a second.
 fn round_s(t: f32) -> f64 {
     (f64::from(t) * 100.0).round() / 100.0
@@ -986,6 +1064,15 @@ pub enum TimelineAsk {
     Mute(Vec<String>),
     /// The seen tracks to hide, by id: what they move stands still.
     Hide(Vec<String>),
+    /// The song's sections as a recut lets go of them: where each starts,
+    /// as a fraction of the song, from 0.
+    Sections(Vec<f32>),
+    /// How long the camera waits at a tour's stop, as a drag lets go of it.
+    Hold {
+        tour: String,
+        stop: usize,
+        hold: f32,
+    },
 }
 
 /// Whether the song is what keeps time: the world ships its audio, and an
@@ -1008,6 +1095,7 @@ fn answer_asks(
     mut looks: Option<ResMut<Messages<LookThrough>>>,
     mut shot_ops: Option<ResMut<Messages<ShotOps>>>,
     mut decisions: Option<ResMut<Messages<ReviewDecision>>>,
+    mut intents: Option<ResMut<Messages<PersonIntent>>>,
 ) {
     let on_song = song_keeps_time(&soundtrack, audio.as_deref());
     for ask in asks.read() {
@@ -1058,6 +1146,26 @@ fn answer_asks(
             TimelineAsk::Hide(ids) => {
                 timeline.hidden = ids.clone();
                 timeline.rehide = true;
+            }
+            // The world's own fields: a person's scene-wide edit, which the
+            // canvas commits through the authority like a gesture.
+            TimelineAsk::Sections(_) | TimelineAsk::Hold { .. } => {
+                if !timeline.editable {
+                    tracing::warn!(
+                        "timeline: the song and the tour are edited on a live canvas only"
+                    );
+                    continue;
+                }
+                let edit = timeline.world.as_ref().and_then(|world| match ask {
+                    TimelineAsk::Sections(sections) => recut(world, sections),
+                    TimelineAsk::Hold { tour, stop, hold } => {
+                        held_longer(world, tour, *stop, *hold)
+                    }
+                    _ => None,
+                });
+                if let (Some((patch, what)), Some(intents)) = (edit, intents.as_mut()) {
+                    intents.write(PersonIntent::World { patch, what });
+                }
             }
         }
     }
@@ -1741,6 +1849,83 @@ mod tests {
         assert_eq!(timeline.shot_at(61.0), None);
     }
 
+    fn tour(name: &str, stops: usize) -> wt::TourDef {
+        wt::TourDef {
+            name: name.into(),
+            description: None,
+            waypoints: (0..stops)
+                .map(|i| wt::TourWaypoint {
+                    position: [i as f32 * 10.0, 0.0, 0.0],
+                    look_at: [0.0; 3],
+                    description: None,
+                    pause_duration: 2.0,
+                })
+                .collect(),
+            speed: 5.0,
+            mode: wt::TourMode::Fly,
+            autostart: false,
+            loop_tour: false,
+            pov: None,
+        }
+    }
+
+    #[test]
+    fn a_recut_sets_only_the_sections_and_says_which_moved_came_or_joined() {
+        // Tidewater here starts its sections at 0, 0.25 and 0.6 of 192 s.
+        let harbour = world(Vec::new(), Some(song()));
+        let (patch, what) = recut(&harbour, &[0.0, 0.25, 0.55]).expect("a recut");
+        assert_eq!(
+            patch,
+            json!({"soundtrack": {"sections": [0.0, 0.25, 0.55]}})
+        );
+        assert_eq!(what, "§3 to 1:45.60");
+        let said = |sections: &[f32]| recut(&harbour, sections).map(|(_, what)| what);
+        assert_eq!(
+            said(&[0.0, 0.25, 0.4, 0.6]).as_deref(),
+            Some("a section at 1:16.80")
+        );
+        assert_eq!(said(&[0.0, 0.6]).as_deref(), Some("§1 and §2 join"));
+        assert_eq!(said(&[0.0, 0.25]).as_deref(), Some("§2 and §3 join"));
+        // Not a song's sections, or nothing moved, or no song: no edit.
+        assert_eq!(said(&[0.1, 0.5]), None, "they start at 0");
+        assert_eq!(said(&[0.0, 0.6, 0.25]), None, "in order");
+        assert_eq!(said(&[0.0, 0.25, 0.6]), None, "as it was");
+        assert_eq!(recut(&world(Vec::new(), None), &[0.0, 0.5]), None);
+    }
+
+    #[test]
+    fn a_stop_held_longer_replaces_the_tours_with_only_its_hold_changed() {
+        let mut harbour = world(Vec::new(), Some(song()));
+        harbour.tours = vec![tour("dusk", 3), tour("dawn", 2)];
+        let (patch, what) = held_longer(&harbour, "dusk", 1, 4.5).expect("a hold");
+        assert_eq!(what, "dusk holds 4.5 s at stop 2");
+        let tours: Vec<wt::TourDef> = serde_json::from_value(patch["tours"].clone()).unwrap();
+        assert_eq!(tours.len(), 2, "the list goes whole");
+        let pauses: Vec<f32> = tours[0]
+            .waypoints
+            .iter()
+            .map(|w| w.pause_duration)
+            .collect();
+        assert_eq!(pauses, [2.0, 4.5, 2.0]);
+        assert_eq!(tours[1], harbour.tours[1], "the other tour as it was");
+        assert!(
+            held_longer(&harbour, "dusk", 1, 2.0).is_none(),
+            "the same hold"
+        );
+        assert!(
+            held_longer(&harbour, "dusk", 7, 1.0).is_none(),
+            "no such stop"
+        );
+        assert!(
+            held_longer(&harbour, "noon", 0, 1.0).is_none(),
+            "no such tour"
+        );
+        assert_eq!(
+            held_longer(&harbour, "dusk", 0, -3.0).unwrap().1,
+            "dusk holds 0 s at stop 1"
+        );
+    }
+
     /// Hiding the tracks of a lantern's spin and its glow stands it still,
     /// where the world puts it; showing them gives it both back.
     #[test]
@@ -1844,6 +2029,7 @@ mod tests {
             .add_message::<ShotOps>()
             .add_message::<LookThrough>()
             .add_message::<ReviewDecision>()
+            .add_message::<PersonIntent>()
             .add_plugins(TimelinePlugin {
                 canvas: Some(PathBuf::from("harbour.world")),
             })
@@ -1920,5 +2106,22 @@ mod tests {
             .drain()
             .collect();
         assert_eq!(decisions.iter().map(|d| d.0).collect::<Vec<_>>(), [true]);
+
+        // A recut is the person's scene-wide edit, for the canvas to commit.
+        app.world_mut()
+            .write_message(TimelineAsk::Sections(vec![0.0, 0.25, 0.55]));
+        app.update();
+        let intents: Vec<PersonIntent> = app
+            .world_mut()
+            .resource_mut::<Messages<PersonIntent>>()
+            .drain()
+            .collect();
+        assert_eq!(
+            intents,
+            [PersonIntent::World {
+                patch: json!({"soundtrack": {"sections": [0.0, 0.25, 0.55]}}),
+                what: "§3 to 1:45.60".into(),
+            }]
+        );
     }
 }

@@ -1,4 +1,4 @@
-import { memo, useMemo, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, type MouseEvent as ReactMouseEvent, useMemo, type PointerEvent as ReactPointerEvent } from "react";
 import { Icon, type IconName } from "../Icon";
 import { timecode } from "../timecode";
 import { Frame } from "./Frame";
@@ -78,6 +78,12 @@ export type TimelineHandlers = {
   /** The soundtrack's stems, shown or folded. */
   open(track: string): void;
   review(accept: boolean): void;
+  /** A section's start pressed on the ruler's band (sections from 1). */
+  sectionDown(e: ReactPointerEvent, section: number): void;
+  /** A double-click on the band: a section starts there. */
+  bandOpen(e: ReactMouseEvent): void;
+  /** The end of a tour stop's hold pressed (stops from 0). */
+  holdDown(e: ReactPointerEvent, track: string, stop: number): void;
 };
 
 export type TimelineProps = {
@@ -104,6 +110,8 @@ export type TimelineProps = {
   maxLanes?: number;
   /** The snap menu is open. */
   snapMenu?: boolean;
+  /** Edits write: a live canvas. Without it a timeline plays and selects. */
+  editable?: boolean;
   on?: TimelineHandlers;
 };
 
@@ -132,7 +140,7 @@ function trackHeight(track: Track): number {
 /** World time: the shots, the song and what the song moves, on one clock.
  *  Authoring time — who changed what, and when — is the history's. */
 export function Timeline(props: TimelineProps) {
-  const { clock, tracks, view, width, playhead, loop, drag, recut, bare, maxLanes, on } = props;
+  const { clock, tracks, view, width, playhead, loop, drag, recut, bare, maxLanes, editable = false, on } = props;
   const s: Scale = useMemo(() => ({ from: view[0], to: view[1], width }), [view, width]);
   const heights = useMemo(() => tracks.map(trackHeight), [tracks]);
   const lanes = heights.reduce((sum, h) => sum + h, 0);
@@ -154,7 +162,7 @@ export function Timeline(props: TimelineProps) {
       <div className="relative">
         <div className="flex border-b border-line">
           <div className="shrink-0 border-r border-line" style={{ width: HEADER, height: RULER }} />
-          <Ruler clock={clock} s={s} loop={loop ?? null} recut={recut ?? null} on={on} />
+          <Ruler clock={clock} s={s} loop={loop ?? null} recut={recut ?? null} editable={editable} on={on} />
         </div>
         <div
           className={maxLanes !== undefined ? "relative overflow-x-hidden overflow-y-auto" : "relative"}
@@ -162,7 +170,7 @@ export function Timeline(props: TimelineProps) {
         >
           <Grid clock={clock} s={s} height={lanes} loop={loop ?? null} />
           {tracks.map((track, i) => (
-            <TrackRow key={track.id} track={track} height={heights[i]} s={s} clock={clock} drag={drag?.track === track.id ? drag : null} on={on} />
+            <TrackRow key={track.id} track={track} height={heights[i]} s={s} clock={clock} drag={drag?.track === track.id ? drag : null} editable={editable} on={on} />
           ))}
         </div>
         {recut && inView(recut.to) && (
@@ -299,20 +307,28 @@ const Ruler = memo(function Ruler({
   s,
   loop,
   recut,
+  editable,
   on,
 }: {
   clock: Clock;
   s: Scale;
   loop: [number, number] | null;
   recut: Recut | null;
+  editable: boolean;
   on?: TimelineHandlers;
 }) {
+  const live = editable && on;
   const { major, minor } = ticks(s);
   // A section being recut is drawn where it would start.
   const starts = sectionStarts(clock).map((t, i) => (recut && i === recut.section ? recut.to : t));
   const { bars } = beatGrid(clock, s);
   return (
-    <div className={`relative overflow-hidden ${on ? "cursor-pointer" : ""}`} style={{ width: s.width, height: RULER }} onPointerDown={on?.rulerDown}>
+    <div
+      className={`relative overflow-hidden ${on ? "cursor-pointer" : ""}`}
+      style={{ width: s.width, height: RULER }}
+      onPointerDown={on?.rulerDown}
+      onDoubleClick={live ? (e) => e.clientY - e.currentTarget.getBoundingClientRect().top < BAND && live.bandOpen(e) : undefined}
+    >
       {/* One section is no form at all: a song without sections, or no song. */}
       {starts.length > 1 &&
         starts.map((t, i) => {
@@ -328,6 +344,18 @@ const Ruler = memo(function Ruler({
             </div>
           );
         })}
+      {/* Each section's start is a grip on the band. */}
+      {live &&
+        starts.slice(1).map((t, k) => (
+          <span
+            key={`grip${k}`}
+            className="absolute top-0 z-[1] cursor-col-resize"
+            style={{ left: xOf(s, t) - GRIP / 2, width: GRIP, height: BAND }}
+            title={`§${k + 2} starts here — drag it along the band; onto its neighbour to join them`}
+            onPointerDown={(e) => (e.stopPropagation(), live.sectionDown(e, k + 1))}
+            onDoubleClick={(e) => e.stopPropagation()}
+          />
+        ))}
       {loop && <div className="absolute top-3.5 bottom-0 border-x border-accent/70 bg-accent/15" style={{ left: xOf(s, loop[0]), width: xOf(s, loop[1]) - xOf(s, loop[0]) }} />}
       {bars
         .filter((bar) => bar.label)
@@ -376,7 +404,7 @@ const Grid = memo(function Grid({ clock, s, height, loop }: { clock: Clock; s: S
   );
 });
 
-const TrackRow = memo(function TrackRow(props: { track: Track; height: number; s: Scale; clock: Clock; drag: Drag | null; on?: TimelineHandlers }) {
+const TrackRow = memo(function TrackRow(props: { track: Track; height: number; s: Scale; clock: Clock; drag: Drag | null; editable: boolean; on?: TimelineHandlers }) {
   return (
     <div className="flex border-b border-line/60">
       <TrackHeader track={props.track} height={props.height} on={props.on} />
@@ -454,11 +482,27 @@ function TrackHeader({ track, height, on }: { track: Track; height: number; on?:
   );
 }
 
-function Lane({ track, height: h, s, clock, drag, on }: { track: Track; height: number; s: Scale; clock: Clock; drag: Drag | null; on?: TimelineHandlers }) {
+function Lane({
+  track,
+  height: h,
+  s,
+  clock,
+  drag,
+  editable,
+  on,
+}: {
+  track: Track;
+  height: number;
+  s: Scale;
+  clock: Clock;
+  drag: Drag | null;
+  editable: boolean;
+  on?: TimelineHandlers;
+}) {
   const flags = track.flags ?? {};
   return (
     <div className={`relative overflow-hidden ${flags.hidden || flags.muted ? "opacity-35" : ""}`} style={{ width: s.width, height: h }} onPointerDown={on?.laneDown}>
-      <LaneBody track={track} s={s} h={h} clock={clock} on={on} />
+      <LaneBody track={track} s={s} h={h} clock={clock} on={editable && !flags.locked ? on : undefined} select={on} />
       {drag && (
         <div
           className="pointer-events-none absolute top-1 bottom-1 flex items-end rounded-[3px] border border-dashed border-accent bg-accent/10 p-1 text-[10px] whitespace-nowrap text-accent"
@@ -477,14 +521,16 @@ function Lane({ track, height: h, s, clock, drag, on }: { track: Track; height: 
   );
 }
 
-function LaneBody({ track, s, h, clock, on }: { track: Track; s: Scale; h: number; clock: Clock; on?: TimelineHandlers }) {
+/** `on` is there when the lane's edits write; `select` whenever it is in use. */
+function LaneBody({ track, s, h, clock, on, select }: { track: Track; s: Scale; h: number; clock: Clock; on?: TimelineHandlers; select?: TimelineHandlers }) {
   switch (track.kind) {
     case "shots":
-      return <Shots shots={track.shots} s={s} h={h} on={on} />;
+      return <Shots shots={track.shots} s={s} h={h} on={select} edit={!!on} />;
     case "camera": {
       const y = h / 2;
       const keys = track.keys;
       return (
+        <>
         <svg className="absolute inset-0" width={s.width} height={h}>
           {keys.slice(1).map((key, i) => (
             <line key={key.t} x1={xOf(s, keys[i].t + (keys[i].hold ?? 0))} x2={xOf(s, key.t)} y1={y} y2={y} stroke="var(--color-camera)" strokeOpacity={0.45} />
@@ -497,6 +543,18 @@ function LaneBody({ track, s, h, clock, on }: { track: Track; s: Scale; h: numbe
             <rect key={key.t} x={xOf(s, key.t) - 3.5} y={y - 3.5} width={7} height={7} transform={`rotate(45 ${xOf(s, key.t)} ${y})`} fill="var(--color-camera)" />
           ))}
         </svg>
+        {/* The end of each stop's hold is a grip; a stop that doesn't hold has its grip on the stop. */}
+        {on &&
+          keys.map((key, i) => (
+            <span
+              key={`hold${i}`}
+              className="absolute inset-y-0 cursor-ew-resize"
+              style={{ left: xOf(s, key.t + (key.hold ?? 0)) - GRIP / 2 + (key.hold ? 0 : GRIP / 2), width: GRIP }}
+              title={key.hold ? `The camera waits ${key.hold} s here — drag to change it` : "Drag to keep the camera here a while"}
+              onPointerDown={(e) => (e.stopPropagation(), on.holdDown(e, track.id, i))}
+            />
+          ))}
+        </>
       );
     }
     case "soundtrack":
@@ -565,7 +623,7 @@ function seconds(span: number) {
   return span < 60 ? `${span.toFixed(1)} s` : timecode(span);
 }
 
-function Shots({ shots, s, h, on }: { shots: Shot[]; s: Scale; h: number; on?: TimelineHandlers }) {
+function Shots({ shots, s, h, on, edit }: { shots: Shot[]; s: Scale; h: number; on?: TimelineHandlers; edit: boolean }) {
   const { placed, row, rows } = pack(shots);
   // The gaps in the first row: time on the clock that no shot covers there.
   const first = placed.filter((shot) => row.get(shot.id) === 0);
@@ -587,7 +645,7 @@ function Shots({ shots, s, h, on }: { shots: Shot[]; s: Scale; h: number; on?: T
         </div>
       ))}
       {shots.map((shot) => (
-        <ShotClip key={`${shot.id}:${shot.state === "proposed" ? "p" : ""}`} shot={shot} s={s} at={place(shot)} on={on} />
+        <ShotClip key={`${shot.id}:${shot.state === "proposed" ? "p" : ""}`} shot={shot} s={s} at={place(shot)} on={on} edit={edit} />
       ))}
     </>
   );
@@ -603,14 +661,16 @@ const CLIP: Record<NonNullable<Shot["state"]>, string> = {
 
 /** An edge's grip, px. */
 const GRIP = 6;
+/** The ruler's band of sections, px. */
+const BAND = 14;
 
-function ShotClip({ shot, s, at, on }: { shot: Shot; s: Scale; at: { top: number; height: number }; on?: TimelineHandlers }) {
+function ShotClip({ shot, s, at, on, edit }: { shot: Shot; s: Scale; at: { top: number; height: number }; on?: TimelineHandlers; edit: boolean }) {
   const left = xOf(s, shot.from);
   const width = xOf(s, shot.to) - left - 2;
   const state = shot.state ?? "idle";
   const thumb = width >= 120 ? Math.min(74, width * 0.42) : 0;
   const live = on && state !== "proposed";
-  const editable = live && state !== "locked";
+  const editable = live && edit && state !== "locked";
   return (
     <div
       className={`absolute flex overflow-hidden rounded-[3px] border ${CLIP[state]} ${live && state === "idle" ? "hover:border-shot/80 hover:bg-shot/[0.2]" : ""} ${state === "proposed" ? "pointer-events-none" : ""} ${editable ? "cursor-grab" : ""}`}

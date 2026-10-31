@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { TimelineView } from "../bridge";
 import { send } from "../bridge";
 import { timecode } from "../timecode";
 import { sectionStarts } from "./geometry";
-import type { Clock, Shot, Signal, Toggle, Track, TrackFlags } from "./model";
-import { type Drag, type Edge, HEADER, type Snap, Timeline, type TimelineHandlers } from "./Timeline";
+import type { CameraKey, Clock, Shot, Signal, Toggle, Track, TrackFlags } from "./model";
+import { type Drag, type Edge, HEADER, type Recut, type Snap, Timeline, type TimelineHandlers } from "./Timeline";
 
 /** The clock as the app last told it, and when that arrived
  *  (`performance.now()`). */
@@ -17,6 +17,10 @@ const SHORTEST = 0.1;
 const PULL = 8;
 /** The narrowest zoom, seconds across. */
 const CLOSEST = 1;
+/** The shortest a recut leaves a section, seconds. */
+const MIN_SECTION = 1;
+/** How near its neighbour a section's start comes before the two join, px. */
+const JOIN = 6;
 const FLAG: Record<Toggle, keyof TrackFlags> = { hide: "hidden", mute: "muted", solo: "solo", lock: "locked" };
 
 /** The playhead between the app's clock messages: while it plays, it runs
@@ -84,6 +88,20 @@ function nearest(lines: Line[], t: number, pull: number): Line | null {
   return best;
 }
 
+/** What a section's start snaps to: bars, or the cuts, and the playhead. */
+function recutLines(snap: Snap, clock: Clock, shots: Shot[], playhead: number, view: [number, number]): Line[] {
+  if (snap === "off") return [];
+  if (snap === "shots") return snapLines("shots", clock, shots, [], playhead, view);
+  return snapLines("beats", clock, [], [], playhead, view).filter((line) => /^bar \d+$/.test(line.label) || line.label.startsWith("playhead"));
+}
+
+/** A tour's stops with one stop's hold changed: the stops after it come
+ *  later by as much, and the travel between them stays. */
+function heldKeys(keys: CameraKey[], stop: number, hold: number): CameraKey[] {
+  const by = hold - (keys[stop]?.hold ?? 0);
+  return keys.map((key, i) => (i === stop ? { ...key, hold: hold > 0 ? hold : undefined } : i > stop ? { ...key, t: key.t + by } : key));
+}
+
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi));
 const signed = (d: number) => `${d < 0 ? "−" : "+"}${Math.abs(d).toFixed(2)} s`;
 const seconds = (span: number) => (span < 60 ? `${span.toFixed(1)} s` : timecode(span));
@@ -101,6 +119,13 @@ type Held = {
   moved: boolean;
 };
 
+/** A section's start held on the band: where it would go, and whether it
+ *  is onto a neighbour, to join it. */
+type Recutting = { section: number; to: number; snapped: Line | null; join: boolean; moved: boolean; x0: number };
+
+/** A tour stop's hold, held by its end. */
+type Holding = { track: string; tour: string; stop: number; at: number; was: number; hold: number; snapped: Line | null; moved: boolean; x0: number };
+
 /** The timeline in the app: the view the app sends, played and edited. It
  *  keeps only what the page alone knows — the zoom, the selection, a drag
  *  in progress, the headers' toggles — and asks the app for the rest, so a
@@ -115,10 +140,15 @@ export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineVi
   const [menu, setMenu] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [held, setHeld] = useState<Held | null>(null);
+  const [recutting, setRecutting] = useState<Recutting | null>(null);
+  const [holding, setHolding] = useState<Holding | null>(null);
   const [flags, setFlags] = useState<Record<string, TrackFlags>>({});
   const [open, setOpen] = useState<string[]>([]);
-  /** Times sent for shots, drawn until the app's next view has them. */
+  /** Edits sent — shots' times, the sections, a hold — drawn until the
+   *  app's next view has them. */
   const [pending, setPending] = useState<Record<string, [number, number]> | null>(null);
+  const [pendingSections, setPendingSections] = useState<number[] | null>(null);
+  const [pendingHold, setPendingHold] = useState<{ track: string; stop: number; hold: number } | null>(null);
   const [scrub, setScrub] = useState<number | null>(null);
   const running = usePlayhead(clock, duration);
   const playhead = scrub ?? running;
@@ -146,8 +176,16 @@ export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineVi
     setRange(([from, to]) => (from <= 1e-3 && Math.abs(to - was) < 1e-2) || to > duration ? [0, duration] : [from, to]);
   }, [duration]);
 
-  // A new view is the app's word on the shots: what was sent is in it, or refused.
-  useEffect(() => setPending(null), [timeline]);
+  // A new view is the app's word on the edits: what was sent is in it, or refused.
+  useEffect(() => {
+    setPending(null);
+    setPendingSections(null);
+    setPendingHold(null);
+  }, [timeline]);
+  const clockNow = useMemo(
+    () => (timeline.clock && pendingSections ? { ...timeline.clock, sections: pendingSections } : timeline.clock),
+    [timeline.clock, pendingSections],
+  );
   // A clock message after a scrub has the seek in it.
   useEffect(() => setScrub(null), [clock]);
 
@@ -170,6 +208,10 @@ export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineVi
           return [{ ...track, open: hasStems ? stems : undefined, flags: f, toggles }];
         case "stem":
           return stems ? [{ ...track, flags: f, toggles }] : [];
+        case "camera": {
+          const keys = pendingHold?.track === track.id ? heldKeys(track.keys, pendingHold.stop, pendingHold.hold) : track.keys;
+          return [{ ...track, keys, flags: f, toggles }];
+        }
         case "shots": {
           const locked = !!f?.locked;
           const shots: Shot[] = track.shots.map((shot) => {
@@ -189,7 +231,7 @@ export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineVi
           return [{ ...track, flags: f, toggles }];
       }
     });
-  }, [timeline, flags, open, selected, thumbs, pending]);
+  }, [timeline, flags, open, selected, thumbs, pending, pendingHold]);
   const shots = useMemo(() => tracks.flatMap((track) => (track.kind === "shots" ? track.shots.filter((shot) => shot.state !== "proposed") : [])), [tracks]);
 
   // What is silenced: the muted, or with a solo anywhere, everything else.
@@ -217,18 +259,18 @@ export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineVi
 
   // Playing past the edge of the view turns the page.
   useEffect(() => {
-    if (!playing || held || scrub !== null) return;
+    if (!playing || held || recutting || holding || scrub !== null) return;
     const [from, to] = range;
     if (playhead >= from && playhead <= to) return;
     const span = to - from;
     const start = clamp(playhead - span * 0.1, 0, duration - span);
     setRange([start, start + span]);
-  }, [playhead, playing, held, scrub, range, duration]);
+  }, [playhead, playing, held, recutting, holding, scrub, range, duration]);
 
   // The handlers read the newest state through one ref, so they stay the
   // same functions and the lanes they are passed to needn't draw again.
-  const latest = useRef({ timeline, clock, range, width, snap, shots, selected, playhead, flags, duration, hasSong });
-  latest.current = { timeline, clock, range, width, snap, shots, selected, playhead, flags, duration, hasSong };
+  const latest = useRef({ timeline, clock, clockNow, tracks, range, width, snap, shots, selected, playhead, flags, duration, hasSong });
+  latest.current = { timeline, clock, clockNow, tracks, range, width, snap, shots, selected, playhead, flags, duration, hasSong };
 
   // What the handlers, the wheel and the keys share: time under the
   // pointer, seeking (one ask a frame while scrubbing), the cuts, the zoom.
@@ -250,8 +292,8 @@ export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineVi
         });
     };
     const cuts = () => {
-      const { shots, timeline, duration } = latest.current;
-      const times = shots.length > 0 ? shots.flatMap((shot) => [shot.from, shot.to]) : timeline.clock ? sectionStarts(timeline.clock) : [];
+      const { shots, clockNow, duration } = latest.current;
+      const times = shots.length > 0 ? shots.flatMap((shot) => [shot.from, shot.to]) : clockNow ? sectionStarts(clockNow) : [];
       return [...new Set([0, ...times, duration])].sort((a, b) => a - b);
     };
     const zoom = (factor: number, anchor?: number) => {
@@ -408,6 +450,114 @@ export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineVi
       },
       open: (track: string) => setOpen((all) => (all.includes(track) ? all.filter((t) => t !== track) : [...all, track])),
       review: (accept: boolean) => send({ t: "review", accept }),
+      sectionDown(e: ReactPointerEvent, section: number) {
+        if (e.button !== 0) return;
+        setMenu(false);
+        const { timeline, clockNow, duration, hasSong } = latest.current;
+        if (!timeline.editable || !hasSong || !clockNow) return;
+        const starts = sectionStarts(clockNow);
+        const from = starts[section];
+        const [before, after] = [starts[section - 1], starts[section + 1] ?? duration];
+        let held: Recutting = { section, to: from, snapped: null, join: false, moved: false, x0: e.clientX };
+        const stop = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          window.removeEventListener("keydown", key, true);
+          setRecutting(null);
+        };
+        const move = (ev: PointerEvent) => {
+          if (!held.moved && Math.abs(ev.clientX - held.x0) < 3) return;
+          const { snap, shots, playhead, range } = latest.current;
+          const pps = tools.pps();
+          const t = from + (ev.clientX - held.x0) / pps;
+          const reach = JOIN / pps;
+          if (t <= before + reach || t >= after - reach) {
+            // Onto a neighbour: the two sections join.
+            held = { ...held, moved: true, to: t <= before + reach ? before : after, snapped: null, join: true };
+          } else {
+            const line = ev.altKey ? null : nearest(recutLines(snap, clockNow, shots, playhead, range), t, PULL / pps);
+            const to = clamp(line?.at ?? t, before + MIN_SECTION, after - MIN_SECTION);
+            held = { ...held, moved: true, to, snapped: line && line.at === to ? line : null, join: false };
+          }
+          setRecutting(held);
+        };
+        const up = () => {
+          stop();
+          if (!held.moved) return;
+          const next = held.join ? starts.filter((_, i) => i !== section) : starts.map((t, i) => (i === section ? held.to : t));
+          const sections = next.map((t) => t / duration);
+          send({ t: "song.sections", sections });
+          setPendingSections(sections);
+        };
+        // Esc lets go without writing anything.
+        const key = (ev: KeyboardEvent) => {
+          if (ev.key !== "Escape") return;
+          ev.stopPropagation();
+          held = { ...held, moved: false };
+          stop();
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+        window.addEventListener("keydown", key, true);
+        setRecutting(held);
+      },
+      bandOpen(e: ReactMouseEvent) {
+        const { timeline, clockNow, duration, hasSong, snap, shots, playhead, range } = latest.current;
+        if (!timeline.editable || !hasSong || !clockNow) return;
+        const pps = tools.pps();
+        const at = tools.timeAt(e.clientX);
+        const line = e.altKey ? null : nearest(recutLines(snap, clockNow, shots, playhead, range), at, PULL / pps);
+        const t = line?.at ?? at;
+        const starts = sectionStarts(clockNow);
+        if (t < MIN_SECTION || t > duration - MIN_SECTION || starts.some((start) => Math.abs(start - t) < MIN_SECTION)) return;
+        const sections = [...starts, t].sort((a, b) => a - b).map((start) => start / duration);
+        send({ t: "song.sections", sections });
+        setPendingSections(sections);
+      },
+      holdDown(e: ReactPointerEvent, track: string, stop: number) {
+        if (e.button !== 0) return;
+        setMenu(false);
+        const { timeline, tracks, flags } = latest.current;
+        const camera = tracks.find((t) => t.id === track);
+        if (!timeline.editable || flags[track]?.locked || camera?.kind !== "camera") return;
+        const key = camera.keys[stop];
+        const was = key.hold ?? 0;
+        let held: Holding = { track, tour: camera.tour, stop, at: key.t, was, hold: was, snapped: null, moved: false, x0: e.clientX };
+        const end = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          window.removeEventListener("keydown", escape, true);
+          setHolding(null);
+        };
+        const move = (ev: PointerEvent) => {
+          if (!held.moved && Math.abs(ev.clientX - held.x0) < 3) return;
+          const { snap, shots, playhead, range, clockNow } = latest.current;
+          const pps = tools.pps();
+          const t = key.t + was + (ev.clientX - held.x0) / pps;
+          const lines = ev.altKey || snap === "off" || !clockNow ? [] : snapLines(snap, clockNow, shots, [], playhead, range);
+          const line = nearest(lines, t, PULL / pps);
+          const hold = Math.max(0, (line?.at ?? t) - key.t);
+          held = { ...held, moved: true, hold, snapped: line && Math.abs(line.at - key.t - hold) < 1e-9 ? line : null };
+          setHolding(held);
+        };
+        const up = () => {
+          end();
+          if (!held.moved || Math.abs(held.hold - was) < 0.005) return;
+          const hold = Math.round(held.hold * 100) / 100;
+          send({ t: "tour.hold", tour: held.tour, stop, hold });
+          setPendingHold({ track, stop, hold });
+        };
+        const escape = (ev: KeyboardEvent) => {
+          if (ev.key !== "Escape") return;
+          ev.stopPropagation();
+          held = { ...held, moved: false };
+          end();
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+        window.addEventListener("keydown", escape, true);
+        setHolding(held);
+      },
     }),
     [tools],
   );
@@ -477,7 +627,28 @@ export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineVi
             : `in ${timecode(held.shot.from, true)} → ${timecode(held.from, true)} · ${signed(held.from - held.shot.from)}`,
       }
     : shot && { label: shot.name, detail: `${shot.size} · ${shot.lens} mm · ${timecode(shot.from, true)} → ${timecode(shot.to, true)} · ${seconds(shot.to - shot.from)}` };
-  const drag: Drag | null = held?.moved
+  const recut: Recut | null = recutting?.moved
+    ? {
+        section: recutting.section,
+        to: recutting.to,
+        label: recutting.join
+          ? `§${recutting.section} and §${recutting.section + 1} join`
+          : !recutting.snapped
+            ? timecode(recutting.to, true)
+            : recutting.snapped.label.startsWith("playhead")
+              ? recutting.snapped.label
+              : `${recutting.snapped.label} · ${timecode(recutting.to, true)}`,
+      }
+    : null;
+  const drag: Drag | null = holding?.moved
+    ? {
+        track: holding.track,
+        from: holding.at,
+        to: holding.at + holding.hold,
+        label: `holds ${holding.hold.toFixed(1)} s · the stops after ${signed(holding.hold - holding.was)}`,
+        snapped: holding.snapped ?? undefined,
+      }
+    : held?.moved
     ? {
         track: "shots",
         from: held.from,
@@ -493,7 +664,7 @@ export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineVi
   return (
     <div ref={box} tabIndex={0} onKeyDown={keys} className="outline-none">
       <Timeline
-        clock={timeline.clock}
+        clock={clockNow}
         tracks={tracks}
         view={range}
         width={width}
@@ -504,6 +675,8 @@ export function LiveTimeline({ timeline, clock, thumbs }: { timeline: TimelineVi
         selection={selection}
         proposal={timeline.proposal}
         drag={drag}
+        recut={recut}
+        editable={timeline.editable}
         maxLanes={maxLanes}
         snapMenu={menu}
         on={on}
