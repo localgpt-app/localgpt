@@ -15,30 +15,25 @@
 //! per op, and writes `manifest.json`. A refusal comes back to the agent
 //! verbatim, because that is what lets it correct itself.
 //!
-//! Started by the agent, as MCP servers are, so it inherits nothing: the
-//! world folder comes from the argument or the working directory.
+//! Started by the agent, as MCP servers are, so it inherits only what the
+//! agent was started with: the world folder comes from the argument, else
+//! `$LOCALGPT_WORLD_DIR` (an agent's tab in the app has it), else the
+//! working directory, as for every `localgpt world` command.
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use localgpt_core::agent::ToolSchema;
 use localgpt_core::agent::tools::Tool;
 use localgpt_world_agent::agent_cli::Endpoint;
 use serde_json::{Value, json};
 
-/// How long to wait on the open app before giving up. Localhost, and a call
-/// that applies ops to a live scene is still interactive work.
-const CALL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+use super::world_api::Api;
 
-/// Serve the world in `dir` (or the working directory) over stdio MCP.
+/// Serve the world in `dir` (or the one the agent is in) over stdio MCP.
 pub async fn run(dir: Option<PathBuf>) -> Result<()> {
-    let dir = match dir {
-        Some(dir) => dir,
-        None => {
-            std::env::current_dir().context("no world folder given and no working directory")?
-        }
-    };
+    let dir = super::world::world_dir(dir)?;
     // Fail at startup rather than per call: an agent that gets a server with
     // no world behind it will keep trying tools that cannot work.
     let endpoint = Endpoint::read(&dir).map_err(|e| {
@@ -62,57 +57,6 @@ pub async fn run(dir: Option<PathBuf>) -> Result<()> {
         Box::new(SelectionTool(api)),
     ];
     localgpt_core::mcp::server::run_mcp_stdio_server(tools, "localgpt-world").await
-}
-
-/// The open app's API.
-#[derive(Clone)]
-struct Api {
-    url: String,
-    token: String,
-    /// The world's folder, so a tool can point an agent at its guide.
-    dir: PathBuf,
-    http: reqwest::Client,
-}
-
-impl Api {
-    fn new(endpoint: Endpoint, dir: PathBuf) -> Self {
-        Self {
-            url: endpoint.url.trim_end_matches('/').to_string(),
-            token: endpoint.token,
-            dir,
-            http: reqwest::Client::new(),
-        }
-    }
-
-    async fn call(
-        &self,
-        method: reqwest::Method,
-        path: &str,
-        body: Option<Value>,
-    ) -> Result<String> {
-        let mut req = self
-            .http
-            .request(method, format!("{}{path}", self.url))
-            .bearer_auth(&self.token)
-            .timeout(CALL_TIMEOUT);
-        if let Some(body) = body {
-            req = req.json(&body);
-        }
-        let response = req.send().await.map_err(|e| {
-            // The app closing is the common case, and "connection refused" is
-            // not a useful thing to hand a model.
-            anyhow::anyhow!("the app holding this world didn't answer ({e}) — is it still open?")
-        })?;
-        let status = response.status();
-        let text = response.text().await.unwrap_or_default();
-        if status.is_success() {
-            Ok(text)
-        } else {
-            // A refusal is the point, not an error to swallow: it carries a
-            // reason per op so the agent can fix the batch and retry.
-            Err(anyhow::anyhow!("{text}"))
-        }
-    }
 }
 
 /// The guide an agent should read first, named in every tool's description so
@@ -197,7 +141,7 @@ impl Tool for SubmitTool {
                  reason per op and the world is untouched, so fix the batch and send it \
                  again. Entity names may be used where ids go, and a new entity may omit \
                  its id to be given one. Unknown fields are refused rather than ignored. {}",
-                guide_hint(&self.0.dir)
+                guide_hint(self.0.dir())
             ),
             parameters: json!({
                 "type": "object",
@@ -343,11 +287,6 @@ mod tests {
             },
             PathBuf::from("/worlds/harbour.world"),
         )
-    }
-
-    #[test]
-    fn a_trailing_slash_in_the_endpoint_does_not_double_up() {
-        assert_eq!(api().url, "http://127.0.0.1:51734");
     }
 
     #[test]

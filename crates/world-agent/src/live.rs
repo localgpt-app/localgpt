@@ -2238,48 +2238,53 @@ pub const AGENTS_GUIDE: &str = r#"# This folder is a live world
 (`localgpt-app --world <this folder>`). Read `manifest.json` freely, but don't
 write it: the app does, and puts it back if anything else does.
 
-## Change the world by sending ops
+## Change the world with `localgpt world`
 
-Send a batch of edit ops to the open app. A batch applies whole or not at all:
-if any op is wrong, nothing changes and the reply says which op and why.
+Send a batch of edit ops. A batch applies whole or not at all: if any op is
+wrong, nothing changes and you're told which op and why.
 
 ```sh
-W=/path/to/this/folder   # the folder this file is in; your shell may not be in it
-URL=$(jq -r .url "$W/.live/endpoint.json"); TOKEN=$(jq -r .token "$W/.live/endpoint.json")
-# no jq: URL=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["url"])' "$W/.live/endpoint.json")
-curl -s -X POST "$URL/ops" -H "Authorization: Bearer $TOKEN" -d '{
-  "author": "your-name", "message": "what this change is for",
-  "ops": [
-    {"SpawnEntity": {"entity": {"name": "lantern",
-      "transform": {"position": [2.0, 0.5, 1.0]},
-      "shape": {"Cylinder": {"radius": 0.1, "height": 1.0}},
-      "material": {"color": [0.2, 0.2, 0.2, 1.0], "emissive": [4.0, 2.8, 1.2, 1.0]}}}},
-    {"ModifyEntity": {"id": "cuboid", "patch": {"transform": {"position": [0.0, 2.0, 0.0]}}}},
-    {"DeleteEntity": {"id": "torus"}}
-  ]}'
+localgpt world submit -m "what this change is for" <<'EOF'
+[
+  {"SpawnEntity": {"entity": {"name": "lantern",
+    "transform": {"position": [2.0, 0.5, 1.0]},
+    "shape": {"Cylinder": {"radius": 0.1, "height": 1.0}},
+    "material": {"color": [0.2, 0.2, 0.2, 1.0], "emissive": [4.0, 2.8, 1.2, 1.0]}}}},
+  {"ModifyEntity": {"id": "cuboid", "patch": {"transform": {"position": [0.0, 2.0, 0.0]}}}},
+  {"DeleteEntity": {"id": "torus"}}
+]
+EOF
 ```
 
+- Every `localgpt world` command finds this world from this folder or one
+  inside it, or from `$LOCALGPT_WORLD_DIR`, which an agent's tab in the app
+  has; anywhere else, name the folder first (`localgpt world log <folder>`).
+  With the app open, the app commits and shows the change at once; with it
+  closed, the command commits to the folder itself. `--help` on any command
+  says the rest.
+- Your batches are recorded under `--author <name>`, else
+  `$LOCALGPT_WORLD_AUTHOR`, which an agent's tab in the app sets to the
+  agent's name.
 - Use an entity's name wherever an id goes. Leave `id` out of a new entity and
-  it gets one; the reply lists them.
-- The reply is your receipt: `result` (`committed`, or `proposed` under
-  review), `revision` and `id` of the entry, `parent`, `head`, `branch` (true
-  when it landed off main), `changes` (one line per op, like `spawn #101
-  bench`), `spawned` (name → id), `stored` (asset → its copy), `warnings`
-  and `on_screen`; or `errors`, one per failing op, and nothing changed. A
-  refusal is HTTP 422 with `{"result": "rejected", "errors": [...]}`; a
-  stale revision reads `"the world is at revision 1, not 0: read it again,
-  then decide again"`.
-- Add `"expected_revision": N` — the `revision` you read from `GET /log` (or
-  the entry's, when building on one) — when the batch must land on the world
-  you read. If anyone moved it since, the batch is refused naming both
-  revisions; read again, then decide again. Leave it out to bind by name
-  against the world as it is now. Revisions number every entry across the
-  whole tree in the order written, so a branch tip can carry a higher
-  revision than the head; `expected_revision` is always compared with the
-  revision of the entry you build on — the head's, or the `at` entry's.
-- With review on in the canvas, the reply is `proposed` (HTTP 202) and your
-  batch waits on the canvas for the person to accept or reject it: poll
-  `GET /proposals` for its status, and don't resend meanwhile.
+  it gets one: `spawn #101 bench` in the reply is its id.
+- The reply is your receipt: `committed revision N` and a line per op, with
+  anything worth knowing indented under it. A refusal is a `rejected:` line
+  per failing op, on stderr with exit status 1, and nothing changed; a stale
+  revision reads `the world is at revision 1, not 0: read it again, then
+  decide again`. `--json` prints the receipt whole: `result`, `revision`,
+  `id`, `parent`, `head`, `branch`, `changes`, `spawned` (name → id), `stored`
+  (asset → its copy), `warnings` and `on_screen`.
+- Add `--expected-revision N` — the revision you read from `localgpt world
+  log` (or the entry's, when building on one) — when the batch must land on
+  the world you read. If anyone moved it since, the batch is refused naming
+  both revisions; read again, then decide again. Leave it out to bind by
+  name against the world as it is now. Revisions number every entry across
+  the whole tree in the order written, so a branch tip can carry a higher
+  revision than the head; the expected revision is always compared with the
+  revision of the entry you build on — the head's, or the `--at` entry's.
+- With review on in the canvas, the reply is `proposed #N` and your batch
+  waits on the canvas for the person to accept or reject it: `localgpt world
+  proposals` says what became of it. Don't resend it meanwhile.
 - A `patch` holds only what changes. `transform`, `material` and `light` merge
   into the current value (send just `position` to move something); every
   other field — `behaviors`, `shape`, `parent`, `audio`, `mesh_asset` — is
@@ -2405,38 +2410,42 @@ Reorder the shot list by patching `shot.order` the same way. To try a
 treatment without touching main, send the revision batch `"at"` the entry it
 builds on — the branch is the treatment.
 
-- `GET $URL/board` — the previs board of the entry on screen as a printable
-  page (`?tip=<id>` for any entry, `?tip=head` for main's tip). Add
-  `&vs=<id>` to put two tips' boards side by side, changed shots marked —
-  how two treatments get compared.
+- The previs board is a printable page the open app serves (see "The API
+  underneath"): `$URL/board` for the entry on screen, `?tip=<id>` for any
+  entry, `?tip=head` for main's tip. Add `&vs=<id>` to put two tips' boards
+  side by side, changed shots marked — how two treatments get compared.
 
 ## See and ask
 
-- `GET $URL/world` — the head as a manifest (what `manifest.json` holds);
-  `?tip=current` for the entry the window shows, `?tip=<id>` for any entry,
-  `?tip=null` for the base — an unknown tip is a 404, never the head by
-  mistake. `GET $URL/verify` — whether the package agrees with its history
-  (`ok`, `problems`).
-- `GET $URL/screenshot` — renders the view now and replies with the PNG's
-  path, `tip`, `revision` and `at_head`; shots are saved as
+- `localgpt world show` — the head in a line per entity: its id and name,
+  what it is, where, and what it's in. `--at current` for the entry the
+  window shows, `--at <id>` for any entry, `--at base` for the base — an
+  unknown entry is an error, never the head by mistake. `--json` prints the
+  manifest.
+- `localgpt world get lantern 12` — those entities, by name or id, as the
+  world holds them: one JSON object a line, `--at` as for `show`. Read the
+  one you change here rather than all of `manifest.json`, before a patch
+  that replaces a field whole.
+- `localgpt world screenshot` — renders the view now and prints the PNG's
+  path, and whether it shows the head; shots are saved as
   `.live/shot-N.png`, each kept. It is the person's camera: look at
   `.live/preview.png` first to see whether your corner of the world is in
   frame. There is no framing it from here short of `SetCamera`, which moves
   the shared camera and is a recorded change like any other.
-- `GET $URL/selection` — what the person has selected; "this" means it.
-- `POST $URL/undo -d '{"author": "your-name"}'` — undoes the head's newest
-  change by appending its inverse: a new entry under your name (`you` when
-  the body names none), with a receipt like `/ops`'s (the same fields;
-  `spawned` and `stored` empty) and `warnings: ["undid revision N"]`. `{"at": "<id>"}`: the newest on that entry's path
-  instead, as a branch. `{"own": true}`: your own newest, skipping others' —
-  refused, naming the entry, if someone built on it since. `POST $URL/redo`
-  takes the newest undo back the same way (`author` and `own` too); a batch
+- `localgpt world selection` — what the person has selected; "this" means it.
+- `localgpt world undo` — undoes the head's newest change by appending its
+  inverse: a new entry under your name, with a receipt like a batch's and
+  `undid revision N` under it. `--at <id>`: the newest on that entry's path
+  instead, as a branch. `--own`: your own newest, skipping others' —
+  refused, naming the entry, if someone built on it since. `localgpt world
+  redo` takes the newest undo back the same way (`--own` too); a batch
   since the undo ends it.
+- `localgpt world verify` — whether the package agrees with its history.
 - `.live/preview.png` refreshes by itself after every change.
 - Writing `manifest.json` or `ops.jsonl` yourself does nothing lasting: the
-  committer puts them back and notes it in `.live/refusals.jsonl`
-  (`GET $URL/refusals`; the file appears on the first refusal). If a change
-  of yours vanished, that is why — send it as a batch.
+  committer puts them back and notes it in `.live/refusals.jsonl` (the file
+  appears on the first refusal). If a change of yours vanished, that is why
+  — send it as a batch.
 
 ## History is a tree
 
@@ -2444,40 +2453,55 @@ Every entry in `ops.jsonl` has an `id` and builds on a `parent`. The head —
 what `manifest.json` holds — is main's tip, and a batch lands there unless it
 says otherwise.
 
-- `GET $URL/log` — the history: each entry's `id`, `parent`, `revision`,
-  `author`, `message` (also under `intent.message`, with `intent.via`:
-  `ops`, `undo` or `redo`), `changes`, which entry is the `head`, and
-  `revision` — the head's, the one `expected_revision` wants.
-- `GET $URL/tips` — every branch end, which one is the `head`, and which entry
-  the window is showing (`current`), with its `revision` — the entry on
-  screen's, not the head's.
-- `POST $URL/goto -d '{"tip": "<id>"}'` — show any entry in the window (`null`
-  for before it began, `"head"` for main's tip). Nothing is written; this is
-  how you look at an earlier state. The reply is `{result: "sought", tip,
-  revision, changes}` — `changes` is what the window applied to get there.
-  `manifest.json` and `GET /world` keep answering from the head meanwhile;
-  read the shown state with `GET /world?tip=current`.
+- `localgpt world log` — the history, oldest first: each entry's id,
+  revision, author, message and changes, what it builds on when that isn't
+  the line above, the head marked `← head` and the entry the window shows
+  `← on screen`. `--last 5` for the newest five, `--json` for every field.
+- `localgpt world tips` — every branch end with its revision, the head and
+  the entry on screen marked.
+- `localgpt world goto <id>` — show any entry in the window (`base` for
+  before it began, `head` for main's tip). Nothing is written; this is how
+  you look at an earlier state. `manifest.json` and `show` keep answering
+  from the head meanwhile: read the shown state with `show --at current`.
 - When the folder is a git repository, every entry is also a commit, and a
   `git checkout` made under the open window is followed: within a second the
-  window shows the checked-out state and `/log`, `/tips` and `/world` answer
+  window shows the checked-out state and `log`, `tips` and `show` answer
   from it. Nothing is written back over a checkout. Entries are consecutive
   commits on the folder's one git line, branch entries included, in the
   order written; the tree — who builds on whom — lives in `ops.jsonl`, not
   in git branches.
-- Add `"at": "<id>"` to a batch to build on that entry instead of the head.
-  From an earlier entry this starts a branch: main and `manifest.json` stay as
-  they were, and the reply's `id` is the branch's new tip — send the next
-  batch `"at"` it to keep going. To try an alternative from what the person
-  is looking at, build `"at"` the `current` from `/tips` — unless it is
-  `null`: the base, before the first entry, can't be built on once there is
-  history (`"at": null` is refused, never landed on main). To branch from
-  the very beginning, build `"at"` the first entry and undo its ops in the
-  same batch.
-- A reply's `on_screen` says whether the window shows your change. It doesn't
-  when the person is looking at another point in the history, and then a
-  screenshot won't show it either.
+- `submit --at <id>` builds on that entry instead of the head. From an
+  earlier entry this starts a branch: main and `manifest.json` stay as they
+  were, and the reply names the branch's new tip — send the next batch
+  `--at` it to keep going. To try an alternative from what the person is
+  looking at, build `--at` the entry `tips` marks on screen — unless that
+  is the base, before the first entry, which can't be built on once there
+  is history. To branch from the very beginning, build `--at` the first
+  entry and undo its ops in the same batch.
+- `not on screen` under a receipt says the window doesn't show your change:
+  the person is looking at another point in the history, and a screenshot
+  won't show it either.
 
 Everything you send is recorded in `ops.jsonl` under your author name.
+
+## The API underneath
+
+Each command above is one call to the open app's API, at the URL in
+`.live/endpoint.json` with its bearer token (`GET /` lists the endpoints). A
+program can call it, and so can you where `localgpt` isn't installed or is
+older than this guide:
+
+```sh
+W=/path/to/this/folder   # the folder this file is in
+URL=$(jq -r .url "$W/.live/endpoint.json"); TOKEN=$(jq -r .token "$W/.live/endpoint.json")
+curl -s -X POST "$URL/ops" -H "Authorization: Bearer $TOKEN" \
+  -d '{"author": "your-name", "message": "what this change is for", "ops": [...]}'
+```
+
+`POST /ops` takes the batch with `author`, `message`, `at` and
+`expected_revision` beside `ops`, and replies with the receipt as JSON: HTTP
+422 for a refusal, 202 for a proposal. An agent that speaks MCP gets the same
+calls as tools from `localgpt world mcp`.
 "#;
 
 #[cfg(test)]

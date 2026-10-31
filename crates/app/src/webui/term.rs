@@ -18,6 +18,7 @@ use std::path::Path;
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use anyhow::{Context, Result, bail};
+use localgpt_world_agent::{agent_cli, live};
 use portable_pty::{ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use serde::Serialize;
 
@@ -180,6 +181,9 @@ impl Terms {
             cmd.args(["-l", "-i", "-c", &format!("exec {program}")]);
         }
         cmd.cwd(cwd);
+        for (key, value) in world_env(cwd, kind) {
+            cmd.env(key, value);
+        }
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
         cmd.env("TERM_PROGRAM", "LocalGPT");
@@ -545,9 +549,51 @@ fn nonzero(n: u16) -> NonZeroU16 {
     NonZeroU16::new(n).unwrap_or(NonZeroU16::MIN)
 }
 
+/// What a tab started in a world's folder carries of it: the folder, so
+/// `localgpt world` and its MCP shim find the world from wherever the agent
+/// goes, and in an agent's tab the agent's name, so what it sends is its
+/// own. Nothing about the agent itself, and not the token, which stays in
+/// the world's endpoint file and is read per call.
+fn world_env(cwd: &Path, kind: &str) -> Vec<(&'static str, std::ffi::OsString)> {
+    if !live::is_package(cwd) {
+        return Vec::new();
+    }
+    let mut env = vec![(agent_cli::WORLD_DIR_ENV, cwd.as_os_str().to_owned())];
+    if kind != "shell" {
+        env.push((agent_cli::AUTHOR_ENV, kind.into()));
+    }
+    env
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_tab_on_a_world_carries_its_folder_and_an_agents_tab_its_name() {
+        let world = std::env::temp_dir().join(format!("lga-term-world-{}", std::process::id()));
+        std::fs::create_dir_all(&world).unwrap();
+        std::fs::write(world.join("manifest.json"), "{}").unwrap();
+        let folder = world.as_os_str().to_owned();
+
+        assert_eq!(
+            world_env(&world, "claude"),
+            [
+                (agent_cli::WORLD_DIR_ENV, folder.clone()),
+                (agent_cli::AUTHOR_ENV, "claude".into())
+            ]
+        );
+        // A shell is the person's, or whichever agent they start in it.
+        assert_eq!(
+            world_env(&world, "shell"),
+            [(agent_cli::WORLD_DIR_ENV, folder)]
+        );
+        // A document's folder is no world.
+        let notes = world.join("notes");
+        std::fs::create_dir_all(&notes).unwrap();
+        assert!(world_env(&notes, "claude").is_empty());
+        std::fs::remove_dir_all(&world).ok();
+    }
 
     #[test]
     fn a_title_says_what_the_agent_is_doing() {

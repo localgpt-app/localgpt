@@ -1,5 +1,6 @@
 pub mod completion;
 pub mod world;
+pub mod world_api;
 pub mod world_mcp;
 
 use clap::{Parser, Subcommand};
