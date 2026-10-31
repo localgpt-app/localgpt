@@ -6,11 +6,30 @@ import type { ReactNode } from "react";
 // static — no state, no effects, no handlers — so every state a component
 // can be in is drawn side by side instead of reached by clicking.
 
+/** The sheets, in the order they were drawn. */
+const SHEETS = [
+  { href: "./index.html", title: "Timeline" },
+  { href: "./scene.html", title: "Outliner and inspector" },
+];
+
 export function Sheet({ title, lede, children }: { title: string; lede: ReactNode; children: ReactNode }) {
   return (
     <div className="min-h-full bg-paper px-12 pt-10 pb-24 text-paper-ink">
       <header className="mb-10 max-w-[1700px]">
-        <p className="text-[11px] font-semibold tracking-[0.08em] text-paper-muted uppercase">LocalGPT · interface design</p>
+        <p className="flex gap-4 text-[11px] font-semibold tracking-[0.08em] text-paper-muted uppercase">
+          <span>LocalGPT · interface design</span>
+          {SHEETS.map((sheet) =>
+            sheet.title === title ? (
+              <span key={sheet.href} className="text-paper-ink">
+                {sheet.title}
+              </span>
+            ) : (
+              <a key={sheet.href} href={sheet.href} className="underline decoration-paper-line underline-offset-4 hover:text-paper-ink">
+                {sheet.title}
+              </a>
+            ),
+          )}
+        </p>
         <h1 className="mt-1 text-[30px] font-semibold tracking-tight">{title}</h1>
         <p className="mt-2 max-w-[820px] text-[14px] leading-relaxed text-paper-muted">{lede}</p>
       </header>

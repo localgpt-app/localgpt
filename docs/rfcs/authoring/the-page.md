@@ -113,10 +113,22 @@ A recut of the song's sections or a stop held longer is the person's
 scene-wide edit (`PersonIntent::World`, a `ModifyWorld` the authority
 merges), one entry the same way.
 
+**The outliner and the inspector share the left panel with the history**
+(reviewed 2026-10-31; the sheet is `design/scene.html`), as a second tab: the
+tree above, the selected thing's fields under it. The history and the
+outliner are both the world's structure, one in time and one in space, and
+only one is read at a time; a column of their own beside the world would
+have left the world 360 px, too little to frame a shot. Both read the
+world's document — the entities as `manifest.json` writes them — not the
+scene, so a lantern pulsing on the beat shows the glow it was given, and the
+timeline shows what the song does to it. The remote inspector's builders,
+which read the scene, stay for the tablet and phone inspectors.
+
 ## Next
 
-1. The outliner and inspector in the page, over the remote inspector's
-   builders and `PanelIntents` patches.
+1. The inspector's edits: name, transform, visibility, shape, material and
+   light first, each a `PersonIntent::Patch` batch; then behaviors, what
+   the song moves, sound and the camera.
 2. Turn marks from the page's own terminals (`TurnEnded`).
 3. The Windows host; then Linux.
 4. A render check of the page in CI, through `?preview=`.

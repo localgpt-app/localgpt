@@ -29,6 +29,15 @@ const PATHS = {
   zoomOut: "M7 3a4 4 0 1 0 0 8a4 4 0 1 0 0-8M10 10l3.5 3.5M5 7h4",
   chevronRight: "M6 4l4 4-4 4",
   chevronDown: "M4 6l4 4 4-4",
+  // The outliner's kinds of thing, and the inspector's.
+  cube: "M8 2.5l5 2.75v5.5L8 13.5l-5-2.75v-5.5zM3 5.25 8 8l5-2.75M8 8v5.5",
+  bulb: "M6 12.25h4M6.75 14h2.5M8 2.5a3.5 3.5 0 0 0-2 6.37v1.88h4V8.87A3.5 3.5 0 0 0 8 2.5",
+  group: "M8 3l6 3-6 3-6-3zM2 9.5l6 3 6-3",
+  mesh: "M2.5 12.5 8 3l5.5 9.5zM5.25 7.75h5.5M8 3v9.5",
+  search: "M7 3a4 4 0 1 0 0 8a4 4 0 1 0 0-8M10 10l3.5 3.5",
+  aim: "M8 2.5v3M8 10.5v3M2.5 8h3M10.5 8h3M8 6.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3",
+  out: "M6.5 4H12v5.5M12 4 4 12",
+  move: "M8 2.5v11M2.5 8h11M6.5 4 8 2.5 9.5 4M6.5 12 8 13.5 9.5 12M4 6.5 2.5 8 4 9.5M12 6.5 13.5 8 12 9.5",
 } as const;
 
 export type IconName = keyof typeof PATHS;
