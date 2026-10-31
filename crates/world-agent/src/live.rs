@@ -89,6 +89,7 @@ const OP_KINDS: &[&str] = &[
     "SetAmbience",
     "SpawnAudioEmitter",
     "RemoveAudioEmitter",
+    "ModifyWorld",
     "Batch",
 ];
 
@@ -155,12 +156,11 @@ impl Rejected {
 /// A live `.world` package and the authority over it.
 pub struct LiveWorld {
     dir: PathBuf,
-    base_manifest: WorldManifest,
     base: WorldDoc,
     entries: Vec<OpLogEntry>,
     head: WorldDoc,
-    /// The head as a manifest: the fold's entities and scene settings, plus
-    /// what no op reaches (meta, avatar, tours, soundtrack, creations).
+    /// The head as a manifest: the fold's entities and scene-wide fields,
+    /// and anything else the manifest carries that the fold doesn't.
     head_manifest: WorldManifest,
     meta: SessionMeta,
     /// The git commit the committer last made or read, when the package is
@@ -190,7 +190,6 @@ impl LiveWorld {
         let mut world = Self {
             dir: dir.to_path_buf(),
             head_manifest: head_as_written(dir, &meta, &base_manifest, &head),
-            base_manifest,
             base,
             entries,
             head,
@@ -877,14 +876,30 @@ impl LiveWorld {
         if !wt::values_close(&manifest.camera, &folded.camera) {
             problems.push("camera differs from the history".into());
         }
-        // No op reaches these, so they can only be the base's.
-        let (file, base) = (to_value(&manifest), to_value(&self.base_manifest));
-        for key in ["meta", "avatar", "tours", "soundtrack", "creations"] {
-            if file.get(key) != base.get(key) {
-                problems.push(format!(
-                    "{key} differs from the base, and no op could have changed it"
-                ));
-            }
+        // The rest of the scene-wide fields are the history's too:
+        // ModifyWorld reaches every one of them, SetAmbience the ambience.
+        let differs = [
+            ("meta", !wt::values_close(&manifest.meta, &folded.meta())),
+            (
+                "avatar",
+                !wt::values_close(&manifest.avatar, &folded.avatar),
+            ),
+            ("tours", !wt::values_close(&manifest.tours, &folded.tours)),
+            (
+                "soundtrack",
+                !wt::values_close(&manifest.soundtrack, &folded.soundtrack),
+            ),
+            (
+                "ambience",
+                !wt::values_close(&manifest.ambience, &folded.ambience),
+            ),
+            (
+                "creations",
+                !wt::values_close(&manifest.creations, &folded.creations),
+            ),
+        ];
+        for (key, _) in differs.into_iter().filter(|(_, differs)| *differs) {
+            problems.push(format!("{key} differs from the history"));
         }
         for path in referenced_assets(&manifest) {
             match content_address(&path) {
@@ -1138,6 +1153,30 @@ impl Ingest {
                     self.bind(op)?;
                 }
             }
+            "ModifyWorld" => {
+                let patch = body
+                    .get_mut("patch")
+                    .and_then(Value::as_object_mut)
+                    .ok_or("ModifyWorld needs a \"patch\" object")?;
+                // A field that is one value merges into the world's, as
+                // SetEnvironment's env does — send just a soundtrack's
+                // `sections` to cut it again. A list (tours, ambience,
+                // creations) is replaced whole, `meta` too, as the format
+                // has it; `null` clears.
+                let now = [
+                    ("environment", self.trial.environment.as_ref().map(to_value)),
+                    ("camera", self.trial.camera.as_ref().map(to_value)),
+                    ("avatar", self.trial.avatar.as_ref().map(to_value)),
+                    ("soundtrack", self.trial.soundtrack.as_ref().map(to_value)),
+                ];
+                for (field, current) in now {
+                    if let (Some(change @ Value::Object(_)), Some(current)) =
+                        (patch.get_mut(field), current)
+                    {
+                        *change = merged(&current, change);
+                    }
+                }
+            }
             "SetCamera" | "SetAmbience" | "SpawnAudioEmitter" | "RemoveAudioEmitter" => {}
             other => {
                 return Err(format!(
@@ -1175,6 +1214,15 @@ impl Ingest {
                 }
                 if let Some(Some(material)) = patch.material.as_mut() {
                     self.store_material(material)?;
+                }
+                Ok(())
+            }
+            // A song plays from `assets/`, like any file the world uses.
+            EditOp::ModifyWorld { patch } => {
+                if let Some(Some(song)) = patch.soundtrack.as_mut()
+                    && let Some(path) = song.path.as_mut()
+                {
+                    *path = self.store(path)?.0;
                 }
                 Ok(())
             }
@@ -1392,8 +1440,16 @@ fn compose(prev: &WorldManifest, doc: &WorldDoc) -> WorldManifest {
     // Cycles would leave entities waiting; validation reports those.
     out.extend(waiting.into_values().flatten().cloned());
     manifest.entities = out;
+    // Every scene-wide field is the document's: ModifyWorld changes any of
+    // them, and SetAmbience the ambience.
+    manifest.meta = doc.meta();
     manifest.environment = doc.environment.clone();
     manifest.camera = doc.camera.clone();
+    manifest.avatar = doc.avatar.clone();
+    manifest.tours = doc.tours.clone();
+    manifest.soundtrack = doc.soundtrack.clone();
+    manifest.ambience = doc.ambience.clone();
+    manifest.creations = doc.creations.clone();
     manifest.next_entity_id = prev.next_entity_id.max(doc.next_id());
     manifest
 }
@@ -1535,8 +1591,18 @@ pub fn describe_ops(ops: &[EditOp]) -> Vec<String> {
             }
             EditOp::SetEnvironment { .. } => out.push("set environment".into()),
             EditOp::SetCamera { .. } => out.push("set camera".into()),
+            EditOp::SetAmbience { .. } => out.push("set ambience".into()),
+            EditOp::SpawnAudioEmitter { name, .. } => out.push(format!("add emitter {name}")),
+            EditOp::RemoveAudioEmitter { name, .. } => out.push(format!("remove emitter {name}")),
+            EditOp::ModifyWorld { patch } => {
+                let value = to_value(patch);
+                let fields: Vec<&str> = value
+                    .as_object()
+                    .map(|o| o.keys().map(String::as_str).collect())
+                    .unwrap_or_default();
+                out.push(format!("modify world ({})", fields.join(", ")));
+            }
             EditOp::Batch { ops } => out.extend(describe_ops(ops)),
-            other => out.push(format!("{other:?}").chars().take(60).collect()),
         }
     }
     out
@@ -2147,7 +2213,11 @@ curl -s -X POST "$URL/ops" -H "Authorization: Bearer $TOKEN" -d '{
   other field — `behaviors`, `shape`, `parent`, `audio`, `mesh_asset` — is
   replaced whole; `null` removes a field.
 - Op kinds: SpawnEntity, ModifyEntity, DeleteEntity (takes children with it),
-  SetEnvironment (merges too), SetCamera, Batch.
+  SetEnvironment (merges too), SetCamera, ModifyWorld, Batch.
+- ModifyWorld changes the world's scene-wide fields: `{"ModifyWorld":
+  {"patch": {"soundtrack": {...}}}}`. `soundtrack`, `environment`, `camera`
+  and `avatar` merge into the current value; `tours`, `ambience`,
+  `creations` and `meta` are replaced whole; `null` clears one.
 - Names bind wherever the format marks a reference — an op's `id`, `parent`,
   a behavior's `target` or `center`, a camera's `aim_entity` and
   `focus_entity`, the avatar's `model_entity` — and commit as ids. A name
@@ -2181,6 +2251,18 @@ then reference the file by its path inside `assets/` in an op:
 by its SHA-256 and points the world at that. Stored copies never change: to
 change a texture, write new bytes (to the same working name is fine) and send
 the op again — that makes a new version, and the old one stays for history.
+
+## A song
+
+A world can perform a song. Write the audio file into `assets/`, then set the
+world's `soundtrack` with ModifyWorld: `path` (inside `assets/`, stored like
+any asset), `title`, `artist`, `license`, `duration` in seconds, `bpm` and
+`beat_offset` (the first beat, in seconds) for the beat grid, `sections` (where
+each section starts, as fractions of the duration, from 0) and `energy` (the
+loudness, one value a second, 0–1). The open app plays the file and draws its
+timeline from these numbers — the clock is `duration` long — and modulations
+read `energy`, `beat` and the stems from them. Send just `sections` later to
+cut the song again.
 
 ## Cameras and shots (ext-cinematography)
 
@@ -2927,6 +3009,83 @@ mod tests {
         // Asked again, the same files; the blobs are cached once by hash.
         assets_at(&dir, &first, &cache).unwrap();
         assert_eq!(std::fs::read_dir(cache.join("blobs")).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn a_song_comes_by_modify_world_stored_like_any_asset_and_is_cut_again() {
+        let (dir, mut live) = world();
+        std::fs::write(dir.join(ASSETS).join("tide.mp3"), b"not really an mp3").unwrap();
+        let done = live
+            .submit(
+                &json!([{"ModifyWorld": {"patch": {"soundtrack": {
+                    "path": "tide.mp3", "title": "Tidewater", "duration": 66.0,
+                    "bpm": 140.0, "sections": [0.0, 0.5]}}}}]),
+                "claude",
+                None,
+            )
+            .unwrap();
+        let stored = format!("{}.mp3", sha256_hex(b"not really an mp3"));
+        assert_eq!(
+            done.stored["tide.mp3"], stored,
+            "the song is stored by hash"
+        );
+        assert_eq!(describe_ops(&done.ops), ["modify world (soundtrack)"]);
+        let song = on_disk(&dir).soundtrack.expect("a song");
+        assert_eq!(song.path.as_deref(), Some(stored.as_str()));
+        assert_eq!((song.duration, song.bpm), (66.0, 140.0));
+
+        // Just the sections: the rest of the song stays as it was.
+        live.submit(
+            &json!([{"ModifyWorld": {"patch": {"soundtrack": {"sections": [0.0, 0.25, 0.75]}}}}]),
+            "claude",
+            None,
+        )
+        .unwrap();
+        let song = on_disk(&dir).soundtrack.expect("still a song");
+        assert_eq!(song.sections, [0.0, 0.25, 0.75]);
+        assert_eq!(song.title.as_deref(), Some("Tidewater"));
+        assert_eq!(
+            (song.duration, song.path.as_deref()),
+            (66.0, Some(stored.as_str()))
+        );
+
+        // `null` clears it, and the history still folds to the head.
+        live.submit(
+            &json!([{"ModifyWorld": {"patch": {"soundtrack": null}}}]),
+            "claude",
+            None,
+        )
+        .unwrap();
+        assert!(on_disk(&dir).soundtrack.is_none());
+        assert!(live.verify().is_empty(), "{:?}", live.verify());
+    }
+
+    #[test]
+    fn every_scene_wide_field_the_log_changes_reaches_the_head() {
+        let (dir, mut live) = world();
+        live.submit(
+            &json!([{"SetAmbience": {"ambience": [
+                {"name": "sea", "source": {"Ocean": {"wave_size": 0.5}}, "volume": 0.4}]}}]),
+            "claude",
+            None,
+        )
+        .unwrap();
+        let head = on_disk(&dir);
+        assert_eq!(
+            head.ambience.len(),
+            1,
+            "the ambience is the log's, not the base's"
+        );
+        assert_eq!(head.tours.len(), 1, "the base's tour");
+
+        live.submit(
+            &json!([{"ModifyWorld": {"patch": {"tours": []}}}]),
+            "claude",
+            None,
+        )
+        .unwrap();
+        assert!(on_disk(&dir).tours.is_empty(), "a list is replaced whole");
+        assert!(live.verify().is_empty(), "{:?}", live.verify());
     }
 
     #[test]
