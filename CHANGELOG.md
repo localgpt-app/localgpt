@@ -20,6 +20,7 @@ All notable changes to LocalGPT are documented in this file.
 
 ### Fixed
 
+- **The live API's token can be neither guessed nor read by another user.** It is 128 random bits, where it was a hash of the process id, the time and the folder. `.live/` is now the owner's alone (0700), and so is `endpoint.json` (0600). The token rides a query string only to `GET /board`, the page a person opens in a browser.
 - **A live package's `manifest.json` carries every scene-wide field its log changes.** The head was composed with the base's ambience, tours and song, so a committed `SetAmbience` never reached the file.
 
 ### Removed

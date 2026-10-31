@@ -92,8 +92,8 @@ impl Reply {
 }
 
 /// The API's own address, so a panel can open board pages in the
-/// person's browser (the token rides the query, which the API accepts —
-/// it already sits in `.live/endpoint.json`).
+/// person's browser (the token rides the query, which the API accepts for
+/// `GET /board` alone — it already sits in `.live/endpoint.json`).
 #[derive(Resource, Clone)]
 pub struct LiveEndpoint {
     pub url: String,
@@ -585,6 +585,24 @@ struct Replay {
     assets: Mutex<std::sync::mpsc::Receiver<(String, Result<PathBuf, String>)>>,
 }
 
+/// Writes `.live/endpoint.json` for its owner's eyes alone: `.live/` is
+/// the owner's (0700) and the file too (0600), made afresh so a file left
+/// by a crash keeps no wider mode.
+fn write_endpoint(path: &Path, text: &str) -> std::io::Result<()> {
+    let folder = path.parent().unwrap_or(Path::new("."));
+    std::fs::create_dir_all(folder)?;
+    let _ = std::fs::remove_file(path);
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        std::fs::set_permissions(folder, std::fs::Permissions::from_mode(0o700))?;
+        options.mode(0o600);
+    }
+    options.open(path)?.write_all(text.as_bytes())
+}
+
 /// Removes `.live/endpoint.json` when the app goes away.
 #[derive(Resource)]
 struct Endpoint(PathBuf);
@@ -602,16 +620,12 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
 
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let url = format!("http://{}", listener.local_addr()?);
-    let token = localgpt_world_agent::session::sha256_hex(
-        format!(
-            "{}-{:?}-{}",
-            std::process::id(),
-            std::time::SystemTime::now(),
-            dir.display()
-        )
-        .as_bytes(),
-    )[..32]
-        .to_string();
+    // 128 random bits: the token is all that stands between the world and
+    // any process on this computer, so nothing about it can be guessed.
+    let token: String = rand::random::<[u8; 16]>()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
     let (tx, rx) = channel();
     {
         let token = token.clone();
@@ -620,10 +634,9 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
             .spawn(move || serve(listener, token, tx))?;
     }
     let endpoint = dir.join(live::LIVE).join("endpoint.json");
-    std::fs::create_dir_all(dir.join(live::LIVE))?;
-    std::fs::write(
+    write_endpoint(
         &endpoint,
-        serde_json::to_string_pretty(&json!({
+        &serde_json::to_string_pretty(&json!({
             "url": url,
             "token": token,
             "pid": std::process::id(),
@@ -2620,9 +2633,7 @@ fn answer(mut stream: TcpStream, token: &str, calls: &Sender<Call>) -> std::io::
     let mut body = vec![0; length.min(16 << 20)];
     reader.read_exact(&mut body)?;
 
-    let authorized =
-        auth == format!("Bearer {token}") || param(&query, "token").as_deref() == Some(token);
-    let reply = if !authorized {
+    let reply = if !authorized(&method, &path, &query, &auth, token) {
         Reply::status(
             401,
             json!({"error": "send the token in .live/endpoint.json as `Authorization: Bearer <token>`"}),
@@ -2671,6 +2682,14 @@ fn answer(mut stream: TcpStream, token: &str, calls: &Sender<Call>) -> std::io::
         reply.status,
         text.len()
     )
+}
+
+/// The token as a bearer header — or, for a browser opening a board page,
+/// which can send no header, in the query: there and nowhere else, since a
+/// query is logged and kept in a browser's history.
+fn authorized(method: &str, path: &str, query: &str, auth: &str, token: &str) -> bool {
+    let board = method == "GET" && path == "/board";
+    auth == format!("Bearer {token}") || (board && param(query, "token").as_deref() == Some(token))
 }
 
 /// Wait until a file exists and has stopped growing.
@@ -2811,6 +2830,54 @@ mod tests {
         assert_eq!(copy_name("lighthouse 2", free), "lighthouse 3");
         assert_eq!(copy_name("jetty", |_| false), "jetty 2");
         assert_eq!(copy_name("pier 9b", |_| false), "pier 9b 2");
+    }
+
+    #[test]
+    fn the_token_rides_a_query_only_to_a_board_page() {
+        let token = "0123456789abcdef0123456789abcdef";
+        let bearer = format!("Bearer {token}");
+        assert!(authorized("POST", "/ops", "", &bearer, token));
+        assert!(authorized(
+            "GET",
+            "/board",
+            &format!("token={token}&tip=head"),
+            "",
+            token
+        ));
+        assert!(!authorized(
+            "POST",
+            "/ops",
+            &format!("token={token}"),
+            "",
+            token
+        ));
+        assert!(!authorized(
+            "GET",
+            "/world",
+            &format!("token={token}"),
+            "",
+            token
+        ));
+        assert!(!authorized("GET", "/board", "token=nope", "", token));
+    }
+
+    #[test]
+    fn the_endpoint_is_its_owners_alone() {
+        let dir = std::env::temp_dir().join(format!("lg-endpoint-{}", std::process::id()));
+        let path = dir.join(".live").join("endpoint.json");
+        // A file left by a crash, wider than it should be.
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "old").unwrap();
+        write_endpoint(&path, r#"{"token": "t"}"#).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), r#"{"token": "t"}"#);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode(&path), 0o600);
+            assert_eq!(mode(path.parent().unwrap()), 0o700);
+        }
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
