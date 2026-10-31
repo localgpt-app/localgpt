@@ -18,8 +18,9 @@ path = "src/main.rs"
 # The shim stands on core's stdio MCP server and `Tool` trait until they move
 # to world-agent (docs/rfcs/authoring/the-harness-goes.md, "What moves out of
 # core first"). No default features: none of the assistant's providers is
-# wanted here.
-localgpt-core = { workspace = true, default-features = false }
+# wanted here. A path, not `workspace = true`: the workspace entry keeps core's
+# defaults, and Cargo ignores `default-features = false` on top of that.
+localgpt-core = { path = "../core", version = "0.4.2", default-features = false }
 # The world authority, for `localgpt world`. Bevy-free, so the CLI stays light.
 localgpt-world-agent = { workspace = true }
 # The view, for `localgpt world tips` and the ids in `world log`: the CLI
