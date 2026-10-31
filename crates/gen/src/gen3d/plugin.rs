@@ -281,9 +281,10 @@ impl ReferenceBoard {
     }
 }
 
-/// Marker component for the interactive fly camera.
+/// Marker component for the interactive fly camera — the world's camera,
+/// which the app's interface fits into the page's viewport.
 #[derive(Component)]
-pub(crate) struct FlyCam;
+pub struct FlyCam;
 
 /// Configuration for the fly camera controller.
 #[derive(Resource)]
@@ -379,33 +380,23 @@ pub fn setup_gen_app(
         .add_systems(Update, audio::auto_infer_audio)
         .add_systems(Update, behaviors::behavior_tick)
         .add_systems(Update, super::region_dirty::track_region_dirty)
-        // FreeFly systems (run when camera is detached, not hovering
-        // inspector, and no shot owns the camera)
+        // FreeFly systems (run when the camera is detached and no shot owns
+        // it). A panel never takes them: the window's interface is a page
+        // that keeps the pointer and the keys while it has them.
         .add_systems(
             Update,
-            fly_cam_movement.run_if(
-                avatar::in_freefly_mode
-                    .and_then(crate::inspector::not_ui_hovered)
-                    .and_then(super::shots::not_looking_through)
-                    // A `bevy_ui` text field with the keyboard has the keys.
-                    .and_then(crate::ui::focus::not_typing),
-            ),
+            fly_cam_movement
+                .run_if(avatar::in_freefly_mode.and_then(super::shots::not_looking_through)),
         )
         .add_systems(
             Update,
-            fly_cam_look.run_if(
-                avatar::in_freefly_mode
-                    .and_then(crate::inspector::not_ui_hovered)
-                    .and_then(super::shots::not_looking_through),
-            ),
+            fly_cam_look
+                .run_if(avatar::in_freefly_mode.and_then(super::shots::not_looking_through)),
         )
         .add_systems(
             Update,
-            fly_cam_scroll_speed.run_if(
-                avatar::in_freefly_mode
-                    .and_then(crate::inspector::not_ui_hovered)
-                    .and_then(super::shots::not_looking_through),
-            ),
+            fly_cam_scroll_speed
+                .run_if(avatar::in_freefly_mode.and_then(super::shots::not_looking_through)),
         )
         // Toggle system (Tab: Player ↔ FreeFly)
         .add_systems(Update, avatar::handle_camera_mode_toggle)
@@ -450,12 +441,8 @@ pub fn setup_gen_app(
         .add_plugins(crate::physics::GravityPlugin)
         .add_plugins(crate::physics::ColliderPlugin)
         .add_plugins(crate::physics::JointPlugin)
-        // Gallery UI (egui overlay, G toggle)
-        .add_plugins(crate::gen3d::gallery_ui::GalleryPlugin)
-        // World Inspector Panel (egui overlay, F1 toggle)
-        .add_plugins(crate::inspector::InspectorPlugin)
-        // Named `bevy_ui` nodes for `GET /widgets` (the rail, the feathers bar)
-        .add_plugins(crate::ui::widgets::WidgetSeamPlugin);
+        // Selection, viewport picking and the remote inspector's protocol.
+        .add_plugins(crate::inspector::InspectorPlugin);
 }
 
 /// Default scene: ground plane, camera, directional light, ambient light.
@@ -652,18 +639,16 @@ fn process_gen_commands(
     mut channel_res: ResMut<GenChannelRes>,
     mut commands: Commands,
     mut params: GenCommandParams,
-    mut pending_gallery_load: ResMut<crate::gen3d::gallery_ui::PendingGalleryLoad>,
     mut initial_world: ResMut<GenInitialWorld>,
 ) {
-    // Loads queued inside the app (the gallery, `--world`) run through the
-    // same handler as the agent's, but no agent awaits them: their responses
-    // are logged instead of sent, or the agent's next command would receive
-    // them.
+    // Loads queued inside the app (`--world`, the app's Open…) run through
+    // the same handler as the agent's, but no agent awaits them: their
+    // responses are logged instead of sent, or the agent's next command
+    // would receive them.
     let mut internal = initial_world
         .path
         .take()
         .into_iter()
-        .chain(pending_gallery_load.path.take())
         .map(|path| {
             tracing::info!("Loading world from {}", path);
             GenCommand::LoadWorld { path, clear: true }
@@ -8445,7 +8430,6 @@ mod tests {
         .init_resource::<ReferenceBoard>()
         .init_resource::<crate::gen3d::extras::CreationLibrary>()
         .init_resource::<localgpt_world_bevy::modulation::Soundtrack>()
-        .init_resource::<crate::gen3d::gallery_ui::PendingGalleryLoad>()
         .add_systems(Startup, audio::init_audio_engine)
         .add_systems(Update, process_gen_commands);
         app.update(); // Startup: the audio engine, if any.

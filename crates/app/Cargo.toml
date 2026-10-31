@@ -49,5 +49,20 @@ ron = "0.12.1"
 rfd = "0.17"
 
 bevy = { version = "0.19", features = ["jpeg", "system_font_discovery"] }
-# Same version as Gen, so there is one egui context and one copy of the crate.
-bevy_egui = "0.40"
+# The agents' terminals: a PTY per tab (WezTerm's crate), its bytes to xterm.js.
+portable-pty = "0.9"
+base64 = { workspace = true }
+
+# The interface's host: one WebKit view over the window (wry), and the
+# AppKit view that lets clicks in the page's hole fall through to the
+# viewport. macOS first; Windows (WebView2) next, and Linux needs webkit2gtk,
+# where wry nests a view on X11 only.
+[target.'cfg(target_os = "macos")'.dependencies]
+wry = { version = "0.57", features = ["devtools"] }
+# The page itself (ui/dist): read from disk in a debug build, so a rebuilt
+# page needs no Rust rebuild; inside the binary in a release one.
+rust-embed = "8"
+raw-window-handle = "0.6"
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSGeometry"] }
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSEvent", "NSMenu", "NSMenuItem", "NSResponder", "NSView"] }

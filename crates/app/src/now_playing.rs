@@ -1,19 +1,37 @@
-//! The song a world performs, as a small transport at the bottom of the
-//! window: title and artist, where the song is, and play/pause. Shown
-//! whenever the loaded world has a soundtrack — a song opened with `--song`,
-//! or any world that carries one.
+//! The song a world performs, for the page's transport: title and artist,
+//! where the song is, and whether it plays. There whenever the loaded world
+//! has a soundtrack — a song opened with `--song`, or any world that
+//! carries one. The page pauses and plays it with [`ToggleSong`].
 
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use localgpt_gen::gen3d::audio::AudioEngine;
 use localgpt_world_bevy::modulation::Soundtrack;
 
 /// The transport's own state: whether the listener paused the song, and
 /// where it was last heard (the engine reports no position while paused).
 #[derive(Resource, Default)]
-struct Transport {
+pub struct Transport {
     paused: bool,
     last_position: f32,
+}
+
+/// Pause the song, or play it again.
+#[derive(Message, Debug, Clone, Copy)]
+pub struct ToggleSong;
+
+/// What the page's transport shows.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct NowPlaying {
+    pub title: String,
+    pub artist: Option<String>,
+    /// Seconds.
+    pub duration: f32,
+    /// Seconds, where the song was last heard.
+    pub position: f32,
+    pub playing: bool,
+    /// The world ships its audio and the engine is up: there is something
+    /// to pause.
+    pub playable: bool,
 }
 
 pub struct NowPlayingPlugin;
@@ -21,89 +39,101 @@ pub struct NowPlayingPlugin;
 impl Plugin for NowPlayingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Transport>()
-            .add_systems(EguiPrimaryContextPass, now_playing);
+            .add_message::<ToggleSong>()
+            .add_systems(Update, (follow_song, toggle).chain());
     }
 }
 
-fn now_playing(
-    mut contexts: EguiContexts,
+fn follow_song(soundtrack: Res<Soundtrack>, mut transport: ResMut<Transport>) {
+    if let Some(position) = soundtrack.position
+        && transport.last_position != position
+    {
+        transport.last_position = position;
+    }
+}
+
+fn toggle(
+    mut asks: MessageReader<ToggleSong>,
     soundtrack: Res<Soundtrack>,
     audio: Option<ResMut<AudioEngine>>,
     mut transport: ResMut<Transport>,
 ) {
-    let Some(song) = soundtrack.def.as_ref() else {
+    // Two asks in one frame are a play and a pause: nothing changes.
+    if asks.read().count().is_multiple_of(2) {
         return;
-    };
-    let Ok(ctx) = contexts.ctx_mut() else {
-        return;
-    };
-    if let Some(position) = soundtrack.position {
-        transport.last_position = position;
     }
-    let playable = song.path.is_some() && audio.is_some();
-    let mut toggle = false;
-    egui::Area::new(egui::Id::new("now_playing"))
-        .anchor(egui::Align2::CENTER_BOTTOM, [0.0, -16.0])
-        .show(ctx, |ui| {
-            egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    if playable {
-                        let label = if transport.paused { "Play" } else { "Pause" };
-                        toggle = ui.button(label).clicked();
-                    }
-                    ui.vertical(|ui| {
-                        ui.label(
-                            egui::RichText::new(song.title.as_deref().unwrap_or("Untitled"))
-                                .strong(),
-                        );
-                        if let Some(artist) = &song.artist {
-                            ui.label(
-                                egui::RichText::new(artist)
-                                    .small()
-                                    .color(ui.visuals().weak_text_color()),
-                            );
-                        }
-                    });
-                    if song.duration > 0.0 {
-                        let position = transport.last_position.min(song.duration);
-                        ui.add(
-                            egui::ProgressBar::new(position / song.duration)
-                                .desired_width(200.0)
-                                .text(format!("{} / {}", clock(position), clock(song.duration))),
-                        );
-                    }
-                    if !playable {
-                        ui.label(
-                            egui::RichText::new("no audio with this world")
-                                .small()
-                                .color(ui.visuals().weak_text_color()),
-                        );
-                    }
-                });
-            });
-        });
-    if toggle && let Some(mut audio) = audio {
+    let ships_audio = soundtrack
+        .def
+        .as_ref()
+        .is_some_and(|song| song.path.is_some());
+    if ships_audio && let Some(mut audio) = audio {
         transport.paused = !transport.paused;
         audio.pause_soundtrack(transport.paused);
     }
 }
 
-/// `m:ss`.
-fn clock(seconds: f32) -> String {
-    let whole = seconds.max(0.0) as u32;
-    format!("{}:{:02}", whole / 60, whole % 60)
+/// The transport's snapshot, while the world has a soundtrack.
+pub fn now_playing(
+    soundtrack: &Soundtrack,
+    transport: &Transport,
+    audio: bool,
+) -> Option<NowPlaying> {
+    let song = soundtrack.def.as_ref()?;
+    let playable = song.path.is_some() && audio;
+    Some(NowPlaying {
+        title: song.title.clone().unwrap_or_else(|| "Untitled".into()),
+        artist: song.artist.clone(),
+        duration: song.duration,
+        position: transport.last_position.clamp(0.0, song.duration.max(0.0)),
+        playing: playable && !transport.paused,
+        playable,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use localgpt_world_types as wt;
+
+    fn song(path: Option<&str>) -> Soundtrack {
+        Soundtrack {
+            def: Some(wt::SoundtrackDef {
+                path: path.map(str::to_string),
+                title: Some("Tidewater".into()),
+                artist: None,
+                license: None,
+                duration: 192.0,
+                bpm: 92.0,
+                beat_offset: 0.4,
+                sections: vec![0.0, 0.5],
+                energy: Vec::new(),
+                stems: None,
+            }),
+            ..Default::default()
+        }
+    }
 
     #[test]
-    fn clock_reads_minutes_and_seconds() {
-        assert_eq!(clock(0.0), "0:00");
-        assert_eq!(clock(59.9), "0:59");
-        assert_eq!(clock(61.0), "1:01");
-        assert_eq!(clock(754.2), "12:34");
-        assert_eq!(clock(-3.0), "0:00");
+    fn a_world_without_its_audio_has_nothing_to_pause() {
+        let transport = Transport::default();
+        let shown = now_playing(&song(None), &transport, true).expect("a soundtrack");
+        assert!(!shown.playable && !shown.playing);
+        let shown = now_playing(&song(Some("music/tide.mp3")), &transport, true).unwrap();
+        assert!(shown.playable && shown.playing);
+        // No audio engine (a machine without an output device): nothing plays.
+        let shown = now_playing(&song(Some("music/tide.mp3")), &transport, false).unwrap();
+        assert!(!shown.playable);
+        assert!(now_playing(&Soundtrack::default(), &transport, true).is_none());
+    }
+
+    #[test]
+    fn the_position_stays_on_the_song() {
+        let transport = Transport {
+            paused: true,
+            last_position: 400.0,
+        };
+        let shown = now_playing(&song(Some("music/tide.mp3")), &transport, true).unwrap();
+        assert_eq!(shown.position, 192.0);
+        assert!(!shown.playing, "paused");
     }
 }

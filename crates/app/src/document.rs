@@ -1,20 +1,23 @@
 //! Document mode: a Markdown file, edited in the app, rebuilt as a world while
 //! you type.
 //!
-//! The left pane holds the document's outline above an editor. Typing marks
-//! the document edited; once the text has settled for [`SETTLE`], the file is
-//! saved and the world rebuilt from it — MD's own pipeline, `Doc::parse` then
+//! The page's document panel holds the outline above an editor; this module
+//! is what it shows ([`Document::view`]) and what it asks ([`DocumentAsk`]),
+//! and it knows nothing of the page. Typing marks the document edited; once
+//! the text has settled for [`SETTLE`], the file is saved and the world
+//! rebuilt from it — MD's own pipeline, `Doc::parse` then
 //! `draft::compile_with` over MD's sidecar, so scenery a model authored is
-//! kept for every section whose text did not change. The rebuild goes through
-//! Gen's `GenInitialWorld`, the same hook the gallery uses, with the camera
-//! stripped from the manifest so the view does not snap back on every edit.
+//! kept for every section whose text did not change. The rebuild goes
+//! through Gen's `GenInitialWorld`, the same hook the app's Open… uses, with
+//! the camera stripped from the manifest so the view does not snap back on
+//! every edit.
 //!
 //! The mapping between text and world runs both ways, which is the point of
 //! editing in the app rather than beside it:
 //!
 //! * **text → world**: clicking an outline item flies the camera to that
 //!   section's place (the draft's tour holds one stop per section, in order).
-//! * **world → text**: selecting an entity in the inspector highlights the
+//! * **world → text**: selecting an entity in the viewport highlights the
 //!   section it belongs to. MD names every entity `sNN-…` after its section,
 //!   and names survive a world load where ids may not.
 //!
@@ -38,12 +41,11 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use localgpt_gen::gen3d::avatar::CameraMode;
 use localgpt_gen::gen3d::ops_apply::OpsApplier;
 use localgpt_gen::gen3d::plugin::{CurrentWorld, GenInitialWorld};
 use localgpt_gen::gen3d::registry::NameRegistry;
-use localgpt_gen::inspector::{InspectorMode, InspectorSelection, InspectorState};
+use localgpt_gen::inspector::InspectorSelection;
 use localgpt_md::doc::Doc;
 use localgpt_md::sidecar::BuildEntry;
 
@@ -360,37 +362,14 @@ fn section_at_line(outline: &[OutlineItem], line: usize) -> Option<usize> {
         .find_map(|item| item.section)
 }
 
-/// The line a character offset falls on — egui's cursor counts characters,
-/// not bytes.
-fn line_of_char(text: &str, char_index: usize) -> usize {
-    text.chars().take(char_index).filter(|c| *c == '\n').count()
-}
-
-/// The character offset where `line` starts, or the end of the text.
-fn char_of_line(text: &str, line: usize) -> usize {
-    if line == 0 {
-        return 0;
-    }
-    let mut newlines = 0;
-    for (index, c) in text.chars().enumerate() {
-        if c == '\n' {
-            newlines += 1;
-            if newlines == line {
-                return index + 1;
-            }
-        }
-    }
-    text.chars().count()
-}
-
 /// One kind of thing in a place, for the place card.
-#[derive(Debug, Clone, PartialEq)]
-struct Thing {
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct Thing {
     /// What it is, from its name: `s01-fishing_boat_2` is "fishing boat".
-    label: String,
+    pub label: String,
     /// The first entity of the kind, the one a click selects.
-    first: String,
-    count: usize,
+    pub first: String,
+    pub count: usize,
 }
 
 /// What a place is made of: its entities grouped by what they are, in the
@@ -473,6 +452,10 @@ pub struct Document {
     world_dir: PathBuf,
     /// The editor buffer.
     text: String,
+    /// Counts the times the buffer was replaced from here — opened, or
+    /// reloaded from the file — rather than typed into, so the page's editor
+    /// takes the new text and keeps its own otherwise.
+    text_rev: u64,
     /// The last text read from or written to the file.
     on_disk: String,
     /// The text the current world was built from.
@@ -485,7 +468,6 @@ pub struct Document {
     selected: Option<usize>,
     status: String,
     conflict: bool,
-    open: bool,
     /// The model authoring each section's place, when there is one.
     authoring: Option<crate::authoring::Worker>,
     /// Author sections as they settle — the pane's toggle.
@@ -505,13 +487,12 @@ pub struct Document {
     places: Vec<Vec<String>>,
     /// The model's one-line description of each section's place, if any.
     descriptions: Vec<Option<String>>,
-    /// The editor's cursor, as a character offset, when last seen.
-    caret: Option<usize>,
     /// The section the cursor was last in.
     caret_section: Option<usize>,
     /// Moving the cursor into another section flies the camera there.
     follow_cursor: bool,
-    /// Scroll the editor to this line on the next frame (an outline click).
+    /// Bring this line of the text into view (an outline click, a thing
+    /// picked in the world); the page takes it.
     scroll_to_line: Option<usize>,
     /// The world as the scene shows it, so a rebuild can change only what
     /// differs.
@@ -534,6 +515,7 @@ impl Document {
             on_disk: text.clone(),
             built: text.clone(),
             text,
+            text_rev: 1,
             disk_mtime,
             edited_at: None,
             polled_at: Instant::now(),
@@ -542,7 +524,6 @@ impl Document {
             selected: None,
             status: String::new(),
             conflict: false,
-            open: true,
             authoring: None,
             author_enabled: true,
             pending: HashSet::new(),
@@ -552,7 +533,6 @@ impl Document {
             tiers: Vec::new(),
             places: Vec::new(),
             descriptions: Vec::new(),
-            caret: None,
             caret_section: None,
             follow_cursor: true,
             scroll_to_line: None,
@@ -760,6 +740,7 @@ pub struct DocumentPlugin;
 impl Plugin for DocumentPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Flight>()
+            .add_message::<DocumentAsk>()
             .add_systems(
                 Update,
                 (
@@ -772,8 +753,10 @@ impl Plugin for DocumentPlugin {
                     .run_if(resource_exists::<Document>),
             )
             .add_systems(
-                EguiPrimaryContextPass,
-                document_panel.run_if(resource_exists::<Document>),
+                Update,
+                answer_asks
+                    .before(rebuild_when_settled)
+                    .run_if(resource_exists::<Document>),
             );
     }
 }
@@ -1012,6 +995,7 @@ fn watch_file(mut doc: ResMut<Document>) {
     if doc.text == doc.on_disk {
         // Clean buffer: follow the file, and rebuild on the next tick.
         doc.text = current.clone();
+        doc.text_rev += 1;
         doc.on_disk = current;
         doc.conflict = false;
         doc.edited_at = Some(Instant::now() - SETTLE);
@@ -1022,9 +1006,9 @@ fn watch_file(mut doc: ResMut<Document>) {
     }
 }
 
-/// World → text: selecting an entity (a click in the viewport while Gen's
-/// inspector is showing) selects the section it belongs to and brings that
-/// section's heading into view in the editor.
+/// World → text: selecting an entity (a click in the viewport) selects the
+/// section it belongs to and brings that section's heading into view in the
+/// editor.
 fn follow_selection(
     selection: Option<Res<InspectorSelection>>,
     names: Query<&Name>,
@@ -1083,303 +1067,215 @@ fn fly_camera(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn document_panel(
-    mut contexts: EguiContexts,
+/// What the page's document panel asks: the editor's edits and caret, and
+/// the pane's own controls. The page's messages become these; nothing here
+/// knows the page.
+#[derive(Message, Debug, Clone, PartialEq)]
+pub enum DocumentAsk {
+    /// The editor's whole text, after an edit.
+    Edit(String),
+    /// The editor's caret moved to `line` (from 0).
+    Caret(usize),
+    /// An outline row: select its section and fly there, with `line`
+    /// brought into view.
+    Go { section: usize, line: Option<usize> },
+    /// A thing on the place card: select its entity, and fly to it.
+    Pick(String),
+    /// Have the model build section `n`'s place again.
+    Reauthor(usize),
+    /// The pane's Author toggle.
+    Author(bool),
+    /// The pane's Follow cursor toggle.
+    Follow(bool),
+}
+
+fn answer_asks(
+    mut asks: MessageReader<DocumentAsk>,
     mut doc: ResMut<Document>,
     mut flight: ResMut<Flight>,
     registry: Res<NameRegistry>,
-    selection: Option<ResMut<InspectorSelection>>,
-    inspector: Option<ResMut<InspectorState>>,
+    mut selection: Option<ResMut<InspectorSelection>>,
     transforms: Query<&GlobalTransform>,
 ) {
-    let Ok(ctx) = contexts.ctx_mut() else {
-        return;
-    };
-    if ctx.input(|input| input.key_pressed(egui::Key::F3)) {
-        doc.open = !doc.open;
-    }
-    if !doc.open {
-        egui::Area::new(egui::Id::new("document_reopen"))
-            .anchor(egui::Align2::LEFT_BOTTOM, [14.0, -14.0])
-            .show(ctx, |ui| {
-                if ui.button("Document (F3)").clicked() {
-                    doc.open = true;
-                }
-            });
-        return;
-    }
-
-    let doc = &mut *doc;
-    // What the pane asked for this frame, applied once it is drawn.
-    let mut go_to: Option<(usize, Option<usize>)> = None;
-    let mut again = None;
-    let mut picked: Option<String> = None;
-    // bevy_egui hands systems a Context, and egui 0.34 deprecates top-level
-    // panels in favour of show_inside(ui); Gen's panels do the same.
-    #[allow(deprecated)]
-    egui::Panel::left("localgpt_document")
-        .default_size(420.0)
-        .min_size(280.0)
-        .resizable(true)
-        .show(ctx, |ui| {
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(doc.file_name()).strong().size(15.0));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .small_button("Hide")
-                        .on_hover_text("Hide this pane (F3)")
-                        .clicked()
-                    {
-                        doc.open = false;
-                    }
-                });
-            });
-            let status = if doc.edited_at.is_some() {
-                "Editing…".to_string()
-            } else {
-                doc.status.clone()
-            };
-            let color = if doc.conflict {
-                egui::Color32::from_rgb(214, 120, 60)
-            } else {
-                ui.visuals().weak_text_color()
-            };
-            ui.label(egui::RichText::new(status).small().color(color));
-            if let Some(summary) = doc.authoring_summary() {
-                let mut enabled = doc.author_enabled;
-                ui.horizontal(|ui| {
-                    if ui
-                        .checkbox(&mut enabled, "Author")
-                        .on_hover_text(
-                            "Have the model build each section's place. Off, sections keep \
-                             what they have and new text gets the draft.",
-                        )
-                        .changed()
-                    {
-                        doc.set_authoring(enabled);
-                    }
-                    ui.label(
-                        egui::RichText::new(summary)
-                            .small()
-                            .color(ui.visuals().weak_text_color()),
-                    );
-                });
-                if let Some(error) = &doc.author_error {
-                    ui.label(
-                        egui::RichText::new(error)
-                            .small()
-                            .color(egui::Color32::from_rgb(214, 120, 60)),
-                    );
+    for ask in asks.read() {
+        match ask {
+            DocumentAsk::Edit(text) => {
+                if *text != doc.text {
+                    doc.text = text.clone();
+                    doc.edited_at = Some(Instant::now());
                 }
             }
-            ui.separator();
-
-            ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("Outline").small().strong());
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.checkbox(
-                        &mut doc.follow_cursor,
-                        egui::RichText::new("Follow cursor").small(),
-                    )
-                    .on_hover_text("Fly to a section's place when the cursor moves into it");
-                });
-            });
-            egui::ScrollArea::vertical()
-                .id_salt("document_outline")
-                .max_height(ui.available_height() * 0.25)
-                .auto_shrink([false, true])
-                .show(ui, |ui| {
-                    for item in &doc.outline {
-                        let selected = item.section.is_some() && item.section == doc.selected;
-                        let indent = 12.0 * f32::from(item.level.saturating_sub(1));
-                        let mut text = egui::RichText::new(&item.text);
-                        text = match item.level {
-                            1 => text.strong(),
-                            2 => text,
-                            _ => text.small(),
-                        };
-                        // The tier sits on the section's own row, not its
-                        // sub-headings': it is one place either way.
-                        let tier = item
-                            .section
-                            .filter(|_| item.level == 2)
-                            .and_then(|section| doc.tiers.get(section).copied());
-                        ui.horizontal(|ui| {
-                            ui.add_space(indent);
-                            let response = ui.selectable_label(selected, text);
-                            if response.clicked()
-                                && let Some(section) = item.section
-                            {
-                                go_to = Some((section, item.line));
-                            }
-                            let Some(tier) = tier else {
-                                return;
-                            };
-                            // A fence is the writer's own place, and one
-                            // already authoring has a request out.
-                            if doc.authoring.is_some()
-                                && !matches!(tier, Tier::Fence | Tier::Authoring)
-                            {
-                                response.context_menu(|ui| {
-                                    if ui.button("Author this place again").clicked() {
-                                        again = item.section;
-                                    }
-                                });
-                            }
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    let color = match tier {
-                                        Tier::Failed => egui::Color32::from_rgb(214, 120, 60),
-                                        _ => ui.visuals().weak_text_color(),
-                                    };
-                                    ui.label(
-                                        egui::RichText::new(tier.label()).small().color(color),
-                                    );
-                                },
-                            );
-                        });
-                    }
-                });
-            ui.separator();
-
-            if let Some(section) = doc.selected {
-                place_card(ui, doc, section, &mut picked);
-                ui.separator();
-            }
-
-            egui::ScrollArea::vertical()
-                .id_salt("document_editor")
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    let output = egui::TextEdit::multiline(&mut doc.text)
-                        .id(egui::Id::new("document_text"))
-                        .font(egui::TextStyle::Monospace)
-                        .desired_width(f32::INFINITY)
-                        .desired_rows(24)
-                        .lock_focus(true)
-                        .show(ui);
-                    if output.response.changed() {
-                        doc.edited_at = Some(Instant::now());
-                    }
-                    // An outline click, or a thing picked in the world,
-                    // brings the section's heading into view. The
-                    // editor does not take focus: keys would type into the
-                    // document instead of moving through the world.
-                    if let Some(line) = doc.scroll_to_line.take() {
-                        let cursor = egui::text::CCursor::new(char_of_line(&doc.text, line));
-                        let offset = output.galley_pos.to_vec2()
-                            - egui::vec2(output.galley.rect.left(), 0.0);
-                        let rect = output.galley.pos_from_cursor(cursor).translate(offset);
-                        ui.scroll_to_rect(rect, Some(egui::Align::TOP));
-                    }
-                    // Text → world: the cursor moving into another section
-                    // selects it, and flies there unless following is off.
-                    if output.response.has_focus()
-                        && let Some(range) = output.cursor_range
-                        && doc.caret != Some(range.primary.index)
+            // Text → world: the cursor moving into another section selects
+            // it, and flies there unless following is off.
+            DocumentAsk::Caret(line) => {
+                let section = section_at_line(&doc.outline, *line);
+                if section != doc.caret_section {
+                    doc.caret_section = section;
+                    if let Some(section) = section
+                        && doc.follow_cursor
+                        && doc.selected != Some(section)
                     {
-                        doc.caret = Some(range.primary.index);
-                        let line = line_of_char(&doc.text, range.primary.index);
-                        let section = section_at_line(&doc.outline, line);
-                        if section != doc.caret_section {
-                            doc.caret_section = section;
-                            if let Some(section) = section
-                                && doc.follow_cursor
-                                && doc.selected != Some(section)
-                            {
-                                go_to = Some((section, None));
-                            }
-                        }
+                        doc.go_to(section, &mut flight);
                     }
-                });
-        });
-
-    if let Some((section, line)) = go_to {
-        doc.go_to(section, &mut flight);
-        doc.scroll_to_line = line;
-    }
-    if let Some(section) = again {
-        doc.reauthor(section);
-    }
-    // World ← card: select the thing in Gen's inspector, which shows what it
-    // is in the world format, and fly to it.
-    if let Some(name) = picked
-        && let Some(entity) = registry.get_entity(&name)
-    {
-        if let Some(mut selection) = selection {
-            selection.entity = Some(entity);
-        }
-        if let Some(mut inspector) = inspector
-            && inspector.mode == InspectorMode::Hidden
-        {
-            inspector.mode = InspectorMode::Full;
-        }
-        if let Ok(global) = transforms.get(entity) {
-            let target = global.translation();
-            // From the side the section's tour stop looks from, closer in.
-            let away = section_of(&name)
-                .and_then(|section| doc.stops.get(section))
-                .and_then(|stop| (stop.position - stop.look_at).try_normalize())
-                .unwrap_or(Vec3::new(0.0, 0.45, 1.0).normalize());
-            *flight = Flight {
-                target: Some(Stop {
-                    position: target + away * THING_VIEW_DISTANCE,
-                    look_at: target,
-                }),
-                ..Default::default()
-            };
+                }
+            }
+            DocumentAsk::Go { section, line } => {
+                doc.go_to(*section, &mut flight);
+                doc.scroll_to_line = *line;
+            }
+            // World ← card: select the thing, which the viewport highlights,
+            // and fly to it.
+            DocumentAsk::Pick(name) => {
+                let Some(entity) = registry.get_entity(name) else {
+                    continue;
+                };
+                if let Some(selection) = selection.as_mut() {
+                    selection.entity = Some(entity);
+                }
+                if let Ok(global) = transforms.get(entity) {
+                    let target = global.translation();
+                    // From the side the section's tour stop looks from, closer in.
+                    let away = section_of(name)
+                        .and_then(|section| doc.stops.get(section))
+                        .and_then(|stop| (stop.position - stop.look_at).try_normalize())
+                        .unwrap_or(Vec3::new(0.0, 0.45, 1.0).normalize());
+                    *flight = Flight {
+                        target: Some(Stop {
+                            position: target + away * THING_VIEW_DISTANCE,
+                            look_at: target,
+                        }),
+                        ..Default::default()
+                    };
+                }
+            }
+            DocumentAsk::Reauthor(section) => doc.reauthor(*section),
+            DocumentAsk::Author(enabled) => doc.set_authoring(*enabled),
+            DocumentAsk::Follow(enabled) => doc.follow_cursor = *enabled,
         }
     }
 }
 
+/// What the page's document panel shows, as one snapshot.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct DocumentView {
+    pub name: String,
+    pub path: String,
+    /// "Editing…" while the text settles, else the newest thing that
+    /// happened to it.
+    pub status: String,
+    /// The file changed on disk under an edited buffer, which is not saved.
+    pub conflict: bool,
+    /// What the model is doing, when one authors the places.
+    pub authoring: Option<String>,
+    pub author_enabled: bool,
+    pub author_error: Option<String>,
+    pub follow_cursor: bool,
+    pub outline: Vec<OutlineRow>,
+    pub selected: Option<usize>,
+    /// The selected section's place.
+    pub card: Option<PlaceCard>,
+}
+
+/// An outline row as the panel draws it.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct OutlineRow {
+    pub level: u8,
+    pub text: String,
+    pub section: Option<usize>,
+    pub line: Option<usize>,
+    /// Where the section's place came from — on the section's own row, not
+    /// its sub-headings': it is one place either way.
+    pub tier: Option<&'static str>,
+    pub failed: bool,
+    /// The model can be asked for this place again: not a fence (the
+    /// writer's own), and not one with a request already out.
+    pub reauthor: bool,
+}
+
 /// The selected section's place: where it came from, the model's line about
-/// it, and what it is made of. Each thing selects its entity in the world.
-fn place_card(ui: &mut egui::Ui, doc: &Document, section: usize, picked: &mut Option<String>) {
-    let weak = ui.visuals().weak_text_color();
-    ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(doc.heading(section).unwrap_or("Section")).strong());
-        if let Some(tier) = doc.tiers.get(section) {
-            ui.label(egui::RichText::new(tier.label()).small().color(weak));
-        }
-    });
-    if let Some(Some(description)) = doc.descriptions.get(section) {
-        ui.label(egui::RichText::new(description).small().italics());
-    }
-    let Some(place) = doc.places.get(section).filter(|place| !place.is_empty()) else {
-        return;
-    };
-    let things = things(place.iter().map(String::as_str));
-    ui.label(
-        egui::RichText::new(format!(
-            "{} entit{} — click one to select it (F1 hides the inspector)",
-            place.len(),
-            if place.len() == 1 { "y" } else { "ies" }
-        ))
-        .small()
-        .color(weak),
-    );
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
-        for thing in things.iter().take(MAX_THINGS) {
-            let text = match thing.count {
-                1 => thing.label.clone(),
-                n => format!("{} ×{n}", thing.label),
-            };
-            if ui.small_button(text).on_hover_text(&thing.first).clicked() {
-                *picked = Some(thing.first.clone());
+/// it, and what it is made of.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct PlaceCard {
+    pub section: usize,
+    pub heading: Option<String>,
+    pub tier: Option<&'static str>,
+    pub description: Option<String>,
+    /// How many entities the place has.
+    pub entities: usize,
+    /// Its kinds of thing, the first [`MAX_THINGS`].
+    pub things: Vec<Thing>,
+    /// The kinds past those.
+    pub more: usize,
+}
+
+impl Document {
+    /// The panel's snapshot.
+    pub fn view(&self) -> DocumentView {
+        let card = self.selected.map(|section| {
+            let place = self
+                .places
+                .get(section)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let things = things(place.iter().map(String::as_str));
+            PlaceCard {
+                section,
+                heading: self.heading(section).map(str::to_string),
+                tier: self.tiers.get(section).map(|tier| tier.label()),
+                description: self.descriptions.get(section).cloned().flatten(),
+                entities: place.len(),
+                more: things.len().saturating_sub(MAX_THINGS),
+                things: things.into_iter().take(MAX_THINGS).collect(),
             }
+        });
+        DocumentView {
+            name: self.file_name(),
+            path: self.path.display().to_string(),
+            status: if self.edited_at.is_some() {
+                "Editing…".to_string()
+            } else {
+                self.status.clone()
+            },
+            conflict: self.conflict,
+            authoring: self.authoring_summary(),
+            author_enabled: self.author_enabled,
+            author_error: self.author_error.clone(),
+            follow_cursor: self.follow_cursor,
+            outline: self
+                .outline
+                .iter()
+                .map(|item| {
+                    let tier = item
+                        .section
+                        .filter(|_| item.level == 2)
+                        .and_then(|section| self.tiers.get(section).copied());
+                    OutlineRow {
+                        level: item.level,
+                        text: item.text.clone(),
+                        section: item.section,
+                        line: item.line,
+                        tier: tier.map(Tier::label),
+                        failed: tier == Some(Tier::Failed),
+                        reauthor: self.authoring.is_some()
+                            && tier.is_some_and(|t| !matches!(t, Tier::Fence | Tier::Authoring)),
+                    }
+                })
+                .collect(),
+            selected: self.selected,
+            card,
         }
-        if things.len() > MAX_THINGS {
-            ui.label(
-                egui::RichText::new(format!("+{} more", things.len() - MAX_THINGS))
-                    .small()
-                    .color(weak),
-            );
-        }
-    });
+    }
+
+    /// The buffer, and how many times it was replaced from here (opened, or
+    /// reloaded from the file) rather than typed into.
+    pub fn text(&self) -> (&str, u64) {
+        (&self.text, self.text_rev)
+    }
+
+    /// The line to bring into view, once.
+    pub fn take_scroll(&mut self) -> Option<usize> {
+        self.scroll_to_line.take()
+    }
 }
 
 #[cfg(test)]
@@ -1438,25 +1334,6 @@ mod tests {
         assert_eq!(section_at_line(&items, 8), Some(0), "under a sub-heading");
         assert_eq!(section_at_line(&items, 10), Some(1));
         assert_eq!(section_at_line(&items, 99), Some(1));
-    }
-
-    #[test]
-    fn cursor_offsets_count_characters_not_bytes() {
-        let text = "# 你好\n\n## 海\n\n盐\n";
-        // egui's cursor after "盐" is character 13; its byte offset is 21.
-        assert_eq!(line_of_char(text, 13), 4);
-        assert_eq!(line_of_char(text, 11), 3, "the blank line before it");
-        assert_eq!(line_of_char(text, 0), 0);
-        assert_eq!(
-            char_of_line(text, 2),
-            6,
-            "“## 海” starts after 6 characters"
-        );
-        assert_eq!(char_of_line(text, 0), 0);
-        assert_eq!(char_of_line(text, 99), text.chars().count());
-        for line in 0..5 {
-            assert_eq!(line_of_char(text, char_of_line(text, line)), line);
-        }
     }
 
     #[test]
@@ -1590,6 +1467,84 @@ mod tests {
         let doc = app.world().resource::<Document>();
         assert_eq!(doc.selected, Some(1));
         assert_eq!(doc.scroll_to_line, None);
+    }
+
+    /// The page's side of the editor: what it asks lands in the document,
+    /// and what it shows comes back as one snapshot.
+    #[test]
+    fn the_page_edits_the_text_and_moves_through_its_places() {
+        let text = "# Trip\n\n## Harbor\n\nBoats.\n\n## Lighthouse\n\nA beam.\n";
+        let md = std::env::temp_dir().join("localgpt-app-asks/trip.md");
+        let (doc, world) = compile(text, &md);
+        let document = Document::new(
+            md.clone(),
+            md.with_extension("world"),
+            text.to_string(),
+            &doc,
+            &world,
+        );
+        let mut app = App::new();
+        app.insert_resource(document)
+            .init_resource::<Flight>()
+            .init_resource::<NameRegistry>()
+            .add_message::<DocumentAsk>()
+            .add_systems(Update, answer_asks);
+        let ask = |app: &mut App, ask: DocumentAsk| {
+            app.world_mut().write_message(ask);
+            app.update();
+        };
+
+        // An edit is the whole text; it waits to settle, and its own echo
+        // (the same text again) is no edit.
+        let edited = format!("{text}\nGulls.\n");
+        ask(&mut app, DocumentAsk::Edit(edited.clone()));
+        let doc = app.world().resource::<Document>();
+        assert_eq!(
+            doc.text(),
+            (edited.as_str(), 1),
+            "typed in, not replaced from here"
+        );
+        assert!(doc.edited_at.is_some());
+        app.world_mut().resource_mut::<Document>().edited_at = None;
+        ask(&mut app, DocumentAsk::Edit(edited));
+        assert!(app.world().resource::<Document>().edited_at.is_none());
+
+        // The caret moving into a section selects it, when following.
+        ask(&mut app, DocumentAsk::Caret(8));
+        assert_eq!(app.world().resource::<Document>().selected, Some(1));
+        ask(&mut app, DocumentAsk::Follow(false));
+        ask(&mut app, DocumentAsk::Caret(2));
+        assert_eq!(
+            app.world().resource::<Document>().selected,
+            Some(1),
+            "not following: the place stays"
+        );
+
+        // An outline click selects its section and brings its line into view.
+        ask(
+            &mut app,
+            DocumentAsk::Go {
+                section: 0,
+                line: Some(2),
+            },
+        );
+        let mut doc = app.world_mut().resource_mut::<Document>();
+        assert_eq!(doc.take_scroll(), Some(2));
+        assert_eq!(doc.take_scroll(), None, "once");
+        let view = doc.view();
+        assert_eq!(view.selected, Some(0));
+        assert_eq!(view.card.as_ref().map(|c| c.section), Some(0));
+        assert!(!view.follow_cursor);
+        let rows: Vec<(u8, &str)> = view
+            .outline
+            .iter()
+            .map(|r| (r.level, r.text.as_str()))
+            .collect();
+        assert_eq!(rows, [(1, "Trip"), (2, "Harbor"), (2, "Lighthouse")]);
+        assert!(
+            view.outline[1].tier.is_some() && view.outline[0].tier.is_none(),
+            "a tier on a section's own row only"
+        );
     }
 
     #[test]

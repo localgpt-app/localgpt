@@ -56,6 +56,13 @@ fi
 FEATURE_FLAG=""
 [ -z "$APP_FEATURES" ] || FEATURE_FLAG="--features=$APP_FEATURES"
 
+# The interface: the page the release binary carries inside it
+# (crates/app/ui), built first so the embed finds it. A debug build reads it
+# from disk, so it is built for one too.
+echo "==> the interface (crates/app/ui)"
+command -v npm >/dev/null || { echo "npm not found: the interface needs node 22" >&2; exit 1; }
+(cd "$ROOT/crates/app/ui" && npm ci --no-audit --no-fund && npm run build)
+
 echo "==> cargo build ($PROFILE${APP_FEATURES:+, features: $APP_FEATURES})"
 cd "$ROOT"
 if [ "$PROFILE" = release ]; then

@@ -9,7 +9,7 @@
 
 use bevy::prelude::*;
 
-use super::{InspectorMode, InspectorSelection, InspectorState};
+use super::InspectorSelection;
 
 /// The material's own emissive, kept while the highlight is on it.
 #[derive(Component)]
@@ -31,26 +31,11 @@ const HIGHLIGHT_EMISSIVE: LinearRgba = LinearRgba {
 /// System that manages emissive highlight on the selected entities.
 pub fn highlight_selected(
     mut commands: Commands,
-    state: Res<InspectorState>,
     selection: Res<InspectorSelection>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     material_handles: Query<&MeshMaterial3d<StandardMaterial>>,
     mut original_emissives: Query<(Entity, &mut OriginalEmissive)>,
 ) {
-    // If inspector is hidden, clear all highlights
-    if state.mode == InspectorMode::Hidden {
-        for (entity, original) in original_emissives.iter() {
-            restore_emissive(
-                &mut commands,
-                entity,
-                original,
-                &mut materials,
-                &material_handles,
-            );
-        }
-        return;
-    }
-
     // Take the glow off whatever left the selection.
     for (entity, original) in original_emissives.iter() {
         if !selection.contains(entity) {

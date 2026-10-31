@@ -2,13 +2,11 @@
 //!
 //! These modules implement signs, HUD, labels, tooltips, and notifications.
 
-pub mod focus;
 pub mod hud;
 pub mod label;
 pub mod notification;
 pub mod sign;
 pub mod tooltip;
-pub mod widgets;
 
 pub use hud::*;
 pub use label::*;

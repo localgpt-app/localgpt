@@ -1,26 +1,19 @@
-//! World Inspector Panel — egui overlay for inspecting 100% of world state.
+//! The inspector's state: what is selected, the edits a panel asks for,
+//! where the camera should fly, and the WebSocket protocol remote
+//! inspectors speak (SwiftUI on iPad and macOS, Compose on Android).
 //!
-//! F1 cycles: Hidden → OutlinerOnly → Full → Hidden.
-//! Outliner (left) shows the entity tree. Detail (right) shows all components.
-//! World Info (bottom) shows global state.
+//! Gen draws no panels. The desktop app's interface is a web page over the
+//! viewport (`crates/app/ui`), and it reads and writes the same resources a
+//! click in the viewport or a remote inspector does: [`InspectorSelection`],
+//! [`PanelIntents`], [`PendingFocusEntity`].
 
-pub mod detail;
-pub mod outliner;
-#[cfg(feature = "feathers")]
-pub mod outliner_scene;
 pub mod protocol;
 pub mod selection;
-#[cfg(feature = "feathers")]
-pub mod world_bar;
-pub mod world_info;
 pub mod ws_server;
 
 use bevy::ecs::system::SystemParam;
-use bevy::picking::hover::HoverMap;
-use bevy::picking::pointer::PointerId;
 use bevy::picking::prelude::*;
 use bevy::prelude::*;
-use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
 
 use localgpt_world_types as wt;
 
@@ -32,21 +25,6 @@ use crate::gen3d::registry::*;
 // ---------------------------------------------------------------------------
 // Resources
 // ---------------------------------------------------------------------------
-
-/// Inspector visibility mode.
-#[derive(Default, PartialEq, Eq, Clone, Copy, Debug)]
-pub enum InspectorMode {
-    #[default]
-    Hidden,
-    OutlinerOnly,
-    Full,
-}
-
-/// Current inspector state.
-#[derive(Resource, Default)]
-pub struct InspectorState {
-    pub mode: InspectorMode,
-}
 
 /// What the inspector and the canvas have selected: a primary entity, and
 /// any others added to it with shift-click. Gestures and keys act on all
@@ -111,61 +89,17 @@ impl InspectorSelection {
     }
 }
 
-/// Edits the panels ask for — field patches, reparenting, bookmarks —
+/// Edits a panel asks for — field patches, scene-wide patches, undo —
 /// drained into the live canvas's intent stream by `canvas_edit`. Without
-/// a live world nothing drains them, and the panels only write when one is
+/// a live world nothing drains them, and a panel only writes when one is
 /// open.
 #[derive(Resource, Default)]
 pub struct PanelIntents(pub Vec<crate::gen3d::canvas_edit::PersonIntent>);
-
-/// Where the panels' widgets are this frame, by name, in window points
-/// (`[x, y, w, h]`) — rows of the outliner, its menu's items, the detail
-/// panel's fields and combos and their open items. For a driver with no
-/// eyes: the live API reports them with its synthetic-input seam
-/// (`GET /widgets`). Cleared and refilled each frame the panels draw.
-#[derive(Resource, Default)]
-pub struct PanelRects(pub std::collections::HashMap<String, [f32; 4]>);
-
-impl PanelRects {
-    pub fn note(&mut self, name: impl Into<String>, response: &bevy_egui::egui::Response) {
-        self.note_rect(name, response.rect);
-    }
-
-    pub fn note_rect(&mut self, name: impl Into<String>, rect: bevy_egui::egui::Rect) {
-        self.0.insert(
-            name.into(),
-            [rect.min.x, rect.min.y, rect.width(), rect.height()],
-        );
-    }
-}
 
 /// When set, the camera flies to this pose: a bookmark, or a shot.
 #[derive(Resource, Default)]
 pub struct PendingCameraPose {
     pub pose: Option<(Vec3, Vec3)>,
-}
-
-/// Panels drawn outside the inspector that own the pointer too — the live
-/// review bar — as `[x, y, w, h]` in window points. The inspector's hover
-/// test reads them: egui's own `is_pointer_over_egui` does not count the
-/// legacy context panels this app draws, so without the rectangles a
-/// click on a panel reached the scene behind it.
-#[derive(Resource, Default)]
-pub struct OtherPanels(pub Vec<[f32; 4]>);
-
-/// Marker resource: present when the mouse is over an inspector panel.
-/// Camera systems should check `not(resource_exists::<UiHovered>)`.
-#[derive(Resource)]
-pub struct UiHovered;
-
-/// A panel's rectangle by name, whichever stack draws it: egui's
-/// ([`PanelRects`]) or `bevy_ui`'s (the widget seam).
-pub fn panel_rect(
-    name: &str,
-    egui: &PanelRects,
-    seam: &crate::ui::widgets::UiWidgetRects,
-) -> Option<[f32; 4]> {
-    egui.0.get(name).or_else(|| seam.0.get(name)).copied()
 }
 
 /// When set, the camera system should fly to focus on this entity's position.
@@ -198,10 +132,10 @@ impl Default for WsBridgeState {
 // SystemParam for component queries
 // ---------------------------------------------------------------------------
 
-/// The scene as the panels read it — and, while a field is being dragged,
-/// write it, so the person sees the value before the document takes it.
+/// The scene as an inspector reads it: what [`build_scene_tree`],
+/// [`build_entity_detail`] and [`build_world_info`] describe.
 #[derive(SystemParam)]
-pub(crate) struct InspectorQueries<'w, 's> {
+pub struct InspectorQueries<'w, 's> {
     pub gen_entities: Query<'w, 's, &'static GenEntity>,
     pub transforms: Query<'w, 's, &'static mut Transform>,
     pub globals: Query<'w, 's, &'static GlobalTransform>,
@@ -217,8 +151,6 @@ pub(crate) struct InspectorQueries<'w, 's> {
     pub visibility_q: Query<'w, 's, &'static mut Visibility>,
     pub children_q: Query<'w, 's, &'static Children>,
     pub parent_q: Query<'w, 's, &'static ChildOf>,
-    #[cfg_attr(feature = "feathers", allow(dead_code))] // the egui bar's bookmark camera
-    pub fly_cam: Query<'w, 's, Entity, With<crate::gen3d::plugin::FlyCam>>,
     pub behavior_state: Res<'w, BehaviorState>,
     pub audio_engine: Option<Res<'w, AudioEngine>>,
     pub current_world: Res<'w, CurrentWorld>,
@@ -242,286 +174,39 @@ impl Plugin for InspectorPlugin {
         if !app.is_plugin_added::<MeshPickingPlugin>() {
             app.add_plugins(MeshPickingPlugin);
         }
-        app.add_plugins(EguiPlugin::default())
-            // NOTE: do NOT enable enable_absorb_bevy_input_system — it clears
-            // ButtonInput<KeyCode> when egui has focus, killing WASD player controls.
-            // bevy_egui's default `picking` feature handles pointer blocking via PointerHits.
-            .init_resource::<InspectorState>()
-            .init_resource::<InspectorSelection>()
-            .init_resource::<outliner::OutlinerCache>()
+        app.init_resource::<InspectorSelection>()
             .init_resource::<WsBridgeState>()
             .init_resource::<PendingFocusEntity>()
             .init_resource::<PendingCameraPose>()
             .init_resource::<PanelIntents>()
-            .init_resource::<PanelRects>()
-            .init_resource::<OtherPanels>()
-            .init_resource::<detail::PanelEdit>()
-            .add_systems(Startup, inspector_from_env)
             .add_systems(
                 Update,
                 (
-                    inspector_toggle,
+                    deselect_on_escape,
                     selection::highlight_selected,
                     ws_bridge_system,
                     focus_camera_system,
                 )
                     .chain(),
             )
-            // The panels draw inside egui's pass, which bevy_egui runs in
-            // its own schedule (multi-pass mode, its default): a context
-            // panel drawn from `Update` finds no pass begun and panics.
-            .add_systems(EguiPrimaryContextPass, inspector_ui)
             // 3D viewport click-to-select via Bevy's built-in mesh picking
             .add_observer(on_mesh_clicked);
-        // The world bar and the outliner on Bevy's own widgets, in place of
-        // the egui ones.
-        #[cfg(feature = "feathers")]
-        app.add_plugins((
-            world_bar::WorldBarPlugin,
-            outliner_scene::OutlinerScenePlugin,
-        ));
     }
-}
-
-/// Run condition: true when mouse is NOT over an inspector panel.
-pub fn not_ui_hovered(hovered: Option<Res<UiHovered>>) -> bool {
-    hovered.is_none()
 }
 
 // ---------------------------------------------------------------------------
 // Systems
 // ---------------------------------------------------------------------------
 
-/// `LOCALGPT_INSPECTOR=outliner|full` opens the inspector at startup, for a
-/// canvas driven from outside — a smoke test over the live API, a demo.
-fn inspector_from_env(mut state: ResMut<InspectorState>) {
-    let mode = match std::env::var("LOCALGPT_INSPECTOR").as_deref() {
-        Ok("outliner") => InspectorMode::OutlinerOnly,
-        Ok("full") => InspectorMode::Full,
-        _ => return,
-    };
-    state.mode = mode;
-}
-
-/// F1 cycles through inspector modes. Escape deselects the current entity.
-fn inspector_toggle(
+/// Escape clears the selection — unless the live canvas is there, which
+/// takes Escape for itself (it ends a gesture, and leaves a shot).
+fn deselect_on_escape(
     keys: Res<ButtonInput<KeyCode>>,
-    mut state: ResMut<InspectorState>,
+    canvas: Option<Res<crate::gen3d::canvas_edit::CanvasGesture>>,
     mut selection: ResMut<InspectorSelection>,
 ) {
-    if keys.just_pressed(KeyCode::F1) {
-        state.mode = match state.mode {
-            InspectorMode::Hidden => InspectorMode::OutlinerOnly,
-            InspectorMode::OutlinerOnly => InspectorMode::Full,
-            InspectorMode::Full => InspectorMode::Hidden,
-        };
-    }
-
-    // Escape clears selection (only when inspector is visible)
-    if keys.just_pressed(KeyCode::Escape)
-        && state.mode != InspectorMode::Hidden
-        && !selection.is_empty()
-    {
+    if canvas.is_none() && keys.just_pressed(KeyCode::Escape) && !selection.is_empty() {
         selection.clear();
-    }
-}
-
-/// What the bar and the hover test read besides the panels' own state,
-/// bundled: a Bevy function system takes sixteen parameters at most.
-#[derive(SystemParam)]
-#[cfg_attr(feature = "feathers", allow(dead_code))] // the bar's inputs, when the bar is `world_bar.rs`
-pub(crate) struct ChromeInputs<'w, 's> {
-    /// herdr's pane, when herdr runs.
-    pub presence: Option<Res<'w, crate::gen3d::herdr::AgentPresence>>,
-    pub time: Res<'w, Time>,
-    /// What the pointer is over, for the `bevy_ui` chrome.
-    pub hover: Option<Res<'w, HoverMap>>,
-    pub chrome: Query<'w, 's, (), With<crate::ui::widgets::Widget>>,
-    pub parents: Query<'w, 's, &'static ChildOf>,
-}
-
-/// Main inspector UI system — draws all egui panels and updates UiHovered.
-///
-/// With a live world open (`--live`), the panels edit: the detail panel's
-/// fields, the outliner's drag-to-reparent and context menu, and the
-/// world bar's snap, review and bookmark controls all write intents that
-/// the canvas commits through the authority.
-#[allow(clippy::too_many_arguments)] // a Bevy system; the repo's convention
-#[cfg_attr(feature = "feathers", allow(unused))] // the bar's inputs go unused when it is `world_bar.rs`
-fn inspector_ui(
-    mut commands: Commands,
-    mut contexts: EguiContexts,
-    state: Res<InspectorState>,
-    mut selection: ResMut<InspectorSelection>,
-    registry: Res<NameRegistry>,
-    mut outliner_cache: ResMut<outliner::OutlinerCache>,
-    mut params: InspectorQueries,
-    mut live: Option<ResMut<crate::gen3d::live::Live>>,
-    mut settings: Option<ResMut<crate::gen3d::canvas_edit::CanvasSettings>>,
-    mut panel_intents: ResMut<PanelIntents>,
-    mut panel_edit: ResMut<detail::PanelEdit>,
-    mut pose: ResMut<PendingCameraPose>,
-    mut rects: ResMut<PanelRects>,
-    other_panels: Res<OtherPanels>,
-    extras: ChromeInputs,
-) {
-    if state.mode == InspectorMode::Hidden {
-        commands.remove_resource::<UiHovered>();
-        return;
-    }
-
-    let Ok(ctx) = contexts.ctx_mut() else {
-        return;
-    };
-    rects.0.clear();
-    // Where egui believes the pointer is, for a driver checking its hand.
-    if let Some(pointer) = ctx.pointer_latest_pos() {
-        rects
-            .0
-            .insert("egui.pointer".into(), [pointer.x, pointer.y, 0.0, 0.0]);
-    }
-    // The panels' rectangles this frame, for the hover test below.
-    let mut panels: Vec<egui::Rect> = Vec::new();
-
-    // --- World info bar (bottom) ---
-    // First, so it spans the window and the side panels take the height
-    // above it: drawn after them, egui laid it under the right panel, and
-    // its review checkbox, bookmarks and agent menu were unreachable. With
-    // the `feathers` feature the bar is `world_bar.rs`, on `bevy_ui`, and
-    // reports itself through the widget seam.
-    #[cfg(not(feature = "feathers"))]
-    if state.mode == InspectorMode::Full {
-        let camera = params
-            .fly_cam
-            .single()
-            .ok()
-            .and_then(|cam| params.transforms.get(cam).ok().copied());
-        let now = extras.time.elapsed_secs_f64();
-        let controls = live.as_deref_mut().map(|live| world_info::LiveControls {
-            live,
-            settings: settings.as_deref_mut(),
-            intents: &mut panel_intents.0,
-            camera,
-            pose: &mut pose,
-            presence: extras.presence.as_deref(),
-            rects: &mut rects,
-            now,
-        });
-        let rect = world_info::draw_world_info(
-            ctx,
-            &registry,
-            &params.behavior_state,
-            params.audio_engine.as_deref(),
-            &params.current_world,
-            controls,
-        );
-        rects.note_rect("panel.world_info", rect);
-        panels.push(rect);
-    }
-
-    // The feathers bar is `bevy_ui`, which egui draws over: an empty strip
-    // its height keeps the side panels off it (`world_bar::reserve_space`).
-    #[cfg(feature = "feathers")]
-    if state.mode == InspectorMode::Full {
-        panels.push(world_bar::reserve_space(ctx));
-    }
-
-    // --- Outliner (left panel) --- (`outliner_scene.rs` with `feathers`)
-    #[cfg(not(feature = "feathers"))]
-    {
-        let edit = live.as_deref().map(|live| outliner::OutlinerEdit {
-            intents: &mut panel_intents.0,
-            doc: live.doc(),
-            q: &params,
-            rects: &mut rects,
-        });
-        let rect = outliner::draw_outliner(
-            ctx,
-            &registry,
-            &mut selection,
-            &mut outliner_cache,
-            &params.gen_entities,
-            &params.visibility_q,
-            &params.children_q,
-            &params.parent_q,
-            edit,
-        );
-        // The panels themselves, named, so a test driver knows the free
-        // viewport (`GET /widgets`).
-        rects.note_rect("panel.outliner", rect);
-        panels.push(rect);
-    }
-
-    if state.mode == InspectorMode::Full {
-        // --- Detail panel (right) ---
-        {
-            let edit = live.as_deref().map(|live| detail::EditSurface {
-                doc: live.doc(),
-                intents: &mut panel_intents.0,
-                edit: &mut panel_edit,
-                status: live.status(),
-                rects: &mut rects,
-            });
-            let rect = detail::draw_detail(ctx, &mut selection, &registry, &mut params, edit);
-            rects.note_rect("panel.detail", rect);
-            panels.push(rect);
-        }
-    }
-
-    // --- Process pending visibility toggles from outliner ---
-    let pending: Vec<Entity> = std::mem::take(&mut outliner_cache.pending_visibility_toggles);
-    for entity in &pending {
-        if let Ok(vis) = params.visibility_q.get(*entity) {
-            let new_vis = if *vis == Visibility::Hidden {
-                Visibility::Inherited
-            } else {
-                Visibility::Hidden
-            };
-            commands.entity(*entity).insert(new_vis);
-        }
-    }
-    if !pending.is_empty() {
-        // Force tree rebuild to update visibility state
-        outliner_cache.last_signature = 0;
-    }
-
-    // --- Process pending focus request from outliner double-click ---
-    if let Some(focus_entity) = outliner_cache.pending_focus.take() {
-        commands.insert_resource(PendingFocusEntity {
-            target: Some(focus_entity),
-        });
-    }
-
-    // --- Update UiHovered resource ---
-    // egui's own answer misses the legacy context panels drawn here (it
-    // asks the modern root UI's free rect, which they don't shrink), so the
-    // panels' rectangles decide, and egui's answer covers its popups and
-    // windows.
-    let pointer = ctx.pointer_latest_pos();
-    let over_panel = pointer.is_some_and(|p| {
-        panels.iter().any(|rect| rect.contains(p))
-            || other_panels
-                .0
-                .iter()
-                .any(|[x, y, w, h]| p.x >= *x && p.x <= x + w && p.y >= *y && p.y <= y + h)
-    });
-    // The `bevy_ui` chrome too — the history rail, the feathers bar: a hit
-    // on a named node (`ui::widgets::Widget`) or on anything inside one.
-    let over_chrome = extras.hover.as_ref().is_some_and(|map| {
-        map.get(&PointerId::Mouse).is_some_and(|hits| {
-            hits.keys().any(|&hit| {
-                std::iter::successors(Some(hit), |&e| {
-                    extras.parents.get(e).ok().map(ChildOf::parent)
-                })
-                .take(16)
-                .any(|e| extras.chrome.contains(e))
-            })
-        })
-    });
-    if over_panel || over_chrome || ctx.is_pointer_over_egui() {
-        commands.insert_resource(UiHovered);
-    } else {
-        commands.remove_resource::<UiHovered>();
     }
 }
 
@@ -534,8 +219,8 @@ fn ws_bridge_system(
     bridge: Res<ws_server::InspectorWsBridge>,
     mut selection: ResMut<InspectorSelection>,
     registry: Res<NameRegistry>,
-    params: InspectorQueries,
-    mut outliner_cache: ResMut<outliner::OutlinerCache>,
+    mut params: InspectorQueries,
+    mut focus: ResMut<PendingFocusEntity>,
     mut ws_state: ResMut<WsBridgeState>,
     time: Res<Time>,
 ) {
@@ -577,13 +262,19 @@ fn ws_bridge_system(
                     let _ = bridge.tx.send(protocol::ServerMessage::SelectionCleared);
                 }
                 protocol::ClientMessage::ToggleVisibility { entity_id } => {
-                    if let Some(entity) = registry.get_entity_by_id(&wt::EntityId(entity_id)) {
-                        outliner_cache.pending_visibility_toggles.push(entity);
+                    if let Some(entity) = registry.get_entity_by_id(&wt::EntityId(entity_id))
+                        && let Ok(mut visibility) = params.visibility_q.get_mut(entity)
+                    {
+                        *visibility = if *visibility == Visibility::Hidden {
+                            Visibility::Inherited
+                        } else {
+                            Visibility::Hidden
+                        };
                     }
                 }
                 protocol::ClientMessage::FocusEntity { entity_id } => {
                     if let Some(entity) = registry.get_entity_by_id(&wt::EntityId(entity_id)) {
-                        outliner_cache.pending_focus = Some(entity);
+                        focus.target = Some(entity);
                     }
                 }
                 protocol::ClientMessage::RequestSceneSnapshot => {
@@ -675,8 +366,8 @@ fn ws_bridge_system(
     }
 }
 
-/// Build the scene tree for the WS protocol.
-fn build_scene_tree(
+/// Build the scene tree for the WS protocol (and the app's outliner).
+pub fn build_scene_tree(
     registry: &NameRegistry,
     params: &InspectorQueries,
 ) -> Vec<protocol::TreeEntity> {
@@ -723,8 +414,8 @@ fn build_scene_tree(
     entities
 }
 
-/// Build entity detail data for the WS protocol.
-fn build_entity_detail(
+/// Build entity detail data for the WS protocol (and the app's detail panel).
+pub fn build_entity_detail(
     entity: Entity,
     registry: &NameRegistry,
     params: &InspectorQueries,
@@ -897,7 +588,10 @@ fn build_entity_detail(
 }
 
 /// Build world info data for the WS protocol.
-fn build_world_info(registry: &NameRegistry, params: &InspectorQueries) -> protocol::WorldInfoData {
+pub fn build_world_info(
+    registry: &NameRegistry,
+    params: &InspectorQueries,
+) -> protocol::WorldInfoData {
     protocol::WorldInfoData {
         name: params.current_world.name.clone(),
         entity_count: registry.len(),
@@ -960,20 +654,18 @@ fn focus_camera_system(
 /// Observer: when a mesh is clicked in the 3D viewport, select the GenEntity.
 /// Walks up the parent chain to find the nearest GenEntity ancestor. A
 /// shift-click adds to the selection. The live canvas selects on its own
-/// (`canvas_edit`), so this stands down when it is there.
-#[allow(clippy::too_many_arguments)] // a Bevy observer; the repo's convention
+/// (`canvas_edit`), so this stands down when it is there. A click on a
+/// panel never gets here: the page takes the pointer everywhere but the
+/// viewport.
 fn on_mesh_clicked(
     on: On<Pointer<Click>>,
     gen_entities: Query<&GenEntity>,
     parent_q: Query<&ChildOf>,
-    state: Res<InspectorState>,
     keys: Res<ButtonInput<KeyCode>>,
     mut selection: ResMut<InspectorSelection>,
-    hovered: Option<Res<UiHovered>>,
     canvas: Option<Res<crate::gen3d::canvas_edit::CanvasGesture>>,
 ) {
-    // Only when inspector is visible and pointer is not over UI
-    if state.mode == InspectorMode::Hidden || hovered.is_some() || canvas.is_some() {
+    if canvas.is_some() {
         return;
     }
 

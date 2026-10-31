@@ -1,0 +1,22 @@
+/* The one palette: every colour the page uses. */
+@theme {
+  --color-panel: #0f1218;
+  --color-raised: #161b25;
+  --color-line: #232937;
+  --color-ink: #e6e9ef;
+  --color-muted: #8a93a6;
+  --color-faint: #596173;
+  --color-accent: #7aa2ff;
+  --color-head: #ffd166;
+  --color-danger: #f7768e;
+  /* The timeline: one colour per kind of track, and the playhead. */
+  --color-shot: #7aa2ff;
+  --color-camera: #7dcfff;
+  --color-sound: #9ece6a;
+  --color-mod: #bb9af7;
+  --color-behavior: #e0af68;
+  --color-ambience: #73daca;
+  --color-playhead: #ff9e64;
+  --font-sans: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+}

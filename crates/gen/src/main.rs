@@ -13,7 +13,6 @@ use localgpt_gen::agent_loop::{
     AgentNetHooksOpt, run_agent_loop, run_mcp_stdio_relay, streaming_chat,
 };
 use localgpt_gen::character_tools;
-use localgpt_gen::desktop::{ChatEvent, PanelChannels, PanelSettings};
 use localgpt_gen::gen3d;
 use localgpt_gen::mcp_server;
 
@@ -59,12 +58,6 @@ struct Cli {
     /// Auto-enabled when using claude-cli/* models.
     #[arg(long, global = true)]
     mcp_relay: bool,
-
-    /// Run as a desktop app: type prompts in a panel inside the window
-    /// instead of the terminal. Automatic when Gen isn't started from a
-    /// terminal (for example, from the macOS app bundle).
-    #[arg(long)]
-    desktop: bool,
 
     /// Host a collaborative session on the LAN (listen server + mDNS
     /// announcement). Others join as read-only viewers with --join.
@@ -258,36 +251,6 @@ fn main() -> Result<()> {
     #[cfg(feature = "local-llm")]
     localgpt_gen::local_llm::register();
 
-    // Desktop mode: the interactive app (or a --join viewer) without a
-    // terminal to type in, so prompts come from a panel in the window.
-    // Automatic when stdin isn't a terminal (a double-click, the macOS app
-    // bundle, or a viewer launched from the panel's Join); --desktop forces it.
-    let launched_from_terminal = std::io::stdin().is_terminal();
-    let desktop = cli.command.is_none() && (cli.desktop || !launched_from_terminal);
-    if cli.desktop && cli.command.is_some() {
-        anyhow::bail!("--desktop only applies to interactive mode (no subcommand)");
-    }
-
-    // Apps opened from Finder inherit launchd's minimal PATH, which hides CLI
-    // backends (claude, gemini, codex) installed with Homebrew, npm, or into
-    // ~/.local/bin. Adopt the login shell's PATH before anything spawns them.
-    // A failure is logged once logging is set up, below.
-    #[cfg(unix)]
-    let login_path_failed = desktop
-        && !launched_from_terminal
-        && match localgpt_gen::desktop::shell_env::login_shell_path() {
-            Some(login_path) => {
-                let current = std::env::var("PATH").unwrap_or_default();
-                let merged = localgpt_gen::desktop::shell_env::merge_paths(&current, &login_path);
-                // SAFETY: called at program start before any threads are spawned.
-                unsafe { std::env::set_var("PATH", merged) };
-                false
-            }
-            None => true,
-        };
-    #[cfg(not(unix))]
-    let login_path_failed = false;
-
     // Initialize logging before handing off to Bevy.
     // Use "warn" by default for cleaner interactive TUI, "debug" with --verbose.
     //
@@ -296,25 +259,12 @@ fn main() -> Result<()> {
     // the REPL — async warnings (Bevy render, Ollama, etc.) no longer clobber
     // the `You:` prompt mid-typing. Other subcommands (headless, mcp-server,
     // control) have no REPL to protect, so they log straight to stderr.
-    // Desktop mode has no terminal at all, so it logs to a file.
     let log_level = if cli.verbose { "debug" } else { "warn" };
     let mut repl_editor: Option<rustyline::DefaultEditor> = None;
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level));
 
-    if desktop {
-        match open_desktop_log() {
-            Some(file) => tracing_subscriber::fmt()
-                .with_env_filter(env_filter)
-                .with_ansi(false)
-                .with_writer(std::sync::Mutex::new(file))
-                .init(),
-            None => tracing_subscriber::fmt()
-                .with_env_filter(env_filter)
-                .with_writer(std::io::stderr)
-                .init(),
-        }
-    } else if cli.command.is_none() {
+    if cli.command.is_none() {
         let wired = rustyline::DefaultEditor::new()
             .ok()
             .and_then(|mut ed| ed.create_external_printer().ok().map(|p| (ed, p)));
@@ -336,13 +286,6 @@ fn main() -> Result<()> {
             .with_env_filter(env_filter)
             .with_writer(std::io::stderr)
             .init();
-    }
-
-    if login_path_failed {
-        tracing::warn!(
-            "Couldn't read your login shell's PATH; CLI backends installed outside the \
-             system PATH may not be found"
-        );
     }
 
     // Gen's configuration is built in memory from its own settings — no
@@ -399,7 +342,6 @@ fn main() -> Result<()> {
             workspace,
             None,
             None,
-            None,
             Some((entries, cli.replay_speed)),
             None,
         );
@@ -414,7 +356,6 @@ fn main() -> Result<()> {
             None,
             None,
             None,
-            None,
             Some((dir, cli.review)),
         );
     }
@@ -425,7 +366,7 @@ fn main() -> Result<()> {
         if cli.command.is_some() {
             anyhow::bail!("--join cannot be combined with a subcommand");
         }
-        return run_join_mode(&cli, desktop, &config);
+        return run_join_mode(&cli, &config);
     }
     #[cfg(feature = "multiplayer")]
     if cli.host && cli.command.is_some() {
@@ -614,13 +555,22 @@ fn main() -> Result<()> {
                     initial_world,
                     None,
                     None,
-                    None,
                 )
             }
         }
 
         None => {
-            // Interactive mode (default)
+            // Interactive mode (default). Gen alone takes its prompts from
+            // the terminal it was started in; the windowed app without one
+            // is LocalGPT.app (`localgpt-app`), whose interface is a page
+            // with the agents' own terminals in it. (`--live` and `--replay`
+            // have returned above: a canvas needs no prompt.)
+            if !std::io::stdin().is_terminal() {
+                anyhow::bail!(
+                    "localgpt-gen takes its prompts from a terminal; the windowed app is \
+                     localgpt-app (LocalGPT.app)"
+                );
+            }
             let initial_scene = cli
                 .scene
                 .as_ref()
@@ -634,21 +584,11 @@ fn main() -> Result<()> {
             let bridge_for_relay = bridge.clone();
             let relay_config = config.clone();
 
-            // The in-window prompt panel: open at startup in desktop mode,
-            // one F2 away otherwise.
-            let (panel_channels, agent_channels) = localgpt_gen::desktop::create_chat_channels();
-            let panel = Some((
-                panel_channels,
-                PanelSettings {
-                    open: desktop,
-                    focus_input: desktop,
-                    settings_file: localgpt_gen::settings::settings_path(),
-                    collab: Some(settings.collab.clone()),
-                },
-            ));
+            // The agent's events have no panel to go to: the terminal is the
+            // conversation. Its prompts come from the REPL alone.
+            let (_no_panel, agent_channels) = localgpt_gen::desktop::create_chat_channels();
 
-            // The host plugin is always installed so a session can be started
-            // from the prompt panel at any time; `--host` just starts one
+            // The host plugin is always installed; `--host` starts a session
             // before the first frame. Until then it stays dormant.
             #[cfg(feature = "multiplayer")]
             let (host_options, agent_net): (
@@ -688,7 +628,6 @@ fn main() -> Result<()> {
             // Move the REPL editor into the agent thread — it was created up
             // front so its ExternalPrinter could be wired into tracing.
             let editor_for_agent = repl_editor.take();
-            let failure_sink = agent_channels.sink.clone();
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Builder::new_multi_thread()
                     .enable_all()
@@ -725,7 +664,7 @@ fn main() -> Result<()> {
                         editor_for_agent,
                         agent_net,
                         agent_channels,
-                        desktop,
+                        false,
                         tool_profile,
                     )
                     .await
@@ -733,13 +672,6 @@ fn main() -> Result<()> {
 
                 if let Err(e) = outcome {
                     tracing::error!("Gen agent loop error: {}", e);
-                    if desktop {
-                        // No terminal to print to: say what went wrong in the
-                        // panel and leave the window open to read it.
-                        eprintln!("Gen agent loop error: {e}");
-                        failure_sink.send(ChatEvent::Failed(format!("{e:#}")));
-                        return;
-                    }
                 }
 
                 // REPL exited (/quit, Ctrl+D, or error). The Bevy window is
@@ -761,7 +693,6 @@ fn main() -> Result<()> {
                 initial_scene,
                 initial_world,
                 host_options,
-                panel,
             );
             #[cfg(not(feature = "multiplayer"))]
             let result = run_bevy_app(
@@ -769,7 +700,6 @@ fn main() -> Result<()> {
                 workspace,
                 initial_scene,
                 initial_world,
-                panel,
                 None,
                 None,
             );
@@ -781,17 +711,6 @@ fn main() -> Result<()> {
 
             result
         }
-    }
-}
-
-/// The prompt panel's channels and startup settings, when the app has one.
-type PanelSetup = Option<(PanelChannels, PanelSettings)>;
-
-fn add_prompt_panel(app: &mut bevy::prelude::App, panel: PanelSetup) {
-    if let Some((channels, settings)) = panel {
-        app.add_plugins(localgpt_gen::desktop::PromptPanelPlugin::new(
-            channels, settings,
-        ));
     }
 }
 
@@ -833,7 +752,6 @@ fn run_bevy_app(
     workspace: std::path::PathBuf,
     initial_scene: Option<PathBuf>,
     initial_world: Option<String>,
-    panel: PanelSetup,
     replay: Option<(
         std::collections::VecDeque<localgpt_world_sync::OpLogEntry>,
         f32,
@@ -873,7 +791,6 @@ fn run_bevy_app(
     if let Some((dir, review)) = live {
         gen3d::live::setup_live(&mut app, &dir, review)?;
     }
-    add_prompt_panel(&mut app, panel);
 
     app.run();
 
@@ -889,7 +806,6 @@ fn run_host_bevy_app(
     initial_scene: Option<PathBuf>,
     initial_world: Option<String>,
     options: localgpt_gen::net::host::NetHostOptions,
-    panel: PanelSetup,
 ) -> Result<()> {
     use bevy::prelude::*;
 
@@ -922,7 +838,6 @@ fn run_host_bevy_app(
     app.add_plugins(localgpt_gen::net::host::NetHostPlugin {
         options: std::sync::Mutex::new(Some(options)),
     });
-    add_prompt_panel(&mut app, panel);
 
     app.run();
 
@@ -936,7 +851,6 @@ fn run_ops_client_app(
     server_addr: std::net::SocketAddr,
     pin: Option<String>,
     prompt_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
-    panel_prompt_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
     workspace: std::path::PathBuf,
 ) -> Result<()> {
     use bevy::prelude::*;
@@ -974,13 +888,6 @@ fn run_ops_client_app(
             prompt_rx,
         })),
     });
-    if let Some(prompt_tx) = panel_prompt_tx {
-        app.add_plugins(localgpt_gen::desktop::ClientPanelPlugin::new(
-            prompt_tx,
-            server_addr,
-        ));
-    }
-
     app.run();
 
     Ok(())
@@ -1030,11 +937,11 @@ fn fetch_session_info(addr: &std::net::SocketAddr) -> Result<SessionInfoWire> {
     })
 }
 
-/// The session PIN from --pin, the panel's env hand-off, or an interactive
-/// prompt (three attempts isn't meaningful against a bearer secret — the
-/// host refuses and closes on a wrong one).
+/// The session PIN from --pin, the env hand-off, or an interactive prompt
+/// (three attempts isn't meaningful against a bearer secret — the host
+/// refuses and closes on a wrong one).
 #[cfg(feature = "multiplayer")]
-fn resolve_session_pin(pin_arg: Option<&str>, desktop: bool) -> Result<String> {
+fn resolve_session_pin(pin_arg: Option<&str>) -> Result<String> {
     if let Some(pin) = pin_arg {
         return Ok(localgpt_gen::net::normalize_pin(pin));
     }
@@ -1046,11 +953,6 @@ fn resolve_session_pin(pin_arg: Option<&str>, desktop: bool) -> Result<String> {
             return Ok(pin);
         }
     }
-    if desktop {
-        anyhow::bail!(
-            "This session needs a PIN. Join it from Gen's Collaborate panel, or pass --pin."
-        );
-    }
     let mut rl = rustyline::DefaultEditor::new()?;
     let pin = rl.readline("Session PIN (shown on the host's console): ")?;
     Ok(localgpt_gen::net::normalize_pin(&pin))
@@ -1059,7 +961,7 @@ fn resolve_session_pin(pin_arg: Option<&str>, desktop: bool) -> Result<String> {
 /// `--join` mode: resolve the host address (mDNS browse when unspecified),
 /// fetch session info, and run the ops client app.
 #[cfg(feature = "multiplayer")]
-fn run_join_mode(cli: &Cli, desktop: bool, config: &localgpt_core::config::Config) -> Result<()> {
+fn run_join_mode(cli: &Cli, config: &localgpt_core::config::Config) -> Result<()> {
     use std::net::SocketAddr;
 
     let addr: SocketAddr = match cli.join.clone().flatten() {
@@ -1094,7 +996,7 @@ fn run_join_mode(cli: &Cli, desktop: bool, config: &localgpt_core::config::Confi
         );
     }
     let pin = if info.secret_required {
-        Some(resolve_session_pin(cli.pin.as_deref(), desktop)?)
+        Some(resolve_session_pin(cli.pin.as_deref())?)
     } else {
         eprintln!("Joining '{}' (open session).", info.name);
         None
@@ -1102,9 +1004,6 @@ fn run_join_mode(cli: &Cli, desktop: bool, config: &localgpt_core::config::Confi
 
     let (prompt_tx, prompt_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     let workspace = config.workspace_path();
-    if desktop {
-        return run_ops_client_app(addr, pin, prompt_rx, Some(prompt_tx), workspace);
-    }
 
     // Prompt REPL on a background thread — lines flow to the ops client.
     std::thread::spawn(move || {
@@ -1129,19 +1028,7 @@ fn run_join_mode(cli: &Cli, desktop: bool, config: &localgpt_core::config::Confi
         }
     });
 
-    run_ops_client_app(addr, pin, prompt_rx, None, workspace)
-}
-
-/// The desktop-mode log (`<state dir>/logs/gen-desktop.log`, appended to),
-/// since there's no terminal to log to. `None` if it can't be opened.
-fn open_desktop_log() -> Option<std::fs::File> {
-    let dir = localgpt_core::paths::Paths::resolve().ok()?.logs_dir();
-    std::fs::create_dir_all(&dir).ok()?;
-    std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(dir.join("gen-desktop.log"))
-        .ok()
+    run_ops_client_app(addr, pin, prompt_rx, workspace)
 }
 
 /// Set up and run headless Bevy (no window) on the main thread.

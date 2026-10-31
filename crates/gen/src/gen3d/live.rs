@@ -11,11 +11,11 @@
 //! commit. The folder's `AGENTS.md` tells an agent all of this.
 //!
 //! The history is non-linear. The canvas can show any point in it (the
-//! rail, `POST /goto`), and a batch that names an earlier entry (`"at"`)
-//! starts a branch there while the head — `manifest.json`, main's tip —
-//! stays where it was. The canvas follows a commit when it continues what is
-//! on screen and otherwise only grows the rail, so an agent working on main
-//! never yanks a person off the point they chose.
+//! app's history panel, `POST /goto`), and a batch that names an earlier
+//! entry (`"at"`) starts a branch there while the head — `manifest.json`,
+//! main's tip — stays where it was. The canvas follows a commit when it
+//! continues what is on screen and otherwise only grows the history, so an
+//! agent working on main never yanks a person off the point they chose.
 
 use std::collections::{HashSet, VecDeque};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -33,9 +33,6 @@ use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, 
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use bevy::window::{CursorMoved, PrimaryWindow, WindowEvent};
-use bevy_egui::egui;
-#[cfg(not(feature = "feathers"))]
-use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
 use localgpt_world_agent::live::{self, LiveWorld};
 use localgpt_world_types as wt;
 use serde_json::{Value, json};
@@ -94,9 +91,9 @@ impl Reply {
     }
 }
 
-/// The API's own address, so the shot strip can open board pages in
-/// the person's browser (the token rides the query, which the API
-/// accepts — it already sits in `.live/endpoint.json`).
+/// The API's own address, so a panel can open board pages in the
+/// person's browser (the token rides the query, which the API accepts —
+/// it already sits in `.live/endpoint.json`).
 #[derive(Resource, Clone)]
 pub struct LiveEndpoint {
     pub url: String,
@@ -126,11 +123,11 @@ pub(crate) struct Live {
     /// Set whenever the history or the canvas's place in it changes, so the
     /// rail's snapshot is rebuilt once rather than every frame.
     history_dirty: bool,
-    /// Set whenever the scene applied ops, so the shot strip's thumbnails
-    /// re-render even when the shot list itself is unchanged (a prop moved
-    /// inside a frame). Flushed to [`super::shots::ThumbsDirty`] each frame.
+    /// Set whenever the scene applied ops, so the shot thumbnails re-render
+    /// even when the shot list itself is unchanged (a prop moved inside a
+    /// frame). Flushed to [`super::shots::ThumbsDirty`] each frame.
     thumbs_dirty: bool,
-    /// The newest thing that happened, for the rail: a commit, or a refusal.
+    /// The newest thing that happened, for the history: a commit, or a refusal.
     status: Option<String>,
     /// Agents' batches show on the canvas before they commit, and the
     /// person accepts or rejects each one (`LOCALGPT_REVIEW=1` starts on).
@@ -144,11 +141,7 @@ pub(crate) struct Live {
     /// `LOCALGPT_SYNTHETIC_INPUT=1`: it is a test's seam, and with it an
     /// agent could press Enter on its own proposal.
     synthetic: Option<VecDeque<SyntheticEvent>>,
-    /// The review bar's Accept and Reject buttons, in window points, while
-    /// a proposal is pending.
-    review_buttons: Option<[[f32; 4]; 2]>,
-    /// The turns herdr saw end in the agent's pane (`gen3d::herdr`), for
-    /// the rail.
+    /// The turns that ended ([`TurnEnded`]), for the history.
     turns: Vec<TurnMark>,
 }
 
@@ -234,8 +227,8 @@ fn key_code(name: &str) -> Option<KeyCode> {
 }
 
 /// Emit the next synthesized event as the input it stands for: the same
-/// messages the window would send, so picking, the handles, the keys and
-/// egui all see a hand.
+/// messages the window would send, so picking, the handles and the keys
+/// all see a hand.
 #[allow(clippy::too_many_arguments)] // a Bevy system; the repo's convention
 fn inject_synthetic_input(
     mut live: ResMut<Live>,
@@ -247,8 +240,6 @@ fn inject_synthetic_input(
     mut motions: MessageWriter<bevy::input::mouse::MouseMotion>,
     mut window_events: MessageWriter<WindowEvent>,
     mut pointer_inputs: MessageWriter<PointerInput>,
-    mut egui_events: MessageWriter<bevy_egui::input::EguiInputEvent>,
-    egui_contexts: Query<Entity, With<bevy_egui::PrimaryEguiContext>>,
     mut cursor_last: Local<Vec2>,
 ) {
     let Some(event) = live.synthetic.as_mut().and_then(VecDeque::pop_front) else {
@@ -265,8 +256,8 @@ fn inject_synthetic_input(
         }
     };
     // The window backend sends each input twice: as its own message, and
-    // wrapped in `WindowEvent` — picking reads the wrapper, egui and the
-    // button maps read the message. Both, then, as a real hand gets.
+    // wrapped in `WindowEvent` — picking reads the wrapper, the button maps
+    // read the message. Both, then, as a real hand gets.
     //
     // With the canvas rendering into an image (`LOCALGPT_OFFSCREEN_SHOTS`),
     // picking would pair a window pointer with no camera: the pointer is
@@ -301,18 +292,6 @@ fn inject_synthetic_input(
                         },
                         action: PointerAction::Move { delta },
                     });
-                    // bevy_egui hands a window's cursor moves only to
-                    // contexts drawn in that window, and this one draws in
-                    // the image now (its button presses still arrive): the
-                    // move goes to egui directly, so hover is known before
-                    // the press — which is what keeps a click on a panel
-                    // from reaching the scene behind it.
-                    if let Ok(context) = egui_contexts.single() {
-                        egui_events.write(bevy_egui::input::EguiInputEvent {
-                            context,
-                            event: egui::Event::PointerMoved(egui::pos2(position.x, position.y)),
-                        });
-                    }
                 }
                 None => {
                     window_events.write(WindowEvent::CursorMoved(moved));
@@ -388,8 +367,9 @@ fn offscreen_canvas(
                 .clone();
             *target = bevy::camera::RenderTarget::Image(handle.into());
             // `bevy_ui` draws through the camera that targets the primary
-            // window; with none, the rail and the bar would be laid out
-            // against nothing and drawn nowhere. This camera is it now.
+            // window; with none, the world's HUD and the selection box would
+            // be laid out against nothing and drawn nowhere. This camera is
+            // it now.
             commands.entity(camera).insert(bevy::ui::IsDefaultUiCamera);
         }
     }
@@ -444,29 +424,6 @@ fn handle_points(
 }
 
 impl Live {
-    /// The document the canvas shows: the fold at the entry on screen.
-    pub(crate) fn doc(&self) -> &openworldformat::WorldDoc {
-        self.view.doc()
-    }
-
-    /// The newest commit or refusal, in one line.
-    pub(crate) fn status(&self) -> Option<&str> {
-        self.status.as_deref()
-    }
-
-    /// The agent's batch waiting on the canvas for the person, if one is.
-    #[cfg_attr(not(feature = "feathers"), allow(dead_code))] // the feathers review bar reads it
-    pub(crate) fn proposal(&self) -> Option<&Proposal> {
-        self.proposal.as_ref()
-    }
-
-    /// A turn ended (herdr saw the pane's agent stop working): mark it in
-    /// the history the rail draws.
-    pub(crate) fn note_turn(&mut self, mark: TurnMark) {
-        self.turns.push(mark);
-        self.history_dirty = true;
-    }
-
     /// How many entries the log holds.
     pub(crate) fn history_len(&self) -> usize {
         self.view.history().len()
@@ -492,13 +449,15 @@ pub(crate) struct Proposal {
     /// The world the canvas shows while it is pending.
     shown: wt::WorldManifest,
     pub(crate) changes: Vec<String>,
-    pub(crate) warnings: Vec<String>,
 }
 
 struct ProposalRecord {
     n: u64,
     author: String,
     changes: Vec<String>,
+    /// What the authority warned about the batch (a delete that leaves a
+    /// behavior without its target), for whoever shows the proposal.
+    warnings: Vec<String>,
     outcome: Outcome,
 }
 
@@ -519,6 +478,7 @@ impl ProposalRecord {
             "proposal": self.n,
             "author": self.author,
             "changes": self.changes,
+            "warnings": self.warnings,
             "status": status,
             "revision": revision,
             "why": why,
@@ -530,10 +490,10 @@ impl ProposalRecord {
 #[derive(Message, Debug, Clone)]
 pub struct ReviewDecision(pub bool);
 
-/// What the history rail draws: the log as rows, and where the canvas is.
+/// What a history panel draws: the log as rows, and where the canvas is.
 ///
 /// Published by `live_world` whenever the history or the canvas's place in it
-/// changes, so the rail draws from a snapshot and never reaches into the
+/// changes, so a panel draws from a snapshot and never reaches into the
 /// authority or the view. Rows are in file order.
 #[derive(Resource, Debug, Clone, Default, PartialEq)]
 pub struct LiveHistory {
@@ -542,13 +502,21 @@ pub struct LiveHistory {
     pub current: Option<String>,
     /// The newest commit or refusal, in one line.
     pub status: Option<String>,
-    /// The turns that ended, in order (herdr's word on the agent's pane).
+    /// The turns that ended, in order ([`TurnEnded`]).
     pub turns: Vec<TurnMark>,
 }
 
-/// A turn that ended, as the rail marks it: the pane's agent went from
-/// `working` to `done` (or `idle`) when the log held `rows` entries, so the
-/// entries after the previous mark and up to this one are that turn's.
+/// An agent's turn ended: whoever hosts its terminal says so, and the
+/// history marks the entries since the last turn as this one's.
+#[derive(Message, Debug, Clone)]
+pub struct TurnEnded {
+    /// The agent, by its command's name (`claude`, `codex`, …).
+    pub agent: String,
+}
+
+/// A turn that ended, as the history marks it: the agent stopped working
+/// when the log held `rows` entries, so the entries after the previous mark
+/// and up to this one are that turn's.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TurnMark {
     pub n: u32,
@@ -559,7 +527,7 @@ pub struct TurnMark {
     pub revision: u64,
 }
 
-/// One entry of the log, as the rail and the history panel show it.
+/// One entry of the log, as the history panel shows it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HistoryRow {
     pub id: String,
@@ -580,7 +548,7 @@ pub struct HistoryRow {
 
 /// Ask the canvas to show a point in its history (`None`: the base).
 ///
-/// The rail sends these, and `POST /goto` takes the same path — [`seek`] —
+/// The history panel sends these, and `POST /goto` takes the same path — [`seek`] —
 /// so a person and an agent moving through history cannot behave differently.
 #[derive(Message, Debug, Clone)]
 pub struct SeekTo(pub Option<String>);
@@ -680,7 +648,6 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
         synthetic: std::env::var("LOCALGPT_SYNTHETIC_INPUT")
             .is_ok_and(|v| v == "1")
             .then(VecDeque::new),
-        review_buttons: None,
         turns: Vec::new(),
     })
     .insert_resource(Endpoint(endpoint))
@@ -689,21 +656,12 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
     .init_resource::<RenderedPrimary>()
     .add_message::<SeekTo>()
     .add_message::<ReviewDecision>()
+    .add_message::<TurnEnded>()
     .add_plugins((
-        super::history_rail::HistoryRailPlugin,
-        super::history_panel::HistoryPanelPlugin,
         super::canvas_edit::CanvasEditPlugin,
         super::shots::ShotsPlugin,
-        // herdr's pane in the world folder, when herdr runs (nothing otherwise).
-        super::herdr::HerdrPlugin { dir: dir.clone() },
     ));
-    // The review bar: egui's, inside its pass (bevy_egui's own schedule,
-    // like every panel), or Bevy's own widgets with the `feathers` feature.
-    #[cfg(not(feature = "feathers"))]
-    app.add_systems(EguiPrimaryContextPass, review_bar);
-    #[cfg(feature = "feathers")]
-    app.add_plugins(super::review_ui::ReviewUiPlugin);
-    app
+    app.add_systems(Update, review_keys.before(live_world))
         // After the frame's last propagation: the pose the renderer gets.
         .add_systems(
             PostUpdate,
@@ -725,65 +683,20 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
     Ok(())
 }
 
-/// The bar a pending proposal puts at the top of the window: who proposes
-/// what, and Accept / Reject. Enter and Esc do the same. (With the
-/// `feathers` feature the bar is `review_ui.rs`, on Bevy's own widgets.)
-#[cfg(not(feature = "feathers"))]
-#[allow(deprecated)] // egui 0.34: bevy_egui hands out a Context, not a root Ui
-fn review_bar(
-    mut contexts: EguiContexts,
-    mut live: ResMut<Live>,
+/// A pending proposal is decided from the keyboard: Enter accepts, Esc
+/// rejects. A panel asks the same with [`ReviewDecision`].
+fn review_keys(
+    live: Res<Live>,
     keys: Res<ButtonInput<KeyCode>>,
     mut decisions: MessageWriter<ReviewDecision>,
-    mut other_panels: ResMut<crate::inspector::OtherPanels>,
 ) {
-    let Some(proposal) = &live.proposal else {
-        live.review_buttons = None;
-        if !other_panels.0.is_empty() {
-            other_panels.0.clear();
-        }
+    if live.proposal.is_none() {
         return;
-    };
-    let Ok(ctx) = contexts.ctx_mut() else {
-        return;
-    };
-    let mut decision = None;
-    let mut buttons = None;
-    let rect = |r: egui::Rect| [r.min.x, r.min.y, r.width(), r.height()];
-    let panel = egui::Panel::top("live_review").show(ctx, |ui| {
-        ui.horizontal_wrapped(|ui| {
-            ui.label(egui::RichText::new(format!("{} proposes:", proposal.author)).strong());
-            ui.label(proposal.changes.join(" · "));
-            for warning in &proposal.warnings {
-                ui.colored_label(
-                    egui::Color32::from_rgb(230, 180, 90),
-                    format!("\u{26A0} {warning}"),
-                );
-            }
-            // Plain words: the default font has no glyphs for ⏎ and ⎋.
-            let accept = ui.button("Accept (Enter)");
-            if accept.clicked() {
-                decision = Some(true);
-            }
-            let reject = ui.button("Reject (Esc)");
-            if reject.clicked() {
-                decision = Some(false);
-            }
-            buttons = Some([rect(accept.rect), rect(reject.rect)]);
-        });
-    });
+    }
     if keys.just_pressed(KeyCode::Enter) {
-        decision = Some(true);
-    }
-    if keys.just_pressed(KeyCode::Escape) {
-        decision = Some(false);
-    }
-    // Where the buttons are, for a driver with no eyes (`GET /proposals`),
-    // and where the bar is, for the inspector's hover test.
-    live.review_buttons = buttons;
-    other_panels.0 = vec![rect(panel.response.rect)];
-    if let Some(accept) = decision {
-        decisions.write(ReviewDecision(accept));
+        decisions.write(ReviewDecision(true));
+    } else if keys.just_pressed(KeyCode::Escape) {
+        decisions.write(ReviewDecision(false));
     }
 }
 
@@ -857,6 +770,7 @@ fn propose(
         n,
         author: author.clone(),
         changes: changes.clone(),
+        warnings: ingested.warnings.clone(),
         outcome: Outcome::Pending,
     });
     live.status = Some(format!(
@@ -875,7 +789,6 @@ fn propose(
         batch,
         shown: ingested.doc.to_manifest(),
         changes: changes.clone(),
-        warnings: warnings.clone(),
     });
     Reply::status(
         202,
@@ -1017,7 +930,7 @@ fn group_ops(
 }
 
 /// Move the canvas to `tip` (`None`: the base) — the one seek path, used by
-/// `POST /goto` and the rail alike. A view move: nothing is written, and a
+/// `POST /goto` and the history panel alike. A view move: nothing is written, and a
 /// batch still lands on the head unless it names where it builds (`"at"`);
 /// the canvas shows history, it does not rewrite it. Returns what changed,
 /// for whoever asked.
@@ -1231,7 +1144,7 @@ fn person() -> String {
         .unwrap_or_else(|| "you".into())
 }
 
-/// One line for the rail about a commit.
+/// One line for the history about a commit.
 fn status_line(done: &live::Committed, what: &str) -> String {
     format!(
         "r{} - {} - {}{}",
@@ -1635,14 +1548,6 @@ const ENDPOINTS: &[(&str, &str)] = &[
         "tests only, with LOCALGPT_SYNTHETIC_INPUT=1: {\"events\": [{\"cursor\": [x, y]}, {\"button\": \"left\", \"pressed\": true}, {\"key\": \"Enter\", \"pressed\": false}]} — a person's input synthesized, one event per frame; GET /selection reports the handles' window positions",
     ),
     (
-        "GET /agents",
-        "herdr, when it runs: the pane the bar opened in the world folder, its agent and status (working, blocked — waiting for the person — idle, done), and the turns that ended, each with the log's length then",
-    ),
-    (
-        "GET /widgets",
-        "with synthetic input: the panels' widgets by name in window points [x, y, w, h] — outliner rows, the row menu's items, the detail panel's fields, combos and their open items, the history rail's rows and turn marks",
-    ),
-    (
         "POST /ops",
         "a batch of edit ops: [op, ...] or {\"ops\": [...], \"author\": ..., \"message\": ..., \"at\": ..., \"expected_revision\": ...} — \"at\" names the entry to build on (default: the head); an earlier one starts a branch; \"expected_revision\" is the revision you read, and a world that moved since refuses the batch",
     ),
@@ -1717,9 +1622,7 @@ pub(super) fn live_world(
     mut decisions: MessageReader<ReviewDecision>,
     mut selection: Option<ResMut<InspectorSelection>>,
     gesture: Option<Res<super::canvas_edit::CanvasGesture>>,
-    rects: Option<Res<crate::inspector::PanelRects>>,
-    ui_widgets: Option<Res<crate::ui::widgets::UiWidgetRects>>,
-    presence: Option<Res<super::herdr::AgentPresence>>,
+    mut turns: MessageReader<TurnEnded>,
 ) {
     let live = &mut *live;
     if !live.started {
@@ -1799,40 +1702,10 @@ pub(super) fn live_world(
                 ),
                 Some(queue) => Reply::ok(json!({"queued": queue.len()})),
             },
-            ("GET", "/widgets") => match live.synthetic {
-                None => Reply::status(
-                    404,
-                    json!({"error": "widget positions come with synthetic input: start the canvas with LOCALGPT_SYNTHETIC_INPUT=1"}),
-                ),
-                // egui's rectangles and the named `bevy_ui` nodes, one map.
-                Some(_) => {
-                    let mut all = rects.as_ref().map(|r| r.0.clone()).unwrap_or_default();
-                    if let Some(ui) = ui_widgets.as_ref() {
-                        all.extend(ui.0.iter().map(|(name, rect)| (name.clone(), *rect)));
-                    }
-                    Reply::ok(json!(all))
-                }
-            },
-            ("GET", "/agents") => match presence.as_deref() {
-                Some(presence) => Reply::ok(presence.to_json(time.elapsed_secs_f64())),
-                None => Reply::status(
-                    404,
-                    json!({"error": "no agent presence: this canvas has no herdr watch"}),
-                ),
-            },
             ("GET", "/proposals") => Reply::ok(json!({
                 "review": live.review,
                 "pending": live.proposal.as_ref().map(|p| p.n),
                 "proposals": live.proposals.iter().map(ProposalRecord::to_json).collect::<Vec<_>>(),
-                // The bar's buttons in window points ([x, y, w, h]), while
-                // a proposal is pending: egui's rectangles, or the widget
-                // seam's when the bar is on Bevy's own widgets.
-                "buttons": live.review_buttons
-                    .or_else(|| {
-                        let ui = ui_widgets.as_ref()?;
-                        Some([*ui.0.get("review.accept")?, *ui.0.get("review.reject")?])
-                    })
-                    .map(|[accept, reject]| json!({"accept": accept, "reject": reject})),
             })),
             // A replay holds the canvas: an undo or a redo would commit under
             // it, and the view would apply the delta onto a replayed frame.
@@ -2055,6 +1928,18 @@ pub(super) fn live_world(
         let _ = call.reply.send(reply);
     }
 
+    // Turns that ended, marked at the log's length now.
+    for ended in turns.read() {
+        let mark = TurnMark {
+            n: live.turns.len() as u32 + 1,
+            agent: ended.agent.clone(),
+            rows: live.history_len(),
+            revision: live.revision(),
+        };
+        live.turns.push(mark);
+        live.history_dirty = true;
+    }
+
     // The person's word on a proposal, before their own edits.
     let decided: Vec<bool> = decisions.read().map(|d| d.0).collect();
     for accept in decided {
@@ -2067,7 +1952,7 @@ pub(super) fn live_world(
         person_edit(live, &mut applier, selection.as_deref_mut(), intent);
     }
 
-    // The shot strip's edits (a drag to reorder): the same person at
+    // A panel's shot-list edits (a drag to reorder): the same person at
     // the keyboard, committed at the entry on screen like a gesture.
     let asked: Vec<super::shots::ShotOps> = shot_ops.read().cloned().collect();
     for edit in asked {
@@ -2270,7 +2155,6 @@ fn live_view(
     handles: Option<Res<super::canvas_edit::Handles>>,
     marquee: Option<Res<super::canvas_edit::CanvasMarquee>>,
     offscreen: Option<Res<super::offscreen::OffscreenRenderTarget>>,
-    hovered: Option<Res<crate::inspector::UiHovered>>,
     // The scene's own state of the selection — what is drawn, which the
     // document is not while a modulation or a drag holds it — and the
     // modulation clock, for a test driver without eyes.
@@ -2335,8 +2219,6 @@ fn live_view(
                 "handles": handle_points(handles.as_deref(), &cameras),
                 // A selection box being drawn: [x0, y0, x1, y1] in window points.
                 "box": marquee.as_ref().and_then(|m| m.rect()),
-                // Whether a panel has the pointer right now.
-                "ui_hovered": hovered.is_some(),
                 // The primary as the scene draws it.
                 "scene": selection
                     .as_ref()

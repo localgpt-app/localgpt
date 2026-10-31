@@ -111,6 +111,14 @@ jobs:
           FEATURES: ${{ inputs.features }}
         run: echo "APP_FEATURES=$FEATURES" >> "$GITHUB_ENV"
 
+      # The interface is a page the binary carries (crates/app/ui); the
+      # bundle script builds it before the app.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: crates/app/ui/package-lock.json
+
       - name: LocalGPT.app and the .dmg
         run: apps/app-desktop/macos/build-app.sh --dmg
 

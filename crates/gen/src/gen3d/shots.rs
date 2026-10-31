@@ -1,50 +1,43 @@
-//! Shot awareness in the live canvas: look through any shot, a shot
-//! strip, revise a shot's place by drag.
+//! Shot awareness in the live canvas: look through any shot, the shot
+//! list with a thumbnail per shot, revise a shot's place by drag.
 //!
 //! The canvas holds a `.world` whose camera entities carry
 //! `ext-cinematography` (the previs crate stages them). This module is
 //! what a person does with that in the window:
 //!
-//! - **Look through** — click a shot card (or press its number, 1–9)
-//!   and the free camera becomes the shot's camera: placed by the
-//!   entity's transform (`aim` wins), vertical FOV and frame aspect
-//!   from the extension's derived frame ([`shot_camera`], the same
-//!   math the board and the conformance suite use), letterboxed to the
-//!   frame. Esc returns the free camera as it was.
-//! - **The strip** — an egui window listing the cameras with a `shot`,
-//!   in `shot.order` (ties by entity id): name, size, lens, and a
-//!   thumbnail rendered through the offscreen path. A drag to reorder
+//! - **Look through** — press a shot's number (1–9), or ask with
+//!   [`LookThrough`], and the free camera becomes the shot's camera:
+//!   placed by the entity's transform (`aim` wins), vertical FOV and
+//!   frame aspect from the extension's derived frame ([`shot_camera`],
+//!   the same math the board and the conformance suite use),
+//!   letterboxed to the frame. Esc returns the free camera as it was.
+//! - **The shot list** — [`LiveShots`], the cameras with a `shot` in
+//!   `shot.order` (ties by entity id), each with a thumbnail rendered
+//!   through the offscreen path ([`ShotThumbs`]): what the app's
+//!   timeline draws as its shot track. A reorder ([`reorder_ops`])
 //!   goes through the authority as `ModifyEntity` patches on the
 //!   ext-cinematography block — no new op kinds, one history entry,
 //!   undoable like any edit.
-//! - **Boards** — buttons open the authority's `GET /board` in the
-//!   browser: the tip on screen as a printable board, or two tips
-//!   (the one on screen vs the head) side by side.
 //!
-//! The strip owns no state: it draws [`LiveShots`], a snapshot the
-//! canvas publishes when the document on screen changes (the same
-//! cadence as the history rail's [`super::live::LiveHistory`]), and
-//! asks with messages — [`LookThrough`], [`ShotOps`] — which the
-//! canvas serves, so the strip and the API cannot behave differently.
+//! None of it owns state a panel could get out of step with: the list
+//! is a snapshot the canvas publishes when the document on screen
+//! changes (the same cadence as [`super::live::LiveHistory`]), and a
+//! panel asks with messages — [`LookThrough`], [`ShotOps`] — which the
+//! canvas serves, so a panel and the API cannot behave differently.
 //!
 //! [`shot_camera`]: localgpt_world_bevy::camera::shot_camera
 
 use bevy::prelude::*;
-#[cfg(not(feature = "feathers"))]
-use bevy_egui::{EguiContexts, EguiPrimaryContextPass, EguiTextureHandle, egui};
 use localgpt_world_bevy::camera::{self, ShotCamera};
 use localgpt_world_types as wt;
 use serde_json::{Value, json};
 
-use super::live::LiveEndpoint;
-#[cfg(not(feature = "feathers"))]
-use super::live::LiveHistory;
 use super::offscreen;
 use super::plugin::FlyCam;
 
 /// The plugin: the canvas's shot systems. Registered by
 /// [`super::live::setup_live`] — a world without the live authority
-/// has no shot strip.
+/// has no shot list.
 pub struct ShotsPlugin;
 
 impl Plugin for ShotsPlugin {
@@ -58,25 +51,17 @@ impl Plugin for ShotsPlugin {
             .add_systems(
                 Update,
                 (
-                    look_through_keys.run_if(
-                        super::avatar::in_freefly_mode.and_then(crate::inspector::not_ui_hovered),
-                    ),
+                    look_through_keys.run_if(super::avatar::in_freefly_mode),
                     apply_look_through,
                     drive_shot_view,
                     sync_shot_thumbs,
                 )
                     .chain(),
             );
-        // The strip: egui's, inside its pass (bevy_egui's own schedule), or
-        // Bevy's own widgets with the `feathers` feature (`shots_scene.rs`).
-        #[cfg(not(feature = "feathers"))]
-        app.add_systems(EguiPrimaryContextPass, shot_strip_ui);
-        #[cfg(feature = "feathers")]
-        app.add_plugins(super::shots_scene::ShotsScenePlugin);
     }
 }
 
-/// The strip's snapshot: the shots of the document on screen, in
+/// The shot list's snapshot: the shots of the document on screen, in
 /// `shot.order`, published by the canvas when that document changes.
 #[derive(Resource, Debug, Clone, PartialEq)]
 pub struct LiveShots {
@@ -97,7 +82,7 @@ impl Default for LiveShots {
 }
 
 /// One shot: the camera entity as the document has it, and the derived
-/// row (name, size, lens, frame, clock) the strip draws.
+/// row (name, size, lens, frame, clock) a shot track draws.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ShotEntry {
     pub entity: wt::WorldEntity,
@@ -111,11 +96,11 @@ pub struct ShotEntry {
 pub struct ThumbsDirty(pub bool);
 
 /// Ask the canvas to look through a shot's camera entity (`None`: back
-/// to the free camera — Esc). The strip and the number keys send these.
+/// to the free camera — Esc). A panel and the number keys send these.
 #[derive(Message, Debug, Clone)]
 pub struct LookThrough(pub Option<u64>);
 
-/// A shot-list edit from the strip (a drag to reorder), committed by
+/// A shot-list edit from a panel (a drag to reorder), committed by
 /// the canvas through the authority at the entry on screen — the same
 /// path a person's gesture takes.
 #[derive(Message, Debug, Clone)]
@@ -158,7 +143,7 @@ fn thumb_size(frame_aspect: f32) -> (u32, u32) {
 // ---------------------------------------------------------------------------
 
 /// The keys: a shot's number looks through it, Esc hands the camera
-/// back. (The strip's cards are the mouse form of the same asks.)
+/// back. (A panel's shot cards are the mouse form of the same asks.)
 fn look_through_keys(
     keys: Res<ButtonInput<KeyCode>>,
     shots: Res<LiveShots>,
@@ -307,8 +292,8 @@ fn drive_shot_view(
 // ---------------------------------------------------------------------------
 
 /// One thumbnail camera per shot, rendered through the offscreen path
-/// into an image egui shows; active for a couple of frames whenever
-/// something the frame shows could have changed.
+/// into an image; active for a couple of frames whenever something the
+/// frame shows could have changed.
 #[derive(Resource, Default)]
 pub struct ShotThumbs {
     thumbs: Vec<Thumb>,
@@ -316,8 +301,7 @@ pub struct ShotThumbs {
 
 impl ShotThumbs {
     /// The rendered thumbnail of a shot's camera entity, when there is one.
-    #[cfg_attr(not(feature = "feathers"), allow(dead_code))] // the feathers strip reads it
-    pub(super) fn image_of(&self, entity_id: u64) -> Option<Handle<Image>> {
+    pub fn image_of(&self, entity_id: u64) -> Option<Handle<Image>> {
         self.thumbs
             .iter()
             .find(|t| t.entity_id == entity_id)
@@ -331,8 +315,6 @@ struct Thumb {
     /// The offscreen camera.
     camera: Entity,
     image: Handle<Image>,
-    #[cfg(not(feature = "feathers"))]
-    texture: Option<egui::TextureId>,
     /// The document entity the last render was placed from.
     doc_entity: wt::WorldEntity,
     /// Where the camera stood for it — a shot that tracks an actor
@@ -399,8 +381,6 @@ fn sync_shot_thumbs(
                         entity_id: id,
                         camera,
                         image,
-                        #[cfg(not(feature = "feathers"))]
-                        texture: None,
                         doc_entity: entry.entity.clone(),
                         placed: shot.transform,
                         frames_left: 3,
@@ -425,214 +405,6 @@ fn sync_shot_thumbs(
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// The strip
-// ---------------------------------------------------------------------------
-
-/// One drop gap: before the first row, or after row `zone - 1`.
-#[cfg(not(feature = "feathers"))]
-fn strip_drop_zone(ui: &mut egui::Ui, zone: usize, drop: &mut Option<(usize, usize)>) {
-    let (_inner, payload) = ui.dnd_drop_zone::<usize, _>(
-        egui::Frame::new().inner_margin(egui::Margin::symmetric(4, 1)),
-        |ui| {
-            ui.allocate_space(egui::vec2(ui.available_width(), 4.0));
-        },
-    );
-    if let Some(from) = payload {
-        *drop = Some((*from, zone));
-    }
-}
-
-/// The strip: the shots in order, click or number to look through,
-/// drag to reorder, boards at the bottom.
-#[cfg(not(feature = "feathers"))]
-#[allow(clippy::too_many_arguments)] // a Bevy system; the repo's convention
-fn shot_strip_ui(
-    mut contexts: EguiContexts,
-    shots: Res<LiveShots>,
-    view: Res<ShotView>,
-    mut thumbs: ResMut<ShotThumbs>,
-    mut looks: MessageWriter<LookThrough>,
-    mut edits: MessageWriter<ShotOps>,
-    history: Option<Res<LiveHistory>>,
-    endpoint: Option<Res<LiveEndpoint>>,
-) {
-    if shots.shots.is_empty() {
-        return;
-    }
-    // Register the thumbnail textures before borrowing the context.
-    for thumb in &mut thumbs.thumbs {
-        thumb.texture.get_or_insert_with(|| {
-            contexts.add_image(EguiTextureHandle::Strong(thumb.image.clone()))
-        });
-    }
-    let Ok(ctx) = contexts.ctx_mut() else {
-        return;
-    };
-
-    egui::Window::new("Shots")
-        .default_width(320.0)
-        .show(ctx, |ui| {
-            let mut drop = None;
-            strip_drop_zone(ui, 0, &mut drop);
-            for index in 0..shots.shots.len() {
-                shot_row(ui, &shots, index, &thumbs, &view, &mut looks);
-                strip_drop_zone(ui, index + 1, &mut drop);
-            }
-            if let Some((from, zone)) = drop
-                && let Some(ops) = reorder_ops(&shots.shots, from, zone)
-            {
-                let name = &shots.shots[from].row.shot;
-                edits.write(ShotOps {
-                    ops,
-                    what: format!("reorder shot {name}"),
-                });
-            }
-            ui.separator();
-            ui.label(
-                egui::RichText::new(
-                    "click to look through · Esc back · 1–9 jump · drag to reorder",
-                )
-                .small()
-                .color(egui::Color32::GRAY),
-            );
-            if let Some(endpoint) = &endpoint {
-                board_buttons(ui, endpoint, history.as_deref());
-            }
-        });
-}
-
-/// One shot's card: thumbnail, name and size, lens and clock,
-/// description; a drag source for reordering, a click to look through.
-#[cfg(not(feature = "feathers"))]
-fn shot_row(
-    ui: &mut egui::Ui,
-    shots: &LiveShots,
-    index: usize,
-    thumbs: &ShotThumbs,
-    view: &ShotView,
-    looks: &mut MessageWriter<LookThrough>,
-) {
-    let entry = &shots.shots[index];
-    let row = &entry.row;
-    let active = view.active == Some(row.entity_id);
-    let fill = if active {
-        egui::Color32::from_rgba_premultiplied(60, 80, 120, 200)
-    } else {
-        egui::Color32::from_rgba_premultiplied(40, 40, 40, 200)
-    };
-    let aspect = row.frame_aspect as f32;
-    let size = egui::vec2(120.0, 120.0 / aspect);
-    let texture = thumbs
-        .thumbs
-        .iter()
-        .find(|t| t.entity_id == row.entity_id)
-        .and_then(|t| t.texture);
-
-    let inner = ui.dnd_drag_source(egui::Id::new(("shot-row", row.entity_id)), index, |ui| {
-        egui::Frame::new()
-            .fill(fill)
-            .corner_radius(4.0)
-            .inner_margin(6.0)
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    if let Some(texture) = texture {
-                        ui.add(egui::Image::new(egui::load::SizedTexture::new(
-                            texture, size,
-                        )));
-                    } else {
-                        let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
-                        ui.painter()
-                            .rect_filled(rect, 2.0, egui::Color32::from_gray(24));
-                    }
-                    ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.strong(format!("{}. {}", index + 1, row.shot));
-                            ui.label(
-                                egui::RichText::new(&row.size).color(egui::Color32::LIGHT_BLUE),
-                            );
-                        });
-                        ui.label(format!(
-                            "{} mm · {:.2}:1 · {}–{} s",
-                            localgpt_previs::shots::focal(row.focal_length_mm),
-                            row.frame_aspect,
-                            trim_seconds(row.in_s),
-                            trim_seconds(row.out_s),
-                        ));
-                        if !row.description.is_empty() {
-                            ui.label(
-                                egui::RichText::new(&row.description)
-                                    .small()
-                                    .color(egui::Color32::GRAY),
-                            );
-                        }
-                    });
-                });
-            });
-    });
-    if inner.response.interact(egui::Sense::click()).clicked() {
-        looks.write(LookThrough(Some(row.entity_id)));
-    }
-}
-
-/// `4.50` → `4.5`, for the clock on a card.
-pub(super) fn trim_seconds(v: f64) -> String {
-    let s = format!("{v:.2}");
-    s.trim_end_matches('0').trim_end_matches('.').to_string()
-}
-
-/// The board buttons: this tip's board, or two tips side by side in
-/// the browser (the authority's `GET /board`).
-#[cfg(not(feature = "feathers"))]
-fn board_buttons(ui: &mut egui::Ui, endpoint: &LiveEndpoint, history: Option<&LiveHistory>) {
-    let current = history.and_then(|h| h.current.as_deref());
-    let head = history.and_then(|h| h.rows.iter().find(|r| r.head).map(|r| r.id.as_str()));
-    ui.horizontal(|ui| {
-        if ui.button("Board ↗").clicked() {
-            open_in_browser(&board_url(endpoint, current, None));
-        }
-        // The treatment on screen against main — the everyday compare.
-        let comparable = head.is_some() && head != current;
-        if ui
-            .add_enabled(comparable, egui::Button::new("Compare with head ↗"))
-            .on_hover_text("the entry on screen vs the head, side by side")
-            .clicked()
-        {
-            open_in_browser(&board_url(endpoint, current, head));
-        }
-    });
-}
-
-/// A `/board` URL on the authority, token included (the API takes it
-/// as a query parameter, which is what a browser can send).
-pub(super) fn board_url(endpoint: &LiveEndpoint, tip: Option<&str>, vs: Option<&str>) -> String {
-    let mut url = format!("{}/board?token={}", endpoint.url, endpoint.token);
-    if let Some(tip) = tip {
-        url.push_str(&format!("&tip={tip}"));
-    }
-    if let Some(vs) = vs {
-        url.push_str(&format!("&vs={vs}"));
-    }
-    url
-}
-
-/// Open a URL in the person's browser, best effort; the address is
-/// logged either way (the authority is localhost, the token already
-/// sits in `.live/endpoint.json`).
-pub(super) fn open_in_browser(url: &str) {
-    eprintln!("[shots] {url}");
-    let opener = if cfg!(target_os = "macos") {
-        "open"
-    } else {
-        "xdg-open"
-    };
-    let _ = std::process::Command::new(opener).arg(url).spawn();
-}
-
-// ---------------------------------------------------------------------------
-// Reordering
-// ---------------------------------------------------------------------------
 
 /// The `ModifyEntity` ops a drag makes: the shots whose place changed,
 /// each a patch carrying its full ext-cinematography block with

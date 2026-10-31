@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """Smoke-test the live canvas with no one at the keyboard.
 
-Launches `localgpt-gen --live <world>` with the inspector open
-(`LOCALGPT_INSPECTOR=full`), drives it over the live API in
+Launches `localgpt-gen --live <world>` and drives it over the live API in
 `<world>/.live/endpoint.json`, the inspector's WebSocket (port 9877, or
 `LOCALGPT_INSPECTOR_PORT` for a second canvas on the same desk) and a
 synthesized hand (`LOCALGPT_SYNTHETIC_INPUT=1`, `POST /input`), and
 checks what an editor is judged by: selection, proposals rejected and
-accepted by key and by the bar's buttons, the busy replies while one is
-pending and the log untouched, the stale-revision refusal, a commit with
-the right expected revision, a handle drag, snapping, key turns, a
-shift-click multi-selection dragged together, grouping, deleting, and
-the receipt's warning when a delete leaves a behavior without its
-target. Screenshots land in `<world>/.live/` for a person to look at.
+accepted by key, the busy replies while one is pending and the log
+untouched, the stale-revision refusal, a commit with the right expected
+revision, a handle drag, snapping, key turns, a shift-click
+multi-selection dragged together, grouping, deleting, and the receipt's
+warning when a delete leaves a behavior without its target. Screenshots
+land in `<world>/.live/` for a person to look at.
 
     mkdir demo.world && cp ../openworldformat/examples/hello-world/manifest.json demo.world/
     cargo run -p localgpt-world-agent --example live -- init demo.world --git
@@ -23,13 +22,10 @@ The world must be a live package with the spec's hello-world entities:
 a cuboid (10), a capsule (14) and a lantern (100). `init` on an empty
 folder makes an empty world, so copy the manifest in first. With `--git`
 the checkout and replay checks run too; without it they are skipped.
-`--herdr` starts a headless herdr of the smoke's own (an isolated config
-directory under the world's `.live/`, a socket of its own) and checks the
-bar's agent menu and presence against it; it needs `herdr` on the path.
-Run it against a `--features feathers` build as well (`--binary` names
-the executable, so both builds can be kept): the bar, the outliner, the
-review bar and the gallery checks drive whichever stack draws them
-through the same widget names.
+
+The canvas draws no panels: the desktop app's interface is a page over
+the viewport (`crates/app/ui`), which has checks of its own, so nothing
+here drives a widget — the whole window is the world's.
 """
 
 import argparse
@@ -100,56 +96,6 @@ def center(rect):
     return (x + w / 2, y + h / 2)
 
 
-class Herdr:
-    """A headless herdr of the smoke's own, so the canvas's agent presence
-    can be checked without a terminal: `herdr server` with an isolated
-    config directory and a socket of its own (short: a Unix socket path
-    has a hundred-odd bytes), and `pane report-agent` standing in for the
-    detected state of an agent. The canvas inherits `HERDR_SOCKET_PATH`."""
-
-    def __init__(self, world):
-        self.sock = os.path.join(os.environ.get("TMPDIR") or "/tmp", f"owf-smoke-{os.getpid()}.sock")
-        self.env = dict(os.environ, XDG_CONFIG_HOME=os.path.join(world, ".live", "herdr"), HERDR_SOCKET_PATH=self.sock)
-        os.makedirs(self.env["XDG_CONFIG_HOME"], exist_ok=True)
-        self.log = open(os.path.join(world, ".live", "smoke-herdr.log"), "w")
-        self.proc = subprocess.Popen(["herdr", "server"], env=self.env, stdout=self.log, stderr=subprocess.STDOUT)
-        for _ in range(40):
-            if os.path.exists(self.sock):
-                break
-            time.sleep(0.25)
-        os.environ["HERDR_SOCKET_PATH"] = self.sock
-
-    def cli(self, *args):
-        return subprocess.run(["herdr", *args], env=self.env, capture_output=True, text=True, timeout=20)
-
-    def report(self, pane, state):
-        """What a detection manifest would conclude, said outright."""
-        return self.cli("pane", "report-agent", pane, "--source", "smoke", "--agent", "claude", "--state", state)
-
-    def rpc(self, method, params):
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(10)
-        s.connect(self.sock)
-        s.sendall((json.dumps({"id": "smoke", "method": method, "params": params}) + "\n").encode())
-        buf = b""
-        while not buf.endswith(b"\n"):
-            chunk = s.recv(65536)
-            if not chunk:
-                break
-            buf += chunk
-        s.close()
-        return json.loads(buf.decode() or "null") or {}
-
-    def stop(self):
-        self.cli("server", "stop")
-        try:
-            self.proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            self.proc.kill()
-        os.environ.pop("HERDR_SOCKET_PATH", None)
-        self.log.close()
-
-
 class Canvas:
     """The app as a subprocess: launched, driven, stopped."""
 
@@ -160,7 +106,7 @@ class Canvas:
         ep_file = os.path.join(world, ".live", "endpoint.json")
         if os.path.exists(ep_file):
             os.remove(ep_file)
-        env = dict(os.environ, LOCALGPT_INSPECTOR="full")
+        env = dict(os.environ)
         if synthetic:
             env["LOCALGPT_SYNTHETIC_INPUT"] = "1"
         if Canvas.offscreen:
@@ -224,77 +170,27 @@ class Canvas:
         _, world_now = call(self.ep, "GET", "/world")
         return next((e for e in world_now.get("entities", []) if e.get("name") == name), {})
 
-    def widgets(self):
-        """The panels' widgets by name, in window points (GET /widgets)."""
-        return call(self.ep, "GET", "/widgets")[1] or {}
-
-    def click_widget(self, name):
-        """Click a panel widget by name; False when it isn't on screen."""
-        rect = self.widgets().get(name)
-        if not rect:
-            return False
-        self.input(click(center(rect)))
-        return True
-
-    def panels(self):
-        """The chrome's rectangles by name (`panel.*` in GET /widgets)."""
-        return {n: r for n, r in self.widgets().items() if n.startswith("panel.")}
-
     def free_band(self):
-        """The viewport the chrome leaves free, from the panels by name: x
-        from the outliner's right edge to the detail panel's left, y down to
-        the bottom bar — and the history rail's rectangle, which floats
-        inside it."""
-        p = self.panels()
-        x0 = p["panel.outliner"][0] + p["panel.outliner"][2] + 8 if "panel.outliner" in p else 8.0
-        x1 = p["panel.detail"][0] - 8 if "panel.detail" in p else 1272.0
-        y1 = p["panel.world_info"][1] - 8 if "panel.world_info" in p else 712.0
-        return x0, x1, y1, p.get("panel.history_rail")
+        """The viewport, which is the whole window: x across it, y down to
+        its bottom edge (the canvas has no panels over it)."""
+        return 8.0, 1272.0, 712.0, None
 
     @staticmethod
     def inside(point, rect):
         return bool(rect) and rect[0] <= point[0] <= rect[0] + rect[2] and rect[1] <= point[1] <= rect[1] + rect[3]
 
     def park(self):
-        """Rest the pointer in the free viewport, off every panel: over a
-        panel the camera keys are the panel's, and a handle under one is
-        not hot."""
-        x0, x1, y1, rail = self.free_band()
+        """Rest the pointer in the viewport, away from the handles."""
+        x0, _, _, _ = self.free_band()
         at = (x0 + 24.0, 100.0)
-        if self.inside(at, rail):
-            at = (x0 + 24.0, y1 - 24.0)
         self.input([{"cursor": [at[0], at[1]]}])
         return at
 
     def clear_of_chrome(self, tries=8):
-        """Move the camera until no point of the selection's handles — the
-        origin, the arrow tips, the ring points, the scale cube — is under
-        a panel, as a person moves to see what they grab: down (Q) when the
-        panel is below the handles, so the scene rises; sideways otherwise.
-        True when they are clear (at once, mostly: a no-op then)."""
-        names = ("origin", "x", "y", "z", "ring_x", "ring_y", "ring_z", "scale")
-        for _ in range(tries):
-            h = call(self.ep, "GET", "/selection")[1].get("handles") or {}
-            if not h.get("origin"):
-                return False
-            rects = list(self.panels().values())
-            points = [h[k] for k in names if h.get(k)]
-            covered = next((r for pt in points for r in rects if self.inside(pt, r)), None)
-            if covered is None:
-                return True
-            ox, oy = h["origin"]
-            # Only while the entity itself is in the free viewport: a move
-            # that would push it out is worse than a handle under a panel.
-            x0, x1, y1, _ = self.free_band()
-            if not (x0 < ox < x1 and 0 < oy < y1):
-                return False
-            key = "KeyQ" if covered[1] > oy else ("Space" if covered[1] + covered[3] < oy else ("KeyD" if covered[0] > ox else "KeyA"))
-            self.park()
-            self.input([{"key": key, "pressed": True}])
-            time.sleep(0.3)
-            self.input([{"key": key, "pressed": False}])
-            time.sleep(0.3)
-        return False
+        """True when the selection has its handles on screen: nothing draws
+        over the canvas, so a handle on screen can be grabbed."""
+        h = call(self.ep, "GET", "/selection")[1].get("handles") or {}
+        return bool(h.get("origin"))
 
     def hot_after_a_moment(self):
         """The handle under the pointer once the canvas has drawn a frame
@@ -384,7 +280,7 @@ def main():
     parser.add_argument("--modify", default="cuboid", help="entity the proposed batch moves and recolors")
     parser.add_argument("--other", default="capsule", help="a solid entity to shift-click into the selection")
     parser.add_argument("--offscreen", action="store_true", help="render into an image for the screenshots (a locked or sleeping screen leaves the window black)")
-    parser.add_argument("--herdr", action="store_true", help="start a headless herdr of the smoke's own and check the bar's agent menu and presence against it (needs `herdr` on the path)")
+
     args = parser.parse_args()
     Canvas.offscreen = args.offscreen
     world = os.path.abspath(args.world)
@@ -408,19 +304,8 @@ def main():
     def statuses(ep):
         return [p.get("status") for p in call(ep, "GET", "/proposals")[1].get("proposals", [])]
 
-    def buttons_soon(ep, seconds=2.0):
-        """The review bar's buttons, once the bar has drawn them: a widget
-        built on Bevy UI reaches the seam a frame after the proposal lands."""
-        deadline = time.time() + seconds
-        while True:
-            buttons = call(ep, "GET", "/proposals")[1].get("buttons") or {}
-            if buttons or time.time() >= deadline:
-                return buttons
-            time.sleep(0.05)
-
     # Review on, with a synthesized hand: proposals rejected and accepted
-    # by key and by the bar's buttons, then one left pending; nothing is
-    # written while one waits.
+    # by key, then one left pending; nothing is written while one waits.
     with open(os.path.join(world, ".live", "smoke-review.log"), "w") as log:
         canvas = Canvas(binary, world, True, log, synthetic=True)
         try:
@@ -442,32 +327,15 @@ def main():
             check(not red(canvas.entity(args.modify)), "the world keeps its color after a rejection")
 
             status, body = call(ep, "POST", "/ops", batch)
-            buttons = buttons_soon(ep)
-            check(bool(buttons.get("reject")), f"GET /proposals reports the bar's buttons ({buttons})")
-            if buttons.get("reject"):
-                canvas.input(click(center(buttons["reject"])))
-                time.sleep(0.6)
-            check(statuses(ep) == ["rejected", "rejected"], f"the Reject button, clicked, rejects ({statuses(ep)})")
-            check(canvas.log_lines() == lines, "still nothing written")
-
-            status, body = call(ep, "POST", "/ops", batch)
             canvas.input(press("Enter"))
             time.sleep(0.6)
-            check(statuses(ep) == ["rejected", "rejected", "accepted"], f"Enter accepts the proposal ({statuses(ep)})")
+            check(statuses(ep) == ["rejected", "accepted"], f"Enter accepts the proposal ({statuses(ep)})")
             check(canvas.log_lines() == lines + 1, "an accepted proposal is one entry")
             check(red(canvas.entity(args.modify)), "the accepted change is in the world")
 
-            status, body = call(ep, "POST", "/ops", batch)
-            buttons = buttons_soon(ep)
-            if buttons.get("accept"):
-                canvas.input(click(center(buttons["accept"])))
-                time.sleep(0.6)
-            check(statuses(ep) == ["rejected", "rejected", "accepted", "accepted"], f"the Accept button, clicked, accepts ({statuses(ep)})")
-            check(canvas.log_lines() == lines + 2, "the second accepted proposal is one more entry")
-
             before = canvas.log_lines()
             status, body = call(ep, "POST", "/ops", batch)
-            check(status == 202, f"a fifth batch is proposed ({status})")
+            check(status == 202, f"a third batch is proposed ({status})")
             status, _ = call(ep, "POST", "/ops", batch)
             check(status == 409, f"a second batch waits for the decision ({status})")
             status, _ = call(ep, "POST", "/undo", {})
@@ -485,12 +353,6 @@ def main():
 
     # Review off: expected revisions, the gestures, the selection, the
     # receipt's warning.
-    herdr = None
-    if args.herdr:
-        if shutil.which("herdr"):
-            herdr = Herdr(world)
-        else:
-            print("skip the herdr checks: no `herdr` on the path")
     with open(os.path.join(world, ".live", "smoke-commit.log"), "w") as log:
         canvas = Canvas(binary, world, False, log, synthetic=True)
         try:
@@ -683,238 +545,6 @@ def main():
             canvas.input(press("KeyY"))
             time.sleep(0.3)
 
-            # The outliner by pointer: drag the other's row onto the
-            # modified entity's row, then free it from the row's menu.
-            w = canvas.widgets()
-            rows = (f"outliner.row.{args.other}", f"outliner.row.{args.modify}")
-            check(all(r in w for r in rows), f"GET /widgets reports the outliner rows ({len(w)} widgets)")
-            lines = canvas.log_lines()
-            if all(r in w for r in rows):
-                canvas.drag(center(w[rows[0]]), center(w[rows[1]]))
-                time.sleep(1.2)
-            parent = canvas.entity(args.other).get("parent")
-            check(parent == modified_id and canvas.log_lines() == lines + 1, f"dragging the {args.other} row onto the {args.modify} row hangs it under it (parent {parent})")
-            w = canvas.widgets()
-            lines = canvas.log_lines()
-            if rows[0] in w:
-                at = center(w[rows[0]])
-                canvas.input([{"cursor": list(at)}, {"button": "right", "pressed": True}, {"button": "right", "pressed": False}])
-                time.sleep(0.5)
-                w = canvas.widgets()
-                check("menu.Unparent" in w, f"the row's context menu opens ({sorted(k for k in w if k.startswith('menu.'))})")
-                if "menu.Unparent" in w:
-                    canvas.input(click(center(w["menu.Unparent"])))
-                    time.sleep(1.2)
-            parent = canvas.entity(args.other).get("parent")
-            check(parent is None and canvas.log_lines() == lines + 1, f"the menu's Unparent frees it (parent {parent})")
-
-            # The world bar by name, whichever stack draws it (egui, or
-            # feathers with `--features feathers`): the rail and its rows
-            # report through the same seam, and a click on the bar's
-            # checkboxes reaches the settings.
-            w = canvas.widgets()
-            rail_rows = sorted(k for k in w if k.startswith("rail.row."))
-            check("panel.history_rail" in w and "rail.row.base" in w and len(rail_rows) > 1, f"GET /widgets reports the history rail and its rows ({len(rail_rows)} rows)")
-            check(all(k in w for k in ("world_info.snap", "world_info.local", "world_info.review")), f"GET /widgets reports the bar's controls ({sorted(k for k in w if k.startswith('world_info.'))})")
-            canvas.select(modified_id)
-            local_before = (call(ep, "GET", "/selection")[1].get("handles") or {}).get("local")
-            if canvas.click_widget("world_info.local"):
-                time.sleep(0.4)
-            local_after = (call(ep, "GET", "/selection")[1].get("handles") or {}).get("local")
-            check(local_after is not None and local_after != local_before, f"the bar's local checkbox switches the handles' axes ({local_before} -> {local_after})")
-            if canvas.click_widget("world_info.local"):
-                time.sleep(0.4)
-            review_before = call(ep, "GET", "/proposals")[1].get("review")
-            if canvas.click_widget("world_info.review"):
-                time.sleep(0.4)
-            review_after = call(ep, "GET", "/proposals")[1].get("review")
-            check(review_after is not None and review_after != review_before, f"the bar's review checkbox switches review ({review_before} -> {review_after})")
-            if canvas.click_widget("world_info.review"):
-                time.sleep(0.4)
-            check(call(ep, "GET", "/proposals")[1].get("review") == review_before, "and switches it back")
-
-            # The gallery (G), on whichever stack reports it by name: Bevy's
-            # own widgets do; egui's window has no named widgets yet, so
-            # there the check is only that G opens and closes something
-            # without a panic.
-            canvas.park()
-            canvas.input(press("KeyG"))
-            time.sleep(0.8)
-            w = canvas.widgets()
-            if "panel.gallery" in w:
-                x0, x1, _, _ = canvas.free_band()
-                g = w["panel.gallery"]
-                check(all(k in w for k in ("gallery.refresh", "gallery.close", "gallery.filter")), f"the gallery opens with its controls ({sorted(k for k in w if k.startswith('gallery.'))[:6]}…)")
-                check(g[0] >= x0 - 1 and g[0] + g[2] <= x1 + 1, f"the gallery sits in the free viewport ({[round(v) for v in g]} within {x0:.0f}..{x1:.0f})")
-                if canvas.click_widget("gallery.close"):
-                    time.sleep(0.5)
-                check("panel.gallery" not in canvas.widgets(), "its Close button closes it")
-            else:
-                canvas.input(press("KeyG"))
-                time.sleep(0.4)
-                print("skip the gallery's named checks: this bar is egui's (G toggled it)")
-
-            # The history panel (H), on plain Bevy UI in either build: the
-            # log as a graph above the bar, the rail put away while it is
-            # open. Its buttons, its scrubber and play all seek — nothing is
-            # written — so `GET /log`'s `current` follows them.
-            def current():
-                return call(ep, "GET", "/log")[1].get("current")
-
-            def current_soon(want, seconds=3.0):
-                deadline = time.time() + seconds
-                while time.time() < deadline:
-                    if current() == want:
-                        return want
-                    time.sleep(0.1)
-                return current()
-
-            ids = [e.get("id") for e in call(ep, "GET", "/log")[1].get("entries") or []]
-            was = current()
-            canvas.park()
-            canvas.input(press("KeyH"))
-            time.sleep(0.8)
-            w = canvas.widgets()
-            nodes = sorted(k for k in w if k.startswith("history.node."))
-            controls = ("history.scrub", "history.first", "history.prev", "history.play", "history.next", "history.last", "history.base")
-            check("panel.history" in w and all(k in w for k in controls), f"H opens the history panel with its controls ({sorted(k for k in w if k.startswith('history.') and not k.startswith('history.node.'))})")
-            check(len(ids) > 2 and len(nodes) == len(ids), f"the graph has a node per entry ({len(nodes)} nodes, {len(ids)} entries)")
-            check("panel.history_rail" not in w, "the rail is put away while the panel is open")
-            if "panel.history" in w:
-                x0, x1, y1, _ = canvas.free_band()
-                p = w["panel.history"]
-                check(p[0] >= x0 - 9 and p[0] + p[2] <= x1 + 9 and p[1] + p[3] <= y1 + 9, f"the panel sits between the side panels, above the bar ({[round(v) for v in p]} within {x0:.0f}..{x1:.0f}, bar at {y1 + 8:.0f})")
-                shots.append((call(ep, "GET", "/screenshot")[1] or {}).get("path"))  # the graph, for a person to look at
-            canvas.click_widget("history.first")
-            check(current_soon(None) is None, f"|< seeks to the base (current {current()})")
-            canvas.click_widget("history.next")
-            check(current_soon(ids[0]) == ids[0], f"> seeks to the first entry (current {current()})")
-            canvas.click_widget("history.last")
-            check(current_soon(ids[-1]) == ids[-1], f">| seeks to the last entry (current {current()})")
-            canvas.click_widget("history.prev")
-            check(current_soon(ids[-2]) == ids[-2], f"< steps one back (current {current()})")
-            # The scrubber: a press at its left end is the base, a drag to
-            # its right end the last entry.
-            s = canvas.widgets().get("history.scrub")
-            if s:
-                x, y, sw, sh = s
-                canvas.input([{"cursor": [x + 1, y + sh / 2]}, {"button": "left", "pressed": True}])
-                check(current_soon(None) is None, f"a press at the scrubber's left end seeks to the base (current {current()})")
-                canvas.input([{"cursor": [x + sw / 2, y + sh / 2]}, {"cursor": [x + sw - 1, y + sh / 2]}, {"button": "left", "pressed": False}])
-                check(current_soon(ids[-1]) == ids[-1], f"dragged to its right end, the last entry (current {current()})")
-            else:
-                check(False, "the scrubber reports through the seam")
-            # Play from the base at 4x: every entry in write order, and it
-            # stops at the last.
-            canvas.click_widget("history.first")
-            current_soon(None)
-            for _ in range(2):
-                canvas.click_widget("history.speed")
-            canvas.click_widget("history.play")
-            seen = []
-            started = time.time()
-            while time.time() - started < 15.0:
-                c = current()
-                if not seen or seen[-1] != c:
-                    seen.append(c)
-                if c == ids[-1]:
-                    break
-                time.sleep(0.05)
-            check(bool(seen) and seen[-1] == ids[-1], f"play walks to the last entry ({len(seen)} states seen in {time.time() - started:.1f}s)")
-            passed = [c for c in seen if c in ids]
-            check(len(passed) >= 3 and all(ids.index(a) < ids.index(b) for a, b in zip(passed, passed[1:])), f"and in write order ({[str(c)[:14] for c in seen]})")
-            time.sleep(0.8)
-            check(current() == ids[-1], "and stops there")
-            canvas.input(press("KeyH"))
-            time.sleep(0.6)
-            w = canvas.widgets()
-            check("panel.history" not in w and "panel.history_rail" in w, "H closes the panel and the rail is back")
-            if current() != was:
-                call(ep, "POST", "/goto", {"tip": was or "head"})
-                time.sleep(0.5)
-
-            if herdr:
-                # herdr's pane: the bar opens a shell in the world folder,
-                # and what herdr says of the agent in it reaches the canvas
-                # — blocked as a light, a turn's end as a mark on the rail.
-                def agents():
-                    return call(ep, "GET", "/agents")[1] or {}
-
-                def agents_once(pred, seconds):
-                    deadline = time.time() + seconds
-                    while time.time() < deadline:
-                        a = agents()
-                        if pred(a):
-                            return a
-                        time.sleep(0.25)
-                    return agents()
-
-                a = agents_once(lambda a: (a.get("herdr") or {}).get("server"), 8)
-                check(bool((a.get("herdr") or {}).get("server")), f"the canvas sees herdr's socket answer ({a.get('herdr')})")
-                opened = canvas.click_widget("world_info.agent")
-                time.sleep(0.5)
-                w = canvas.widgets()
-                check(opened and "menu.terminal here" in w, f"the bar's agent menu offers a terminal in the world folder ({sorted(k for k in w if k.startswith('menu.'))})")
-                if "menu.terminal here" in w:
-                    canvas.input(click(center(w["menu.terminal here"])))
-                a = agents_once(lambda a: a.get("pane"), 10)
-                pane = (a.get("pane") or {}).get("id")
-                check(bool(pane), f"a pane opens in the world folder ({a.get('pane')}; error {a.get('error')})")
-                if pane:
-                    info = (herdr.rpc("pane.get", {"pane_id": pane}).get("result") or {}).get("pane") or {}
-                    check(os.path.realpath(info.get("cwd") or "") == os.path.realpath(world), f"the pane's working directory is the world ({info.get('cwd')})")
-                    herdr.report(pane, "working")
-                    a = agents_once(lambda a: (a.get("pane") or {}).get("status") == "working", 5)
-                    check((a.get("pane") or {}).get("status") == "working", f"herdr's working state reaches the canvas ({a.get('pane')})")
-                    herdr.report(pane, "blocked")
-                    a = agents_once(lambda a: (a.get("pane") or {}).get("status") == "blocked", 5)
-                    check((a.get("pane") or {}).get("status") == "blocked" and (a.get("pane") or {}).get("agent") == "claude", f"blocked reaches the canvas with the agent's name ({a.get('pane')})")
-                    herdr.report(pane, "working")
-                    time.sleep(0.6)
-                    rows_then = canvas.log_lines()
-                    herdr.report(pane, "idle")
-                    a = agents_once(lambda a: a.get("turns"), 5)
-                    turns = a.get("turns") or []
-                    check(len(turns) == 1 and turns[0].get("rows") == rows_then and turns[0].get("agent") == "claude", f"the turn that ended is marked at the log's length ({turns}; log {rows_then})")
-                    time.sleep(0.6)
-                    w = canvas.widgets()
-                    check("rail.turn.1" in w, f"the rail draws the turn mark ({sorted(k for k in w if k.startswith('rail.turn'))})")
-
-            # The detail panel's Parent combo, both ways.
-            canvas.select(other_id)
-            lines = canvas.log_lines()
-            if canvas.click_widget("detail.parent"):
-                time.sleep(0.5)
-                if canvas.click_widget(f"combo.parent.{args.modify}"):
-                    time.sleep(1.2)
-            parent = canvas.entity(args.other).get("parent")
-            check(parent == modified_id and canvas.log_lines() == lines + 1, f"the Parent combo hangs {args.other} under {args.modify} (parent {parent})")
-            lines = canvas.log_lines()
-            if canvas.click_widget("detail.parent"):
-                time.sleep(0.5)
-                if canvas.click_widget("combo.parent.— none —"):
-                    time.sleep(1.2)
-            parent = canvas.entity(args.other).get("parent")
-            check(parent is None and canvas.log_lines() == lines + 1, f"the Parent combo's none frees it (parent {parent})")
-
-            # The Alpha Mode combo, and a value field dragged by pointer.
-            canvas.select(modified_id)
-            lines = canvas.log_lines()
-            if canvas.click_widget("detail.alpha_mode"):
-                time.sleep(0.5)
-                if canvas.click_widget("combo.alpha_mode.Blend"):
-                    time.sleep(1.2)
-            alpha = canvas.entity(args.modify).get("material", {}).get("alpha_mode")
-            check(str(alpha).lower() == "blend" and canvas.log_lines() == lines + 1, f"the Alpha Mode combo sets Blend ({alpha})")
-            w = canvas.widgets()
-            y0 = canvas.entity(args.modify).get("transform", {}).get("position", [0, 0, 0])[1]
-            lines = canvas.log_lines()
-            if "detail.position.y" in w:
-                at = center(w["detail.position.y"])
-                canvas.drag(at, (at[0] + 40, at[1]))
-                time.sleep(1.2)
-            y1 = canvas.entity(args.modify).get("transform", {}).get("position", [0, 0, 0])[1]
-            check(y1 > y0 + 0.1 and canvas.log_lines() == lines + 1, f"dragging the position y field moves it ({y0} -> {y1})")
             status, body = call(ep, "GET", "/screenshot")
             shots.append(body.get("path"))
 
@@ -955,19 +585,11 @@ def main():
             canvas.input(press("Escape"))
             time.sleep(0.3)
             if a and b:
-                # Inside the free viewport: a corner on a panel is egui's
-                # press, not the canvas's, and a drag across a panel's fields
-                # edits whatever they hold.
-                free_x0, free_x1, free_y1, rail = canvas.free_band()
+                # Inside the window, with the press and the release on it.
+                free_x0, free_x1, free_y1, _ = canvas.free_band()
                 lo = (max(min(a[0], b[0]) - pad, free_x0), max(min(a[1], b[1]) - pad, 80.0))
                 hi = (min(max(a[0], b[0]) + pad, free_x1), min(max(a[1], b[1]) + pad, free_y1))
-                # The press and the release land off the rail, which floats
-                # in the band; the drag may cross it.
-                if canvas.inside(lo, rail):
-                    lo = (lo[0], min(lo[1], rail[1] - 8))
-                if canvas.inside(hi, rail):
-                    hi = (hi[0], max(hi[1], rail[1] + rail[3] + 8))
-                panels = {n: [round(v) for v in r] for n, r in canvas.panels().items()}
+                panels = {}
                 canvas.input([{"key": "ShiftLeft", "pressed": True}])
                 mid_box = canvas.drag_box(lo, hi, steps=10)
                 canvas.input([{"key": "ShiftLeft", "pressed": False}])
@@ -1335,14 +957,10 @@ def main():
                       "the spawn's commit was materialized with its own bytes (red), the working tree's being blue")
                 time.sleep(1.5)
                 at = (canvas.select(swatch_id).get("handles") or {}).get("origin") if swatch_id else None
-                # The offscreen image has the panels composited in, and the
-                # detail panel grows to fit the texture's hashed name: sample
-                # the swatch where the free viewport shows it, a little in
-                # from the panel's edge (the swatch is some 230 px wide).
-                free_x0, free_x1, _, rail = canvas.free_band()
+                # Sample the swatch where the window shows it, a little in
+                # from its edges (the swatch is some 230 px wide).
+                free_x0, free_x1, _, _ = canvas.free_band()
                 sample = (min(max(at[0], free_x0 + 40), free_x1 - 40), at[1]) if at else None
-                if sample and canvas.inside(sample, rail):
-                    sample = (max(min(sample[0], rail[0] - 40), free_x0 + 40), sample[1])
                 status, body = call(ep, "GET", "/screenshot")
                 shots.append(body.get("path"))
                 mean = png_mean(body.get("path"), int(sample[0]), int(sample[1])) if (sample and body.get("path")) else None
@@ -1353,8 +971,6 @@ def main():
                 print("skip the checkout and replay checks: not a git world (init with --git)")
         finally:
             canvas.stop()
-            if herdr:
-                herdr.stop()
     with open(os.path.join(world, ".live", "smoke-commit.log")) as f:
         check("panicked" not in f.read(), "no panic with review off")
 

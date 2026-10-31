@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@import "./theme.css";
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  /* Transparent: the world shows through the viewport's hole. */
+  background: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  color-scheme: dark;
+}
+
+.xterm {
+  height: 100%;
+  padding: 6px 0 0 8px;
+}

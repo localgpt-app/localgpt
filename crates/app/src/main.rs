@@ -1,31 +1,28 @@
 //! The LocalGPT desktop app — one window, every mode.
 //!
-//! Phase 1 of the one-app consolidation (docs/world-strategy.md §13.1): the
-//! shell is Gen's — a Bevy window, an egui prompt panel, an agent loop, a
-//! world viewport — with Markdown as the first second-class input: `--md
-//! doc.md` compiles the document with MD's pure lib (the rule-derived draft
-//! plus any ```world fences) and opens it as a world in the same viewport,
-//! tour and all, where Gen's tools still work on it (the `core` profile
-//! unless `--tools` or Gen's settings say otherwise).
+//! Gen's world in a Bevy window, and around it the app's interface: one web
+//! page over the viewport (`webui`, built from `ui/`) with the history and
+//! its playback, the document and its outline, the song's transport, Open…,
+//! and the agents' own terminals — Claude Code, Codex and the rest, a tab
+//! each, started in the world's folder. The app runs no agent of its own and
+//! manages no agent's configuration (`docs/rfcs/authoring/the-page.md`).
 //!
 //! ```sh
-//! cargo run -p localgpt-app                          # the shell
+//! cargo run -p localgpt-app                          # reopens what was opened last
 //! cargo run -p localgpt-app -- --md notes.md         # a document as a world
 //! cargo run -p localgpt-app -- --md notes.md --no-author   # rules only, no model
 //! cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
-//! cargo run -p localgpt-app -- --world place.json    # any world manifest
-//! cargo run -p localgpt-app -- --prompt "a quiet harbor at dusk"   # a first prompt
+//! cargo run -p localgpt-app -- --world harbour.world # a package, live: agents edit it
 //! ```
 //!
-//! A song (`--song`) opens as the world Verse's library builds for it, and
-//! Gen's viewport plays it: the soundtrack streams on the shared mixer and the
-//! world's modulations follow it. The assistant (chat + memory) is the next
-//! mode; nothing here forecloses it. What this crate deliberately does NOT do
-//! is duplicate Gen's entry path — everything heavy comes from the gen lib,
-//! and this is the thin assembly. The prompt panel runs Gen's own agent loop
-//! (`localgpt_gen::agent_loop`): its slash commands and model menu, streamed
-//! turns, the MCP relay a CLI backend reaches the window through
-//! (`localgpt-app mcp-server --connect`), and guests once a session is hosted.
+//! A document (`--md`) compiles with MD's pure lib — the rule-derived draft
+//! plus any ```world fences — and opens as a world that is rebuilt while it
+//! is edited. A song (`--song`) opens as the world Verse's library builds
+//! for it, which Gen's viewport plays. A `.world` package opens as a live
+//! canvas: this window holds its authority and serves the API agents change
+//! it through. Everything heavy comes from the gen lib; this crate is the
+//! thin assembly. The page is macOS's for now: elsewhere the window shows
+//! the world alone.
 
 mod authoring;
 mod document;
@@ -34,28 +31,21 @@ mod open;
 mod screenshot;
 mod song;
 mod starter;
+mod webui;
 
 use std::path::{Path, PathBuf};
 
 use bevy::prelude::*;
-use localgpt_gen::desktop::{self, ChatEvent, PanelSettings};
+use localgpt_gen::desktop;
 use localgpt_gen::gen3d;
-
-/// Gen's agent id. The app is Gen desktop's successor, so it reads and writes
-/// the same memory index and session history rather than starting a parallel
-/// one; when the gen binary retires, this is the only id left.
-const AGENT_ID: &str = "gen";
 
 #[derive(Debug, Default)]
 struct Args {
     md: Option<PathBuf>,
     song: Option<PathBuf>,
     world: Option<String>,
-    tools: Option<String>,
     /// Build documents from rules and fences only, never asking a model.
     no_author: bool,
-    /// A first prompt for the panel's agent, as `localgpt-gen "<prompt>"`.
-    prompt: Option<String>,
 }
 
 fn parse_args() -> Args {
@@ -66,13 +56,10 @@ fn parse_args() -> Args {
             "--md" => args.md = iter.next().map(PathBuf::from),
             "--song" => args.song = iter.next().map(PathBuf::from),
             "--world" => args.world = iter.next(),
-            "--tools" => args.tools = iter.next(),
             "--no-author" => args.no_author = true,
-            "--prompt" => args.prompt = iter.next(),
             other => {
                 eprintln!(
-                    "localgpt-app: unknown argument {other:?} \
-                     (--md, --song, --world, --tools, --prompt, --no-author)"
+                    "localgpt-app: unknown argument {other:?} (--md, --song, --world, --no-author)"
                 );
                 std::process::exit(2);
             }
@@ -85,8 +72,7 @@ fn parse_args() -> Args {
 /// so without this every warning and error from Gen's internals — a world that
 /// failed to load, a missing model — would vanish. Launched from a terminal it
 /// goes to stderr; from Finder there is no terminal, so it goes to
-/// `<logs>/localgpt-app.log`, Gen's `gen-desktop.log` pattern. `RUST_LOG`
-/// overrides the default of `warn`.
+/// `<logs>/localgpt-app.log`. `RUST_LOG` overrides the default of `warn`.
 fn init_logging() {
     use std::io::IsTerminal;
 
@@ -116,37 +102,13 @@ fn init_logging() {
     }
 }
 
-/// `mcp-server --connect [port]`: what a CLI backend's MCP config runs to
-/// reach the open window (see `agent_loop::uses_cli_backend`). `None` for an
-/// ordinary launch; `Some(None)` means "the port the window advertised".
-fn relay_request(args: &[String]) -> Option<Option<u16>> {
-    match args {
-        [command, flag, rest @ ..] if command == "mcp-server" && flag == "--connect" => {
-            Some(rest.first().and_then(|port| port.parse().ok()))
-        }
-        _ => None,
-    }
-}
-
 fn main() -> anyhow::Result<()> {
-    // A stdio ↔ TCP relay into the running window, spawned by the CLI
-    // backend: no window, and nothing but the protocol on stdout.
-    let argv: Vec<String> = std::env::args().skip(1).collect();
-    if let Some(port) = relay_request(&argv) {
-        let port = port
-            .or_else(gen3d::mcp_relay::read_relay_port)
-            .ok_or_else(|| anyhow::anyhow!("no LocalGPT window is running to connect to"))?;
-        return tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?
-            .block_on(localgpt_gen::agent_loop::run_mcp_stdio_relay(port));
-    }
-
     let args = parse_args();
     init_logging();
 
-    // Like Gen launched from Finder: the login shell's PATH, so CLI model
-    // backends installed there are found.
+    // Launched from Finder, the app has launchd's minimal PATH: take the
+    // login shell's, so the authoring model's CLI backend is found. (The
+    // agents' terminals start a login shell of their own.)
     #[cfg(unix)]
     if let Some(login_path) = desktop::shell_env::login_shell_path() {
         let current = std::env::var("PATH").unwrap_or_default();
@@ -155,9 +117,8 @@ fn main() -> anyhow::Result<()> {
         unsafe { std::env::set_var("PATH", merged) };
     }
 
-    // `gguf/<name>` models run in-process (Gen's local_llm): registered before
-    // any agent or authoring worker asks for a provider, as Gen's main does.
-    // Without the feature the model menu says the build has no in-process LLM.
+    // `gguf/<name>` models run in-process (Gen's local_llm), for documents'
+    // authoring: registered before any worker asks for a provider.
     #[cfg(feature = "local-llm")]
     localgpt_gen::local_llm::register();
 
@@ -189,20 +150,22 @@ fn main() -> anyhow::Result<()> {
     // places the view once), and the live Document drives every rebuild after.
     let mut live_document = None;
     // A package opened as a live canvas: the window holds the authority and
-    // serves the ops API, and there is no in-window agent.
+    // serves the ops API, and the agents change the world through it.
     let mut live_canvas: Option<PathBuf> = None;
     let showing;
     let initial_world;
+    // Where the agents' terminals start: beside what is open.
+    let mut agents_dir: Option<PathBuf> = None;
     // What to remember for the next bare launch, and what a bare launch
     // fell back to (not remembered again — it already is).
     let mut remember: Option<localgpt_gen::settings::LastOpened> = None;
     if let Some(md) = &args.md {
-        // The model authors each section's place in the background, with the
-        // same model as the prompt panel.
+        // The model authors each section's place in the background.
         let (live, dir) = document::open(md, &workspace, (!args.no_author).then_some(&config))?;
         eprintln!("localgpt-app: {} -> {}", md.display(), dir.display());
         live_document = Some(live);
         showing = Some(format!("Document · {}", file_name(md)));
+        agents_dir = md.parent().map(Path::to_path_buf);
         initial_world = Some(dir.to_string_lossy().into_owned());
         remember = Some(localgpt_gen::settings::LastOpened::Document {
             path: md.to_string_lossy().into_owned(),
@@ -227,6 +190,7 @@ fn main() -> anyhow::Result<()> {
             "Song · {}",
             title.unwrap_or_else(|| file_name(track))
         ));
+        agents_dir = Some(dir.clone());
         let dir = dir.to_string_lossy().into_owned();
         remember = Some(localgpt_gen::settings::LastOpened::World { dir: dir.clone() });
         initial_world = Some(dir);
@@ -234,7 +198,7 @@ fn main() -> anyhow::Result<()> {
         // A package folder is the document now (`docs/rfcs/authoring/
         // world-editor-stack.md`): open it as a live canvas — the app holds
         // the authority, serves the ops API, and agents change the world
-        // from outside — rather than importing its manifest to `world.ron`.
+        // through it — rather than importing its manifest to `world.ron`.
         let world_path = Path::new(world);
         if localgpt_world_agent::live::is_package(world_path) {
             eprintln!(
@@ -248,6 +212,7 @@ fn main() -> anyhow::Result<()> {
         } else {
             showing = Some(format!("World · {world}"));
             let dir = import(world);
+            agents_dir = Some(PathBuf::from(&dir));
             remember = Some(localgpt_gen::settings::LastOpened::World { dir: dir.clone() });
             initial_world = Some(dir);
         }
@@ -269,6 +234,7 @@ fn main() -> anyhow::Result<()> {
                 );
                 live_document = Some(live);
                 showing = Some(format!("Document · {}", file_name(&md)));
+                agents_dir = md.parent().map(Path::to_path_buf);
                 initial_world = Some(dir.to_string_lossy().into_owned());
             }
             Some(localgpt_gen::settings::LastOpened::World { dir })
@@ -281,6 +247,7 @@ fn main() -> anyhow::Result<()> {
                     live_canvas = Some(PathBuf::from(&dir));
                     initial_world = None;
                 } else {
+                    agents_dir = Some(PathBuf::from(&dir));
                     initial_world = Some(dir);
                 }
             }
@@ -322,93 +289,18 @@ fn main() -> anyhow::Result<()> {
         eprintln!("localgpt-app: couldn't remember what it opened: {e}");
     }
 
-    let (bridge, channels) = gen3d::create_gen_channels();
-    let (panel_channels, agent_channels) = desktop::create_chat_channels();
+    // No agent runs in the window: Gen's command channel has no one on its
+    // far end, and the scene changes only through the modes below.
+    let (_no_agent, channels) = gen3d::create_gen_channels();
 
     // **Canvas mode.** A package opened live makes the window the authority's
-    // canvas: no in-window agent, no prompt panel, no collaboration host and
-    // no open bar — agents change the world from outside, through the ops API
-    // this window serves, from a terminal (`localgpt world`, herdr, Claude
-    // Code over `localgpt world mcp`). That is the shape gen's `--live`
-    // proved, and it is why nothing here may mutate the scene except ops.
-    // The reconciler is what later lets a panel return, its tools emitting
-    // ops instead of touching the ECS.
+    // canvas: agents change the world from outside, through the ops API this
+    // window serves — from the page's terminals, or anywhere else (`localgpt
+    // world`, Claude Code over `localgpt world mcp`). That is the shape gen's
+    // `--live` proved, and it is why nothing here may mutate the scene except
+    // ops. Opening another file is a launch-time shape, so there is no Open…
+    // in it.
     let canvas = live_canvas.is_some();
-
-    // Collaboration, as in Gen's desktop mode: the host plugin is installed
-    // dormant, and the panel's Collaborate section starts a session.
-    let (mut host_options, net_hooks) = localgpt_gen::net::host::create_host_channels();
-    host_options.session_name = localgpt_gen::net::default_session_name();
-
-    // A CLI backend reaches the world's tools through the MCP relay, which
-    // the window serves and `localgpt-app mcp-server --connect` joins.
-    let mut relay = false;
-    if !canvas {
-        relay = localgpt_gen::agent_loop::uses_cli_backend(&config);
-
-        let tool_profile = tool_profile(args.tools.as_deref(), settings.tool_profile.as_deref())
-            .unwrap_or_else(|e| {
-                eprintln!("localgpt-app: {e}");
-                std::process::exit(2);
-            });
-
-        // Gen's agent loop on a background thread: Bevy owns the main thread
-        // (macOS). No REPL: the panel is the only local input.
-        let agent_config = config.clone();
-        let relay_bridge = bridge.clone();
-        let failure_sink = agent_channels.sink.clone();
-        let first_prompt = args.prompt.clone();
-        std::thread::spawn(move || {
-            let rt = match tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-            {
-                Ok(rt) => rt,
-                Err(e) => {
-                    failure_sink.send(ChatEvent::Failed(format!("no tokio runtime: {e}")));
-                    return;
-                }
-            };
-            let outcome = rt.block_on(async move {
-                if relay {
-                    match gen3d::mcp_relay::start_mcp_relay(relay_bridge, &agent_config).await {
-                        Ok(port) => tracing::info!("MCP relay on port {port} for the CLI backend"),
-                        Err(e) => tracing::warn!(
-                            "MCP relay failed to start ({e}): the CLI backend can't reach the \
-                         world's tools"
-                        ),
-                    }
-                }
-                localgpt_gen::agent_loop::run_agent_loop(
-                    bridge,
-                    AGENT_ID,
-                    first_prompt,
-                    agent_config,
-                    None,
-                    Some(net_hooks),
-                    agent_channels,
-                    true,
-                    tool_profile,
-                )
-                .await
-            });
-            match outcome {
-                // /quit in the panel ends the loop, and the app with it.
-                Ok(()) => {
-                    if relay {
-                        gen3d::mcp_relay::cleanup_relay_port();
-                    }
-                    std::process::exit(0);
-                }
-                // Say what went wrong in the panel, and leave the window open to
-                // read it.
-                Err(e) => {
-                    tracing::error!("agent loop stopped: {e:#}");
-                    failure_sink.send(ChatEvent::Failed(format!("{e:#}")));
-                }
-            }
-        });
-    }
 
     let mut app = App::new();
     app.add_plugins(
@@ -449,18 +341,6 @@ fn main() -> anyhow::Result<()> {
         // as soon as the authority takes it, as it did before Gen grew one.
         localgpt_gen::gen3d::live::setup_live(&mut app, dir, false)?;
     } else {
-        app.add_plugins(localgpt_gen::net::host::NetHostPlugin {
-            options: std::sync::Mutex::new(Some(host_options)),
-        });
-        app.add_plugins(desktop::PromptPanelPlugin::new(
-            panel_channels,
-            PanelSettings {
-                open: true,
-                focus_input: true,
-                settings_file: localgpt_gen::settings::settings_path(),
-                collab: Some(settings.collab.clone()),
-            },
-        ));
         app.add_plugins((
             document::DocumentPlugin,
             now_playing::NowPlayingPlugin,
@@ -473,11 +353,18 @@ fn main() -> anyhow::Result<()> {
     if let Some(shot) = screenshot::ScreenshotPlugin::from_env() {
         app.add_plugins(shot);
     }
-    app.run();
-    // So a later window doesn't find this one's stale port.
-    if relay {
-        gen3d::mcp_relay::cleanup_relay_port();
+    // The interface: a page over the viewport, its terminals in the folder
+    // of what is open.
+    if let Some(ui) = webui::WebUiPlugin::from_env(
+        live_canvas
+            .clone()
+            .or(agents_dir)
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_default(),
+    ) {
+        app.add_plugins(ui);
     }
+    app.run();
     Ok(())
 }
 
@@ -485,63 +372,4 @@ fn file_name(path: &std::path::Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default()
-}
-
-/// The prompt panel's toolbelt: `--tools`, else the profile picked in Gen's
-/// settings, else `core`. Gen alone falls back to `full` — it is the tool for
-/// building a world tool by tool — but this app opens for anyone
-/// (docs/world-strategy.md §13.2: core, deterministic default), and the full
-/// belt's ~14k tokens of schema ride on every request, more than a small
-/// local model's whole context.
-fn tool_profile(
-    flag: Option<&str>,
-    saved: Option<&str>,
-) -> Result<gen3d::tool_profile::ToolProfile, String> {
-    use gen3d::tool_profile::ToolProfile;
-    if let Some(flag) = flag {
-        return ToolProfile::parse(flag)
-            .ok_or_else(|| format!("--tools {flag:?} (core, standard, full)"));
-    }
-    Ok(saved
-        .and_then(ToolProfile::parse)
-        .unwrap_or(ToolProfile::Core))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use gen3d::tool_profile::ToolProfile;
-
-    #[test]
-    fn a_cli_backend_reaches_the_window_through_mcp_server_connect() {
-        let args = |line: &str| {
-            line.split_whitespace()
-                .map(String::from)
-                .collect::<Vec<_>>()
-        };
-        assert_eq!(relay_request(&args("mcp-server --connect")), Some(None));
-        assert_eq!(
-            relay_request(&args("mcp-server --connect 9878")),
-            Some(Some(9878))
-        );
-        // An ordinary launch is not a relay.
-        assert_eq!(relay_request(&args("--md notes.md")), None);
-        assert_eq!(relay_request(&args("")), None);
-        assert_eq!(relay_request(&args("mcp-server")), None);
-    }
-
-    #[test]
-    fn the_app_opens_with_the_core_toolbelt_unless_told_otherwise() {
-        assert_eq!(tool_profile(None, None), Ok(ToolProfile::Core));
-        // What the user picked in Gen's settings carries over.
-        assert_eq!(tool_profile(None, Some("full")), Ok(ToolProfile::Full));
-        // The flag beats the setting.
-        assert_eq!(
-            tool_profile(Some("standard"), Some("full")),
-            Ok(ToolProfile::Standard)
-        );
-        // A bad setting must not stop the app opening; a bad flag is an error.
-        assert_eq!(tool_profile(None, Some("typo")), Ok(ToolProfile::Core));
-        assert!(tool_profile(Some("typo"), None).is_err());
-    }
 }

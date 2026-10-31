@@ -12,8 +12,8 @@
 //! one entry per gesture, not one per frame or per key press.
 //!
 //! Committed at the entry on screen, an edit made while the canvas shows an
-//! earlier point in the history starts a branch there: forking from the rail
-//! is seeking back and editing.
+//! earlier point in the history starts a branch there: forking from the
+//! history is seeking back and editing.
 //!
 //! | Input | Edit |
 //! |---|---|
@@ -50,15 +50,12 @@ use bevy::picking::events::{Click, Drag, DragEnd, DragStart, Pointer};
 use bevy::picking::hover::HoverMap;
 use bevy::picking::pointer::{PointerButton, PointerId, PointerLocation};
 use bevy::prelude::*;
-use bevy_egui::EguiContexts;
-#[cfg(not(feature = "feathers"))]
-use bevy_egui::{EguiPrimaryContextPass, egui};
 use serde_json::Value;
 
 use super::avatar;
 use super::plugin::FlyCam;
 use super::registry::{GenEntity, NameRegistry};
-use crate::inspector::{InspectorSelection, PanelIntents, UiHovered};
+use crate::inspector::{InspectorSelection, PanelIntents};
 use localgpt_world_types as wt;
 
 /// How long a run of key presses waits for the next one before it commits.
@@ -77,14 +74,8 @@ const AXIS_COLORS: [Color; 3] = [
 ];
 const SCALE_HANDLE: Color = Color::srgb(0.9, 0.9, 0.9);
 const HOT: Color = Color::WHITE;
-#[cfg(not(feature = "feathers"))]
-const BOX_FILL: egui::Color32 = egui::Color32::from_rgba_premultiplied(18, 36, 51, 40);
-#[cfg(not(feature = "feathers"))]
-const BOX_LINE: egui::Color32 = egui::Color32::from_rgb(90, 180, 255);
-#[cfg(feature = "feathers")]
-const BOX_FILL_UI: Color = Color::srgba(0.35, 0.7, 1.0, 0.16);
-#[cfg(feature = "feathers")]
-const BOX_LINE_UI: Color = Color::srgb(0.35, 0.7, 1.0);
+const BOX_FILL: Color = Color::srgba(0.35, 0.7, 1.0, 0.16);
+const BOX_LINE: Color = Color::srgb(0.35, 0.7, 1.0);
 
 /// A person's edits in the canvas.
 pub struct CanvasEditPlugin;
@@ -118,11 +109,7 @@ impl Plugin for CanvasEditPlugin {
                     .in_set(PersonEdits),
             )
             .add_systems(Update, (draw_selection, draw_handles).after(PersonEdits));
-        // The box being drawn: painted by egui, or a `bevy_ui` node with
-        // the `feathers` feature (a layer, not a widget: picking ignores it).
-        #[cfg(not(feature = "feathers"))]
-        app.add_systems(EguiPrimaryContextPass, draw_marquee);
-        #[cfg(feature = "feathers")]
+        // The box being drawn: a layer, not a widget (picking ignores it).
         app.add_systems(Startup, spawn_marquee)
             .add_systems(Update, draw_marquee.after(PersonEdits));
     }
@@ -131,8 +118,8 @@ impl Plugin for CanvasEditPlugin {
 /// Snapping, for the canvas to apply and the panels to show.
 #[derive(Resource)]
 pub struct CanvasSettings {
-    /// Drags land on the grid and on the angle step; `Y` toggles (`G` is
-    /// the gallery's), and a Cmd/Ctrl held during a drag means the opposite.
+    /// Drags land on the grid and on the angle step; `Y` toggles, and a
+    /// Cmd/Ctrl held during a drag means the opposite.
     pub snap: bool,
     /// The grid, and one nudge.
     pub grid_m: f32,
@@ -771,10 +758,9 @@ fn keep_selection(
     }
 }
 
-/// The panels' intents, into the same stream as the gestures. egui may run
-/// a second pass in a frame (its multi-pass mode, for sizing), and a click
-/// is a click in both: an intent identical to the one before it is the
-/// same ask, not a second one.
+/// The panels' intents, into the same stream as the gestures. An intent
+/// identical to the one before it in the same frame is the same ask sent
+/// twice, not a second one.
 fn panel_intents(mut panel: ResMut<PanelIntents>, mut intents: MessageWriter<PersonIntent>) {
     if panel.0.is_empty() {
         return;
@@ -808,7 +794,6 @@ fn snapping(settings: &CanvasSettings, keys: &ButtonInput<KeyCode>) -> bool {
 fn handle_edits(
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
-    hovered: Option<Res<UiHovered>>,
     settings: Res<CanvasSettings>,
     mut handles: ResMut<Handles>,
     selection: Res<InspectorSelection>,
@@ -935,7 +920,7 @@ fn handle_edits(
     }
 
     // Hover, and a press that grabs.
-    if hovered.is_some() || gesture.dragging() {
+    if gesture.dragging() {
         handles.hot = None;
         return;
     }
@@ -1005,7 +990,6 @@ fn pointer_edits(
     mut ends: MessageReader<Pointer<DragEnd>>,
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
-    hovered: Option<Res<UiHovered>>,
     settings: Res<CanvasSettings>,
     mut handles: ResMut<Handles>,
     mut marquee: ResMut<CanvasMarquee>,
@@ -1038,9 +1022,8 @@ fn pointer_edits(
             return;
         }
     }
-    // A panel under the pointer (the inspector) has the pointer, not the
-    // world; and a press on a handle was the handle's.
-    if hovered.is_some() || handles.pressed {
+    // A press on a handle was the handle's.
+    if handles.pressed {
         drain_pointer(&mut clicks, &mut starts, &mut drags, &mut ends);
         if handles.pressed && !left {
             handles.pressed = false;
@@ -1209,36 +1192,13 @@ fn drain_pointer(
     ends.clear();
 }
 
-/// The box being drawn, over everything.
-#[cfg(not(feature = "feathers"))]
-fn draw_marquee(marquee: Res<CanvasMarquee>, mut egui: EguiContexts) {
-    let Some(m) = marquee.0.as_ref().filter(|m| m.moved) else {
-        return;
-    };
-    let Ok(ctx) = egui.ctx_mut() else {
-        return;
-    };
-    let rect = egui::Rect::from_two_pos(egui::pos2(m.from.x, m.from.y), egui::pos2(m.to.x, m.to.y));
-    let painter = ctx.layer_painter(egui::LayerId::new(
-        egui::Order::Foreground,
-        egui::Id::new("canvas_marquee"),
-    ));
-    painter.rect_filled(rect, 0.0, BOX_FILL);
-    painter.rect_stroke(
-        rect,
-        0.0,
-        egui::Stroke::new(1.0_f32, BOX_LINE),
-        egui::StrokeKind::Outside,
-    );
-}
-
 /// The box being drawn, as a `bevy_ui` node over the scene: a layer the
-/// pointer passes through, sized from the marquee each frame.
-#[cfg(feature = "feathers")]
+/// pointer passes through, sized from the marquee each frame. It is the
+/// viewport's own feedback, like a handle, so it is drawn in the world's
+/// frame rather than in the page.
 #[derive(Component)]
 struct MarqueeNode;
 
-#[cfg(feature = "feathers")]
 fn spawn_marquee(mut commands: Commands) {
     commands.spawn((
         MarqueeNode,
@@ -1249,14 +1209,13 @@ fn spawn_marquee(mut commands: Commands) {
             border: UiRect::all(Val::Px(1.0)),
             ..default()
         },
-        BackgroundColor(BOX_FILL_UI),
-        BorderColor::all(BOX_LINE_UI),
+        BackgroundColor(BOX_FILL),
+        BorderColor::all(BOX_LINE),
         ZIndex(90),
         bevy::picking::Pickable::IGNORE,
     ));
 }
 
-#[cfg(feature = "feathers")]
 fn draw_marquee(marquee: Res<CanvasMarquee>, mut node: Query<&mut Node, With<MarqueeNode>>) {
     let Ok(mut node) = node.single_mut() else {
         return;
@@ -1274,65 +1233,56 @@ fn draw_marquee(marquee: Res<CanvasMarquee>, mut node: Query<&mut Node, With<Mar
     }
 }
 
-/// Keys edit the selection; a run of presses is one gesture.
-#[allow(clippy::too_many_arguments)]
+/// Keys edit the selection; a run of presses is one gesture. Typing into a
+/// panel never reaches here: the page holds the keys while it has focus.
 fn key_edits(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    mut egui: EguiContexts,
     mut settings: ResMut<CanvasSettings>,
     mut selection: ResMut<InspectorSelection>,
     mut gesture: ResMut<CanvasGesture>,
     mut intents: MessageWriter<PersonIntent>,
     mut scene: Scene,
-    fields: crate::ui::focus::TypingState,
 ) {
-    // Typing into a panel is not editing the world.
-    let typing = egui
-        .ctx_mut()
-        .is_ok_and(|ctx| ctx.egui_wants_keyboard_input())
-        || fields.typing();
-    if !typing {
-        let command = keys.any_pressed([
-            KeyCode::SuperLeft,
-            KeyCode::SuperRight,
-            KeyCode::ControlLeft,
-            KeyCode::ControlRight,
-        ]);
-        if keys.just_pressed(KeyCode::Escape) {
-            flush_unless(&mut gesture, None, &scene, &mut intents);
-            if !selection.is_empty() {
-                selection.clear();
-            }
+    let command = keys.any_pressed([
+        KeyCode::SuperLeft,
+        KeyCode::SuperRight,
+        KeyCode::ControlLeft,
+        KeyCode::ControlRight,
+    ]);
+    if keys.just_pressed(KeyCode::Escape) {
+        flush_unless(&mut gesture, None, &scene, &mut intents);
+        if !selection.is_empty() {
+            selection.clear();
         }
-        if keys.just_pressed(KeyCode::KeyY) && !command {
-            settings.snap = !settings.snap;
-        }
-        if keys.just_pressed(KeyCode::KeyL) && !command {
-            settings.local_axes = !settings.local_axes;
-        }
-        if command && keys.just_pressed(KeyCode::KeyZ) {
-            flush_unless(&mut gesture, None, &scene, &mut intents);
-            let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
-            let alt = keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]);
-            intents.write(if shift {
-                PersonIntent::Redo
-            } else {
-                PersonIntent::Undo { own: !alt }
-            });
-        }
-        if let Some(entity) = selection.entity {
-            key_edit(
-                &keys,
-                command,
-                entity,
-                &settings,
-                &mut selection,
-                &mut gesture,
-                &mut intents,
-                &mut scene,
-            );
-        }
+    }
+    if keys.just_pressed(KeyCode::KeyY) && !command {
+        settings.snap = !settings.snap;
+    }
+    if keys.just_pressed(KeyCode::KeyL) && !command {
+        settings.local_axes = !settings.local_axes;
+    }
+    if command && keys.just_pressed(KeyCode::KeyZ) {
+        flush_unless(&mut gesture, None, &scene, &mut intents);
+        let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+        let alt = keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]);
+        intents.write(if shift {
+            PersonIntent::Redo
+        } else {
+            PersonIntent::Undo { own: !alt }
+        });
+    }
+    if let Some(entity) = selection.entity {
+        key_edit(
+            &keys,
+            command,
+            entity,
+            &settings,
+            &mut selection,
+            &mut gesture,
+            &mut intents,
+            &mut scene,
+        );
     }
 
     // A run of presses commits once the keys go quiet. A drag in progress

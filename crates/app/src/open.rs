@@ -1,6 +1,6 @@
 //! Opening things from inside the window — a document, a song or a world —
 //! so the app is usable without a terminal. What `--md`, `--song` and
-//! `--world` do at launch, from an "Open…" button at the top of the window.
+//! `--world` do at launch, from the page's Open… button ([`OpenFile`]).
 //!
 //! The native picker runs the way Verse's folder picker does: the
 //! synchronous dialog cannot be called from a Bevy system on macOS (the panel
@@ -20,7 +20,6 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 use bevy::prelude::*;
 use bevy::tasks::AsyncComputeTaskPool;
-use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use localgpt_core::config::Config;
 use localgpt_gen::gen3d::plugin::GenInitialWorld;
 
@@ -35,17 +34,33 @@ pub struct Launch {
     pub author: bool,
 }
 
-/// What is open, for the bar.
+/// What is open, for the page's title.
 #[derive(Resource, Default)]
 pub struct Showing(pub Option<String>);
 
+/// Ask for the native picker, as the page's Open… button does.
+#[derive(Message, Debug, Clone, Copy)]
+pub struct OpenFile;
+
 #[derive(Resource)]
-struct Opener {
+pub struct Opener {
     tx: Sender<Opened>,
     rx: Mutex<Receiver<Opened>>,
     /// Work in progress ("Listening to …"), or the last failure.
     status: Option<String>,
     busy: bool,
+}
+
+impl Opener {
+    /// Work in progress ("Listening to …"), or the last failure.
+    pub fn status(&self) -> Option<&str> {
+        self.status.as_deref()
+    }
+
+    /// Something is opening: a second pick waits for it.
+    pub fn busy(&self) -> bool {
+        self.busy
+    }
 }
 
 impl Default for Opener {
@@ -108,8 +123,8 @@ impl Plugin for OpenPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Opener>()
             .init_resource::<Showing>()
-            .add_systems(Update, receive)
-            .add_systems(EguiPrimaryContextPass, open_bar);
+            .add_message::<OpenFile>()
+            .add_systems(Update, (ask_open, receive).chain());
         if let Some(path) = std::env::var_os("LOCALGPT_APP_OPEN") {
             let after = std::env::var("LOCALGPT_APP_OPEN_AFTER")
                 .ok()
@@ -146,34 +161,11 @@ fn remember(opened: localgpt_gen::settings::LastOpened) {
     }
 }
 
-fn open_bar(mut contexts: EguiContexts, opener: Res<Opener>, showing: Res<Showing>) {
-    let Ok(ctx) = contexts.ctx_mut() else {
-        return;
-    };
-    egui::Area::new(egui::Id::new("open_bar"))
-        .anchor(egui::Align2::CENTER_TOP, [0.0, 10.0])
-        .show(ctx, |ui| {
-            egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    let open = ui
-                        .add_enabled(!opener.busy, egui::Button::new("Open…"))
-                        .on_hover_text("A Markdown document, a song, or a world");
-                    if open.clicked() {
-                        pick(opener.tx.clone());
-                    }
-                    let weak = ui.visuals().weak_text_color();
-                    match (&opener.status, &showing.0) {
-                        (Some(status), _) => {
-                            ui.label(egui::RichText::new(status).small().color(weak));
-                        }
-                        (None, Some(showing)) => {
-                            ui.label(egui::RichText::new(showing).small().color(weak));
-                        }
-                        (None, None) => {}
-                    }
-                });
-            });
-        });
+/// The page asked for the picker; one at a time.
+fn ask_open(mut asks: MessageReader<OpenFile>, opener: Res<Opener>) {
+    if asks.read().count() > 0 && !opener.busy {
+        pick(opener.tx.clone());
+    }
 }
 
 /// The native picker, awaited on the task pool.

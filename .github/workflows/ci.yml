@@ -135,7 +135,7 @@ jobs:
   # Check only, no clippy or tests: these pull heavy native deps, and the lint
   # bar stays on the default build.
   features:
-    name: Feature tiers (llm, ml, feathers)
+    name: Feature tiers (llm, ml)
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
@@ -151,9 +151,6 @@ jobs:
       - run: cargo check -p localgpt-md --features llm
       - run: cargo check -p localgpt-verse --features llm
       - run: cargo check -p localgpt-gen --features local-llm
-      # The world bar on Bevy's own widgets (docs/rfcs/authoring/egui-or-not.md):
-      # off by default, so this is the only build that keeps it compiling.
-      - run: cargo check -p localgpt-gen --features feathers
       # Verse's `ml` tier pins ort =2.0.0-rc.11, which targets ONNX Runtime
       # 1.23 — not the 1.24.2 the shared onnxruntime action installs for
       # rc.12 — so it gets its own, as it did in Verse's own CI.
@@ -174,6 +171,29 @@ jobs:
         env:
           ORT_LIB_LOCATION: /opt/onnxruntime-1.23/lib
           ORT_PREFER_DYNAMIC_LINK: "1"
+
+  # The desktop app's interface: one page (crates/app/ui — React, Tailwind,
+  # CodeMirror, xterm.js) over the Bevy viewport, carried inside the release
+  # binary (docs/rfcs/authoring/the-page.md). The Rust side builds without
+  # it — the bevy job's app is a build with no page in it — so the page's
+  # types and its build are checked here.
+  interface:
+    name: The app's interface
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: crates/app/ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: crates/app/ui/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
 
   # The one web renderer. Until localgpt.world folded in here, this check lived
   # in that repository and ran against a *copy* of

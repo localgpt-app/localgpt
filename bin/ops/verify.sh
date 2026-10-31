@@ -10,8 +10,9 @@
 #   --rust      fmt, clippy and tests for the workspace minus the Bevy crates,
 #               and the world.schema.json snapshot
 #   --bevy      clippy and tests for app, gen, md, verse, world-bevy, world-audio
-#   --features  cargo check for the opt-in tiers (llm, local-llm, feathers, ml)
-#   --web       the vendored viewer matches npm, localgpt.world's render check,
+#   --features  cargo check for the opt-in tiers (llm, local-llm, ml)
+#   --web       the app's interface (typecheck, build), the
+#               vendored viewer matches npm, localgpt.world's render check,
 #               the localgpt.md page check (wasm-pack)
 #   --deps      cargo-deny licenses, bans and sources; advisories too, which CI
 #               runs on main and weekly, never on a pull request
@@ -67,13 +68,15 @@ if [ "$want_features" = 1 ]; then
   lg_stage "cargo check -p localgpt-md --features llm" cargo check -p localgpt-md --features llm
   lg_stage "cargo check -p localgpt-verse --features llm" cargo check -p localgpt-verse --features llm
   lg_stage "cargo check -p localgpt-gen --features local-llm" cargo check -p localgpt-gen --features local-llm
-  lg_stage "cargo check -p localgpt-gen --features feathers" cargo check -p localgpt-gen --features feathers
   lg_stage "cargo check -p localgpt-verse --features ml" cargo check -p localgpt-verse --features ml
 fi
 
 if [ "$want_web" = 1 ]; then
   lg_need_tool npm "install node 22"
   lg_need_tool wasm-pack "cargo install wasm-pack (and rustup target add wasm32-unknown-unknown)"
+  lg_need_modules crates/app/ui
+  lg_stage "the app's interface: typecheck, build" \
+    bash -c "cd crates/app/ui && npm run build"
   lg_stage "viewer is the published openworldformat renderer" ./scripts/sync-viewer.sh --check
   lg_need_modules website-world
   lg_stage "localgpt.world: conformance render" bash -c "cd website-world && npm run check"

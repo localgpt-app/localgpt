@@ -49,11 +49,6 @@ pub struct GenSettings {
     #[serde(default)]
     pub embeddings: Option<bool>,
 
-    /// The Collaborate host form's last values, so a session is easy to
-    /// restart. Seeded into the prompt panel; saved when Start is clicked.
-    #[serde(default)]
-    pub collab: CollabSettings,
-
     /// What the app opened last, so a bare launch reopens where the user
     /// left off — a document with its editor, anything else as its world
     /// (a song's world plays again on its own).
@@ -71,18 +66,6 @@ pub enum LastOpened {
     World { dir: String },
 }
 
-/// The Collaborate host form, as Gen remembers it.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct CollabSettings {
-    #[serde(default)]
-    pub session_name: String,
-    /// `None` is the default port (also what an unparseable field becomes).
-    #[serde(default)]
-    pub port: Option<u16>,
-    #[serde(default)]
-    pub open: bool,
-}
-
 fn default_version() -> u32 {
     VERSION
 }
@@ -94,7 +77,6 @@ impl Default for GenSettings {
             default_model: None,
             tool_profile: None,
             embeddings: None,
-            collab: CollabSettings::default(),
             last_opened: None,
         }
     }
@@ -192,11 +174,6 @@ mod tests {
             default_model: Some("gguf/bonsai".into()),
             tool_profile: Some("core".into()),
             embeddings: Some(false),
-            collab: CollabSettings {
-                session_name: "harbor".into(),
-                port: Some(9900),
-                open: true,
-            },
             last_opened: Some(LastOpened::Document {
                 path: "/tmp/notes.md".into(),
             }),
@@ -208,6 +185,18 @@ mod tests {
         );
         // And the tagged enum reads as its own object, not a tuple.
         assert!(json.contains("\"kind\": \"document\""), "{json}");
+    }
+
+    /// The Collaborate panel's form went with the panel; a file that still
+    /// holds it reads the same, the form ignored.
+    #[test]
+    fn a_file_with_the_old_collaborate_form_still_reads() {
+        let json = format!(
+            r#"{{"version": {VERSION}, "default_model": "claude-cli/opus",
+                "collab": {{"session_name": "harbor", "port": 9900, "open": true}}}}"#
+        );
+        let settings: GenSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(settings.default_model.as_deref(), Some("claude-cli/opus"));
     }
 
     /// A file from a future Gen is ignored rather than half-read.
