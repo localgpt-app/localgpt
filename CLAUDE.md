@@ -24,7 +24,9 @@ cargo build --workspace         # Build all workspace crates
 
 # Run
 cargo run -- world init demo.world   # a .world package's command line (init, submit,
-                                     # undo, log, tips, verify, history)
+                                     # undo, redo, log, tips, show, get, verify, history;
+                                     # screenshot, selection, goto, proposals with an app);
+                                     # through the app's API while one has the world open
 cargo run -- world mcp               # the shim: a stdio MCP server over an app's open canvas
 
 # Test
@@ -318,10 +320,16 @@ Aliases resolve first (e.g. `opus` → `anthropic/claude-opus-4-6`, `sonnet`,
 ### CLI Subcommands (`crates/cli/src/cli/`)
 
 `world` (a `.world` package's command
-line — init, submit (`--at <id>` forks), undo, log, tips, verify, history — and
-`world mcp`, a stdio MCP server over an app's open canvas;
-`crates/cli/src/cli/world.rs` over `world-agent::headless`, which is shared with
-the `live` example). The head is `refs.main` (else the last entry): read it
+line — init, submit (`--at <id>` forks), undo, redo, log, tips, show, get,
+verify, history, and screenshot, selection, goto and proposals, which need an
+app — and `world mcp`, a stdio MCP server over an app's open canvas;
+`crates/cli/src/cli/world.rs`). One authority at a time: while an app answers
+at `.live/endpoint.json`, every command is a call to its API
+(`world_api.rs`, which the shim shares) and the CLI never opens the package;
+with nothing open it commits through `world-agent::headless`, which is shared
+with the `live` example. Both hand back `live::receipt`. The folder is the
+first argument, else `$LOCALGPT_WORLD_DIR` (the app's tabs set it), else the
+world the shell is in. The head is `refs.main` (else the last entry): read it
 with `LiveWorld::main_tip`, never as "the last line" — a branch commit is
 always the last line.
 

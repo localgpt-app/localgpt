@@ -55,26 +55,26 @@ In the window:
 
 No agent runs in the window. The package folder is the handoff: `AGENTS.md` says how to change the world, and `.live/endpoint.json` holds the API's URL and token while the canvas is open. Any agent that reads the folder can revise the coverage — "make 1B a 35", "stay on her", "from the doorway" — as ordinary `ModifyEntity` patches on a camera entity's `ext-cinematography` block, committed whole or refused with a reason it can act on.
 
-The cheapest way to put an agent on it is the MCP shim, which serves the open canvas's tools over stdio:
+Start the agent in the folder — in the [desktop app](/docs/app/#agents), an agent's tab starts there — and point it at `AGENTS.md`: the guide and the endpoint are files it can read, and the guide teaches it [`localgpt world`](/docs/cli-commands/#world), which sends each command to the open canvas. An agent that speaks MCP without a shell gets the same calls as tools from the shim:
 
 ```bash
 # in another terminal, while the canvas is open
 localgpt world mcp previs/scene-1.world
 ```
 
-Add it to your MCP client (for Claude Code: `claude mcp add previs -- localgpt world mcp previs/scene-1.world`) and ask. Or start the agent in the folder and point it at `AGENTS.md` — the guide and the endpoint are files it can read.
+Add it to your MCP client (for Claude Code: `claude mcp add previs -- localgpt world mcp previs/scene-1.world`) and ask.
 
-Without an agent, the API is plain HTTP. The camera entity is named after its shot, so a revision reads the block and sends it back with the change (an `ext-*` patch replaces the whole block):
+Without an agent, the same commands revise a shot by hand. The camera entity is named after its shot, so a revision reads the block and sends it back with the change (an `ext-*` patch replaces the whole block):
 
 ```bash
-# URL and token are in previs/scene-1.world/.live/endpoint.json
-curl -s -H "Authorization: Bearer $TOKEN" "$URL/world" \
-  | jq '.entities[] | select(.name == "1B")["ext-cinematography"]'
-curl -s -X POST -H "Authorization: Bearer $TOKEN" "$URL/ops?author=me" \
-  -d '{"ops": [{"ModifyEntity": {"id": "1B", "patch": {"ext-cinematography": { …the block, with "focal_length_mm": 35… }}}}]}'
+cd previs/scene-1.world
+localgpt world get 1B | jq '.["ext-cinematography"]'
+localgpt world submit --author me -m "a 35 for 1B" <<'EOF'
+[{"ModifyEntity": {"id": "1B", "patch": {"ext-cinematography": { …the block, with "focal_length_mm": 35… }}}}]
+EOF
 ```
 
-Every commit lands in `ops.jsonl` and rewrites `manifest.json`; `GET /log` lists the entries and `localgpt world verify previs/scene-1.world` checks that folding the log gives the manifest.
+Every commit lands in `ops.jsonl` and rewrites `manifest.json`; `localgpt world log` lists the entries and `localgpt world verify` checks that folding the log gives the manifest. A program can call the canvas's [API](/docs/gen/live-canvas/#routes) directly, with the URL and token in `.live/endpoint.json`.
 
 ## 4. Treatments as branches, compared as boards {#treatments}
 

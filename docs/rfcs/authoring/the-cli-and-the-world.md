@@ -47,15 +47,45 @@ for everything below.
 Not an agent that competes; the authority a world has when no app holds it,
 and the surface through which any agent reaches a world.
 
-### 1. `localgpt world` — the headless authority (built)
+### 1. `localgpt world` — the world's command line, open or not (built)
 
-`init`, `submit`, `log`, `verify`, `undo`, `history`. A world is a folder, so
-its command line is the natural CLI shape for a format: scriptable, CI-able,
-no window. The commands live in `world-agent::headless` because `LiveWorld`
-is the one authority — a second implementation of commit is the drift this
-workspace has paid for before — and a write refuses while an app answers at
-the folder's endpoint, because one authority at a time is the rule the whole
-live-editing design rests on.
+`init`, `submit`, `undo`, `redo`, `log`, `tips`, `show`, `get`, `verify`,
+`screenshot`, `selection`, `goto`, `proposals`, `history`. A world is a
+folder, so its command line is the natural CLI shape for a format:
+scriptable, CI-able, no window. With nothing holding the folder the commands
+are the authority, in `world-agent::headless`, because `LiveWorld` is the one
+authority — a second implementation of commit is the drift this workspace
+has paid for before.
+
+While an app answers at the folder's endpoint, every command is a call to its
+API instead (2026-10-31; until then a write refused and named the URL). The
+app is still the one authority and the CLI its client, and the CLI does not
+open the package even to read it, since opening is what an authority does.
+Both authorities hand back one receipt (`live::receipt`), so a command prints
+the same lines whichever committed. That made the CLI the way an agent with
+a shell edits an open world, ahead of curl and the shim:
+
+- **Curl** put the bearer token on every command line, and so in every
+  transcript; quoted JSON for a shell, where an apostrophe in a message
+  breaks it; and could be allowed only as `Bash(curl:*)`. The CLI reads the
+  token from `.live/endpoint.json` itself, takes a batch on stdin, and is
+  one prefix to allow. The world's `AGENTS.md` teaches it, and keeps the
+  API as the protocol underneath, for programs and for a machine without the
+  CLI.
+- **An MCP server's tool list** rides in every turn of the agent that loads
+  it. Measured 2026-10-31 (`tools/list`, bytes ÷ 4 for tokens): the shim's
+  eight tools are 3.4 KB, about 840 tokens; `localgpt-gen mcp-server`'s 110
+  are 88 KB, about 22,000. A CLI costs nothing until `--help`, and a shell
+  can cut what it reads: one entity of a 178-entity song world's 84 KB
+  manifest is under 500 bytes with `get`, and `log --last 5` is five lines
+  where the shim's `world_log` returns the whole history.
+
+The folder is the first argument, else `$LOCALGPT_WORLD_DIR`, else the folder
+the shell is in or the nearest one above it that is a world (by its
+`snapshots/base.json`: a `manifest.json` alone is also a web project's). The
+app's agent tabs set `LOCALGPT_WORLD_DIR`, and `LOCALGPT_WORLD_AUTHOR` to the
+agent's name, so a batch is attributed by the tab rather than by a string the
+agent chooses; the token stays in the file.
 
 ### 2. `localgpt world mcp` — the shim (built)
 
@@ -63,11 +93,14 @@ A stdio MCP server that reads `.live/endpoint.json` and offers the open
 world's tools. It makes Claude Code a first-class editor of a live world with
 no emulator, no pane and no new protocol, which is the conclusion the terminal
 and ACP investigations both arrived at from opposite directions. It has been
-in the live-editing POC's *Not done* list since the beginning. Six tools —
-submit, undo, log, verify, screenshot, selection — each one HTTP call, with a
+in the live-editing POC's *Not done* list since the beginning. Eight tools —
+submit, undo, log, tips, goto, verify, screenshot, selection — each one HTTP
+call through the same client as the commands (`world_api.rs`), with a
 refusal handed back verbatim so the agent can correct the batch, and the
 world's own `AGENTS.md` named in the submit description so an agent that has
-never heard of the format can find the rules from the tool list.
+never heard of the format can find the rules from the tool list. It is for an
+agent that speaks MCP and has no shell; one with a shell is better served by
+the commands (§1).
 
 ### 3. Point memory, heartbeat and cron at worlds
 
@@ -99,10 +132,8 @@ and do unattended work to a world on a timer. None of them is chat.
 
 ## Not decided
 
-- Whether `localgpt world` should grow the non-linear commands — `tips`,
-  `fork`, `goto` — or whether branching stays the app's. The view that would
-  back them exists (`crates/world-editor`), unwired.
 - Whether the shim is one `localgpt world mcp` for the open world, or a
-  per-world server an agent's own config names.
+  per-world server an agent's own config names (one, registered once, in
+  [the-harness-goes.md](the-harness-goes.md)'s `setup`).
 - Whether memory-about-a-world lives in the agent's workspace or in the
   package, which decides whether it travels with a shared link.

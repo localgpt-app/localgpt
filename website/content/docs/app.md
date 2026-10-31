@@ -68,7 +68,7 @@ Under the tree the inspector shows the selected thing part by part. Its name, tr
 
 ## The agents {#agents}
 
-**+** at the top of the right-hand panel opens a tab: **Claude Code**, **Codex**, **agy**, **Gemini CLI**, **OpenCode**, or a **Shell**. Each is a full terminal — the agent's own interface, its approvals, `/commands` and sign-in — started through your login shell in the folder of what is open: the package, the document's folder, or the song's world. So an agent finds a package's `AGENTS.md` and `.live/endpoint.json` from where it starts, and `localgpt world mcp` gives it the world's tools.
+**+** at the top of the right-hand panel opens a tab: **Claude Code**, **Codex**, **agy**, **Gemini CLI**, **OpenCode**, or a **Shell**. Each is a full terminal — the agent's own interface, its approvals, `/commands` and sign-in — started through your login shell in the folder of what is open: the package, the document's folder, or the song's world. So an agent finds a package's `AGENTS.md` and `.live/endpoint.json` from where it starts, and the guide teaches it [`localgpt world`](/docs/cli-commands/#world), which sends each command to the open window. A tab opened on a package also carries it as `LOCALGPT_WORLD_DIR`, and an agent's tab its name as `LOCALGPT_WORLD_AUTHOR`, so those commands find the world from any folder the agent goes to and its batches are recorded under its name. `localgpt world mcp` gives an MCP agent the same calls as tools.
 
 The app knows each agent by its command's name and nothing more: no keys, no models, no settings — those stay with the agent. A link in a terminal opens in your browser. **Shift+Enter** sends a new line the way Claude Code expects one. A tab whose program has ended stays open to read; close it with its **×**.
 

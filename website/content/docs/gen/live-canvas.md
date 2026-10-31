@@ -49,41 +49,41 @@ localgpt-gen --live demo.world
 
 ## Change it from outside {#api}
 
-`AGENTS.md` in the folder tells an agent everything below; point any agent at the folder and it can work. The API's URL and bearer token are in `.live/endpoint.json`:
+`AGENTS.md` in the folder tells an agent everything below; point any agent at the folder and it can work. An agent with a shell uses [`localgpt world`](#headless), which finds the open app through the folder and sends each command to its API:
 
 ```bash
-W=scene-1.world
-URL=$(jq -r .url "$W/.live/endpoint.json"); TOKEN=$(jq -r .token "$W/.live/endpoint.json")
-
-curl -s -X POST "$URL/ops" -H "Authorization: Bearer $TOKEN" -d '{
-  "author": "claude", "message": "a lantern by the door",
-  "ops": [
-    {"SpawnEntity": {"entity": {"name": "lantern",
-      "transform": {"position": [2.0, 0.5, 1.0]},
-      "shape": {"Cylinder": {"radius": 0.1, "height": 1.0}},
-      "material": {"color": [0.2, 0.2, 0.2, 1.0], "emissive": [4.0, 2.8, 1.2, 1.0]}}}},
-    {"ModifyEntity": {"id": "bench", "patch": {"transform": {"position": [0.0, 0.0, 3.0]}}}},
-    {"DeleteEntity": {"id": "torus"}}
-  ]}'
+cd scene-1.world
+localgpt world submit --author claude -m "a lantern by the door" <<'EOF'
+[
+  {"SpawnEntity": {"entity": {"name": "lantern",
+    "transform": {"position": [2.0, 0.5, 1.0]},
+    "shape": {"Cylinder": {"radius": 0.1, "height": 1.0}},
+    "material": {"color": [0.2, 0.2, 0.2, 1.0], "emissive": [4.0, 2.8, 1.2, 1.0]}}}},
+  {"ModifyEntity": {"id": "bench", "patch": {"transform": {"position": [0.0, 0.0, 3.0]}}}},
+  {"DeleteEntity": {"id": "torus"}}
+]
+EOF
 ```
 
-- **A batch applies whole or not at all.** If any op is wrong, nothing changes and the reply says which op and why (HTTP 422, `errors`, one per failing op). A refusal is worded so the agent can correct the batch and resend.
+A program calls the [API](#routes) itself: its URL and bearer token are in `.live/endpoint.json`, and `POST /ops` takes the same batch, with `author`, `message`, `at` and `expected_revision` beside `ops`.
+
+- **A batch applies whole or not at all.** If any op is wrong, nothing changes and the reply says which op and why (HTTP 422, `errors`, one per failing op; from `localgpt world`, a `rejected:` line each and exit status 1). A refusal is worded so the agent can correct the batch and resend.
 - **Names bind.** Use an entity's name wherever an id goes — an op's `id`, `parent`, a behavior's `target`, a camera's `aim_entity` — and it commits as the id. A name nothing has refuses the batch, naming it.
 - **The reply is a receipt:** `revision`, the entry's `id` and `parent`, `head`, `branch`, one line per op under `changes`, `spawned` names and ids, `stored` assets, `warnings` (a behavior left without its target, say) and `on_screen`.
-- **`expected_revision`** pins a batch to the world the agent read; if anyone moved it since, the batch is refused naming both revisions — read again, then decide again.
+- **`expected_revision`** (`--expected-revision`) pins a batch to the world the agent read; if anyone moved it since, the batch is refused naming both revisions — read again, then decide again.
 - **A `patch` holds only what changes.** `transform`, `material` and `light` merge; `behaviors`, `shape`, `parent`, `audio`, `mesh_asset` and `ext-*` blocks are replaced whole; `null` removes a field.
 - **Assets are files.** Write a `.glb`, `.png` or sound into `assets/` under any name and reference it by that path in an op; the authority stores an immutable copy named by its hash and points the world there. New bytes make a new version; the old one stays for the history that used it.
 - **Op kinds:** `SpawnEntity`, `ModifyEntity`, `DeleteEntity` (takes children with it), `SetEnvironment`, `SetCamera`, `ModifyWorld`, `Batch`. `ModifyWorld` changes the world's scene-wide fields — its `soundtrack`, `tours`, `environment`, `camera`, `avatar` — and a field that is one value merges, so `{"ModifyWorld": {"patch": {"soundtrack": {"sections": [0, 0.3, 0.7]}}}}` cuts the song again and leaves the rest. A song's file is written into `assets/` and stored like any asset; `AGENTS.md` in the folder says which numbers the timeline draws from.
-- **Review.** With `--review` on, the reply is `proposed` (HTTP 202) and the batch waits on the canvas for the person to accept (Enter) or reject (Esc); `GET /proposals` reports its status.
+- **Review.** With `--review` on, the reply is `proposed` (HTTP 202) and the batch waits on the canvas for the person to accept (Enter) or reject (Esc); `GET /proposals` (`localgpt world proposals`) reports its status.
 
-The cheapest way to put an MCP agent on a world is the shim, which reads `.live/endpoint.json` and serves the open canvas's tools over stdio — submit, undo, log, verify, screenshot, selection — with every refusal handed back verbatim:
+An agent that speaks MCP but has no shell gets the same calls as tools from the shim, which reads `.live/endpoint.json` and serves the open canvas over stdio — submit, undo, log, tips, goto, verify, screenshot, selection — with every refusal handed back verbatim:
 
 ```bash
 localgpt world mcp scene-1.world
 claude mcp add scene -- localgpt world mcp scene-1.world    # Claude Code, then ask
 ```
 
-Or start the agent in the folder and tell it to read `AGENTS.md`; the guide and the endpoint are files it can read.
+Or start the agent in the folder and tell it to read `AGENTS.md`; the guide and the endpoint are files it can read. In the [desktop app](/docs/app/#agents), an agent's tab starts there, with `LOCALGPT_WORLD_DIR` and its name as `LOCALGPT_WORLD_AUTHOR`, so `localgpt world` finds the world from wherever the agent goes and its batches carry the agent's name.
 
 ## Edit by hand {#hand}
 
@@ -99,7 +99,7 @@ Every gesture is one batch through the same authority, so it lands in the histor
 
 The history is a tree, and the canvas can show any point in it without writing anything.
 
-- **Undo is per author, with redo.** Cmd+Z takes back your own newest change, Cmd+Alt+Z anyone's, Cmd+Shift+Z redoes. An undo appends the inverse — nothing is ever removed from the log — and an own undo that a later batch built on is refused naming that entry. Over the API: `POST /undo` (with an `own` flag) and `POST /redo`.
+- **Undo is per author, with redo.** Cmd+Z takes back your own newest change, Cmd+Alt+Z anyone's, Cmd+Shift+Z redoes. An undo appends the inverse — nothing is ever removed from the log — and an own undo that a later batch built on is refused naming that entry. Over the API: `POST /undo` (with an `own` flag) and `POST /redo`; from the terminal, `localgpt world undo --own` and `localgpt world redo`.
 - **Branches.** A batch sent `at` an earlier entry (`POST /ops?at=<id>`, an id from `GET /log` or `GET /tips`) starts a branch there; the head — `manifest.json`, main's tip — stays where it was. The canvas follows a commit that continues what is on screen and otherwise only grows the history, so an agent working on main never yanks a person off the point they chose.
 - **The history panel** in the [desktop app](/docs/app/#package) draws the log as `git log --graph` does: newest at the top, one lane per branch, main's head and the entry on screen marked. Click an entry to seek there; the transport under it steps through the entries in write order, scrubs, and plays them, so you watch the world being made. Every move is a seek — `POST /goto` — so nothing is written.
 - **Replay.** `localgpt-gen --replay <ops.jsonl | package | .world archive>` rebuilds a world batch by batch in the window as a time-lapse, loading each commit's own assets.
@@ -121,25 +121,30 @@ The history is a tree, and the canvas can show any point in it without writing a
 | `GET /board` | a previs package's printable board (`?tip=<a>&vs=<b>` compares two) |
 | `GET /proposals` | batches waiting for review |
 | `POST /replay` | play the history back in the window |
-| `GET /agents`, `GET /widgets`, `POST /input` | what the pane host sees; the window's named widgets and a synthesized hand, for driving the canvas from a test |
+| `POST /input` | a synthesized hand, for driving the canvas from a test (`LOCALGPT_SYNTHETIC_INPUT=1`) |
+| `GET /` | every route, described |
 
-## Headless: the same authority without a window {#headless}
+## From the terminal, open or not {#headless}
 
-`localgpt world` runs the same commands from a script, CI or the terminal, and refuses to write while an app answers at the folder's endpoint — one authority at a time.
+`localgpt world` is the world's command line, whoever holds it. While an app answers at the folder's endpoint, each command is a call to its API: the app commits, and the screenshot, the selection, `goto` and review are the window's. With nothing open, the commands are the same authority without a window — for a script, CI or the terminal. One authority at a time, either way, and a commit prints the same receipt whichever made it.
 
 ```bash
 localgpt world init demo.world --git
 localgpt world submit demo.world batch.json --author me --message "lift the cube"
 localgpt world submit demo.world batch.json --at <entry-id>     # a branch
-localgpt world log demo.world
+localgpt world log demo.world --last 5
 localgpt world tips demo.world
-localgpt world undo demo.world --author me
+localgpt world show demo.world --at current                    # what the window shows, a line per entity
+localgpt world get demo.world lantern                          # one entity's fields, as JSON
+localgpt world undo demo.world --own --author me
+localgpt world redo demo.world --own --author me
+localgpt world screenshot demo.world                           # the open app's view, as a PNG path
 localgpt world verify demo.world
 localgpt world history demo.world
 localgpt world mcp demo.world                                  # the shim, for the open canvas
 ```
 
-See [CLI Commands](/docs/cli-commands/#world).
+Run inside the folder, or with `LOCALGPT_WORLD_DIR` set, and the folder argument can go. See [CLI Commands](/docs/cli-commands/#world).
 
 ## Where this is going {#next}
 

@@ -120,7 +120,7 @@ localgpt-gen "create a solar system with planets"
 # Work on a .world package (see below)
 localgpt world init demo.world --git
 localgpt world submit demo.world batch.json --author me --message "lift the cube"
-localgpt world log demo.world
+localgpt world log demo.world --last 5
 localgpt world mcp demo.world          # the open canvas's tools, over stdio, for any MCP agent
 
 # Test web search provider
@@ -172,25 +172,38 @@ localgpt cert regenerate          # Force certificate regeneration
 
 ## `localgpt world` {#world}
 
-A `.world` package is a folder — `manifest.json` (the world now), `ops.jsonl` (every change), `assets/` — and `localgpt world` is its command line: the same authority the [live canvas](/docs/gen/live-canvas/) uses in the window, with no window, for scripts, CI and the terminal. It refuses to write while an app answers at the folder's endpoint, so there is one authority at a time.
+A `.world` package is a folder — `manifest.json` (the world now), `ops.jsonl` (every change), `assets/` — and `localgpt world` is its command line, whoever holds it. While an app has the world open, every command is a call to that app's localhost API: the app commits, and what only a window knows — what's on screen, the selection, a screenshot, a batch waiting for review — comes from it. With nothing open, the commands are the authority themselves, the same one the [live canvas](/docs/gen/live-canvas/) uses, for scripts and CI. One authority at a time, either way, and a commit prints the same receipt whichever made it.
+
+This is how an agent in a terminal changes a world: no token or JSON quoting on its command line, short lines unless `--json`, and one command prefix to allow.
 
 ```bash
-localgpt world init <dir> [--git]                 # open a folder as a package, creating one if needed; --git: every batch a commit
-localgpt world submit <dir> <batch.json | ->      # commit a batch of edit ops — whole, or not at all
-    --author <name> --message <why>               #   attribution and the commit message
-    --at <entry-id>                               #   build on an earlier entry: a branch; the head stays where it is
-localgpt world undo <dir> --author <name>         # take back the newest edit by appending its inverse
-localgpt world log <dir>                          # every committed batch, oldest first, with ids
-localgpt world tips <dir>                         # every branch end, the head marked
-localgpt world verify <dir>                       # the fold of the log still equals the head; assets match their hashes
-localgpt world history <dir> [--rev <ref>]        # the git history, when the world is in git
-localgpt world mcp [<dir>]                        # serve the open canvas's tools over stdio (submit, undo, log, verify, screenshot, selection)
+localgpt world init <dir> [--git]             # open a folder as a package, creating one if needed; --git: every batch a commit
+localgpt world submit [<dir>] [<batch> | -]   # commit a batch of edit ops — whole, or not at all; stdin by default
+    --author <name> --message <why>           #   attribution ($LOCALGPT_WORLD_AUTHOR) and the commit message
+    --at <entry-id>                           #   build on an earlier entry: a branch; the head stays where it is
+    --expected-revision <n>                   #   refused if the world moved since you read it
+localgpt world undo [<dir>] [--own] [--at <id>]   # take back the newest edit by appending its inverse
+localgpt world redo [<dir>] [--own] [--at <id>]   # take the newest undo back
+localgpt world log [<dir>] [--last <n>]       # every committed batch with ids, the head marked
+localgpt world tips [<dir>]                   # every branch end, the head marked
+localgpt world show [<dir>] [--at <entry>]    # the world in a line per entity; --at current, <id> or base
+localgpt world get [<dir>] <entity>…          # entities by name or id, as JSON: what a patch changes
+localgpt world verify [<dir>]                 # the fold of the log still equals the head; assets match their hashes
+localgpt world screenshot [<dir>]             # the open app's view now, as a PNG path
+localgpt world selection [<dir>]              # what the person has selected in the open app
+localgpt world goto [<dir>] <entry>           # show an entry in the open app's window; nothing is written
+localgpt world proposals [<dir>]              # with review on, the batches waiting for the person
+localgpt world history [<dir>] [<rev>]        # the git history, when the world is in git
+localgpt world mcp [<dir>]                    # serve the open canvas's tools over stdio (submit, undo, log, tips, goto, verify, screenshot, selection)
 ```
 
-A batch is JSON: `[op, …]` or `{"ops": [op, …]}`, with the op kinds `SpawnEntity`, `ModifyEntity`, `DeleteEntity`, `SetEnvironment`, `SetCamera`, `ModifyWorld` (the world's scene-wide fields: its song, tours, environment) and `Batch`; `-` reads it from stdin. Names bind wherever the format marks a reference and commit as ids; a refusal names the op and the reason. The folder's `AGENTS.md` describes the same rules for an agent.
+The folder is the first argument when it's given; else `$LOCALGPT_WORLD_DIR`, which the desktop app sets in an agent's terminal tab; else the folder you're in, or the nearest one above it that is a world. A batch is JSON: `[op, …]` or `{"ops": [op, …]}`, inline, a file, or stdin, with the op kinds `SpawnEntity`, `ModifyEntity`, `DeleteEntity`, `SetEnvironment`, `SetCamera`, `ModifyWorld` (the world's scene-wide fields: its song, tours, environment) and `Batch`. Names bind wherever the format marks a reference and commit as ids; a refusal names the op and the reason, on stderr with exit status 1. The folder's `AGENTS.md` describes the same rules for an agent.
 
 ```bash
-claude mcp add scene -- localgpt world mcp scene-1.world    # Claude Code edits the open world
+localgpt world submit -m "a lamp by the crate" <<'EOF'
+[{"SpawnEntity": {"entity": {"name": "lamp", "transform": {"position": [2, 0.5, 1]}}}}]
+EOF
+claude mcp add scene -- localgpt world mcp scene-1.world    # or: Claude Code edits the open world over MCP
 ```
 
 ## Built-in Chat Commands
