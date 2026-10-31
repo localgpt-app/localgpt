@@ -7,7 +7,7 @@ import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
 import { decode, listen, send } from "./bridge";
 
-const THEME = {
+export const THEME = {
   background: "#0f1218",
   foreground: "#e6e9ef",
   cursor: "#7aa2ff",
@@ -31,8 +31,10 @@ const THEME = {
 };
 
 /** One tab's terminal: xterm.js here, a PTY in the app. The tab keeps its
- *  terminal while hidden, so switching tabs never restarts an agent. */
-export function Terminal({ id, kind, visible }: { id: string; kind: string; visible: boolean }) {
+ *  terminal while hidden, so switching tabs never restarts an agent. A tab
+ *  another page opened — a paired phone's, or this page's before a reload —
+ *  is attached rather than opened, and the app sends its screen. */
+export function Terminal({ id, kind, visible, attach = false }: { id: string; kind: string; visible: boolean; attach?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const term = useRef<XTerm | null>(null);
   const fit = useRef<FitAddon | null>(null);
@@ -80,7 +82,11 @@ export function Terminal({ id, kind, visible }: { id: string; kind: string; visi
     });
     const input = xterm.onData((data) => send({ t: "term.input", id, data }));
     const resized = xterm.onResize(({ cols, rows }) => send({ t: "term.resize", id, cols, rows }));
-    send({ t: "term.open", id, kind, cols: xterm.cols, rows: xterm.rows });
+    if (attach) send({ t: "term.attach", id, cols: xterm.cols, rows: xterm.rows });
+    else send({ t: "term.open", id, kind, cols: xterm.cols, rows: xterm.rows });
+    // Clicked into: the PTY takes this page's size back from a phone.
+    const focused = () => send({ t: "term.focus", id });
+    xterm.textarea?.addEventListener("focus", focused);
 
     const observer = new ResizeObserver(() => fitter.fit());
     observer.observe(ref.current!);
@@ -91,10 +97,11 @@ export function Terminal({ id, kind, visible }: { id: string; kind: string; visi
       stop();
       input.dispose();
       resized.dispose();
+      xterm.textarea?.removeEventListener("focus", focused);
       send({ t: "term.close", id });
       xterm.dispose();
     };
-  }, [id, kind]);
+  }, [id, kind, attach]);
 
   useEffect(() => {
     if (visible) {

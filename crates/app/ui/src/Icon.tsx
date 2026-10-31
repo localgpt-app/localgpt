@@ -38,6 +38,13 @@ const PATHS = {
   aim: "M8 2.5v3M8 10.5v3M2.5 8h3M10.5 8h3M8 6.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3",
   out: "M6.5 4H12v5.5M12 4 4 12",
   move: "M8 2.5v11M2.5 8h11M6.5 4 8 2.5 9.5 4M6.5 12 8 13.5 9.5 12M4 6.5 2.5 8 4 9.5M12 6.5 13.5 8 12 9.5",
+  // A paired device, and its page's views.
+  phone: "M5.5 1.5h5a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1zM7 12h2",
+  terminal: "M2.5 3.5h11v9h-11zM5 6.5l2 1.5-2 1.5M8.5 10h2.5",
+  globe: "M8 2.5a5.5 5.5 0 1 0 0 11a5.5 5.5 0 1 0 0-11M2.5 8h11M8 2.5c-2.25 2.5-2.25 8.5 0 11M8 2.5c2.25 2.5 2.25 8.5 0 11",
+  history: "M3 8a5 5 0 1 0 1.5-3.55M2.5 2.5v2.5H5M8 5.5V8l2 1.5",
+  send: "M2.5 8h9M8 4.5 11.5 8 8 11.5",
+  keyboard: "M1.5 4.5h13v7h-13zM4 7h1M7.5 7h1M11 7h1M5 9.5h6",
 } as const;
 
 export type IconName = keyof typeof PATHS;

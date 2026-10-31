@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 const SHEETS = [
   { href: "./index.html", title: "Timeline" },
   { href: "./scene.html", title: "Outliner and inspector" },
+  { href: "./phone.html", title: "A phone" },
 ];
 
 export function Sheet({ title, lede, children }: { title: string; lede: ReactNode; children: ReactNode }) {

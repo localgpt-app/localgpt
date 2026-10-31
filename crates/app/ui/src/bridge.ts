@@ -118,6 +118,24 @@ export type SceneView = {
  *  it, and its name for the history. */
 export type EntityEdit = { id: number; name: string; patch: Record<string, unknown> };
 
+/** What an agent says it is doing, by the marks in its terminal's title. */
+export type Activity = "working" | "asking" | "idle";
+
+/** A tab as every page lists it, whichever page opened it. */
+export type TermTab = { id: string; kind: string; cols: number; rows: number; label: string | null; activity: Activity | null };
+
+/** The phone's listener, as the window's page shows it. */
+export type RemoteView = {
+  on: boolean;
+  /** The page's address on this network. */
+  url: string | null;
+  /** While a pairing code lasts: the address that pairs with it, as a QR
+   *  code (SVG) too, and the seconds it had left when sent. */
+  pairing: { url: string; qr: string | null; left_s: number } | null;
+  devices: { id: string; name: string; paired_ms: number; seen_ms: number; attached: boolean }[];
+  error: string | null;
+};
+
 export type ToPage =
   | ({ t: "mode" } & Mode)
   | ({ t: "history" } & History)
@@ -133,7 +151,13 @@ export type ToPage =
   | { t: "scene"; view: SceneView | null }
   | { t: "selection"; ids: number[] }
   | { t: "term.data"; id: string; b64: string }
-  | { t: "term.exit"; id: string; code: number | null; error: string | null };
+  | { t: "term.exit"; id: string; code: number | null; error: string | null }
+  | { t: "term.list"; tabs: TermTab[] }
+  | { t: "term.size"; id: string; cols: number; rows: number }
+  | { t: "term.state"; id: string; label: string | null; activity: Activity | null }
+  | { t: "remote"; view: RemoteView }
+  /** The world as the window shows it, for a device's page that asked. */
+  | { t: "frame"; url: string };
 
 export type FromPage =
   | { t: "ready" }
@@ -169,7 +193,15 @@ export type FromPage =
   | { t: "term.open"; id: string; kind: string; cols: number; rows: number }
   | { t: "term.input"; id: string; data: string }
   | { t: "term.resize"; id: string; cols: number; rows: number }
-  | { t: "term.close"; id: string };
+  | { t: "term.close"; id: string }
+  /** Show a tab another page opened; the screen comes back as its data. */
+  | { t: "term.attach"; id: string; cols: number; rows: number }
+  /** Clicked into a tab: the PTY takes this page's size, as typing would. */
+  | { t: "term.focus"; id: string }
+  | { t: "frame" }
+  | { t: "remote.on"; on: boolean }
+  | { t: "remote.pair" }
+  | { t: "remote.forget"; id: string };
 
 declare global {
   interface Window {
@@ -181,12 +213,14 @@ declare global {
 const listeners = new Set<(message: ToPage) => void>();
 /** The newest of each snapshot the app sends, for a panel that mounts after
  *  it arrived: the document's text comes in the same breath as the mode
- *  that makes its panel appear. A terminal's bytes are a stream, not kept;
- *  thumbnails are one per shot, and the app's own view keeps them. */
+ *  that makes its panel appear. A terminal's bytes are a stream, not kept
+ *  (the list of tabs is); thumbnails are one per shot, and the app's own
+ *  view keeps them; a frame is a device's, asked for. */
 const newest = new Map<ToPage["t"], ToPage>();
+const kept = (t: ToPage["t"]) => (!t.startsWith("term.") || t === "term.list") && t !== "thumb" && t !== "frame";
 window.__lg = {
   recv: (message) => {
-    if (!message.t.startsWith("term.") && message.t !== "thumb") newest.set(message.t, message);
+    if (kept(message.t)) newest.set(message.t, message);
     listeners.forEach((listener) => listener(message));
   },
 };

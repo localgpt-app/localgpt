@@ -57,7 +57,21 @@ rfd = "0.17"
 bevy = { version = "0.19", features = ["jpeg", "system_font_discovery"] }
 # The agents' terminals: a PTY per tab (WezTerm's crate), its bytes to xterm.js.
 portable-pty = "0.9"
+# Each tab's screen as a terminal draws it, for a page that attaches late,
+# and the titles that say what an agent is doing.
+vt100 = "0.18"
 base64 = { workspace = true }
+# The built page (ui/dist), for the window's web view and a paired device's
+# browser: read from disk in a debug build, so a rebuilt page needs no Rust
+# rebuild; inside the binary in a release one.
+rust-embed = "8"
+# A paired phone's line: the page over HTTP and its messages over a
+# WebSocket — Gen's axum, so no second server stack — and the pairing code
+# as a QR code.
+axum = { version = "0.8", features = ["ws"] }
+futures = { workspace = true }
+rand = { workspace = true }
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 
 # The interface's host: one WebKit view over the window (wry), and the
 # AppKit view that lets clicks in the page's hole fall through to the
@@ -65,9 +79,6 @@ base64 = { workspace = true }
 # where wry nests a view on X11 only.
 [target.'cfg(target_os = "macos")'.dependencies]
 wry = { version = "0.57", features = ["devtools"] }
-# The page itself (ui/dist): read from disk in a debug build, so a rebuilt
-# page needs no Rust rebuild; inside the binary in a release one.
-rust-embed = "8"
 raw-window-handle = "0.6"
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSGeometry"] }

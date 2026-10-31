@@ -15,6 +15,6 @@ export default defineConfig({
     target: "safari18",
     chunkSizeWarningLimit: 1500,
     // One page per sheet.
-    rollupOptions: { input: { timeline: "design/index.html", scene: "design/scene.html" } },
+    rollupOptions: { input: { timeline: "design/index.html", scene: "design/scene.html", phone: "design/phone.html" } },
   },
 });

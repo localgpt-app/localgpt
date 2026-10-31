@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { listen } from "./bridge";
+import type { Activity } from "./bridge";
+import { last, listen } from "./bridge";
 import { Icon } from "./Icon";
 import { Terminal } from "./Terminal";
 
 /** What a tab can run. The app knows each agent by its command's name and
  *  nothing more: no models, keys or settings — those stay with the agent. */
-const KINDS = [
+export const KINDS = [
   { kind: "claude", label: "Claude Code" },
   { kind: "codex", label: "Codex" },
   { kind: "agy", label: "agy" },
@@ -14,12 +15,35 @@ const KINDS = [
   { kind: "shell", label: "Shell" },
 ];
 
-type Tab = { id: string; kind: string; label: string; ended: boolean };
+export const kindLabel = (kind: string) => KINDS.find((k) => k.kind === kind)?.label ?? kind;
 
-let next = 0;
-function tab(kind: string): Tab {
-  const label = KINDS.find((k) => k.kind === kind)?.label ?? kind;
-  return { id: `t${++next}`, kind, label, ended: false };
+/** A tab's dot: green at rest, blue while its agent works, amber when it
+ *  asks, grey once it has ended. */
+export function activityDot(activity: Activity | null, ended = false) {
+  if (ended) return "bg-faint";
+  if (activity === "working") return "animate-pulse bg-accent";
+  if (activity === "asking") return "bg-head";
+  return "bg-[#9ece6a]";
+}
+
+type Tab = {
+  id: string;
+  kind: string;
+  label: string;
+  ended: boolean;
+  /** Opened by another page (a paired phone's): shown, not started. */
+  attach: boolean;
+  activity: Activity | null;
+  /** What the agent calls the task, from its title. */
+  task: string | null;
+};
+
+/** A tab id no other page has: a phone opens tabs too, and this page's
+ *  count starts again when it reloads. */
+const newId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+
+function tab(kind: string, id = newId(), attach = false): Tab {
+  return { id, kind, label: kindLabel(kind), ended: false, attach, activity: null, task: null };
 }
 
 /** `?open=claude,shell` opens those tabs at start. */
@@ -28,23 +52,33 @@ function initialTabs(): Tab[] {
   return (open ?? "")
     .split(",")
     .filter((kind) => KINDS.some((k) => k.kind === kind))
-    .map(tab);
+    .map((kind) => tab(kind));
 }
 
 /** The agents' tabs: each a full terminal running the agent the user
- *  installed, started in the open world's folder. */
+ *  installed, started in the open world's folder. A tab a paired phone
+ *  opened shows up here too. */
 export function AgentsPanel() {
   const [tabs, setTabs] = useState<Tab[]>(initialTabs);
   const [active, setActive] = useState<string | null>(() => tabs[0]?.id ?? null);
   const [menu, setMenu] = useState(false);
 
-  useEffect(
-    () =>
-      listen((m) => {
-        if (m.t === "term.exit") setTabs((all) => all.map((t) => (t.id === m.id ? { ...t, ended: true } : t)));
-      }),
-    [],
-  );
+  useEffect(() => {
+    // Tabs this page does not have: another page's, or this one's before a
+    // reload. They are attached, and the app sends their screens.
+    const adopt = (list: { id: string; kind: string }[]) =>
+      setTabs((all) => {
+        const fresh = list.filter((t) => !all.some((a) => a.id === t.id));
+        return fresh.length ? [...all, ...fresh.map((t) => tab(t.kind, t.id, true))] : all;
+      });
+    const known = last("term.list");
+    if (known) adopt(known.tabs);
+    return listen((m) => {
+      if (m.t === "term.exit") setTabs((all) => all.map((t) => (t.id === m.id ? { ...t, ended: true } : t)));
+      if (m.t === "term.list") adopt(m.tabs);
+      if (m.t === "term.state") setTabs((all) => all.map((t) => (t.id === m.id ? { ...t, activity: m.activity, task: m.label } : t)));
+    });
+  }, []);
 
   const open = (kind: string) => {
     const t = tab(kind);
@@ -66,9 +100,10 @@ export function AgentsPanel() {
             <div
               key={t.id}
               onClick={() => setActive(t.id)}
+              title={t.task ?? undefined}
               className={`group flex shrink-0 cursor-default items-center gap-1.5 border-r border-line pr-1 pl-3 ${t.id === active ? "bg-raised text-ink" : "text-muted hover:text-ink"}`}
             >
-              <span className={`size-1.5 rounded-full ${t.ended ? "bg-faint" : "bg-[#9ece6a]"}`} />
+              <span className={`size-1.5 rounded-full ${activityDot(t.activity, t.ended)}`} />
               {t.label}
               <button
                 aria-label={`Close ${t.label}`}
@@ -98,7 +133,7 @@ export function AgentsPanel() {
       </header>
       <div className="relative min-h-0 flex-1">
         {tabs.map((t) => (
-          <Terminal key={t.id} id={t.id} kind={t.kind} visible={t.id === active} />
+          <Terminal key={t.id} id={t.id} kind={t.kind} visible={t.id === active} attach={t.attach} />
         ))}
         {tabs.length === 0 && (
           <div className="grid h-full place-content-center gap-2 p-6">

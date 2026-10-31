@@ -141,14 +141,25 @@ a thing within it. Others at work are the page's to mark: it has the
 history and the document before and after, and is told who the person is
 and what a waiting proposal touches.
 
+**The page on a phone** (built 2026-10-31,
+[mobile-remote.md](mobile-remote.md)): the app serves this page on the
+local network to a paired device, which is sent what the window is sent and
+asks as the window asks, bar what belongs to the computer — the hole,
+Open…, a link for its browser (`crates/app/src/webui/remote.rs`). So the
+terminals became every page's (`term.rs`): each tab keeps its screen as a
+terminal would, and a page that attaches late — a phone, or this page after
+a reload — is sent the screen; the page that typed or clicked into a tab
+last sets its PTY's size; and the marks agents put in their titles, a
+spinner while Claude Code works and ✳ at rest, are the turn marks
+(`TurnEnded`) and every tab's dot.
+
 ## Next
 
 1. Adding a behavior and a behavior's own fields, and another kind for a
    shape or a light (a shape keeps the size it fills), drawn on
    `design/scene.html` for review.
-2. Turn marks from the page's own terminals (`TurnEnded`).
-3. The Windows host; then Linux.
-4. A render check of the page in CI, through `?preview=`.
+2. The Windows host; then Linux.
+3. A render check of the page in CI, through `?preview=`.
 
 ## Not decided
 

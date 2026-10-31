@@ -7,6 +7,7 @@ import { HistoryPanel } from "./HistoryPanel";
 import { Icon } from "./Icon";
 import { type LeftTab, PanelTabs } from "./PanelTabs";
 import { PlaybackBar } from "./PlaybackBar";
+import { RemoteButton } from "./RemotePanel";
 import { ScenePanel } from "./scene/ScenePanel";
 import { type ClockState, LiveTimeline } from "./timeline/LiveTimeline";
 import { Viewport } from "./Viewport";
@@ -107,6 +108,7 @@ export function App() {
           </button>
         )}
         <span className="ml-auto truncate text-faint">{status}</span>
+        <RemoteButton />
         {!inApp() && <span className="shrink-0 rounded bg-head/15 px-1.5 text-[10px] text-head">browser preview</span>}
       </header>
       {mode.document && <DocumentPanel doc={doc} />}

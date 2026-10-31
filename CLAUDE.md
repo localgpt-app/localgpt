@@ -67,6 +67,9 @@ cargo run -p localgpt-app --features local-llm-metal -- --md doc.md   # in-proce
                                                    # LOCALGPT_APP_UI_URL=http://localhost:5174
 (cd crates/app/ui && npm run design)               # the design sheets: new interface is drawn
                                                    # there and reviewed before it is wired
+LOCALGPT_APP_REMOTE=on cargo run -p localgpt-app   # and on a phone on this network: prints a
+                                                   # pairing link (webui/remote.rs; port 9880,
+                                                   # LOCALGPT_APP_REMOTE_PORT for another)
 
 # MD — a Markdown file as a walkable world
 cargo run -p localgpt-md                           # samples/hello.md

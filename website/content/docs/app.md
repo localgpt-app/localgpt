@@ -72,6 +72,24 @@ Under the tree the inspector shows the selected thing part by part. Its name, tr
 
 The app knows each agent by its command's name and nothing more: no keys, no models, no settings — those stay with the agent. A link in a terminal opens in your browser. **Shift+Enter** sends a new line the way Claude Code expects one. A tab whose program has ended stays open to read; close it with its **×**.
 
+A tab's dot says what its agent is doing, read from the marks Claude Code and Gemini CLI put in their terminal titles. It is blue while the agent works and green once it stops, and amber when Gemini CLI asks you something. On a live canvas each turn that ends is marked in the history.
+
+## A phone or a tablet {#phone}
+
+**Phone**, at the right of the top bar, lets a phone or a tablet on the same network use the window. Turn it on and it shows a QR code. Scan the code with the device's camera, and its browser opens the app's page, paired. The page there has three views at the thumb:
+
+- **Agents**: each tab's terminal, the agent's own. Under it are **esc**, **⇥**, **⇧⇥**, the arrows, **^C** and **⏎**, and a box to write or dictate a prompt.
+- **World**: the world as the window shows it, the shots to look through, and the song to play or pause.
+- **History**: the history, with its transport.
+
+A waiting proposal can be accepted or rejected from any view. When an agent's turn ends, the phone says so. A tab started on the phone shows up in the window too.
+
+A terminal has one size. The page that last typed into it or clicked into it sets the size, and the other page draws the terminal scaled to fit.
+
+The code works once, for ten minutes. The device keeps a key of its own, and the app keeps only the key's hash, in `~/.local/state/localgpt/app-remote.json`. The panel lists the paired devices and can forget any of them, and the button names a device while it is attached.
+
+The connection is plain HTTP on port 9880. A paired device can type into the terminals, which makes it a shell on your Mac, so use this on a network you trust or over a VPN you run. `LOCALGPT_APP_REMOTE=on` turns it on at launch and prints a pairing link to the terminal; `off` keeps it off whatever was remembered.
+
 ## Keys {#keys}
 
 | Key | What it does |
@@ -110,4 +128,4 @@ For work on the interface itself: `npm run dev` in `crates/app/ui` serves it wit
 
 ## What is next {#next}
 
-Adding a behavior and its fields, and another kind of shape or light, in the inspector; turn marks in the history from the agents' own terminals; and the Windows host. `docs/rfcs/authoring/the-page.md` in the repository records the decision and the order.
+Adding a behavior and its fields, and another kind of shape or light, in the inspector; and the Windows host. `docs/rfcs/authoring/the-page.md` in the repository records the decision and the order.

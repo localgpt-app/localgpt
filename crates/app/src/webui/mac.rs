@@ -78,54 +78,15 @@ pub fn open(
     Ok(MacHost { webview, view })
 }
 
-/// The built page: `npm run build` in `crates/app/ui`, read from disk in a
-/// debug build and inside the binary in a release one. A build without it
-/// still runs, and the window says how to build it.
-#[derive(rust_embed::RustEmbed)]
-#[folder = "ui/dist"]
-#[allow_missing = true]
-struct Dist;
-
-/// The built page's files, by path; never above `dist`.
+/// The built page's files, by path (`dist.rs`).
 fn serve(path: &str) -> Response<Cow<'static, [u8]>> {
-    let path = match path.trim_start_matches('/') {
-        "" => "index.html",
-        path => path,
-    };
-    let file = (!path.split('/').any(|part| part == ".."))
-        .then(|| Dist::get(path))
-        .flatten();
-    match file {
-        Some(file) => Response::builder()
-            .header(CONTENT_TYPE, mime(path))
-            .body(file.data),
-        None if path == "index.html" => Response::builder()
-            .header(CONTENT_TYPE, "text/html")
-            .body(Cow::Borrowed(NOT_BUILT.as_bytes())),
+    match super::dist::file(path) {
+        Some((data, kind)) => Response::builder().header(CONTENT_TYPE, kind).body(data),
         None => Response::builder()
             .status(404)
             .body(Cow::Borrowed(&b""[..])),
     }
     .expect("a response from static parts")
-}
-
-const NOT_BUILT: &str = "<body style='font:14px system-ui;color:#ddd;background:#111;padding:2em'>\
-    The interface is not built: <code>npm ci &amp;&amp; npm run build</code> in \
-    <code>crates/app/ui</code>, then build the app again — or set LOCALGPT_APP_UI_URL \
-    to its dev server.</body>";
-
-fn mime(path: &str) -> &'static str {
-    match path.rsplit('.').next() {
-        Some("html") => "text/html",
-        Some("js" | "mjs") => "text/javascript",
-        Some("css") => "text/css",
-        Some("svg") => "image/svg+xml",
-        Some("png") => "image/png",
-        Some("woff2") => "font/woff2",
-        Some("json") => "application/json",
-        Some("wasm") => "application/wasm",
-        _ => "application/octet-stream",
-    }
 }
 
 /// The hole, in the page's coordinates: CSS pixels from the top left.
@@ -278,6 +239,5 @@ mod tests {
         let index = serve("/");
         assert_eq!(index.status(), 200);
         assert_eq!(index.headers()[CONTENT_TYPE], "text/html");
-        assert_eq!(mime("assets/index-abc.js"), "text/javascript");
     }
 }

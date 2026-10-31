@@ -25,9 +25,18 @@
 //! `LOCALGPT_APP_UI_OPEN=claude,shell` starts with those tabs open
 //! (`outliner` starts the left panel on its Outliner tab); and
 //! `LOCALGPT_APP_UI=none` leaves the page out, the world alone in the window.
+//!
+//! The same page also opens on a paired phone or tablet, over the local
+//! network (`remote.rs`): what the window is sent, the device is sent, and
+//! what the device asks is asked as the window's would be — bar the asks
+//! that belong to this computer (the hole, Open…, a link for its browser).
+//! The terminals are every page's (`term.rs`). Where no host opens the page,
+//! a device's is the interface.
 
+mod dist;
 #[cfg(target_os = "macos")]
 mod mac;
+mod remote;
 mod term;
 
 use std::path::PathBuf;
@@ -40,7 +49,7 @@ use bevy::ecs::message::Messages;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use localgpt_gen::gen3d::live::{LiveHistory, SeekTo};
+use localgpt_gen::gen3d::live::{LiveHistory, SeekTo, TurnEnded};
 use localgpt_gen::gen3d::plugin::FlyCam;
 use serde::{Deserialize, Serialize};
 
@@ -48,6 +57,7 @@ use crate::document::{Document, DocumentAsk, DocumentView};
 use crate::open::{OpenFile, Opener, Showing};
 use crate::scene::{Scene, SceneAsk, SceneEdit, SceneView};
 use crate::timeline::{ShotTime, Thumbs, Timeline, TimelineAsk, TimelineView, WorldClock};
+use remote::{Frames, Inbound, Mirror, Remote};
 use term::{TermOut, Terms};
 
 pub const LOCALGPT_APP_UI: &str = "LOCALGPT_APP_UI";
@@ -82,6 +92,8 @@ impl Plugin for WebUiPlugin {
         })
         .init_resource::<Hole>()
         .init_resource::<Play>()
+        .insert_resource(Remote::from_env())
+        .init_resource::<Frames>()
         .insert_non_send(Terms::default())
         .add_systems(
             Update,
@@ -92,10 +104,20 @@ impl Plugin for WebUiPlugin {
                 push_page,
                 pump_terms,
                 fit_camera,
+                remote::show,
+                remote::tick,
             )
                 .chain(),
         );
     }
+}
+
+/// Who a message came from or goes to: the page in the window, or one on a
+/// paired device, by its connection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Client {
+    Window,
+    Device(u64),
 }
 
 #[derive(Resource)]
@@ -114,10 +136,14 @@ trait Host {
 }
 
 /// The page, once it is open. Web views live on the main thread, so this is
-/// a non-send resource, and the systems that touch it run there.
+/// a non-send resource, and the systems that touch it run there. Without a
+/// host (no web view on this platform yet) it is still made, ready from the
+/// start, so a paired device's page has everything to draw.
 struct Page {
-    host: Box<dyn Host>,
+    host: Option<Box<dyn Host>>,
     inbox: Receiver<String>,
+    /// Everything sent goes to the paired devices too.
+    mirror: Mirror,
     /// The page said it is listening; until then nothing is sent.
     ready: bool,
     /// Send everything on the next push, not just what changed.
@@ -138,6 +164,7 @@ struct Sent {
     selection: Option<Vec<u64>>,
     clock: Option<ClockSent>,
     thumbs_rev: u64,
+    remote_rev: Option<u64>,
 }
 
 /// The clock as the page was last told it, and when: while it plays, the
@@ -166,20 +193,46 @@ impl ClockSent {
 }
 
 impl Page {
-    fn new(host: Box<dyn Host>, inbox: Receiver<String>) -> Self {
+    fn new(host: Option<Box<dyn Host>>, inbox: Receiver<String>, mirror: Mirror) -> Self {
         Self {
+            ready: host.is_none(),
             host,
             inbox,
-            ready: false,
+            mirror,
             fresh: true,
             sent: Sent::default(),
         }
     }
 
+    /// To every page: the window's, and the devices'.
     fn send(&self, message: &ToPage) {
         if let Ok(json) = serde_json::to_string(message) {
-            self.host
-                .run(&format!("window.__lg&&window.__lg.recv({json})"));
+            self.run(&json);
+            self.mirror.broadcast(&json);
+        }
+    }
+
+    /// To the window's page alone.
+    fn send_window(&self, message: &ToPage) {
+        if let Ok(json) = serde_json::to_string(message) {
+            self.run(&json);
+        }
+    }
+
+    fn send_to(&self, client: Client, message: &ToPage) {
+        match client {
+            Client::Window => self.send_window(message),
+            Client::Device(conn) => {
+                if let Ok(json) = serde_json::to_string(message) {
+                    self.mirror.to(conn, json);
+                }
+            }
+        }
+    }
+
+    fn run(&self, json: &str) {
+        if let Some(host) = &self.host {
+            host.run(&format!("window.__lg&&window.__lg.recv({json})"));
         }
     }
 }
@@ -298,6 +351,24 @@ enum FromPage {
     TermResize { id: String, cols: u16, rows: u16 },
     #[serde(rename = "term.close")]
     TermClose { id: String },
+    /// A tab another page opened, to show here: what fits here, and the
+    /// screen comes back.
+    #[serde(rename = "term.attach")]
+    TermAttach { id: String, cols: u16, rows: u16 },
+    /// Clicked into a tab: this page's size, as typing would.
+    #[serde(rename = "term.focus")]
+    TermFocus { id: String },
+    /// A device's page asks for the world as the window shows it.
+    #[serde(rename = "frame")]
+    Frame,
+    /// The window's page turns the phone's listener on or off.
+    #[serde(rename = "remote.on")]
+    RemoteOn { on: bool },
+    /// A fresh pairing code.
+    #[serde(rename = "remote.pair")]
+    RemotePair,
+    #[serde(rename = "remote.forget")]
+    RemoteForget { id: String },
 }
 
 #[derive(Deserialize, Clone, Copy)]
@@ -366,6 +437,23 @@ enum ToPage<'a> {
         code: Option<u32>,
         error: Option<String>,
     },
+    /// Every tab, whichever page opened it: what it runs, its size, and
+    /// what its agent says it is doing.
+    #[serde(rename = "term.list")]
+    TermList { tabs: Vec<term::Tab> },
+    /// A tab's PTY took another size: another page drives it.
+    #[serde(rename = "term.size")]
+    TermSize { id: &'a str, cols: u16, rows: u16 },
+    /// What a tab's agent says it is doing, and what it calls the task.
+    #[serde(rename = "term.state")]
+    TermState {
+        id: &'a str,
+        label: Option<&'a str>,
+        activity: Option<term::Activity>,
+    },
+    /// The phone's listener and its devices: the window's page alone.
+    #[serde(rename = "remote")]
+    Remote { view: &'a remote::RemoteView },
 }
 
 #[derive(Serialize)]
@@ -423,9 +511,14 @@ fn open_page(world: &mut World, mut tried: Local<bool>) {
         ))
     };
     *tried = true;
+    let mirror = world.resource::<Remote>().mirror();
     match host {
-        Ok(host) => world.insert_non_send(Page::new(host, inbox)),
-        Err(e) => tracing::warn!("the interface did not open: {e:#}"),
+        Ok(host) => world.insert_non_send(Page::new(Some(host), inbox, mirror)),
+        Err(e) => {
+            tracing::warn!("the interface did not open: {e:#}");
+            // A paired device's page can still be the interface.
+            world.insert_non_send(Page::new(None, inbox, mirror));
+        }
     }
 }
 
@@ -446,6 +539,7 @@ fn ask<T: Message>(messages: &mut Option<ResMut<Messages<T>>>, message: T) {
     }
 }
 
+#[allow(clippy::too_many_arguments)] // a Bevy system; the repo's convention
 fn read_page(
     page: Option<NonSendMut<Page>>,
     mut terms: NonSendMut<Terms>,
@@ -454,12 +548,32 @@ fn read_page(
     mut asks: Asks,
     mut play: ResMut<Play>,
     mut hole: ResMut<Hole>,
+    mut remote: ResMut<Remote>,
+    mut frames: ResMut<Frames>,
 ) {
     let Some(mut page) = page else {
         return;
     };
-    let inbox: Vec<String> = page.inbox.try_iter().collect();
-    for raw in inbox {
+    // The window's asks and the devices', in the order each sent them; a
+    // device that went is `None`.
+    let mut inbox: Vec<(Client, Option<String>)> = page
+        .inbox
+        .try_iter()
+        .map(|raw| (Client::Window, Some(raw)))
+        .collect();
+    inbox.extend(remote.take_inbox().into_iter().map(|came| match came {
+        Inbound::Message(conn, raw) => (Client::Device(conn), Some(raw)),
+        Inbound::Gone(conn) => (Client::Device(conn), None),
+    }));
+    for (client, raw) in inbox {
+        let Some(raw) = raw else {
+            // The tabs it drove go back to the window.
+            terms.leave(client);
+            if let Client::Device(conn) = client {
+                frames.forget(conn);
+            }
+            continue;
+        };
         let message = match serde_json::from_str::<FromPage>(&raw) {
             Ok(message) => message,
             Err(e) => {
@@ -467,13 +581,40 @@ fn read_page(
                 continue;
             }
         };
+        // What belongs to this computer is the window's to ask: where its
+        // page leaves the hole, Open…, a link for its browser, the listener.
+        if client != Client::Window
+            && matches!(
+                message,
+                FromPage::Viewport { .. }
+                    | FromPage::Open { .. }
+                    | FromPage::OpenFile
+                    | FromPage::RemoteOn { .. }
+                    | FromPage::RemotePair
+                    | FromPage::RemoteForget { .. }
+            )
+        {
+            continue;
+        }
         match message {
-            FromPage::Ready => {
-                page.ready = true;
-                page.fresh = true;
-            }
+            FromPage::Ready => match client {
+                // A page that reloaded finds its tabs still running.
+                Client::Window => {
+                    page.ready = true;
+                    page.fresh = true;
+                    page.send_window(&ToPage::TermList { tabs: terms.tabs() });
+                }
+                // What the window has, then the tabs; a tab's screen comes
+                // when the device shows it.
+                Client::Device(conn) => {
+                    let tabs = serde_json::to_string(&ToPage::TermList { tabs: terms.tabs() });
+                    remote.ready(conn, tabs.into_iter().collect());
+                }
+            },
             FromPage::Viewport { x, y, w, h } => {
-                page.host.set_hole([x, y, w, h]);
+                if let Some(host) = &page.host {
+                    host.set_hole([x, y, w, h]);
+                }
                 hole.0 = Some([x, y, w, h]);
             }
             FromPage::Seek { id } => {
@@ -551,25 +692,75 @@ fn read_page(
                 cols,
                 rows,
             } => {
-                if let Err(e) = terms.open(&id, &kind, cols, rows, &settings.cwd) {
-                    page.send(&ToPage::TermExit {
-                        id: &id,
-                        code: None,
-                        error: Some(format!("{e:#}")),
-                    });
+                if let Err(e) = terms.open(&id, &kind, (cols, rows), &settings.cwd, client) {
+                    page.send_to(
+                        client,
+                        &ToPage::TermExit {
+                            id: &id,
+                            code: None,
+                            error: Some(format!("{e:#}")),
+                        },
+                    );
                 }
             }
             FromPage::TermInput { id, data } => {
-                if let Err(e) = terms.input(&id, data.as_bytes()) {
+                if let Err(e) = terms.input(&id, client, data.as_bytes()) {
                     tracing::debug!("terminal {id}: {e}");
                 }
             }
             FromPage::TermResize { id, cols, rows } => {
-                if let Err(e) = terms.resize(&id, cols, rows) {
+                if let Err(e) = terms.resize(&id, client, (cols, rows)) {
                     tracing::debug!("terminal {id}: {e}");
                 }
             }
             FromPage::TermClose { id } => terms.close(&id),
+            FromPage::TermAttach { id, cols, rows } => {
+                match terms.attach(&id, client, (cols, rows)) {
+                    // The size first, so the screen lands on a terminal of
+                    // the size it was drawn at.
+                    Some((screen, (cols, rows))) => {
+                        page.send_to(
+                            client,
+                            &ToPage::TermSize {
+                                id: &id,
+                                cols,
+                                rows,
+                            },
+                        );
+                        page.send_to(
+                            client,
+                            &ToPage::TermData {
+                                id: &id,
+                                b64: base64::engine::general_purpose::STANDARD.encode(screen),
+                            },
+                        );
+                    }
+                    None => page.send_to(
+                        client,
+                        &ToPage::TermExit {
+                            id: &id,
+                            code: None,
+                            error: Some("it has ended".into()),
+                        },
+                    ),
+                }
+            }
+            FromPage::TermFocus { id } => terms.focus(&id, client),
+            FromPage::Frame => {
+                if let Client::Device(conn) = client {
+                    frames.want(conn);
+                }
+            }
+            FromPage::RemoteOn { on } => {
+                remote.set_on(on);
+                // A device arrives to what the window was sent since the
+                // listener started: send it everything again.
+                page.fresh = true;
+            }
+            FromPage::RemotePair => {
+                remote.pair();
+            }
+            FromPage::RemoteForget { id } => remote.forget(&id),
         }
     }
 }
@@ -797,34 +988,71 @@ fn history_message(history: &LiveHistory) -> ToPage<'_> {
     }
 }
 
-/// The PTYs' bytes since the last frame, one message per tab.
-fn pump_terms(page: Option<NonSend<Page>>, mut terms: NonSendMut<Terms>) {
+/// The PTYs' bytes since the last frame, one message per tab, to every page;
+/// and what the tabs said besides — a new size, what an agent is doing, the
+/// tabs themselves. An agent's turn that ended marks the history
+/// ([`TurnEnded`]), on a live canvas.
+fn pump_terms(
+    page: Option<NonSend<Page>>,
+    mut terms: NonSendMut<Terms>,
+    mut turns: Option<ResMut<Messages<TurnEnded>>>,
+) {
     let Some(page) = page else {
         return;
     };
     let mut data: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut tabs = false;
     for out in terms.drain() {
         match out {
             TermOut::Data(id, bytes) => match data.iter_mut().find(|(tab, _)| *tab == id) {
                 Some((_, buf)) => buf.extend_from_slice(&bytes),
                 None => data.push((id, bytes)),
             },
+            // The tab's bytes so far go before what follows them.
             TermOut::Exit(id, code) => {
-                // The tab's last bytes go before its end.
-                if let Some(at) = data.iter().position(|(tab, _)| *tab == id) {
-                    let (id, bytes) = data.remove(at);
-                    send_data(&page, &id, &bytes);
-                }
+                flush(&page, &mut data, &id);
                 page.send(&ToPage::TermExit {
                     id: &id,
                     code,
                     error: None,
                 });
             }
+            TermOut::Size(id, cols, rows) => {
+                flush(&page, &mut data, &id);
+                page.send(&ToPage::TermSize {
+                    id: &id,
+                    cols,
+                    rows,
+                });
+            }
+            TermOut::State(id, label, activity) => {
+                flush(&page, &mut data, &id);
+                page.send(&ToPage::TermState {
+                    id: &id,
+                    label: label.as_deref(),
+                    activity,
+                });
+            }
+            TermOut::TurnEnded(agent) => {
+                if let Some(turns) = turns.as_mut() {
+                    turns.write(TurnEnded { agent });
+                }
+            }
+            TermOut::Tabs => tabs = true,
         }
     }
     for (id, bytes) in data {
         send_data(&page, &id, &bytes);
+    }
+    if tabs {
+        page.send(&ToPage::TermList { tabs: terms.tabs() });
+    }
+}
+
+fn flush(page: &Page, data: &mut Vec<(String, Vec<u8>)>, id: &str) {
+    if let Some(at) = data.iter().position(|(tab, _)| tab == id) {
+        let (id, bytes) = data.remove(at);
+        send_data(page, &id, &bytes);
     }
 }
 
@@ -984,5 +1212,42 @@ mod tests {
         // At the end, nothing is next: playback stops there.
         assert_eq!(step_target(&history(Some("boat")), Step::Next), None);
         assert_eq!(step_target(&history(Some("boat")), Step::Last), None);
+    }
+
+    /// A device's asks and the phone panel's, as `ui/src/bridge.ts` writes
+    /// them; and the tabs as the pages read them.
+    #[test]
+    fn the_remotes_messages_read_as_the_pages_write_them() {
+        let read = |json: &str| serde_json::from_str::<FromPage>(json).expect(json);
+        assert!(matches!(
+            read(r#"{"t":"term.attach","id":"p1","cols":48,"rows":30}"#),
+            FromPage::TermAttach { id, cols: 48, rows: 30 } if id == "p1"
+        ));
+        assert!(
+            matches!(read(r#"{"t":"term.focus","id":"t1"}"#), FromPage::TermFocus { id } if id == "t1")
+        );
+        assert!(matches!(read(r#"{"t":"frame"}"#), FromPage::Frame));
+        assert!(matches!(
+            read(r#"{"t":"remote.on","on":true}"#),
+            FromPage::RemoteOn { on: true }
+        ));
+        assert!(matches!(
+            read(r#"{"t":"remote.pair"}"#),
+            FromPage::RemotePair
+        ));
+        assert!(matches!(
+            read(r#"{"t":"remote.forget","id":"ab12cd34"}"#),
+            FromPage::RemoteForget { id } if id == "ab12cd34"
+        ));
+        let state = serde_json::to_value(ToPage::TermState {
+            id: "t1",
+            label: Some("Fix the jetty"),
+            activity: Some(term::Activity::Working),
+        })
+        .unwrap();
+        assert_eq!(
+            state,
+            serde_json::json!({"t": "term.state", "id": "t1", "label": "Fix the jetty", "activity": "working"})
+        );
     }
 }

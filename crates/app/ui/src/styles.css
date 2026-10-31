@@ -24,3 +24,21 @@ body {
   height: 100%;
   padding: 6px 0 0 8px;
 }
+
+/* A paired phone's page: nothing behind it, and its terminal drawn at the
+   PTY's size and scaled, not fitted. Text it types into takes a caret. */
+body.phone {
+  background: var(--color-panel);
+  overscroll-behavior: none;
+}
+
+.phone-term .xterm {
+  height: auto;
+  padding: 0;
+}
+
+.phone-term,
+body.phone textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
