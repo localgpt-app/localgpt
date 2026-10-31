@@ -11,8 +11,13 @@
 #   mode: native (Bevy draws the world) | web (the page draws it)
 #   load: idle | agent | build | flood | deluge (load.py)
 # env:  BIN (the app, target/debug/localgpt-app), SECS (measured seconds,
-#       30), PORT (8765)
-# then: python3 scripts/world-in-the-page/analyze.py <out-dir>
+#       30), PORT (8765); and passed to the app (src/spike.rs):
+#       LOCALGPT_SPIKE_MONITOR=fastest (the window on the fastest display, a
+#       ProMotion screen), LOCALGPT_SPIKE_CASCADES=<n> (Bevy's shadow
+#       cascades; four by default)
+# also: python3 scripts/world-in-the-page/gpu.py <out-dir> & (macOS: each
+#       process's share of the GPU's time, beside the frames)
+# then: HZ=<the display's rate> python3 scripts/world-in-the-page/analyze.py <out-dir>
 #
 # Build the page and the app first. The app's data, state and cache go to
 # <out-dir>/env, so the runs never touch the real workspace or what the app
