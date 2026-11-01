@@ -9,7 +9,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use localgpt_world_agent::agent_cli::Endpoint;
+use localgpt_world_agent::agent_env::Endpoint;
 use localgpt_world_agent::headless;
 use serde_json::Value;
 

@@ -285,12 +285,11 @@ app's own page.
 
 ## Not decided
 
-- How a document's regions are authored once there is no model menu. The
-  app's document mode is the one that most wants a model (§13.3), and
-  `crates/app/src/authoring.rs` runs the app's own; whether that becomes an
-  outside agent's job through the shim, or is dropped, is open. It is the one
-  place the rule that the app never manages agent configuration conflicts
-  with something the app does today.
+- ~~How a document's regions are authored once there is no model menu.~~
+  Decided 2026-11-01: dropped. The app runs no model; a place a model built
+  comes from MD's sidecar beside the document, written by `localgpt-md
+  --generate` or by an agent working on the file, and the app labels each
+  section with where its place came from.
 - Whether the `localgpt-gen` crate stays on crates.io as a library once its
   binary's agent half is gone, or the app's shell stops being a published
   crate.
@@ -323,6 +322,17 @@ app's own page.
       shim still call
 - [ ] the first release of `LocalGPT.app`; the tap; the Install page
 - [ ] cargo-dist for the 0.5.0 CLI
-- [ ] 0.5.0: the rest of the removal (`core`, once the MCP server and the
-      `Tool` trait are in `world-agent`); `doctor` and `setup`
+- [x] the rest of the removal, 2026-11-01, ahead of the version: the `Tool`
+      trait and the stdio and HTTP MCP servers moved to `world-agent::mcp`,
+      the app directories to `world-agent::paths::Dirs`, and `localgpt-core`
+      went with everything in it — the eleven providers, config, memory,
+      media, security, the MCP client. With it: Gen's agent loop, its
+      in-process GGUF, `headless --prompt`, `control`, the experiment queue,
+      the tool profiles, the model menu's remains and the room's prompt
+      worker (a guest's prompt is refused by the authority); the app's
+      document authoring (*Not decided* below: dropped); and the app's
+      knowledge of any agent — the terminal tabs are plain login shells, with
+      no presets and no turn marks read from an agent's title. Nothing in
+      the tree runs a model or holds a key
+- [ ] `doctor` and `setup`
 - [ ] 0.6.0: Gen's tools behind the shim; one MCP entry point

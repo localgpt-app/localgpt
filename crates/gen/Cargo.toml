@@ -15,7 +15,6 @@ name = "localgpt-gen"
 path = "src/main.rs"
 
 [dependencies]
-localgpt-core = { workspace = true, features = ["mcp-http"] }
 localgpt-world-types = { workspace = true }
 # The format crate itself, for the dry run a reviewed batch gets (ingest
 # against the world on screen, without writing).
@@ -30,10 +29,10 @@ localgpt-world-bevy = { workspace = true }
 # Staging and boards only: the PDF reader (previs's `pdf` feature) stays
 # out of Gen's build (the workspace dependency leaves it off).
 localgpt-previs = { workspace = true }
-# For `paths`: the shared model directory and the GGUF/tokenizer discovery
-# rule, which MD and Verse read from here too. Not optional — `local-llm`
-# needs it, and nothing in this crate is cheaper without it.
-localgpt-world-agent = { workspace = true }
+# The `Tool` trait and the MCP server Gen's tools are served through (stdio,
+# the relay, and HTTP with `--mcp-http`); `paths` for the shared asset pack
+# and the app directories; the live package.
+localgpt-world-agent = { workspace = true, features = ["mcp-http"] }
 # The non-linear view over a live package's log — the canvas's seeks and
 # tips. Bevy-free, like world-agent.
 localgpt-world-editor = { workspace = true }
@@ -63,9 +62,6 @@ gltf-json = { version = "1", features = ["names"] }
 # Path resolution
 shellexpand = { workspace = true }
 
-# CLI line editor
-rustyline = "18"
-
 # World skill serialization
 ron = "0.12.1"
 
@@ -75,9 +71,6 @@ hex = "0.4"
 
 # Timestamps for experiment tracking
 chrono = { workspace = true }
-
-# flock for the experiment log (experiment.rs, unix only)
-libc = "0.2"
 
 # WebSocket inspector protocol (Spec 0.6)
 axum = { version = "0.8", features = ["ws"] }
@@ -108,11 +101,6 @@ rand = { workspace = true }
 mdns-sd = { version = "0.21.3", optional = true }
 # Base64 panoramas (gen_panorama_to_world).
 base64 = "0.22"
-# `local-llm`: in-process GGUF inference (same version LocalGPT MD and Verse
-# use, so their verified constraints hold here too).
-mistralrs = { version = "0.8", optional = true }
-# Names mistral.rs's message type in src/local_llm.rs's request wrapper.
-indexmap = { version = "2", optional = true }
 
 [dev-dependencies]
 tempfile = "3.27"
@@ -129,16 +117,6 @@ multiplayer = [
     "dep:localgpt-world-sync",
     "dep:tokio-tungstenite",
 ]
-# In-process local LLM: runs a GGUF model through mistral.rs as the
-# `gguf/<name>` provider (src/local_llm.rs), reading the model directory
-# LocalGPT's apps share (~/.local/share/localgpt/models/llm), so the model
-# fetched for MD or Verse is reused. Off by default: mistral.rs is a large
-# build, and a ~5 GB model wants the GPU path below.
-local-llm = ["dep:mistralrs", "dep:indexmap"]
-# Apple-Silicon GPU path for `local-llm` (macOS only: never enable it in the
-# Linux CI job). The CPU device map can't hold a 5 GB Q4_K_M beside the
-# renderer on a 32 GB Mac.
-local-llm-metal = ["local-llm", "mistralrs/metal"]
 # bevy-tnua floating character controller for the player. Requires `physics`.
 # OFF by default: no Bevy 0.19-compatible bevy-tnua release exists yet, so
 # enabling this currently fails to build. When enabled the player uses the

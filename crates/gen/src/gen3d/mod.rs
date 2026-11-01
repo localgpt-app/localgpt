@@ -1,9 +1,11 @@
-//! LocalGPT Gen — AI-driven 3D scene generation via Bevy
+//! LocalGPT Gen — the Bevy side of the world builder.
 //!
-//! This module provides in-process 3D rendering and scene composition
-//! controlled by the LLM agent through intent-level tools.
+//! In-process 3D rendering and scene composition, driven through
+//! intent-level tools by an agent outside the window.
 //!
-//! Architecture: Agent loop (tokio) ←mpsc channels→ Bevy App (main thread)
+//! Architecture: the tool server (tokio) ←mpsc channels→ Bevy App (main
+//! thread). A tool sends a `GenCommand` through the [`GenBridge`]; the
+//! plugin polls the command channel each frame and answers.
 
 pub mod asset_gen;
 pub mod audio;
@@ -30,8 +32,6 @@ pub mod registry;
 pub mod replay;
 pub mod shots;
 pub mod sync;
-pub mod system_prompt;
-pub mod tool_profile;
 pub mod tools;
 pub mod world;
 pub mod world_import;

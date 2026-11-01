@@ -1,16 +1,12 @@
 //! Gen's own settings, so the app never needs a config file.
 //!
 //! Gen ships as a desktop app: it has to start with nothing on disk and
-//! remember what the user picks in the window. That state is Gen's, not the
-//! assistant's, so it lives here instead of in
-//! `~/.config/localgpt/config.toml` — Gen no longer reads or creates that
-//! file. It still uses `localgpt-core` for the agent and providers; only the
-//! *file* coupling is gone.
+//! remember what the user picks in the window. Nothing here is a model or a
+//! key — Gen holds none — only what was opened last.
 //!
-//! `~/.local/state/localgpt/gen-settings.json`, beside the
-//! `gen-experiments.jsonl` Gen already writes there. `LOCALGPT_STATE_DIR` and
+//! `~/.local/state/localgpt/gen-settings.json`. `LOCALGPT_STATE_DIR` and
 //! `LOCALGPT_PROFILE` move it, because the path comes from
-//! [`localgpt_core::paths::Paths::resolve`] rather than a second copy of the
+//! [`localgpt_world_agent::paths::Dirs`] rather than a second copy of the
 //! XDG rule.
 //!
 //! The contract follows Verse's `settings.rs`, which proved it: every field
@@ -32,15 +28,6 @@ pub const VERSION: u32 = 1;
 pub struct GenSettings {
     #[serde(default = "default_version")]
     pub version: u32,
-
-    /// Model for Gen's agents. `"auto"` re-picks the best local model each
-    /// run. `None` means "decide from what this machine has" every time.
-    #[serde(default)]
-    pub default_model: Option<String>,
-
-    /// `core` / `standard` / `full` — see `gen3d::tool_profile`.
-    #[serde(default)]
-    pub tool_profile: Option<String>,
 
     /// What the app opened last, so a bare launch reopens where the user
     /// left off — a document with its editor, anything else as its world
@@ -67,18 +54,16 @@ impl Default for GenSettings {
     fn default() -> Self {
         Self {
             version: VERSION,
-            default_model: None,
-            tool_profile: None,
             last_opened: None,
         }
     }
 }
 
 /// `<state_dir>/gen-settings.json`, honouring `LOCALGPT_STATE_DIR` and
-/// `LOCALGPT_PROFILE` through core's path resolution.
+/// `LOCALGPT_PROFILE` through the shared directory rule.
 pub fn settings_path() -> Option<PathBuf> {
-    let paths = localgpt_core::paths::Paths::resolve().ok()?;
-    Some(paths.state_dir.join("gen-settings.json"))
+    let dirs = localgpt_world_agent::paths::Dirs::resolve()?;
+    Some(dirs.state.join("gen-settings.json"))
 }
 
 /// Read the settings, or [`None`] when there are none to read — a missing
@@ -143,8 +128,7 @@ mod tests {
     fn defaults_decide_nothing() {
         let settings = GenSettings::default();
         assert_eq!(settings.version, VERSION);
-        assert!(settings.default_model.is_none());
-        assert!(settings.tool_profile.is_none());
+        assert!(settings.last_opened.is_none());
     }
 
     /// A file written by an older Gen — or hand-edited down to one key — must
@@ -152,9 +136,12 @@ mod tests {
     /// without a version bump.
     #[test]
     fn partial_json_uses_defaults() {
-        let settings: GenSettings = serde_json::from_str(r#"{"default_model":"auto"}"#).unwrap();
-        assert_eq!(settings.default_model.as_deref(), Some("auto"));
-        assert!(settings.tool_profile.is_none());
+        let settings: GenSettings =
+            serde_json::from_str(r#"{"last_opened":{"kind":"world","dir":"/w"}}"#).unwrap();
+        assert_eq!(
+            settings.last_opened,
+            Some(LastOpened::World { dir: "/w".into() })
+        );
         // An absent version reads as this build's, so old files aren't rejected.
         assert_eq!(settings.version, VERSION);
     }
@@ -163,8 +150,6 @@ mod tests {
     fn round_trips_through_json() {
         let settings = GenSettings {
             version: VERSION,
-            default_model: Some("gguf/bonsai".into()),
-            tool_profile: Some("core".into()),
             last_opened: Some(LastOpened::Document {
                 path: "/tmp/notes.md".into(),
             }),
@@ -178,22 +163,26 @@ mod tests {
         assert!(json.contains("\"kind\": \"document\""), "{json}");
     }
 
-    /// The Collaborate panel's form went with the panel; a file that still
-    /// holds it reads the same, the form ignored.
+    /// The model menu and the Collaborate panel went; a file that still
+    /// holds their keys reads the same, those keys ignored.
     #[test]
-    fn a_file_with_the_old_collaborate_form_still_reads() {
+    fn a_file_with_the_old_keys_still_reads() {
         let json = format!(
-            r#"{{"version": {VERSION}, "default_model": "gguf/bonsai",
-                "collab": {{"session_name": "harbor", "port": 9900, "open": true}}}}"#
+            r#"{{"version": {VERSION}, "default_model": "gguf/bonsai", "tool_profile": "core",
+                "collab": {{"session_name": "harbor", "port": 9900, "open": true}},
+                "last_opened": {{"kind": "world", "dir": "/w"}}}}"#
         );
         let settings: GenSettings = serde_json::from_str(&json).unwrap();
-        assert_eq!(settings.default_model.as_deref(), Some("gguf/bonsai"));
+        assert_eq!(
+            settings.last_opened,
+            Some(LastOpened::World { dir: "/w".into() })
+        );
     }
 
     /// A file from a future Gen is ignored rather than half-read.
     #[test]
     fn a_newer_version_is_rejected() {
-        let json = format!(r#"{{"version":{},"default_model":"x"}}"#, VERSION + 1);
+        let json = format!(r#"{{"version":{}}}"#, VERSION + 1);
         let settings: GenSettings = serde_json::from_str(&json).unwrap();
         assert_ne!(settings.version, VERSION, "load() drops this one");
     }

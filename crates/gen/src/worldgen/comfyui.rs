@@ -13,7 +13,7 @@ use std::time::Duration;
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 
-use localgpt_core::env::{
+use crate::env::{
     LOCALGPT_GEN_COMFYUI_CHECKPOINT as COMFYUI_CHECKPOINT_ENV,
     LOCALGPT_GEN_COMFYUI_CONTROLNET as COMFYUI_CONTROLNET_ENV,
     LOCALGPT_GEN_COMFYUI_URL as COMFYUI_URL_ENV,

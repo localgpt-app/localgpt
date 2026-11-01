@@ -4,7 +4,7 @@ title: "LocalGPT Gen"
 
 # LocalGPT Gen
 
-**LocalGPT Gen** builds explorable worlds from natural language — geometry, materials, lighting, behaviors, audio, and camera — on [Bevy](https://bevyengine.org/). It is the binary behind the [desktop app](/docs/app/)'s prompt mode, an MCP server other agents drive, a headless generator, the host of [collaborative sessions](/docs/gen/multiplayer/), and the canvas of a live `.world` that agents edit from outside ([live canvas](/docs/gen/live-canvas/)).
+**LocalGPT Gen** builds explorable worlds from natural language — geometry, materials, lighting, behaviors, audio, and camera — on [Bevy](https://bevyengine.org/). It is the viewport behind the [desktop app](/docs/app/), an MCP server any agent drives, the host of [collaborative sessions](/docs/gen/multiplayer/), and the canvas of a live `.world` that agents edit from outside ([live canvas](/docs/gen/live-canvas/)). Gen runs no model of its own and holds no key: the agent you already use does the building.
 
 ## Demo Videos
 
@@ -25,111 +25,56 @@ cargo install localgpt-gen
 **For developers (from a source checkout):** use `cargo run` to iterate, or `cargo install --path` to install a local build.
 
 ```bash
-# Iterate without installing
-cargo run -p localgpt-gen
-cargo run -p localgpt-gen -- "create a heart outline with spheres and cubes"
-
-# Install the current checkout as the localgpt-gen binary
-cargo install --path crates/gen
+cargo run -p localgpt-gen -- --mcp-relay      # iterate without installing
+cargo install --path crates/gen               # install the current checkout as the localgpt-gen binary
 ```
 
 ## Usage
 
 ```bash
-# Interactive mode — type prompts in the terminal
-localgpt-gen
+# The window, with the MCP relay: an agent outside drives it (below)
+localgpt-gen --mcp-relay
 
-# Start with an initial prompt
-localgpt-gen "create a heart outline with spheres and cubes"
+# The window as an MCP client's own process (Claude Desktop, editors)
+localgpt-gen mcp-server
 
-# Load an existing glTF/GLB scene
-localgpt-gen --scene ./scene.glb
+# Load an existing glTF/GLB scene, or open a world and keep building on it:
+# a world folder, a saved world's name, a .json/.ron world file, or a URL
+# (for example from localgpt.world)
+localgpt-gen --mcp-relay --scene ./scene.glb
+localgpt-gen --mcp-relay --world https://localgpt.world/worlds/md-deck.json
 
-# Open a world and keep building on it: a world folder, a saved world's
-# name, a .json/.ron world file, or a URL (for example from localgpt.world)
-localgpt-gen --world https://localgpt.world/worlds/md-deck.json
-
-# Verbose logging
-localgpt-gen --verbose
-
-# Combine options
-localgpt-gen -v -s ./scene.glb "add warm lighting"
-
-# Custom agent ID (default: "gen")
-localgpt-gen --agent my-gen-agent
-
-# Open a .world folder as a live canvas: no agent in the window, agents edit
-# it from outside through the folder's API (see Live canvas)
+# Open a .world folder as a live canvas: agents edit it from outside through
+# the folder's API (see Live canvas)
 localgpt-gen --live scene-1.world
 localgpt-gen --live scene-1.world --review     # accept or reject each agent batch before it commits
 
-# Replay a session or a .world's history as a time-lapse, no agent
+# Replay a session or a .world's history as a time-lapse
 localgpt-gen --replay <session | package dir | ops.jsonl | .world>
 
 # Host a session and let browsers join with the invite link
 localgpt-gen --host --web
-```
 
-The agent receives your prompt and iteratively builds a world — spawning shapes, adjusting materials, positioning the camera, and taking screenshots to course-correct. Type `/quit` or `/exit` to close, or close the window.
+# Verbose logging
+localgpt-gen --verbose --mcp-relay
+```
 
 `--world` imports a world file or URL into `skills/<name>/` in your workspace, with the meshes and audio it references, then opens it; from there it saves like any world you made. Running the same command again opens that copy rather than importing over your edits; delete the folder to import afresh.
 
-## The terminal and the window
+Gen keeps one file of settings, `~/.local/state/localgpt/gen-settings.json` (what the app opened last), and reads no config file. The windowed app with terminals for your agents beside the world is the [LocalGPT desktop app](/docs/app/); build its macOS bundle with `apps/app-desktop/macos/build-app.sh` from the repository.
 
-`localgpt-gen` takes its prompts from the terminal it was started in: the reply streams there, and the window shows the world being built. The windowed app without a terminal is the [LocalGPT desktop app](/docs/app/), which opens documents, songs and `.world` packages, and hosts your own coding agents — Claude Code, Codex and the rest — in tabs beside the world; build its macOS bundle with `apps/app-desktop/macos/build-app.sh` from the repository.
+## The window is driven from outside
 
-- **The model** is the one named in Gen's settings (`default_model` in `~/.local/state/localgpt/gen-settings.json`), else a local GGUF, else the default, `anthropic/claude-opus-4-6`; `/model <name>` switches it in the terminal. Gen reads no `config.toml`. The coding agents are not model backends: one drives the window from its own terminal through the [MCP relay](/docs/gen/cli-mode).
-- **Slash commands:** `/model <name>`, `/new`, `/clear`, and `/quit`.
+Gen takes no prompt of its own. An agent — a coding agent in a terminal, a desktop app, an editor — calls Gen's tools over MCP, and the window shows the world being built. Two ways to connect, one tool set:
 
-## Three Ways to Use Gen (with Bevy Window)
+| | **The relay** | **MCP server** |
+|---|---|---|
+| **Command** | `localgpt-gen --mcp-relay` | `localgpt-gen mcp-server` |
+| **Who spawns whom** | you start the window; the agent's MCP config spawns `localgpt-gen mcp-server --connect`, a bridge to it | the MCP client spawns the whole of Gen, window included |
+| **Best for** | a coding agent in a terminal (Claude Code, Codex, Gemini CLI) building in the window you are looking at | Claude Desktop, Codex Desktop, VS Code, Zed, Cursor; headless with `--headless` |
+| **Several clients** | yes, one window | one client, one window each |
 
-All three modes open a Bevy 3D window where you watch worlds being built in real-time. They differ in **who drives the AI** and **whether you need an API key**.
-
-| | **Interactive (API)** | **Interactive (an agent outside)** | **MCP Server (External App)** |
-|---|---|---|---|
-| **Command** | `localgpt-gen` | `localgpt-gen --mcp-relay` | `localgpt-gen mcp-server` |
-| **Who builds the world** | LocalGPT's built-in agent | A coding agent in a terminal (Claude Code, Gemini CLI, Codex) via MCP relay | External app (Claude Desktop, Codex Desktop, VS Code, Zed, Cursor) |
-| **LLM provider** | API key (Anthropic, OpenAI, Ollama, etc.) | The agent's own | Whatever the external app uses |
-| **Requires API key?** | Yes (or Ollama for local) | No — the agent's own login | No — the external app handles auth |
-| **Who manages conversation?** | LocalGPT agent loop | The agent, in its terminal | The external app |
-| **Tool execution** | In-process (GenBridge) | Agent → [MCP relay](/docs/gen/cli-mode) → GenBridge | MCP stdio → GenBridge |
-| **Memory system** | Full (MEMORY.md, daily logs, search) | Full (via MCP relay) | Full (via MCP tools) |
-| **Best for** | Direct control, fast iteration | Using Claude/Gemini/Codex without API keys | Editors, desktop apps, multi-tool workflows |
-
-### Mode 1: Interactive with API Key
-
-The default. LocalGPT's own agent calls gen tools directly — fastest response, tightest feedback loop.
-
-```bash
-# Uses your configured model (e.g., claude-sonnet-4-6 via Anthropic API)
-localgpt-gen
-localgpt-gen "build a castle on a hill"
-```
-
-Set your model in `config.toml`:
-```toml
-[agent]
-default_model = "claude-sonnet-4-6"  # or "gpt-4o", "ollama/llama3", etc.
-
-[providers.anthropic]
-api_key = "${ANTHROPIC_API_KEY}"
-```
-
-#### A local model, no server
-
-Built with the `local-llm` feature, Gen runs a GGUF model itself: no API key, no Ollama. It reads the model folder [MD](/docs/md/llm) and [Verse](/docs/verse#llm) share, `~/.local/share/localgpt/models/llm/` (`$LOCALGPT_LLM_DIR` moves it), so a model fetched for either app is used as is.
-
-```bash
-cargo build --release -p localgpt-gen --features local-llm-metal   # Apple Silicon; plain `local-llm` elsewhere
-```
-
-Pick `gguf/<name>` from the model menu (every `.gguf` in the folder is listed), type `/model gguf/<name>`, or make it the default with `default_model = "gguf/default"` under `[agent]`. The first prompt loads the model, which can take a minute; it then stays loaded. A tokenizer is read from `<name>.tokenizer.json` or `tokenizer.json` beside the model, else from the GGUF itself.
-
-Scene building is a long tool-calling session with a large tool list, so a small model is much weaker at it than a hosted one. Bonsai-8B (the model MD and Verse share) runs and saves worlds, but it can call the wrong tool name or repeat a failing call until its turn budget runs out. An instruction-tuned 7–14B+ model with good tool calling (Qwen2.5-Instruct, for example) does noticeably better.
-
-### Mode 2: An agent outside drives your window (no API key)
-
-Run Gen with `--mcp-relay`, and a coding agent in a terminal — Claude Code, Gemini CLI, Codex, any MCP client — builds in the window you are looking at, with its own login and no model configured in LocalGPT. Gen runs no agent and is nobody's backend: the agent's MCP config points at `localgpt-gen mcp-server --connect`, a thin bridge to the running window.
+### The relay
 
 ```bash
 localgpt-gen --mcp-relay
@@ -140,9 +85,7 @@ You'll see:
 MCP relay active on port 9878 (external MCP clients can connect to this window)
 ```
 
-Start the agent in another terminal with the config on the [MCP Relay](/docs/gen/cli-mode) page, and prompt it there. It decides which tools to call and builds the scene; you watch it happen in the Bevy window.
-
-**How it works under the hood:**
+Point the agent at `localgpt-gen mcp-server --connect` in its MCP config, start it in another terminal, and prompt it there. It decides which tools to call and builds the scene; you watch it happen in the Bevy window.
 
 ```
 You prompt the agent in its terminal
@@ -152,22 +95,15 @@ You prompt the agent in its terminal
         → You see the world being built
 ```
 
-See [MCP Relay](/docs/gen/cli-mode) for setup and troubleshooting.
+See [MCP Relay](/docs/gen/cli-mode) for the client configurations and troubleshooting.
 
-### Mode 3: MCP Server (external app drives the window)
-
-LocalGPT Gen runs as a tool server. An external app is the orchestrator — it spawns the Bevy window and drives scene building via MCP.
-
-Supported apps include:
-- **Desktop apps** — Claude Desktop, Codex Desktop
-- **CLI tools** — Claude CLI, Gemini CLI, Codex CLI (running directly, not as a LocalGPT backend)
-- **Editors** — VS Code Copilot, Zed, Cursor, Windsurf
+### MCP server
 
 ```bash
 localgpt-gen mcp-server
 ```
 
-Configure the app to connect (example `.mcp.json`):
+Configure the client to spawn it (example `.mcp.json`):
 ```json
 {
   "mcpServers": {
@@ -179,46 +115,28 @@ Configure the app to connect (example `.mcp.json`):
 }
 ```
 
-LocalGPT doesn't run its own agent loop — it's purely a tool server. The external app manages the conversation and decides which tools to call.
+Gen is purely a tool server here: the client manages the conversation and decides which tools to call. See [MCP Server](/docs/gen/mcp-server) for every supported client, and [Headless](/docs/gen/headless) for `--headless`.
 
-:::caution Don't confuse Mode 2 and Mode 3 for CLI tools
-**Mode 2** = you run `localgpt-gen` and it uses Claude CLI/Gemini CLI/Codex *as its LLM backend* (the CLI is a subprocess of LocalGPT).
-**Mode 3** = you run Claude CLI/Gemini CLI/Codex *directly* and it uses `localgpt-gen mcp-server` as a tool (LocalGPT is a subprocess of the CLI).
+### The live canvas
 
-The difference is **who is the parent process**. In Mode 2, LocalGPT is in charge. In Mode 3, the external app is in charge.
-:::
-
-See [MCP Server](/docs/gen/mcp-server) for all supported apps and configuration.
-
-## Headless Mode (no window)
-
-Separate from the three modes above, **headless mode** generates worlds without opening a Bevy window — for batch runs, CI pipelines, and overnight experiment queues.
-
-```bash
-localgpt-gen headless --prompt "Build a cozy cabin in a snowy forest"
-```
-
-Combined with the memory system, the AI learns your creative style across sessions and applies it automatically. Queue multiple experiments via `HEARTBEAT.md` or MCP tools, and browse results in the in-app gallery.
-
-See [Headless Mode & Experiment Queue](/docs/gen/headless) for full details.
+A `.world` package opened with `--live` is edited through its own API: `localgpt world` from any shell, the [shim](/docs/cli-commands/#world) for an MCP agent, or the ops an agent sends by hand. Every batch is one entry in the package's history, attributed, undoable and branchable, and `--review` holds each one for Enter or Esc. See [Live canvas](/docs/gen/live-canvas).
 
 ## Features
 
 - **[Live canvas](/docs/gen/live-canvas)** — open a `.world` folder; agents edit it from outside through a local API while you edit by hand; every change is one entry in a history that branches
 - **[Previs](/docs/gen/previs)** — a screenplay's scenes as sets with cast and coverage, revised by asking, treatments compared as boards
-- **[Tools](/docs/gen/tools)** — 77 `gen_*` tools in three profiles (`--tools core|standard|full`) for scenes, characters, interactions, terrain, UI, physics, worldgen and experiments
+- **[Tools](/docs/gen/tools)** — 95 `gen_*` tools for scenes, characters, interactions, terrain, UI, physics and worldgen
 - **[WorldGen Pipeline](/docs/gen/worldgen)** — Structured world generation: blockout → navmesh → three-tier placement → evaluation
 - **[Behaviors](/docs/gen/behaviors)** — Data-driven animations (orbit, spin, bounce, etc.)
 - **[Audio](/docs/gen/audio)** — Procedural environmental audio with spatial emitters
 - **[World Skills](/docs/gen/world-skills)** — Save and load complete worlds as reusable skills
-- **[Collaborative Sessions](/docs/gen/multiplayer)** — Host a world on your network; friends join with a PIN and build with your AI
+- **[Collaborative Sessions](/docs/gen/multiplayer)** — Host a world on your network; friends join with a PIN, watch and chat, and browsers edit with `--web-edit`
 - **[Export](/docs/gen/export)** — glTF/GLB (Blender, Unity, Unreal), HTML (browser-viewable with audio + behaviors), screenshots
 - **[MCP Server](/docs/gen/mcp-server)** — Use gen tools from Claude Desktop, VS Code, Zed, Cursor, and other MCP clients
-- **[CLI Mode](/docs/gen/cli-mode)** — MCP relay for Claude CLI, Gemini CLI, and Codex (no API key needed)
-- **[Headless Mode](/docs/gen/headless)** — Batch generation, experiment queue, and creative memory
+- **[MCP Relay](/docs/gen/cli-mode)** — A coding agent drives the window you are looking at
+- **[Headless](/docs/gen/headless)** — The same tools with no window, for CI and batch work
 - **[External Services](/docs/gen/external-services)** — Optional local services for NPC brains, depth preview, and 3D asset generation
 - **Undo/Redo** — per author, with redo, through the same history the live canvas keeps
-- **Streaming Chat** — Real-time tool call display and streaming responses
 
 ## Templates
 
@@ -233,12 +151,12 @@ Jumpstart your project with ready-to-customize world templates:
 
 ## Current Limitations
 
-- Visual output depends on the LLM's spatial reasoning ability
-- Requires a GPU-capable display for rendering
+- Visual output depends on the agent's spatial reasoning ability
+- Requires a GPU-capable display for rendering (`mcp-server --headless` renders offscreen)
 
 ## More LocalGPT Apps
 
-Gen's shell is also the **[LocalGPT desktop app](/docs/app/)**, where a prompt, a document, a song or a `.world` package opens in the same window. Documents are **[LocalGPT MD](/docs/md)**'s pipeline with an editor pane and in-place rebuilds; songs are **[LocalGPT Verse](/docs/verse)**'s analysis and performance. Both also run as windows of their own from the repository.
+Gen's viewport is also the **[LocalGPT desktop app](/docs/app/)**'s, where a document, a song or a `.world` package opens in the same window with terminals for your agents beside it. Documents are **[LocalGPT MD](/docs/md)**'s pipeline with an editor pane and in-place rebuilds; songs are **[LocalGPT Verse](/docs/verse)**'s analysis and performance. Both also run as windows of their own from the repository.
 
 ## Showcase
 

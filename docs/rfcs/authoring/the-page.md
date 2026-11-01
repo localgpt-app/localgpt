@@ -7,7 +7,12 @@ feathers) and the chrome half of
 [agents-outside-the-window.md](agents-outside-the-window.md), the terminal
 pane, and retires its tier 0, the herdr pane. The app half of
 [the-harness-goes.md](the-harness-goes.md) — the prompt panel, the model
-menu, `--prompt`, `mcp-server --connect` — went with it.
+menu, `--prompt`, `mcp-server --connect` — went with it. **2026-11-01:**
+the terminals are plain login shells now. The agent presets (a tab per
+named agent, a launcher that knew their commands), the turn marks read
+from an agent's title glyphs and `TurnEnded` went with the rest of the
+harness: the app knows no agent by name, and a tab is whatever the person
+runs in it.
 
 ## The problem
 
@@ -21,7 +26,9 @@ surface at a time. Three things it now has to do decided the stack:
   what it moves — in the way video editors do it.
 - **The agents in a panel** — Claude Code, Codex, agy and the rest, whole:
   their own TUIs, approvals, `/commands` and sign-ins. That is a complete
-  terminal emulator, not a transcript.
+  terminal emulator, not a transcript. (Since 2026-11-01 the panel offers
+  no agent by name: every tab is a login shell, and the agent is what the
+  person types.)
 
 What other editors chose, read for this (none of their code is used):
 OpenCut's rewrite (GPUI desktop scaffold, React web stub, MIT) and
@@ -69,7 +76,7 @@ belongs to whichever side was clicked last.
 | Shot strip | egui, and feathers | 1–9 look through; the shot list and its thumbnails stay for the timeline |
 | Gallery | egui, and feathers | Open… |
 | Document pane, now playing, Open… | egui | the page |
-| herdr's pane (tier 0) | the bar's menu | the page's terminals; turn marks arrive as `TurnEnded` |
+| herdr's pane (tier 0) | the bar's menu | the page's terminals; turn marks arrived as `TurnEnded` until 2026-11-01, when they went with the agent presets |
 | Gen's desktop mode (`--desktop`) | the prompt panel | gone: `localgpt-gen` takes prompts from its terminal |
 
 `bevy_egui`, the `feathers` feature and the widget seam (`GET /widgets`)
@@ -152,9 +159,11 @@ Open…, a link for its browser (`crates/app/src/webui/remote.rs`). So the
 terminals became every page's (`term.rs`): each tab keeps its screen as a
 terminal would, and a page that attaches late — a phone, or this page after
 a reload — is sent the screen; the page that typed or clicked into a tab
-last sets its PTY's size; and the marks agents put in their titles, a
-spinner while Claude Code works and ✳ at rest, are the turn marks
-(`TurnEnded`) and every tab's dot.
+last sets its PTY's size. The marks agents put in their titles, a spinner
+while Claude Code works and ✳ at rest, were the turn marks (`TurnEnded`)
+and every tab's dot until 2026-11-01; reading one agent's glyphs is
+treating it by name, so that went with the presets, and a tab shows its
+title as the shell sets it.
 
 ## Next
 

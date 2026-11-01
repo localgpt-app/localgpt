@@ -31,23 +31,30 @@ cargo run -- world mcp               # the shim: a stdio MCP server over an app'
 
 # Test
 cargo test --workspace          # All tests
-cargo test -p localgpt-core     # Single crate
+cargo test -p localgpt-gen      # Single crate
 cargo test -- --nocapture       # Show stdout
 
 # Lint (required before commits)
 cargo clippy --workspace -- -D warnings
 cargo fmt --check
 
-# Gen (3D scene generation with Bevy)
-cargo run -p localgpt-gen                          # Interactive mode
-cargo run -p localgpt-gen -- "build a castle"      # With initial prompt
+# Gen (the world builder with Bevy; no model runs in it — an agent outside
+# the window drives it over MCP or through a live package's API)
+cargo run -p localgpt-gen -- --mcp-relay           # the window, with the relay an agent's
+                                                   # `mcp-server --connect` reaches
+cargo run -p localgpt-gen -- mcp-server            # the agent's own process: window + tools (stdio)
+cargo run -p localgpt-gen -- mcp-server --headless --mcp-http 8765   # no window; also HTTP
+cargo run -p localgpt-gen -- --live demo.world     # a package as a live canvas (ops API)
+cargo run -p localgpt-gen -- --world castle        # open a saved world, a manifest or a URL
 cargo run -p localgpt-gen -- -s model.glb          # Load existing scene
 cargo run -p localgpt-gen -- -v                    # Verbose logging
 cargo run -p localgpt-gen -- --host                # Host a collaborative session (mDNS, UDP 9879)
 cargo run -p localgpt-gen -- --join 192.168.1.5    # Join a session (or --join to browse)
+cargo run -p localgpt-gen -- --replay castle       # a session as a time-lapse
 
 # The one desktop app — Gen's world, one web page around it (crates/app/ui:
-# React, Tailwind, CodeMirror, xterm.js) with the agents' own terminals in it
+# React, Tailwind, CodeMirror, xterm.js) with plain terminals in it, where
+# the person runs whatever agent they have
 (cd crates/app/ui && npm ci && npm run build)      # the page, once; the binary carries it
 cargo run -p localgpt-app                          # reopens what was opened last
 cargo run -p localgpt-app -- --md notes.md         # edit a document, the world rebuilds
@@ -56,7 +63,6 @@ cargo run -p localgpt-app -- --world harbour.world  # a .world package opens as 
                                                    # agents edit through its API ("at" an
                                                    # earlier entry forks), the history panel
                                                    # draws the branches and plays them
-cargo run -p localgpt-app --features local-llm-metal -- --md doc.md   # in-process GGUF
 (cd crates/app/ui && npm run dev)                  # the page with reload; run the app with
                                                    # LOCALGPT_APP_UI_URL=http://localhost:5174
 (cd crates/app/ui && npm run design)               # the design sheets: new interface is drawn
@@ -106,8 +112,8 @@ Trusted Publishing. A crate published for the first time needs the
 `CARGO_REGISTRY_TOKEN` secret, since crates.io can only trust a workflow
 for a crate that exists; crates.io also limits how many new crates go up
 at once, and a rerun picks up the rest. Members with `publish = false`
-(app, md, verse, relay, previs-web) stay off crates.io; core publishes no
-version after 0.4.2.
+(app, md, verse, relay, previs-web) stay off crates.io; `localgpt-core`
+published its last version, 0.4.2, and is no longer in the tree.
 `cargo publish --workspace --dry-run` is the local check.
 
 The desktop app releases on its own tag: `desktop-vX.Y.Z` (the same
@@ -122,15 +128,22 @@ the draft.
 LocalGPT is the desktop app where a prompt, a document, a song or a
 screenplay becomes a walkable `.world`, with the coding agents in its page's
 terminals; the `localgpt` CLI, a `.world` package's command line and the MCP
-shim; Gen, MD, Verse and Previs; and the format crates. The assistant (chat,
-daemon, memory, heartbeat) had its last release in 0.4.2: its daemon, server,
-bridges, sandbox, shell tools and mobile apps are gone from the tree, and what
-is left of it is `localgpt-core`, the agent loop Gen's own chat still runs on
-(`docs/rfcs/authoring/the-harness-goes.md`).
+shim; Gen, MD, Verse and Previs; and the format crates. **Nothing in the tree
+runs a model, holds a key, or knows an agent by name.** The assistant (chat,
+daemon, memory, heartbeat, the providers) had its last release in 0.4.2 and
+went whole on 2026-11-01, `localgpt-core` with it; what it provided that the
+world still needs — the `Tool` trait, the MCP servers — lives in
+`world-agent::mcp` (`docs/rfcs/authoring/the-harness-goes.md`). The agents
+come from their makers: they run in the app's terminals and reach the world
+over MCP or its ops API, with their own logins. MD's and Verse's opt-in `llm`
+tiers run a local GGUF in-process over `world-agent::localgguf` (no API, no
+key) and are the only model code left; Gen's external services (ComfyUI, the
+asset model server, Ollama for NPC brains) are reached by `LOCALGPT_GEN_*`
+environment variables, never a config file.
 
 ### Workspace
 
-`Cargo.toml` defines 16 members. **MD and Verse are members**, not separate
+`Cargo.toml` defines 15 members. **MD and Verse are members**, not separate
 repositories — they were folded in so the world format cannot drift between
 apps (see `docs/world-strategy.md` §13.6). `crates/spacetime` is a **standalone** crate
 (its own `[workspace]`) excluded from the main build because it targets
@@ -138,9 +151,8 @@ SpacetimeDB's wasm/module toolchain.
 
 ```
 crates/
-├── core/         # localgpt-core — the assistant's agent loop, memory, config, providers, MCP (goes in 0.5.0)
-├── cli/          # localgpt — `localgpt world` (a .world package's command line) and `world mcp` (the shim)
-├── gen/          # localgpt-gen — Bevy 3D scene generation binary
+├── cli/          # localgpt — `localgpt world` (a .world package's command line), `world mcp` (the shim), `completion`
+├── gen/          # localgpt-gen — the world builder: Bevy window, 95 tools over MCP (stdio, HTTP, the relay), live canvas, sessions
 ├── app/          # localgpt-app — the one desktop app: Gen's world, documents and songs as modes; its interface is the web page in app/ui (docs/rfcs/authoring/the-page.md)
 ├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
 ├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin; `song_world`)
@@ -152,7 +164,7 @@ crates/
 ├── world-export/ # localgpt-world-export — web viewer (three.js) + HTML export, no Bevy
 ├── world-sync/   # localgpt-world-sync — room authority: shared doc, EditOps, presence
 ├── world-editor/ # localgpt-world-editor — the non-linear editing model: tips, forks, folds, deltas (no engine, no I/O)
-├── world-agent/  # localgpt-world-agent — tool-call protocol, interpreter, shared paths
+├── world-agent/  # localgpt-world-agent — the live authority, headless commands, tool-call protocol, `mcp` (Tool trait + stdio/HTTP servers), `agent_env`, `paths` (Dirs, shared downloads), `localgguf`
 ├── relay/        # localgpt-relay — internet reach for collaborative rooms
 └── spacetime/    # localgpt-spacetime — SpacetimeDB multiplayer world server (standalone)
 
@@ -174,11 +186,11 @@ website*/         # One Cloudflare Worker each, all deployed by hand
 ### Dependency Graph
 
 ```
-localgpt (CLI)  → core (no default features), world-agent, world-editor
-localgpt-gen    → core (agent loop, config, MCP server), previs, world-*
-localgpt-app    → core (config, paths, providers for document authoring),
-                  gen, md, verse, previs, world-agent, world-bevy, world-types
-md, verse, previs, relay, world-*  → no core
+localgpt (CLI)  → world-agent (features: mcp), world-editor
+localgpt-gen    → world-agent (features: mcp-http), previs, world-*
+localgpt-app    → gen, md, verse, previs, world-agent, world-bevy, world-types
+md, verse       → world-agent (paths, localgguf behind their `llm` tiers), world-*
+previs, relay, world-*  → no app crate
 
 World format: world-types → world-bevy (bevy, no windowing) and world-export
   (three.js viewer + HTML, no Bevy); gen depends on both. LocalGPT MD and
@@ -196,51 +208,39 @@ and `generate_html`. Reference scenes live in
 `crates/world-types/conformance/`; render them before and after changing a
 mapping. Add fields to world-types, never a parallel format.
 
-**`localgpt-core` takes nothing new.** It goes in 0.5.0, after its stdio MCP
-server and `Tool` trait move to `world-agent`; new code goes in the crate that
-outlives it. It has no shell or file tools: the coding agents in the app's
-terminals do that work with their own.
+**No model, no key, no agent by name.** Nothing in the workspace calls a
+model API, reads a key or a model's configuration, or treats one coding agent
+differently from another: the agents run in the app's terminals (plain login
+shells) and in MCP clients, under their own logins. Do not add a provider, a
+prompt loop, an agent launcher or an agent-specific affordance (presets, turn
+detection from an agent's output) — `docs/rfcs/authoring/the-harness-goes.md`
+records why. The two exceptions are deliberate and local: MD's and Verse's
+`llm` tiers (a GGUF in-process, `world-agent::localgguf`) and Gen's external
+services (`crates/gen/src/env.rs`: ComfyUI, the asset model server, Ollama for
+NPC brains), reached by `LOCALGPT_GEN_*` variables.
 
-### Feature Flags (`localgpt-core`)
+### Feature Flags
 
-Default: `image-resize`. Memory searches by keyword (SQLite FTS5), with
-vectors from an embeddings API when `memory.embedding_provider` is `openai`
-or `gemini`; the in-process models (fastembed over ONNX Runtime, llama.cpp)
-and sqlite-vec are gone. The coding agents are not model backends: the
-`claude-cli`, `gemini-cli` and `codex-cli` providers, which ran an agent as a
-subprocess, went on 2026-11-01, and nothing in the tree treats one agent
-differently from another.
-
-| Feature | Default | Purpose |
-|---------|---------|---------|
-| `image-resize` | yes | Resize images before sending to vision models |
-| `mcp-http` | no | MCP streamable HTTP transport (adds axum + tower-http) |
+| Crate | Feature | Default | Purpose |
+|-------|---------|---------|---------|
+| `world-agent` | `mcp` | no | The `Tool` trait, `ToolSchema`, `McpHandler` and the stdio MCP server (the CLI's shim) |
+| `world-agent` | `mcp-http` | no | The streamable HTTP transport over `mcp` (adds axum + tower-http); Gen enables it |
+| `gen` | `multiplayer` | yes | `--host`/`--join`, the ops room, mDNS, the browser guest page |
+| `md`, `verse` | `llm`, `llm-metal` | no | A local GGUF in-process (mistral.rs) for authored scenery and recipes; `-metal` is the Apple GPU path |
+| `verse` | `ml` | no | ONNX Runtime models for analysis (the only tier that links `ort`) |
+| `world-types` | `schema` | no | Writes `world.schema.json` |
 
 ### Key Patterns
 
-**Safe tools only:** `Agent::new()` registers `tools::create_safe_tools()`
-(memory_search, memory_get, web_fetch, web_search, document_load, wiki,
-audio_transcribe, spawn_agent). There are no bash or file tools any more.
-
-**Custom tool sets:** `Agent::new_with_tools()` replaces all tools — used by Gen
-mode for its own Bevy/world tools (spawn_entity, modify_entity, etc.).
-
-**Thread safety:** Agent is not `Send+Sync` (SQLite); keep one on the task
-that made it.
+**Tools:** every Gen tool implements `localgpt_world_agent::mcp::Tool`
+(`name`, `schema`, `execute`, optional `annotations`);
+`mcp_server::create_mcp_tools` assembles the 95 and annotates them
+(read-only / destructive / idempotent). Tools reach the Bevy world through
+`GenBridge` (channels into the ECS); the same set serves stdio, HTTP and the
+relay.
 
 **Bevy main thread:** Bevy must own the main thread (macOS windowing/GPU). Gen
-mode spawns tokio on a background thread.
-
-**Session compaction:** Approaching context limits triggers a memory flush first
-(the LLM saves important context to MEMORY.md before older messages are
-truncated). See `agent/compaction.rs`.
-
-**Provider failover:** `agent/failover.rs` can fall back across configured
-providers when a primary errors out.
-
-**Memory context:** New sessions auto-load `MEMORY.md` and recent daily logs.
-Active recall (`memory/active_recall.rs`) can search memory before each reply
-and inject results.
+spawns tokio on a background thread for the tool server.
 
 **Audio:** `localgpt-world-audio` is the one mapping from the format's audio
 types to sound, the counterpart to `world-bevy` for meshes. **kira owns the
@@ -255,66 +255,27 @@ document world's ambience and a song world's soundtrack, which Worlds needs.
 **Shared downloads:** the ~5 GB GGUF and the 522 MB CC0 asset pack are
 resolved by `localgpt-world-agent`'s `paths` module — `shared_llm_dir()` and
 `world_pack_dir()` — so one download serves Gen, MD and Verse. It lives there
-because all three depend on that crate and none of them can depend on
-`localgpt-core`. Never re-implement the XDG rule in an app; `LOCALGPT_LLM_DIR`
-and `LOCALGPT_WORLD_ASSETS` override.
+because all three depend on that crate. Never re-implement the XDG rule in an
+app; `LOCALGPT_LLM_DIR` and `LOCALGPT_WORLD_ASSETS` override. The same
+module's `Dirs` (`data`, `state`, `logs()`) is where an app's own directories
+come from: `LOCALGPT_DATA_DIR` and `LOCALGPT_STATE_DIR` move one each,
+`LOCALGPT_PROFILE` moves both to `localgpt-<profile>`; the shared downloads
+ignore the profile on purpose.
 
-**Path expansion & safety:** Tools use `shellexpand::tilde()` for `~`; path
-handling and traversal guards live in `agent/path_utils.rs`.
+**Environment names:** the world's are constants in
+`world-agent::agent_env` (`LOCALGPT_WORLD_DIR`, `_API`, `_TOKEN`, `_AUTHOR`),
+the directories' in `world-agent::paths`, Gen's in `crates/gen/src/env.rs`
+(`LOCALGPT_GEN_*`), the app's in `crates/app/src` (`LOCALGPT_APP_*`). Add a
+name to the crate that reads it, as a constant, never a bare string.
 
-**Provider routing:** Prefer the explicit `provider/model` form
-(OpenClaw-compatible). Bare model names are routed by prefix in
-`create_provider()`:
+### World-agent's `mcp` module (`crates/world-agent/src/mcp/`)
 
-| Model prefix / scheme | Provider |
-|-----------------------|----------|
-| `anthropic/*`, `claude-*` | Anthropic API |
-| `openai/*`, `gpt-*`, `o1*` | OpenAI |
-| `xai/*`, `grok-*` | xAI |
-| `gemini/*`, `gemini-*` | Gemini API key |
-| `vertex/*` | Vertex AI |
-| `glm/*`, `glm-*` | GLM (Z.AI) |
-| `ollama/*`, `local/*` | Ollama |
-| `openrouter/*`, `openai-compat/*` | OpenAI-compatible endpoints |
-
-Aliases resolve first (e.g. `opus` → `anthropic/claude-opus-4-6`, `sonnet`,
-`gpt`, `glm`, `grok`). Default `agent.default_model` is
-`anthropic/claude-opus-4-6`; a config that still names `claude-cli/*`,
-`gemini-cli/*` or `codex-cli/*` gets an error saying what to set instead.
-
-### Core Modules (`crates/core/src/`)
-
-- **agent/providers.rs** — `LLMProvider` trait + implementations: OpenAI,
-  OpenAI-compatible (OpenRouter etc.), xAI, Anthropic, Ollama, Gemini (API
-  key), Vertex AI, GLM. Includes model-alias resolution and per-model
-  pricing.
-- **agent/session.rs**, **compaction.rs**, **checkpoint.rs** — conversation
-  state, automatic compaction, checkpoint/restore.
-- **agent/session_store.rs**, **session_pruning.rs** — session metadata
-  persistence and pruning.
-- **agent/system_prompt.rs** — system prompt builder (identity, safety,
-  workspace, tools, skills).
-- **agent/skills.rs** — SKILL.md loading from `workspace/skills/`.
-- **agent/tool_filters.rs**, **hardcoded_filters.rs**, **sanitize.rs**,
-  **ssrf.rs** — tool input filtering, output sanitization, SSRF protection.
-- **agent/approval.rs** — human-in-the-loop tool approval (HTTP approve flow).
-- **agent/tools/** — safe tool set: `spawn_agent` (hierarchical delegation),
-  `web_search`, plus memory/web/document/wiki/audio tools.
-- **memory/** — SQLite FTS5 (`backend_sqlite.rs`, `backend_markdown.rs`,
-  `backend_none.rs`), file watcher, an embeddings API when one is configured,
-  query expansion, session index, **active_recall**, and **wiki**
-  (claims/evidence with staleness tracking).
-- **mcp/** — MCP client (stdio + HTTP/SSE transports) that exposes external MCP
-  server tools as LocalGPT tools, plus the stdio MCP **server** the shim runs.
-- **media/** — document loading, audio transcription, TTS, image optimization.
-- **config/** — the TOML schema (`mod.rs`); `Config::load()`. A config written
-  for the assistant keeps its `[heartbeat]`, `[server]`, `[sandbox]`, `[cron]`
-  and `[hooks]` tables, which are ignored.
-- **paths.rs** — XDG dirs, `Paths::resolve()`. **env.rs** centralizes all
-  `LOCALGPT_*` env var names.
-- **commands.rs** — the slash commands of Gen's chat.
-- **security/** — POLICY.md policy loading (with legacy `LocalGPT.md`
-  fallback) and injection sanitization, and the hardcoded security suffix.
+- **mod.rs** — the `Tool` trait and `ToolSchema`, `McpHandler` (initialize,
+  tools/list, tools/call; protocol `2024-11-05`), `ToolHandler` over a tool
+  list, and `run_mcp_stdio_server` (JSON-RPC 2.0, one message per line on
+  stdout; logs go to stderr).
+- **http.rs** (`mcp-http`) — `run_mcp_http_server`: the streamable HTTP
+  transport at `/mcp` on localhost.
 
 ### CLI Subcommands (`crates/cli/src/cli/`)
 
@@ -322,7 +283,8 @@ Aliases resolve first (e.g. `opus` → `anthropic/claude-opus-4-6`, `sonnet`,
 line — init, submit (`--at <id>` forks), undo, redo, log, tips, show, get,
 verify, history, and screenshot, selection, goto and proposals, which need an
 app — and `world mcp`, a stdio MCP server over an app's open canvas;
-`crates/cli/src/cli/world.rs`). One authority at a time: while an app answers
+`crates/cli/src/cli/world.rs`), and `completion`. That is the whole binary:
+no chat, no config, no key. One authority at a time: while an app answers
 at `.live/endpoint.json`, every command is a call to its API
 (`world_api.rs`, which the shim shares) and the CLI never opens the package;
 with nothing open it commits through `world-agent::headless`, which is shared
@@ -335,9 +297,18 @@ always the last line.
 ### Gen (3D Scene Generation with Audio + Multiplayer)
 
 **Binary:** `localgpt-gen` — Bevy-based 3D scene generation with procedural
-environmental audio. World data uses **`localgpt-world-types`** (serde-only,
-zero Bevy/SpacetimeDB deps) so the same types serialize to RON for local saves
-and map to SpacetimeDB rows for multiplayer via `crates/spacetime`. Meshes,
+environmental audio, driven from outside: `--mcp-relay` serves a relay beside
+the window that an agent's `mcp-server --connect` process is the stdio end
+of (`gen3d/mcp_relay.rs`); `mcp-server` alone is the agent's own process
+with a window, `--headless` without one, `--mcp-http <port>` adds the HTTP
+transport; `--live <folder>` opens a package as a live canvas with its ops
+API (`gen3d/live.rs`). Started with none of these, the window says so and
+shows what was opened last. There is no prompt, no chat and no model in the
+binary; `config::GenConfig { workspace, state_dir }` comes from
+`world-agent::paths::Dirs`, and `settings.rs` remembers only what was opened
+last. World data uses **`localgpt-world-types`** (serde-only, zero
+Bevy/SpacetimeDB deps) so the same types serialize to RON for local saves and
+map to SpacetimeDB rows for multiplayer via `crates/spacetime`. Meshes,
 materials, lights and environment come from `localgpt-world-bevy`;
 `gen_export_html` embeds `localgpt-world-export`'s viewer.
 
@@ -349,16 +320,18 @@ over the ops protocol — `localgpt-gen --host` runs the room authority
 (`_localgpt-world._udp.local.`). `localgpt-gen --join [addr] [--pin PIN]`
 runs the native client (`net/ops_client.rs` — the full gen scene driven by
 the room); `--web` adds browser guests via an invite link (`--web-edit`
-gives them the editor role); guests prompt a scene-only agent unless
-`--remote-tools full`. The host projects its scene into ops (~4 Hz), so
-every tool syncs; committed ops apply back into its scene. Sessions are
-packages (`<workspace>/sessions/<name>/`: base `world.ron`, the one log
-`ops.jsonl` — edits plus tool/state history — `session.json`, keyframe
-snapshots; see `docs/rfcs/multiplayer/session-package-format.md`) with
-per-user `/undo`, `--resume`, and `--replay` time-lapse. See
-`docs/gen/multiplayer.md` and
-`crates/gen/src/net/`; the SpacetimeDB module carries the cloud-tier
-inference queue (`crates/spacetime/src/jobs.rs`).
+gives them the editor role). No model runs for the room: a guest's prompt is
+accepted by the authority and failed with a reason (`net/web.rs`), and the
+agent that builds is the host's, outside the window, driving it over MCP.
+The host projects its scene into ops (~4 Hz), so every tool syncs; committed
+ops apply back into its scene. Sessions are packages
+(`<workspace>/sessions/<name>/`: base `world.ron`, the one log `ops.jsonl` —
+edits plus tool/state history — `session.json`, keyframe snapshots; see
+`docs/rfcs/multiplayer/session-package-format.md`) with per-user `/undo`,
+`--resume`, and `--replay` time-lapse. See `docs/gen/multiplayer.md` and
+`crates/gen/src/net/`; the SpacetimeDB module still carries a cloud-tier
+inference queue (`crates/spacetime/src/jobs.rs`), unjoined and with nothing
+in this workspace feeding it.
 
 **Audio System:** `localgpt-world-audio` — one kira `AudioManager` with the
 FunDSP graphs feeding it as sources. The Bevy side (`gen3d/audio.rs`) keeps
@@ -388,9 +361,10 @@ height, optional model). Tours define guided named waypoint sequences
 with A* pathfinding + slope/erosion, hierarchical hero/medium/decorative
 placement with collision-aware ground snap, screenshot-based evaluation loop,
 incremental blockout editing, semantic scene decomposition, depth/2D preview.
-**40+ MCP tools** across P0–P5, WG1–WG7, AI1–AI2. See
-`docs/gen/external-services.md` for external services (Ollama, ComfyUI, model
-server).
+**95 MCP tools** across P0–P5, WG1–WG7, AI1–AI3 (`AGENTS.md` is the catalog).
+See `docs/gen/external-services.md` for external services (Ollama for NPC
+brains, ComfyUI for previews and textures, the asset model server), each
+reached by a `LOCALGPT_GEN_*` variable from `crates/gen/src/env.rs`.
 
 ### A phone or a tablet
 
@@ -401,46 +375,31 @@ device against a running app.
 
 ## Configuration
 
-Config: `~/.config/localgpt/config.toml` (auto-created on first run, see
-`config.example.toml`).
-
-Key settings:
-- `agent.default_model` — determines provider. Default:
-  `anthropic/claude-opus-4-6`.
-- `agent.subagent_model` — model for spawned subagents (defaults to
-  `default_model`).
-- `providers.*` — per-provider API keys/endpoints (anthropic, openai, xai,
-  gemini, vertex, glm, ollama, openrouter, openai-compat). Supports
-  `${ENV_VAR}` interpolation.
-- `memory.workspace` — workspace dir. Default
-  `~/.local/share/localgpt/workspace`.
-- `memory.embedding_provider` — `"none"` (default, keyword search),
-  `"openai"` or `"gemini"`.
-
-Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
-`memory.workspace` config > `~/.local/share/localgpt/workspace`. All
-`LOCALGPT_*` env vars are defined centrally in `crates/core/src/env.rs`.
+There is no configuration file: `config.toml` and `config.example.toml` went
+with the assistant. What an app needs it takes from flags and environment
+variables — the external services from `LOCALGPT_GEN_*`, the directories
+from `LOCALGPT_DATA_DIR`, `LOCALGPT_STATE_DIR` and `LOCALGPT_PROFILE`, the
+shared downloads from `LOCALGPT_LLM_DIR` and `LOCALGPT_WORLD_ASSETS` — and
+remembers only what was opened last (`gen-settings.json`). An agent's own
+configuration (its login, its model, its MCP servers) is the agent's.
 
 ## Runtime Directory Structure (XDG Base Directory Specification)
 
 ```
-~/.config/localgpt/                      # XDG_CONFIG_HOME
-├── config.toml
-~/.local/share/localgpt/                 # XDG_DATA_HOME
-├── workspace/                           # Memory workspace
-│   ├── MEMORY.md                        # Long-term curated memory
-│   ├── SOUL.md                          # Persona/tone
-│   ├── memory/YYYY-MM-DD.md             # Daily logs
-│   ├── knowledge/                       # Knowledge repository
-│   └── skills/*/SKILL.md                # Custom skills
-└── skills/                              # Managed skills
-~/.local/state/localgpt/                 # XDG_STATE_HOME
-├── agents/{agent_id}/sessions/          # Session transcripts (JSONL)
+~/.local/share/localgpt/                 # XDG_DATA_HOME (Dirs::data)
+├── gen-workspace/                       # Gen's worlds (skills/), sessions/, exports/
+└── models/                              # the shared downloads; ignore LOCALGPT_PROFILE
+    ├── llm/                             # the GGUF (scripts/fetch-model.sh)
+    └── pack/                            # the CC0 asset pack (scripts/fetch-assets.sh)
+~/.local/state/localgpt/                 # XDG_STATE_HOME (Dirs::state)
+├── gen-settings.json                    # what was opened last
 ├── app-remote.json                      # The phone remote's paired devices (key hashes, 0600)
-└── logs/                                # Application logs
-~/.cache/localgpt/                       # XDG_CACHE_HOME
-└── memory/{agent_id}.sqlite             # Search index (regenerable)
+└── logs/                                # Application logs, when there is no terminal
 ```
+
+A profile (`LOCALGPT_PROFILE=x`) moves both roots to `localgpt-x`. Worlds a
+0.4.x assistant saved under `workspace/skills/` are copied into
+`gen-workspace/skills/` once (`config::migrate_legacy_worlds`).
 
 ## Conventions
 
@@ -448,8 +407,8 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
   and `cargo fmt --check` must pass (enforced in CI). CI
   (`.github/workflows/ci.yml`) runs fmt, clippy and tests for the workspace
   with the four Bevy crates (`gen`, `md`, `verse`, `world-bevy`) in their own
-  job, a `features` job for the opt-in tiers (`llm`, `local-llm`, `ml` — gated
-  code is not compiled by anything else), an `interface` job that typechecks
+  job, a `features` job for the opt-in tiers (MD's and Verse's `llm`,
+  Verse's `ml` — gated code is not compiled by anything else), an `interface` job that typechecks
   and builds the app's page and its design sheets (`crates/app/ui`), a `viewer` job running
   `website-world`'s headless render check, plus cargo-deny (`deny.toml`); advisories run on main and weekly, never on
   pull requests. Only Verse's `ml` tier links ONNX Runtime; the `features`
@@ -457,15 +416,16 @@ Workspace path resolution: `LOCALGPT_WORKSPACE` env > `LOCALGPT_PROFILE` env >
 - **Commits:** conventional commits (`feat:`, `fix:`, `docs:`, `chore:`,
   `refactor:`, scoped like `feat(gen):`), with no Co-Authored-By or
   Claude-Session trailers.
-- **Nothing new in `localgpt-core`:** it goes in 0.5.0. Put new code in the
-  crate that outlives it (`world-agent`, `gen`, `app`).
+- **No model, no key, no agent by name** (above): a change that adds a
+  provider, a prompt loop, a model setting or an agent-specific affordance
+  is wrong by construction, whatever it is for.
 - **Edition 2024**, workspace-shared version (`0.4.x`), `resolver = "3"`.
 - Related docs live under `docs/` (architecture, gen, security, rfcs,
   roadmap; retired designs in `docs/archived/`). `AGENTS.md` is the
   longer-form contributor guide.
 - **Websites:** `website/` is the Zola site for localgpt.app, the
-  family hub and its only docs site: the assistant's docs plus
-  `website/docs/gen`, `docs/verse` and `docs/md` (Verse and MD keep only
+  family hub and its only docs site: the app's, the CLI's and the format's
+  docs plus `website/docs/gen`, `docs/verse` and `docs/md` (Verse and MD keep only
   landing pages in their own repos; update their docs here when those apps
   change). `website-gen/` is the static landing page for gen.localgpt.app (no
   build step; `website-gen/deploy.sh` deploys it) and links to the Gen docs.

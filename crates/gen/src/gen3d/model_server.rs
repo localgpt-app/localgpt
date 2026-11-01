@@ -38,7 +38,7 @@ const JOB_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 /// The model server's base URL (`LOCALGPT_GEN_MODEL_SERVER`).
 pub fn server_url() -> String {
-    std::env::var(localgpt_core::env::LOCALGPT_GEN_MODEL_SERVER)
+    std::env::var(crate::env::LOCALGPT_GEN_MODEL_SERVER)
         .unwrap_or_else(|_| DEFAULT_URL.to_string())
         .trim_end_matches('/')
         .to_string()
@@ -58,7 +58,7 @@ pub async fn check_health(base: &str) -> Result<Value> {
             "No asset model server is reachable at {base} ({e}), so nothing can be generated. \
              Start one (see the Gen docs, External Services) or set {}; \
              otherwise build the object from primitives with gen_spawn_primitive.",
-            localgpt_core::env::LOCALGPT_GEN_MODEL_SERVER
+            crate::env::LOCALGPT_GEN_MODEL_SERVER
         ),
     }
 }

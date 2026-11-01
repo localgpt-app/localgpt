@@ -76,7 +76,6 @@ pub struct OpsClient {
     outbound: mpsc::UnboundedSender<ClientMsg>,
     prompt_rx: Mutex<mpsc::UnboundedReceiver<String>>,
     presence_timer: Timer,
-    request_seq: u64,
     /// A fresh world to spawn next frame (welcome/snapshot).
     pending_world: bool,
     /// Ops to apply to the scene next frame.
@@ -125,7 +124,6 @@ impl Plugin for OpsClientPlugin {
             outbound: outbound_tx,
             prompt_rx: Mutex::new(options.prompt_rx),
             presence_timer: Timer::new(Duration::from_millis(200), TimerMode::Repeating),
-            request_seq: 0,
             pending_world: false,
             pending_ops: Vec::new(),
             scaffolds: HashMap::new(),
@@ -406,11 +404,7 @@ fn primary_camera_transform(
         .map(|(t, _)| *t)
 }
 
-fn ops_prompts(
-    mut client: ResMut<OpsClient>,
-    mut log: ResMut<ClientPanelLog>,
-    cameras: Query<(&Transform, &GenEntity), With<Camera>>,
-) {
+fn ops_prompts(client: ResMut<OpsClient>, mut log: ResMut<ClientPanelLog>) {
     let lines: Vec<String> = {
         let Ok(mut rx) = client.prompt_rx.lock() else {
             return;
@@ -440,19 +434,10 @@ fn ops_prompts(
             });
             continue;
         }
-        // Anchor builds where the camera is looking, like the old client.
-        let anchor = primary_camera_transform(&cameras).map(|t| {
-            let forward = t.forward();
-            let point = t.translation + forward * 12.0;
-            [point.x, 0.0, point.z]
-        });
-        client.request_seq += 1;
+        // Anything else is said to the room: no model runs for it, so a
+        // line is chat, not a prompt.
         log.push(ClientEntry::You(line.clone()));
-        let _ = client.outbound.send(ClientMsg::Prompt {
-            request_id: format!("c{}", client.request_seq),
-            text: line,
-            anchor,
-        });
+        let _ = client.outbound.send(ClientMsg::Chat { text: line });
     }
 }
 

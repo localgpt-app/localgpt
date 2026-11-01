@@ -24,9 +24,9 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use localgpt_core::agent::ToolSchema;
-use localgpt_core::agent::tools::Tool;
-use localgpt_world_agent::agent_cli::Endpoint;
+use localgpt_world_agent::agent_env::Endpoint;
+use localgpt_world_agent::mcp::Tool;
+use localgpt_world_agent::mcp::{ToolSchema, run_mcp_stdio_server};
 use serde_json::{Value, json};
 
 use super::world_api::Api;
@@ -56,7 +56,7 @@ pub async fn run(dir: Option<PathBuf>) -> Result<()> {
         Box::new(ScreenshotTool(api.clone())),
         Box::new(SelectionTool(api)),
     ];
-    localgpt_core::mcp::server::run_mcp_stdio_server(tools, "localgpt-world").await
+    run_mcp_stdio_server(tools, "localgpt-world").await
 }
 
 /// The guide an agent should read first, named in every tool's description so

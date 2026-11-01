@@ -1,13 +1,11 @@
-//! MCP server for LocalGPT Gen — exposes gen tools + core tools over stdio.
+//! Gen's tool server: every gen tool over MCP, for the agent outside the
+//! window — a coding agent (Claude Code, Codex, Gemini CLI), an editor (VS
+//! Code, Zed, Cursor), a script. Over stdio as `localgpt-gen mcp-server`,
+//! over TCP through the relay (`gen3d::mcp_relay`), and over HTTP with
+//! `--mcp-http`.
 //!
-//! This lets external MCP clients — coding agents (Claude Code, Codex, Gemini
-//! CLI) and editors (VS Code, Zed, Cursor) — drive the Bevy scene.
-//!
-//! Exposed tools:
-//! - All gen tools (spawn, modify, camera, audio, behaviors, world, etc.)
-//! - memory_search, memory_get (read), memory_save, memory_log (write)
-//! - web_fetch, web_search
-//! - Experiment queue tools (gen_queue_experiment, gen_list_experiments, gen_experiment_status)
+//! No memory, web, shell or file tools: an MCP client that is a coding agent
+//! has its own, and Gen is not an agent.
 
 use std::sync::Arc;
 
@@ -15,57 +13,28 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::{Value, json};
 
-use localgpt_core::agent::providers::ToolSchema;
-use localgpt_core::agent::tools::Tool;
-use localgpt_core::config::Config;
-use localgpt_core::mcp::server::ToolHandler;
+use localgpt_world_agent::mcp::{Tool, ToolHandler, ToolSchema, run_mcp_stdio_server};
 
-use crate::experiment::ExperimentTracker;
 use crate::gen3d::GenBridge;
 
-/// Run the MCP stdio server with gen tools + core tools.
-pub async fn run_mcp_server(bridge: Arc<GenBridge>, config: Config) -> Result<()> {
-    let tools = create_mcp_tools(bridge, &config)?;
-    localgpt_core::mcp::server::run_mcp_stdio_server(tools, "localgpt-gen").await
+/// Serve the gen tools over stdio until the client goes away.
+pub async fn run_mcp_server(bridge: Arc<GenBridge>) -> Result<()> {
+    run_mcp_stdio_server(create_mcp_tools(bridge), "localgpt-gen").await
 }
 
-/// Run the MCP HTTP server with gen tools + core tools on the given port.
-///
-/// This serves the MCP streamable HTTP transport at `http://127.0.0.1:{port}/mcp`.
-pub async fn run_mcp_http_server(bridge: Arc<GenBridge>, config: Config, port: u16) -> Result<()> {
-    let tools = create_mcp_tools(bridge, &config)?;
-    let handler = Arc::new(ToolHandler::new("localgpt-gen", tools));
+/// Serve the gen tools over the MCP streamable HTTP transport at
+/// `http://127.0.0.1:{port}/mcp`.
+pub async fn run_mcp_http_server(bridge: Arc<GenBridge>, port: u16) -> Result<()> {
+    let handler = Arc::new(ToolHandler::new("localgpt-gen", create_mcp_tools(bridge)));
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
-    localgpt_core::mcp::http_transport::run_mcp_http_server(handler, addr).await
+    localgpt_world_agent::mcp::http::run_mcp_http_server(handler, addr).await
 }
 
-/// Create the combined tool set for the MCP server:
-/// gen tools + safe core tools + memory write tools + experiment tools.
-///
-/// No shell or file tools: an MCP client that is a coding agent has its own,
-/// and core has none any more.
-pub fn create_mcp_tools(bridge: Arc<GenBridge>, config: &Config) -> Result<Vec<Box<dyn Tool>>> {
-    use localgpt_core::agent::tools::create_safe_tools;
-    use localgpt_core::mcp::memory_tools::create_memory_write_tools;
-    use localgpt_core::memory::MemoryManager;
-
-    let workspace = config.workspace_path();
-
-    // Core read tools: memory_search, memory_get, web_fetch, web_search
-    // new_with_full_config, not new_with_agent: the latter drops config.paths
-    // and re-resolves from the environment, which would silently put Gen back
-    // in the assistant's workspace.
-    let memory = MemoryManager::new_with_full_config(&config.memory, Some(config), "gen-mcp")?;
-    let memory = Arc::new(memory);
-    let mut tools = create_safe_tools(config, Some(memory))?;
-
-    // Core write tools: memory_save, memory_log
-    tools.extend(create_memory_write_tools(workspace));
-
-    // Gen tools: all scene manipulation tools
-    tools.extend(crate::gen3d::tools::create_gen_tools(bridge.clone()));
-
-    // P1/P2/P3/P4/P5 tools: character + interaction + terrain + UI + physics
+/// Every gen tool, annotated for MCP: the scene basics, characters,
+/// interactions, terrain, UI, physics, the WorldGen pipeline, multi-file
+/// worlds, AI asset generation and image input.
+pub fn create_mcp_tools(bridge: Arc<GenBridge>) -> Vec<Box<dyn Tool>> {
+    let mut tools: Vec<Box<dyn Tool>> = crate::gen3d::tools::create_gen_tools(bridge.clone());
     tools.extend(crate::mcp::avatar_tools::create_character_tools(
         bridge.clone(),
     ));
@@ -79,44 +48,27 @@ pub fn create_mcp_tools(bridge: Arc<GenBridge>, config: &Config) -> Result<Vec<B
     tools.extend(crate::mcp::physics_tools::create_physics_tools(
         bridge.clone(),
     ));
-
-    // WG1 tools: worldgen blockout pipeline
     tools.extend(crate::mcp::worldgen_tools::create_worldgen_tools(
         bridge.clone(),
     ));
-
-    // Multi-file worldgen + sync/drift tools
     tools.extend(crate::mcp::multifile_tools::create_multifile_tools(
         bridge.clone(),
     ));
-
-    // AI1 tools: AI asset generation
     tools.extend(crate::mcp::asset_gen_tools::create_asset_gen_tools(
         bridge.clone(),
     ));
-
-    // AI3 tools: Multimodal input for image-guided world generation
     tools.extend(crate::mcp::multimodal_tools::create_multimodal_tools(
         bridge,
     ));
-
-    // Experiment queue tools: queue, list, status
-    let tracker = Arc::new(ExperimentTracker::new(&config.paths.state_dir));
-    tools.extend(crate::mcp::experiment_tools::create_experiment_tools(
-        tracker,
-    ));
-
-    // Wrap all tools with MCP annotations (readOnlyHint, destructiveHint, etc.)
-    let tools = tools.into_iter().map(|t| annotate_tool(t)).collect();
-
-    Ok(tools)
+    tools.into_iter().map(annotate_tool).collect()
 }
 
 // ---------------------------------------------------------------------------
 // MCP tool annotations
 // ---------------------------------------------------------------------------
 
-/// Wraps an existing tool to add MCP annotations.
+/// A tool with the annotations an MCP client reads (`readOnlyHint`,
+/// `destructiveHint`, `idempotentHint`).
 struct AnnotatedTool {
     inner: Box<dyn Tool>,
     tool_annotations: Value,
@@ -141,7 +93,6 @@ impl Tool for AnnotatedTool {
     }
 }
 
-/// Wrap a tool with MCP annotations based on its name.
 fn annotate_tool(tool: Box<dyn Tool>) -> Box<dyn Tool> {
     let annotations = tool_annotations(tool.name());
     Box::new(AnnotatedTool {
@@ -150,15 +101,13 @@ fn annotate_tool(tool: Box<dyn Tool>) -> Box<dyn Tool> {
     })
 }
 
-/// Return MCP annotations for a tool based on its name.
+/// The annotations for a tool, by its name.
 ///
-/// Categories:
-/// - **read-only**: query/export/status tools that don't mutate scene state
+/// - **read-only**: query/export/status tools that don't change the scene
 /// - **destructive**: delete/clear tools that remove entities irreversibly
-/// - **idempotent**: setters that produce the same result when called repeatedly
-/// - **default**: mutating but non-destructive, non-idempotent (spawns, adds)
+/// - **idempotent**: setters that give the same result when repeated
+/// - **default**: mutating but neither destructive nor idempotent (spawns, adds)
 fn tool_annotations(name: &str) -> Value {
-    // Read-only tools — inspect scene state, export files, query status
     const READ_ONLY: &[&str] = &[
         "gen_scene_info",
         "gen_entity_info",
@@ -170,8 +119,6 @@ fn tool_annotations(name: &str) -> Value {
         "gen_export_gltf",
         "gen_export_html",
         "gen_export_world",
-        "gen_list_experiments",
-        "gen_experiment_status",
         "gen_validate_navigability",
         "gen_render_depth",
         "gen_preview_world",
@@ -182,13 +129,8 @@ fn tool_annotations(name: &str) -> Value {
         "gen_list_assets",
         "gen_asset_status",
         "get_avatar_state",
-        "memory_search",
-        "memory_get",
-        "web_fetch",
-        "web_search",
     ];
 
-    // Destructive tools — irreversibly remove entities or clear scene
     const DESTRUCTIVE: &[&str] = &[
         "gen_delete_entity",
         "gen_delete_batch",
@@ -196,7 +138,6 @@ fn tool_annotations(name: &str) -> Value {
         "gen_unload_region",
     ];
 
-    // Idempotent tools — setters that produce the same result on repeat calls
     const IDEMPOTENT: &[&str] = &[
         "gen_modify_entity",
         "gen_modify_batch",
@@ -242,7 +183,6 @@ fn tool_annotations(name: &str) -> Value {
             "idempotentHint": true,
         })
     } else {
-        // Default: mutating, non-destructive, non-idempotent (spawns, adds, etc.)
         json!({
             "readOnlyHint": false,
             "destructiveHint": false,

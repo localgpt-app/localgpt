@@ -173,8 +173,4 @@ export const history: History = {
   ],
   current: ids[6],
   status: "7 entries · main at boat",
-  turns: [
-    { n: 1, agent: "claude", rows: 3, revision: 3 },
-    { n: 2, agent: "claude", rows: 7, revision: 7 },
-  ],
 };

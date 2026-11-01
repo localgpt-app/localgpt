@@ -4,166 +4,73 @@ title: "Quick Start"
 
 # Quick Start
 
-This guide will get you chatting with LocalGPT in just a few minutes.
+A world in the window, an agent in a terminal beside it, in a few minutes. To previs a screenplay with nothing installed, drop it on [localgpt.md](https://localgpt.md) instead.
 
-> This is the assistant's quick start. For worlds, see [the desktop app](/docs/app/) and [LocalGPT Gen](/docs/gen/); to previs a screenplay with nothing installed, drop it on [localgpt.md](https://localgpt.md).
-
-## 1. Configure a Model Provider
-
-Choose one of the following options:
-
-### Option A: LM Studio (Local, No API Key)
-
-Run models entirely on your machine with [LM Studio](https://lmstudio.ai):
+## 1. Open a world
 
 ```bash
-# Install LM Studio from https://lmstudio.ai
-# Download a model and start the local server, then:
-localgpt config set agent.default_model "openai/qwen/qwen3.5-35b-a3b"
-localgpt config set providers.openai.api_key "lm-studio"
-localgpt config set providers.openai.base_url "http://127.0.0.1:1234/v1"
+# from a checkout (see Installation for the macOS bundle)
+cargo run -p localgpt-app -- --md notes.md         # a Markdown document as a world
+cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
+cargo run -p localgpt-app -- --world harbour.world # a .world package, opened as a live canvas
+cargo run -p localgpt-app                          # reopens what was opened last; a starter song the first time
 ```
 
-### Option B: Ollama (Local)
+A document rebuilds as you type; a song plays its world; a package opens live, with its history in the left panel.
+
+## 2. Open a terminal, run your agent
+
+The **+** on the right opens a terminal: your login shell, started in the folder of what is open. Run whatever agent you have in it:
 
 ```bash
-# Install Ollama from https://ollama.ai, then:
-ollama pull llama3
-localgpt config set agent.default_model "llama3"
+claude      # or codex, gemini, opencode, …
 ```
 
-### Option C: Claude CLI
+Nothing is configured in LocalGPT: no model, no key. In a live package's folder the agent finds `AGENTS.md`, which tells it how to change the world, and the world's API address in `.live/endpoint.json`. Ask it to hang a lamp by the crate, and the lamp lands in the window as one entry in the history, attributed to the agent, undoable, with a branch if it built on an earlier entry.
 
-If you have the [Claude CLI](https://claude.ai/code) installed and authenticated:
+A phone or a tablet on the same network can show the same terminals and the world: the **Phone** button pairs it with a QR code.
+
+## 3. Or give the agent the shim
+
+An MCP client gets the open world's tools from `localgpt world mcp`, registered once:
 
 ```bash
-# No additional setup needed! LocalGPT uses your Claude CLI auth.
-# Just start chatting with:
-localgpt chat
+cargo install localgpt
+claude mcp add world -- localgpt world mcp        # Claude Code; Codex and Gemini CLI take the same command in their MCP config
 ```
 
-### Option D: API Keys
+The shim finds the world the terminal is in (or `$LOCALGPT_WORLD_DIR`, which the app's terminals set), and serves `submit`, `undo`, `log`, `tips`, `goto`, `verify`, `screenshot` and `selection` over stdio.
+
+## 4. The world's command line
+
+The same commands, from any shell, whether or not the app has the world open:
 
 ```bash
-# For OpenAI
-export OPENAI_API_KEY="sk-..."
-
-# For Anthropic API
-export ANTHROPIC_API_KEY="sk-ant-..."
-
-# For Gemini
-export GEMINI_API_KEY="..."
+localgpt world log harbour.world --last 5
+localgpt world submit harbour.world -m "a lamp by the crate" <<'EOF'
+[{"SpawnEntity": {"entity": {"name": "lamp", "transform": {"position": [2, 0.5, 1]}}}}]
+EOF
+localgpt world undo harbour.world
+localgpt world verify harbour.world
 ```
 
-## 2. Start an Interactive Chat
+With the app open, each command is a call to its API and the window follows; with nothing open, the command is the authority itself. See [CLI Commands](/docs/cli-commands/).
+
+## 5. Gen on its own
 
 ```bash
-localgpt chat
+cargo install localgpt-gen
+localgpt-gen --mcp-relay                  # the window; an MCP client drives it through `mcp-server --connect`
+localgpt-gen mcp-server                   # the window as an MCP client's own process (Claude Desktop, editors)
+localgpt-gen --live harbour.world --review   # the live canvas, each agent batch accepted or rejected by you
+localgpt-gen --host --web                 # a collaborative session; browsers join with the invite link
 ```
 
-You'll see a prompt where you can type messages:
-
-```
-LocalGPT Chat (type /help for commands, /quit to exit)
-> Hello! What can you help me with?
-
-I can help you with a variety of tasks:
-- Answer questions and explain concepts
-- Write and review code
-- Execute shell commands
-- Search and manage your memory
-- And much more!
-
->
-```
-
-## 3. Basic Chat Commands
-
-While in chat, use these commands:
-
-| Command | Description |
-|---------|-------------|
-| `/help` | Show available commands |
-| `/quit` | Exit the chat |
-| `/memory <query>` | Search your memory |
-| `/save` | Force save important context |
-| `/compact` | Manually compact the session |
-| `/status` | Show session status |
-| `/clear` | Clear the screen |
-
-## 4. Ask a Single Question
-
-For quick one-off questions:
-
-```bash
-localgpt ask "How do I create a new git branch?"
-```
-
-## 5. Search Your Memory
-
-As you chat, important information is automatically saved. Search it later:
-
-```bash
-# Search memory from CLI
-localgpt memory search "git commands"
-
-# Or from within chat
-> /memory git commands
-```
-
-## 6. Start the Daemon
-
-For the HTTP API and heartbeat functionality:
-
-```bash
-# Start in foreground
-localgpt daemon start
-
-# Check status
-localgpt daemon status
-
-# Stop the daemon
-localgpt daemon stop
-```
-
-## Example Session
-
-```bash
-$ localgpt chat
-
-LocalGPT Chat (type /help for commands, /quit to exit)
-
-> Can you help me write a Python script that reads a CSV file?
-
-Sure! Here's a simple Python script using the csv module:
-
-```python
-import csv
-
-with open('data.csv', 'r') as file:
-    reader = csv.DictReader(file)
-    for row in reader:
-        print(row)
-```
-
-> Save this to a file called read_csv.py
-
-I'll create that file for you.
-[Tool: write_file] Creating read_csv.py...
-
-Done! I've created `read_csv.py` with the CSV reading code.
-
-> /memory csv
-Found 1 result for "csv":
-- [2026-02-14] Discussed CSV file reading in Python
-
-> /quit
-Goodbye!
-```
+See [LocalGPT Gen](/docs/gen/), the [MCP relay](/docs/gen/cli-mode/) and the [MCP server](/docs/gen/mcp-server/).
 
 ## Next Steps
 
-- Learn about [CLI Commands](/docs/cli-commands)
-- Understand the [Memory System](/docs/memory-system)
-- Set up [Skills](/docs/skills) for specialized tasks
-- Configure [Heartbeat](/docs/heartbeat) for autonomous tasks
+- [The desktop app](/docs/app) — every panel, and the phone
+- [Live canvas](/docs/gen/live-canvas) — how a package is edited from outside
+- [CLI Commands](/docs/cli-commands) — `localgpt world` in full
+- [Previs](/docs/gen/previs) — a screenplay to a board to a canvas

@@ -566,7 +566,7 @@ impl Default for OllamaConfig {
 
 /// Ollama's base URL (`LOCALGPT_GEN_OLLAMA_URL`, default `http://localhost:11434`).
 pub fn ollama_url() -> String {
-    std::env::var(localgpt_core::env::LOCALGPT_GEN_OLLAMA_URL)
+    std::env::var(crate::env::LOCALGPT_GEN_OLLAMA_URL)
         .unwrap_or_else(|_| "http://localhost:11434".to_string())
         .trim_end_matches('/')
         .to_string()
@@ -584,7 +584,7 @@ pub async fn check_ollama_model(url: &str, model: &str) -> anyhow::Result<()> {
             anyhow::anyhow!(
                 "Ollama is not reachable at {url} ({e}); NPC brains need it running \
                  (`ollama serve`, or set {})",
-                localgpt_core::env::LOCALGPT_GEN_OLLAMA_URL
+                crate::env::LOCALGPT_GEN_OLLAMA_URL
             )
         })?
         .error_for_status()?

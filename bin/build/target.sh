@@ -13,7 +13,7 @@
 #   verse     localgpt-verse    a 3D world for every song
 #   all       every workspace crate
 #
-# Everything after `--` goes to cargo: `-- --features local-llm-metal`, say.
+# Everything after `--` goes to cargo: `-- --no-default-features`, say.
 # Binaries land in target/debug/ (or target/release/ with --release, which is
 # LTO and stripped, so slow). The macOS bundle is its own command: bin/lg
 # build bundle.

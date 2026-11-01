@@ -32,7 +32,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Result, anyhow, bail};
 use clap::{Args, Subcommand};
-use localgpt_world_agent::agent_cli::{AUTHOR_ENV, WORLD_DIR_ENV};
+use localgpt_world_agent::agent_env::{AUTHOR_ENV, WORLD_DIR_ENV};
 use localgpt_world_agent::headless::{self, Command as WorldCommand, HeadlessError};
 use localgpt_world_agent::live::{self, LiveWorld};
 use localgpt_world_editor::{Editor, History};

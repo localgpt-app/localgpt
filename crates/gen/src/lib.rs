@@ -1,21 +1,20 @@
-//! LocalGPT Gen — AI-driven 3D scene generation via Bevy
+//! LocalGPT Gen — the world builder, in a Bevy window.
 //!
-//! This crate provides in-process 3D rendering and scene composition
-//! controlled by the LLM agent through intent-level tools.
+//! In-process 3D rendering and scene composition, driven through
+//! intent-level tools by whatever agent reaches them: an MCP client over the
+//! relay or the stdio server (`mcp_server`), the world's live API
+//! (`gen3d::live`), or a collaborative room (`net`). Gen runs no model of
+//! its own and holds no model's configuration.
 
 #![allow(clippy::items_after_test_module)]
 
-pub mod agent_loop;
 pub mod character;
-pub mod character_tools;
 pub mod config;
 pub mod desktop;
-pub mod experiment;
+pub mod env;
 pub mod gen3d;
 pub mod inspector;
 pub mod interaction;
-#[cfg(feature = "local-llm")]
-pub mod local_llm;
 pub mod mcp;
 pub mod mcp_server;
 #[cfg(feature = "multiplayer")]
@@ -23,6 +22,5 @@ pub mod net;
 pub mod physics;
 pub mod settings;
 pub mod terrain;
-pub mod tracing_printer;
 pub mod ui;
 pub mod worldgen;

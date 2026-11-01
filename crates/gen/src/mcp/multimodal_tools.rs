@@ -7,8 +7,7 @@ use std::sync::Arc;
 
 use crate::gen3d::GenBridge;
 use crate::gen3d::commands::*;
-use localgpt_core::agent::ToolSchema;
-use localgpt_core::agent::tools::Tool;
+use localgpt_world_agent::mcp::{Tool, ToolSchema};
 
 // ---------------------------------------------------------------------------
 // gen_image_to_layout (AI3.1)

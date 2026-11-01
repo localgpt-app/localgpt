@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       features:
-        description: "APP_FEATURES for build-app.sh: 'default' keeps the script's choice (local-llm-metal on Apple silicon); anything else, including empty, replaces it"
+        description: "APP_FEATURES for build-app.sh: 'default' keeps the script's choice (no features); anything else, including empty, replaces it"
         required: false
         default: default
         type: string

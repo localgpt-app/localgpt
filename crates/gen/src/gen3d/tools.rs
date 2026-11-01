@@ -11,8 +11,7 @@ use serde_json::{Value, json};
 
 use super::GenBridge;
 use super::commands::*;
-use localgpt_core::agent::ToolSchema;
-use localgpt_core::agent::tools::Tool;
+use localgpt_world_agent::mcp::{Tool, ToolSchema};
 
 /// Create all gen tools backed by the given bridge.
 pub fn create_gen_tools(bridge: Arc<GenBridge>) -> Vec<Box<dyn Tool>> {

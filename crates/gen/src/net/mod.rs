@@ -9,9 +9,11 @@
 //! - [`ops_client`] — the native client (`--join`): the full gen scene
 //!   driven by the room.
 //! - [`guest_avatars`] — peer capsules, rendered on both sides.
-//! - [`jobs`] — the prompt job queue shared by every client kind.
 //! - [`mdns`] — LAN session discovery.
-//! - [`remote_scope`] — the scene-only agent room prompts run on.
+//!
+//! No model runs for a room: a guest's prompt is refused by the authority
+//! with the reason, and a guest edits through ops, as an agent does through
+//! the world's API.
 //!
 //! The wire vocabulary is `localgpt-world-types` (via
 //! `localgpt-world-sync`), so any renderer that reads the world format can
@@ -21,11 +23,9 @@
 
 pub mod guest_avatars;
 pub mod host;
-pub mod jobs;
 pub mod mdns;
 pub mod ops_client;
 pub mod relay_client;
-pub mod remote_scope;
 pub mod web;
 
 /// Default port for hosted sessions.

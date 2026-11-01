@@ -1,90 +1,47 @@
-//! Gen's whole configuration, built in memory.
+//! Gen's whole configuration, built in memory: where its worlds and its
+//! settings live.
 //!
-//! Lifted from `main.rs` so every Gen-shaped binary — `localgpt-gen` and the
-//! one-window `localgpt-app` — builds its `Config` through the same path.
-//! A second copy in the app would have reintroduced exactly the coupling the
-//! settings commit removed: `Config::load()` writing the assistant's
-//! `config.toml` on first run and reading the assistant's workspace.
+//! Gen reads no config file, holds no model and asks for no key: an agent
+//! outside the window brings its own. What Gen remembers is in
+//! [`crate::settings`]; everything else is a directory, resolved by the rule
+//! every LocalGPT app shares (`localgpt_world_agent::paths::Dirs`), so the
+//! `LOCALGPT_*` overrides and the profile keep working.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-/// Gen's whole configuration, built in memory.
-///
-/// Gen is a desktop app, so it must open on a machine with nothing on disk and
-/// must not write into the assistant's `~/.config/localgpt/config.toml` — the
-/// old `Config::load()` created that file on first run. Everything Gen
-/// remembers is in [`crate::settings`]; everything else is a default,
-/// with the handful of fields below set explicitly because a defaulted
-/// `Config` gets them wrong for Gen.
-///
-/// Paths still come from `Paths::resolve()` via `Config::default()`, so every
-/// `LOCALGPT_*` override and the XDG rules keep working.
-pub fn gen_config() -> localgpt_core::config::Config {
-    gen_config_and_settings().0
+use localgpt_world_agent::paths::Dirs;
+
+/// Where Gen keeps things.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GenConfig {
+    /// Gen's workspace: `skills/` (saved worlds), `sessions/`, `exports/`,
+    /// `screenshots/`, `documents/` (the app's), `generated/`.
+    pub workspace: PathBuf,
+    /// Where Gen remembers things: its settings, experiments once, the app's
+    /// paired devices and its log.
+    pub state_dir: PathBuf,
 }
 
-/// [`gen_config`], plus the settings it was built from — for what core's
-/// `Config` has no field for, such as the tool profile.
-pub fn gen_config_and_settings() -> (localgpt_core::config::Config, crate::settings::GenSettings) {
-    let mut config = localgpt_core::config::Config::default();
-    let legacy_workspace = config.paths.workspace.clone();
-
-    // First run with a config.toml already on disk: adopt what the user chose
-    // there once, so upgrading doesn't silently reset their model.
-    let settings = load_or_import_settings(&config);
-    apply_gen_defaults(&mut config, &settings);
-    migrate_legacy_worlds(&legacy_workspace, &config.paths.workspace);
-    (config, settings)
+/// Gen's configuration, resolved from the environment. The first run with
+/// worlds saved by the assistant copies them into Gen's own workspace.
+pub fn gen_config() -> GenConfig {
+    let dirs = Dirs::resolve().unwrap_or_else(|| Dirs {
+        data: PathBuf::from("."),
+        state: PathBuf::from("."),
+    });
+    let config = config_in(&dirs);
+    migrate_legacy_worlds(&dirs.data.join("workspace"), &config.workspace);
+    config
 }
 
-/// Gen's settings, importing from a pre-existing config file the first time.
-fn load_or_import_settings(config: &localgpt_core::config::Config) -> crate::settings::GenSettings {
-    use crate::settings;
-
-    if let Some(settings) = settings::load() {
-        return settings;
+/// Gen's directories under `dirs`. Writes nothing.
+pub fn config_in(dirs: &Dirs) -> GenConfig {
+    // Gen's own workspace: its worlds, gallery and sessions are its own, not
+    // the assistant's `workspace/` the earlier LocalGPT kept beside it.
+    GenConfig {
+        workspace: dirs.data.join("gen-workspace"),
+        state_dir: dirs.state.clone(),
     }
-    let imported = import_legacy_settings(config);
-    if imported != settings::GenSettings::default()
-        && let Err(e) = settings::save(&imported)
-    {
-        tracing::warn!("couldn't save the settings imported from config.toml: {e}");
-    }
-    imported
-}
-
-/// The fields a defaulted core `Config` gets wrong for Gen. Writes nothing.
-pub fn apply_gen_defaults(
-    config: &mut localgpt_core::config::Config,
-    settings: &crate::settings::GenSettings,
-) {
-    // Gen's own workspace: its worlds, gallery and style memory are its own,
-    // not the assistant's. Sharing one meant every saved world showed up as a
-    // skill in `localgpt chat`'s system prompt, and Gen's memory writes landed
-    // in the assistant's MEMORY.md. Same move `build_scoped_remote_agent`
-    // already makes for guests.
-    config.paths.workspace = config.paths.data_dir.join("gen-workspace");
-
-    // Scene building repeats tools by design (spawn 40 primitives, check
-    // scene_info between steps); core's default of 3 aborts mid-scene.
-    config.agent.max_tool_repeats = config.agent.max_tool_repeats.max(20);
-
-    // Style recall searches by keyword, which finds a style by name; an
-    // embeddings API the assistant's config names is not Gen's to call.
-    config.memory.embedding_provider = "none".to_string();
-
-    config.agent.default_model = choose_model(settings.default_model.as_deref(), config);
-
-    // Subagents run on the same backend as Gen; `agent.subagent_model` is
-    // the assistant's setting, not Gen's.
-    config.agent.subagent_model = Some(config.agent.default_model.clone());
-}
-
-/// Whether Gen can actually run this model. Gen asks for no credentials, so a
-/// model needing an API key can't be started from a bare install — a model on
-/// disk can.
-pub fn is_credential_free(model: &str) -> bool {
-    model.starts_with("gguf/")
 }
 
 /// Copy worlds saved before Gen had its own workspace into it, once.
@@ -93,7 +50,7 @@ pub fn is_credential_free(model: &str) -> bool {
 /// became skills in its system prompt. Gen reads its own workspace now, so
 /// without this a user's saved worlds would look like they had vanished.
 /// Copy, never move: the originals stay where they are, and the user decides
-/// whether to remove them from the assistant.
+/// whether to remove them.
 pub fn migrate_legacy_worlds(legacy_workspace: &Path, gen_workspace: &Path) {
     let (from, to) = (
         legacy_workspace.join("skills"),
@@ -127,7 +84,7 @@ pub fn migrate_legacy_worlds(legacy_workspace: &Path, gen_workspace: &Path) {
         copied.sort();
         eprintln!(
             "Copied {} world{} into Gen's own workspace ({}): {}.\nThe originals are untouched in \
-             {} — you can delete them there if you don't want them in the assistant's skills.",
+             {} — delete them there if you no longer want them.",
             copied.len(),
             if copied.len() == 1 { "" } else { "s" },
             gen_workspace.display(),
@@ -154,180 +111,24 @@ fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Decide what to run on: the remembered choice, else whatever this machine
-/// already has. Every candidate here is credential-free — a local GGUF —
-/// because a desktop app can't ask for an API key before it will open.
-pub fn choose_model(remembered: Option<&str>, config: &localgpt_core::config::Config) -> String {
-    use crate::desktop::{hardware, models};
-
-    if let Some(choice) = remembered.map(str::trim).filter(|c| !c.is_empty()) {
-        if choice.eq_ignore_ascii_case("auto") {
-            return match models::auto_local_model() {
-                Some(model) => {
-                    eprintln!("Model: {model} (auto — {})", hardware::summary());
-                    model
-                }
-                None => {
-                    eprintln!(
-                        "Model: {} (\"auto\" found no local model that fits this machine — {})",
-                        config.agent.default_model,
-                        hardware::summary()
-                    );
-                    config.agent.default_model.clone()
-                }
-            };
-        }
-        return choice.to_string();
-    }
-
-    // Nothing remembered: first run. A local model if one is already
-    // downloaded.
-    if let Some(model) = models::auto_local_model() {
-        eprintln!(
-            "Model: {model} (found on this machine — {})",
-            hardware::summary()
-        );
-        return model;
-    }
-    // Nothing found. Keep the default, so the first prompt's error says what
-    // to configure rather than Gen refusing to start.
-    config.agent.default_model.clone()
-}
-
-/// One-time import of a pre-existing `config.toml`, so a user who set
-/// `[gen] default_model` (or just `agent.default_model`) keeps it. Parsed
-/// loosely and read-only: a missing or malformed file just means no import,
-/// and Gen never writes there again.
-fn import_legacy_settings(config: &localgpt_core::config::Config) -> crate::settings::GenSettings {
-    let mut imported = crate::settings::GenSettings::default();
-    let Some(legacy) = localgpt_core::config::Config::peek_gen_migration(&config.paths) else {
-        return imported;
-    };
-    if legacy.is_empty() {
-        return imported;
-    }
-
-    imported.tool_profile = legacy.gen_tool_profile;
-
-    // Only adopt a model Gen can start on its own. The assistant's model is
-    // often an API one whose key lives in the config file Gen no longer reads,
-    // so importing it would hand Gen a backend that fails at the first prompt;
-    // leaving it unset lets auto-detection find something that works.
-    let candidate = legacy.gen_default_model.or(legacy.agent_default_model);
-    match candidate {
-        Some(model) if model.eq_ignore_ascii_case("auto") || is_credential_free(&model) => {
-            eprintln!(
-                "Using {model} from {} — Gen keeps its own settings now and won't read that file \
-                 again.",
-                legacy.source.display()
-            );
-            imported.default_model = Some(model);
-        }
-        Some(model) => eprintln!(
-            "{} sets {model}, which needs an API key Gen doesn't ask for — picking a model this \
-             computer can run instead. Change it in the model menu.",
-            legacy.source.display()
-        ),
-        None => {}
-    }
-    imported
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// `[gen] default_model` overrides the assistant's model for Gen only.
+    /// Gen's directories sit under the app directories, in its own
+    /// workspace rather than the assistant's.
     #[test]
-    fn a_remembered_model_is_used_verbatim() {
-        let mut config = localgpt_core::config::Config::default();
-        config.agent.default_model = "anthropic/claude-opus-4-6".to_string();
-
-        assert_eq!(choose_model(Some("gguf/bonsai"), &config), "gguf/bonsai");
-        // Blank or whitespace means "nothing remembered", not "no model".
-        assert!(!choose_model(Some("   "), &config).is_empty());
-        assert!(!choose_model(None, &config).is_empty());
-    }
-
-    /// Gen's config comes from its own settings, and the fields a defaulted
-    /// core Config gets wrong for Gen are set explicitly.
-    #[test]
-    fn gen_config_is_built_for_gen_not_the_assistant() {
-        // apply_gen_defaults, not gen_config(): the latter reads and writes
-        // real files, which a test must not do.
-        let tmp = tempfile::tempdir().unwrap();
-        let mut config = localgpt_core::config::Config::default();
-        config.paths.data_dir = tmp.path().to_path_buf();
-        config.memory.embedding_provider = "openai".to_string();
-        apply_gen_defaults(&mut config, &crate::settings::GenSettings::default());
-
-        // Its own workspace, not the assistant's.
-        assert!(
-            config.paths.workspace.ends_with("gen-workspace"),
-            "{:?}",
-            config.paths.workspace
-        );
-        // Scene building needs a high repeat ceiling.
-        assert!(config.agent.max_tool_repeats >= 20);
-        // Keyword search, whatever embeddings the assistant's config named.
-        assert_eq!(config.memory.embedding_provider, "none");
-        // Subagents run on the same backend as Gen.
+    fn gen_keeps_its_own_workspace_under_the_app_dirs() {
+        let dirs = Dirs {
+            data: PathBuf::from("/data/localgpt"),
+            state: PathBuf::from("/state/localgpt"),
+        };
+        let config = config_in(&dirs);
         assert_eq!(
-            config.agent.subagent_model.as_deref(),
-            Some(config.agent.default_model.as_str())
+            config.workspace,
+            PathBuf::from("/data/localgpt/gen-workspace")
         );
-        assert!(!config.agent.default_model.is_empty());
-    }
-
-    /// The trap this refactor turns on: `MemoryManager::new_with_agent`
-    /// discards `config.paths` and re-resolves from the environment, so Gen
-    /// would keep using the assistant's workspace while looking configured
-    /// otherwise. `new_with_full_config` is what actually honours it.
-    #[test]
-    fn memory_lands_in_gens_workspace_not_the_assistants() {
-        let tmp = tempfile::tempdir().unwrap();
-        let mut config = localgpt_core::config::Config::default();
-        config.paths.data_dir = tmp.path().to_path_buf();
-        config.paths.cache_dir = tmp.path().join("cache");
-        apply_gen_defaults(&mut config, &crate::settings::GenSettings::default());
-        let gen_workspace = config.paths.workspace.clone();
-
-        let _memory = localgpt_core::memory::MemoryManager::new_with_full_config(
-            &config.memory,
-            Some(&config),
-            "gen",
-        )
-        .expect("memory manager should initialise");
-
-        // init_workspace materialises the workspace it was given.
-        assert!(
-            gen_workspace.join("MEMORY.md").is_file(),
-            "expected MEMORY.md in {gen_workspace:?}"
-        );
-        assert!(
-            gen_workspace.ends_with("gen-workspace"),
-            "{gen_workspace:?}"
-        );
-    }
-
-    /// Gen asks for no credentials, so it must not adopt a model it can't
-    /// start — the assistant's model is often an API one whose key is in the
-    /// config file Gen no longer reads.
-    #[test]
-    fn only_models_gen_can_start_are_credential_free() {
-        for model in ["gguf/prism-ml_Bonsai-8B-unpacked-Q4_K_M", "gguf/bonsai"] {
-            assert!(is_credential_free(model), "{model} needs no key");
-        }
-        for model in [
-            "glm/glm-5.3",
-            "anthropic/claude-opus-4-6",
-            "openai/gpt-4o",
-            "xai/grok-3-mini",
-            "openai-compat/deepseek-chat",
-            "claude-cli/opus",
-        ] {
-            assert!(!is_credential_free(model), "{model} needs a key");
-        }
+        assert_eq!(config.state_dir, PathBuf::from("/state/localgpt"));
     }
 
     /// The migration copies worlds and leaves the originals alone.

@@ -7,9 +7,9 @@ import { decode, listen, send } from "../bridge";
 import { Icon } from "../Icon";
 import { THEME } from "../Terminal";
 
-/** The keys a TUI wants and a phone's keyboard lacks: Esc interrupts
- *  Claude Code, Shift-Tab cycles its modes, the arrows pick, ^C stops. The
- *  arrows follow the terminal's cursor-key mode, as a keyboard's would. */
+/** The keys a TUI wants and a phone's keyboard lacks: Esc interrupts,
+ *  Tab and Shift-Tab move or cycle, the arrows pick, ^C stops. The arrows
+ *  follow the terminal's cursor-key mode, as a keyboard's would. */
 const KEYS: { label: string; aria: string; seq: (app: boolean) => string }[] = [
   { label: "esc", aria: "Escape", seq: () => "\x1b" },
   { label: "⇥", aria: "Tab", seq: () => "\t" },

@@ -141,8 +141,6 @@ pub(crate) struct Live {
     /// `LOCALGPT_SYNTHETIC_INPUT=1`: it is a test's seam, and with it an
     /// agent could press Enter on its own proposal.
     synthetic: Option<VecDeque<SyntheticEvent>>,
-    /// The turns that ended ([`TurnEnded`]), for the history.
-    turns: Vec<TurnMark>,
 }
 
 /// A person's input, synthesized for a test that drives the canvas with
@@ -423,18 +421,6 @@ fn handle_points(
     })
 }
 
-impl Live {
-    /// How many entries the log holds.
-    pub(crate) fn history_len(&self) -> usize {
-        self.view.history().len()
-    }
-
-    /// The head's revision.
-    pub(crate) fn revision(&self) -> u64 {
-        self.world.revision()
-    }
-}
-
 /// An agent's batch shown on the canvas before it commits — the person
 /// accepts it (it goes through the authority then, as it would have) or
 /// rejects it (the canvas is put back from the document). What DeepMonkey
@@ -521,29 +507,6 @@ pub struct LiveHistory {
     pub current: Option<String>,
     /// The newest commit or refusal, in one line.
     pub status: Option<String>,
-    /// The turns that ended, in order ([`TurnEnded`]).
-    pub turns: Vec<TurnMark>,
-}
-
-/// An agent's turn ended: whoever hosts its terminal says so, and the
-/// history marks the entries since the last turn as this one's.
-#[derive(Message, Debug, Clone)]
-pub struct TurnEnded {
-    /// The agent, by its command's name (`claude`, `codex`, …).
-    pub agent: String,
-}
-
-/// A turn that ended, as the history marks it: the agent stopped working
-/// when the log held `rows` entries, so the entries after the previous mark
-/// and up to this one are that turn's.
-#[derive(Debug, Clone, PartialEq)]
-pub struct TurnMark {
-    pub n: u32,
-    pub agent: String,
-    /// The log's length when the turn ended: the mark sits above row `rows - 1`.
-    pub rows: usize,
-    /// The head's revision then.
-    pub revision: u64,
 }
 
 /// One entry of the log, as the history panel shows it.
@@ -680,7 +643,6 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
         synthetic: std::env::var("LOCALGPT_SYNTHETIC_INPUT")
             .is_ok_and(|v| v == "1")
             .then(VecDeque::new),
-        turns: Vec::new(),
     })
     .insert_resource(Endpoint(endpoint))
     .insert_resource(LiveEndpoint { url, token })
@@ -689,7 +651,6 @@ pub fn setup_live(app: &mut App, dir: &Path, review: bool) -> anyhow::Result<()>
     .init_resource::<RenderedPrimary>()
     .add_message::<SeekTo>()
     .add_message::<ReviewDecision>()
-    .add_message::<TurnEnded>()
     .add_plugins((
         super::canvas_edit::CanvasEditPlugin,
         super::shots::ShotsPlugin,
@@ -1658,7 +1619,6 @@ fn publish(live: &Live) -> LiveHistory {
             .collect(),
         current: live.view.tip().map(str::to_string),
         status: live.status.clone(),
-        turns: live.turns.clone(),
     }
 }
 
@@ -1813,7 +1773,6 @@ pub(super) fn live_world(
     mut decisions: MessageReader<ReviewDecision>,
     mut selection: Option<ResMut<InspectorSelection>>,
     gesture: Option<Res<super::canvas_edit::CanvasGesture>>,
-    mut turns: MessageReader<TurnEnded>,
 ) {
     let live = &mut *live;
     if !live.started {
@@ -2106,18 +2065,6 @@ pub(super) fn live_world(
             ),
         };
         let _ = call.reply.send(reply);
-    }
-
-    // Turns that ended, marked at the log's length now.
-    for ended in turns.read() {
-        let mark = TurnMark {
-            n: live.turns.len() as u32 + 1,
-            agent: ended.agent.clone(),
-            rows: live.history_len(),
-            revision: live.revision(),
-        };
-        live.turns.push(mark);
-        live.history_dirty = true;
     }
 
     // The person's word on a proposal, before their own edits.

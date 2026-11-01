@@ -3,14 +3,14 @@
 //! Gen's world in a Bevy window, and around it the app's interface: one web
 //! page over the viewport (`webui`, built from `ui/`) with the history and
 //! its playback, the document and its outline, the timeline of the world's
-//! clock across the window, Open…, and the agents' own terminals — Claude
-//! Code, Codex and the rest, a tab each, started in the world's folder. The app runs no agent of its own and
-//! manages no agent's configuration (`docs/rfcs/authoring/the-page.md`).
+//! clock across the window, Open…, and terminals, each a login shell started
+//! in the folder of what is open, where the person runs whatever agent they
+//! have. The app runs no agent and no model, and holds no agent's or model's
+//! configuration (`docs/rfcs/authoring/the-page.md`).
 //!
 //! ```sh
 //! cargo run -p localgpt-app                          # reopens what was opened last
 //! cargo run -p localgpt-app -- --md notes.md         # a document as a world
-//! cargo run -p localgpt-app -- --md notes.md --no-author   # rules only, no model
 //! cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
 //! cargo run -p localgpt-app -- --world harbour.world # a package, live: agents edit it
 //! ```
@@ -24,7 +24,6 @@
 //! thin assembly. The page is macOS's for now: elsewhere the window shows
 //! the world alone.
 
-mod authoring;
 mod document;
 mod open;
 mod peaks;
@@ -47,8 +46,6 @@ struct Args {
     md: Option<PathBuf>,
     song: Option<PathBuf>,
     world: Option<String>,
-    /// Build documents from rules and fences only, never asking a model.
-    no_author: bool,
 }
 
 fn parse_args() -> Args {
@@ -59,11 +56,8 @@ fn parse_args() -> Args {
             "--md" => args.md = iter.next().map(PathBuf::from),
             "--song" => args.song = iter.next().map(PathBuf::from),
             "--world" => args.world = iter.next(),
-            "--no-author" => args.no_author = true,
             other => {
-                eprintln!(
-                    "localgpt-app: unknown argument {other:?} (--md, --song, --world, --no-author)"
-                );
+                eprintln!("localgpt-app: unknown argument {other:?} (--md, --song, --world)");
                 std::process::exit(2);
             }
         }
@@ -83,7 +77,7 @@ fn init_logging() {
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn"));
     let log_file = (!std::io::stderr().is_terminal())
         .then(|| {
-            let dir = localgpt_core::paths::Paths::resolve().ok()?.logs_dir();
+            let dir = localgpt_world_agent::paths::Dirs::resolve()?.logs();
             std::fs::create_dir_all(&dir).ok()?;
             std::fs::OpenOptions::new()
                 .create(true)
@@ -120,16 +114,12 @@ fn main() -> anyhow::Result<()> {
         unsafe { std::env::set_var("PATH", merged) };
     }
 
-    // `gguf/<name>` models run in-process (Gen's local_llm), for documents'
-    // authoring: registered before any worker asks for a provider.
-    #[cfg(feature = "local-llm")]
-    localgpt_gen::local_llm::register();
-
-    // Gen's in-memory config, not Config::load(): a desktop app must open on a
-    // machine with nothing on disk and must not write the assistant's
-    // config.toml or read its workspace. Same path as `localgpt-gen`.
-    let (config, settings) = localgpt_gen::config::gen_config_and_settings();
-    let workspace = config.workspace_path();
+    // Gen's directories and settings: a desktop app opens on a machine with
+    // nothing on disk, reads no config file and writes none. Same path as
+    // `localgpt-gen`.
+    let config = localgpt_gen::config::gen_config();
+    let settings = localgpt_gen::settings::load().unwrap_or_default();
+    let workspace = config.workspace.clone();
 
     // The initial world: an explicit --world arg, or a Markdown document
     // compiled in-process. Both land in the same place — GenInitialWorld —
@@ -163,8 +153,7 @@ fn main() -> anyhow::Result<()> {
     // fell back to (not remembered again — it already is).
     let mut remember: Option<localgpt_gen::settings::LastOpened> = None;
     if let Some(md) = &args.md {
-        // The model authors each section's place in the background.
-        let (live, dir) = document::open(md, &workspace, (!args.no_author).then_some(&config))?;
+        let (live, dir) = document::open(md, &workspace)?;
         eprintln!("localgpt-app: {} -> {}", md.display(), dir.display());
         live_document = Some(live);
         showing = Some(format!("Document · {}", file_name(md)));
@@ -229,8 +218,7 @@ fn main() -> anyhow::Result<()> {
                 if std::path::Path::new(&path).is_file() =>
             {
                 let md = PathBuf::from(&path);
-                let (live, dir) =
-                    document::open(&md, &workspace, (!args.no_author).then_some(&config))?;
+                let (live, dir) = document::open(&md, &workspace)?;
                 eprintln!(
                     "localgpt-app: reopened {} ({})",
                     md.display(),
@@ -327,9 +315,7 @@ fn main() -> anyhow::Result<()> {
     );
     // Opening from the window, as the launch arguments do.
     app.insert_resource(open::Launch {
-        config: config.clone(),
         workspace: workspace.clone(),
-        author: !args.no_author,
     })
     .insert_resource(open::Showing(showing));
     gen3d::plugin::setup_gen_app(&mut app, channels, workspace, None);

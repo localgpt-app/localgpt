@@ -20,18 +20,14 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 use bevy::prelude::*;
 use bevy::tasks::AsyncComputeTaskPool;
-use localgpt_core::config::Config;
 use localgpt_gen::gen3d::plugin::GenInitialWorld;
 
 use crate::document::Document;
 
-/// What opening needs from the launch: the app's config (for the authoring
-/// model) and workspace, and whether documents are authored.
+/// What opening needs from the launch: the app's workspace.
 #[derive(Resource)]
 pub struct Launch {
-    pub config: Config,
     pub workspace: PathBuf,
-    pub author: bool,
 }
 
 /// What is open, for the page's title.
@@ -243,22 +239,19 @@ fn open(
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
     match kind(path) {
-        Some(Kind::Document) => {
-            let config = launch.author.then_some(&launch.config);
-            match crate::document::open(path, &launch.workspace, config) {
-                Ok((document, dir)) => {
-                    info!("opened document {name} ({})", dir.display());
-                    commands.insert_resource(document);
-                    initial_world.path = Some(dir.to_string_lossy().into_owned());
-                    showing.0 = Some(format!("Document · {name}"));
-                    remember(localgpt_gen::settings::LastOpened::Document {
-                        path: path.to_string_lossy().into_owned(),
-                    });
-                    opener.status = None;
-                }
-                Err(e) => opener.status = Some(format!("Could not open {name}: {e}")),
+        Some(Kind::Document) => match crate::document::open(path, &launch.workspace) {
+            Ok((document, dir)) => {
+                info!("opened document {name} ({})", dir.display());
+                commands.insert_resource(document);
+                initial_world.path = Some(dir.to_string_lossy().into_owned());
+                showing.0 = Some(format!("Document · {name}"));
+                remember(localgpt_gen::settings::LastOpened::Document {
+                    path: path.to_string_lossy().into_owned(),
+                });
+                opener.status = None;
             }
-        }
+            Err(e) => opener.status = Some(format!("Could not open {name}: {e}")),
+        },
         Some(Kind::Song) => {
             opener.busy = true;
             opener.status = Some(format!("Listening to {name} …"));

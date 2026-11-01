@@ -1,31 +1,28 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { activityDot, KINDS, kindLabel } from "../AgentsPanel";
-import type { Activity, History, Mode, TermTab, TimelineView } from "../bridge";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+import type { History, Mode, TermTab, TimelineView } from "../bridge";
 import { listen, send } from "../bridge";
 import { HistoryPanel } from "../HistoryPanel";
 import { Icon, type IconName } from "../Icon";
 import { PlaybackBar } from "../PlaybackBar";
 import { type Line, unpair, watchLine } from "../remote";
+import { tabDot } from "../TerminalsPanel";
 import { Frame } from "../timeline/Frame";
 import type { Shot } from "../timeline/model";
 import { PhoneTerminal } from "./PhoneTerminal";
 
-export type View = "agents" | "world" | "history";
-
-/** An agent that stopped: done, or asking the person something. */
-export type Turn = { id: string; kind: string; activity: Activity | null; task: string | null };
+export type View = "terminals" | "world" | "history";
 
 type Proposal = NonNullable<TimelineView["proposal"]>;
 
-const EMPTY: History = { rows: [], current: null, status: null, turns: [] };
+const EMPTY: History = { rows: [], current: null, status: null };
 
 /** The page on a paired phone or tablet: the window's, laid out for one
- *  hand. The agents first — the one that finished or is asking is the
- *  reason to look — then the world as the window shows it, then the
- *  history. Everything comes from the messages the window's page gets. */
+ *  hand. The terminals first — what runs in them is the reason to look —
+ *  then the world as the window shows it, then the history. Everything
+ *  comes from the messages the window's page gets. */
 export function Phone() {
   const [line, setLine] = useState<Line>({ state: "connecting", why: null, device: null });
-  const [view, setView] = useState<View>("agents");
+  const [view, setView] = useState<View>("terminals");
   const [tabs, setTabs] = useState<TermTab[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [title, setTitle] = useState<string | null>(null);
@@ -35,12 +32,9 @@ export function Phone() {
   const [timeline, setTimeline] = useState<TimelineView | null>(null);
   const [clockPlaying, setClockPlaying] = useState(false);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
-  const [turn, setTurn] = useState<Turn | null>(null);
   const [menu, setMenu] = useState(false);
   const height = useVisualHeight();
   const live = line.state === "live";
-  /** Each tab's last activity and kind, read in the listener. */
-  const known = useRef(new Map<string, { kind: string; activity: Activity | null }>());
 
   useEffect(() => watchLine(setLine), []);
   // The app sends to a page that is ready: say so each time the line is up.
@@ -74,49 +68,33 @@ export function Phone() {
             setThumbs((all) => ({ ...all, [m.id]: m.url }));
             break;
           case "term.list":
-            for (const t of m.tabs) if (!known.current.has(t.id)) known.current.set(t.id, { kind: t.kind, activity: t.activity });
             setTabs(m.tabs);
             break;
-          case "term.state": {
-            const was = known.current.get(m.id);
-            if (was) known.current.set(m.id, { ...was, activity: m.activity });
-            setTabs((all) => all.map((t) => (t.id === m.id ? { ...t, label: m.label, activity: m.activity } : t)));
-            // A turn that ended: worth a look, and a buzz where the phone can.
-            if (was?.activity === "working" && (m.activity === "idle" || m.activity === "asking")) {
-              setTurn({ id: m.id, kind: was.kind, activity: m.activity, task: m.label });
-              navigator.vibrate?.(60);
-            }
+          case "term.state":
+            setTabs((all) => all.map((t) => (t.id === m.id ? { ...t, label: m.label } : t)));
             break;
-          }
         }
       }),
     [],
   );
 
-  // A turn's note goes after a while, or once its tab is looked at.
   useEffect(() => {
-    if (!turn) return;
-    const timer = window.setTimeout(() => setTurn(null), 12000);
-    return () => clearTimeout(timer);
-  }, [turn]);
-  useEffect(() => {
-    document.title = turn ? `● ${title ?? "LocalGPT"}` : (title ?? "LocalGPT");
-  }, [turn, title]);
+    document.title = title ?? "LocalGPT";
+  }, [title]);
 
   const shown = tabs.find((t) => t.id === active) ?? tabs[0] ?? null;
   const proposal = timeline?.proposal ?? null;
-  const open = (kind: string) => {
+  const open = () => {
     const id = `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
     // A first guess at what fits; the terminal says exactly once it is drawn.
-    send({ t: "term.open", id, kind, cols: Math.max(20, Math.floor((innerWidth - 16) / 7.3)), rows: Math.max(8, Math.floor((height - 200) / 15)) });
+    send({ t: "term.open", id, cols: Math.max(20, Math.floor((innerWidth - 16) / 7.3)), rows: Math.max(8, Math.floor((height - 200) / 15)) });
     setActive(id);
-    setView("agents");
+    setView("terminals");
     setMenu(false);
   };
   const look = (id: string) => {
     setActive(id);
-    setView("agents");
-    setTurn(null);
+    setView("terminals");
   };
 
   if (line.state === "unpaired" || line.state === "pairing") return <Unpaired line={line} height={height} />;
@@ -125,14 +103,13 @@ export function Phone() {
     <div className="flex flex-col overflow-hidden bg-panel text-[13px] text-ink" style={{ height }}>
       <PhoneHeader title={title} line={line} onMenu={() => setMenu(!menu)} />
       {menu && <Menu close={() => setMenu(false)} />}
-      {turn && <TurnNote turn={turn} onLook={() => look(turn.id)} />}
       {proposal && <ProposalBar proposal={proposal} live={live} />}
       <main className="relative min-h-0 flex-1">
-        <div className={view === "agents" ? "flex h-full flex-col" : "hidden"}>
+        <div className={view === "terminals" ? "flex h-full flex-col" : "hidden"}>
           {tabs.length > 0 && <TabChips tabs={tabs} active={shown?.id ?? null} onPick={look} onOpen={open} />}
           <div className="relative min-h-0 flex-1">
             {tabs.map((t) => (
-              <PhoneTerminal key={t.id} tab={t} visible={view === "agents" && t.id === shown?.id} live={live} />
+              <PhoneTerminal key={t.id} tab={t} visible={view === "terminals" && t.id === shown?.id} live={live} />
             ))}
             {tabs.length === 0 && <NoTabs onOpen={open} />}
           </div>
@@ -142,7 +119,7 @@ export function Phone() {
         )}
         {view === "history" && <HistoryView mode={mode} history={history} playing={playing} />}
       </main>
-      <PhoneNav view={view} tabs={tabs} onView={setView} />
+      <PhoneNav view={view} onView={setView} />
     </div>
   );
 }
@@ -219,21 +196,6 @@ function Menu({ close }: { close: () => void }) {
   );
 }
 
-/** The agent that stopped, over whatever is shown. */
-export function TurnNote({ turn, onLook }: { turn: Turn; onLook?: () => void }) {
-  const asking = turn.activity === "asking";
-  return (
-    <button onClick={onLook} className="flex shrink-0 items-center gap-2 border-b border-line bg-raised px-3 py-2 text-left active:bg-line">
-      <span className={`size-2 shrink-0 rounded-full ${asking ? "bg-head" : "bg-[#9ece6a]"}`} />
-      <span className="min-w-0 flex-1">
-        <span className="font-semibold">{kindLabel(turn.kind)}</span> {asking ? "is asking you" : "is done"}
-        {turn.task && <span className="block truncate text-muted">{turn.task}</span>}
-      </span>
-      <span className="shrink-0 text-accent">Show</span>
-    </button>
-  );
-}
-
 /** An agent's change waiting on the canvas: the person's to take or leave,
  *  as Enter and Esc are at the desk. */
 export function ProposalBar({ proposal, live }: { proposal: Proposal; live: boolean }) {
@@ -253,10 +215,9 @@ export function ProposalBar({ proposal, live }: { proposal: Proposal; live: bool
   );
 }
 
-/** The tabs as chips: what each runs, its dot, and what its agent calls the
- *  task. Another agent starts from the + . */
-export function TabChips({ tabs, active, onPick, onOpen }: { tabs: TermTab[]; active: string | null; onPick?: (id: string) => void; onOpen?: (kind: string) => void }) {
-  const [menu, setMenu] = useState(false);
+/** The tabs as chips: each with its dot and what its program calls itself.
+ *  Another terminal opens from the + . */
+export function TabChips({ tabs, active, onPick, onOpen }: { tabs: TermTab[]; active: string | null; onPick?: (id: string) => void; onOpen?: () => void }) {
   return (
     <div className="relative flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-line px-2 py-1.5">
       {tabs.map((t) => (
@@ -265,43 +226,24 @@ export function TabChips({ tabs, active, onPick, onOpen }: { tabs: TermTab[]; ac
           onClick={() => onPick?.(t.id)}
           className={`flex h-8 max-w-56 shrink-0 items-center gap-1.5 rounded-full border px-3 ${t.id === active ? "border-accent/60 bg-raised text-ink" : "border-line text-muted"}`}
         >
-          <span className={`size-1.5 shrink-0 rounded-full ${activityDot(t.activity)}`} />
-          <span className="shrink-0">{kindLabel(t.kind)}</span>
-          {t.label && t.label !== kindLabel(t.kind) && <span className="truncate text-faint">{t.label}</span>}
+          <span className={`size-1.5 shrink-0 rounded-full ${tabDot(false)}`} />
+          <span className="truncate">{t.label ?? "Terminal"}</span>
         </button>
       ))}
-      <button aria-label="Start an agent" onClick={() => setMenu(!menu)} className="grid size-8 shrink-0 place-items-center rounded-full border border-line text-muted active:bg-raised">
+      <button aria-label="New terminal" onClick={() => onOpen?.()} className="grid size-8 shrink-0 place-items-center rounded-full border border-line text-muted active:bg-raised">
         <Icon name="plus" />
       </button>
-      {menu && (
-        <div className="fixed inset-x-2 top-28 z-30 rounded-md border border-line bg-raised py-1 shadow-xl">
-          {KINDS.map((k) => (
-            <button
-              key={k.kind}
-              onClick={() => {
-                setMenu(false);
-                onOpen?.(k.kind);
-              }}
-              className="block w-full px-4 py-3 text-left active:bg-line"
-            >
-              {k.label}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
 
-function NoTabs({ onOpen }: { onOpen: (kind: string) => void }) {
+function NoTabs({ onOpen }: { onOpen: () => void }) {
   return (
     <div className="grid h-full content-center gap-2 p-6">
-      <p className="mb-2 text-center text-muted">No agent is running in this world. Start one: it runs on the computer, in the world's folder.</p>
-      {KINDS.map((k) => (
-        <button key={k.kind} onClick={() => onOpen(k.kind)} className="rounded-md border border-line px-4 py-3 text-left active:bg-raised">
-          {k.label}
-        </button>
-      ))}
+      <p className="mb-2 text-center text-muted">No terminal is open in this world. Open one: it runs on the computer, in the world's folder, and your agent runs in it.</p>
+      <button onClick={onOpen} className="rounded-md border border-line px-4 py-3 text-left active:bg-raised">
+        New terminal
+      </button>
     </div>
   );
 }
@@ -394,23 +336,19 @@ function HistoryView({ mode, history, playing }: { mode: Mode; history: History;
 }
 
 const VIEWS: { view: View; label: string; icon: IconName }[] = [
-  { view: "agents", label: "Agents", icon: "terminal" },
+  { view: "terminals", label: "Terminals", icon: "terminal" },
   { view: "world", label: "World", icon: "globe" },
   { view: "history", label: "History", icon: "history" },
 ];
 
-/** The views, at the thumb. The agents' dot is the one that most wants the
- *  person: one asking, else one working. */
-export function PhoneNav({ view, tabs, onView }: { view: View; tabs: TermTab[]; onView?: (view: View) => void }) {
-  const asking = tabs.some((t) => t.activity === "asking");
-  const working = tabs.some((t) => t.activity === "working");
+/** The views, at the thumb. */
+export function PhoneNav({ view, onView }: { view: View; onView?: (view: View) => void }) {
   return (
     <nav className="grid shrink-0 grid-cols-3 border-t border-line bg-panel pb-[env(safe-area-inset-bottom)]">
       {VIEWS.map((v) => (
         <button key={v.view} onClick={() => onView?.(v.view)} className={`relative flex h-14 flex-col items-center justify-center gap-0.5 ${view === v.view ? "text-accent" : "text-muted"}`}>
           <Icon name={v.icon} className="size-5" />
           <span className="text-[11px]">{v.label}</span>
-          {v.view === "agents" && (asking || working) && <span className={`absolute top-2 right-[calc(50%-18px)] size-2 rounded-full ${asking ? "bg-head" : "animate-pulse bg-accent"}`} />}
         </button>
       ))}
     </nav>

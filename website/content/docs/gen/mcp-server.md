@@ -4,7 +4,7 @@ title: "MCP Server"
 
 # MCP Server
 
-LocalGPT Gen can run as an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server, exposing gen tools and core LocalGPT tools over stdio. This lets desktop AI apps — Claude Desktop, Codex Desktop — and MCP-compatible editors like VS Code, Zed, and Cursor drive the Bevy 3D window directly, with full access to LocalGPT's memory system.
+LocalGPT Gen can run as an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server, exposing the gen tools over stdio. This lets desktop AI apps — Claude Desktop, Codex Desktop — coding agents, and MCP-compatible editors like VS Code, Zed, and Cursor drive the Bevy 3D window directly.
 
 ## Why MCP?
 
@@ -121,30 +121,9 @@ These additional tools are available exclusively through the MCP server, enablin
 | `gen_asset_status` | Check the status of an asset generation task |
 | `gen_list_assets` | List all queued, running, and completed asset generation tasks |
 
-#### Experiment Queue (3 tools)
+### No memory, web, file or shell tools
 
-| Tool | Description |
-|------|-------------|
-| `gen_queue_experiment` | Queue a world generation experiment for background processing |
-| `gen_list_experiments` | List experiments by status (pending, running, completed, failed) |
-| `gen_experiment_status` | Get detailed status of a specific experiment by ID |
-
-### Core Tools
-
-| Tool | Description |
-|------|-------------|
-| `memory_search` | Search MEMORY.md + daily logs using hybrid semantic + keyword search |
-| `memory_get` | Fetch specific lines from memory files (use after `memory_search`) |
-| `memory_save` | Append to MEMORY.md — long-term curated knowledge |
-| `memory_log` | Append to today's daily log (`memory/YYYY-MM-DD.md`) |
-| `web_fetch` | Fetch and extract content from URLs |
-| `web_search` | Search the web (if configured in `config.toml`) |
-
-These are the same core tools available via `localgpt mcp-server` (see [Memory-only MCP Server](#memory-only-mcp-server) below).
-
-### Why Not File/Shell Tools?
-
-CLI tools like `bash`, `read_file`, `write_file`, and `edit_file` are **not** exposed via MCP. External AI backends (Claude CLI, Gemini CLI, Codex) already have their own file and shell tools. Exposing duplicates would create confusion and security concerns.
+Only the `gen_*` tools are served. An MCP client that is a coding agent has its own memory, web, file and shell tools, and Gen keeps no memory of its own: what it keeps is the worlds.
 
 ## Claude Desktop
 
@@ -189,7 +168,7 @@ Add to your Codex configuration:
 
 ## CLI Tools
 
-If you're using a CLI-based AI tool (Claude CLI, Gemini CLI, Codex CLI) as the backend for LocalGPT Gen's interactive mode, see [CLI Mode (MCP Relay)](/docs/gen/cli-mode) for configuration details. CLI tools use `--connect` to relay tool calls to your existing Bevy window instead of spawning a new one.
+To drive a Gen window that is already open — started with `--mcp-relay` — point the client at `localgpt-gen mcp-server --connect` instead, a bridge to that window rather than a new one: see [MCP Relay](/docs/gen/cli-mode).
 
 ## VS Code (Copilot)
 
@@ -265,30 +244,28 @@ Add to your Windsurf MCP configuration (`~/.codeium/windsurf/mcp_config.json`):
 
 ```
 ┌─────────────────────┐       MCP stdio (JSON-RPC)        ┌──────────────────┐
-│  AI Backend         │◄──────────────────────────────────►│  localgpt-gen    │
+│  MCP client         │◄──────────────────────────────────►│  localgpt-gen    │
 │  (Claude Desktop,   │        tools/list                  │                  │
-│   Codex Desktop,    │        tools/call                  │  MCP Server      │
-│   VS Code, Zed)     │                                    │    │       │     │
-└─────────────────────┘                                    │ GenBridge Memory │
-        ▲                                                  │    ↓       ↓     │
-        │ manages conversation,                            │  Bevy   SQLite   │
-        │ decides which tools                              │  3D     FTS5 +   │
-        │ to call and when                                 │ Engine  vectors  │
+│   Claude Code,      │        tools/call                  │  MCP Server      │
+│   VS Code, Zed)     │                                    │       │          │
+└─────────────────────┘                                    │   GenBridge      │
+        ▲                                                  │       ↓          │
+        │ manages conversation,                            │     Bevy         │
+        │ decides which tools                              │     3D           │
+        │ to call and when                                 │   Engine         │
         │                                                  └──────────────────┘
-   AI Backend is the
+   the client is the
    orchestrator
 ```
 
-In MCP mode, the **AI backend is the orchestrator**. It manages the conversation, decides which tools to call, and drives scene building. LocalGPT Gen provides the runtime (Bevy 3D engine + memory database) and exposes it through standard MCP tools.
+The **MCP client is the orchestrator**. It manages the conversation, decides which tools to call, and drives scene building. LocalGPT Gen provides the runtime (the Bevy 3D engine) and exposes it through standard MCP tools; it runs no agent of its own.
 
-1. The AI backend spawns `localgpt-gen mcp-server` as a child process
+1. The client spawns `localgpt-gen mcp-server` as a child process
 2. MCP handshake happens over stdio (JSON-RPC 2.0, one message per line)
-3. The backend discovers all tools via `tools/list` (gen tools + memory + web)
-4. The AI reasons about the scene and calls tools as needed — `gen_spawn_primitive`, `memory_search`, `gen_screenshot`, etc.
-5. Gen tool calls are dispatched through the GenBridge channel to the Bevy main thread; memory tool calls query the LocalGPT SQLite database
-6. Results are sent back to the AI backend, which continues building
-
-This is different from LocalGPT Gen's interactive mode, where LocalGPT's own agent loop is the orchestrator. In MCP mode, LocalGPT doesn't run its agent loop at all — it's purely a tool server.
+3. The client discovers the tools via `tools/list`
+4. The agent reasons about the scene and calls tools as needed — `gen_spawn_primitive`, `gen_screenshot`, etc.
+5. Tool calls are dispatched through the GenBridge channel to the Bevy main thread
+6. Results are sent back to the client, which continues building
 
 ## Combining with Scene File
 
@@ -300,44 +277,17 @@ localgpt-gen mcp-server --scene ./my-scene.glb
 
 The AI backend can then modify the pre-loaded scene.
 
-## Memory-only MCP Server
+## The world's own shim
 
-If you don't need gen tools and just want to give an AI backend access to LocalGPT's memory, use the standalone MCP server:
+For a `.world` package an app has open, `localgpt world mcp` serves the package's tools — `submit`, `undo`, `log`, `tips`, `goto`, `verify`, `screenshot`, `selection` — over stdio to any MCP client, with no window of its own; see [CLI Commands](/docs/cli-commands/#world).
 
 ```bash
-localgpt mcp-server
+claude mcp add world -- localgpt world mcp
 ```
-
-This exposes only the core tools: `memory_search`, `memory_get`, `memory_save`, `memory_log`, `web_fetch`, and `web_search`. No Bevy window, no gen tools.
-
-Configure it the same way as `localgpt-gen mcp-server`:
-
-```json
-{
-  "mcpServers": {
-    "localgpt": {
-      "command": "localgpt",
-      "args": ["mcp-server"]
-    }
-  }
-}
-```
-
-This is useful when you want to use Claude CLI, Gemini CLI, or an editor for regular coding tasks while still having access to LocalGPT's persistent memory system — notes, preferences, and context from past sessions.
-
-## Memory Integration
-
-The MCP server initializes LocalGPT's memory system using the workspace configured in `~/.localgpt/config.toml`. This means:
-
-- **`memory_search`** queries the same MEMORY.md, daily logs, and knowledge files used by LocalGPT's interactive mode
-- If embeddings are enabled (`memory.embedding_provider = "local"`), semantic search works across all indexed memory chunks
-- **`memory_save`** and **`memory_log`** write to the same workspace files, following LocalGPT's conventions — the AI backend doesn't need to know about file paths or formats
-- Any notes saved in MCP mode are available in future `localgpt chat` sessions and vice versa
 
 ## Tips
 
 - **Verbose logging**: Add `--verbose` to see MCP protocol messages and tool list in stderr: `localgpt-gen mcp-server --verbose`
 - **Binary path**: If `localgpt-gen` is not in your `$PATH`, use the full path (e.g., `/Users/you/.cargo/bin/localgpt-gen`) in the MCP server configuration
-- **One instance**: Each standalone `mcp-server` spawns its own Bevy window. If you're using Gen interactively, use `--connect` to relay to the existing window instead (see [CLI Mode](/docs/gen/cli-mode))
+- **One instance**: Each standalone `mcp-server` spawns its own Bevy window. If a Gen window is already open with `--mcp-relay`, use `--connect` to reach it instead (see [MCP Relay](/docs/gen/cli-mode))
 - **Screenshots**: The AI can take screenshots via `gen_screenshot` to see what it built and course-correct — this works the same as in interactive mode
-- **Memory workspace**: The MCP server reads memory from the same workspace as `localgpt chat`. Any notes saved in interactive mode are available via `memory_search` in MCP mode

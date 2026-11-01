@@ -21,15 +21,11 @@ export type HistoryRow = {
   head: boolean;
 };
 
-/** A turn that ended: the log held `rows` entries then. */
-export type TurnMark = { n: number; agent: string; rows: number; revision: number };
-
 export type History = {
   rows: HistoryRow[];
   /** The entry the canvas shows; null for the base. */
   current: string | null;
   status: string | null;
-  turns: TurnMark[];
 };
 
 /** Which panels have something to show. */
@@ -45,9 +41,6 @@ export type OutlineRow = {
   line: number | null;
   /** Where the section's place came from, on the section's own row. */
   tier: string | null;
-  failed: boolean;
-  /** The model can be asked for this place again. */
-  reauthor: boolean;
 };
 
 export type Thing = { label: string; first: string; count: number };
@@ -67,9 +60,6 @@ export type DocumentView = {
   path: string;
   status: string;
   conflict: boolean;
-  authoring: string | null;
-  author_enabled: boolean;
-  author_error: string | null;
   follow_cursor: boolean;
   outline: OutlineRow[];
   selected: number | null;
@@ -118,11 +108,9 @@ export type SceneView = {
  *  it, and its name for the history. */
 export type EntityEdit = { id: number; name: string; patch: Record<string, unknown> };
 
-/** What an agent says it is doing, by the marks in its terminal's title. */
-export type Activity = "working" | "asking" | "idle";
-
-/** A tab as every page lists it, whichever page opened it. */
-export type TermTab = { id: string; kind: string; cols: number; rows: number; label: string | null; activity: Activity | null };
+/** A tab as every page lists it, whichever page opened it: its size, and
+ *  what the program in it calls itself, from its title. */
+export type TermTab = { id: string; cols: number; rows: number; label: string | null };
 
 /** The phone's listener, as the window's page shows it. */
 export type RemoteView = {
@@ -154,7 +142,7 @@ export type ToPage =
   | { t: "term.exit"; id: string; code: number | null; error: string | null }
   | { t: "term.list"; tabs: TermTab[] }
   | { t: "term.size"; id: string; cols: number; rows: number }
-  | { t: "term.state"; id: string; label: string | null; activity: Activity | null }
+  | { t: "term.state"; id: string; label: string | null }
   | { t: "remote"; view: RemoteView }
   /** The world as the window shows it, for a device's page that asked. */
   | { t: "frame"; url: string };
@@ -187,10 +175,8 @@ export type FromPage =
   | { t: "doc.caret"; line: number }
   | { t: "doc.go"; section: number; line: number | null }
   | { t: "doc.pick"; name: string }
-  | { t: "doc.reauthor"; section: number }
-  | { t: "doc.author"; on: boolean }
   | { t: "doc.follow"; on: boolean }
-  | { t: "term.open"; id: string; kind: string; cols: number; rows: number }
+  | { t: "term.open"; id: string; cols: number; rows: number }
   | { t: "term.input"; id: string; data: string }
   | { t: "term.resize"; id: string; cols: number; rows: number }
   | { t: "term.close"; id: string }

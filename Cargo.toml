@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "crates/core",
     "crates/cli",
     "crates/gen",
     "crates/app",
@@ -86,7 +85,6 @@ rand = "0.10"
 base64 = "0.22"
 
 # Internal crates
-localgpt-core = { version = "0.4.2", path = "crates/core" }
 localgpt-world-types = { version = "0.4.2", path = "crates/world-types" }
 localgpt-world-export = { version = "0.4.2", path = "crates/world-export" }
 localgpt-world-bevy = { version = "0.4.2", path = "crates/world-bevy" }

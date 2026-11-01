@@ -18,14 +18,21 @@
 //! the **`llm`** feature (model loading stays app-side); **`llm-metal`**
 //! adds the Apple-Silicon GPU path. Grammar-constrained generation is never
 //! used (it hangs on GGUF with mistral.rs 0.8).
+//!
+//! The agent-facing tool surface — the [`mcp::Tool`] trait and the MCP
+//! server that serves a tool set to any MCP client — is behind **`mcp`**
+//! (**`mcp-http`** adds the HTTP transport). It is what the shim
+//! (`localgpt world mcp`) and Gen's tool server stand on.
 
-pub mod agent_cli;
+pub mod agent_env;
 pub mod assets;
 pub mod headless;
 pub mod interpreter;
 pub mod live;
 #[cfg(feature = "llm")]
 pub mod localgguf;
+#[cfg(feature = "mcp")]
+pub mod mcp;
 pub mod paths;
 pub mod session;
 pub mod starter;

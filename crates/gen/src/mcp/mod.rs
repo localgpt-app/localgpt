@@ -1,11 +1,10 @@
-//! MCP tool handlers for LocalGPT Gen.
-//!
-//! This module contains tool implementations that bridge the agent
-//! to Bevy scene manipulation.
+//! Gen's tools beyond the scene basics in `gen3d::tools`: characters,
+//! interactions, terrain, UI, physics, the WorldGen pipeline, multi-file
+//! worlds, AI asset generation and image input. Each is a `Tool` an MCP
+//! client calls, and each sends a `GenCommand` through the `GenBridge`.
 
 pub mod asset_gen_tools;
 pub mod avatar_tools;
-pub mod experiment_tools;
 pub mod interaction_tools;
 pub mod multifile_tools;
 pub mod multimodal_tools;
@@ -13,6 +12,3 @@ pub mod physics_tools;
 pub mod terrain_tools;
 pub mod ui_tools;
 pub mod worldgen_tools;
-
-// Re-export character tools from crate root module
-pub use crate::character_tools::create_avatar_tools;

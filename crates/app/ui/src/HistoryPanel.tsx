@@ -41,7 +41,7 @@ function ago(ms: number) {
  *  branch, the base at the bottom. A click shows that entry in the world.
  *  `bare`: under a tab bar that names it already. */
 export function HistoryPanel({ history, bare }: { history: History; bare?: boolean }) {
-  const { rows, current, turns } = history;
+  const { rows, current } = history;
   const n = rows.length;
   const { lane, count } = lanes(rows);
   const index = new Map(rows.map((row, i) => [row.id, i]));
@@ -49,7 +49,6 @@ export function HistoryPanel({ history, bare }: { history: History; bare?: boole
   const y = (position: number) => position * ROW + ROW / 2;
   const x = (l: number) => PAD + l * LANE;
   const width = PAD * 2 + (count - 1) * LANE;
-  const turnAt = new Map(turns.map((turn) => [turn.rows - 1, turn]));
 
   const edges = rows.map((row, i) => {
     const from = { x: x(lane[i]), y: y(n - 1 - i) };
@@ -105,7 +104,6 @@ export function HistoryPanel({ history, bare }: { history: History; bare?: boole
                   style={{ top: (n - 1 - i) * ROW, height: ROW, paddingLeft: width }}
                 >
                   <span className={`min-w-0 flex-1 truncate ${row.id === current ? "text-ink" : "text-ink/85"}`}>{row.summary}</span>
-                  {turnAt.has(i) && <span className="shrink-0 rounded bg-accent/15 px-1.5 text-[10px] text-accent">turn {turnAt.get(i)!.n}</span>}
                   {row.head && <span className="shrink-0 rounded bg-head/15 px-1.5 text-[10px] text-head">main</span>}
                   <span className="w-14 shrink-0 truncate text-right text-muted">{row.author}</span>
                   <span className="w-7 shrink-0 text-right text-faint tabular-nums">{ago(row.timestamp_ms)}</span>

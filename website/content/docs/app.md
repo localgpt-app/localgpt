@@ -36,7 +36,7 @@ The rule-based draft is the first frame; a model then authors each section's pla
 
 The text and the world map onto each other: the outline labels each section with where its place came from (fence, model, authoring…, recipe, draft); a click on a section, or the cursor moving into one (**Follow cursor**), flies the camera there; the place card shows the model's description and what the place is made of, and a click on a thing selects it in the world and flies to it; clicking a thing in the world selects its section and brings its heading into view.
 
-The model is the one named in Gen's settings (`default_model` in `gen-settings.json`), else a GGUF already in the shared model folder when the app is built with `local-llm` (`local-llm-metal` on Apple Silicon, which the macOS bundle is), else the default, `anthropic/claude-opus-4-6`, which needs `ANTHROPIC_API_KEY`. The coding agents in the tabs are not model backends. The app shows no model menu and manages no agent's configuration.
+The app runs no model: a place a model built comes from MD's sidecar beside the document (`<doc>.world.json`), written by `localgpt-md --generate` or by an agent working on the file, and the outline labels each section with where its place came from (fence, model, recipe, draft). The app shows no model menu and manages no agent's or model's configuration.
 
 ### A song {#song}
 
@@ -72,7 +72,7 @@ Under the tree the inspector shows the selected thing part by part. Its name, tr
 
 The app knows each agent by its command's name and nothing more: no keys, no models, no settings — those stay with the agent. A link in a terminal opens in your browser. **Shift+Enter** sends a new line the way Claude Code expects one. A tab whose program has ended stays open to read; close it with its **×**.
 
-A tab's dot says what its agent is doing, read from the marks Claude Code and Gemini CLI put in their terminal titles. It is blue while the agent works and green once it stops, and amber when Gemini CLI asks you something. On a live canvas each turn that ends is marked in the history.
+A tab is labelled with what the program in it calls itself in its terminal title, and nothing else: the app reads no more from a tab than that, and knows no agent by name.
 
 ## A phone or a tablet {#phone}
 
@@ -82,7 +82,7 @@ A tab's dot says what its agent is doing, read from the marks Claude Code and Ge
 - **World**: the world as the window shows it, the shots to look through, and the song to play or pause.
 - **History**: the history, with its transport.
 
-A waiting proposal can be accepted or rejected from any view. When an agent's turn ends, the phone says so. A tab started on the phone shows up in the window too.
+A waiting proposal can be accepted or rejected from any view. A tab started on the phone shows up in the window too.
 
 A terminal has one size. The page that last typed into it or clicked into it sets the size, and the other page draws the terminal scaled to fit.
 

@@ -33,7 +33,6 @@ use localgpt_world_sync::{
 use localgpt_world_types as wt;
 use tokio::sync::mpsc;
 
-use super::host::HostJobs;
 use crate::gen3d::audio::AudioEmitter;
 use crate::gen3d::behaviors::EntityBehaviors;
 use crate::gen3d::plugin::{SnapshotQueries, snapshot_entity};
@@ -41,10 +40,6 @@ use crate::gen3d::registry::{GenEntity, GenEntityType, GltfSource, NameRegistry,
 
 /// WebSocket endpoint path on the session HTTP server.
 pub const SESSION_ROUTE: &str = "/session";
-
-/// Queue `requester` key base for web peers, so they never collide with
-/// native clients (whose requester key is a Bevy link's bits).
-pub(crate) const WEB_REQUESTER_OFFSET: u64 = 1 << 40;
 
 /// How often the live scene is projected into the document and diffed.
 const PROJECTION_INTERVAL: Duration = Duration::from_millis(250);
@@ -741,11 +736,7 @@ fn error_to(id: PeerId, reason: impl Into<String>) -> Vec<Outbound> {
 // ---------------------------------------------------------------------------
 
 /// Drain socket events: joins, leaves, and client messages.
-pub(crate) fn web_drain_inbound(
-    mut room: ResMut<WebRoom>,
-    mut jobs: ResMut<HostJobs>,
-    mut pending: ResMut<PendingSceneOps>,
-) {
+pub(crate) fn web_drain_inbound(mut room: ResMut<WebRoom>, mut pending: ResMut<PendingSceneOps>) {
     let events: Vec<InboundEvent> = {
         let Ok(mut rx) = room.inbound_rx.lock() else {
             return;
@@ -758,12 +749,9 @@ pub(crate) fn web_drain_inbound(
             InboundEvent::Disconnected { id } => {
                 let out = room.authority.leave(id);
                 deliver(&room, out);
-                // The authority already failed the peer's queued prompts;
-                // drop them from the worker queue too.
-                jobs.cancel_web_requester(WEB_REQUESTER_OFFSET + id);
             }
             InboundEvent::Message { id, msg } => {
-                handle_client_msg(&mut room, &mut jobs, &mut pending, id, msg)
+                handle_client_msg(&mut room, &mut pending, id, msg)
             }
         }
     }
@@ -815,7 +803,6 @@ pub(crate) fn web_session_history(
 
 fn handle_client_msg(
     room: &mut WebRoom,
-    jobs: &mut HostJobs,
     pending: &mut PendingSceneOps,
     id: PeerId,
     msg: ClientMsg,
@@ -879,24 +866,22 @@ fn handle_client_msg(
             text,
             anchor,
         } => {
+            // No model runs for the room, so a prompt is taken by the
+            // authority (every peer sees it queued, as the protocol says)
+            // and failed at once with the reason. A guest edits the world
+            // through ops; an agent through the world's API.
             let (out, event) = room.authority.prompt(id, &request_id, &text, anchor);
             deliver(room, out);
-            if let Some(AuthorityEvent::PromptAccepted {
-                job_id,
-                peer,
-                text,
-                anchor,
-                ..
-            }) = event
-            {
-                // The room's worker (the scoped remote agent) picks it up
-                // through the same queue native prompts use.
-                let result =
-                    jobs.enqueue_web_prompt(job_id, WEB_REQUESTER_OFFSET + peer, &text, anchor);
-                if let Err(e) = result {
-                    let out = room.authority.job_finished(job_id, Some(e));
-                    deliver(room, out);
-                }
+            if let Some(AuthorityEvent::PromptAccepted { job_id, .. }) = event {
+                let out = room.authority.job_finished(
+                    job_id,
+                    Some(
+                        "this room runs no AI: edit the world directly, or with an agent \
+                         through the world's API"
+                            .to_string(),
+                    ),
+                );
+                deliver(room, out);
             }
         }
         ClientMsg::Submit {
@@ -1001,7 +986,6 @@ pub(crate) fn web_projection_sync(
     mut room: ResMut<WebRoom>,
     clear_color: Option<Res<ClearColor>>,
     ambient_light: Option<Res<GlobalAmbientLight>>,
-    jobs: Option<Res<HostJobs>>,
     params: ProjectionQueries,
 ) {
     if !room.projection_timer.tick(time.delta()).just_finished() {
@@ -1086,17 +1070,7 @@ pub(crate) fn web_projection_sync(
     if ops.is_empty() {
         return;
     }
-    // While the worker builds a guest's prompt, the ops are theirs:
-    // attributed to them and undoable by them.
-    let owner = jobs
-        .as_deref()
-        .and_then(HostJobs::running_web_requester)
-        .filter(|p| room.authority.peer(*p).is_some());
-    let result = match owner {
-        Some(peer) => room.authority.record_local_ops_for_peer(peer, ops),
-        None => room.authority.record_local_ops("host", ops),
-    };
-    match result {
+    match room.authority.record_local_ops("host", ops) {
         Ok(out) => deliver(&room, out),
         Err(e) => {
             // A projection should always apply; if one doesn't, skip this
@@ -1107,18 +1081,6 @@ pub(crate) fn web_projection_sync(
             }
         }
     }
-}
-
-/// Worker progress for web guests' jobs. Called from the native job-event
-/// system, which owns the worker channel.
-pub(crate) fn tee_job_event(room: &mut WebRoom, event: &super::host::JobEvent) {
-    let out = match event {
-        super::host::JobEvent::Started(job_id) => room.authority.job_started(*job_id),
-        super::host::JobEvent::Finished { job_id, error } => {
-            room.authority.job_finished(*job_id, error.clone())
-        }
-    };
-    deliver(room, out);
 }
 
 // ---------------------------------------------------------------------------

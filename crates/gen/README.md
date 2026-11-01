@@ -1,6 +1,6 @@
 # LocalGPT Gen
 
-AI-driven 3D world builder with procedural audio and entity behaviors, built on Bevy. Exposes 80+ MCP tools for scene creation, manipulation, and export.
+The 3D world builder with procedural audio and entity behaviors, built on Bevy, driven by the coding agents you already use: 95 MCP tools for scene creation, manipulation, and export. It runs no model and holds no key.
 
 ## Install
 
@@ -14,14 +14,19 @@ Or via Docker:
 docker pull ghcr.io/localgpt-app/localgpt-gen:latest
 ```
 
-## The terminal and the window
+## The agent and the window
 
-Run `localgpt-gen` and type prompts in the terminal; the replies stream there
-and the window shows the world being built. Gen draws no panels of its own.
-The windowed app without a terminal is the LocalGPT app (`crates/app`), which
-opens documents, songs and `.world` packages as worlds, and puts the coding
-agents you already use — Claude Code, Codex and the rest — in tabs beside the
-world; its macOS bundle is built by `apps/app-desktop/` in the repository.
+Gen takes no prompt of its own: an agent outside the window drives it.
+`localgpt-gen --mcp-relay` opens the window with a relay beside it, and the
+agent's MCP server is `localgpt-gen mcp-server --connect`, so its tool calls
+reach the window you are looking at; `localgpt-gen mcp-server` alone gives the
+agent a window of its own, `--headless` none, and `--mcp-http <port>` adds the
+streamable HTTP transport. `--live <folder>` opens a `.world` package as a
+live canvas with an ops API, for an agent with a shell (`localgpt world`).
+Gen draws no panels of its own. The windowed app is the LocalGPT app
+(`crates/app`), which opens documents, songs and `.world` packages as worlds,
+with terminals beside the world for whatever agent you run; its macOS bundle
+is built by `apps/app-desktop/` in the repository.
 
 ## MCP Server Setup
 
@@ -139,8 +144,13 @@ localgpt-gen mcp-server --mcp-http 8080
 | WorldGen | plan_layout, apply_blockout, populate_region, evaluate, navmesh, ... | 15 |
 | Export | export_screenshot, export_gltf, export_html, save/load/export_world | 6 |
 | History | undo, redo, undo_info | 3 |
-| Memory | memory_search, memory_get, memory_save, memory_log | 4 |
-| Web | web_fetch, web_search | 2 |
+| Creations | define_creation, spawn_instance | 2 |
+| NPC brains | set_npc_brain, npc_observe, set_npc_memory (Ollama, `LOCALGPT_GEN_OLLAMA_URL`) | 3 |
+| Multi-file worlds | write_world_plan, write_region, load/unload_region, persist_blockout, write_behaviors, write_audio, check_drift, sync, generation_status | 10 |
+| Asset generation | generate_asset, generate_texture (a model server, ComfyUI) | 2 |
+| Image input | image_to_layout, match_style, reference_board, panorama_to_world | 4 |
+
+No memory, web or file tools: the agent brings its own.
 
 ## License
 

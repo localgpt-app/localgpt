@@ -5,7 +5,7 @@
 
 ## Project
 
-**LocalGPT** is a local-only autonomous AI assistant written in Rust. It provides persistent markdown-based memory, configurable LLM providers, 3D scene generation (Bevy), procedural audio, and an MCP server for tool integration with external AI backends.
+**LocalGPT** is the desktop app where a document, a song, a screenplay or a prompt becomes a walkable `.world`, written in Rust: Gen, the world builder (Bevy, procedural audio, collaborative sessions), with its tools served over MCP to the coding agents you already use; the `localgpt` command line for `.world` packages; and the format crates. LocalGPT runs no model and holds no key — the agents come from their makers, and this file is what they find.
 
 - License: Apache 2.0
 - Repository: `localgpt/`
@@ -14,35 +14,36 @@
 
 ## MCP Servers
 
-LocalGPT exposes two MCP server modes, both using JSON-RPC 2.0 over stdio.
-
-### localgpt mcp-server (Core)
-
-Memory and web tools for external AI backends.
-
-```bash
-localgpt mcp-server              # default agent ID "mcp"
-localgpt mcp-server -a my-agent  # custom agent ID for memory indexing
-```
-
-**Exposed tools:** memory_search, memory_get, memory_save, memory_log, web_fetch, web_search, document_load, transcribe_audio (if STT configured).
+LocalGPT exposes two MCP servers, both JSON-RPC 2.0, both built on `localgpt-world-agent`'s `mcp` module.
 
 ### localgpt-gen mcp-server (Gen)
 
-Full 3D scene generation tools plus all core tools.
+The world builder's tools, with a Bevy window or without one.
 
 ```bash
-localgpt-gen mcp-server
+localgpt-gen mcp-server                     # the agent's own process: a window plus the tools
+localgpt-gen mcp-server --headless          # no window: CI, batch generation
+localgpt-gen mcp-server --connect           # the tools of a running `localgpt-gen --mcp-relay` window
+localgpt-gen mcp-server --mcp-http 8765     # also the streamable HTTP transport, at http://127.0.0.1:8765/mcp
 ```
 
-**Exposed tools:** All core tools above, plus 70+ gen tools for scene manipulation, audio, behaviors, world management, physics, terrain, interactions, UI, worldgen pipeline, asset generation, multimodal input, and experiments.
+**Exposed tools:** 95 `gen_*` tools for scene manipulation, audio, behaviors, world management, avatars and NPCs, physics, terrain, interactions, UI, the worldgen pipeline, asset generation and multimodal input — the same set over every transport.
+
+### localgpt world mcp (the shim)
+
+An open `.world` package's tools — submit a batch, undo, redo, the log, the tips, a screenshot, the selection — over stdio, forwarded to the app that has the world open (`LOCALGPT_WORLD_DIR`, which the desktop app's terminals set, or the folder as the argument).
+
+```bash
+localgpt world mcp [DIR]
+```
 
 ### Transport
 
 | Transport | Status | Notes |
 |-----------|--------|-------|
 | stdio | Supported | JSON-RPC 2.0, one message per line |
-| HTTP/SSE | Planned | Future server mode |
+| Streamable HTTP | Supported | `localgpt-gen mcp-server --mcp-http <port>`; JSON-RPC at `/mcp` |
+| The relay | Supported | `localgpt-gen --mcp-relay` beside a window; `mcp-server --connect` is its stdio end |
 
 ### Protocol Version
 
@@ -50,15 +51,11 @@ localgpt-gen mcp-server
 
 ### Client Configuration
 
-Add to your AI tool's MCP config (e.g., Claude Desktop, VS Code, Zed):
+Add to your AI tool's MCP config (e.g., Claude Desktop, Claude Code, Codex, Gemini CLI, VS Code, Zed):
 
 ```json
 {
   "mcpServers": {
-    "localgpt": {
-      "command": "localgpt",
-      "args": ["mcp-server"]
-    },
     "localgpt-gen": {
       "command": "localgpt-gen",
       "args": ["mcp-server"]
@@ -67,30 +64,11 @@ Add to your AI tool's MCP config (e.g., Claude Desktop, VS Code, Zed):
 }
 ```
 
+For the window you are looking at, run `localgpt-gen --mcp-relay` and give the client `["mcp-server", "--connect"]` instead.
+
 ## Tool Catalog
 
-### Core: Memory (Read)
-
-| Tool | Description | Required Params | Optional Params |
-|------|-------------|-----------------|-----------------|
-| `memory_search` | Search the memory index (FTS5 + vector) for relevant information | `query` | `limit` (default: 5) |
-| `memory_get` | Read lines from MEMORY.md or memory/*.md; use after memory_search | `path` | `from` (line number), `lines` (default: 50) |
-
-### Core: Memory (Write)
-
-| Tool | Description | Required Params | Optional Params |
-|------|-------------|-----------------|-----------------|
-| `memory_save` | Append content to MEMORY.md (long-term curated knowledge) | `content` | -- |
-| `memory_log` | Append an entry to today's daily log (memory/YYYY-MM-DD.md) | `content` | -- |
-
-### Core: Web & Documents
-
-| Tool | Description | Required Params | Optional Params |
-|------|-------------|-----------------|-----------------|
-| `web_fetch` | Fetch and extract content from a URL (SSRF-protected) | `url` | -- |
-| `web_search` | Search the web for current information | `query` | `count` (1-10, default: 5) |
-| `document_load` | Extract text from PDF, DOCX, EPUB, or HTML files | `path` | -- |
-| `transcribe_audio` | Transcribe audio (MP3, M4A, WAV, OGG, FLAC, WEBM) to text | `path` | `language` (ISO 639-1) |
+Every tool below is Gen's; the names are what `localgpt-gen mcp-server` lists. There are no memory, web or file tools: the agent brings its own.
 
 ### Gen: Scene Query
 
@@ -112,6 +90,8 @@ Add to your AI tool's MCP config (e.g., Claude Desktop, VS Code, Zed):
 | `gen_delete_batch` | Delete multiple entities in a single call | `names` (array) | -- |
 | `gen_spawn_mesh` | Create custom geometry from raw vertex data | `name`, `vertices`, `indices` | `normals`, `uvs`, `color`, `metallic`, `roughness`, `position`, `rotation_degrees`, `scale`, `parent`, `emissive`, `alpha_mode`, `unlit`, `double_sided`, `reflectance` |
 | `gen_load_gltf` | Load a glTF/GLB file into the scene | `path` | decompose options |
+| `gen_define_creation` | Make a reusable creation (a tree, a lamp post, a house) from entities you built | creation params | -- |
+| `gen_spawn_instance` | Place a copy of a creation made with `gen_define_creation` | creation, placement params | -- |
 
 ### Gen: Camera, Lighting & Environment
 
@@ -224,15 +204,15 @@ Add to your AI tool's MCP config (e.g., Claude Desktop, VS Code, Zed):
 | `gen_set_tier` | Set entity placement tier (hero, medium, decorative) | entity, tier params | -- |
 | `gen_set_role` | Set entity semantic role (ground, structure, prop, vegetation, etc.) | entity, role params | -- |
 | `gen_bulk_modify` | Modify all entities matching a role (scale, recolor, remove, hide, show) | role, action params | region filter |
-| `gen_edit_blockout` | Add, remove, resize, or move blockout regions | edit params | -- |
-| `gen_evaluate` | Capture screenshot and scene metadata for quality evaluation | -- | camera params |
-| `gen_refine` | Iteratively evaluate and refine the scene | -- | iteration params |
+| `gen_modify_blockout` | Add, remove, resize, or move blockout regions | edit params | -- |
+| `gen_evaluate_scene` | Capture a screenshot and scene metadata for quality evaluation; the agent's own vision judges it | -- | camera params |
+| `gen_auto_refine` | Iteratively evaluate and refine the scene | -- | iteration params |
 | `gen_build_navmesh` | Generate navigation mesh from scene geometry | -- | resolution params |
-| `gen_check_traversability` | Check scene traversability between points | -- | point params |
+| `gen_validate_navigability` | Check scene traversability between points or overall | -- | point params |
 | `gen_edit_navmesh` | Manually mark walkable/blocked areas on navmesh | edit params | -- |
-| `gen_regenerate_dirty` | Regenerate content in modified blockout regions | -- | -- |
-| `gen_depth_preview` | Render depth map of scene for preview generation | -- | camera, resolution params |
-| `gen_styled_preview` | Generate styled 2D preview from depth map + text prompt | -- | style params |
+| `gen_regenerate` | Regenerate content in modified blockout regions | -- | -- |
+| `gen_render_depth` | Render depth map of scene for preview generation | -- | camera, resolution params |
+| `gen_preview_world` | Generate styled 2D preview from the depth map with ComfyUI | -- | style params |
 
 ### Gen: Multi-File WorldGen & Sync
 
@@ -266,21 +246,12 @@ Add to your AI tool's MCP config (e.g., Claude Desktop, VS Code, Zed):
 | `gen_reference_board` | Manage reference images (mood board) for the generation session | action params | -- |
 | `gen_panorama_to_world` | Generate explorable 3D world from a 360-degree panorama image | image params | -- |
 
-### Gen: Experiments
-
-| Tool | Description | Required Params | Optional Params |
-|------|-------------|-----------------|-----------------|
-| `gen_queue_experiment` | Queue a world generation experiment for background processing | `prompt` | variation params |
-| `gen_list_experiments` | List all queued, running, and completed experiments | -- | filter params |
-| `gen_experiment_status` | Get detailed status of a specific experiment | experiment ID params | -- |
-
 ## Authentication & Security
 
-- **Local-only by default.** LocalGPT runs on-device with no cloud dependency.
-- **No authentication for stdio MCP.** The MCP server inherits the user's OS-level permissions.
-- **Tool safety split.** The MCP server exposes only safe tools (memory read/write, web fetch, web search) plus gen tools. Dangerous tools (bash, read_file, write_file, edit_file) are excluded because external backends provide their own.
-- **SSRF protection.** `web_fetch` validates URLs against deny lists and DNS/IP checks to prevent server-side request forgery.
-- **Workspace sandbox.** `memory_get` and `memory_save` are restricted to the configured workspace directory. Path traversal is rejected.
+- **Local-only.** LocalGPT runs no model and holds no key; nothing it does needs the network, except the external services an operator points it at (`docs/gen/external-services.md`: ComfyUI, the asset model server, Ollama for NPC brains).
+- **No authentication for stdio MCP.** The MCP server inherits the user's OS-level permissions. The HTTP transport binds to localhost.
+- **Scene tools only.** The MCP server exposes Gen's tools and nothing that reads or writes files outside the world, runs a shell or reaches the web: the agent provides those itself, under its own permissions.
+- **A live world's API is local.** `localgpt-gen --live` and the desktop app serve a package's ops API on localhost, with a token in the folder's `.live/endpoint.json`.
 
 ## Capabilities
 
@@ -295,6 +266,7 @@ The server advertises the `tools` capability. Resources and prompts are not curr
 ## Related Files
 
 - `CLAUDE.md` -- Build commands, architecture, feature flags, key patterns
-- `docs/gen-audio.md` -- Audio system architecture and usage
-- `docs/gen/external-services.md` -- External service setup (Ollama, ComfyUI)
-- `config.example.toml` -- Configuration reference
+- `docs/gen/gen-audio.md` -- Audio system architecture and usage
+- `docs/gen/external-services.md` -- External service setup (Ollama, ComfyUI, the asset model server)
+- `docs/gen/mcp-server.md` -- The MCP server, the relay and the HTTP transport
+- `docs/rfcs/authoring/the-harness-goes.md` -- Why there is no assistant, no provider and no key in this tree

@@ -13,8 +13,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 
-use localgpt_core::agent::tools::Tool;
-use localgpt_core::config::Config;
+use localgpt_world_agent::mcp::Tool;
 
 use crate::gen3d::GenBridge;
 
@@ -86,12 +85,10 @@ impl RelayTools {
 
 /// Start the MCP relay server on a TCP port.
 ///
-/// Creates MCP tools backed by the given GenBridge and serves them
-/// over TCP using newline-delimited JSON-RPC 2.0 (MCP protocol).
-///
-/// Returns the port it's listening on.
-pub async fn start_mcp_relay(bridge: Arc<GenBridge>, config: &Config) -> anyhow::Result<u16> {
-    let tools = crate::mcp_server::create_mcp_tools(bridge, config)?;
+/// Creates the gen tools over the given GenBridge and serves them over TCP
+/// as newline-delimited JSON-RPC 2.0 (MCP). Returns the port.
+pub async fn start_mcp_relay(bridge: Arc<GenBridge>) -> anyhow::Result<u16> {
+    let tools = crate::mcp_server::create_mcp_tools(bridge);
 
     // Try the default port, then fall back to any available port
     let listener = match TcpListener::bind(("127.0.0.1", MCP_RELAY_PORT)).await {
@@ -106,14 +103,62 @@ pub async fn start_mcp_relay(bridge: Arc<GenBridge>, config: &Config) -> anyhow:
     Ok(port)
 }
 
-/// Serve a caller-chosen tool set on an ephemeral localhost port without
-/// advertising it in the relay port file — used to give a restricted agent
-/// (e.g. one acting for remote collaborators) only the tools it may use.
-pub async fn start_scoped_relay(tools: Vec<Box<dyn Tool>>) -> anyhow::Result<u16> {
-    let listener = TcpListener::bind("127.0.0.1:0").await?;
-    let port = listener.local_addr()?.port();
-    serve_relay(listener, tools);
-    Ok(port)
+/// The other end: MCP stdio ↔ TCP. An MCP client spawns this process as
+/// `localgpt-gen mcp-server --connect` — it reads from stdin, forwards to the
+/// window's relay, and writes the answers to stdout, so tool calls reach the
+/// window that is open instead of a second one.
+pub async fn run_stdio_relay(port: u16) -> anyhow::Result<()> {
+    use tokio::net::TcpStream;
+
+    let stream = TcpStream::connect(("127.0.0.1", port)).await.map_err(|e| {
+        anyhow::anyhow!(
+            "Failed to connect to the MCP relay on port {}: {}\n\
+             Make sure a LocalGPT Gen window is running with --mcp-relay.",
+            port,
+            e
+        )
+    })?;
+
+    let (tcp_reader, mut tcp_writer) = stream.into_split();
+    let mut tcp_lines = BufReader::new(tcp_reader).lines();
+    let mut stdin_lines = BufReader::new(tokio::io::stdin()).lines();
+    let mut stdout = tokio::io::stdout();
+
+    loop {
+        tokio::select! {
+            // stdin → TCP: the client's requests
+            line = stdin_lines.next_line() => {
+                match line {
+                    Ok(Some(line)) => {
+                        let mut buf = line;
+                        buf.push('\n');
+                        if tcp_writer.write_all(buf.as_bytes()).await.is_err() {
+                            break;
+                        }
+                    }
+                    Ok(None) => break, // stdin closed
+                    Err(_) => break,
+                }
+            }
+            // TCP → stdout: the window's answers
+            line = tcp_lines.next_line() => {
+                match line {
+                    Ok(Some(line)) => {
+                        let mut buf = line;
+                        buf.push('\n');
+                        if stdout.write_all(buf.as_bytes()).await.is_err() {
+                            break;
+                        }
+                        stdout.flush().await.ok();
+                    }
+                    Ok(None) => break, // TCP closed
+                    Err(_) => break,
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn serve_relay(listener: TcpListener, tools: Vec<Box<dyn Tool>>) {

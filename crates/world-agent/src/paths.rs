@@ -172,6 +172,73 @@ pub fn locate_model_in(dir: &Path) -> Option<(PathBuf, String, String)> {
     Some((dir.to_path_buf(), gguf, tokenizer))
 }
 
+/// `$LOCALGPT_DATA_DIR` — an absolute override for the data directory.
+pub const LOCALGPT_DATA_DIR: &str = "LOCALGPT_DATA_DIR";
+/// `$LOCALGPT_STATE_DIR` — an absolute override for the state directory.
+pub const LOCALGPT_STATE_DIR: &str = "LOCALGPT_STATE_DIR";
+/// `$LOCALGPT_PROFILE` — a name that moves every app directory to
+/// `localgpt-<profile>`, so two profiles never share settings or state.
+pub const LOCALGPT_PROFILE: &str = "LOCALGPT_PROFILE";
+
+/// The directories an app keeps its own files in: `data` for what it makes
+/// (Gen's workspace of worlds), `state` for what it remembers (settings,
+/// logs, the paired devices).
+///
+/// `<XDG data home>/localgpt` and `<XDG state home>/localgpt`
+/// (`~/.local/share/localgpt`, `~/.local/state/localgpt`), each movable by
+/// its own absolute override, and all of them by [`LOCALGPT_PROFILE`]. The
+/// shared downloads ([`shared_llm_dir`], [`world_pack_dir`]) deliberately
+/// ignore the profile: a 5 GB model is the same file for every profile.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Dirs {
+    pub data: PathBuf,
+    pub state: PathBuf,
+}
+
+impl Dirs {
+    /// Resolve from the real environment.
+    pub fn resolve() -> Option<Self> {
+        Self::resolve_with_env(|key| std::env::var(key))
+    }
+
+    /// [`Dirs::resolve`] with a custom env lookup, for tests.
+    pub fn resolve_with_env<F>(env_fn: F) -> Option<Self>
+    where
+        F: Fn(&str) -> Result<String, std::env::VarError>,
+    {
+        use etcetera::BaseStrategy;
+        let strategy = etcetera::choose_base_strategy().ok()?;
+        let profile = env_fn(LOCALGPT_PROFILE)
+            .ok()
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty());
+        let leaf = match &profile {
+            Some(profile) => format!("localgpt-{profile}"),
+            None => "localgpt".to_string(),
+        };
+        let absolute = |key: &str| {
+            env_fn(key)
+                .ok()
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from)
+                .filter(|p| p.is_absolute())
+        };
+        let data = absolute(LOCALGPT_DATA_DIR).unwrap_or_else(|| strategy.data_dir().join(&leaf));
+        let state = absolute(LOCALGPT_STATE_DIR).unwrap_or_else(|| {
+            strategy
+                .state_dir()
+                .unwrap_or_else(|| strategy.data_dir())
+                .join(&leaf)
+        });
+        Some(Self { data, state })
+    }
+
+    /// `<state>/logs`: where an app without a terminal writes its log.
+    pub fn logs(&self) -> PathBuf {
+        self.state.join("logs")
+    }
+}
+
 /// `<XDG data home>/localgpt` — the base both shared downloads sit under.
 fn shared_data_dir() -> Option<PathBuf> {
     use etcetera::BaseStrategy;
@@ -285,6 +352,43 @@ mod tests {
     #[test]
     fn locate_model_in_is_none_without_a_gguf() {
         assert_eq!(locate_model_in(Path::new("/definitely/not/here")), None);
+    }
+
+    #[test]
+    fn app_dirs_default_under_localgpt_and_move_with_the_profile() {
+        let plain = Dirs::resolve_with_env(env(HashMap::new())).unwrap();
+        assert!(plain.data.ends_with("localgpt"), "{}", plain.data.display());
+        assert!(
+            plain.state.ends_with("localgpt"),
+            "{}",
+            plain.state.display()
+        );
+        assert_eq!(plain.logs(), plain.state.join("logs"));
+
+        let work =
+            Dirs::resolve_with_env(env(HashMap::from([(LOCALGPT_PROFILE, "work")]))).unwrap();
+        assert!(
+            work.data.ends_with("localgpt-work"),
+            "{}",
+            work.data.display()
+        );
+        assert!(
+            work.state.ends_with("localgpt-work"),
+            "{}",
+            work.state.display()
+        );
+    }
+
+    #[test]
+    fn app_dirs_take_absolute_overrides_and_ignore_relative_ones() {
+        let plain = Dirs::resolve_with_env(env(HashMap::new())).unwrap();
+        let moved = Dirs::resolve_with_env(env(HashMap::from([
+            (LOCALGPT_DATA_DIR, "/data/here"),
+            (LOCALGPT_STATE_DIR, "relative"),
+        ])))
+        .unwrap();
+        assert_eq!(moved.data, PathBuf::from("/data/here"));
+        assert_eq!(moved.state, plain.state, "a relative override is ignored");
     }
 
     #[test]

@@ -31,10 +31,10 @@ export const THEME = {
 };
 
 /** One tab's terminal: xterm.js here, a PTY in the app. The tab keeps its
- *  terminal while hidden, so switching tabs never restarts an agent. A tab
- *  another page opened — a paired phone's, or this page's before a reload —
- *  is attached rather than opened, and the app sends its screen. */
-export function Terminal({ id, kind, visible, attach = false }: { id: string; kind: string; visible: boolean; attach?: boolean }) {
+ *  terminal while hidden, so switching tabs never restarts what runs in it.
+ *  A tab another page opened — a paired phone's, or this page's before a
+ *  reload — is attached rather than opened, and the app sends its screen. */
+export function Terminal({ id, visible, attach = false }: { id: string; visible: boolean; attach?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const term = useRef<XTerm | null>(null);
   const fit = useRef<FitAddon | null>(null);
@@ -64,8 +64,8 @@ export function Terminal({ id, kind, visible, attach = false }: { id: string; ki
     }
     fitter.fit();
 
-    // Shift-Enter as Claude Code's terminal setup sends it: a new line in the
-    // prompt rather than a send.
+    // Shift-Enter as a terminal configured for multi-line prompts sends it
+    // (ESC CR): a new line in a TUI's prompt rather than a send.
     xterm.attachCustomKeyEventHandler((e) => {
       if (e.type === "keydown" && e.key === "Enter" && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
         send({ t: "term.input", id, data: "\x1b\r" });
@@ -83,7 +83,7 @@ export function Terminal({ id, kind, visible, attach = false }: { id: string; ki
     const input = xterm.onData((data) => send({ t: "term.input", id, data }));
     const resized = xterm.onResize(({ cols, rows }) => send({ t: "term.resize", id, cols, rows }));
     if (attach) send({ t: "term.attach", id, cols: xterm.cols, rows: xterm.rows });
-    else send({ t: "term.open", id, kind, cols: xterm.cols, rows: xterm.rows });
+    else send({ t: "term.open", id, cols: xterm.cols, rows: xterm.rows });
     // Clicked into: the PTY takes this page's size back from a phone.
     const focused = () => send({ t: "term.focus", id });
     xterm.textarea?.addEventListener("focus", focused);
@@ -101,7 +101,7 @@ export function Terminal({ id, kind, visible, attach = false }: { id: string; ki
       send({ t: "term.close", id });
       xterm.dispose();
     };
-  }, [id, kind, attach]);
+  }, [id, attach]);
 
   useEffect(() => {
     if (visible) {

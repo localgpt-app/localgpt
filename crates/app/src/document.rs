@@ -27,16 +27,14 @@
 //! That also makes any editor a way to drive the world, which matters while
 //! the in-app one is young.
 //!
-//! **A model authors each place** ([`crate::authoring`]). The draft is on
-//! screen the moment a section settles; the section is then queued for the
-//! app's model, and its build replaces the draft when it lands, stored in MD's
-//! sidecar so it survives restarts and every edit elsewhere in the document.
-//! Editing a section changes its hash, which queues it again — ahead of the
-//! rest, since it is the one being looked at. The outline labels each section
-//! with where its place came from: the writer's own ```world fence, the
-//! model, or the draft.
+//! **A place a model built comes from MD's sidecar** beside the document
+//! (`<doc>.world.json`), written by MD's own `--generate` or by an agent
+//! working on the file; the app runs no model. The draft is on screen the
+//! moment a section settles, a build in the sidecar replaces it for every
+//! section whose text did not change, and the outline labels each section
+//! with where its place came from: the writer's own ```world fence, a model's
+//! build, a recipe, or the draft.
 
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -47,9 +45,7 @@ use localgpt_gen::gen3d::plugin::{CurrentWorld, GenInitialWorld};
 use localgpt_gen::gen3d::registry::NameRegistry;
 use localgpt_gen::inspector::InspectorSelection;
 use localgpt_md::doc::Doc;
-use localgpt_md::sidecar::BuildEntry;
 
-use crate::authoring::Authored;
 use localgpt_world_types as wt;
 
 /// How long typing has to pause before the document is saved and rebuilt.
@@ -103,14 +99,8 @@ pub fn write_world(world: &wt::WorldManifest, dir: &Path) -> anyhow::Result<()> 
 /// it under `skills/`, where Gen's gallery lists *saved* worlds.
 /// Open `md` as a live document: compile it with MD's pipeline, write its
 /// first world (camera included — it places the view once) to its folder,
-/// and return the document with that folder. With a `config`, the app's
-/// model authors each section in the background; the draft is on screen
-/// meanwhile.
-pub fn open(
-    md: &Path,
-    workspace: &Path,
-    config: Option<&localgpt_core::config::Config>,
-) -> anyhow::Result<(Document, PathBuf)> {
+/// and return the document with that folder.
+pub fn open(md: &Path, workspace: &Path) -> anyhow::Result<(Document, PathBuf)> {
     let text = std::fs::read_to_string(md)
         .map_err(|e| anyhow::anyhow!("reading {}: {e}", md.display()))?;
     let (doc, world) = compile(&text, md);
@@ -123,11 +113,7 @@ pub fn open(
         world.entities.len(),
         doc.sections.len(),
     );
-    let mut live = Document::new(md.to_path_buf(), dir.clone(), text, &doc, &world);
-    if let Some(config) = config {
-        let manifest = localgpt_md::assets::read_manifest_from_disk();
-        live = live.with_authoring(crate::authoring::Worker::spawn(config, manifest), &doc);
-    }
+    let live = Document::new(md.to_path_buf(), dir.clone(), text, &doc, &world);
     Ok((live, dir))
 }
 
@@ -415,20 +401,16 @@ struct Stop {
 }
 
 /// Where a section's place came from — MD's tier chain, as the outline
-/// shows it. A fence outranks the model, the model the recipe, the recipe
-/// the draft.
+/// shows it. A fence outranks a model's build, the build the recipe, the
+/// recipe the draft.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Tier {
     /// The writer's own ```world fence.
     Fence,
-    /// Queued for, or with, the model.
-    Authoring,
-    /// A build the model authored, from the sidecar.
+    /// A build a model authored, from the sidecar.
     Model,
     /// A recipe from MD's lighter model tier.
     Recipe,
-    /// The model could not build it; the draft stands.
-    Failed,
     /// The rule-derived draft.
     Draft,
 }
@@ -437,10 +419,8 @@ impl Tier {
     fn label(self) -> &'static str {
         match self {
             Tier::Fence => "fence",
-            Tier::Authoring => "authoring…",
             Tier::Model => "model",
             Tier::Recipe => "recipe",
-            Tier::Failed => "draft · failed",
             Tier::Draft => "draft",
         }
     }
@@ -468,19 +448,6 @@ pub struct Document {
     selected: Option<usize>,
     status: String,
     conflict: bool,
-    /// The model authoring each section's place, when there is one.
-    authoring: Option<crate::authoring::Worker>,
-    /// Author sections as they settle — the pane's toggle.
-    author_enabled: bool,
-    /// Sections queued for the model or with it, by hash.
-    pending: HashSet<blake3::Hash>,
-    /// Sections that failed this run. Not retried until their text changes
-    /// (a new hash), so one bad section cannot loop on requests.
-    failed: HashSet<blake3::Hash>,
-    /// The last authoring problem, shown in the pane.
-    author_error: Option<String>,
-    /// Rebuild although the text is unchanged: a build landed in the sidecar.
-    force_rebuild: bool,
     /// Each built section's tier, by section index.
     tiers: Vec<Tier>,
     /// Each built section's entity names, by section index.
@@ -524,12 +491,6 @@ impl Document {
             selected: None,
             status: String::new(),
             conflict: false,
-            authoring: None,
-            author_enabled: true,
-            pending: HashSet::new(),
-            failed: HashSet::new(),
-            author_error: None,
-            force_rebuild: false,
             tiers: Vec::new(),
             places: Vec::new(),
             descriptions: Vec::new(),
@@ -539,7 +500,7 @@ impl Document {
             shown: world.clone(),
         };
         document.refresh(doc, world);
-        document.sync_authoring(doc, false);
+        document.label_tiers(doc);
         document.status = format!("{} sections", doc.sections.len());
         document
     }
@@ -578,36 +539,17 @@ impl Document {
             .unwrap_or_default()
     }
 
-    /// Author places with `worker`, starting with every section of `doc`
-    /// that has no build yet, in document order.
-    pub fn with_authoring(mut self, worker: crate::authoring::Worker, doc: &Doc) -> Self {
-        self.authoring = Some(worker);
-        self.sync_authoring(doc, false);
-        self
-    }
-
-    /// MD's cache, beside the document: where authored builds live.
+    /// MD's cache, beside the document: where a model's builds live.
     fn sidecar_path(&self) -> PathBuf {
         self.path.with_extension("world.json")
     }
 
-    /// Bring authoring in line with `doc` as just built. Requests still
-    /// waiting for sections that changed or went away are dropped (a request
-    /// already running finishes, and its result is pruned on save); every
-    /// section with nothing better than the draft is queued — not one with a
-    /// ```world fence, which is the writer's own place and outranks any model;
-    /// and each section is labelled with its tier. `first` sends the new
-    /// requests ahead of the queue: after an edit, they are the sections the
-    /// writer just touched.
-    fn sync_authoring(&mut self, doc: &Doc, first: bool) {
+    /// Label each section of `doc`, as just built, with its tier: the
+    /// writer's own ```world fence, a model's build or a recipe from the
+    /// sidecar, else the draft; and keep each build's description for the
+    /// place card.
+    fn label_tiers(&mut self, doc: &Doc) {
         let store = localgpt_md::RecipeStore::load(&self.sidecar_path());
-        let live: HashSet<blake3::Hash> = doc.sections.iter().map(|s| s.hash).collect();
-        self.failed.retain(|hash| live.contains(hash));
-        if let Some(worker) = &self.authoring {
-            for hash in worker.retain(&live) {
-                self.pending.remove(&hash);
-            }
-        }
         self.descriptions = doc
             .sections
             .iter()
@@ -617,81 +559,22 @@ impl Document {
                     .and_then(|build| build.description.clone())
             })
             .collect();
-        let worker = self.authoring.as_ref().filter(|_| self.author_enabled);
-        self.tiers.clear();
-        for section in &doc.sections {
-            let hash = section.hash;
-            let tier = if section.world.is_some() {
-                Tier::Fence
-            } else if self.pending.contains(&hash) {
-                Tier::Authoring
-            } else if store.get_build(&hash).is_some() {
-                Tier::Model
-            } else if self.failed.contains(&hash) {
-                Tier::Failed
-            } else if let Some(worker) = worker {
-                worker.submit(job_for(doc, section), first);
-                self.pending.insert(hash);
-                Tier::Authoring
-            } else if store.get(&hash).is_some() {
-                Tier::Recipe
-            } else {
-                Tier::Draft
-            };
-            self.tiers.push(tier);
-        }
-    }
-
-    /// Ask the model for section `index` again — a place the writer did not
-    /// like, or one that failed. The current place stays until the new one
-    /// lands and replaces it.
-    fn reauthor(&mut self, index: usize) {
-        let doc = Doc::parse(&self.built, &self.file_name());
-        let (Some(worker), Some(section)) = (&self.authoring, doc.sections.get(index)) else {
-            return;
-        };
-        if section.world.is_some() || self.pending.contains(&section.hash) {
-            return;
-        }
-        worker.submit(job_for(&doc, section), true);
-        self.failed.remove(&section.hash);
-        self.pending.insert(section.hash);
-        if let Some(tier) = self.tiers.get_mut(index) {
-            *tier = Tier::Authoring;
-        }
-    }
-
-    /// The pane's toggle. Off drops every waiting request (one already
-    /// running still lands); on queues whatever is missing.
-    fn set_authoring(&mut self, enabled: bool) {
-        self.author_enabled = enabled;
-        if !enabled && let Some(worker) = &self.authoring {
-            for hash in worker.retain(&HashSet::new()) {
-                self.pending.remove(&hash);
-            }
-        }
-        let doc = Doc::parse(&self.built, &self.file_name());
-        self.sync_authoring(&doc, false);
-    }
-
-    /// One line on what the model is doing, for the pane.
-    fn authoring_summary(&self) -> Option<String> {
-        let worker = self.authoring.as_ref()?;
-        let count = |tier: Tier| self.tiers.iter().filter(|t| **t == tier).count();
-        let (built, busy, failed) = (
-            count(Tier::Model),
-            count(Tier::Authoring),
-            count(Tier::Failed),
-        );
-        let authorable = self.tiers.len() - count(Tier::Fence);
-        let mut line = format!("{built} of {authorable} places by {}", worker.model);
-        if busy > 0 {
-            line.push_str(&format!(" · {busy} to go"));
-        }
-        if failed > 0 {
-            line.push_str(&format!(" · {failed} failed"));
-        }
-        Some(line)
+        self.tiers = doc
+            .sections
+            .iter()
+            .map(|section| {
+                let hash = section.hash;
+                if section.world.is_some() {
+                    Tier::Fence
+                } else if store.get_build(&hash).is_some() {
+                    Tier::Model
+                } else if store.get(&hash).is_some() {
+                    Tier::Recipe
+                } else {
+                    Tier::Draft
+                }
+            })
+            .collect();
     }
 
     /// A section's own row in the outline (not one of its sub-headings').
@@ -718,15 +601,6 @@ impl Document {
     }
 }
 
-fn job_for(doc: &Doc, section: &localgpt_md::Section) -> crate::authoring::Job {
-    crate::authoring::Job {
-        hash: section.hash,
-        heading: section.heading.clone(),
-        body: section.body.clone(),
-        genre: doc.genre().to_string(),
-    }
-}
-
 /// An in-progress camera flight to a section's place.
 #[derive(Resource, Default)]
 struct Flight {
@@ -745,7 +619,6 @@ impl Plugin for DocumentPlugin {
                 Update,
                 (
                     watch_file,
-                    receive_builds,
                     rebuild_when_settled,
                     follow_selection,
                     fly_camera,
@@ -830,9 +703,8 @@ fn rebuild_when_settled(
         }
     }
 
-    let forced = std::mem::take(&mut doc.force_rebuild);
     let text_changed = doc.text != doc.built;
-    if !text_changed && !forced {
+    if !text_changed {
         return;
     }
     let (parsed, mut world) = compile(&doc.text, &doc.path);
@@ -863,85 +735,13 @@ fn rebuild_when_settled(
     doc.shown = world.clone();
     doc.built = doc.text.clone();
     doc.refresh(&parsed, &world);
-    doc.sync_authoring(&parsed, true);
+    doc.label_tiers(&parsed);
     if text_changed {
         doc.status = format!(
             "Saved · {} section{}",
             parsed.sections.len(),
             if parsed.sections.len() == 1 { "" } else { "s" }
         );
-    }
-}
-
-/// Put finished builds into MD's sidecar, then rebuild so they show.
-fn receive_builds(mut doc: ResMut<Document>) {
-    let doc = &mut *doc;
-    let Some(worker) = &doc.authoring else {
-        return;
-    };
-    let outcomes = worker.drain();
-    if outcomes.is_empty() {
-        return;
-    }
-    let model = worker.model.clone();
-    let mut store = localgpt_md::RecipeStore::load(&doc.sidecar_path());
-    let mut landed = Vec::new();
-    for outcome in outcomes {
-        doc.pending.remove(&outcome.hash);
-        match outcome.result {
-            Authored::Built(build) => {
-                store.insert_build(
-                    &outcome.hash,
-                    BuildEntry {
-                        model: model.clone(),
-                        description: build.description,
-                        entities: build.entities,
-                    },
-                );
-                landed.push(outcome.heading);
-            }
-            Authored::Empty => {
-                doc.author_error = Some(format!(
-                    "the model's plan for “{}” built nothing — the draft stands",
-                    outcome.heading
-                ));
-                doc.failed.insert(outcome.hash);
-            }
-            Authored::Failed(e) => {
-                warn!("authoring “{}”: {e}", outcome.heading);
-                doc.author_error = Some(e);
-                doc.failed.insert(outcome.hash);
-            }
-        }
-    }
-    if landed.is_empty() {
-        // Nothing to rebuild; only the outline's labels change.
-        let built = Doc::parse(&doc.built, &doc.file_name());
-        doc.sync_authoring(&built, false);
-        return;
-    }
-    // Saving prunes sections the document no longer has, so it needs the
-    // document as it stands now, not as it was when the request went out: a
-    // build for a section edited since is dropped here, and its new text is
-    // already queued.
-    let current = Doc::parse(&doc.text, &doc.file_name());
-    if let Err(e) = store.save(&current) {
-        doc.author_error = Some(format!(
-            "could not save {}: {e}",
-            doc.sidecar_path().display()
-        ));
-        return;
-    }
-    doc.author_error = None;
-    doc.status = match landed.as_slice() {
-        [one] => format!("Placed “{one}”"),
-        many => format!("Placed {} sections", many.len()),
-    };
-    // Rebuild on the next settle check — at once, unless the writer is
-    // mid-edit, in which case the edit's own rebuild picks the build up.
-    doc.force_rebuild = true;
-    if doc.edited_at.is_none() {
-        doc.edited_at = Some(Instant::now() - SETTLE);
     }
 }
 
@@ -1081,10 +881,6 @@ pub enum DocumentAsk {
     Go { section: usize, line: Option<usize> },
     /// A thing on the place card: select its entity, and fly to it.
     Pick(String),
-    /// Have the model build section `n`'s place again.
-    Reauthor(usize),
-    /// The pane's Author toggle.
-    Author(bool),
     /// The pane's Follow cursor toggle.
     Follow(bool),
 }
@@ -1148,8 +944,6 @@ fn answer_asks(
                     };
                 }
             }
-            DocumentAsk::Reauthor(section) => doc.reauthor(*section),
-            DocumentAsk::Author(enabled) => doc.set_authoring(*enabled),
             DocumentAsk::Follow(enabled) => doc.follow_cursor = *enabled,
         }
     }
@@ -1165,10 +959,6 @@ pub struct DocumentView {
     pub status: String,
     /// The file changed on disk under an edited buffer, which is not saved.
     pub conflict: bool,
-    /// What the model is doing, when one authors the places.
-    pub authoring: Option<String>,
-    pub author_enabled: bool,
-    pub author_error: Option<String>,
     pub follow_cursor: bool,
     pub outline: Vec<OutlineRow>,
     pub selected: Option<usize>,
@@ -1186,10 +976,6 @@ pub struct OutlineRow {
     /// Where the section's place came from — on the section's own row, not
     /// its sub-headings': it is one place either way.
     pub tier: Option<&'static str>,
-    pub failed: bool,
-    /// The model can be asked for this place again: not a fence (the
-    /// writer's own), and not one with a request already out.
-    pub reauthor: bool,
 }
 
 /// The selected section's place: where it came from, the model's line about
@@ -1237,9 +1023,6 @@ impl Document {
                 self.status.clone()
             },
             conflict: self.conflict,
-            authoring: self.authoring_summary(),
-            author_enabled: self.author_enabled,
-            author_error: self.author_error.clone(),
             follow_cursor: self.follow_cursor,
             outline: self
                 .outline
@@ -1255,9 +1038,6 @@ impl Document {
                         section: item.section,
                         line: item.line,
                         tier: tier.map(Tier::label),
-                        failed: tier == Some(Tier::Failed),
-                        reauthor: self.authoring.is_some()
-                            && tier.is_some_and(|t| !matches!(t, Tier::Fence | Tier::Authoring)),
                     }
                 })
                 .collect(),

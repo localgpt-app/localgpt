@@ -27,7 +27,7 @@ localgpt-gen --join                            # find sessions on the LAN, you'l
 localgpt-gen --join 192.168.1.5 --pin 482913   # or connect directly
 ```
 
-Type a prompt in the joiner's terminal — "put a lighthouse on that hill" — and a translucent placeholder appears where you're looking. It turns amber while the AI works and disappears when the real build streams in for everyone.
+A line typed in the joiner's terminal is chat to the room. No AI runs for a session: the host builds with its own agent, through the window's [MCP relay](/docs/gen/cli-mode/) or a live package's API, and every change streams to everyone; browser guests joined with `--web-edit` edit directly.
 
 ## Options
 
@@ -37,7 +37,6 @@ Type a prompt in the joiner's terminal — "put a lighthouse on that hill" — a
 |------|---------|-------------|
 | `--session-name <name>` | `<user>'s world` | Name shown to joiners browsing the LAN |
 | `--port <port>` | `9879` | Session port (UDP for the world, TCP for pairing and assets) |
-| `--remote-tools safe\|full` | `safe` | What joiners' prompts may do — see [Security](#security) |
 | `--open` | off | Skip the PIN (anyone on the network can join). Trusted networks only |
 
 **Join (`--join [address]`)**
@@ -91,22 +90,16 @@ Joiners steer an AI running on **the host's machine**, so sessions are locked do
 
 ### Joiners can only edit the scene
 
-With the default `--remote-tools safe`, joiners' prompts run on a separate assistant that can **only edit the world**:
+Nothing a joiner sends runs on the host beyond the world's own ops:
 
+- No AI runs for the room: a prompt a guest sends is refused by the authority with the reason, and the host's agent is the host's alone
 - No shell commands, no reading or writing files, no web access
-- No access to the host's [memory](/docs/memory-system) or conversation
 - No saving or exporting to the host's disk — the host saves worlds
-- Scene edits are regular edits the host can undo
-
-If the host uses Claude CLI as its backend, its built-in shell and file tools are switched off for joiners' prompts. Gemini CLI and Codex CLI can't have their built-in tools switched off, so with those backends joiners' prompts are refused unless the host chooses `--remote-tools full`.
-
-:::danger
-`--remote-tools full` runs joiners' prompts with **all of the host's tools, including shell access on the host machine**. Only use it with people you'd hand your terminal to.
-:::
+- Scene edits (browser guests with `--web-edit`) are regular edits the host can undo
 
 ## Current Limitations
 
-- Joiners see and prompt, but don't edit directly and don't appear as avatars yet.
+- Native joiners watch and chat but don't edit directly; browser guests edit with `--web-edit`.
 - Terrain, water, foliage, sky, in-world UI, NPCs, and loaded glTF models aren't shared with joiners yet (glTF models show as placeholders).
 - Host and joiners must run the same `localgpt-gen` version.
 - Any paired joiner can prompt changes anywhere in the world — there are no per-user permissions yet.

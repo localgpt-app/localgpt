@@ -1,43 +1,37 @@
 # LocalGPT desktop app
 
-The one LocalGPT desktop app (`crates/app`, binary `localgpt-app`): a world
-viewport with Gen's prompt panel, where documents, songs and worlds open as
-places. `docs/world-strategy.md` §13.1 records why it is one app. It replaces
-the `LocalGPT Gen.app` bundle; `localgpt-gen` itself stays a binary (the MCP
-server, headless generation, `--host`/`--join`).
+The one LocalGPT desktop app (`crates/app`, binary `localgpt-app`): Gen's
+world in a Bevy viewport with one interface around it — a web page over the
+window (`crates/app/ui`) — where documents, songs and worlds open as places
+and the person's own coding agents run in terminals beside them.
+`docs/world-strategy.md` §13.1 records why it is one app. It replaces the
+`LocalGPT Gen.app` bundle; `localgpt-gen` itself stays a binary (the MCP
+server and relay, headless generation, `--host`/`--join`).
 
 - **Open…** at the top of the window takes a Markdown document, a song or a
   world. A document opens with an editor pane beside the world: it saves and
-  the world rebuilds as you type, and the app's model authors each section's
-  place in the background. A song opens as the world Verse builds for it,
-  playing, with the world performing it. The same from the command line:
-  `--md notes.md`, `--song track.mp3`, `--world place.ron`.
-- **Prompt panel.** Prompts are typed in a panel on the right: replies stream
-  in, each tool call shows as it runs, and prompts sent while the agent is
-  busy wait in a queue. The toolbelt is the `core` profile unless `--tools`
-  or Gen's settings pick `standard` or `full`.
-- **Model menu.** Lists the models this machine can use right now: models
-  pulled into a local Ollama, and every GGUF in the model folder LocalGPT's apps share
-  (`~/.local/share/localgpt/models/llm`), which the app runs in-process as
-  `gguf/<name>` when built with `local-llm-metal` (the macOS bundle is) or
-  `local-llm`. The choice is remembered in Gen's settings
-  (`~/.local/state/localgpt/gen-settings.json`), and document authoring uses
-  the same model. No config file is read or written.
+  the world rebuilds as you type, and scenery a model authored comes from
+  MD's sidecar beside the file, written by `localgpt-md --generate` or by an
+  agent. A song opens as the world Verse builds for it, playing, with the
+  world performing it. A `.world` package opens as a live canvas: the window
+  holds its authority, agents edit it through its API, and the history panel
+  draws the branches. The same from the command line: `--md notes.md`,
+  `--song track.mp3`, `--world place.world`.
+- **Terminals.** Each tab is your login shell, started in the folder of what
+  is open with `LOCALGPT_WORLD_DIR` set, so `localgpt world …` and
+  `localgpt world mcp` find the world. Run whichever agent you like in it;
+  the app runs no model, holds no key, knows no agent by name and reads no
+  agent's configuration.
 - **The login shell's `PATH`.** Opened from Finder, the app reads your login
   shell's `PATH`, so programs installed with Homebrew, npm or into
   `~/.local/bin` are found.
-- **Collaborate.** A section under the model menu hosts or joins a
-  collaborative session without command-line flags: *Host* picks a name,
-  port, and PIN or open session, then shows the PIN and how many guests are
-  connected; *Join* browses the LAN (or takes an address) and pairs with the
-  PIN. Guests' prompts run on a scene-only agent, as with `localgpt-gen
-  --host`.
+- **Collaborative sessions** are hosted and joined from `localgpt-gen` with
+  `--host` and `--join`; the app has no controls for them.
 - **Logs** go to `~/.local/state/localgpt/logs/localgpt-app.log` when there
   is no terminal.
 
-Keys: **F2** the prompt panel, **F3** the document pane, **F1** Gen's
-inspector. **Enter** in the 3D view jumps to the prompt box and **Esc** leaves
-it, so WASD moves you again; while you type, keys don't reach the world.
+While a terminal or the editor has focus, keys don't reach the world; click
+the viewport and WASD moves you again.
 
 ## Build the macOS app
 
@@ -49,9 +43,8 @@ open apps/app-desktop/dist/LocalGPT.app
 ```
 
 The release build uses the workspace's fat LTO profile, so the first one is
-slow. On Apple Silicon it builds with `local-llm-metal`, so the bundle can run
-a local GGUF on the GPU; `APP_FEATURES` overrides the feature list (empty for
-none). The script renders the icon from `website/static/logo/localgpt-icon.svg`
+slow. It builds the app with no optional features; `APP_FEATURES` passes a
+feature list to cargo. The script renders the icon from `website/static/logo/localgpt-icon.svg`
 and writes `Info.plist` (bundle id `app.localgpt.desktop`, with the
 local-network usage string and Bonjour service collaborative sessions need).
 
@@ -68,9 +61,10 @@ APPLE_NOTARY_PROFILE=localgpt-notary \
   apps/app-desktop/macos/build-app.sh
 ```
 
-The shared downloads — the CC0 asset pack and, for local models, the GGUF —
-are not in the bundle; `scripts/fetch-assets.sh` and `scripts/fetch-model.sh`
-fetch them once per machine for every LocalGPT app.
+The CC0 asset pack is not in the bundle; `scripts/fetch-assets.sh` fetches it
+once per machine for every LocalGPT app (`scripts/fetch-model.sh` likewise
+fetches the GGUF that MD's and Verse's own `llm` builds read; the app does
+not).
 
 ## Release
 
@@ -127,7 +121,7 @@ install -Dm644 website/static/logo/localgpt-icon.svg \
   it was written — and neither has the workflow: the first `desktop-v` tag
   is its first run.
 - **Windows and Linux packages.** No Windows installer or Linux AppImage
-  yet, and `local-llm-metal` is macOS-only: those builds need `local-llm`
-  (CPU) or a GPU backend chosen per platform.
+  yet, and the page is macOS's for now: there the window shows the world
+  alone.
 - **A proper app icon.** QuickLook flattens the SVG onto white; a real macOS
   icon wants a designed rounded-square tile.

@@ -1,34 +1,25 @@
-//! LocalGPT Gen — AI-driven 3D scene generation binary.
+//! LocalGPT Gen — the world builder's binary.
 //!
-//! This binary runs Bevy on the main thread (required for macOS windowing/GPU)
-//! and spawns the LLM agent loop on a background tokio runtime.
+//! Bevy runs on the main thread (macOS windowing and GPU want it); the tool
+//! server runs on a tokio thread beside it. No model runs here and no key is
+//! held: an agent outside the window drives the scene through MCP —
+//! `--mcp-relay` beside the window with `mcp-server --connect` as the
+//! agent's process, or `mcp-server` alone as the agent's own process — or
+//! through a live package's API (`--live`).
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use std::io::IsTerminal as _;
 use std::path::{Path, PathBuf};
 
-// Use library modules
-use localgpt_gen::agent_loop::{
-    AgentNetHooksOpt, run_agent_loop, run_mcp_stdio_relay, streaming_chat,
-};
-use localgpt_gen::character_tools;
 use localgpt_gen::gen3d;
 use localgpt_gen::mcp_server;
 
 #[derive(Parser)]
 #[command(name = "localgpt-gen")]
-#[command(about = "LocalGPT Gen — AI-driven 3D scene generation")]
+#[command(about = "LocalGPT Gen — the world builder, driven by agents outside the window")]
 struct Cli {
     #[command(subcommand)]
     command: Option<GenSubcommand>,
-
-    /// Initial prompt (interactive mode only)
-    prompt: Option<String>,
-
-    /// Agent ID to use
-    #[arg(short, long, global = true, default_value = "gen")]
-    agent: String,
 
     /// Enable verbose logging
     #[arg(short, long, global = true)]
@@ -45,22 +36,13 @@ struct Cli {
     #[arg(long, global = true, value_name = "PATH|URL")]
     world: Option<String>,
 
-    /// Tool profile for the generation agent: "core" keeps only the 22
-    /// scene-editing essentials (~3.8k tokens of schema, for local models
-    /// with small context windows — the full toolbelt is 77 gen tools,
-    /// ~14k tokens per request), "standard" adds meshes/exports/audio/
-    /// terrain and the WorldGen pipeline (~9.4k), "full" (default) keeps
-    /// everything. Overrides [gen] tool_profile in config.toml.
-    #[arg(long, global = true, value_name = "core|standard|full")]
-    tools: Option<String>,
-
-    /// Enable MCP relay server for external MCP clients (a coding agent, an
-    /// editor), which reach this window through `mcp-server --connect`.
+    /// Serve the MCP relay beside the window, so an MCP client (a coding
+    /// agent, an editor) drives this window through `mcp-server --connect`.
     #[arg(long, global = true)]
     mcp_relay: bool,
 
     /// Host a collaborative session on the LAN (listen server + mDNS
-    /// announcement). Others join as read-only viewers with --join.
+    /// announcement). Others join as viewers with --join.
     #[cfg(feature = "multiplayer")]
     #[arg(long, group = "net_mode")]
     host: bool,
@@ -94,25 +76,16 @@ struct Cli {
     #[arg(long, requires = "host")]
     open: bool,
 
-    /// What connected clients' prompts may do (with --host). `safe`
-    /// (default): a separate agent with scene-editing tools only — no
-    /// shell, files, memory, web, or disk writes. `full`: the host's own
-    /// agent with all of its tools, including shell access.
-    #[cfg(feature = "multiplayer")]
-    #[arg(long, requires = "host", value_enum, default_value_t = RemoteTools::Safe)]
-    remote_tools: RemoteTools,
-
     /// Let browsers join as guests (with --host): serve a join page and a
     /// WebSocket endpoint on the session port, and print an invite link.
-    /// Guests watch, walk, chat and prompt the room's AI; they can't edit
-    /// directly.
+    /// Guests watch, walk and chat; they can't edit directly.
     #[cfg(feature = "multiplayer")]
     #[arg(long, requires = "host")]
     web: bool,
 
-    /// Let browser guests EDIT directly, not just prompt (with --web):
-    /// they join as editors and can select, move, rotate, scale and
-    /// delete entities from the join page.
+    /// Let browser guests EDIT directly (with --web): they join as editors
+    /// and can select, move, rotate, scale and delete entities from the join
+    /// page.
     #[cfg(feature = "multiplayer")]
     #[arg(long, requires = "web")]
     web_edit: bool,
@@ -143,8 +116,8 @@ struct Cli {
     out: Option<PathBuf>,
 
     /// Replay a session as a time-lapse in the window: the world rebuilds
-    /// itself batch by batch. No agent, no session. Pass a session name,
-    /// a package directory, an ops.jsonl path, or a .world archive.
+    /// itself batch by batch. Pass a session name, a package directory, an
+    /// ops.jsonl path, or a .world archive.
     #[arg(long)]
     replay: Option<String>,
 
@@ -152,10 +125,9 @@ struct Cli {
     #[arg(long, requires = "replay", default_value_t = 4.0)]
     replay_speed: f32,
 
-    /// Open a folder holding a world's manifest.json as a live canvas
-    /// (proof of concept): agents change it from outside through ops sent
-    /// to a local API, as the folder's AGENTS.md describes. No agent runs
-    /// in the window.
+    /// Open a folder holding a world's manifest.json as a live canvas:
+    /// agents change it from outside through ops sent to a local API, as
+    /// the folder's AGENTS.md describes.
     #[arg(long)]
     live: Option<PathBuf>,
 
@@ -165,72 +137,25 @@ struct Cli {
     review: bool,
 }
 
-/// Tool access for prompts from collaborative clients (`--remote-tools`).
-#[cfg(feature = "multiplayer")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-enum RemoteTools {
-    Safe,
-    Full,
-}
-
 #[derive(Subcommand)]
 enum GenSubcommand {
-    /// Run as MCP server (stdio) — Bevy window + gen tools over MCP
+    /// Run as an MCP server (stdio) — the Bevy window plus the gen tools
+    /// over MCP, as the agent's own process
     McpServer {
         /// Run headless (no window) — for CI or batch generation via MCP
         #[arg(long)]
         headless: bool,
 
-        /// Connect to an existing gen process's MCP relay instead of starting Bevy.
-        /// Pass the relay port (e.g., 9878) or omit to auto-discover.
+        /// Connect to a running window's MCP relay (`--mcp-relay`) instead
+        /// of starting Bevy. Pass the relay port (e.g., 9878) or omit to
+        /// auto-discover.
         #[arg(long)]
         connect: Option<Option<u16>>,
 
-        /// Also start a streamable HTTP MCP server on this port.
-        /// External tools can POST JSON-RPC to http://127.0.0.1:<port>/mcp.
+        /// Also serve the MCP streamable HTTP transport on this port:
+        /// JSON-RPC at http://127.0.0.1:<port>/mcp.
         #[arg(long)]
         mcp_http: Option<u16>,
-    },
-    /// Control an external avatar (headless, no Bevy window)
-    Control {
-        /// URL of the external app
-        url: String,
-        /// Initial prompt
-        prompt: Option<String>,
-    },
-    /// Headless generation — generate a world without opening a window
-    Headless {
-        /// Generation prompt (required)
-        #[arg(long)]
-        prompt: String,
-
-        /// Output world skill directory (default: auto-named in workspace/skills/)
-        #[arg(long)]
-        output: Option<String>,
-
-        /// Capture a thumbnail after generation (default: true)
-        #[arg(long, default_value = "true")]
-        screenshot: bool,
-
-        /// Screenshot width in pixels
-        #[arg(long, default_value = "1280")]
-        screenshot_width: u32,
-
-        /// Screenshot height in pixels
-        #[arg(long, default_value = "720")]
-        screenshot_height: u32,
-
-        /// Max generation time before abort (seconds, default: 300)
-        #[arg(long, default_value = "300")]
-        timeout: u64,
-
-        /// Override LLM model for this run
-        #[arg(long)]
-        model: Option<String>,
-
-        /// Style hint prepended to prompt
-        #[arg(long)]
-        style: Option<String>,
     },
 }
 
@@ -246,58 +171,20 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // `gguf/<name>` models run in-process (see src/local_llm.rs); register
-    // the provider before any agent is created.
-    #[cfg(feature = "local-llm")]
-    localgpt_gen::local_llm::register();
-
-    // Initialize logging before handing off to Bevy.
-    // Use "warn" by default for cleaner interactive TUI, "debug" with --verbose.
-    //
-    // For the interactive Bevy+REPL mode (no subcommand), we grab a rustyline
-    // editor up front so its ExternalPrinter can route tracing output through
-    // the REPL — async warnings (Bevy render, Ollama, etc.) no longer clobber
-    // the `You:` prompt mid-typing. Other subcommands (headless, mcp-server,
-    // control) have no REPL to protect, so they log straight to stderr.
+    // Logs go to stderr: stdout is the transport while `mcp-server` serves.
     let log_level = if cli.verbose { "debug" } else { "warn" };
-    let mut repl_editor: Option<rustyline::DefaultEditor> = None;
-    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level));
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level)),
+        )
+        .with_writer(std::io::stderr)
+        .init();
 
-    if cli.command.is_none() {
-        let wired = rustyline::DefaultEditor::new()
-            .ok()
-            .and_then(|mut ed| ed.create_external_printer().ok().map(|p| (ed, p)));
-        if let Some((ed, printer)) = wired {
-            tracing_subscriber::fmt()
-                .with_env_filter(env_filter)
-                .with_writer(localgpt_gen::tracing_printer::SharedPrinter::new(printer))
-                .init();
-            repl_editor = Some(ed);
-        } else {
-            // No tty / headless stdin — fall back to stderr.
-            tracing_subscriber::fmt()
-                .with_env_filter(env_filter)
-                .with_writer(std::io::stderr)
-                .init();
-        }
-    } else {
-        tracing_subscriber::fmt()
-            .with_env_filter(env_filter)
-            .with_writer(std::io::stderr)
-            .init();
-    }
-
-    // Gen's configuration is built in memory from its own settings — no
-    // config.toml is read, and none is created.
-    let (config, settings) = localgpt_gen::config::gen_config_and_settings();
-    let workspace = config.workspace_path();
-
-    // Tool profile: --tools flag > Gen's settings > full.
-    let tool_profile = gen3d::tool_profile::ToolProfile::resolve(
-        cli.tools.as_deref(),
-        settings.tool_profile.as_deref(),
-    )?;
+    // Gen's configuration is its directories: no config file is read, and
+    // none is created.
+    let config = localgpt_gen::config::gen_config();
+    let workspace = config.workspace.clone();
 
     // --export-session: zip a session's package into the transport form.
     if let Some(session) = cli.export_session.as_deref() {
@@ -347,7 +234,7 @@ fn main() -> Result<()> {
         );
     }
 
-    // --live: a canvas for a world agents change from outside — no agent here.
+    // --live: a canvas for a world agents change from outside.
     if let Some(dir) = cli.live.clone() {
         let (_bridge, channels) = gen3d::create_gen_channels();
         return run_bevy_app(
@@ -366,134 +253,43 @@ fn main() -> Result<()> {
         if cli.command.is_some() {
             anyhow::bail!("--join cannot be combined with a subcommand");
         }
-        return run_join_mode(&cli, &config);
+        return run_join_mode(&cli, &workspace);
     }
     #[cfg(feature = "multiplayer")]
     if cli.host && cli.command.is_some() {
         anyhow::bail!("--host cannot be combined with a subcommand");
     }
 
-    // Dispatch based on subcommand
     match cli.command {
-        Some(GenSubcommand::Control { url, prompt }) => {
-            // Headless bridge mode — no Bevy window
-            tracing::info!("Starting Gen in CONTROL mode (headless) -> {}", url);
-            let agent_id = cli.agent;
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .expect("Failed to build tokio runtime");
-
-            rt.block_on(
-                async move { run_headless_control_loop(&url, &agent_id, prompt, config).await },
-            )
-        }
-
-        Some(GenSubcommand::Headless {
-            prompt,
-            output,
-            screenshot,
-            screenshot_width,
-            screenshot_height,
-            timeout,
-            model,
-            style,
-        }) => {
-            // Headless generation mode — no window, generate and exit
-            let headless_config = gen3d::headless::HeadlessConfig {
-                prompt,
-                output,
-                screenshot,
-                screenshot_width,
-                screenshot_height,
-                timeout_secs: timeout,
-                agent_id: cli.agent,
-                model,
-                style,
-            };
-
-            tracing::info!("Starting headless generation: {:?}", headless_config.prompt);
-
-            let (bridge, channels) = gen3d::create_gen_channels();
-            let completion_flag = gen3d::headless::HeadlessCompletionFlag::default();
-            let flag_for_agent = completion_flag.clone();
-            let flag_for_timeout = completion_flag.clone();
-            let agent_config = config.clone();
-
-            // Spawn timeout watchdog
-            let timeout_secs = headless_config.timeout_secs;
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(timeout_secs));
-                if !flag_for_timeout.is_done() {
-                    tracing::error!("Headless generation timed out after {}s", timeout_secs);
-                    flag_for_timeout.complete_failure();
-                }
-            });
-
-            // Spawn agent loop on background thread
-            let bridge_for_agent = bridge.clone();
-            std::thread::spawn(move || {
-                let rt = tokio::runtime::Builder::new_multi_thread()
-                    .enable_all()
-                    .build()
-                    .expect("Failed to build tokio runtime for headless gen");
-
-                rt.block_on(async move {
-                    match run_headless_agent(
-                        bridge_for_agent,
-                        headless_config,
-                        agent_config,
-                        tool_profile,
-                    )
-                    .await
-                    {
-                        Ok(()) => flag_for_agent.complete_success(),
-                        Err(e) => {
-                            tracing::error!("Headless generation failed: {}", e);
-                            flag_for_agent.complete_failure();
-                        }
-                    }
-                });
-            });
-
-            // Run headless Bevy on the main thread
-            let result = run_headless_bevy_app(channels, workspace, completion_flag.clone(), None);
-
-            // Map exit code based on success/failure
-            if !completion_flag.is_success() {
-                std::process::exit(1);
-            }
-
-            result
-        }
-
         Some(GenSubcommand::McpServer {
             headless,
             connect,
             mcp_http,
         }) => {
-            // --connect mode: relay stdio MCP to an existing gen process's TCP relay
+            // --connect: this process is the stdio end of a running window's
+            // relay, nothing more.
             if let Some(port_opt) = connect {
                 let port = port_opt
                     .or_else(gen3d::mcp_relay::read_relay_port)
                     .ok_or_else(|| {
                         anyhow::anyhow!(
                             "No relay port specified and no running gen process found.\n\
-                             Start localgpt-gen first, or pass --connect <port>."
+                             Start `localgpt-gen --mcp-relay` first, or pass --connect <port>."
                         )
                     })?;
 
-                tracing::info!("Connecting to existing gen process relay on port {}", port);
+                tracing::info!("Connecting to the gen window's relay on port {}", port);
 
                 let rt = tokio::runtime::Builder::new_multi_thread()
                     .enable_all()
                     .build()
                     .expect("Failed to build tokio runtime");
 
-                return rt.block_on(run_mcp_stdio_relay(port));
+                return rt.block_on(gen3d::mcp_relay::run_stdio_relay(port));
             }
 
-            // MCP server mode: Bevy on main thread, MCP stdio server on background thread
+            // MCP server mode: Bevy on the main thread, the stdio server on a
+            // background thread.
             let initial_scene = if headless {
                 None
             } else {
@@ -505,12 +301,10 @@ fn main() -> Result<()> {
 
             let (bridge, channels) = gen3d::create_gen_channels();
             let bridge_for_mcp = bridge.clone();
-            let mcp_config = config.clone();
 
-            // Optionally start the MCP HTTP server on a separate thread
+            // Optionally serve the HTTP transport on a thread of its own.
             if let Some(http_port) = mcp_http {
                 let bridge_for_http = bridge.clone();
-                let http_config = config.clone();
                 std::thread::spawn(move || {
                     let rt = tokio::runtime::Builder::new_multi_thread()
                         .enable_all()
@@ -519,8 +313,7 @@ fn main() -> Result<()> {
 
                     rt.block_on(async move {
                         if let Err(e) =
-                            mcp_server::run_mcp_http_server(bridge_for_http, http_config, http_port)
-                                .await
+                            mcp_server::run_mcp_http_server(bridge_for_http, http_port).await
                         {
                             tracing::error!("MCP HTTP server error: {}", e);
                         }
@@ -535,15 +328,14 @@ fn main() -> Result<()> {
                     .expect("Failed to build tokio runtime for MCP server");
 
                 rt.block_on(async move {
-                    if let Err(e) = mcp_server::run_mcp_server(bridge_for_mcp, mcp_config).await {
+                    if let Err(e) = mcp_server::run_mcp_server(bridge_for_mcp).await {
                         tracing::error!("MCP server error: {}", e);
                     }
-                    // MCP client disconnected — exit the process
+                    // The MCP client went away: so does the window.
                     std::process::exit(0);
                 });
             });
 
-            // Run Bevy on the main thread (headless or windowed)
             if headless {
                 let completion_flag = gen3d::headless::HeadlessCompletionFlag::default();
                 run_headless_bevy_app(channels, workspace, completion_flag, initial_world)
@@ -560,17 +352,8 @@ fn main() -> Result<()> {
         }
 
         None => {
-            // Interactive mode (default). Gen alone takes its prompts from
-            // the terminal it was started in; the windowed app without one
-            // is LocalGPT.app (`localgpt-app`), whose interface is a page
-            // with the agents' own terminals in it. (`--live` and `--replay`
-            // have returned above: a canvas needs no prompt.)
-            if !std::io::stdin().is_terminal() {
-                anyhow::bail!(
-                    "localgpt-gen takes its prompts from a terminal; the windowed app is \
-                     localgpt-app (LocalGPT.app)"
-                );
-            }
+            // The window alone. With --mcp-relay an MCP client outside drives
+            // it; `--live` and `--replay` have returned above.
             let initial_scene = cli
                 .scene
                 .as_ref()
@@ -578,112 +361,64 @@ fn main() -> Result<()> {
             let initial_world = startup_world(cli.world.as_deref(), &workspace)?;
 
             let (bridge, channels) = gen3d::create_gen_channels();
-            let agent_id = cli.agent;
-            let initial_prompt = cli.prompt;
-            let bridge_for_agent = bridge.clone();
-            let bridge_for_relay = bridge.clone();
-            let relay_config = config.clone();
-
-            // The agent's events have no panel to go to: the terminal is the
-            // conversation. Its prompts come from the REPL alone.
-            let (_no_panel, agent_channels) = localgpt_gen::desktop::create_chat_channels();
-
-            // The host plugin is always installed; `--host` starts a session
-            // before the first frame. Until then it stays dormant.
-            #[cfg(feature = "multiplayer")]
-            let (host_options, agent_net): (
-                localgpt_gen::net::host::NetHostOptions,
-                AgentNetHooksOpt,
-            ) = {
-                let (mut opts, hooks) = localgpt_gen::net::host::create_host_channels();
-                opts.session_name = cli
-                    .session_name
-                    .clone()
-                    .unwrap_or_else(localgpt_gen::net::default_session_name);
-                opts.port = cli.port;
-                opts.open = cli.open;
-                opts.full_access = cli.host && cli.remote_tools == RemoteTools::Full;
-                opts.autostart = cli.host;
-                opts.web = cli.web;
-                opts.web_edit = cli.web_edit;
-                opts.resume = cli.resume.clone();
-                opts.relay = cli.relay.clone();
-                if opts.full_access {
-                    eprintln!(
-                        "WARNING: --remote-tools full — connected clients' prompts run with this \
-                         agent's full tool access, including shell commands on this machine."
-                    );
-                }
-                (opts, Some(hooks))
-            };
-            #[cfg(not(feature = "multiplayer"))]
-            let agent_net: AgentNetHooksOpt = None;
-
             let enable_relay = cli.mcp_relay;
 
-            // Spawn tokio runtime + agent loop + MCP relay on a background thread
-            // (Bevy must own the main thread for windowing/GPU on macOS).
-            // Move the REPL editor into the agent thread — it was created up
-            // front so its ExternalPrinter could be wired into tracing.
-            let editor_for_agent = repl_editor.take();
-            std::thread::spawn(move || {
-                let rt = tokio::runtime::Builder::new_multi_thread()
-                    .enable_all()
-                    .build()
-                    .expect("Failed to build tokio runtime for gen agent");
+            #[cfg(feature = "multiplayer")]
+            let host_options = {
+                let mut opts = localgpt_gen::net::host::NetHostOptions {
+                    session_name: cli
+                        .session_name
+                        .clone()
+                        .unwrap_or_else(localgpt_gen::net::default_session_name),
+                    port: cli.port,
+                    open: cli.open,
+                    autostart: cli.host,
+                    web: cli.web,
+                    web_edit: cli.web_edit,
+                    resume: cli.resume.clone(),
+                    relay: cli.relay.clone(),
+                };
+                if !cli.host {
+                    opts = localgpt_gen::net::host::NetHostOptions {
+                        session_name: opts.session_name,
+                        ..Default::default()
+                    };
+                }
+                opts
+            };
 
-                let outcome = rt.block_on(async move {
-                    if enable_relay {
-                        // Start the MCP relay server so external MCP clients can
-                        // connect to the existing Bevy window instead of spawning a new one.
-                        match gen3d::mcp_relay::start_mcp_relay(
-                            bridge_for_relay,
-                            &relay_config,
-                        )
-                        .await
-                        {
-                            Ok(port) => {
-                                eprintln!(
-                                    "MCP relay active on port {} (external MCP clients can connect to this window)",
-                                    port
-                                );
-                            }
-                            Err(e) => {
-                                tracing::warn!("MCP relay failed to start: {} (external MCP clients won't be able to connect)", e);
-                            }
+            if enable_relay {
+                // The relay on a tokio thread (Bevy must own the main thread
+                // for windowing and the GPU on macOS).
+                std::thread::spawn(move || {
+                    let rt = tokio::runtime::Builder::new_multi_thread()
+                        .enable_all()
+                        .build()
+                        .expect("Failed to build tokio runtime for the MCP relay");
+                    rt.block_on(async move {
+                        match gen3d::mcp_relay::start_mcp_relay(bridge).await {
+                            Ok(port) => eprintln!(
+                                "MCP relay active on port {port} (external MCP clients can \
+                                 connect to this window)"
+                            ),
+                            Err(e) => tracing::warn!(
+                                "MCP relay failed to start: {e} (external MCP clients won't \
+                                 be able to connect)"
+                            ),
                         }
-                    }
-
-                    run_agent_loop(
-                        bridge_for_agent,
-                        &agent_id,
-                        initial_prompt,
-                        relay_config,
-                        editor_for_agent,
-                        agent_net,
-                        agent_channels,
-                        false,
-                        tool_profile,
-                    )
-                    .await
+                        // Keep the runtime, and the relay's tasks, alive.
+                        std::future::pending::<()>().await;
+                    });
                 });
+            } else {
+                eprintln!(
+                    "localgpt-gen: nothing drives this window — run it with --mcp-relay for \
+                     an MCP client, `mcp-server` as an agent's own process, or --live <world> \
+                     for a package's API"
+                );
+            }
 
-                if let Err(e) = outcome {
-                    tracing::error!("Gen agent loop error: {}", e);
-                }
-
-                // REPL exited (/quit, Ctrl+D, or error). The Bevy window is
-                // still blocking the main thread, so the process would hang
-                // here without an explicit exit. Clean up the relay port
-                // (duplicated from the main-thread cleanup below because we
-                // won't reach it) and terminate.
-                if enable_relay {
-                    gen3d::mcp_relay::cleanup_relay_port();
-                }
-                std::process::exit(0);
-            });
-
-            // Run Bevy on the main thread (blocks until window closes)
+            // Run Bevy on the main thread (blocks until the window closes)
             #[cfg(feature = "multiplayer")]
             let result = run_host_bevy_app(
                 channels,
@@ -702,7 +437,7 @@ fn main() -> Result<()> {
                 None,
             );
 
-            // Clean up relay port file so stale ports aren't discovered
+            // Clean up the relay port file so stale ports aren't discovered
             if enable_relay {
                 gen3d::mcp_relay::cleanup_relay_port();
             }
@@ -935,9 +670,9 @@ fn fetch_session_info(addr: &std::net::SocketAddr) -> Result<SessionInfoWire> {
     })
 }
 
-/// The session PIN from --pin, the env hand-off, or an interactive prompt
-/// (three attempts isn't meaningful against a bearer secret — the host
-/// refuses and closes on a wrong one).
+/// The session PIN from --pin, the env hand-off, or a line typed at the
+/// terminal (three attempts isn't meaningful against a bearer secret — the
+/// host refuses and closes on a wrong one).
 #[cfg(feature = "multiplayer")]
 fn resolve_session_pin(pin_arg: Option<&str>) -> Result<String> {
     if let Some(pin) = pin_arg {
@@ -951,15 +686,17 @@ fn resolve_session_pin(pin_arg: Option<&str>) -> Result<String> {
             return Ok(pin);
         }
     }
-    let mut rl = rustyline::DefaultEditor::new()?;
-    let pin = rl.readline("Session PIN (shown on the host's console): ")?;
+    eprint!("Session PIN (shown on the host's console): ");
+    let mut pin = String::new();
+    std::io::stdin().read_line(&mut pin)?;
     Ok(localgpt_gen::net::normalize_pin(&pin))
 }
 
 /// `--join` mode: resolve the host address (mDNS browse when unspecified),
 /// fetch session info, and run the ops client app.
 #[cfg(feature = "multiplayer")]
-fn run_join_mode(cli: &Cli, config: &localgpt_core::config::Config) -> Result<()> {
+fn run_join_mode(cli: &Cli, workspace: &Path) -> Result<()> {
+    use std::io::BufRead as _;
     use std::net::SocketAddr;
 
     let addr: SocketAddr = match cli.join.clone().flatten() {
@@ -1000,39 +737,32 @@ fn run_join_mode(cli: &Cli, config: &localgpt_core::config::Config) -> Result<()
         None
     };
 
+    // Lines typed at the terminal are chat to the room (and `/stats`,
+    // `/quit`); they flow to the ops client on a background thread.
     let (prompt_tx, prompt_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-    let workspace = config.workspace_path();
-
-    // Prompt REPL on a background thread — lines flow to the ops client.
     std::thread::spawn(move || {
-        let Ok(mut rl) = rustyline::DefaultEditor::new() else {
-            eprintln!("Failed to open input editor — prompts unavailable");
-            return;
-        };
-        loop {
-            match rl.readline("You: ") {
-                Ok(line) => {
-                    let text = line.trim().to_string();
-                    if !text.is_empty() {
-                        let _ = prompt_tx.send(text);
-                    }
-                }
-                Err(_) => {
-                    // Ctrl+D or editor error — the Bevy window keeps running;
-                    // exiting the process is the only way out of the REPL.
-                    std::process::exit(0);
-                }
+        let stdin = std::io::stdin();
+        for line in stdin.lock().lines() {
+            let Ok(line) = line else {
+                break;
+            };
+            let text = line.trim().to_string();
+            if !text.is_empty() && prompt_tx.send(text).is_err() {
+                break;
             }
         }
+        // Ctrl+D: the Bevy window keeps running; exiting the process is the
+        // only way out of the terminal.
+        std::process::exit(0);
     });
 
-    run_ops_client_app(addr, pin, prompt_rx, workspace)
+    run_ops_client_app(addr, pin, prompt_rx, workspace.to_path_buf())
 }
 
 /// Set up and run headless Bevy (no window) on the main thread.
 ///
 /// Headless mode uses DefaultPlugins without a primary window, and adds
-/// the completion detector system that exits when the agent is done.
+/// the completion detector system that exits when the flag is set.
 fn run_headless_bevy_app(
     channels: gen3d::GenChannels,
     workspace: std::path::PathBuf,
@@ -1077,207 +807,6 @@ fn run_headless_bevy_app(
     });
 
     app.run();
-
-    Ok(())
-}
-
-/// Run the headless generation agent — generates a world and exits.
-async fn run_headless_agent(
-    bridge: std::sync::Arc<gen3d::GenBridge>,
-    headless_config: gen3d::headless::HeadlessConfig,
-    config: localgpt_core::config::Config,
-    tool_profile: gen3d::tool_profile::ToolProfile,
-) -> Result<()> {
-    use localgpt_core::agent::Agent;
-    use localgpt_core::agent::tools::create_safe_tools;
-    use localgpt_core::memory::MemoryManager;
-    use std::sync::Arc;
-
-    let agent_id = &headless_config.agent_id;
-
-    // Set up memory
-    // new_with_full_config, not new_with_agent: the latter drops config.paths
-    // and re-resolves from the environment, which would silently put Gen back
-    // in the assistant's workspace.
-    let memory = MemoryManager::new_with_full_config(&config.memory, Some(&config), agent_id)?;
-    let memory = Arc::new(memory);
-
-    // Create safe tools + gen tools (no CLI tools needed in headless).
-    // memory_save / memory_log come too: GEN_MEMORY_PROMPT below tells the
-    // model to use them, so they have to exist (they did only in the MCP
-    // server path, leaving the prompt pointing at missing tools).
-    let mut tools = create_safe_tools(&config, Some(memory.clone()))?;
-    tools.extend(localgpt_core::mcp::memory_tools::create_memory_write_tools(
-        config.workspace_path(),
-    ));
-    tools.extend(gen3d::tools::create_gen_tools(bridge.clone()));
-    tools.extend(localgpt_gen::mcp::avatar_tools::create_character_tools(
-        bridge.clone(),
-    ));
-    tools.extend(localgpt_gen::mcp::interaction_tools::create_interaction_tools(bridge.clone()));
-    tools.extend(localgpt_gen::mcp::terrain_tools::create_terrain_tools(
-        bridge.clone(),
-    ));
-    tools.extend(localgpt_gen::mcp::ui_tools::create_ui_tools(bridge.clone()));
-    tools.extend(localgpt_gen::mcp::physics_tools::create_physics_tools(
-        bridge.clone(),
-    ));
-    tools.extend(localgpt_gen::mcp::multifile_tools::create_multifile_tools(
-        bridge.clone(),
-    ));
-    tools = gen3d::tool_profile::apply_tool_profile(tools, tool_profile);
-    if tool_profile != gen3d::tool_profile::ToolProfile::Full {
-        tracing::info!(
-            "tool profile '{tool_profile}': {} tools active",
-            tools.len()
-        );
-    }
-
-    // Configure agent
-    let mut config = config;
-    config.agent.max_tool_repeats = config.agent.max_tool_repeats.max(20);
-
-    if let Some(ref model) = headless_config.model {
-        config.agent.default_model = model.clone();
-    }
-
-    // Create agent
-    let mut agent = Agent::new_with_tools(config.clone(), agent_id, memory, tools)?;
-    agent.new_session().await?;
-
-    // Inject gen-specific memory guidance
-    agent.add_user_message(gen3d::system_prompt::GEN_MEMORY_PROMPT);
-
-    // Build effective prompt
-    let effective_prompt = format!(
-        "{}\n\n{}",
-        gen3d::system_prompt::HEADLESS_EXPERIMENT_PROMPT,
-        headless_config.effective_prompt()
-    );
-
-    eprintln!("Generating: {}", headless_config.prompt);
-
-    // Generate the world
-    let response = agent.chat(&effective_prompt).await?;
-
-    let response_preview = localgpt_gen::experiment::prompt_preview(&response, 200);
-    tracing::info!("Agent response: {}", response_preview);
-
-    // Save the world
-    let world_name = headless_config
-        .output
-        .as_deref()
-        .map(|p| {
-            std::path::Path::new(p)
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string()
-        })
-        .unwrap_or_else(|| localgpt_gen::experiment::prompt_to_slug(&headless_config.prompt));
-
-    let save_prompt = format!(
-        "Save this world with gen_save_world. Name: \"{}\"",
-        world_name
-    );
-    let _save_response = agent.chat(&save_prompt).await?;
-
-    eprintln!("World saved: {}", world_name);
-
-    Ok(())
-}
-
-/// Run the interactive agent loop in headless control mode.
-async fn run_headless_control_loop(
-    url: &str,
-    agent_id: &str,
-    initial_prompt: Option<String>,
-    config: localgpt_core::config::Config,
-) -> Result<()> {
-    use localgpt_core::agent::tools::create_safe_tools;
-    use localgpt_core::agent::{Agent, create_spawn_agent_tool};
-    use localgpt_core::memory::MemoryManager;
-    use rustyline::DefaultEditor;
-    use rustyline::error::ReadlineError;
-    use std::sync::Arc;
-
-    // Set up memory
-    // new_with_full_config, not new_with_agent: the latter drops config.paths
-    // and re-resolves from the environment, which would silently put Gen back
-    // in the assistant's workspace.
-    let memory = MemoryManager::new_with_full_config(&config.memory, Some(&config), agent_id)?;
-    let memory = Arc::new(memory);
-
-    // Create safe tools + character tools pointing to the external URL
-    let mut tools = create_safe_tools(&config, Some(memory.clone()))?;
-    tools.extend(character_tools::create_avatar_tools());
-    tools.extend(vec![create_spawn_agent_tool(
-        config.clone(),
-        memory.clone(),
-    )]);
-
-    // Create agent with combined tools
-    let mut agent = Agent::new_with_tools(config.clone(), agent_id, memory, tools)?;
-    agent.new_session().await?;
-
-    // Inject instructions for avatar control
-    let instructions = r#"
-You are controlling an avatar in an external 3D application.
-Your goal is to explore the world and execute user commands.
-
-You have access to `avatar_tools` to:
-- Get state (`get_avatar_state`)
-- Move (`move_avatar`)
-- Look (`look_avatar`)
-- Teleport (`teleport_avatar`)
-
-Use `get_avatar_state` frequently to understand your position.
-"#;
-    agent.add_user_message(instructions);
-
-    println!("Connected to external avatar control at {}", url);
-
-    // If initial prompt given, send it
-    if let Some(prompt) = initial_prompt {
-        println!("\n> {}", prompt);
-        streaming_chat(&mut agent, &prompt, None).await?;
-        println!();
-    }
-
-    // Interactive loop
-    let mut rl = DefaultEditor::new()?;
-    loop {
-        let readline = rl.readline("Avatar> ");
-
-        let input = match readline {
-            Ok(line) => line,
-            Err(ReadlineError::Interrupted) => {
-                println!("^C");
-                continue;
-            }
-            Err(ReadlineError::Eof) => {
-                break; // Ctrl+D
-            }
-            Err(err) => {
-                eprintln!("Error: {:?}", err);
-                break;
-            }
-        };
-
-        let input = input.trim();
-        if input.is_empty() {
-            continue;
-        }
-
-        let _ = rl.add_history_entry(input);
-
-        if input == "/quit" || input == "/exit" || input == "/q" {
-            break;
-        }
-
-        streaming_chat(&mut agent, input, None).await?;
-        println!();
-    }
 
     Ok(())
 }

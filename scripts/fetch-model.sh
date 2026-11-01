@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Fetch the local LLM that MD, Verse and Gen share (their `llm` features).
+# Fetch the local LLM that MD and Verse share (their opt-in `llm` features;
+# nothing else in LocalGPT runs a model).
 #
 # Default model: Bonsai-8B Q4_K_M (~5.2 GB, Apache-2.0). Runtime-verified on
 # Apple Silicon via the `llm-metal` feature (~25 tok/s plain generation).
@@ -22,7 +23,7 @@
 #
 # Shared model directory: the model goes to ~/.local/share/localgpt/models/llm
 # ($LOCALGPT_LLM_DIR overrides; $XDG_DATA_HOME moves the base), the directory
-# MD, Verse and Gen all read, so one ~5 GB download serves every app. Keep in
+# MD and Verse both read, so one ~5 GB download serves both. Keep in
 # step with localgpt-world-agent's `paths::shared_llm_dir`.
 # A copy already in this repo's assets/llm/ (where this script used to put it)
 # is moved there instead of being downloaded again.

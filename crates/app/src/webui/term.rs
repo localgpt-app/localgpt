@@ -1,16 +1,17 @@
-//! The agents' terminals: one PTY per tab, its bytes passed to xterm.js.
+//! The terminals: one PTY per tab, its bytes passed to xterm.js.
 //!
-//! A tab runs the user's login shell, or an agent's command inside it
-//! (`$SHELL -l -i -c 'exec claude'`), so the agent finds the PATH and the
-//! keys the user's own terminal gives it: the app knows a command's name and
-//! nothing else about an agent — no models, no keys, no config.
+//! A tab runs the user's login shell in the folder of what is open. What
+//! runs in it — a coding agent, a script, nothing — is the person's: the
+//! app knows no agent's name, model, key or configuration, and treats no
+//! program differently from another. A tab started in a live world's folder
+//! carries the folder in `LOCALGPT_WORLD_DIR`, so `localgpt world` and its
+//! MCP shim find the world from wherever a program in it goes.
 //!
 //! Every page attached to the app sees every tab — the window's, and a paired
 //! device's (`remote.rs`) — so each tab keeps its screen as a terminal would
 //! (`vt100`), and a page that attaches late is sent the screen, not the
 //! history. A PTY has one size and a phone is narrower: the page that typed
-//! last sets it. And the title an agent sets says whether it is working, so
-//! the end of its turn is seen.
+//! last sets it. The title a program sets is the tab's label.
 
 use std::io::{Read, Write};
 use std::num::NonZeroU16;
@@ -18,21 +19,11 @@ use std::path::Path;
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use anyhow::{Context, Result, bail};
-use localgpt_world_agent::{agent_cli, live};
+use localgpt_world_agent::{agent_env, live};
 use portable_pty::{ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use serde::Serialize;
 
 use super::Client;
-
-/// What a tab can run: the shell, or an agent by its command's name. The page
-/// asks by kind, never by command line.
-pub const AGENTS: &[(&str, &str)] = &[
-    ("claude", "claude"),
-    ("codex", "codex"),
-    ("agy", "agy"),
-    ("gemini", "gemini"),
-    ("opencode", "opencode"),
-];
 
 /// What the tabs said since the last frame.
 pub enum TermOut {
@@ -41,41 +32,24 @@ pub enum TermOut {
     Exit(String, Option<u32>),
     /// The PTY took another size: another page drives it now.
     Size(String, u16, u16),
-    /// The agent's title changed what it says it is doing, or what it calls
-    /// the task.
-    State(String, Option<String>, Option<Activity>),
-    /// An agent stopped working — its turn ended, or it is asking: the
-    /// agent, by its command's name.
-    TurnEnded(String),
+    /// The program's title changed: the tab's label.
+    State(String, Option<String>),
     /// A tab opened or ended.
     Tabs,
-}
-
-/// What an agent says it is doing, by the marks it puts in its title.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Activity {
-    Working,
-    /// Stopped on a question for the person: a permission, a choice.
-    Asking,
-    Idle,
 }
 
 /// A tab as every page lists it.
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct Tab {
     pub id: String,
-    pub kind: String,
     pub cols: u16,
     pub rows: u16,
-    /// What the agent calls the task, from its title.
+    /// What the program in the tab calls itself, from its title.
     pub label: Option<String>,
-    pub activity: Option<Activity>,
 }
 
 struct Session {
     id: String,
-    kind: String,
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     killer: Box<dyn ChildKiller + Send + Sync>,
@@ -85,7 +59,6 @@ struct Session {
     size: (u16, u16),
     sizes: Sizes,
     label: Option<String>,
-    activity: Option<Activity>,
 }
 
 impl Session {
@@ -116,11 +89,9 @@ impl Session {
     fn tab(&self) -> Tab {
         Tab {
             id: self.id.clone(),
-            kind: self.kind.clone(),
             cols: self.size.0,
             rows: self.size.1,
             label: self.label.clone(),
-            activity: self.activity,
         }
     }
 }
@@ -157,31 +128,17 @@ impl Default for Terms {
 }
 
 impl Terms {
-    /// Starts a tab for the page `by`, at its size.
-    pub fn open(
-        &mut self,
-        id: &str,
-        kind: &str,
-        size: (u16, u16),
-        cwd: &Path,
-        by: Client,
-    ) -> Result<()> {
+    /// Starts a tab for the page `by`, at its size: the login shell, in
+    /// `cwd`.
+    pub fn open(&mut self, id: &str, size: (u16, u16), cwd: &Path, by: Client) -> Result<()> {
         if self.sessions.iter().any(|s| s.id == id) {
             bail!("terminal {id} is already open");
         }
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
         let mut cmd = CommandBuilder::new(&shell);
-        if kind == "shell" {
-            cmd.arg("-l");
-        } else {
-            let Some((_, program)) = AGENTS.iter().find(|(name, _)| *name == kind) else {
-                bail!("no agent called {kind}");
-            };
-            // Interactive as well as login: PATH is often set in .zshrc.
-            cmd.args(["-l", "-i", "-c", &format!("exec {program}")]);
-        }
+        cmd.arg("-l");
         cmd.cwd(cwd);
-        for (key, value) in world_env(cwd, kind) {
+        for (key, value) in world_env(cwd) {
             cmd.env(key, value);
         }
         cmd.env("TERM", "xterm-256color");
@@ -204,7 +161,7 @@ impl Terms {
         let mut child = pair
             .slave
             .spawn_command(cmd)
-            .with_context(|| format!("starting {shell} for {kind}"))?;
+            .with_context(|| format!("starting {shell}"))?;
         drop(pair.slave);
         let mut reader = pair.master.try_clone_reader()?;
         let writer = pair.master.take_writer()?;
@@ -235,7 +192,6 @@ impl Terms {
 
         self.sessions.push(Session {
             id: id.to_string(),
-            kind: kind.to_string(),
             master: pair.master,
             writer,
             killer,
@@ -248,7 +204,6 @@ impl Terms {
             size: (cols, rows),
             sizes: Sizes::opened(by, (cols, rows)),
             label: None,
-            activity: None,
         });
         self.pending.push(TermOut::Tabs);
         Ok(())
@@ -403,19 +358,12 @@ fn draw(session: &mut Session, bytes: &[u8]) -> Vec<TermOut> {
     let titles = std::mem::take(&mut session.screen.callbacks_mut().0);
     let mut said = Vec::new();
     for title in titles {
-        let label = Some(label(&title)).filter(|l| !l.is_empty());
-        let now = activity(&title);
-        if label == session.label && now == session.activity {
+        let label = Some(title.trim().to_string()).filter(|l| !l.is_empty());
+        if label == session.label {
             continue;
         }
-        let was = session.activity;
         session.label = label.clone();
-        session.activity = now;
-        said.push(TermOut::State(session.id.clone(), label, now));
-        let stopped = matches!(now, Some(Activity::Idle | Activity::Asking));
-        if was == Some(Activity::Working) && stopped && session.kind != "shell" {
-            said.push(TermOut::TurnEnded(session.kind.clone()));
-        }
+        said.push(TermOut::State(session.id.clone(), label));
     }
     said
 }
@@ -438,40 +386,6 @@ impl vt100::Callbacks for Titles {
                 .push(String::from_utf8_lossy(&title.join(&b';')).into_owned());
         }
     }
-}
-
-/// The marks agents put at the front of their titles: spinner frames while
-/// they work (Claude Code's braille, then its quarter circles; Gemini CLI's
-/// ✦ and ⏲), ✋ when they ask, ✳ and ◇ at rest. Read as Orca reads them.
-fn spinner(c: char) -> bool {
-    matches!(c, '\u{2800}'..='\u{28FF}' | '\u{25D0}'..='\u{25D3}' | '\u{2726}' | '\u{23F2}')
-}
-
-fn mark(c: char) -> bool {
-    spinner(c) || matches!(c, '\u{270B}' | '\u{2733}' | '\u{25C7}')
-}
-
-/// What a title says an agent is doing. A title without the marks — the
-/// shell's own once an agent in it exits, a folder — says it is not known:
-/// a tab is never left working after its agent has gone.
-pub fn activity(title: &str) -> Option<Activity> {
-    if title.contains('\u{270B}') {
-        Some(Activity::Asking)
-    } else if title.chars().any(spinner) {
-        Some(Activity::Working)
-    } else if title.starts_with('\u{2733}') || title.contains('\u{25C7}') {
-        Some(Activity::Idle)
-    } else {
-        None
-    }
-}
-
-/// A title without its marks: what the agent calls the task.
-fn label(title: &str) -> String {
-    title
-        .trim_start_matches(|c: char| mark(c) || c.is_whitespace())
-        .trim()
-        .to_string()
 }
 
 /// Who sets a tab's size. Each page says what fits it; a PTY has one size,
@@ -550,19 +464,14 @@ fn nonzero(n: u16) -> NonZeroU16 {
 }
 
 /// What a tab started in a world's folder carries of it: the folder, so
-/// `localgpt world` and its MCP shim find the world from wherever the agent
-/// goes, and in an agent's tab the agent's name, so what it sends is its
-/// own. Nothing about the agent itself, and not the token, which stays in
-/// the world's endpoint file and is read per call.
-fn world_env(cwd: &Path, kind: &str) -> Vec<(&'static str, std::ffi::OsString)> {
+/// `localgpt world` and its MCP shim find the world from wherever a program
+/// in the tab goes. Not the token, which stays in the world's endpoint file
+/// and is read per call; and nothing about what the person runs.
+fn world_env(cwd: &Path) -> Vec<(&'static str, std::ffi::OsString)> {
     if !live::is_package(cwd) {
         return Vec::new();
     }
-    let mut env = vec![(agent_cli::WORLD_DIR_ENV, cwd.as_os_str().to_owned())];
-    if kind != "shell" {
-        env.push((agent_cli::AUTHOR_ENV, kind.into()));
-    }
-    env
+    vec![(agent_env::WORLD_DIR_ENV, cwd.as_os_str().to_owned())]
 }
 
 #[cfg(test)]
@@ -570,47 +479,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_tab_on_a_world_carries_its_folder_and_an_agents_tab_its_name() {
+    fn a_tab_on_a_world_carries_its_folder_and_nothing_else() {
         let world = std::env::temp_dir().join(format!("lga-term-world-{}", std::process::id()));
         std::fs::create_dir_all(&world).unwrap();
         std::fs::write(world.join("manifest.json"), "{}").unwrap();
         let folder = world.as_os_str().to_owned();
 
-        assert_eq!(
-            world_env(&world, "claude"),
-            [
-                (agent_cli::WORLD_DIR_ENV, folder.clone()),
-                (agent_cli::AUTHOR_ENV, "claude".into())
-            ]
-        );
-        // A shell is the person's, or whichever agent they start in it.
-        assert_eq!(
-            world_env(&world, "shell"),
-            [(agent_cli::WORLD_DIR_ENV, folder)]
-        );
+        assert_eq!(world_env(&world), [(agent_env::WORLD_DIR_ENV, folder)]);
         // A document's folder is no world.
         let notes = world.join("notes");
         std::fs::create_dir_all(&notes).unwrap();
-        assert!(world_env(&notes, "claude").is_empty());
+        assert!(world_env(&notes).is_empty());
         std::fs::remove_dir_all(&world).ok();
-    }
-
-    #[test]
-    fn a_title_says_what_the_agent_is_doing() {
-        // Claude Code: braille frames, then quarter circles, while working;
-        // ✳ at rest.
-        assert_eq!(activity("⠂ Fix the jetty"), Some(Activity::Working));
-        assert_eq!(activity("◐ Fix the jetty"), Some(Activity::Working));
-        assert_eq!(activity("✳ Fix the jetty"), Some(Activity::Idle));
-        // Gemini CLI.
-        assert_eq!(activity("✦ Gemini CLI"), Some(Activity::Working));
-        assert_eq!(activity("✋ Gemini CLI"), Some(Activity::Asking));
-        assert_eq!(activity("◇ Gemini CLI"), Some(Activity::Idle));
-        // A shell's title says nothing.
-        assert_eq!(activity("~/worlds/harbour"), None);
-        assert_eq!(activity(""), None);
-        assert_eq!(label("⠐ Fix the jetty "), "Fix the jetty");
-        assert_eq!(label("✳ Claude Code"), "Claude Code");
     }
 
     fn screen(rows: u16, cols: u16) -> vt100::Parser<Titles> {
@@ -643,8 +523,8 @@ mod tests {
     #[test]
     fn titles_arrive_in_order_even_with_a_semicolon_in_them() {
         let mut tab = screen(4, 20);
-        tab.process(b"\x1b]0;\xe2\xa0\x82 Fix it\x07work\x1b]2;\xe2\x9c\xb3 a; b\x07");
-        assert_eq!(tab.callbacks().0, ["⠂ Fix it", "✳ a; b"]);
+        tab.process(b"\x1b]0;Fix it\x07work\x1b]2;a; b\x07");
+        assert_eq!(tab.callbacks().0, ["Fix it", "a; b"]);
     }
 
     #[test]

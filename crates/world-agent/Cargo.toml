@@ -17,6 +17,18 @@ llm-metal = ["llm", "mistralrs/metal"]
 # JsonSchema derives on the protocol types (world-types' `schema` pattern):
 # Verse's recipe/agent schemas derive schemars over them under its `llm`.
 schema = ["dep:schemars"]
+# The `Tool` trait and the stdio MCP server over a tool set (`mcp`): what
+# `localgpt world mcp` and `localgpt-gen mcp-server` serve.
+mcp = ["dep:tokio", "dep:async-trait", "dep:anyhow"]
+# The MCP streamable HTTP transport (`mcp::http`), for `--mcp-http`.
+mcp-http = [
+    "mcp",
+    "dep:axum",
+    "dep:tower-http",
+    "dep:async-stream",
+    "dep:futures",
+    "dep:uuid",
+]
 
 [dependencies]
 localgpt-world-types = { workspace = true }
@@ -38,9 +50,20 @@ sha2 = "0.11"
 zip = { version = "9", default-features = false }
 
 mistralrs = { version = "0.8", optional = true }
-tokio = { version = "1", features = ["rt", "time"], optional = true }
-# `paths`: the shared model and asset-pack directories, so the XDG rule
-# lives here once instead of in every app.
+# `llm` runs the session loop on it; `mcp` reads stdin and writes stdout
+# with it and listens for Ctrl+C.
+tokio = { version = "1", features = ["rt", "time", "io-util", "io-std", "signal", "macros", "sync"], optional = true }
+# `mcp`: the `Tool` trait is async.
+async-trait = { workspace = true, optional = true }
+anyhow = { workspace = true, optional = true }
+# `mcp-http`: the streamable HTTP transport.
+axum = { version = "0.8", optional = true }
+tower-http = { version = "0.6", features = ["cors"], optional = true }
+async-stream = { version = "0.3", optional = true }
+futures = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+# `paths`: the shared model and asset-pack directories, and the app
+# directories, so the XDG rule lives here once instead of in every app.
 etcetera = "0.11"
 
 [dev-dependencies]

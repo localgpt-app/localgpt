@@ -1,38 +1,62 @@
-//! MCP server — exposes LocalGPT tools to external AI backends.
+//! The agent-facing tool surface: the [`Tool`] trait and an MCP server over
+//! a set of tools.
 //!
-//! Provides both stdio and (optionally) HTTP transports:
-//!
-//! - **stdio**: Reads JSON-RPC 2.0 messages from stdin, writes responses to
-//!   stdout. Used by `localgpt mcp-server` and `localgpt-gen mcp-server`.
-//!
-//! - **HTTP** (feature `mcp-http`): Streamable HTTP transport per the MCP spec.
-//!   POST `/mcp` accepts JSON-RPC requests; GET `/mcp` opens an SSE stream for
-//!   server-initiated notifications. Enable via `--mcp-http` flag.
+//! Behind the `mcp` feature. `localgpt world mcp` (the shim) and
+//! `localgpt-gen mcp-server` both serve a `Vec<Box<dyn Tool>>` over stdio
+//! with [`run_mcp_stdio_server`]; `mcp-http` adds the streamable HTTP
+//! transport ([`http`]). This is what moved out of `localgpt-core` when the
+//! harness went (`docs/rfcs/authoring/the-harness-goes.md`): a tool is a
+//! name, a JSON schema and an async call, and nothing here knows which agent
+//! is on the other end.
+
+#[cfg(feature = "mcp-http")]
+pub mod http;
 
 use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tracing::{debug, info};
 
-use super::super::agent::tools::Tool;
+/// A tool as an MCP client lists it: its name, what it does, and the JSON
+/// schema of its arguments.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolSchema {
+    pub name: String,
+    pub description: String,
+    pub parameters: Value,
+}
+
+/// One tool: a name, its schema, and an async call taking the arguments as
+/// a JSON string.
+#[async_trait]
+pub trait Tool: Send + Sync {
+    fn name(&self) -> &str;
+    fn schema(&self) -> ToolSchema;
+    async fn execute(&self, arguments: &str) -> Result<String>;
+
+    /// MCP tool annotations (`readOnlyHint`, `destructiveHint`, …), when the
+    /// tool states them.
+    fn annotations(&self) -> Option<Value> {
+        None
+    }
+}
 
 // ---------------------------------------------------------------------------
-// McpHandler trait — shared dispatch interface for stdio and HTTP transports
+// McpHandler — the dispatch shared by the stdio and HTTP transports
 // ---------------------------------------------------------------------------
 
-/// Trait for dispatching MCP JSON-RPC requests.
-///
-/// Both the stdio server loop and the HTTP transport call into this trait.
-/// The default implementation (`ToolHandler`) wraps a `Vec<Box<dyn Tool>>`.
+/// Dispatches MCP JSON-RPC requests. [`ToolHandler`] is the implementation
+/// over a tool vector; a server with its own `initialize` answer implements
+/// this itself.
 #[async_trait]
 pub trait McpHandler: Send + Sync {
-    /// Server name returned in `initialize` response.
+    /// The name returned in the `initialize` response.
     fn server_name(&self) -> &str;
 
-    /// Handle an `initialize` request.
     fn handle_initialize(&self) -> Result<Value, Value> {
         Ok(json!({
             "protocolVersion": "2024-11-05",
@@ -46,36 +70,25 @@ pub trait McpHandler: Send + Sync {
         }))
     }
 
-    /// Handle a `tools/list` request.
     fn handle_tools_list(&self) -> Result<Value, Value>;
 
-    /// Handle a `tools/call` request.
     async fn handle_tools_call(&self, params: &Value) -> Result<Value, Value>;
 
-    /// Dispatch a parsed JSON-RPC request. Returns `Some(response)` for
-    /// requests (those with an `id`) and `None` for notifications.
+    /// Dispatch one parsed JSON-RPC message: `Some(response)` for a request
+    /// (one with an `id`), `None` for a notification.
     async fn dispatch(&self, msg: &Value) -> Option<Value> {
         let id = msg.get("id").cloned();
         let method = msg.get("method").and_then(|m| m.as_str()).unwrap_or("");
         let params = msg.get("params").cloned().unwrap_or(json!({}));
 
-        // Notifications (no id) — handle but don't respond
-        if id.is_none() {
+        let Some(id) = id else {
             match method {
-                "notifications/initialized" => {
-                    info!("MCP server: client initialized");
-                }
-                "notifications/cancelled" => {
-                    debug!("MCP server: received cancellation");
-                }
-                _ => {
-                    debug!("MCP server: ignoring notification '{}'", method);
-                }
+                "notifications/initialized" => info!("MCP server: client initialized"),
+                "notifications/cancelled" => debug!("MCP server: received cancellation"),
+                _ => debug!("MCP server: ignoring notification '{}'", method),
             }
             return None;
-        }
-
-        let id = id.unwrap();
+        };
 
         let response = match method {
             "initialize" => self.handle_initialize(),
@@ -88,28 +101,14 @@ pub trait McpHandler: Send + Sync {
             })),
         };
 
-        let response_msg = match response {
-            Ok(result) => json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": result,
-            }),
-            Err(error) => json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "error": error,
-            }),
-        };
-
-        Some(response_msg)
+        Some(match response {
+            Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
+            Err(error) => json!({ "jsonrpc": "2.0", "id": id, "error": error }),
+        })
     }
 }
 
-// ---------------------------------------------------------------------------
-// ToolHandler — default McpHandler backed by a Vec<Box<dyn Tool>>
-// ---------------------------------------------------------------------------
-
-/// Default `McpHandler` implementation backed by a tool vector.
+/// The handler over a tool vector.
 pub struct ToolHandler {
     server_name: String,
     tools: Vec<Box<dyn Tool>>,
@@ -143,13 +142,12 @@ impl McpHandler for ToolHandler {
                 });
                 if let Some(annotations) = t.annotations() {
                     def.as_object_mut()
-                        .unwrap()
+                        .expect("a JSON object")
                         .insert("annotations".into(), annotations);
                 }
                 def
             })
             .collect();
-
         Ok(json!({ "tools": tool_defs }))
     }
 
@@ -160,9 +158,7 @@ impl McpHandler for ToolHandler {
                 "message": "Missing 'name' parameter",
             })
         })?;
-
         let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
-
         let tool = self
             .tools
             .iter()
@@ -173,21 +169,13 @@ impl McpHandler for ToolHandler {
                     "message": format!("Unknown tool: {}", tool_name),
                 })
             })?;
-
         let args_str = serde_json::to_string(&arguments).unwrap_or_default();
-
         match tool.execute(&args_str).await {
             Ok(output) => Ok(json!({
-                "content": [{
-                    "type": "text",
-                    "text": output,
-                }]
+                "content": [{ "type": "text", "text": output }]
             })),
             Err(e) => Ok(json!({
-                "content": [{
-                    "type": "text",
-                    "text": format!("Error: {}", e),
-                }],
+                "content": [{ "type": "text", "text": format!("Error: {}", e) }],
                 "isError": true,
             })),
         }
@@ -195,18 +183,17 @@ impl McpHandler for ToolHandler {
 }
 
 // ---------------------------------------------------------------------------
-// Stdio server (always available)
+// The stdio server
 // ---------------------------------------------------------------------------
 
-/// Run the MCP stdio server loop with the given tool set.
-///
-/// Blocks until stdin is closed (i.e., the MCP client disconnects).
+/// Serve `tools` over stdio until stdin closes (the MCP client went away)
+/// or Ctrl+C.
 pub async fn run_mcp_stdio_server(tools: Vec<Box<dyn Tool>>, server_name: &str) -> Result<()> {
     let handler = Arc::new(ToolHandler::new(server_name, tools));
     run_mcp_stdio_server_with_handler(handler).await
 }
 
-/// Run the MCP stdio server loop with a custom handler.
+/// [`run_mcp_stdio_server`] with a handler of the caller's own.
 pub async fn run_mcp_stdio_server_with_handler(handler: Arc<dyn McpHandler>) -> Result<()> {
     let stdin = tokio::io::stdin();
     let mut stdout = tokio::io::stdout();
@@ -233,7 +220,6 @@ pub async fn run_mcp_stdio_server_with_handler(handler: Arc<dyn McpHandler>) -> 
         if trimmed.is_empty() {
             continue;
         }
-
         let msg: Value = match serde_json::from_str(trimmed) {
             Ok(v) => v,
             Err(e) => {
@@ -241,9 +227,8 @@ pub async fn run_mcp_stdio_server_with_handler(handler: Arc<dyn McpHandler>) -> 
                 continue;
             }
         };
-
-        if let Some(response_msg) = handler.dispatch(&msg).await {
-            let mut out = serde_json::to_string(&response_msg)?;
+        if let Some(response) = handler.dispatch(&msg).await {
+            let mut out = serde_json::to_string(&response)?;
             out.push('\n');
             stdout.write_all(out.as_bytes()).await?;
             stdout.flush().await?;
@@ -251,4 +236,80 @@ pub async fn run_mcp_stdio_server_with_handler(handler: Arc<dyn McpHandler>) -> 
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Echo;
+
+    #[async_trait]
+    impl Tool for Echo {
+        fn name(&self) -> &str {
+            "echo"
+        }
+
+        fn schema(&self) -> ToolSchema {
+            ToolSchema {
+                name: "echo".into(),
+                description: "says it back".into(),
+                parameters: json!({"type": "object", "properties": {"text": {"type": "string"}}}),
+            }
+        }
+
+        async fn execute(&self, arguments: &str) -> Result<String> {
+            let args: Value = serde_json::from_str(arguments)?;
+            Ok(args["text"].as_str().unwrap_or_default().to_string())
+        }
+
+        fn annotations(&self) -> Option<Value> {
+            Some(json!({"readOnlyHint": true}))
+        }
+    }
+
+    #[tokio::test]
+    async fn the_handler_lists_calls_and_refuses_what_it_does_not_know() {
+        let handler = ToolHandler::new("test", vec![Box::new(Echo) as Box<dyn Tool>]);
+
+        let init = handler
+            .dispatch(&json!({"jsonrpc": "2.0", "id": 1, "method": "initialize"}))
+            .await
+            .unwrap();
+        assert_eq!(init["result"]["serverInfo"]["name"], "test");
+
+        let list = handler
+            .dispatch(&json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}))
+            .await
+            .unwrap();
+        let tools = list["result"]["tools"].as_array().unwrap();
+        assert_eq!(tools[0]["name"], "echo");
+        assert_eq!(tools[0]["annotations"]["readOnlyHint"], true);
+
+        let call = handler
+            .dispatch(&json!({
+                "jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                "params": {"name": "echo", "arguments": {"text": "hi"}}
+            }))
+            .await
+            .unwrap();
+        assert_eq!(call["result"]["content"][0]["text"], "hi");
+
+        let unknown = handler
+            .dispatch(&json!({
+                "jsonrpc": "2.0", "id": 4, "method": "tools/call",
+                "params": {"name": "nope", "arguments": {}}
+            }))
+            .await
+            .unwrap();
+        assert_eq!(unknown["error"]["code"], -32602);
+
+        // A notification gets no reply.
+        assert!(
+            handler
+                .dispatch(&json!({"jsonrpc": "2.0", "method": "notifications/initialized"}))
+                .await
+                .is_none()
+        );
+    }
 }

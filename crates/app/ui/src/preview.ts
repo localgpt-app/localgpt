@@ -39,11 +39,11 @@ A fishing boat moored off the jetty, rocking on the swell.
 `;
 
 const outline: DocumentView["outline"] = [
-  { level: 1, text: "Harbour at dusk", section: null, line: null, tier: null, failed: false, reauthor: false },
-  { level: 2, text: "The tower", section: 0, line: 4, tier: "model", failed: false, reauthor: true },
-  { level: 3, text: "Lamp room", section: 0, line: 8, tier: null, failed: false, reauthor: false },
-  { level: 2, text: "The jetty", section: 1, line: 12, tier: "authoring…", failed: false, reauthor: false },
-  { level: 2, text: "The boat", section: 2, line: 16, tier: "draft", failed: false, reauthor: true },
+  { level: 1, text: "Harbour at dusk", section: null, line: null, tier: null },
+  { level: 2, text: "The tower", section: 0, line: 4, tier: "model" },
+  { level: 3, text: "Lamp room", section: 0, line: 8, tier: null },
+  { level: 2, text: "The jetty", section: 1, line: 12, tier: "recipe" },
+  { level: 2, text: "The boat", section: 2, line: 16, tier: "draft" },
 ];
 
 const doc: DocumentView = {
@@ -51,9 +51,6 @@ const doc: DocumentView = {
   path: "~/notes/harbour.md",
   status: "3 sections",
   conflict: false,
-  authoring: "1 of 3 places by anthropic/claude-opus-4-6 · 1 to go",
-  author_enabled: true,
-  author_error: null,
   follow_cursor: true,
   outline,
   selected: 0,
@@ -173,7 +170,7 @@ const MODES: Record<string, ToPage[]> = {
   world: [
     { t: "mode", history: true, document: false },
     { t: "title", text: "World · harbour.world" },
-    { t: "history", rows, current: rows[6].id, status: "boat · revision 7", turns: [{ n: 1, agent: "claude", rows: 3, revision: 3 }] },
+    { t: "history", rows, current: rows[6].id, status: "boat · revision 7" },
     { t: "playback", playing: false },
   ],
   song: [
@@ -233,11 +230,10 @@ export function preview(kind: string) {
       ...log.map((row) => ({ ...row, tip: false, head: false })),
       { ...entry(`${(log.length + 1).toString(16).padStart(2, "0")}aa${Date.now().toString(16)}`, null, "person", what, 0, true), parent: parent.id, revision: log.length + 1 },
     ];
-    recv({ t: "history", rows: log, current: log.at(-1)!.id, status: `r${log.length} - person - ${what}`, turns });
+    recv({ t: "history", rows: log, current: log.at(-1)!.id, status: `r${log.length} - person - ${what}` });
     recv({ t: "scene", view: scene });
   };
   let log = [...rows];
-  const turns = [{ n: 1, agent: "claude", rows: 3, revision: 3 }];
   // A document's world keeps no time: the timeline is its one quiet line.
   let view: TimelineView = kind === "document" ? { clock: null, tracks: [], signals: {}, editable: false, proposal: null } : timeline(kind === "world");
   const clock = standInClock();
@@ -260,7 +256,7 @@ export function preview(kind: string) {
         const shown = scene;
         const taken = m.edits.find((e) => typeof e.patch.name === "string" && shown.entities.some((o) => o.name === e.patch.name && o.id !== e.id));
         if (taken) {
-          recv({ t: "history", rows: log, current: log.at(-1)!.id, status: `refused: an entity named '${taken.patch.name}' already exists`, turns });
+          recv({ t: "history", rows: log, current: log.at(-1)!.id, status: `refused: an entity named '${taken.patch.name}' already exists` });
           break;
         }
         commit(

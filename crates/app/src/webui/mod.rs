@@ -22,7 +22,7 @@
 //!
 //! `LOCALGPT_APP_UI_URL` loads a dev server instead of the built page (`npm
 //! run dev` in `crates/app/ui`, which reloads as the page is edited);
-//! `LOCALGPT_APP_UI_OPEN=claude,shell` starts with those tabs open
+//! `LOCALGPT_APP_UI_OPEN=terminal` starts with a terminal open
 //! (`outliner` starts the left panel on its Outliner tab); and
 //! `LOCALGPT_APP_UI=none` leaves the page out, the world alone in the window.
 //!
@@ -49,7 +49,7 @@ use bevy::ecs::message::Messages;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use localgpt_gen::gen3d::live::{LiveHistory, SeekTo, TurnEnded};
+use localgpt_gen::gen3d::live::{LiveHistory, SeekTo};
 use localgpt_gen::gen3d::plugin::FlyCam;
 use serde::{Deserialize, Serialize};
 
@@ -332,19 +332,10 @@ enum FromPage {
     DocGo { section: usize, line: Option<usize> },
     #[serde(rename = "doc.pick")]
     DocPick { name: String },
-    #[serde(rename = "doc.reauthor")]
-    DocReauthor { section: usize },
-    #[serde(rename = "doc.author")]
-    DocAuthor { on: bool },
     #[serde(rename = "doc.follow")]
     DocFollow { on: bool },
     #[serde(rename = "term.open")]
-    TermOpen {
-        id: String,
-        kind: String,
-        cols: u16,
-        rows: u16,
-    },
+    TermOpen { id: String, cols: u16, rows: u16 },
     #[serde(rename = "term.input")]
     TermInput { id: String, data: String },
     #[serde(rename = "term.resize")]
@@ -392,7 +383,6 @@ enum ToPage<'a> {
         rows: Vec<Row<'a>>,
         current: Option<&'a str>,
         status: Option<&'a str>,
-        turns: Vec<Turn<'a>>,
     },
     #[serde(rename = "playback")]
     Playback { playing: bool },
@@ -437,20 +427,15 @@ enum ToPage<'a> {
         code: Option<u32>,
         error: Option<String>,
     },
-    /// Every tab, whichever page opened it: what it runs, its size, and
-    /// what its agent says it is doing.
+    /// Every tab, whichever page opened it: its size and its label.
     #[serde(rename = "term.list")]
     TermList { tabs: Vec<term::Tab> },
     /// A tab's PTY took another size: another page drives it.
     #[serde(rename = "term.size")]
     TermSize { id: &'a str, cols: u16, rows: u16 },
-    /// What a tab's agent says it is doing, and what it calls the task.
+    /// A tab's program set its title: the tab's label.
     #[serde(rename = "term.state")]
-    TermState {
-        id: &'a str,
-        label: Option<&'a str>,
-        activity: Option<term::Activity>,
-    },
+    TermState { id: &'a str, label: Option<&'a str> },
     /// The phone's listener and its devices: the window's page alone.
     #[serde(rename = "remote")]
     Remote { view: &'a remote::RemoteView },
@@ -467,14 +452,6 @@ struct Row<'a> {
     timestamp_ms: u64,
     tip: bool,
     head: bool,
-}
-
-#[derive(Serialize)]
-struct Turn<'a> {
-    n: u32,
-    agent: &'a str,
-    rows: usize,
-    revision: u64,
 }
 
 /// Opens the page once Bevy's window and surface exist (an exclusive
@@ -681,18 +658,9 @@ fn read_page(
                 ask(&mut asks.document, DocumentAsk::Go { section, line })
             }
             FromPage::DocPick { name } => ask(&mut asks.document, DocumentAsk::Pick(name)),
-            FromPage::DocReauthor { section } => {
-                ask(&mut asks.document, DocumentAsk::Reauthor(section))
-            }
-            FromPage::DocAuthor { on } => ask(&mut asks.document, DocumentAsk::Author(on)),
             FromPage::DocFollow { on } => ask(&mut asks.document, DocumentAsk::Follow(on)),
-            FromPage::TermOpen {
-                id,
-                kind,
-                cols,
-                rows,
-            } => {
-                if let Err(e) = terms.open(&id, &kind, (cols, rows), &settings.cwd, client) {
+            FromPage::TermOpen { id, cols, rows } => {
+                if let Err(e) = terms.open(&id, (cols, rows), &settings.cwd, client) {
                     page.send_to(
                         client,
                         &ToPage::TermExit {
@@ -975,28 +943,13 @@ fn history_message(history: &LiveHistory) -> ToPage<'_> {
             .collect(),
         current: history.current.as_deref(),
         status: history.status.as_deref(),
-        turns: history
-            .turns
-            .iter()
-            .map(|turn| Turn {
-                n: turn.n,
-                agent: &turn.agent,
-                rows: turn.rows,
-                revision: turn.revision,
-            })
-            .collect(),
     }
 }
 
 /// The PTYs' bytes since the last frame, one message per tab, to every page;
-/// and what the tabs said besides — a new size, what an agent is doing, the
-/// tabs themselves. An agent's turn that ended marks the history
-/// ([`TurnEnded`]), on a live canvas.
-fn pump_terms(
-    page: Option<NonSend<Page>>,
-    mut terms: NonSendMut<Terms>,
-    mut turns: Option<ResMut<Messages<TurnEnded>>>,
-) {
+/// and what the tabs said besides — a new size, a title, the tabs
+/// themselves.
+fn pump_terms(page: Option<NonSend<Page>>, mut terms: NonSendMut<Terms>) {
     let Some(page) = page else {
         return;
     };
@@ -1025,18 +978,12 @@ fn pump_terms(
                     rows,
                 });
             }
-            TermOut::State(id, label, activity) => {
+            TermOut::State(id, label) => {
                 flush(&page, &mut data, &id);
                 page.send(&ToPage::TermState {
                     id: &id,
                     label: label.as_deref(),
-                    activity,
                 });
-            }
-            TermOut::TurnEnded(agent) => {
-                if let Some(turns) = turns.as_mut() {
-                    turns.write(TurnEnded { agent });
-                }
             }
             TermOut::Tabs => tabs = true,
         }
@@ -1127,7 +1074,6 @@ mod tests {
             ],
             current: current.map(str::to_string),
             status: None,
-            turns: Vec::new(),
         }
     }
 
@@ -1242,12 +1188,11 @@ mod tests {
         let state = serde_json::to_value(ToPage::TermState {
             id: "t1",
             label: Some("Fix the jetty"),
-            activity: Some(term::Activity::Working),
         })
         .unwrap();
         assert_eq!(
             state,
-            serde_json::json!({"t": "term.state", "id": "t1", "label": "Fix the jetty", "activity": "working"})
+            serde_json::json!({"t": "term.state", "id": "t1", "label": "Fix the jetty"})
         );
     }
 }

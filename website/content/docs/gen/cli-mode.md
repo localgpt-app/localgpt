@@ -80,7 +80,7 @@ When you run `localgpt-gen --mcp-relay`:
    - Tool calls flow through to the **existing** Bevy window
 5. You see the world being built in real-time in your window
 
-Gen's own prompt (the REPL, on an API model or a local GGUF) keeps working beside the relay; the two edit the same scene.
+Gen has no prompt of its own: the relay, `mcp-server`, or a live package's API is how the window is driven, and several clients may share one window.
 
 ## Configuration
 

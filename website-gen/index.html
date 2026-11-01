@@ -306,24 +306,24 @@ You: put a lighthouse on that hill</code></pre>
   <section class="section">
     <div class="wrap">
       <h2>Bring your own AI</h2>
-      <p class="section-lede">Gen works with the model you already use. World quality depends on the model's spatial reasoning, so stronger models build better worlds.</p>
+      <p class="section-lede">Gen runs no model and holds no key: the agent you already use drives it. World quality depends on that agent's spatial reasoning, so stronger models build better worlds.</p>
       <div class="grid three">
         <article class="card">
-          <h3>Your CLI login</h3>
-          <p>Let Claude CLI, Gemini CLI, or Codex drive. No API key: Gen relays their tool calls to your window. Claude CLI is the default.</p>
-<pre><code>localgpt-gen</code></pre>
-        </article>
-        <article class="card">
-          <h3>An API key or a local model</h3>
-          <p>Use a key for Anthropic, OpenAI, Gemini, xAI, and others, or a local model through Ollama.</p>
-<pre><code><span class="c"># ~/.config/localgpt/config.toml</span>
-[agent]
-default_model = "ollama/llama3"</code></pre>
+          <h3>Your coding agent, your window</h3>
+          <p>Start Gen with the relay, and Claude Code, Codex or Gemini CLI builds in the window you are looking at, with its own login.</p>
+<pre><code>localgpt-gen --mcp-relay
+<span class="c"># the agent's MCP config spawns:</span>
+localgpt-gen mcp-server --connect</code></pre>
         </article>
         <article class="card">
           <h3>Your editor or desktop app</h3>
           <p>Run Gen as an MCP server and build from Claude Desktop, Codex Desktop, VS Code, Zed, or Cursor.</p>
 <pre><code>localgpt-gen mcp-server</code></pre>
+        </article>
+        <article class="card">
+          <h3>A world's own command line</h3>
+          <p>Open a <code>.world</code> package live, and any shell edits it through <code>localgpt world</code>, each batch an entry in its history.</p>
+<pre><code>localgpt-gen --live harbour.world</code></pre>
         </article>
       </div>
     </div>
@@ -339,16 +339,17 @@ default_model = "ollama/llama3"</code></pre>
 <pre><code>cargo install localgpt-gen</code></pre>
         </li>
         <li class="card">
-          <h3>Pick a model</h3>
-          <p>With the Claude CLI installed and signed in, there's nothing to set up. Otherwise, add an API key or an Ollama model to <code>~/.config/localgpt/config.toml</code>.</p>
+          <h3>Point your agent at it</h3>
+          <p>Nothing to configure in Gen. Give the agent you already use one MCP entry, <code>localgpt-gen mcp-server --connect</code>, and start Gen with the relay.</p>
+<pre><code>localgpt-gen --mcp-relay</code></pre>
         </li>
         <li class="card">
           <h3>Describe a place</h3>
-<pre><code>localgpt-gen "build a castle on a hill"</code></pre>
-          <p style="margin-top: 12px">Watch it build, walk around, and keep asking for changes, in the terminal or in the window's prompt panel (F2).</p>
+<pre><code>&gt; build a castle on a hill</code></pre>
+          <p style="margin-top: 12px">Ask in the agent's own terminal. Watch it build, walk around, and keep asking for changes.</p>
         </li>
       </ol>
-      <p class="note">Rather not keep a terminal open? Run <code>localgpt-gen --desktop</code> and type in the window instead. Gen opens a 3D window, so it needs a GPU-capable display. It runs on macOS, Linux, and Windows.</p>
+      <p class="note">Gen opens a 3D window, so it needs a GPU-capable display; <code>localgpt-gen mcp-server --headless</code> builds without one. It runs on macOS, Linux, and Windows.</p>
     </div>
   </section>
 

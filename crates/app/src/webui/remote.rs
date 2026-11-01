@@ -230,9 +230,8 @@ impl Remote {
     /// What was remembered, started when it was on — or as
     /// `LOCALGPT_APP_REMOTE` says.
     pub fn from_env() -> Self {
-        let path = localgpt_core::paths::Paths::resolve()
-            .ok()
-            .map(|paths| paths.state_dir.join("app-remote.json"));
+        let path = localgpt_world_agent::paths::Dirs::resolve()
+            .map(|dirs| dirs.state.join("app-remote.json"));
         let port = std::env::var(LOCALGPT_APP_REMOTE_PORT)
             .ok()
             .and_then(|port| port.parse().ok())

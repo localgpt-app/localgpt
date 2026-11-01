@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import type { Activity, RemoteView, TermTab } from "../src/bridge";
+import type { RemoteView, TermTab } from "../src/bridge";
 import { HistoryPanel } from "../src/HistoryPanel";
 import { Icon } from "../src/Icon";
 import { PlaybackBar } from "../src/PlaybackBar";
-import { PhoneHeader, PhoneNav, ProposalBar, TabChips, TurnNote, Unpaired, type View, WorldFrame } from "../src/phone/Phone";
+import { PhoneHeader, PhoneNav, ProposalBar, TabChips, Unpaired, type View, WorldFrame } from "../src/phone/Phone";
 import { Compose, KeyRow } from "../src/phone/PhoneTerminal";
 import { RemotePanel } from "../src/RemotePanel";
 import { Frame } from "../src/timeline/Frame";
@@ -13,8 +13,8 @@ import { Figure, Row, Section, Sheet } from "./Sheet";
 import "./design.css";
 
 // A paired phone's page, for review: the window's Phone button and what it
-// shows, then the page on the phone — the agents, a turn that ended, the
-// world and a proposal, the history — and pairing. Drawn with the
+// shows, then the page on the phone — the terminals, the world and a
+// proposal, the history — and pairing. Drawn with the
 // components the app wires (`src/phone/`, `src/RemotePanel.tsx`), so the
 // sheet stays their reference; the terminal is a transcript, as on the
 // other sheets.
@@ -56,9 +56,9 @@ const ASKING = `  world.submit — 1 op:
       to do differently
 ────────────────────────────────`;
 
-const tabs = (claude: Activity | null): TermTab[] => [
-  { id: "t1", kind: "claude", cols: 46, rows: 30, label: "Cut 3B on the bridge", activity: claude },
-  { id: "t2", kind: "codex", cols: 46, rows: 30, label: null, activity: null },
+const tabs: TermTab[] = [
+  { id: "t1", cols: 46, rows: 30, label: "Cut 3B on the bridge" },
+  { id: "t2", cols: 46, rows: 30, label: null },
 ];
 
 /** A pairing code as the app draws one: a stand-in pattern, not a code. */
@@ -116,13 +116,12 @@ function Panel({ view, label, attached }: { view: RemoteView; label: string; att
   );
 }
 
-/** The device, at an iPhone's size; `claude`, what its tab's agent is
- *  doing, for the dot on Agents. */
-function Phone({ view = "agents", claude = null, children }: { view?: View; claude?: Activity | null; children: ReactNode }) {
+/** The device, at an iPhone's size. */
+function Phone({ view = "terminals", children }: { view?: View; children: ReactNode }) {
   return (
     <div className="flex flex-col overflow-hidden bg-panel text-[13px] text-ink" style={{ width: PHONE.w, height: PHONE.h }}>
       {children}
-      <PhoneNav view={view} tabs={tabs(claude)} />
+      <PhoneNav view={view} />
     </div>
   );
 }
@@ -176,8 +175,8 @@ function App() {
       </Section>
 
       <Section
-        title="The agents, at the thumb"
-        lede="Each tab as a chip, its dot saying what the agent's title says: blue while it works, amber when it asks, green at rest. The terminal is the agent's own, with the keys a phone lacks under it and a box to write or dictate a prompt."
+        title="The terminals, at the thumb"
+        lede="Each tab as a chip, labelled with what its program calls itself in its title. The terminal is the program's own — a coding agent, whatever the person started — with the keys a phone lacks under it and a box to write or dictate a prompt."
         notes={
           <>
             <p>
@@ -189,8 +188,8 @@ function App() {
               types or is tapped into, the tab takes the phone's size, and the window takes it back when it is clicked into.
             </p>
             <p>
-              <b>A turn that ended</b> — the spinner in Claude Code's title giving way to ✳ — shows over every view, buzzes where the phone can, and
-              marks the history on a live canvas (<code>TurnEnded</code>).
+              <b>No agent is known to the app:</b> a tab is a login shell in the world's folder, and what runs in it is the person's. The app reads
+              nothing from it but its title.
             </p>
             <p>
               <b>The prompt box</b> sends one paste and an Enter, so its new lines stay in the prompt; the phone's own dictation writes into it.
@@ -199,26 +198,26 @@ function App() {
         }
       >
         <Row cols={3}>
-          <Figure title="Claude at work" caption="The chip pulses; the task is what Claude calls it in its title.">
-            <Phone claude="working">
+          <Figure title="An agent at work" caption="The chip's label is what the program calls the task in its title.">
+            <Phone>
               <PhoneHeader title="World · harbour.world" line={live} />
-              <TabChips tabs={tabs("working")} active="t1" />
+              <TabChips tabs={tabs} active="t1" />
               <Terminal text={TRANSCRIPT} />
               <KeyRow live compose={false} />
             </Phone>
           </Figure>
-          <Figure title="Its turn ended" caption="Over whatever is shown, until it is looked at; Show opens the tab.">
-            <Phone view="world">
+          <Figure title="A second terminal" caption="Opened from the +, in the same folder; a shell until something is started in it.">
+            <Phone>
               <PhoneHeader title="World · harbour.world" line={live} />
-              <TurnNote turn={{ id: "t1", kind: "claude", activity: "idle", task: "Cut 3B on the bridge" }} />
-              <WorldFrame frame={null} shots={[]} thumbs={{}} clock={false} still={<Frame look={w.shots[5].look!} className="size-full" />} />
+              <TabChips tabs={tabs} active="t2" />
+              <Terminal text={"~/worlds/harbour.world $ "} />
+              <KeyRow live compose={false} />
             </Phone>
           </Figure>
-          <Figure title="It asks" caption="Amber. The arrows and Enter answer it, or the number on the phone's keyboard.">
-            <Phone claude="asking">
+          <Figure title="It asks" caption="The arrows and Enter answer it, or the number on the phone's keyboard.">
+            <Phone>
               <PhoneHeader title="World · harbour.world" line={live} />
-              <TurnNote turn={{ id: "t1", kind: "claude", activity: "asking", task: "Cut 3B on the bridge" }} />
-              <TabChips tabs={tabs("asking")} active="t1" />
+              <TabChips tabs={tabs} active="t1" />
               <Terminal text={ASKING} />
               <KeyRow live compose />
               <Compose text="and after that, hold the last stop of the dusk tour a beat longer" live />
@@ -296,10 +295,10 @@ function App() {
               <Unpaired line={{ state: "unpaired", why: "That code is used or expired: show a new one on the computer.", device: null }} />
             </div>
           </Figure>
-          <Figure title="The line lost" caption="The dot goes red; the agents are still there when it is back.">
-            <Phone claude="working">
+          <Figure title="The line lost" caption="The dot goes red; the terminals are still there when it is back.">
+            <Phone>
               <PhoneHeader title="World · harbour.world" line={{ state: "offline", why: null, device: "iPhone" }} />
-              <TabChips tabs={tabs("working")} active="t1" />
+              <TabChips tabs={tabs} active="t1" />
               <Terminal text={TRANSCRIPT} />
               <KeyRow live={false} compose={false} />
             </Phone>

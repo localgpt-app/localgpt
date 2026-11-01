@@ -138,22 +138,13 @@ function OutlineItem({ row, selected }: { row: OutlineRow; selected: boolean }) 
       >
         {row.text}
       </button>
-      {row.reauthor && row.section !== null && (
-        <button
-          title="Author this place again"
-          onClick={() => send({ t: "doc.reauthor", section: row.section! })}
-          className="mr-1 hidden text-[11px] text-muted group-hover:block hover:text-ink"
-        >
-          again
-        </button>
-      )}
-      {row.tier && <span className={`shrink-0 text-[10px] ${row.failed ? "text-danger" : "text-faint"}`}>{row.tier}</span>}
+      {row.tier && <span className="shrink-0 text-[10px] text-faint">{row.tier}</span>}
     </div>
   );
 }
 
-/** Document mode's pane: the file and what the model is doing, the
- *  outline, the selected section's place, and the text. */
+/** Document mode's pane: the file, the outline, the selected section's
+ *  place, and the text. */
 export function DocumentPanel({ doc }: { doc: DocumentView | null }) {
   return (
     <aside className="flex min-h-0 flex-col border-r border-line bg-panel">
@@ -164,20 +155,6 @@ export function DocumentPanel({ doc }: { doc: DocumentView | null }) {
         </span>
         <span className={`ml-auto truncate text-[11px] ${doc?.conflict ? "text-danger" : "text-faint"}`}>{doc?.status}</span>
       </header>
-      {doc?.authoring && (
-        <div className="shrink-0 space-y-1 border-b border-line px-3 py-2 text-[11px]">
-          <div className="flex items-center gap-3">
-            <Toggle
-              on={doc.author_enabled}
-              label="Author"
-              title="Have the model build each section's place. Off, sections keep what they have and new text gets the draft."
-              onClick={() => send({ t: "doc.author", on: !doc.author_enabled })}
-            />
-            <span className="truncate text-faint">{doc.authoring}</span>
-          </div>
-          {doc.author_error && <p className="text-danger">{doc.author_error}</p>}
-        </div>
-      )}
       <div className="flex h-8 shrink-0 items-center justify-between px-3 text-[11px]">
         <span className="font-medium text-muted">Outline</span>
         {doc && (

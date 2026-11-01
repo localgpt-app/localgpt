@@ -7,7 +7,10 @@ at an iPhone's size; *Step 1, as built* says what that covered. Answers the
 `apps/apple` and `apps/android` left with `mobile-ffi` on 2026-10-31, ahead
 of 0.5.0, and no native app takes their place. Builds on [the-page.md](the-page.md). The
 readings behind it are Orca's mobile notes (`external/ade/orca/mobile/`,
-MIT) and [cad-lessons.md](cad-lessons.md) §7.
+MIT) and [cad-lessons.md](cad-lessons.md) §7. **2026-11-01:** the turn
+marks and the agent tabs went with the harness (the-page.md): the phone's
+views are Terminals, World and History, a tab is a login shell, and
+*Telling the person* below describes what was built, not what is.
 
 ## The problem
 
@@ -133,8 +136,10 @@ a tap looks through one, and the song plays and pauses.
 Open…, the timeline, the outliner and the document stay the window's, at
 its width. An iPad gets the phone's layout, roomier.
 
-**Telling the person.** Turn marks come from the marks agents put in their
-terminal titles, read as Orca reads them:
+**Telling the person** (as built 2026-10-31; removed 2026-11-01, since
+reading one agent's glyphs is knowing it by name — a notification that
+needs no agent's cooperation is the open question). Turn marks came from
+the marks agents put in their terminal titles, read as Orca reads them:
 
 - a spinner while one works: Claude Code's braille frames, then its quarter
   circles, and Gemini CLI's ✦;
@@ -299,7 +304,9 @@ the previs user test to say, and
 
 - [x] `apps/apple`, `apps/android` and `mobile-ffi` removed, 2026-10-31,
       ahead of 0.5.0 (the-harness-goes.md)
-- [x] turn marks from the page's terminals, from the agents' titles
+- [x] turn marks from the page's terminals, from the agents' titles —
+      then removed 2026-11-01 with the agent presets; a tab's dot and the
+      phone's "is done" need another source
 - [x] the live API's token: random, the owner's alone, in a query only to
       a board page
 - [x] step 1: the transport, the listener and pairing; the terminals'

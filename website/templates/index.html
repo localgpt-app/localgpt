@@ -84,16 +84,16 @@
         <p>Animate without scripting — orbit, spin, bob, look-at, pulse, path-follow, bounce — and add ambient soundscapes and spatial emitters synthesized in real time. Song worlds bind entity parameters to the music's energy, beat and stems.</p>
       </div>
       <div class="feature-card">
-        <h3>MCP in both directions</h3>
-        <p><code>localgpt-gen mcp-server</code> lets Claude Desktop, Claude Code, Codex, Gemini CLI and editors drive the 3D window; <code>localgpt world mcp</code> serves an open canvas's tools to any agent; <code>localgpt mcp-server</code> offers memory and web tools; and the assistant consumes external MCP servers too.</p>
+        <h3>Your agents, outside the window</h3>
+        <p>The desktop app opens terminals in the folder of the world that is open; run Claude Code, Codex, Gemini CLI or anything else in them. A world's folder carries <code>AGENTS.md</code> and its live API's address, so an agent started there finds everything it needs by reading files it already reads. <a href="/docs/gen/live-canvas/">Learn more &rarr;</a></p>
       </div>
       <div class="feature-card">
-        <h3>Memory that persists, work that runs unattended</h3>
-        <p>A Markdown workspace with hybrid search — SQLite FTS5 plus local embeddings — recalled before each reply and consolidated in the background. A heartbeat and cron jobs do scheduled work with a durable outbox. <a href="/docs/memory-system/">Learn more &rarr;</a></p>
+        <h3>MCP, for any client</h3>
+        <p><code>localgpt-gen mcp-server</code> lets Claude Desktop, Claude Code, Codex, Gemini CLI and editors drive the 3D window; <code>localgpt-gen --mcp-relay</code> lets one drive the window you are looking at; and <code>localgpt world mcp</code> serves an open canvas's tools to any agent. <a href="/docs/gen/mcp-server/">Learn more &rarr;</a></p>
       </div>
       <div class="feature-card">
         <h3>Local &amp; private</h3>
-        <p>Single Rust binaries, your choice of model — Claude, Gemini and Codex CLIs, Anthropic, OpenAI, Ollama, GLM, or a GGUF running in-process — behind a kernel-enforced shell sandbox and standing instructions the agent cannot rewrite. <a href="/docs/sandbox/">Learn more &rarr;</a></p>
+        <p>Single Rust binaries that hold no model and no key: your agents bring their own, and everything stays on your machine. A world is a folder you can read, diff and put in git. <a href="/docs/app/">Learn more &rarr;</a></p>
       </div>
     </div>
   </div>

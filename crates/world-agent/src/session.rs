@@ -11,7 +11,7 @@
 //! This module owns the package's files; the shapes are world-sync's
 //! (`OpLogEntry`, `SessionOp`, `SessionMeta`) and the fold is
 //! [`fold_log`]. It lives in world-agent because Gen, MD and Verse all
-//! depend on this crate and none can depend on `localgpt-core`.
+//! depend on this crate.
 
 use std::fmt;
 use std::io::Write as _;

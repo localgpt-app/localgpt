@@ -19,7 +19,7 @@ Zola static site for [LocalGPT](https://localgpt.app), deployed as a Cloudflare 
 
 ### Structure
 
-- `content/docs/` — Documentation pages and sections: `app.md` (the desktop app), `gen/` (including `live-canvas.md` and `previs.md`), `verse/`, `md/`, and the assistant's pages.
+- `content/docs/` — Documentation pages and sections: `app.md` (the desktop app), `gen/` (including `live-canvas.md` and `previs.md`), `verse/`, `md/`, and the family's pages (`intro.md`, `quick-start.md`, `installation.md`, `cli-commands.md` for `localgpt world`, `architecture.md`). The assistant's pages (chat, daemon, memory, configuration, sandbox, …) went with it on 2026-11-01; 0.4.2's docs are in that release's tag.
 - `content/templates/` — 3D World Templates catalog and detail pages.
 - `templates/` — Tera templates:
   - `base.html` — Site header, navigation, search bar, and family footer.
@@ -35,6 +35,6 @@ Zola static site for [LocalGPT](https://localgpt.app), deployed as a Cloudflare 
 ## Conventions
 
 - The primary color is `#25c2a0` (teal green), with dark background `#121214`.
-- This site is the family hub and the only docs site: the assistant's docs plus `/docs/app`, `/docs/gen`, `/docs/verse`, and `/docs/md`.
+- This site is the family hub and the only docs site: the app's, the CLI's and the format's docs plus `/docs/app`, `/docs/gen`, `/docs/verse`, and `/docs/md`. Nothing on it may promise a model, a key or an agent by name: LocalGPT runs none.
 - The footer "Family" strip is shared across all LocalGPT sites. MD's entry points at `/docs/md/` here, because `md.localgpt.app` redirects to the previs page at localgpt.md.
 - Verify feature claims against the crates before changing copy; the landing page and `intro.md` must not promise what the apps don't do.

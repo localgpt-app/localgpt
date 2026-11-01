@@ -15,9 +15,9 @@ localgpt-gen --host                        # session named "<user>'s world"; pri
 localgpt-gen --host --session-name "Castle Build" --port 9879
 localgpt-gen --host --open                 # no PIN — trusted networks only
 localgpt-gen --host --web                  # also print a browser invite link (token in the URL)
-localgpt-gen --host --web --web-edit       # browser guests may edit directly, not just prompt
+localgpt-gen --host --web --web-edit       # browser guests may edit directly, not just watch and chat
 localgpt-gen --host --web --resume "Castle Build"   # restore a previous session from its op log
-localgpt-gen --host --remote-tools full    # let guests' prompts use ALL host tools (shell!)
+localgpt-gen --host --mcp-relay            # and let your agent build in the hosted world over MCP
 
 # Join from another machine (you'll be asked for the PIN if it has one):
 localgpt-gen --join                        # browse mDNS, join the first session found
@@ -36,13 +36,13 @@ localgpt-gen --replay ~/.local/share/localgpt/workspace/sessions/<name>/ops.json
   announcement (`_localgpt-world._udp.local.`). The console shows the PIN.
 - **Native client (`--join`):** the full gen scene — camera, behaviors,
   audio — driven by the room instead of tools. You see every guest as a
-  labeled capsule, chat, and anything typed at the REPL goes to the room's
-  build queue (scaffolds mark running builds). `/stats` shows the room;
-  `/quit` exits.
+  labeled capsule, and anything typed at the REPL is said to the room as
+  chat. `/stats` shows the room; `/quit` exits.
 - **Browser guests:** the world-export three.js viewer, live over the same
   protocol — see [Browser guests](#browser-guests---web).
-- **From the window:** the prompt panel's Collaborate section starts hosting
-  or joins without flags.
+- **Building:** no model runs for the room. The host's own agent builds —
+  outside the window, over MCP (`--mcp-relay` beside `--host`) or through a
+  live package's API — and its edits reach every guest as the host's ops.
 
 ## Architecture
 
@@ -71,17 +71,18 @@ localgpt-gen --replay ~/.local/share/localgpt/workspace/sessions/<name>/ops.json
 - **Every committed batch lands in the op log**
   (`<workspace>/sessions/<name>/ops.jsonl`): resume a room later, undo per
   author, replay as a time-lapse.
-- **Prompts from any client** enter one FIFO queue (scaffolds mark running
-  builds), run on a scene-only agent unless `--remote-tools full`, and are
-  attributed to the asker — so `/undo` undoes *your* builds.
+- **A prompt from any client** is accepted by the authority (every peer sees
+  it queued, as the protocol says) and failed at once with the reason: this
+  room runs no AI. The prompt and job messages stay in the protocol for an
+  agent of a guest's own, later.
 - **Presence** (positions, gaze, selections) rides a lossy channel at ~5 Hz
   and is never stored.
 
 ## Browser guests (`--web`)
 
 The session HTTP server also serves a **join page** at `http://<host>:<port>/`
-and prints an invite link. Guests can watch, walk, chat, prompt the room's
-AI, and — with `--web-edit` — edit directly: click to select, drag to move,
+and prints an invite link. Guests can watch, walk, chat, and — with
+`--web-edit` — edit directly: click to select, drag to move,
 `Q`/`E` rotate, `+`/`-` scale, `Delete` remove, `/undo` to step back through
 their own changes. Everything is served by the host (three.js is vendored):
 a guest needs no install and no internet.
@@ -91,14 +92,13 @@ a guest needs no install and no internet.
 Every session is a package: a base world (`world.ron`), the one log
 (`ops.jsonl`), metadata (`session.json`) and keyframe snapshots
 (`snapshots/rev-<N>.ron`), under `<workspace>/sessions/<name>/`. The log
-holds every committed batch and the history around it — the model's tool
-calls, host state such as score changes — because only edits change the
-document; everything else folds to nothing. See
+holds every committed batch and the history around it — the tool calls
+the host's agent made, host state such as score changes — because only
+edits change the document; everything else folds to nothing. See
 `docs/rfcs/multiplayer/session-package-format.md`.
 
-- **Undo:** `/undo` undoes your most recent batch — your own edits and
-  builds the room's AI made for you (prompt builds are attributed to the
-  asker). Undoing an undo redoes it.
+- **Undo:** `/undo` undoes your most recent batch — your own edits.
+  Undoing an undo redoes it.
 - **Resume:** `--host --web --resume <session>` replays a session's log
   before guests join, restoring the world and its revision. `<session>`
   is a session name, a package directory, or a bare `ops.jsonl`.
@@ -136,8 +136,9 @@ end-to-end). Local LAN guests and relay guests share the same room.
   On a hostile network, treat the room as public — secrets ride plaintext
   WebSocket. The internet relay (with TLS) is phase 4.
 - Browser sockets must come from the host's own page (Origin check) and
-  guests can't edit the document directly unless they're editors — their
-  prompts run on a scene-only agent (no shell, files, memory, or web).
+  guests can't edit the document directly unless they're editors. Nothing a
+  guest sends runs a model or a tool on the host: a prompt is refused, and
+  only ops change the world.
 - The authority validates every op from anyone: roles, schema, limits,
   revision. A full room (16 guests) declines joins.
 
@@ -152,8 +153,9 @@ end-to-end). Local LAN guests and relay guests share the same room.
   foliage, sky, in-world UI (signs/HUD/labels), NPC bodies.
 - The PIN is six digits with no attempt limit; don't host sensitive worlds
   on untrusted networks.
-- A guest running its *own* model against the room (BYO-agent) is a
-  follow-up the protocol is shaped for.
+- A guest's *own* agent building through the room — rather than through the
+  host's window — is a follow-up the protocol is shaped for: the prompt and
+  job messages are kept for it, and the room refuses them until then.
 
 ## Feature flag
 

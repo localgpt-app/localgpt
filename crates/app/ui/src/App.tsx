@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { AgentsPanel } from "./AgentsPanel";
 import type { DocumentView, History, Mode, TimelineView } from "./bridge";
 import { inApp, listen, send } from "./bridge";
 import { DocumentPanel } from "./DocumentPanel";
@@ -9,20 +8,21 @@ import { type LeftTab, PanelTabs } from "./PanelTabs";
 import { PlaybackBar } from "./PlaybackBar";
 import { RemoteButton } from "./RemotePanel";
 import { ScenePanel } from "./scene/ScenePanel";
+import { TerminalsPanel } from "./TerminalsPanel";
 import { type ClockState, LiveTimeline } from "./timeline/LiveTimeline";
 import { Viewport } from "./Viewport";
 
-const EMPTY: History = { rows: [], current: null, status: null, turns: [] };
+const EMPTY: History = { rows: [], current: null, status: null };
 
 /** `?open=outliner` starts the left panel on the Outliner tab, as
- *  `?open=claude` starts a terminal. */
+ *  `?open=terminal` starts a terminal. */
 const startTab = (): LeftTab => ((new URLSearchParams(location.search).get("open") ?? "").split(",").includes("outliner") ? "Outliner" : "History");
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** The window: what is open has its panel on the left — a live world's
  *  history, with its own transport, and its outliner over the inspector in
- *  a tab beside it; or a document — the world is in the middle, the agents
+ *  a tab beside it; or a document — the world is in the middle, the terminals
  *  are on the right, and the timeline of the world's clock runs across the
  *  foot of all three. */
 export function App() {
@@ -132,7 +132,7 @@ export function App() {
       <main className="flex min-h-0 flex-col">
         <Viewport />
       </main>
-      <AgentsPanel />
+      <TerminalsPanel />
       {/* Across the window: the timeline is the panel that wants width. */}
       {timeline && (
         <div className="col-span-full min-w-0 border-t border-line">

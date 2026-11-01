@@ -10,17 +10,7 @@ publish = false
 repository.workspace = true
 keywords = ["localgpt", "desktop", "world", "bevy"]
 
-[features]
-# In-process GGUF models (`gguf/<name>`, from the model folder every LocalGPT
-# app shares) for the prompt panel and document authoring, through Gen's
-# mistral.rs provider. Off by default: mistral.rs is a large build.
-local-llm = ["localgpt-gen/local-llm"]
-# The Apple-Silicon GPU path for local-llm — what the macOS bundle builds
-# with (apps/app-desktop). macOS only: never in the Linux CI job.
-local-llm-metal = ["local-llm", "localgpt-gen/local-llm-metal"]
-
 [dependencies]
-localgpt-core = { workspace = true }
 localgpt-gen = { path = "../gen" }
 # The pure half only: the app compiles Markdown to a world manifest in-process
 # and never needs MD's renderer, which is this app's own viewport.

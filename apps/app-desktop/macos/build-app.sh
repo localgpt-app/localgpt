@@ -17,11 +17,9 @@
 #       store-credentials`; implies --dmg, submits the .dmg for notarization,
 #       waits, and staples the ticket to it.
 #
-# Local models. On Apple Silicon the app is built with `local-llm-metal`, so
-# the bundle runs a GGUF from the shared model folder in-process on the GPU
-# (docs/world-strategy.md §13.3, the third tier). Intel Macs build without it:
-# the CPU path can't hold the ~5 GB model beside the renderer. APP_FEATURES
-# overrides the feature list (comma-separated; empty for none).
+# The app runs no model: it holds no model's configuration, and the agents
+# in its terminals bring their own. APP_FEATURES names cargo features for
+# the build (comma-separated; empty, the default, for none).
 #
 # Output goes to apps/app-desktop/dist/.
 set -euo pipefail
@@ -48,9 +46,7 @@ OUT="$ROOT/apps/app-desktop/dist"
 APP="$OUT/LocalGPT.app"
 ICON_SVG="$ROOT/website/static/logo/localgpt-icon.svg"
 
-if [ -z "${APP_FEATURES+set}" ]; then
-  if [ "$(uname -m)" = arm64 ]; then APP_FEATURES=local-llm-metal; else APP_FEATURES=""; fi
-fi
+APP_FEATURES="${APP_FEATURES-}"
 # One word, so it expands safely unquoted (macOS bash 3.2 has no safe empty
 # arrays under `set -u`).
 FEATURE_FLAG=""
