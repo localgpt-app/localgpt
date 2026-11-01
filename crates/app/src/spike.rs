@@ -5,13 +5,17 @@
 //! them.
 //!
 //! - `LOCALGPT_SPIKE_FRAMES=<file>`: every Bevy frame as `unix_ms,dt_ms`,
-//!   and the window's occlusion changes as `# occluded <bool> <unix_ms>`.
+//!   and the window's occlusion changes as `# occluded <bool> <unix_ms>`;
+//!   the window stays above all others while it measures, unless
+//!   `LOCALGPT_SPIKE_ON_TOP=0`.
 //! - `LOCALGPT_SPIKE_WEB_WORLD=1`: the world camera draws nothing; the page
 //!   draws the world instead.
 //! - `LOCALGPT_SPIKE_MANIFEST=1`: a song's world is also written as
 //!   `manifest.json`, the JSON the format's web viewer reads.
 //! - `LOCALGPT_SPIKE_MONITOR=fastest`: the window moves to the display with
-//!   the highest refresh rate — a ProMotion screen beside a 60 Hz one.
+//!   the highest refresh rate — a ProMotion screen beside a 60 Hz one; or
+//!   `=<width>x<height>`, to the display of that size in pixels, as the
+//!   frame log names them (`5120x2880`).
 //! - `LOCALGPT_SPIKE_PLAY=<s>` and `LOCALGPT_SPIKE_EXIT=<s>`: for a run with
 //!   no page (a platform with no web view yet): `<s>` seconds in, mute the
 //!   song and play it, as the page would; and quit `<s>` seconds in. The
@@ -66,6 +70,9 @@ impl Plugin for SpikePlugin {
                         displays_named: false,
                     })
                     .add_systems(Last, (name_displays, log_frame).chain());
+                    if !std::env::var("LOCALGPT_SPIKE_ON_TOP").is_ok_and(|v| v == "0") {
+                        app.add_systems(Update, keep_on_top);
+                    }
                 }
                 Err(e) => eprintln!("spike: {path}: {e}"),
             }
@@ -87,8 +94,9 @@ impl Plugin for SpikePlugin {
             })
             .add_systems(Last, world_camera_off);
         }
-        if std::env::var("LOCALGPT_SPIKE_MONITOR").is_ok_and(|v| v == "fastest") {
-            app.add_systems(Update, to_fastest_monitor);
+        if let Ok(choice) = std::env::var("LOCALGPT_SPIKE_MONITOR") {
+            app.insert_resource(MonitorChoice(choice))
+                .add_systems(Update, to_monitor);
         }
         if let Some(n) = secs_var("LOCALGPT_SPIKE_CASCADES") {
             app.insert_resource(Cascades(n.max(1.0) as usize))
@@ -163,19 +171,49 @@ fn cascades(
 #[derive(Component)]
 struct CascadesSet;
 
-/// Once the monitors are known: centre the window on the fastest one.
-fn to_fastest_monitor(
-    monitors: Query<(Entity, &bevy::window::Monitor)>,
+/// A measured window stays above every other: covered, its page stops
+/// drawing and the run measures nothing, and a person at the computer cannot
+/// keep two displays clear for a quarter of an hour.
+fn keep_on_top(
     mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
     mut done: Local<bool>,
 ) {
     if *done {
         return;
     }
-    let Some((entity, monitor)) = monitors
-        .iter()
-        .max_by_key(|(_, m)| m.refresh_rate_millihertz.unwrap_or(0))
-    else {
+    if let Ok(mut window) = windows.single_mut() {
+        window.window_level = bevy::window::WindowLevel::AlwaysOnTop;
+        *done = true;
+    }
+}
+
+/// `LOCALGPT_SPIKE_MONITOR`: `fastest`, or a display's size in pixels as the
+/// frame log's `# monitor` lines print it (`5120x2880`).
+#[derive(Resource)]
+struct MonitorChoice(String);
+
+/// Once the monitors are known: centre the window on the chosen one.
+fn to_monitor(
+    choice: Res<MonitorChoice>,
+    monitors: Query<(Entity, &bevy::window::Monitor)>,
+    mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
+    mut done: Local<bool>,
+) {
+    if *done || monitors.is_empty() {
+        return;
+    }
+    let chosen = if choice.0 == "fastest" {
+        monitors
+            .iter()
+            .max_by_key(|(_, m)| m.refresh_rate_millihertz.unwrap_or(0))
+    } else {
+        monitors
+            .iter()
+            .find(|(_, m)| format!("{}x{}", m.physical_width, m.physical_height) == choice.0)
+    };
+    let Some((entity, monitor)) = chosen else {
+        eprintln!("spike: no display is {}; the window stays", choice.0);
+        *done = true;
         return;
     };
     let Ok(mut window) = windows.single_mut() else {

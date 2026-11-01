@@ -13,8 +13,9 @@
 # env:  BIN (the app, target/debug/localgpt-app), SECS (measured seconds,
 #       30), PORT (8765); and passed to the app (src/spike.rs):
 #       LOCALGPT_SPIKE_MONITOR=fastest (the window on the fastest display, a
-#       ProMotion screen), LOCALGPT_SPIKE_CASCADES=<n> (Bevy's shadow
-#       cascades; four by default)
+#       ProMotion screen) or =<width>x<height> (on the display of that size
+#       in pixels, as a log's "# monitor" lines name them),
+#       LOCALGPT_SPIKE_CASCADES=<n> (Bevy's shadow cascades; four by default)
 # also: python3 scripts/world-in-the-page/gpu.py <out-dir> & (macOS: each
 #       process's share of the GPU's time, beside the frames)
 # then: HZ=<the display's rate> python3 scripts/world-in-the-page/analyze.py <out-dir>
