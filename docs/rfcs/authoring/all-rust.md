@@ -138,6 +138,135 @@ Ordinary drawing: 1,600 lines of React and SVG today (`timeline/`,
 get big, CADCraft's canvas is the pattern: a display list built once per
 edit, a view uniform per frame (`crates/ui-egui/src/gpu.rs` there).
 
+## A DAW and an editing room, driven by agents
+
+Asked 2026-11-01: do professional DAW capabilities and video editing,
+driven by coding agents, fit this architecture? Yes, and better than the
+page would have: both are an engine under a dense, custom-drawn interface,
+which is the shape of everything above. What they add is two engines and
+two format questions; nothing in the stack has to change.
+
+### The shape is already here
+
+- **The interface.** A mixer with meters, a piano roll, an arrangement, a
+  monitor with scrubbing, a colour wheel: painter widgets at the display's
+  rate, the timeline's pattern, and CADCraft's display list when the tracks
+  get big. Rerun (MIT OR Apache-2.0, egui on wgpu) draws millions of points
+  on time axes; a dense timeline is not where egui gives out. Meters repaint
+  through `request_repaint_after`; the audio thread is never waited on.
+- **The engine thread.** `world-audio` already runs its engine on a thread of
+  its own with transforms forwarded to it. A DAW engine is that shape with a
+  real-time thread that never locks or allocates: `rtrb` ring buffers
+  (MIT OR Apache-2.0) in, `basedrop` to free off the thread.
+- **The agents.** Their command surface is the world's API — `localgpt world
+  submit`, the ops, receipts, undo, redo and forks — and an arrangement or an
+  edit is a document with a history, which is `world-editor`'s model (tips,
+  forks, folds). An agent in a terminal places a clip at bar 17, writes an
+  automation lane or renders a shot sequence the way it hangs a lamp: one
+  command catalog, contracts it can read, never crash, headless parity
+  ([cad-lessons.md](cad-lessons.md)). A DAW driven through a command log is
+  easier to test headless than one driven by a mouse.
+- **Bevy windowless** is the render farm: each shot of the world is a take
+  rendered at the project's rate into a texture and encoded, the "pictures
+  nobody is watching" item of the-world-in-the-page.md.
+- **One wgpu device.** Decoded frames are textures on the device the panels
+  and the world draw on; on macOS a VideoToolbox frame is an IOSurface that
+  wgpu's Metal backend imports with no copy (`create_texture_from_hal`), and
+  the compositor is WGSL in a paint callback — SolidCraft's pattern.
+- **The phone** as a control surface: faders, transport and a shot list over
+  the WebSocket that already carries the terminals, in the WebAssembly build.
+
+### The audio engine: the second real piece
+
+What a DAW needs that `world-audio` lacks — kira is a game mixer that owns
+the device:
+
+- the device, owned directly: `cpal` (Apache-2.0) over CoreAudio, WASAPI and
+  ALSA; a callback at a fixed block size; a sample-accurate transport with a
+  tempo map, loop and punch;
+- a graph with delay compensation: Firewheel (MIT OR Apache-2.0; the engine
+  Bevy plans to make its default, through `bevy_seedling`) is the graph to
+  build on. It is a game engine's graph, so clip scheduling, automation
+  lanes, plugin delay compensation, freeze and recording are the DAW layer on
+  top. Meadowlark's engine, Dropseed, is AGPL and not ours to take; its
+  `meadowlark-dsp-mit` (MIT OR Apache-2.0) is DSP to take;
+- disk streaming for long clips: `creek` (MIT OR Apache-2.0); decoding:
+  `symphonia` (MPL-2.0, pure Rust: WAV, FLAC, MP3, AAC, Vorbis, ALAC);
+  resampling: `rubato` (MIT); MIDI in and out: `midir` (MIT); stems as
+  tracks: Verse's splitter already, the ONNX item of
+  [C under Rust](#c-under-rust-the-last-mile);
+- time-stretch and pitch: no pure-Rust library of professional quality. The
+  `signalsmith-stretch` crate binds the C++ (MIT), `ssstretch` likewise, so
+  a port of Signalsmith's published algorithm is a write-from-scratch item,
+  two to three thousand lines;
+- plugins: CLAP first, hosted through `clack` (MIT OR Apache-2.0, Rust over
+  the C ABI); the plugin binaries are what they are, like the OS. AU through
+  AudioToolbox, the OS. VST3 through the `vst3` crate (MIT OR Apache-2.0),
+  which needs Steinberg's SDK headers at build time, and the SDK is GPLv3 or
+  Steinberg's own licence: the one place GPL buys a feature. A plugin's
+  interface needs a native parent view; eframe's viewports are winit
+  windows, so it gets its `NSView` or `HWND` through `raw-window-handle`,
+  or from a winit window of our own;
+- the format: tracks, clips, automation and the tempo map are an extension
+  in the spec repo. The song world (`soundtrack`, its sections and curves) is
+  the seed, and the agents' commands come with the extension.
+
+The engine with transport, tracks, clips, automation, recording and CLAP is
+fifteen to twenty-five thousand lines, three to four months of agent time to
+one that is used. "Professional" — delay compensation at its edges, freeze,
+comping, stretch quality, plugin interfaces on three systems — is the long
+tail every open DAW has spent years in; it is a product decision measured
+against Reaper and Ardour, not a step.
+
+### The editing room
+
+What it needs: decode, a frame cache, a compositor, colour, encode, a muxer.
+
+- **Codecs are the rule's hard edge.** H.264, HEVC and ProRes, both ways,
+  are the OS: VideoToolbox on macOS (`objc2-video-toolbox` 0.3,
+  `objc2-core-video`, `objc2-core-media`, MIT), Media Foundation on Windows
+  (the `windows` crate). Pure Rust has AV1 both ways (`rav1e` to encode,
+  `rav1d` to decode, the Rust port of dav1d, both BSD-2-Clause) and the
+  containers (`mp4`, MIT; Matroska and WebM crates); audio tracks through
+  symphonia, and AAC out through AudioToolbox. Linux has no codec of its own
+  above C: the choice there is AV1 only, or the distribution's FFmpeg or
+  GStreamer counted as the OS, which [the rule](#the-rule) would have to say.
+- **The compositor:** frames as wgpu textures; transforms, blends,
+  transitions, titles (text laid out to a texture), LUTs and grading as
+  WGSL. No OpenColorIO (C++): a scene-linear pipeline with named transforms,
+  written here.
+- **The sequence** is in the format already: the timeline's shots with
+  their frames, and a cut that rolls when a trim meets the next shot. The
+  edit is that sequence with imported footage and transitions, a second
+  extension in the spec repo; rendering is Bevy windowless per shot, into
+  textures, into the encoder.
+- **The agents:** a cut at a time, a dissolve of twelve frames, a render at
+  1080p are ops through the API; the receipt carries the render's hash, and
+  a proposal waits for review like any edit.
+
+Decode to texture to encode through VideoToolbox, with a cache, is five to
+eight thousand lines; the sequence and the compositor another eight to
+twelve. Two to three months to an editing room for the world's own takes and
+imported H.264 and ProRes on macOS; Windows follows with Media Foundation;
+Linux is AV1 only until the rule says otherwise.
+
+### What it changes in the plan
+
+- `world-audio`'s rule, "kira owns the device", becomes "the engine owns the
+  device"; the FunDSP graphs stay as sources, and kira goes or becomes a
+  track.
+- A real-time thread joins eframe's, Bevy's and the PTY readers; nothing
+  above it may block it. The terminal and the world keep to that already.
+- Two format extensions before the engines, the arrangement and the edit,
+  in the spec repo: the format decides, and the app renders what the fold
+  says.
+- Order: after parity ([order and cost](#order-and-cost)), the audio engine
+  first (the song world is its seed), the editing room second (the world's
+  takes before imported footage).
+- GPL, reconsidered: hosting VST3 is the one feature it buys. CLAP and AU
+  cover the current plugins and macOS. **Keep Apache 2.0** unless VST3
+  is required.
+
 ## The phone and the link
 
 **The phone** ([mobile-remote.md](mobile-remote.md)) gets the same program
@@ -199,7 +328,10 @@ Agent-days, the calibration cad-lessons.md §11 asks for, uncalibrated here.
 
 Two to three months of agent time to where the page is today, the renderer
 not counted. Steps 2–4 are the same work whichever order; the terminal is
-the one that can slip.
+the one that can slip. Not in the table: the audio engine and the editing
+room ([a DAW and an editing room](#a-daw-and-an-editing-room-driven-by-agents)),
+three to four and two to three months after parity, each with an RFC of its
+own.
 
 ## Tooling and checks
 
@@ -301,3 +433,7 @@ snapshots, previs and its board, the agents as processes in PTYs, Zola.
 - [ ] Steps 0–7 of [Order and cost](#order-and-cost)
 - [ ] The last mile of C, with 0.5.0
 - [ ] The WebAssembly world renderer for the link
+- [ ] The audio engine, after parity: the arrangement extension in the spec
+      repo, then its own RFC
+- [ ] The editing room, after the audio engine: the edit extension, then its
+      own RFC
