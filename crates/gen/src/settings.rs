@@ -183,11 +183,11 @@ mod tests {
     #[test]
     fn a_file_with_the_old_collaborate_form_still_reads() {
         let json = format!(
-            r#"{{"version": {VERSION}, "default_model": "claude-cli/opus",
+            r#"{{"version": {VERSION}, "default_model": "gguf/bonsai",
                 "collab": {{"session_name": "harbor", "port": 9900, "open": true}}}}"#
         );
         let settings: GenSettings = serde_json::from_str(&json).unwrap();
-        assert_eq!(settings.default_model.as_deref(), Some("claude-cli/opus"));
+        assert_eq!(settings.default_model.as_deref(), Some("gguf/bonsai"));
     }
 
     /// A file from a future Gen is ignored rather than half-read.

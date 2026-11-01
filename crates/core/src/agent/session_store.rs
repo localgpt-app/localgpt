@@ -22,14 +22,6 @@ pub struct SessionEntry {
     /// Last update timestamp (milliseconds since epoch)
     pub updated_at: u64,
 
-    /// CLI session IDs per provider (e.g., "claude-cli" -> "session-uuid")
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub cli_session_ids: HashMap<String, String>,
-
-    /// Legacy field for backward compatibility with OpenClaw
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub claude_cli_session_id: Option<String>,
-
     /// Token usage tracking
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_tokens: Option<u64>,
@@ -68,46 +60,6 @@ impl SessionEntry {
             updated_at: chrono::Utc::now().timestamp_millis() as u64,
             ..Default::default()
         }
-    }
-
-    /// Get CLI session ID for a provider
-    pub fn get_cli_session_id(&self, provider: &str) -> Option<&str> {
-        // Try the map first
-        if let Some(id) = self.cli_session_ids.get(provider)
-            && !id.is_empty()
-        {
-            return Some(id.as_str());
-        }
-
-        // Fallback to legacy field for claude-cli
-        if provider == "claude-cli"
-            && let Some(ref id) = self.claude_cli_session_id
-            && !id.is_empty()
-        {
-            return Some(id.as_str());
-        }
-
-        None
-    }
-
-    /// Set CLI session ID for a provider
-    pub fn set_cli_session_id(&mut self, provider: &str, session_id: &str) {
-        self.cli_session_ids
-            .insert(provider.to_string(), session_id.to_string());
-
-        // Also set legacy field for claude-cli compatibility
-        if provider == "claude-cli" {
-            self.claude_cli_session_id = Some(session_id.to_string());
-        }
-
-        self.updated_at = chrono::Utc::now().timestamp_millis() as u64;
-    }
-
-    /// Clear CLI session IDs (called on `/new` to force a fresh CLI session)
-    pub fn clear_cli_session_ids(&mut self) {
-        self.cli_session_ids.clear();
-        self.claude_cli_session_id = None;
-        self.updated_at = chrono::Utc::now().timestamp_millis() as u64;
     }
 
     /// Check if a heartbeat would be a duplicate (same text within 24 hours)
@@ -241,46 +193,11 @@ impl SessionStore {
         entry.updated_at = chrono::Utc::now().timestamp_millis() as u64;
         self.save()
     }
-
-    /// Get CLI session ID for a session and provider
-    pub fn get_cli_session_id(&self, session_key: &str, provider: &str) -> Option<String> {
-        self.get(session_key)
-            .and_then(|e| e.get_cli_session_id(provider))
-            .map(|s| s.to_string())
-    }
-
-    /// Set CLI session ID for a session and provider
-    pub fn set_cli_session_id(
-        &mut self,
-        session_key: &str,
-        session_id: &str,
-        provider: &str,
-        cli_session_id: &str,
-    ) -> Result<()> {
-        self.update(session_key, session_id, |entry| {
-            entry.set_cli_session_id(provider, cli_session_id);
-        })
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_session_entry_cli_session() {
-        let mut entry = SessionEntry::new("test-session");
-
-        // Initially empty
-        assert!(entry.get_cli_session_id("claude-cli").is_none());
-
-        // Set and get
-        entry.set_cli_session_id("claude-cli", "cli-123");
-        assert_eq!(entry.get_cli_session_id("claude-cli"), Some("cli-123"));
-
-        // Legacy field should also be set
-        assert_eq!(entry.claude_cli_session_id, Some("cli-123".to_string()));
-    }
 
     #[test]
     fn test_session_entry_token_tracking() {
@@ -312,7 +229,6 @@ mod tests {
         let entry: SessionEntry = serde_json::from_str(json).unwrap();
 
         assert_eq!(entry.session_id, "test");
-        assert!(entry.cli_session_ids.is_empty());
         assert!(entry.input_tokens.is_none());
         assert!(entry.compaction_count.is_none());
     }

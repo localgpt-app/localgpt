@@ -16,26 +16,22 @@ server, headless generation, `--host`/`--join`).
   in, each tool call shows as it runs, and prompts sent while the agent is
   busy wait in a queue. The toolbelt is the `core` profile unless `--tools`
   or Gen's settings pick `standard` or `full`.
-- **Model menu.** Lists the models this machine can use right now: installed
-  CLI backends (Claude CLI, Gemini CLI, Codex), models pulled into a local
-  Ollama, and every GGUF in the model folder LocalGPT's apps share
+- **Model menu.** Lists the models this machine can use right now: models
+  pulled into a local Ollama, and every GGUF in the model folder LocalGPT's apps share
   (`~/.local/share/localgpt/models/llm`), which the app runs in-process as
   `gguf/<name>` when built with `local-llm-metal` (the macOS bundle is) or
   `local-llm`. The choice is remembered in Gen's settings
   (`~/.local/state/localgpt/gen-settings.json`), and document authoring uses
   the same model. No config file is read or written.
-- **First-run help.** If the chosen model is a CLI backend that isn't
-  installed, the panel says so and points at the model menu. Opened from
-  Finder, the app reads your login shell's `PATH`, so `claude`, `gemini` and
-  `codex` installed with Homebrew, npm or into `~/.local/bin` are found.
+- **The login shell's `PATH`.** Opened from Finder, the app reads your login
+  shell's `PATH`, so programs installed with Homebrew, npm or into
+  `~/.local/bin` are found.
 - **Collaborate.** A section under the model menu hosts or joins a
   collaborative session without command-line flags: *Host* picks a name,
   port, and PIN or open session, then shows the PIN and how many guests are
   connected; *Join* browses the LAN (or takes an address) and pairs with the
   PIN. Guests' prompts run on a scene-only agent, as with `localgpt-gen
-  --host`. With a CLI backend, the app also serves an MCP relay so the
-  backend's tool calls reach the open window (`localgpt-app mcp-server
-  --connect`).
+  --host`.
 - **Logs** go to `~/.local/state/localgpt/logs/localgpt-app.log` when there
   is no terminal.
 
@@ -135,6 +131,3 @@ install -Dm644 website/static/logo/localgpt-icon.svg \
   (CPU) or a GPU backend chosen per platform.
 - **A proper app icon.** QuickLook flattens the SVG onto white; a real macOS
   icon wants a designed rounded-square tile.
-- **Tool calls from CLI backends.** With Claude CLI, Gemini CLI or Codex,
-  tools run through the MCP relay, so the panel shows the streamed text but
-  not each tool call.

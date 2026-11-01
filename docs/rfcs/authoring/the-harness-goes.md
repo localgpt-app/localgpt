@@ -177,13 +177,18 @@ action says GitHub's runners cannot reach
 stop there. The lines:
 
 ```toml
-# crates/app/Cargo.toml: document authoring keeps the CLI backends
-localgpt-core = { workspace = true, default-features = false, features = ["embeddings-none", "claude-cli", "codex-cli", "gemini-cli"] }
+# crates/app/Cargo.toml
+localgpt-core = { workspace = true, default-features = false, features = ["embeddings-none"] }
 # crates/gen/Cargo.toml
-localgpt-core = { workspace = true, default-features = false, features = ["mcp-http", "embeddings-none", "claude-cli", "codex-cli", "gemini-cli", "image-resize"] }
+localgpt-core = { workspace = true, default-features = false, features = ["mcp-http", "embeddings-none", "image-resize"] }
 ```
 
-The three CLI features are empty (`crates/core/Cargo.toml`), and
+(2026-11-01: the lines above named the three CLI features, so that document
+authoring kept the coding agents as model backends. They went that day —
+the agents are not embedded, and nothing treats one agent differently from
+another — so authoring runs on an API model or a local GGUF, and the
+default model is `anthropic/claude-opus-4-6`.) The CLI features were empty
+(`crates/core/Cargo.toml`), and
 `local_embeddings_cached`, which Gen's settings call
 (`crates/gen/src/config.rs:79`), is not behind the embeddings feature
 (`crates/core/src/memory/mod.rs:56`). Gen's memory then searches by keyword

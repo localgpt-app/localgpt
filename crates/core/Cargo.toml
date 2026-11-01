@@ -14,11 +14,7 @@ readme = "README.md"
 # Memory searches by keyword (SQLite FTS5), or with an embeddings API when
 # one is configured; the in-process models (fastembed over ONNX Runtime,
 # llama.cpp) and sqlite-vec left with the mobile apps.
-default = ["claude-cli", "gemini-cli", "codex-cli", "image-resize"]
-# The CLI providers: each runs its agent as a subprocess.
-claude-cli = []
-gemini-cli = []
-codex-cli = []
+default = ["image-resize"]
 # Image optimization for vision models (resizes before sending to LLM)
 image-resize = ["dep:image"]
 # MCP streamable HTTP transport (adds axum + tower-http)

@@ -1,4 +1,4 @@
-//! MCP relay server — allows external CLI backends to use the existing GenBridge.
+//! MCP relay server — lets an external MCP client use the existing GenBridge.
 //!
 //! When `localgpt-gen` runs interactively, this relay listens on a TCP port.
 //! A separate `localgpt-gen mcp-server --connect <port>` process connects

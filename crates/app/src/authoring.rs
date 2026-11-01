@@ -8,22 +8,20 @@
 //! until its text changes, and every rebuild picks them up.
 //!
 //! **One request per section, with a JSON plan.** The app runs on whatever
-//! model it is configured for, and the zero-config default is often a
-//! signed-in CLI backend — which is a subprocess that ignores in-process tool
-//! schemas. So instead of a tool loop, the model is shown the tools and asked
-//! to reply with the calls as JSON, which every backend can do; the calls are
-//! then applied in order through `Session::call`. This is the shape MD's
-//! recipe tier already uses (instructed JSON, lenient parse). It trades the
-//! loop's look-and-refine for one planned pass, which a capable model handles
-//! well; a native tool loop for providers that support one is a later
-//! refinement, not a different design.
+//! model it is configured for — an API model or a local GGUF — and not every
+//! provider has a tool loop (it was designed when the default was a coding
+//! agent run as a subprocess, which ignored tool schemas). So instead of a
+//! tool loop, the model is shown the tools and asked to reply with the calls
+//! as JSON, which every backend can do; the calls are then applied in order
+//! through `Session::call`. This is the shape MD's recipe tier already uses
+//! (instructed JSON, lenient parse). It trades the loop's look-and-refine for
+//! one planned pass, which a capable model handles well; a native tool loop
+//! for providers that support one is a later refinement, not a different
+//! design.
 //!
-//! **Isolated from the chat.** Each request is a fresh provider made
-//! ephemeral, so a CLI backend neither resumes the chat's stored session nor
-//! writes this one over it; its built-in tools and MCP servers are switched
-//! off, because planning a place needs neither and a CLI wandering into the
-//! workspace, or spawning a second window through an MCP server, would be a
-//! side effect nobody asked for.
+//! **Isolated from the chat.** Each request is a fresh provider with no
+//! conversation of its own, so nothing here resumes or writes over a chat's
+//! session.
 
 use std::collections::{HashSet, VecDeque};
 use std::sync::{Arc, Condvar, Mutex, mpsc};
@@ -36,8 +34,8 @@ use localgpt_world_agent::assets::AssetManifest;
 use localgpt_world_agent::interpreter::{MAX_AGENT_STEPS, Session, section_prompt, tool_specs};
 use serde::Deserialize;
 
-/// How long one section may take before it is given up on. A CLI backend
-/// starts a process per request, so this is generous.
+/// How long one section may take before it is given up on. A local model
+/// on a busy machine can be slow, so this is generous.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
 /// The most calls applied from one plan — the interpreter's entity budget
 /// clamps anyway; this bounds a runaway reply before it gets there.
@@ -112,7 +110,7 @@ pub struct Worker {
 
 impl Worker {
     pub fn spawn(config: &Config, manifest: Option<AssetManifest>) -> Self {
-        let config = authoring_config(config);
+        let config = config.clone();
         let model = config.agent.default_model.clone();
         let shared = Arc::new(Shared::default());
         let (outcome_tx, outcomes) = mpsc::channel::<Outcome>();
@@ -221,26 +219,6 @@ fn next_job(shared: &Shared, settle: Duration) -> Option<Job> {
     }
 }
 
-/// The app's config, adjusted for side-channel requests: the CLI backends'
-/// built-in tools off (`--tools ""`), no MCP servers (an empty config with
-/// `--strict-mcp-config`), and a modest effort — this runs on its own every
-/// time a section settles, so it should not spend like a conversation.
-fn authoring_config(config: &Config) -> Config {
-    let mut config = config.clone();
-    // Gen's in-memory config usually has no [providers.claude_cli] table at
-    // all, and ClaudeCliConfig has no Default — its defaults are per-field
-    // serde functions. An empty object takes exactly those, as config loading
-    // would; without this the overrides below would silently not apply.
-    let cli = config.providers.claude_cli.get_or_insert_with(|| {
-        serde_json::from_value(serde_json::json!({}))
-            .expect("ClaudeCliConfig from its field defaults")
-    });
-    cli.builtin_tools = Some(String::new());
-    cli.mcp_config_override = Some(r#"{"mcpServers":{}}"#.to_string());
-    cli.effort = "low".to_string();
-    config
-}
-
 /// Author one section: one request, one plan, applied through the protocol.
 pub async fn author(config: &Config, job: &Job, manifest: Option<&AssetManifest>) -> Authored {
     match plan_and_build(config, job, manifest).await {
@@ -257,7 +235,6 @@ async fn plan_and_build(
 ) -> Result<Option<BuildOutput>, String> {
     let provider = create_provider(&config.agent.default_model, config)
         .map_err(|e| format!("no model to author with: {e}"))?;
-    provider.make_ephemeral();
 
     let messages = [
         message(Role::System, system_prompt(manifest)),
@@ -493,22 +470,5 @@ mod tests {
         let shared = Shared::default();
         shared.queue.lock().unwrap().closed = true;
         assert!(next_job(&shared, Duration::ZERO).is_none());
-    }
-
-    #[test]
-    fn the_authoring_config_switches_off_cli_side_effects_even_with_no_table() {
-        // The real case: Gen's in-memory config has no [providers.claude_cli].
-        let config = Config::default();
-        assert!(config.providers.claude_cli.is_none());
-        let cli = authoring_config(&config).providers.claude_cli.unwrap();
-        assert_eq!(cli.builtin_tools.as_deref(), Some(""), "no Bash/Read/Write");
-        assert!(
-            cli.mcp_config_override
-                .as_deref()
-                .unwrap()
-                .contains("mcpServers")
-        );
-        assert_eq!(cli.effort, "low");
-        assert!(!cli.command.is_empty(), "the command keeps its default");
     }
 }

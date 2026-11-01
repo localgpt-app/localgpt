@@ -44,7 +44,7 @@ GET /api/status
 {
   "version": "0.1.3",
   "uptime_seconds": 3600,
-  "model": "claude-cli/opus",
+  "model": "anthropic/claude-opus-4-6",
   "memory": {
     "files_indexed": 42,
     "chunks": 156
@@ -70,7 +70,7 @@ Content-Type: application/json
 ```json
 {
   "message": "What is the capital of France?",
-  "model": "claude-cli/opus",
+  "model": "anthropic/claude-opus-4-6",
   "include_memory": true
 }
 ```
@@ -86,7 +86,7 @@ Content-Type: application/json
 ```json
 {
   "response": "The capital of France is Paris.",
-  "model": "claude-cli/opus",
+  "model": "anthropic/claude-opus-4-6",
   "tokens": {
     "prompt": 45,
     "completion": 12,
@@ -100,7 +100,7 @@ Content-Type: application/json
 ```json
 {
   "response": "I found 3 files in your project...",
-  "model": "claude-cli/opus",
+  "model": "anthropic/claude-opus-4-6",
   "tokens": {
     "prompt": 120,
     "completion": 45,

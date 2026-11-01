@@ -78,23 +78,21 @@ The agent receives your prompt and iteratively builds a world — spawning shape
 
 `localgpt-gen` takes its prompts from the terminal it was started in: the reply streams there, and the window shows the world being built. The windowed app without a terminal is the [LocalGPT desktop app](/docs/app/), which opens documents, songs and `.world` packages, and hosts your own coding agents — Claude Code, Codex and the rest — in tabs beside the world; build its macOS bundle with `apps/app-desktop/macos/build-app.sh` from the repository.
 
-- **The model** is the one named in Gen's settings (`default_model` in `~/.local/state/localgpt/gen-settings.json`), else a local GGUF, else the first installed CLI backend (Claude CLI, Gemini CLI, Codex); `/model <name>` switches it in the terminal. Gen reads no `config.toml`.
+- **The model** is the one named in Gen's settings (`default_model` in `~/.local/state/localgpt/gen-settings.json`), else a local GGUF, else the default, `anthropic/claude-opus-4-6`; `/model <name>` switches it in the terminal. Gen reads no `config.toml`. The coding agents are not model backends: one drives the window from its own terminal through the [MCP relay](/docs/gen/cli-mode).
 - **Slash commands:** `/model <name>`, `/new`, `/clear`, and `/quit`.
-
-With a CLI backend, tools run through the [MCP relay](/docs/gen/cli-mode).
 
 ## Three Ways to Use Gen (with Bevy Window)
 
 All three modes open a Bevy 3D window where you watch worlds being built in real-time. They differ in **who drives the AI** and **whether you need an API key**.
 
-| | **Interactive (API)** | **Interactive (CLI Backend)** | **MCP Server (External App)** |
+| | **Interactive (API)** | **Interactive (an agent outside)** | **MCP Server (External App)** |
 |---|---|---|---|
-| **Command** | `localgpt-gen` | `localgpt-gen` | `localgpt-gen mcp-server` |
-| **Who builds the world** | LocalGPT's built-in agent | External CLI (Claude CLI, Gemini CLI, Codex) via MCP relay | External app (Claude Desktop, Codex Desktop, VS Code, Zed, Cursor) |
-| **LLM provider** | API key (Anthropic, OpenAI, Ollama, etc.) | CLI subprocess (`claude`, `gemini`, `codex`) | Whatever the external app uses |
-| **Requires API key?** | Yes (or Ollama for local) | No — uses the CLI's own auth | No — the external app handles auth |
-| **Who manages conversation?** | LocalGPT agent loop | The CLI backend (autonomous) | The external app |
-| **Tool execution** | In-process (GenBridge) | CLI → [MCP relay](/docs/gen/cli-mode) → GenBridge | MCP stdio → GenBridge |
+| **Command** | `localgpt-gen` | `localgpt-gen --mcp-relay` | `localgpt-gen mcp-server` |
+| **Who builds the world** | LocalGPT's built-in agent | A coding agent in a terminal (Claude Code, Gemini CLI, Codex) via MCP relay | External app (Claude Desktop, Codex Desktop, VS Code, Zed, Cursor) |
+| **LLM provider** | API key (Anthropic, OpenAI, Ollama, etc.) | The agent's own | Whatever the external app uses |
+| **Requires API key?** | Yes (or Ollama for local) | No — the agent's own login | No — the external app handles auth |
+| **Who manages conversation?** | LocalGPT agent loop | The agent, in its terminal | The external app |
+| **Tool execution** | In-process (GenBridge) | Agent → [MCP relay](/docs/gen/cli-mode) → GenBridge | MCP stdio → GenBridge |
 | **Memory system** | Full (MEMORY.md, daily logs, search) | Full (via MCP relay) | Full (via MCP tools) |
 | **Best for** | Direct control, fast iteration | Using Claude/Gemini/Codex without API keys | Editors, desktop apps, multi-tool workflows |
 
@@ -129,35 +127,32 @@ Pick `gguf/<name>` from the model menu (every `.gguf` in the folder is listed), 
 
 Scene building is a long tool-calling session with a large tool list, so a small model is much weaker at it than a hosted one. Bonsai-8B (the model MD and Verse share) runs and saves worlds, but it can call the wrong tool name or repeat a failing call until its turn budget runs out. An instruction-tuned 7–14B+ model with good tool calling (Qwen2.5-Instruct, for example) does noticeably better.
 
-### Mode 2: Interactive with CLI Backend (no API key)
+### Mode 2: An agent outside drives your window (no API key)
 
-Use Claude CLI, Gemini CLI, or Codex as the LLM — they handle auth through their own login. LocalGPT auto-starts an [MCP relay](/docs/gen/cli-mode) when it detects a CLI backend model, so tool calls go to your existing Bevy window.
+Run Gen with `--mcp-relay`, and a coding agent in a terminal — Claude Code, Gemini CLI, Codex, any MCP client — builds in the window you are looking at, with its own login and no model configured in LocalGPT. Gen runs no agent and is nobody's backend: the agent's MCP config points at `localgpt-gen mcp-server --connect`, a thin bridge to the running window.
 
 ```bash
-# Set model to a CLI backend in config.toml
-localgpt-gen  # with default_model = "claude-cli/opus"
+localgpt-gen --mcp-relay
 ```
 
 You'll see:
 ```
 MCP relay active on port 9878 (external MCP clients can connect to this window)
-CLI backend detected (claude-cli/opus). Gen tools will route to this window via MCP relay.
 ```
 
-The CLI backend runs autonomously — it decides which tools to call and builds the scene. You watch it happen in the Bevy window and can type follow-up prompts.
+Start the agent in another terminal with the config on the [MCP Relay](/docs/gen/cli-mode) page, and prompt it there. It decides which tools to call and builds the scene; you watch it happen in the Bevy window.
 
 **How it works under the hood:**
 
 ```
-You type prompt
-  → LocalGPT sends to Claude CLI subprocess
-    → Claude CLI spawns `localgpt-gen mcp-server --connect`
-      → Connects to MCP relay (TCP :9878)
-        → Tool calls go to existing Bevy window
-          → You see the world being built
+You prompt the agent in its terminal
+  → The agent spawns `localgpt-gen mcp-server --connect` (from its MCP config)
+    → Connects to the MCP relay (TCP :9878)
+      → Tool calls go to the existing Bevy window
+        → You see the world being built
 ```
 
-See [CLI Mode (MCP Relay)](/docs/gen/cli-mode) for setup and troubleshooting.
+See [MCP Relay](/docs/gen/cli-mode) for setup and troubleshooting.
 
 ### Mode 3: MCP Server (external app drives the window)
 

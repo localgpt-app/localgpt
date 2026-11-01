@@ -38,7 +38,7 @@ localgpt-gen headless \
 # Override model and timeout
 localgpt-gen headless \
   --prompt "Underwater coral reef" \
-  --model claude-cli/opus \
+  --model anthropic/claude-opus-4-6 \
   --timeout 600
 ```
 

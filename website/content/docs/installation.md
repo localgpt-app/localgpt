@@ -135,7 +135,7 @@ The headless binary keeps everything but the GUI: CLI, web UI, HTTP API, WebSock
 
 ## Initial setup
 
-The first run creates `~/.config/localgpt/config.toml` and the workspace; `localgpt init` does it explicitly and generates the device key. With a signed-in Claude CLI there is nothing else to configure — the default model is `claude-cli/opus`. Otherwise set a model:
+The first run creates `~/.config/localgpt/config.toml` and the workspace; `localgpt init` does it explicitly and generates the device key. The default model is `anthropic/claude-opus-4-6`, which needs `ANTHROPIC_API_KEY` in the environment or `[providers.anthropic]` in the config. Or set another model:
 
 ```bash
 localgpt config set agent.default_model "openai/qwen/qwen3.5-35b-a3b"   # LM Studio, fully local

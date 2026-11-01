@@ -2,9 +2,8 @@
 //! terminal.
 //!
 //! Apps started from Finder, the Dock, or `open` inherit launchd's minimal
-//! environment (`PATH=/usr/bin:/bin:/usr/sbin:/sbin`), so CLI backends
-//! installed with Homebrew, npm, or into `~/.local/bin` can't be found, and
-//! the default model (`claude-cli/…`) fails on first launch. This asks the
+//! environment (`PATH=/usr/bin:/bin:/usr/sbin:/sbin`), so programs installed
+//! with Homebrew, npm, or into `~/.local/bin` can't be found. This asks the
 //! user's login shell for the `PATH` a terminal would have and merges it in.
 
 use std::io::Read;

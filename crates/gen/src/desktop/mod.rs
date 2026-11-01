@@ -6,10 +6,11 @@
 //! - [`chat`]: channels between the agent thread and whatever shows its
 //!   work, and the events the agent loop reports (streamed text, tool
 //!   calls, errors).
-//! - [`models`]: which models this machine can switch to (installed CLI
-//!   backends, local Ollama models).
+//! - [`models`]: which models this machine can switch to (local Ollama
+//!   models, GGUF files on disk).
 //! - [`shell_env`]: recovers the login shell's `PATH`, which apps launched
-//!   from Finder don't inherit, so CLI backends like `claude` are found.
+//!   from Finder don't inherit, so programs installed by Homebrew or npm
+//!   are found.
 
 pub mod chat;
 pub mod hardware;

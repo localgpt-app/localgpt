@@ -109,7 +109,7 @@ localgpt memory stats
 localgpt config init              # Create default config
 localgpt config show              # Display loaded config
 localgpt config get agent.default_model   # Get a specific value
-localgpt config set agent.default_model "claude-cli/opus"
+localgpt config set agent.default_model "openai/gpt-4o"
 
 # Check sandbox capabilities
 localgpt sandbox status

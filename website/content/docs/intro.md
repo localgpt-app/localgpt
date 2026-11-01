@@ -117,10 +117,7 @@ Models are named `provider/model`. The prefix picks the provider; a bare model n
 
 | Prefix | Provider | Examples |
 |--------|----------|----------|
-| `claude-cli/*` | Claude CLI (subprocess, its own login) | `claude-cli/opus` (the default), `claude-cli/sonnet` |
-| `gemini-cli/*` | Gemini CLI (subprocess) | `gemini-cli/gemini-2.5-pro` |
-| `codex-cli/*` | Codex CLI (subprocess) | `codex-cli/o4-mini` |
-| `anthropic/*`, `claude-*` | Anthropic API | `anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4-6` |
+| `anthropic/*`, `claude-*` | Anthropic API | `anthropic/claude-opus-4-6` (the default), `anthropic/claude-sonnet-4-6` |
 | `openai/*`, `gpt-*`, `o1*` | OpenAI, or LM Studio with a `base_url` | `openai/gpt-4o`, `openai/qwen/qwen3.5-35b-a3b` |
 | `openrouter/*`, `openai-compat/*` | OpenAI-compatible endpoints (OpenRouter, DeepSeek, Groq, vLLM) | `openrouter/deepseek/deepseek-chat` |
 | `xai/*`, `grok-*` | xAI | `xai/grok-3-mini` |

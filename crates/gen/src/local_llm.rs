@@ -1,6 +1,6 @@
 //! In-process local LLM (`local-llm` feature): runs a GGUF model through
-//! mistral.rs as the `gguf/<name>` provider, so Gen needs no model server,
-//! API key or CLI backend.
+//! mistral.rs as the `gguf/<name>` provider, so Gen needs no model server
+//! or API key.
 //!
 //! Models come from the directory LocalGPT's apps share
 //! ([`localgpt_world_agent::shared_llm_dir`],

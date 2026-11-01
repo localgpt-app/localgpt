@@ -3,9 +3,8 @@
 //! `localgpt-gen` and the one-window `localgpt-app` run the same loop: the
 //! prompt panel's slash commands (`/model` switches and remembers, `/new`,
 //! `/clear`), streamed replies with each tool call shown, the REPL when there
-//! is a terminal, the MCP relay a CLI backend reaches the window through, and
-//! prompts from collaborative guests when hosting. It lived in `main.rs`, so
-//! the app ran a thinner copy that had none of those.
+//! is a terminal, and prompts from collaborative guests when hosting. It
+//! lived in `main.rs`, so the app ran a thinner copy that had none of those.
 
 use anyhow::Result;
 use futures::StreamExt;
@@ -86,24 +85,8 @@ async fn handle_gen_command(
             CommandResult::Continue
         }
 
-        "/effort" => {
-            if parts.len() < 2 {
-                match agent.effort() {
-                    Some(level) => println!("\nCurrent effort: {}\n", level),
-                    None => println!("\nEffort levels not supported by current provider\n"),
-                }
-                return CommandResult::Continue;
-            }
-            match agent.set_effort(parts[1]) {
-                Ok(()) => println!("\nEffort set to: {}\n", parts[1]),
-                Err(e) => eprintln!("\nError: {}\n", e),
-            }
-            CommandResult::Continue
-        }
-
         "/models" => {
             println!("\nAvailable model prefixes:");
-            println!("  claude-cli/*    - Use Claude CLI (e.g., claude-cli/opus)");
             println!("  gpt-*           - OpenAI (requires API key)");
             println!("  claude-*        - Anthropic API (requires API key)");
             println!("  glm-*           - GLM (Z.AI)");
@@ -610,9 +593,9 @@ mod tests {
     /// passes through untouched.
     #[test]
     fn model_choices_pass_through_except_auto() {
-        let (model, remembered) = resolve_model_choice("claude-cli/sonnet").unwrap();
-        assert_eq!(model, "claude-cli/sonnet");
-        assert_eq!(remembered, "claude-cli/sonnet");
+        let (model, remembered) = resolve_model_choice("ollama/llama3").unwrap();
+        assert_eq!(model, "ollama/llama3");
+        assert_eq!(remembered, "ollama/llama3");
 
         match resolve_model_choice("auto") {
             // With a usable local model, "auto" resolves to it but is stored
@@ -822,10 +805,11 @@ async fn run_streaming_turn(
     Ok((full_response, model_error))
 }
 
-/// MCP stdio ↔ TCP relay: bridges Claude CLI's MCP stdio to an open window's
-/// TCP relay server (`localgpt-gen` interactive, or the LocalGPT app). This
-/// process is spawned by Claude CLI when `--connect` is passed — it reads
-/// from stdin, forwards to the TCP relay, and writes responses to stdout.
+/// MCP stdio ↔ TCP relay: bridges an MCP client's stdio to an open window's
+/// TCP relay server (`localgpt-gen --mcp-relay`). An MCP client (a coding
+/// agent, an editor) spawns this process as `localgpt-gen mcp-server
+/// --connect` — it reads from stdin, forwards to the TCP relay, and writes
+/// responses to stdout.
 pub async fn run_mcp_stdio_relay(port: u16) -> Result<()> {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
     use tokio::net::TcpStream;
@@ -937,10 +921,7 @@ Politely decline requests that need those abilities.";
 /// Isolation: scene tools only, each path-scoped (see
 /// `crate::net::remote_scope`); a separate memory workspace so the
 /// host's MEMORY.md / daily logs never enter a conversation remote users
-/// steer; a fresh LLM session. For Claude CLI the built-in tools are
-/// disabled and MCP points at a dedicated relay serving the same scoped
-/// tools. Subprocess backends whose built-in tools can't be restricted
-/// (Gemini CLI, Codex CLI) are refused.
+/// steer; a fresh LLM session.
 #[cfg(feature = "multiplayer")]
 async fn build_scoped_remote_agent(
     bridge: std::sync::Arc<gen3d::GenBridge>,
@@ -950,48 +931,9 @@ async fn build_scoped_remote_agent(
     use crate::net::remote_scope::create_remote_scene_tools;
     use localgpt_core::memory::MemoryManager;
 
-    let model = config.agent.default_model.clone();
-    if model.starts_with("gemini-cli") || model.starts_with("codex") {
-        anyhow::bail!(
-            "the {model} backend has built-in shell/file tools that can't be restricted. \
-             Use an API provider or claude-cli, or host with --remote-tools full \
-             (gives remote users full tool access)"
-        );
-    }
-
     let mut remote_config = config.clone();
     remote_config.paths.workspace = remote_config.paths.data_dir.join("gen-remote-workspace");
     remote_config.memory.embedding_provider = "none".to_string();
-
-    if model.starts_with("claude-cli") {
-        let port = gen3d::mcp_relay::start_scoped_relay(create_remote_scene_tools(
-            bridge.clone(),
-            tool_profile,
-        ))
-        .await?;
-        let gen_binary =
-            std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("localgpt-gen"));
-        let mcp_config = serde_json::json!({
-            "mcpServers": {
-                "localgpt-gen": {
-                    "command": gen_binary.to_string_lossy(),
-                    "args": ["mcp-server", "--connect", port.to_string()]
-                }
-            }
-        });
-        let cli = remote_config.providers.claude_cli.get_or_insert_with(|| {
-            localgpt_core::config::ClaudeCliConfig {
-                command: "claude".to_string(),
-                model: model.clone(),
-                effort: "max".to_string(),
-                mcp_config_override: None,
-                builtin_tools: None,
-            }
-        });
-        cli.mcp_config_override = Some(mcp_config.to_string());
-        // No Bash/Read/Write/…: only the scoped MCP tools remain.
-        cli.builtin_tools = Some(String::new());
-    }
 
     let memory = std::sync::Arc::new(MemoryManager::new_with_full_config(
         &remote_config.memory,
@@ -1000,7 +942,6 @@ async fn build_scoped_remote_agent(
     )?);
     let tools = create_remote_scene_tools(bridge, tool_profile);
     let mut agent = Agent::new_with_tools(remote_config, "gen-remote", memory, tools)?;
-    // Also resets any CLI session the provider resumed at construction.
     agent.new_session().await?;
     agent.add_user_message(REMOTE_AGENT_PROMPT);
     Ok(agent)
@@ -1109,59 +1050,6 @@ async fn panel_command(input: &str, agent: &mut Agent, sink: &ChatSink) -> Panel
     }
 }
 
-/// Which CLI backend a model string selects, if any (matching the checks
-/// that set up the MCP relay in [`run_agent_loop`]).
-fn cli_family(model: &str) -> Option<&'static str> {
-    if model.starts_with("claude-cli") {
-        Some("claude-cli")
-    } else if model.starts_with("gemini-cli") {
-        Some("gemini-cli")
-    } else if model.starts_with("codex") {
-        Some("codex")
-    } else {
-        None
-    }
-}
-
-/// Whether `config`'s model is a CLI backend (Claude, Gemini or Codex CLI).
-/// Those run as subprocesses and reach the window's tools through the MCP
-/// relay — `<this binary> mcp-server --connect` — rather than through the
-/// agent's tool calls, so a binary running this loop with one must start the
-/// relay ([`gen3d::mcp_relay::start_mcp_relay`]) and answer that command
-/// ([`run_mcp_stdio_relay`]).
-pub fn uses_cli_backend(config: &localgpt_core::config::Config) -> bool {
-    cli_family(&config.agent.default_model).is_some()
-}
-
-/// A first-run hint when the configured model is a CLI backend whose
-/// program can't be found, so desktop users learn why nothing happens
-/// before they type.
-fn missing_cli_backend_hint(config: &localgpt_core::config::Config) -> Option<String> {
-    use crate::desktop::models::find_on_path;
-
-    let model = config.agent.default_model.as_str();
-    let providers = &config.providers;
-    let (label, program) = if model.starts_with("claude-cli") {
-        let command = providers.claude_cli.as_ref().map(|c| c.command.clone());
-        ("Claude CLI", command.unwrap_or_else(|| "claude".into()))
-    } else if model.starts_with("gemini-cli") {
-        let command = providers.gemini_cli.as_ref().map(|c| c.command.clone());
-        ("Gemini CLI", command.unwrap_or_else(|| "gemini".into()))
-    } else if model.starts_with("codex-cli") || model == "codex" {
-        let command = providers.codex_cli.as_ref().map(|c| c.command.clone());
-        ("Codex CLI", command.unwrap_or_else(|| "codex".into()))
-    } else {
-        return None;
-    };
-    let found = Path::new(&program).is_file() || find_on_path(&program).is_some();
-    (!found).then(|| {
-        format!(
-            "Your model is {model}, but Gen can't find the {label} (`{program}`). Install it \
-             and sign in, then restart Gen, or pick another model from the menu above."
-        )
-    })
-}
-
 /// Run the interactive agent loop with Gen tools available.
 ///
 /// The REPL runs on a dedicated blocking thread (rustyline reads are
@@ -1245,39 +1133,6 @@ pub async fn run_agent_loop(
     let mut config = config;
     config.agent.max_tool_repeats = config.agent.max_tool_repeats.max(20);
 
-    // When using a CLI backend (claude-cli, codex, gemini-cli), override its MCP
-    // config so it uses `<this binary> mcp-server --connect` to relay tool
-    // calls to the EXISTING Bevy window instead of spawning a new one — this
-    // binary, so the app relays through itself and Gen through Gen.
-    if uses_cli_backend(&config) {
-        let gen_binary =
-            std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("localgpt-gen"));
-        let mcp_config = serde_json::json!({
-            "mcpServers": {
-                "localgpt-gen": {
-                    "command": gen_binary.to_string_lossy(),
-                    "args": ["mcp-server", "--connect"]
-                }
-            }
-        });
-
-        eprintln!(
-            "CLI backend detected ({}). Gen tools will route to this window via MCP relay.",
-            config.agent.default_model
-        );
-
-        let cli_config = config.providers.claude_cli.get_or_insert_with(|| {
-            localgpt_core::config::ClaudeCliConfig {
-                command: "claude".to_string(),
-                model: config.agent.default_model.clone(),
-                effort: "max".to_string(),
-                mcp_config_override: None,
-                builtin_tools: None,
-            }
-        });
-        cli_config.mcp_config_override = Some(mcp_config.to_string());
-    }
-
     let workspace = config.workspace_path();
 
     // Create agent with combined tools
@@ -1330,14 +1185,6 @@ pub async fn run_agent_loop(
     sink.send(ChatEvent::Ready {
         model: agent.model().to_string(),
     });
-    if let Some(hint) = missing_cli_backend_hint(&config) {
-        if desktop {
-            tracing::warn!("{hint}");
-        } else {
-            eprintln!("{hint}");
-        }
-        sink.send(ChatEvent::Warning(hint));
-    }
     {
         let sink = sink.clone();
         let current = agent.model().to_string();
@@ -1347,16 +1194,9 @@ pub async fn run_agent_loop(
             .as_ref()
             .map(|ollama| ollama.endpoint.clone())
             .unwrap_or_else(|| crate::desktop::models::DEFAULT_OLLAMA_ENDPOINT.to_string());
-        // A CLI backend only works in a session that started with one of its
-        // family: the MCP relay and its tool config are set up at startup.
-        let startup_family = cli_family(&current);
         tokio::spawn(async move {
-            let mut options =
+            let options =
                 crate::desktop::models::detect_model_options(&current, &ollama_endpoint).await;
-            options.retain(|model| {
-                let family = cli_family(model);
-                family.is_none() || family == startup_family
-            });
             sink.send(ChatEvent::ModelOptions(options));
         });
     }

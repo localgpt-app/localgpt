@@ -23,15 +23,6 @@
 # Ollama (local, no API key needed):
 #   - "ollama/llama3", "ollama/mistral", etc.
 #
-# Claude CLI (local, no API key needed):
-#   - "claude-cli/opus", "claude-cli/sonnet", "claude-cli/haiku"
-#
-# Gemini CLI (local, no API key needed):
-#   - "gemini-cli/gemini-3.1-pro-preview", "gemini-cli/gemini-3.1-flash"
-#
-# Codex CLI (local, no API key needed):
-#   - "codex-cli/gpt-4o", "codex-cli/o1"
-#
 # Anthropic API (requires ANTHROPIC_API_KEY):
 #   - "anthropic/claude-opus-4-5", "anthropic/claude-sonnet-4-5"
 #
@@ -55,7 +46,7 @@
 #   - "sonnet" → anthropic/claude-sonnet-4-5
 #   - "gpt"    → openai/gpt-4o
 #
-default_model = "claude-cli/opus"
+default_model = "anthropic/claude-opus-4-6"
 
 # Context window size (in tokens)
 context_window = 128000
@@ -93,26 +84,6 @@ base_url = "https://api.anthropic.com"
 # [providers.xai]
 # api_key = "${XAI_API_KEY}"
 # base_url = "https://api.x.ai/v1"
-
-# Claude CLI configuration (uses local claude CLI command)
-# Requires claude CLI to be installed: https://github.com/anthropics/claude-code
-# [providers.claude_cli]
-# command = "claude"
-# model = "opus"  # opus, sonnet, or haiku
-# effort = "max"  # low, medium, high, max (default: max)
-# builtin_tools = ""  # restrict Claude CLI's built-in tools (--tools); "" = none, MCP only
-
-# Gemini CLI configuration (uses local gemini CLI command)
-# Requires gemini CLI to be installed: https://github.com/google/gemini-cli
-# [providers.gemini_cli]
-# command = "gemini"
-# model = "gemini-3.1-pro-preview"
-
-# Codex CLI configuration (uses local codex CLI command)
-# Requires codex CLI to be installed
-# [providers.codex_cli]
-# command = "codex"
-# model = "gpt-4o"
 
 # Generic OpenAI-compatible provider (OpenRouter, DeepSeek, Groq, etc.)
 # [providers.openai_compatible]

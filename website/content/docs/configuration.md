@@ -23,7 +23,10 @@ Or create one manually:
 mkdir -p ~/.config/localgpt
 cat > ~/.config/localgpt/config.toml << 'EOF'
 [agent]
-default_model = "claude-cli/opus"
+default_model = "anthropic/claude-opus-4-6"
+
+[providers.anthropic]
+api_key = "${ANTHROPIC_API_KEY}"
 EOF
 ```
 
@@ -40,9 +43,6 @@ EOF
 [agent]
 # Default model to use for chat
 # Prefix determines provider:
-#   claude-cli/*       → Claude CLI (uses installed claude command)
-#   gemini-cli/*       → Gemini CLI (uses installed gemini command)
-#   codex-cli/*        → Codex CLI (uses installed codex command)
 #   anthropic/*        → Anthropic API
 #   openai/*           → OpenAI
 #   openai-compatible/*→ OpenAI-compatible server (OpenRouter, DeepSeek, etc.)
@@ -52,8 +52,8 @@ EOF
 #   xai/*              → xAI (Grok)
 #   glm/* or glm       → GLM (Z.AI)
 #   ollama/*           → Ollama
-#   Aliases: opus, sonnet, gpt, gpt-mini, glm, grok, codex
-default_model = "claude-cli/opus"
+#   Aliases: opus, sonnet, gpt, gpt-mini, glm, grok
+default_model = "anthropic/claude-opus-4-6"
 
 # Context window size (in tokens)
 # Common values: 128000 (GPT-4), 200000 (Claude), 8192 (older models)
@@ -91,19 +91,6 @@ model = "llama3"
 [providers.glm]
 # GLM (Z.AI) API key
 api_key = "${GLM_API_KEY}"
-
-[providers.claude_cli]
-command = "claude"
-model = "opus"
-effort = "max"  # low, medium, high, max
-
-[providers.gemini_cli]
-command = "gemini"
-model = "gemini-3.1-pro-preview"
-
-[providers.codex_cli]
-command = "codex"
-model = "o4-mini"
 
 [providers.openai_compatible]
 # Generic OpenAI-compatible endpoint (OpenRouter, DeepSeek, etc.)
@@ -358,45 +345,14 @@ default_model = "anthropic/claude-opus-4-5"  # or anthropic/claude-sonnet-4-5, o
 api_key = "${ANTHROPIC_API_KEY}"
 ```
 
-### Claude CLI
+### The coding agents
 
-If you have the `claude` CLI installed, LocalGPT can use it directly:
-
-```toml
-[agent]
-default_model = "claude-cli/opus"  # or claude-cli/sonnet, claude-cli/haiku
-```
-
-No API key configuration needed - uses your existing Claude CLI authentication.
-
-You can control the effort level (how much thinking the model does) via the provider config:
-
-```toml
-[providers.claude_cli]
-effort = "max"  # low, medium, high, max (default: max)
-```
-
-### Gemini CLI
-
-If you have the `gemini` CLI installed, LocalGPT can use it directly:
-
-```toml
-[agent]
-default_model = "gemini-cli/gemini-3.1-pro-preview"  # or gemini-3.1-flash
-```
-
-No API key configuration needed - uses your existing Gemini CLI authentication.
-
-### Codex CLI
-
-If you have the `codex` CLI installed, LocalGPT can use it directly:
-
-```toml
-[agent]
-default_model = "codex-cli/gpt-4o"
-```
-
-No API key configuration needed - uses your existing Codex CLI authentication.
+Claude Code, Gemini CLI and Codex are not model backends. They were, as
+`claude-cli/*`, `gemini-cli/*` and `codex-cli/*`, each run as a subprocess
+for its own login; those went on 2026-11-01. An agent runs in a terminal —
+the desktop app gives each one a tab — and edits a world through its API
+(`localgpt world`, or `localgpt world mcp` for an MCP client). A config that
+still names one of them gets an error saying what to set instead.
 
 ### GitHub Copilot
 
@@ -503,7 +459,7 @@ localgpt config init              # Create default config file
 localgpt config show              # Display loaded config (sensitive values masked)
 localgpt config show --format json  # JSON output
 localgpt config get agent.default_model   # Get a specific value
-localgpt config set agent.default_model "claude-cli/opus"  # Set a value
+localgpt config set agent.default_model "openai/gpt-4o"  # Set a value
 localgpt config path              # Show config file location
 ```
 

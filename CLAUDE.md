@@ -203,16 +203,16 @@ terminals do that work with their own.
 
 ### Feature Flags (`localgpt-core`)
 
-Default: `claude-cli`, `gemini-cli`, `codex-cli`, `image-resize`. Memory
-searches by keyword (SQLite FTS5), with vectors from an embeddings API when
-`memory.embedding_provider` is `openai` or `gemini`; the in-process models
-(fastembed over ONNX Runtime, llama.cpp) and sqlite-vec are gone.
+Default: `image-resize`. Memory searches by keyword (SQLite FTS5), with
+vectors from an embeddings API when `memory.embedding_provider` is `openai`
+or `gemini`; the in-process models (fastembed over ONNX Runtime, llama.cpp)
+and sqlite-vec are gone. The coding agents are not model backends: the
+`claude-cli`, `gemini-cli` and `codex-cli` providers, which ran an agent as a
+subprocess, went on 2026-11-01, and nothing in the tree treats one agent
+differently from another.
 
 | Feature | Default | Purpose |
 |---------|---------|---------|
-| `claude-cli` | yes | ClaudeCliProvider (a subprocess) |
-| `gemini-cli` | yes | GeminiCliProvider (a subprocess) |
-| `codex-cli` | yes | CodexCliProvider (a subprocess) |
 | `image-resize` | yes | Resize images before sending to vision models |
 | `mcp-http` | no | MCP streamable HTTP transport (adds axum + tower-http) |
 
@@ -268,9 +268,6 @@ handling and traversal guards live in `agent/path_utils.rs`.
 
 | Model prefix / scheme | Provider |
 |-----------------------|----------|
-| `claude-cli/*` | Claude CLI (subprocess) |
-| `gemini-cli/*` | Gemini CLI (subprocess) |
-| `codex-cli/*` | Codex CLI (subprocess) |
 | `anthropic/*`, `claude-*` | Anthropic API |
 | `openai/*`, `gpt-*`, `o1*` | OpenAI |
 | `xai/*`, `grok-*` | xAI |
@@ -281,14 +278,16 @@ handling and traversal guards live in `agent/path_utils.rs`.
 | `openrouter/*`, `openai-compat/*` | OpenAI-compatible endpoints |
 
 Aliases resolve first (e.g. `opus` → `anthropic/claude-opus-4-6`, `sonnet`,
-`gpt`, `glm`, `grok`, `codex`). Default `agent.default_model` is `claude-cli/opus`.
+`gpt`, `glm`, `grok`). Default `agent.default_model` is
+`anthropic/claude-opus-4-6`; a config that still names `claude-cli/*`,
+`gemini-cli/*` or `codex-cli/*` gets an error saying what to set instead.
 
 ### Core Modules (`crates/core/src/`)
 
 - **agent/providers.rs** — `LLMProvider` trait + implementations: OpenAI,
-  OpenAI-compatible (OpenRouter etc.), xAI, Anthropic, Ollama, ClaudeCli,
-  GeminiCli, CodexCli, Gemini (API key), Vertex AI, GLM. Includes model-alias
-  resolution and per-model pricing.
+  OpenAI-compatible (OpenRouter etc.), xAI, Anthropic, Ollama, Gemini (API
+  key), Vertex AI, GLM. Includes model-alias resolution and per-model
+  pricing.
 - **agent/session.rs**, **compaction.rs**, **checkpoint.rs** — conversation
   state, automatic compaction, checkpoint/restore.
 - **agent/session_store.rs**, **session_pruning.rs** — session metadata
@@ -406,11 +405,10 @@ Config: `~/.config/localgpt/config.toml` (auto-created on first run, see
 `config.example.toml`).
 
 Key settings:
-- `agent.default_model` — determines provider. Default: `claude-cli/opus`.
+- `agent.default_model` — determines provider. Default:
+  `anthropic/claude-opus-4-6`.
 - `agent.subagent_model` — model for spawned subagents (defaults to
   `default_model`).
-- `providers.claude_cli.effort` — `low` | `medium` | `high` | `max` (default
-  `max`); switch at runtime with the `/effort` slash command.
 - `providers.*` — per-provider API keys/endpoints (anthropic, openai, xai,
   gemini, vertex, glm, ollama, openrouter, openai-compat). Supports
   `${ENV_VAR}` interpolation.

@@ -14,8 +14,8 @@ use tokio::sync::mpsc;
 pub enum ChatEvent {
     /// The agent is ready, or switched models.
     Ready { model: String },
-    /// Models this machine can switch to right now (detected CLIs and local
-    /// Ollama models), for the panel's model menu.
+    /// Models this machine can switch to right now (local Ollama models,
+    /// GGUF files on disk), for the panel's model menu.
     ModelOptions(Vec<String>),
     /// The agent started a turn. `from` is `None` for prompts typed in this
     /// panel, and names the sender otherwise (the terminal, or a
@@ -34,7 +34,7 @@ pub enum ChatEvent {
     TurnFinished { error: Option<String> },
     /// Something worth telling the user that isn't model output.
     Notice(String),
-    /// A problem the user should fix, like a missing CLI backend; shown
+    /// A problem the user should fix, like a model that cannot start; shown
     /// prominently, but the agent keeps running.
     Warning(String),
     /// The agent couldn't start, or stopped with an error; no more turns

@@ -16,9 +16,6 @@
 //!   name filesystem locations (`path`, `output_path`, …) are refused and
 //!   world names must be plain identifiers; tools fall back to their
 //!   workspace defaults.
-//!
-//! The same scoped tool set is served to CLI backends through a dedicated
-//! MCP relay, with the backend's own built-in tools disabled.
 
 use std::sync::Arc;
 

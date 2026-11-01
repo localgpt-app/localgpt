@@ -908,8 +908,8 @@ fn ten_f() -> f32 {
 // specs, the per-section prompt, and a [`Session`] that turns the model's tool
 // calls into a build. `run_session` below drives it with an in-process GGUF
 // through mistral.rs; the one-window LocalGPT app drives it with whatever
-// provider it is configured for (a signed-in CLI backend, an API model, or the
-// same GGUF). Both apply calls through `Session::call`, so the clamps, the
+// provider it is configured for (an API model, or the same GGUF). Both apply
+// calls through `Session::call`, so the clamps, the
 // asset resolution and the replies are identical whichever model is talking.
 
 /// Most model turns one section's session may take.

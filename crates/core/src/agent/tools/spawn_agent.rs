@@ -26,9 +26,6 @@ use crate::text::ellipsize_chars;
 /// Maximum depth for agent spawning (0 = root, 1 = first subagent level)
 const DEFAULT_MAX_SPAWN_DEPTH: u8 = 1;
 
-/// Default model for subagents (can be overridden in config)
-const DEFAULT_SUBAGENT_MODEL: &str = "claude-cli/sonnet";
-
 /// Parameters for spawning a subagent
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpawnParams {
@@ -85,7 +82,7 @@ pub struct SpawnContext {
     /// Memory manager (shared with parent)
     pub memory: Arc<MemoryManager>,
 
-    /// Model to use for subagent (defaults to config or DEFAULT_SUBAGENT_MODEL)
+    /// Model to use for subagent (defaults to `agent.subagent_model`, then the agent's own)
     pub model: Option<String>,
 
     /// Maximum depth allowed
@@ -205,7 +202,7 @@ impl SpawnAgentTool {
             .as_ref()
             .or(self.context.config.agent.subagent_model.as_ref())
             .map(|s| s.as_str())
-            .unwrap_or(DEFAULT_SUBAGENT_MODEL);
+            .unwrap_or(&self.context.config.agent.default_model);
 
         info!(
             "Spawning subagent for task: {} (depth: {}, model: {})",
@@ -214,11 +211,7 @@ impl SpawnAgentTool {
             model
         );
 
-        // Create provider for subagent. A task is self-contained: a CLI
-        // backend must neither resume the conversation it was spawned from
-        // nor write its own session id over it.
         let provider = crate::agent::providers::create_provider(model, &self.context.config)?;
-        provider.make_ephemeral();
 
         // Build system prompt for subagent
         let system_prompt = self.build_subagent_prompt(params);

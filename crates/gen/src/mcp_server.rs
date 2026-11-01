@@ -1,7 +1,7 @@
 //! MCP server for LocalGPT Gen — exposes gen tools + core tools over stdio.
 //!
-//! This allows external CLI backends (gemini-cli, claude cli, codex) and
-//! MCP-capable editors (VS Code, Zed, Cursor) to drive the Bevy scene.
+//! This lets external MCP clients — coding agents (Claude Code, Codex, Gemini
+//! CLI) and editors (VS Code, Zed, Cursor) — drive the Bevy scene.
 //!
 //! Exposed tools:
 //! - All gen tools (spawn, modify, camera, audio, behaviors, world, etc.)
@@ -42,8 +42,8 @@ pub async fn run_mcp_http_server(bridge: Arc<GenBridge>, config: Config, port: u
 /// Create the combined tool set for the MCP server:
 /// gen tools + safe core tools + memory write tools + experiment tools.
 ///
-/// CLI tools (bash, read_file, write_file, edit_file) are excluded because
-/// external CLI backends already have their own file/shell tools.
+/// No shell or file tools: an MCP client that is a coding agent has its own,
+/// and core has none any more.
 pub fn create_mcp_tools(bridge: Arc<GenBridge>, config: &Config) -> Result<Vec<Box<dyn Tool>>> {
     use localgpt_core::agent::tools::create_safe_tools;
     use localgpt_core::mcp::memory_tools::create_memory_write_tools;

@@ -54,8 +54,8 @@ struct Cli {
     #[arg(long, global = true, value_name = "core|standard|full")]
     tools: Option<String>,
 
-    /// Enable MCP relay server for external MCP clients.
-    /// Auto-enabled when using claude-cli/* models.
+    /// Enable MCP relay server for external MCP clients (a coding agent, an
+    /// editor), which reach this window through `mcp-server --connect`.
     #[arg(long, global = true)]
     mcp_relay: bool,
 
@@ -619,9 +619,7 @@ fn main() -> Result<()> {
             #[cfg(not(feature = "multiplayer"))]
             let agent_net: AgentNetHooksOpt = None;
 
-            // Enable MCP relay when explicitly requested or when using a CLI backend
-            // (claude-cli, gemini-cli, codex-cli spawn subprocesses that need MCP access)
-            let enable_relay = cli.mcp_relay || localgpt_gen::agent_loop::uses_cli_backend(&config);
+            let enable_relay = cli.mcp_relay;
 
             // Spawn tokio runtime + agent loop + MCP relay on a background thread
             // (Bevy must own the main thread for windowing/GPU on macOS).
@@ -636,8 +634,8 @@ fn main() -> Result<()> {
 
                 let outcome = rt.block_on(async move {
                     if enable_relay {
-                        // Start the MCP relay server so external CLI tools (claude, codex, gemini)
-                        // can connect to the existing Bevy window instead of spawning a new one.
+                        // Start the MCP relay server so external MCP clients can
+                        // connect to the existing Bevy window instead of spawning a new one.
                         match gen3d::mcp_relay::start_mcp_relay(
                             bridge_for_relay,
                             &relay_config,

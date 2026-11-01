@@ -1,19 +1,19 @@
 ---
-title: "CLI Mode (MCP Relay)"
+title: "MCP Relay"
 ---
 
-# CLI Mode (MCP Relay)
+# MCP Relay
 
-When LocalGPT Gen runs interactively with a **CLI backend** — Claude CLI, Gemini CLI, or Codex — it uses a relay architecture to ensure tool calls go to the **same Bevy window** you're looking at.
+When LocalGPT Gen runs interactively with `--mcp-relay`, an **MCP client outside it** — Claude Code, Gemini CLI, Codex, an editor — drives the **same Bevy window** you're looking at. Gen runs no agent and is nobody's model backend: the agent runs in its own terminal with its own login, and reaches the window through the relay.
 
 ## The Problem
 
-Without the relay, each CLI backend spawns its own `localgpt-gen mcp-server` process. This creates a **second Bevy window** that opens, renders the world, and immediately closes — while the original window stays empty.
+Without the relay, an MCP client configured with `localgpt-gen mcp-server` spawns its own process. This creates a **second Bevy window** that opens, renders the world, and immediately closes — while the original window stays empty.
 
 ```
   ┌──────────────┐     spawns      ┌──────────────────┐
-  │  Claude CLI  │────────────────►│ localgpt-gen      │ ← second window!
-  │  (backend)   │   MCP stdio     │ mcp-server        │
+  │  MCP client  │────────────────►│ localgpt-gen      │ ← second window!
+  │  (an agent)  │   MCP stdio     │ mcp-server        │
   └──────────────┘                 │ (NEW Bevy + scene) │
                                    └──────────────────┘
 
@@ -25,7 +25,7 @@ Without the relay, each CLI backend spawns its own `localgpt-gen mcp-server` pro
 
 ## The Fix: MCP Relay
 
-LocalGPT Gen starts a **TCP relay server** alongside the Bevy window. When a CLI backend spawns `localgpt-gen mcp-server --connect`, it connects to the relay instead of creating its own Bevy instance. All tool calls route to your existing window.
+LocalGPT Gen starts a **TCP relay server** alongside the Bevy window. When the client spawns `localgpt-gen mcp-server --connect`, it connects to the relay instead of creating its own Bevy instance. All tool calls route to your existing window.
 
 ```
   ┌──────────────────────────────────────────────────────────────────┐
@@ -65,42 +65,38 @@ LocalGPT Gen starts a **TCP relay server** alongside the Bevy window. When a CLI
 
 ## How It Works
 
-When you run `localgpt-gen` interactively with a CLI backend model:
+When you run `localgpt-gen --mcp-relay`:
 
 1. **Bevy window opens** on the main thread
-2. **MCP relay starts** on port 9878 (auto-enabled for CLI backend models)
+2. **MCP relay starts** on port 9878
 3. **Agent loop starts** — you see:
    ```
    MCP relay active on port 9878 (external MCP clients can connect to this window)
-   CLI backend detected (claude-cli/opus). Gen tools will route to this window via MCP relay.
    ```
-4. When the agent sends a prompt to the CLI backend:
-   - The CLI backend reads its MCP config
+4. When you prompt the agent in its own terminal:
+   - It reads its MCP config
    - It spawns `localgpt-gen mcp-server --connect`
    - The `--connect` process connects to the relay on port 9878
    - Tool calls flow through to the **existing** Bevy window
 5. You see the world being built in real-time in your window
 
+Gen's own prompt (the REPL, on an API model or a local GGUF) keeps working beside the relay; the two edit the same scene.
+
 ## Configuration
 
-### Automatic (recommended)
-
-The MCP relay starts automatically when your configured model uses a CLI backend (`claude-cli/*`, `gemini-cli/*`, or `codex-cli/*`). No manual setup needed — just:
+### Start the relay
 
 ```bash
-# Set your model to a CLI backend
-localgpt-gen   # uses default model from config.toml
+localgpt-gen --mcp-relay
 ```
 
-If `config.toml` has `default_model = "claude-cli/opus"` (or any `gemini-cli/*` / `codex-cli/*` model), the relay activates automatically.
+Without the flag no port is opened and no relay message is shown. (The relay used to start by itself when the configured model was a coding agent run as a subprocess; the agents are no longer model backends, so it starts only when asked.)
 
-When using an API-based model (e.g., `openai/gpt-4o`), the relay is **not** started — no port is opened and no relay message is shown. You can force-enable it with the `--mcp-relay` flag:
+### Point the client at it
 
-```bash
-localgpt-gen --mcp-relay   # start relay even with a non-CLI model
-```
+Each client keeps its own MCP config; LocalGPT writes none of them.
 
-### Claude CLI
+### Claude Code
 
 Add to project-level `.mcp.json`:
 
@@ -130,22 +126,15 @@ Add to `~/.gemini/settings.json` or workspace `.gemini/settings.json`:
 }
 ```
 
-### Codex CLI
+### Codex
 
-Add to `~/.codex/config.json`:
+Add to `~/.codex/config.toml`:
 
-```json
-{
-  "mcpServers": {
-    "localgpt-gen": {
-      "command": "localgpt-gen",
-      "args": ["mcp-server", "--connect"]
-    }
-  }
-}
+```toml
+[mcp_servers.localgpt-gen]
+command = "localgpt-gen"
+args = ["mcp-server", "--connect"]
 ```
-
-These config files live in your LocalGPT workspace (default: `~/.local/share/localgpt/workspace/`). They're created automatically on first run.
 
 :::tip Migrating from standalone MCP
 If you previously configured `localgpt-gen mcp-server` **without** `--connect`, update your configs to add `"--connect"` to the args array. This prevents the duplicate window issue.
@@ -172,17 +161,19 @@ localgpt-gen mcp-server --connect [PORT]
 | `--connect` | Connect to an existing gen process's MCP relay |
 | `--connect 9878` | Connect to a specific port (default: auto-discover) |
 | `--headless` | Run without a window (for CI/batch generation) |
-| `--mcp-relay` | Force-enable MCP relay (auto-enabled for CLI backend models) |
+| `--mcp-relay` | Start the MCP relay beside the window (the interactive `localgpt-gen`) |
 
 Port auto-discovery reads from `$XDG_RUNTIME_DIR/localgpt/gen-mcp-relay.port`, which the interactive gen process writes on startup.
 
-## Supported Backends
+## MCP clients
 
-| Backend | Model prefix | MCP config location |
-|---------|-------------|-------------------|
-| Claude CLI | `claude-cli/*` | `.mcp.json` in workspace |
-| Gemini CLI | `gemini-cli/*` | `.gemini/settings.json` in workspace |
-| Codex CLI | `codex-cli/*` | `.mcp.json` in workspace |
+Any MCP client that can spawn a stdio server. The three that come up most:
+
+| Client | MCP config location |
+|--------|-------------------|
+| Claude Code | `.mcp.json` in the folder it starts in, or its user settings |
+| Gemini CLI | `.gemini/settings.json` there, or `~/.gemini/settings.json` |
+| Codex | `~/.codex/config.toml` |
 
 ## Troubleshooting
 

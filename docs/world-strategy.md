@@ -252,8 +252,9 @@ to $0.23 per prompt in the same model. Local models via Ollama cost nothing
 but must be tested on Gen's full tool loop first: MD and Verse only ask their
 8B model for a single JSON recipe, which is a far easier task.
 
-Do not run anything public on `claude-cli/opus` (the default): it uses a
-personal Claude login. A service should use API keys on commercial terms.
+Do not run anything public on a personal login. (`claude-cli/opus`, the
+default until 2026-11-01, was one; the coding agents are no longer model
+backends.) A service should use API keys on commercial terms.
 
 ### 6.2 Presence is the SpacetimeDB cost trap
 
@@ -506,9 +507,10 @@ agent loop — assembled from the gen lib, with documents and songs as inputs:
   the sections whose text changed (verified: an edit to one of three
   sections replaced 11 entities and kept 54, assets loaded). The app's own model
   authors each section through `world-agent`'s protocol — one request per
-  section with a JSON plan, so it works on the zero-config default, a
-  signed-in CLI backend, which ignores tool schemas. Builds land in MD's
-  sidecar keyed by section hash. Verified with `claude-cli/opus` on a
+  section with a JSON plan, so it works on a model that ignores tool schemas
+  (it was built on a signed-in CLI backend, which the coding agents were
+  until 2026-11-01). Builds land in MD's sidecar keyed by section hash.
+  Verified then with `claude-cli/opus` on a
   three-section document: three authored places in about 45 s; editing one
   section re-authored only that one (about 25 s) and kept the other two;
   a restart reopened all three from the cache with no model call; and the

@@ -51,7 +51,7 @@ const doc: DocumentView = {
   path: "~/notes/harbour.md",
   status: "3 sections",
   conflict: false,
-  authoring: "1 of 3 places by claude-cli/opus · 1 to go",
+  authoring: "1 of 3 places by anthropic/claude-opus-4-6 · 1 to go",
   author_enabled: true,
   author_error: null,
   follow_cursor: true,

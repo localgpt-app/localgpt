@@ -102,7 +102,7 @@ pub struct AgentConfig {
     #[serde(default)]
     pub max_spawn_depth: Option<u8>,
 
-    /// Model to use for spawned subagents (default: same as default_model or claude-cli/sonnet)
+    /// Model to use for spawned subagents (default: same as default_model)
     #[serde(default)]
     pub subagent_model: Option<String>,
 
@@ -378,15 +378,6 @@ pub struct ProvidersConfig {
     pub ollama: Option<OllamaConfig>,
 
     #[serde(default)]
-    pub claude_cli: Option<ClaudeCliConfig>,
-
-    #[serde(default)]
-    pub gemini_cli: Option<GeminiCliConfig>,
-
-    #[serde(default)]
-    pub codex_cli: Option<CodexCliConfig>,
-
-    #[serde(default)]
     pub glm: Option<GlmConfig>,
 
     #[serde(default)]
@@ -470,52 +461,6 @@ pub struct OllamaConfig {
     pub endpoint: String,
 
     #[serde(default = "default_ollama_model")]
-    pub model: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ClaudeCliConfig {
-    #[serde(default = "default_claude_cli_command")]
-    pub command: String,
-
-    #[serde(default = "default_claude_cli_model")]
-    pub model: String,
-
-    /// Effort level passed to Claude CLI via --effort flag.
-    /// Valid values: "low", "medium", "high", "max".
-    #[serde(default = "default_claude_cli_effort")]
-    pub effort: String,
-
-    /// Optional MCP config JSON passed to Claude CLI via --strict-mcp-config --mcp-config.
-    /// When set, overrides Claude CLI's own MCP server configuration, preventing it from
-    /// spawning processes that may conflict with the caller (e.g., a second Bevy window
-    /// when localgpt-gen is already running).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mcp_config_override: Option<String>,
-
-    /// Built-in Claude CLI tools to expose, passed via `--tools`. `None`
-    /// keeps the CLI default; `Some("")` disables every built-in tool
-    /// (Bash, Read, Write, …) so only MCP tools remain — used for agents
-    /// that act on behalf of untrusted users.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub builtin_tools: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GeminiCliConfig {
-    #[serde(default = "default_gemini_cli_command")]
-    pub command: String,
-
-    #[serde(default = "default_gemini_cli_model")]
-    pub model: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CodexCliConfig {
-    #[serde(default = "default_codex_cli_command")]
-    pub command: String,
-
-    #[serde(default = "default_codex_cli_model")]
     pub model: String,
 }
 
@@ -696,8 +641,9 @@ fn default_mcp_transport() -> String {
 
 // Default value functions
 fn default_model() -> String {
-    // Default to Claude CLI (uses existing Claude Code auth, no API key needed)
-    "claude-cli/opus".to_string()
+    // What the `opus` alias resolves to. The default was a coding agent run
+    // as a subprocess for its login; the agents are not embedded any more.
+    "anthropic/claude-opus-4-6".to_string()
 }
 fn default_context_window() -> usize {
     128000
@@ -740,27 +686,6 @@ pub(crate) fn default_ollama_endpoint() -> String {
 }
 pub(crate) fn default_ollama_model() -> String {
     "llama3".to_string()
-}
-fn default_claude_cli_command() -> String {
-    "claude".to_string()
-}
-fn default_claude_cli_model() -> String {
-    "opus".to_string()
-}
-fn default_claude_cli_effort() -> String {
-    "max".to_string()
-}
-fn default_gemini_cli_command() -> String {
-    "gemini".to_string()
-}
-fn default_gemini_cli_model() -> String {
-    "gemini-3.1-pro-preview".to_string()
-}
-fn default_codex_cli_command() -> String {
-    "codex".to_string()
-}
-fn default_codex_cli_model() -> String {
-    "o4-mini".to_string()
 }
 pub(crate) fn default_glm_base_url() -> String {
     "https://api.z.ai/api/coding/paas/v4".to_string()
@@ -1068,14 +993,14 @@ const DEFAULT_CONFIG_TEMPLATE: &str = r#"# LocalGPT Configuration
 # Auto-created on first run. Edit as needed.
 
 [agent]
-# Default model: claude-cli/opus, anthropic/claude-sonnet-4-5, openai/gpt-4o, xai/grok-3-mini, etc.
-default_model = "claude-cli/opus"
+# Default model: anthropic/claude-opus-4-6, openai/gpt-4o, xai/grok-3-mini, ollama/llama3, etc.
+default_model = "anthropic/claude-opus-4-6"
 context_window = 128000
 reserve_tokens = 8000
 
 # Spawn agent (subagent) configuration
 # max_spawn_depth = 1            # 0 = disabled, 1 = single level (default)
-# subagent_model = "claude-cli/sonnet"  # Model for subagents (default: same as default_model)
+# subagent_model = "anthropic/claude-sonnet-4-6"  # Model for subagents (default: same as default_model)
 
 # Failover configuration (optional)
 # Automatically try fallback models if primary fails with retryable errors
@@ -1107,10 +1032,6 @@ reserve_tokens = 8000
 # # Optional extra headers (e.g., OpenRouter attribution)
 # extra_headers = { "HTTP-Referer" = "https://localgpt.app", "X-Title" = "LocalGPT" }
 # # Use with: localgpt chat --model openai-compat/deepseek-chat
-
-# Claude CLI (for claude-cli/* models, requires claude CLI installed)
-[providers.claude_cli]
-command = "claude"
 
 # Gen (3D world generation, localgpt-gen)
 # [gen]

@@ -373,7 +373,6 @@ impl Agent {
                 providers_vec.remove(0)
             }
         };
-        provider.set_session_owner(agent_id);
 
         // Load security policy (plain load + sanitize; see Agent::new)
         let workspace = app_config.workspace_path();
@@ -439,20 +438,9 @@ impl Agent {
         &self.app_config.tools.require_approval
     }
 
-    /// Get the current effort level, if the provider supports it.
-    pub fn effort(&self) -> Option<String> {
-        self.provider.effort()
-    }
-
-    /// Set the effort level on the current provider.
-    pub fn set_effort(&self, effort: &str) -> Result<()> {
-        self.provider.set_effort(effort)
-    }
-
     /// Switch to a different model
     pub fn set_model(&mut self, model: &str) -> Result<()> {
         let provider = providers::create_provider(model, &self.app_config)?;
-        provider.set_session_owner(&self.agent_id);
         self.config.model = model.to_string();
         self.provider = provider;
         info!("Switched to model: {}", model);
@@ -667,9 +655,6 @@ impl Agent {
         self.search_cached_hits = 0;
         self.search_cost_usd = 0.0;
 
-        // Reset provider session state (e.g., clear Claude CLI session ID)
-        self.provider.reset_session();
-
         // Load skills from workspace
         let mut workspace_skills = skills::load_skills(self.memory.workspace()).unwrap_or_default();
         // A saved world is a skill only to an agent that can load one (Gen's).
@@ -726,8 +711,6 @@ impl Agent {
     /// otherwise write every transcript into `main`.
     pub fn with_agent_id(mut self, agent_id: &str) -> Self {
         self.agent_id = agent_id.to_string();
-        // A CLI backend's resumable conversation belongs to the agent too.
-        self.provider.set_session_owner(agent_id);
         self
     }
 
@@ -1806,7 +1789,6 @@ impl Agent {
         self.search_queries = 0;
         self.search_cached_hits = 0;
         self.search_cost_usd = 0.0;
-        self.provider.reset_session();
     }
 
     pub async fn search_memory(&self, query: &str) -> Result<Vec<MemoryChunk>> {

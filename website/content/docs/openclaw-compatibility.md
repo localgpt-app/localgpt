@@ -26,14 +26,11 @@ Example LocalGPT config:
 
 ```toml
 [agent]
-default_model = "claude-cli/opus"
+default_model = "anthropic/claude-opus-4-6"
 context_window = 128000
 
 [providers.anthropic]
 api_key = "${ANTHROPIC_API_KEY}"
-
-[providers.claude_cli]
-command = "claude"
 ```
 
 Run `localgpt config show` to verify your configuration after creating the file.

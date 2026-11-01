@@ -96,12 +96,6 @@ Not all kernels support all features. LocalGPT detects available capabilities at
 
 Unlike Codex (which panics on missing Landlock), LocalGPT warns and degrades. Unlike OpenClaw (which defaults to no sandbox), LocalGPT defaults to the highest available level.
 
-## Claude CLI Backend
-
-:::note
-If using the Claude CLI as your LLM backend (`agent.default_model = "claude-cli/*"`), the sandbox **does not apply** to Claude CLI subprocess calls — only to tool-executed shell commands. The Claude CLI subprocess itself runs outside the sandbox with access to your system.
-:::
-
 ## Limitations
 
 Sandboxing significantly reduces the attack surface, but it is not a silver bullet:

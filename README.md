@@ -149,7 +149,7 @@ localgpt-gen --host --relay https://relay.example   # reach guests beyond the LA
 
 - **What it builds.** Parametric shapes (box, sphere, cylinder, cone, capsule, plane, torus, pyramid, wedge and more), PBR materials, point/spot/directional lights, sky and fog, glTF meshes, data-driven behaviors (orbit, spin, bob, look-at, pulse, path-follow, bounce), procedural audio (ambient wind, rain, forest, ocean, cave, stream; spatial emitters), NPCs with dialogue, triggers and collectibles, terrain and water, optional physics, and a blockout-first WorldGen pipeline with a navmesh and a screenshot evaluation loop.
 - **Tools.** 77 `gen_*` tools in three profiles — `core` (24, for small local models), `standard` (49), `full` — selected with `--tools`. MCP clients always get the full set.
-- **Three ways to drive it.** LocalGPT's own agent with an API key or a local model; a CLI backend (Claude CLI, Gemini CLI, Codex) whose tool calls reach your window through the MCP relay, so no API key is needed; or an external app that runs `localgpt-gen mcp-server` and orchestrates the conversation itself.
+- **Three ways to drive it.** LocalGPT's own agent with an API key or a local model; a coding agent in a terminal (Claude Code, Gemini CLI, Codex) whose tool calls reach your window through the MCP relay (`localgpt-gen --mcp-relay`), with its own login and no API key in LocalGPT; or an external app that runs `localgpt-gen mcp-server` and orchestrates the conversation itself.
 
   ```json
   { "mcpServers": { "localgpt-gen": { "command": "localgpt-gen", "args": ["mcp-server"] } } }
@@ -177,7 +177,7 @@ localgpt doctor                  # diagnose config, keys, providers, MCP servers
 - **Memory.** A Markdown workspace — `MEMORY.md`, daily logs, a knowledge bank — indexed with SQLite FTS5 and sqlite-vec with local embeddings; active recall before a reply; background consolidation of transcripts into memory; a wiki of claims and evidence with staleness tracking.
 - **Autonomy.** A heartbeat that works through `HEARTBEAT.md`, cron jobs in a fresh session each, a durable outbox with retry. No coding agent does scheduled unattended work.
 - **Defense in depth.** A kernel-enforced shell sandbox (Landlock and seccomp on Linux, Seatbelt on macOS, containers as a backend), `POLICY.md` standing instructions sanitized before injection and protected from self-modification, prompt injection defenses, protected files, tool approval, TLS.
-- **Providers.** Anthropic, OpenAI, xAI, Gemini, Vertex AI, GLM, Ollama, LM Studio and any OpenAI-compatible endpoint, plus the Claude, Gemini and Codex CLIs as backends with their own login. Models are named `provider/model`; the default is `claude-cli/opus`.
+- **Providers.** Anthropic, OpenAI, xAI, Gemini, Vertex AI, GLM, Ollama, LM Studio and any OpenAI-compatible endpoint. Models are named `provider/model`; the default is `anthropic/claude-opus-4-6`. The coding agents are not backends: they run in the desktop app's terminals, each with its own login.
 - **Interfaces.** CLI, TUI, an embedded web UI, a desktop GUI, an OpenAI-compatible HTTP API, iOS/macOS and Android apps over UniFFI, bridge daemons over a secure IPC protocol, MCP in both directions (it consumes external MCP servers and is one).
 
 Workspace layout and XDG paths (`localgpt paths` prints the resolved ones):

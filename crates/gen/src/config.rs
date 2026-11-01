@@ -75,17 +75,16 @@ pub fn apply_gen_defaults(
 
     config.agent.default_model = choose_model(settings.default_model.as_deref(), config);
 
-    // Subagents otherwise default to claude-cli/sonnet, which would quietly
-    // reach for a different backend than the one Gen is running on.
+    // Subagents run on the same backend as Gen; `agent.subagent_model` is
+    // the assistant's setting, not Gen's.
     config.agent.subagent_model = Some(config.agent.default_model.clone());
 }
 
 /// Whether Gen can actually run this model. Gen asks for no credentials, so a
-/// model needing an API key can't be started from a bare install — a signed-in
-/// CLI backend or a model on disk can.
+/// model needing an API key can't be started from a bare install — a model on
+/// disk can.
 pub fn is_credential_free(model: &str) -> bool {
-    const PREFIXES: &[&str] = &["claude-cli/", "gemini-cli/", "codex-cli/", "gguf/"];
-    PREFIXES.iter().any(|prefix| model.starts_with(prefix))
+    model.starts_with("gguf/")
 }
 
 /// Copy worlds saved before Gen had its own workspace into it, once.
@@ -156,9 +155,8 @@ fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
 }
 
 /// Decide what to run on: the remembered choice, else whatever this machine
-/// already has. Every candidate here is credential-free — a CLI backend the
-/// user has already signed into, or a local GGUF — because a desktop app can't
-/// ask for an API key before it will open.
+/// already has. Every candidate here is credential-free — a local GGUF —
+/// because a desktop app can't ask for an API key before it will open.
 pub fn choose_model(remembered: Option<&str>, config: &localgpt_core::config::Config) -> String {
     use crate::desktop::{hardware, models};
 
@@ -182,8 +180,8 @@ pub fn choose_model(remembered: Option<&str>, config: &localgpt_core::config::Co
         return choice.to_string();
     }
 
-    // Nothing remembered: first run. Prefer a local model if one is already
-    // downloaded, else a CLI backend that's installed.
+    // Nothing remembered: first run. A local model if one is already
+    // downloaded.
     if let Some(model) = models::auto_local_model() {
         eprintln!(
             "Model: {model} (found on this machine — {})",
@@ -191,16 +189,8 @@ pub fn choose_model(remembered: Option<&str>, config: &localgpt_core::config::Co
         );
         return model;
     }
-    for (program, candidates) in models::CLI_BACKENDS {
-        if models::find_on_path(program).is_some()
-            && let Some(model) = candidates.first()
-        {
-            eprintln!("Model: {model} ({program} is installed)");
-            return (*model).to_string();
-        }
-    }
-    // Nothing found. Keep the default so the panel can explain what to install
-    // (missing_cli_backend_hint) rather than refusing to start.
+    // Nothing found. Keep the default, so the first prompt's error says what
+    // to configure rather than Gen refusing to start.
     config.agent.default_model.clone()
 }
 
@@ -251,7 +241,7 @@ mod tests {
     #[test]
     fn a_remembered_model_is_used_verbatim() {
         let mut config = localgpt_core::config::Config::default();
-        config.agent.default_model = "claude-cli/opus".to_string();
+        config.agent.default_model = "anthropic/claude-opus-4-6".to_string();
 
         assert_eq!(choose_model(Some("gguf/bonsai"), &config), "gguf/bonsai");
         // Blank or whitespace means "nothing remembered", not "no model".
@@ -281,7 +271,7 @@ mod tests {
         assert!(config.agent.max_tool_repeats >= 20);
         // Keyword search, whatever embeddings the assistant's config named.
         assert_eq!(config.memory.embedding_provider, "none");
-        // Subagents run on the same backend as Gen, not claude-cli/sonnet.
+        // Subagents run on the same backend as Gen.
         assert_eq!(
             config.agent.subagent_model.as_deref(),
             Some(config.agent.default_model.as_str())
@@ -325,12 +315,7 @@ mod tests {
     /// config file Gen no longer reads.
     #[test]
     fn only_models_gen_can_start_are_credential_free() {
-        for model in [
-            "claude-cli/opus",
-            "gemini-cli/gemini-3.1-pro-preview",
-            "codex-cli/o4-mini",
-            "gguf/prism-ml_Bonsai-8B-unpacked-Q4_K_M",
-        ] {
+        for model in ["gguf/prism-ml_Bonsai-8B-unpacked-Q4_K_M", "gguf/bonsai"] {
             assert!(is_credential_free(model), "{model} needs no key");
         }
         for model in [
@@ -339,6 +324,7 @@ mod tests {
             "openai/gpt-4o",
             "xai/grok-3-mini",
             "openai-compat/deepseek-chat",
+            "claude-cli/opus",
         ] {
             assert!(!is_credential_free(model), "{model} needs a key");
         }

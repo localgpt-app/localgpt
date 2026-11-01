@@ -1,16 +1,8 @@
 //! Which models this machine can use right now, for the prompt panel's model
-//! menu: installed CLI backends, whatever a local Ollama server has pulled,
-//! and (with the `local-llm` feature) the GGUF models Gen can run itself.
+//! menu: whatever a local Ollama server has pulled, and (with the
+//! `local-llm` feature) the GGUF models Gen can run itself.
 
 use std::time::Duration;
-
-/// CLI backends by executable name, and the model strings that select them
-/// (the providers' defaults; see `localgpt_core::config`).
-pub const CLI_BACKENDS: [(&str, &[&str]); 3] = [
-    ("claude", &["claude-cli/opus", "claude-cli/sonnet"]),
-    ("gemini", &["gemini-cli/gemini-3.1-pro-preview"]),
-    ("codex", &["codex-cli/o4-mini"]),
-];
 
 /// Where Ollama listens unless the config says otherwise.
 pub const DEFAULT_OLLAMA_ENDPOINT: &str = "http://localhost:11434";
@@ -94,23 +86,10 @@ fn gguf_size_gb(model_id: &str) -> Option<f32> {
     Some(bytes as f32 / (1024.0 * 1024.0 * 1024.0))
 }
 
-/// Find `program` on `PATH` (trying `.exe` and `.cmd` on Windows).
-///
-/// The rule lives in `localgpt-world-agent` now: launching an agent into a
-/// world needs the same lookup, and that crate is the one every world app
-/// already depends on — the same reason `paths` moved there.
-pub use localgpt_world_agent::agent_cli::find_on_path;
-
-/// Models worth offering: `current` first, then installed CLI backends, then
-/// local Ollama models, then in-process GGUF models. Never fails; missing
-/// backends are simply left out.
+/// Models worth offering: `current` first, then local Ollama models, then
+/// in-process GGUF models. Never fails; what is not there is simply left out.
 pub async fn detect_model_options(current: &str, ollama_endpoint: &str) -> Vec<String> {
     let mut options = vec![current.to_string()];
-    for (program, models) in CLI_BACKENDS {
-        if find_on_path(program).is_some() {
-            options.extend(models.iter().map(|model| model.to_string()));
-        }
-    }
     options.extend(
         ollama_models(ollama_endpoint)
             .await
@@ -162,13 +141,6 @@ fn dedupe(items: Vec<String>) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[cfg(unix)]
-    #[test]
-    fn finds_programs_on_path() {
-        assert!(find_on_path("sh").is_some());
-        assert!(find_on_path("localgpt-gen-no-such-program").is_none());
-    }
 
     #[test]
     fn dedupe_keeps_first_occurrence_order() {

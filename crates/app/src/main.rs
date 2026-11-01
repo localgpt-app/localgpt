@@ -110,8 +110,8 @@ fn main() -> anyhow::Result<()> {
     init_logging();
 
     // Launched from Finder, the app has launchd's minimal PATH: take the
-    // login shell's, so the authoring model's CLI backend is found. (The
-    // agents' terminals start a login shell of their own.)
+    // login shell's, so what the app runs by name is found. (The agents'
+    // terminals start a login shell of their own.)
     #[cfg(unix)]
     if let Some(login_path) = desktop::shell_env::login_shell_path() {
         let current = std::env::var("PATH").unwrap_or_default();
