@@ -43,7 +43,10 @@ Bevy — on macOS an AppKit view whose hit test answers nothing there — and
 the keyboard follows the click.
 
 - **The terminal is the industry's.** xterm.js is what VS Code, Cursor and
-  Orca run agents in. The native routes were to write one.
+  Orca run agents in. The native routes were to write one. (2026-11-01:
+  overstated — `alacritty_terminal`, Apache-2.0, is the emulator Zed's
+  terminal wraps, and WezTerm's `termwiz` is another; what is left to write
+  is the widget. [all-rust.md](all-rust.md).)
 - **The world stays native.** Core Animation composites the page over the
   Metal layer with no copy, at full quality; no frame enters the page.
 - **The rest is easy there**: a graph, a timeline, a Markdown editor; agents

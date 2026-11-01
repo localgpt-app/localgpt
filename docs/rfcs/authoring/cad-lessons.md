@@ -31,6 +31,49 @@ commits a day, so their size overstates how hardened either is. The machinery
 that checks them is what transfers, and most of what follows is that
 machinery.
 
+### How they draw
+
+**Both** (read 2026-11-01): eframe, egui's shell on winit, owns the window;
+the model view is the app's own wgpu pipelines in an `egui_wgpu` paint
+callback; and the same program runs in a browser as WebAssembly, on WebGPU
+where it is and WebGL2 otherwise. Neither uses a web view or an engine:
+neither lockfile has wry, tao, Bevy, iced or Tauri. Both keep forks: Solid-
+Craft vendors egui-wgpu and winit with fixes (`vendor/`), CADCraft pins its
+own forks of egui and winit.
+
+- **SolidCraft**: egui 0.36 on wgpu 30. The viewport (`crates/gpu/src/view.rs`
+  with `assets/shaders/viewport.wgsl`) draws shaded triangles and
+  screen-space wide lines with a depth buffer, a stencil for the section
+  cap, order-independent transparency and 4× MSAA, and blits a still view
+  from the last frame's texture; a compute shader (`tess.wgsl`) evaluates
+  the solid's surfaces straight into the vertex buffer. Pictures with no
+  window — CLI snapshots, MCP screenshots, thumbnails — go through the same
+  pipelines offscreen (`capture.rs`), with a CPU rasteriser as the last tier,
+  and every picture names the renderer that drew it. Product renders are a
+  path tracer in WGSL (`crates/gpu/src/path/`, 2,100 lines of shader) on
+  Metal or Vulkan; in the browser they render on the CPU. About 28K lines
+  for the viewport, capture and tracer with their tests.
+- **CADCraft**: egui 0.37. The drawing becomes a display list
+  (`crates/render`: polylines, filled triangles and points, with linetypes,
+  hatches, text and dimensions expanded), uploaded once per edit and drawn
+  by one shader with a 12-byte vertex that runs on WebGL2
+  (`crates/ui-egui/src/gpu.rs`); each frame only the view uniform changes.
+  The crosshair, grips, snap markers and ViewCube are egui shapes over it.
+  PNG goes through tiny-skia on the CPU, PDF through krilla; text is shaped
+  with harfrust and ordered with unicode-bidi, which egui does not do
+  itself. 3D is 2% of its roadmap. About 12K lines for the canvas, the
+  display list and the raster.
+
+**For LocalGPT:** this is the shape [all-rust.md](all-rust.md) proposes:
+eframe owns the window, the world is a texture in a paint callback, and the
+headless picture goes through the same pipelines. The costs
+[egui-or-not.md](egui-or-not.md) listed (input absorbed, hover, scheduling)
+were `bevy_egui`'s, egui inside Bevy's window; with eframe owning the window
+they do not arise, and CADCraft's canvas, which hides the cursor and takes
+every key while it has focus, is the shape of a viewport widget.
+SolidCraft's glue between egui and its pipelines (`crates/ui-egui/src/gpu.rs`)
+is MIT OR Apache-2.0 and may be adapted with its notice.
+
 ## 2. Everything is a command
 
 **Both.** Every action is a static `CommandSpec` in one registry (SolidCraft
@@ -288,7 +331,8 @@ check the JavaScript reference too.
 ## 12. What does not transfer
 
 - **egui, and a Rust-only interface.** The app's interface is a web page
-  (the-page.md).
+  (the-page.md) — unless [all-rust.md](all-rust.md) is adopted, in which
+  case §1's "How they draw" is the model.
 - **B-rep kernels and constraint solvers.** A `.world` has no solids.
 - **Parity with an incumbent as the measure of progress.** CADCraft counts
   AutoCAD's menu items; a `.world` editor has no incumbent to count against.

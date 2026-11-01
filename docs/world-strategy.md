@@ -1103,13 +1103,17 @@ inverts each of those:
 
 ### 15.2 Between the two references
 
-| | Previs Pro 3.1 | invideo AI Previs | LocalGPT |
-|---|---|---|---|
-| How a shot is made | built by hand: sets, posable actors, cameras | generated frames, animatics, moving shots | drafted by an agent from the script, revised by asking |
-| Camera data | camera/sensor types, aspect ratios | "It isn't a technical plan": lens data and measured camera positions are "things to confirm in 3D previs or on a recce" | positions in metres, sensor, lens and frame (`ext-cinematography`) |
-| AI | lighting and props from text, pose from a photo | the whole look | the whole first pass; a generated look on top, optional |
-| Platforms | iPhone, iPad, Mac | web | desktop, web link, Android, Apple viewer |
-| Price | $179.99 a year or $399.99 lifetime; a free edition | not shown on the page | free |
+| | Previs Pro 3.1 | invideo AI Previs | MiniMax Director Stage 0.24 | LocalGPT |
+|---|---|---|---|---|
+| How a shot is made | built by hand: sets, posable actors, cameras | generated frames, animatics, moving shots | staged by hand in three.js: mannequins, GLB props, Gaussian-splat sets; camera paths and motion as text; an agent edits the stage through its methods | drafted by an agent from the script, revised by asking |
+| Camera data | camera/sensor types, aspect ratios | "It isn't a technical plan": lens data and measured camera positions are "things to confirm in 3D previs or on a recce" | field of view per camera, no lens or sensor; metres, ground at y = 0 | positions in metres, sensor, lens and frame (`ext-cinematography`) |
+| AI | lighting and props from text, pose from a photo | the whole look | an agent in the app edits the stage and writes three.js code for props (`model.generate`) | the whole first pass; a generated look on top, optional |
+| Platforms | iPhone, iPad, Mac | web | MiniMax Design's desktop app (Electron); a phone's gyroscope as a handheld camera | desktop, web link, Android, Apple viewer |
+| Price | $179.99 a year or $399.99 lifetime; a free edition | not shown on the page | inside MiniMax Design; not checked | free |
+
+The Director Stage is read in
+[rfcs/authoring/agent-desktop-lessons.md](rfcs/authoring/agent-desktop-lessons.md)
+§3 (2026-11-01).
 
 The position: an agent-drafted 3D plan with real measurements, with the
 generated look on top of it — the 3D previs invideo tells its users to go and
