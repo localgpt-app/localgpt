@@ -139,7 +139,11 @@ pub fn fps_pose(t: f32) -> (Vec3, Vec3) {
     );
     let yaw = PI + 0.9 * (TAU * t / 5.3).sin() + 0.5 * (TAU * t / 1.9).sin();
     let pitch = -0.12 + 0.18 * (TAU * t / 6.7).sin();
-    let look = Vec3::new(yaw.sin() * pitch.cos(), pitch.sin(), yaw.cos() * pitch.cos());
+    let look = Vec3::new(
+        yaw.sin() * pitch.cos(),
+        pitch.sin(),
+        yaw.cos() * pitch.cos(),
+    );
     (eye, eye + look * 10.0)
 }
 
