@@ -144,7 +144,7 @@ The `server.json` in the current directory is picked up automatically.
 
 ## What `localgpt-gen mcp-server` exposes
 
-When an MCP client connects, the server advertises **83 tools** across three capability pillars:
+When an MCP client connects, the server advertises **88 tools** across three capability pillars. None of them calls a model or a service: Gen runs no model and holds no key, and the agent that connects brings its own.
 
 ### Visual — Bevy 3D Engine
 
@@ -160,10 +160,11 @@ Real-time 3D scene rendering via Bevy 0.19 with an interactive viewport.
 | Export | `gen_export_screenshot`, `gen_export_gltf`, `gen_export_html` |
 | World skills | `gen_save_world`, `gen_load_world`, `gen_export_world`, `gen_clear_scene` |
 | History | `gen_undo`, `gen_redo`, `gen_undo_info` |
-| WorldGen pipeline | `gen_plan_layout`, `gen_apply_blockout`, `gen_populate_region`, `gen_evaluate_scene`, `gen_auto_refine`, `gen_build_navmesh`, `gen_validate_navigability`, `gen_edit_navmesh`, `gen_modify_blockout`, `gen_bulk_modify`, `gen_set_tier`, `gen_set_role`, `gen_regenerate`, `gen_render_depth`, `gen_preview_world` |
-| AI asset gen | `gen_generate_asset`, `gen_asset_status`, `gen_list_assets` |
-| Experiments | `gen_queue_experiment`, `gen_list_experiments`, `gen_experiment_status` |
-| Terrain | `gen_add_terrain`, `gen_add_water`, `gen_add_path`, `gen_add_foliage` |
+| WorldGen pipeline | `gen_plan_layout`, `gen_apply_blockout`, `gen_populate_region`, `gen_evaluate_scene`, `gen_auto_refine`, `gen_build_navmesh`, `gen_validate_navigability`, `gen_edit_navmesh`, `gen_modify_blockout`, `gen_bulk_modify`, `gen_set_tier`, `gen_set_role`, `gen_regenerate`, `gen_render_depth` |
+| Multi-file worlds | `gen_write_world_plan`, `gen_write_region`, `gen_load_region`, `gen_unload_region`, `gen_persist_blockout`, `gen_write_behaviors`, `gen_write_audio`, `gen_check_drift`, `gen_sync` |
+| Image input | `gen_image_to_layout`, `gen_match_style`, `gen_reference_board`, `gen_panorama_to_world` |
+| Creations | `gen_define_creation`, `gen_spawn_instance` |
+| Terrain | `gen_add_terrain`, `gen_add_water`, `gen_add_path`, `gen_add_foliage`, `gen_query_terrain_height` |
 
 ### Audio — FunDSP Procedural Synthesis
 
@@ -186,13 +187,6 @@ Data-driven animations, NPCs, physics, and interaction logic.
 | Interaction | `gen_add_trigger`, `gen_add_teleporter`, `gen_add_collectible`, `gen_add_door`, `gen_link_entities` |
 | Physics | `gen_set_physics`, `gen_add_collider`, `gen_add_joint`, `gen_add_force`, `gen_set_gravity` |
 | In-world UI | `gen_add_sign`, `gen_add_hud`, `gen_add_label`, `gen_add_tooltip`, `gen_add_notification` |
-
-### Core — Memory & Web
-
-| Category | Tools |
-|---|---|
-| Memory | `memory_search`, `memory_get`, `memory_save`, `memory_log` |
-| Web | `web_fetch`, `web_search` |
 
 ---
 

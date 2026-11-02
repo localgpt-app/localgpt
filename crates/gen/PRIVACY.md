@@ -1,6 +1,6 @@
 # Privacy Policy — LocalGPT Gen MCP Server
 
-**Last updated:** April 9, 2026
+**Last updated:** November 1, 2026
 
 ## Overview
 
@@ -13,24 +13,27 @@ LocalGPT Gen **does not collect, transmit, or store any personal data**. All pro
 Specifically:
 
 - **No telemetry.** No usage data, crash reports, or analytics are sent anywhere.
-- **No network calls by default.** The MCP server communicates only with the connected MCP client via stdio or local HTTP.
+- **No model, no key.** Gen runs no language or image model and holds no API key. The agent that drives it runs under its own account, in its own process; what that agent sends to its provider is governed by the agent's privacy policy, not this one.
+- **No network calls by default.** The MCP server communicates only with the connected MCP client, over stdio or a localhost HTTP port. No tool calls a service.
 - **No accounts required.** No sign-up, login, or authentication with external services.
 
 ## Data Storage
 
 All data stays on your local filesystem:
 
-- **Workspace files** (scenes, memory, skills) are stored in `~/.local/share/localgpt/workspace/` or a directory you configure.
-- **Cache** (embedding models, search indexes) is stored in `~/.cache/localgpt/`.
-- **Session logs** are stored in `~/.local/state/localgpt/`.
+- **Worlds, sessions and exports** are stored under `~/.local/share/localgpt/gen-workspace/` (`LOCALGPT_DATA_DIR` moves it).
+- **Settings** (what was opened last) and **logs** are stored under `~/.local/state/localgpt/`.
+- **A live `.world` package** keeps its history in the folder you opened.
 
 No data is synced to cloud services.
 
-## Optional External Connections
+## Connections You Start
 
-If **you** configure an external LLM provider (OpenAI, Anthropic, Ollama, etc.), your prompts and scene descriptions are sent to that provider. This is initiated by your configuration and governed by the provider's own privacy policy. LocalGPT Gen itself does not require any external API.
+Three things make a network connection, and only when you ask for them:
 
-If you use the `web_fetch` or `web_search` tools, those requests go to the URLs or search provider you specify.
+- `localgpt-gen --world <URL>` fetches that URL to import a world.
+- `localgpt-gen --host --relay <URL>` connects to the relay you name, and `--join <host>` to the host you name, for a collaborative session; the relay forwards frames and never holds world state.
+- An MCP client connecting over `--mcp-http` does so from your machine to a localhost port.
 
 ## Third-Party Services
 

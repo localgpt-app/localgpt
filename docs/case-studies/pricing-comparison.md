@@ -44,7 +44,7 @@ All of the above is open source. You own the generated code, can version-control
 | **Roblox 4D Gen** | $0 (platform-locked output) | $0 (platform-locked output) | $0 (platform-locked output) |
 | **ASI World** | Unknown | Unknown | Unknown |
 
-**Note on LocalGPT Gen costs:** Core world generation (placing primitives, configuring lighting, adding behaviors, exporting code) requires no API calls and costs $0. If you choose to use an external LLM to drive the MCP tools (e.g., Claude, GPT, or a local model via Ollama), LLM inference costs are separate and user-controlled. Running a local model (Llama, Qwen, Mistral) via Ollama eliminates even that cost.
+**Note on LocalGPT Gen costs:** Core world generation (placing primitives, configuring lighting, adding behaviors, exporting code) requires no API calls and costs $0; Gen itself runs no model and holds no key. The agent you drive the MCP tools with (Claude Code, Codex, Gemini CLI, or an MCP client over a local model) pays its own inference, under your account; an agent on a local model eliminates even that cost.
 
 **Note on Project Genie:** The $250/month Google AI Ultra subscription includes access to Project Genie along with other Google AI services. Worlds are generated in real-time as you navigate (compute runs continuously during exploration) and are limited to 60 seconds at 720p resolution.
 
@@ -83,7 +83,7 @@ LocalGPT Gen has no generation limits. Iterate as many times as you want. Compil
 
 ### No Offline Mode
 
-All competitors require internet access for every generation. LocalGPT Gen can run entirely offline when paired with a local LLM (Ollama + Llama/Qwen/Mistral). The MCP tools operate without any network calls.
+All competitors require internet access for every generation. LocalGPT Gen runs entirely offline when the agent driving it runs locally. The MCP tools make no network calls.
 
 ---
 

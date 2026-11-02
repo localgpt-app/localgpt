@@ -9,7 +9,7 @@ Single Binary  |  Zero Dependencies  |  In-Process Bevy Renderer  |  Intent-Leve
 | Version | 1.0 Draft |
 | Date | February 13, 2026 |
 | Author | Yi / LocalGPT |
-| Status | Proposed |
+| Status | Historical — built as proposed; the in-process model and `localgpt-core` it assumed went on 2026-11-01, and Gen is driven over MCP by an agent outside the window |
 | Priority | P1 — Product Expansion |
 | Crate | `localgpt-gen` (`crates/gen/`) |
 

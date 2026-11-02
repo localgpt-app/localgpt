@@ -208,37 +208,37 @@ All 24 runtime system gaps have been resolved. MCP tool components now have full
 | Spec | Tool | Status |
 |------|------|--------|
 | WG7.1 | `gen_render_depth` — depth map rendering | DONE |
-| WG7.2 | `gen_preview_world` — styled 2D preview from depth | DONE (scaffolded, external API pending) |
+| WG7.2 | `gen_preview_world` — styled 2D preview from depth | REMOVED 2026-11-01 (it called ComfyUI) |
 
 **File:** `TODO-WG7-depth-preview.md`
 
 ---
 
-### AI1: Local 3D Asset Generation — DONE (scaffolded)
+### AI1: Local 3D Asset Generation — REMOVED 2026-11-01
 
-Rust infrastructure complete. Python model server deferred (requires GPU).
+The Rust side was built against a model server that was never written, and went with every other service call in the tree.
 
 | Spec | Tool | Status |
 |------|------|--------|
-| AI1.1 | `gen_generate_asset` — text/image → 3D mesh | DONE (scaffolded) |
-| AI1.2 | `gen_generate_texture` — PBR texture generation | DONE (scaffolded) |
-| AI1.3 | `gen_generation_status` — generation queue management | DONE (scaffolded) |
+| AI1.1 | `gen_generate_asset` — text/image → 3D mesh | REMOVED |
+| AI1.2 | `gen_generate_texture` — PBR texture generation | REMOVED |
+| AI1.3 | `gen_generation_status` — generation queue management | REMOVED |
 
-**File:** `TODO-AI1-local-asset-generation.md`
+**File:** `../../archived/gen/TODO-AI1-local-asset-generation.md`
 
 ---
 
-### AI2: AI-Driven NPC Intelligence — DONE (scaffolded)
+### AI2: AI-Driven NPC Intelligence — REMOVED 2026-11-01
 
-Rust infrastructure complete. Ollama integration deferred.
+The Rust side was built over an Ollama client, and went with every other model call in the tree. Patrol, wander and dialogue trees stay as data.
 
 | Spec | Tool | Status |
 |------|------|--------|
-| AI2.1 | `gen_set_npc_brain` — local SLM-driven NPC behavior | DONE (scaffolded) |
-| AI2.2 | `gen_npc_observe` — visual observation via VLM | DONE (scaffolded) |
-| AI2.3 | `gen_set_npc_memory` — persistent NPC memory | DONE (scaffolded) |
+| AI2.1 | `gen_set_npc_brain` — local SLM-driven NPC behavior | REMOVED |
+| AI2.2 | `gen_npc_observe` — visual observation via VLM | REMOVED |
+| AI2.3 | `gen_set_npc_memory` — persistent NPC memory | REMOVED |
 
-**File:** `TODO-AI2-ai-npc-intelligence.md`
+**File:** `../../archived/gen/TODO-AI2-ai-npc-intelligence.md`
 
 ---
 
@@ -259,30 +259,22 @@ Rust infrastructure complete. Ollama integration deferred.
 | WG4 Evaluation | 3 | 3 | 0 | 0 |
 | WG5 Editing | 3 | 3 | 0 | 0 |
 | WG6 Decomposition | 3 | 3 | 0 | 0 |
-| WG7 Preview | 2 | 1 | 1 | 0 |
-| AI1 Asset Gen | 3 | 0 | 3 | 0 |
-| AI2 NPC AI | 3 | 0 | 3 | 0 |
-| **TOTAL** | **83** | **76** | **7** | **0** |
+| WG7 Preview | 2 | 1 | 0 | 1 removed |
+| AI1 Asset Gen | 3 | 0 | 0 | 3 removed |
+| AI2 NPC AI | 3 | 0 | 0 | 3 removed |
+| **TOTAL** | **83** | **76** | **0** | **7 removed** |
 
 ---
 
 ## 3. Completion Status
 
-All Rust infrastructure is implemented. Two areas remain scaffolded pending external dependencies:
+Everything that does not call a model or a service is implemented. The seven specs that did — AI1, AI2 and WG7.2 — were scaffolded against backends that never arrived and were removed on 2026-11-01, when LocalGPT decided nothing in its tree runs a model or calls a service (`docs/rfcs/authoring/the-harness-goes.md`).
 
-### Scaffolded (Rust done, external backend pending)
-
-| Area | What's Done | What Remains |
-|------|-------------|--------------|
-| AI1 Asset Gen | `AssetGenManager`, MCP tools, task queue, caching | Python model server (TripoSG/Hunyuan3D wrappers), GPU setup |
-| AI2 NPC AI | `NpcBrain`, `NpcMemory`, perception, action parser, MCP tools | Ollama HTTP client wiring, vision model integration |
-| WG7.2 Preview | Depth map rendering, style metadata, prompt composition | External image generation API (ControlNet/ComfyUI) |
-
-### Dependency Graph (all DONE)
+### Dependency Graph
 
 ```
 P0 Inspector ─────── DONE
-P1 Avatar ─────────── DONE ──→ AI2 NPC Intelligence ── DONE (scaffolded)
+P1 Avatar ─────────── DONE ──→ AI2 NPC Intelligence ── REMOVED 2026-11-01
 P2 Interaction ────── DONE
 P3 Terrain ────────── DONE ──→ WG1 Blockout ──→ WG2 Navmesh ──→ WG3 Placement ── ALL DONE
 P4 UI ─────────────── DONE                                    ──→ WG5 Editing ─── DONE
@@ -291,31 +283,17 @@ Runtime Gaps ──────── DONE (24/24)
 
 WG4 Evaluation ───── DONE
 WG6 Decomposition ── DONE (8-layer ordering, role tagging, mesh segmentation)
-WG7 Preview ──────── DONE (depth rendering done, styled preview scaffolded)
+WG7 Preview ──────── DONE for the depth render; the styled preview REMOVED 2026-11-01
 
-AI1 Asset Gen ────── DONE (scaffolded — Python model server pending)
-AI2 NPC AI ───────── DONE (scaffolded — Ollama integration pending)
+AI1 Asset Gen ────── REMOVED 2026-11-01
+AI2 NPC AI ───────── REMOVED 2026-11-01
 ```
 
 ---
 
 ## 4. Next Steps
 
-See `docs/gen/external-services.md` for detailed setup instructions, API contracts, and GPU requirements.
-
-**To activate AI1 (local 3D asset generation):**
-- Build Python model server (`localgpt/scripts/model_server/`)
-- Install TripoSG or Hunyuan3D-2mini on a machine with 8+ GB VRAM
-- Wire `AssetGenManager` HTTP client to model server endpoints
-
-**To activate AI2 (AI NPC intelligence):**
-- Ensure Ollama is running locally with a 1–3B model (e.g., `llama3.2:3b`)
-- Wire `NpcBrain` tokio task to Ollama HTTP API at `localhost:11434`
-- For visual observation (AI2.2): install a vision model (LLaVA, moondream2)
-
-**To activate WG7.2 (styled preview):**
-- Set up ControlNet or ComfyUI with depth-conditioned image generation
-- Wire `gen_preview_world` to the external API endpoint
+An agent that wants a generated mesh, a styled preview or a brain behind an NPC runs its own model or service and brings the result in through the tools that stay: `gen_load_gltf` for a mesh, `gen_render_depth` for the depth map an image model conditions on, the world's API for an NPC's moves.
 
 **Not yet specced** (see `NOT-YET-SPECCED.md`):
 - Text-to-skeleton animation (HY-Motion) — premature, no humanoid rigs yet

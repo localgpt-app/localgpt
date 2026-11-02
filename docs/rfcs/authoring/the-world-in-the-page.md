@@ -23,8 +23,8 @@ live canvas?
 
 "Pure web" cannot mean a browser tab here. The agents are processes in PTYs
 (`crates/app/src/webui/term.rs`), so the native host stays, and with it the
-files, the local model on Metal, Verse's analysis, kira and FunDSP, the live
-API and the rooms. None of those is Bevy's. The question is only who draws
+files, Verse's analysis, kira and FunDSP, the live API and the rooms (and,
+when this was written, the local model on Metal, gone since 2026-11-01). None of those is Bevy's. The question is only who draws
 the world: Bevy, or three.js in the page.
 
 ## What only Bevy gives

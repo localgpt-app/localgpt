@@ -348,8 +348,6 @@ pub fn setup_gen_app(
         .init_resource::<FlyCamConfig>()
         .init_resource::<BehaviorState>()
         .init_resource::<avatar::CameraMode>()
-        .init_resource::<crate::gen3d::asset_gen::AssetGenManager>()
-        .insert_resource(super::model_server::AssetGenWorker::spawn())
         .init_resource::<super::pending_writes::PendingWrites>()
         .init_resource::<super::generation_log::GenerationLog>()
         .init_resource::<super::region_dirty::RegionDirtyFlags>()
@@ -374,7 +372,6 @@ pub fn setup_gen_app(
         .add_systems(Update, super::offscreen::attach_offscreen_target)
         .add_systems(Update, process_pending_screenshots)
         .add_systems(Update, process_pending_gltf_loads)
-        .add_systems(Update, apply_asset_gen_updates)
         .add_systems(Update, process_pending_world_setup)
         .add_systems(Update, audio::spatial_audio_update)
         .add_systems(Update, audio::auto_infer_audio)
@@ -403,7 +400,6 @@ pub fn setup_gen_app(
         // P1: Character plugins
         .add_plugins(crate::character::PlayerPlugin)
         .add_plugins(crate::character::NpcPlugin)
-        .add_plugins(crate::character::npc_brain::NpcBrainPlugin)
         .add_plugins(crate::character::CameraPlugin)
         .add_plugins(crate::character::DialoguePlugin)
         .add_plugins(crate::character::SpawnPointPlugin)
@@ -586,16 +582,12 @@ struct GenCommandParams<'w, 's> {
     player_camera_query: Query<'w, 's, &'static mut crate::character::PlayerCamera>,
     terrain_q: Query<'w, 's, (&'static crate::terrain::Terrain, &'static Transform)>,
     npc_behaviors: Query<'w, 's, &'static mut crate::character::npc::NpcBehavior>,
-    npc_brains: Query<'w, 's, &'static crate::character::npc_brain::NpcBrainState>,
-    npc_memories: Query<'w, 's, &'static crate::character::npc_memory::NpcMemory>,
     blockout_generated_q: Query<'w, 's, (Entity, &'static crate::worldgen::BlockoutGenerated)>,
     current_blockout: Option<Res<'w, crate::worldgen::CurrentBlockout>>,
     tier_q: Query<'w, 's, &'static crate::worldgen::PlacementTier>,
     role_q: Query<'w, 's, &'static crate::worldgen::SemanticRole>,
     navmesh_resource: Option<Res<'w, crate::worldgen::NavMeshResource>>,
     navmesh_overrides: ResMut<'w, crate::worldgen::NavMeshOverrides>,
-    asset_gen_manager: ResMut<'w, crate::gen3d::asset_gen::AssetGenManager>,
-    asset_worker: Option<Res<'w, super::model_server::AssetGenWorker>>,
     pending_writes: ResMut<'w, super::pending_writes::PendingWrites>,
     generation_log: ResMut<'w, super::generation_log::GenerationLog>,
     region_dirty_flags: ResMut<'w, super::region_dirty::RegionDirtyFlags>,
@@ -1648,8 +1640,6 @@ fn process_gen_commands(
                     None,
                     &params.world_tours.tours,
                     &params.undo_stack.history,
-                    &params.npc_brains,
-                    &params.npc_memories,
                     &params.modulated,
                     params.soundtrack.def.as_ref(),
                     &params.authored,
@@ -1799,60 +1789,6 @@ fn process_gen_commands(
                         } else {
                             // No saved history — start fresh
                             params.undo_stack.reset(wt::EditHistory::default());
-                        }
-
-                        // Restore NPC brain/memory components from npcs.ron data
-                        for npc_def in &world_load.npc_data {
-                            if let Some(bevy_entity) =
-                                params.registry.get_entity(&npc_def.entity_name)
-                            {
-                                if let Some(ref brain_def) = npc_def.brain {
-                                    let config = crate::character::npc_brain::NpcBrainConfig {
-                                        personality: brain_def.personality.clone(),
-                                        model: brain_def.model.clone(),
-                                        tick_rate: brain_def.tick_rate,
-                                        perception_radius: brain_def.perception_radius,
-                                        goals: brain_def.goals.clone(),
-                                        knowledge: brain_def.knowledge.clone(),
-                                    };
-                                    let brain_state =
-                                        crate::character::npc_brain::NpcBrainState::new(config);
-                                    commands.entity(bevy_entity).insert(brain_state);
-                                }
-                                if let Some(ref mem_def) = npc_def.memory {
-                                    let mut memory = crate::character::npc_memory::NpcMemory::new(
-                                        mem_def.capacity,
-                                        mem_def.auto_memorize,
-                                    );
-                                    for entry in &mem_def.entries {
-                                        memory.add_memory(
-                                            entry.content.clone(),
-                                            entry.importance,
-                                            entry.timestamp,
-                                        );
-                                    }
-                                    commands.entity(bevy_entity).insert(memory);
-                                }
-                                tracing::info!(
-                                    "Restored NPC data for '{}'{}{}",
-                                    npc_def.entity_name,
-                                    if npc_def.brain.is_some() {
-                                        " [brain]"
-                                    } else {
-                                        ""
-                                    },
-                                    if npc_def.memory.is_some() {
-                                        " [memory]"
-                                    } else {
-                                        ""
-                                    },
-                                );
-                            } else {
-                                tracing::warn!(
-                                    "NPC data for '{}' — entity not found in registry (may load later)",
-                                    npc_def.entity_name
-                                );
-                            }
                         }
 
                         GenResponse::WorldLoaded {
@@ -3968,264 +3904,6 @@ fn process_gen_commands(
                 }
             }
 
-            GenCommand::GenerateAsset {
-                prompt,
-                name,
-                reference_image,
-                position,
-                scale,
-                model,
-                quality,
-                pbr,
-            } => 'asset: {
-                use super::model_server::AssetJob;
-                if params.registry.contains_name(&name) {
-                    break 'asset GenResponse::Error {
-                        message: format!("Entity '{name}' already exists; pick another name"),
-                    };
-                }
-                let reference_image = match reference_image {
-                    Some(path) => match resolve_gltf_path(&path, &params.workspace.path) {
-                        Some(p) => Some(p),
-                        None => {
-                            break 'asset GenResponse::Error {
-                                message: format!("Reference image not found: {path}"),
-                            };
-                        }
-                    },
-                    None => None,
-                };
-                let Some(worker) = params.asset_worker.as_ref() else {
-                    break 'asset GenResponse::Error {
-                        message: "Asset generation is not available in this session".into(),
-                    };
-                };
-                let task_id = params.asset_gen_manager.create_task(
-                    crate::gen3d::asset_gen::GenerationTaskType::Mesh,
-                    prompt.clone(),
-                    name.clone(),
-                    model,
-                    quality,
-                    position,
-                    scale,
-                );
-                worker.submit(AssetJob::Mesh {
-                    task_id: task_id.clone(),
-                    prompt,
-                    model,
-                    quality,
-                    pbr,
-                    reference_image,
-                    out_dir: params.workspace.path.join("generated").join("meshes"),
-                });
-                GenResponse::AssetGenerating {
-                    task_id,
-                    estimated_seconds: model.estimated_seconds(quality),
-                    message: format!(
-                        "Queued '{}' on the model server ({}, {:?} quality). It is not in the \
-                         scene yet: gen_generation_status reports progress, and '{}' spawns at \
-                         [{}, {}, {}] only once the task completes.",
-                        name,
-                        model.display_name(),
-                        quality,
-                        name,
-                        position[0],
-                        position[1],
-                        position[2]
-                    ),
-                }
-            }
-
-            GenCommand::GenerateTexture {
-                entity,
-                prompt,
-                style,
-                resolution,
-            } => 'texture: {
-                use super::model_server::AssetJob;
-                let Some(bevy_entity) = params.registry.get_entity(&entity) else {
-                    break 'texture GenResponse::Error {
-                        message: format!("Entity '{entity}' not found"),
-                    };
-                };
-                if params.material_handles.get(bevy_entity).is_err() {
-                    break 'texture GenResponse::Error {
-                        message: format!(
-                            "'{entity}' has no material of its own to texture (textures apply \
-                             to primitives and meshes, not groups or imported scenes)"
-                        ),
-                    };
-                }
-                let Some(worker) = params.asset_worker.as_ref() else {
-                    break 'texture GenResponse::Error {
-                        message: "Texture generation is not available in this session".into(),
-                    };
-                };
-                let shape = params
-                    .parametric_shapes
-                    .get(bevy_entity)
-                    .ok()
-                    .map(|p| p.shape.clone());
-                let model = crate::gen3d::asset_gen::GenerationModel::Hunyuan3d;
-                let quality = crate::gen3d::asset_gen::GenerationQuality::Standard;
-                let task_id = params.asset_gen_manager.create_task(
-                    crate::gen3d::asset_gen::GenerationTaskType::Texture,
-                    prompt.clone(),
-                    entity.clone(),
-                    model,
-                    quality,
-                    [0.0, 0.0, 0.0],
-                    1.0,
-                );
-                worker.submit(AssetJob::Texture {
-                    task_id: task_id.clone(),
-                    prompt,
-                    style,
-                    resolution,
-                    shape,
-                    out_dir: params.workspace.path.join("generated").join("textures"),
-                });
-                GenResponse::TextureGenerating {
-                    task_id,
-                    estimated_seconds: model.estimated_seconds(quality),
-                    message: format!(
-                        "Queued {:?} {}px textures for '{}' on the model server. The material \
-                         is unchanged until the task completes; gen_generation_status reports \
-                         progress.",
-                        style, resolution, entity
-                    ),
-                }
-            }
-
-            GenCommand::GenerationStatus { task_id, action } => {
-                let result = match action.as_str() {
-                    "cancel" => {
-                        if let Some(id) = &task_id {
-                            let cancelled = params.asset_gen_manager.cancel_task(id);
-                            if cancelled && let Some(worker) = params.asset_worker.as_ref() {
-                                worker.cancel(id);
-                            }
-                            serde_json::json!({ "cancelled": cancelled, "task_id": id }).to_string()
-                        } else {
-                            serde_json::json!({ "error": "task_id required for cancel" })
-                                .to_string()
-                        }
-                    }
-                    _ => {
-                        // "status" or "list"
-                        let mgr = &params.asset_gen_manager;
-                        let pick = |tasks: Vec<&crate::gen3d::asset_gen::GenerationTask>| {
-                            tasks
-                                .into_iter()
-                                .filter(|t| task_id.as_ref().is_none_or(|id| &t.task_id == id))
-                                .cloned()
-                                .collect::<Vec<_>>()
-                        };
-                        let active = pick(mgr.active_tasks());
-                        serde_json::json!({
-                            "active": active,
-                            "completed": pick(mgr.completed_tasks()),
-                            "failed": pick(mgr.failed_tasks()),
-                            "queue_depth": active.len(),
-                            "model_server": super::model_server::server_url(),
-                        })
-                        .to_string()
-                    }
-                };
-                GenResponse::GenerationStatusResult {
-                    status_json: result,
-                }
-            }
-
-            // Tier 24: AI NPC Intelligence (AI2)
-            GenCommand::SetNpcBrain { entity, config } => {
-                let model = config.model.clone();
-                let tick_rate = config.tick_rate;
-                if let Some(bevy_entity) = params.registry.get_entity(&entity) {
-                    let brain_state = crate::character::npc_brain::NpcBrainState::new(config);
-                    commands.entity(bevy_entity).insert(brain_state);
-                    tracing::info!(
-                        "Attached NPC brain to '{}' (model: {}, tick: {}s)",
-                        entity,
-                        model,
-                        tick_rate
-                    );
-                    GenResponse::NpcBrainSet {
-                        entity,
-                        model,
-                        tick_rate,
-                    }
-                } else {
-                    GenResponse::Error {
-                        message: format!("Entity '{}' not found", entity),
-                    }
-                }
-            }
-
-            GenCommand::NpcObserve { entity, fov } => 'observe: {
-                let Some(bevy_entity) = params.registry.get_entity(&entity) else {
-                    break 'observe GenResponse::Error {
-                        message: format!("Entity '{entity}' not found"),
-                    };
-                };
-                let Ok(eye) = params.transforms.get(bevy_entity).copied() else {
-                    break 'observe GenResponse::Error {
-                        message: format!("'{entity}' has no position"),
-                    };
-                };
-                let brain = params.npc_brains.get(bevy_entity).ok();
-                let radius = brain.map(|b| b.config.perception_radius).unwrap_or(20.0);
-                let others = params
-                    .registry
-                    .all_names()
-                    .filter(|(name, e)| {
-                        *name != entity.as_str() && *e != bevy_entity && *name != "main_camera"
-                    })
-                    .filter_map(|(name, e)| {
-                        Some((name.to_string(), params.transforms.get(e).ok()?.translation))
-                    });
-                let perceived = crate::character::npc_brain::perceive(&eye, fov, radius, others);
-                GenResponse::NpcObservation {
-                    entity,
-                    position: eye.translation.to_array(),
-                    radius,
-                    perceived_json: serde_json::to_string(&perceived).unwrap_or_default(),
-                    model: brain.map(|b| b.config.model.clone()),
-                }
-            }
-
-            GenCommand::SetNpcMemory {
-                entity,
-                capacity,
-                initial_memories,
-                auto_memorize,
-            } => {
-                let initial_count = initial_memories.len();
-                if let Some(bevy_entity) = params.registry.get_entity(&entity) {
-                    let mut memory =
-                        crate::character::npc_memory::NpcMemory::new(capacity, auto_memorize);
-                    for (i, content) in initial_memories.into_iter().enumerate() {
-                        memory.add_memory(content, 0.7, i as f64);
-                    }
-                    commands.entity(bevy_entity).insert(memory);
-                    tracing::info!(
-                        "Attached NPC memory to '{}' (capacity: {}, initial: {})",
-                        entity,
-                        capacity,
-                        initial_count
-                    );
-                    GenResponse::NpcMemorySet {
-                        entity,
-                        capacity,
-                        initial_count,
-                    }
-                } else {
-                    GenResponse::Error {
-                        message: format!("Entity '{}' not found", entity),
-                    }
-                }
-            }
-
             // Multi-file WorldGen handlers
             GenCommand::WriteWorldPlan {
                 name,
@@ -5179,147 +4857,6 @@ fn process_pending_gltf_loads(
                 path: load.path,
             };
             let _ = channel_res.channels.resp_tx.send(response);
-        }
-    }
-}
-
-/// Apply what the asset generation worker reports: task progress, and when a
-/// job completes, spawn the generated mesh or put the generated texture maps
-/// on the entity's material.
-#[allow(clippy::too_many_arguments)]
-fn apply_asset_gen_updates(
-    worker: Option<Res<super::model_server::AssetGenWorker>>,
-    mut manager: ResMut<crate::gen3d::asset_gen::AssetGenManager>,
-    mut commands: Commands,
-    mut registry: ResMut<NameRegistry>,
-    mut next_entity_id: ResMut<NextEntityId>,
-    mut dirty_tracker: ResMut<DirtyTracker>,
-    asset_server: Res<AssetServer>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    material_handles: Query<&MeshMaterial3d<StandardMaterial>>,
-    mesh_handles: Query<&Mesh3d>,
-    existing_textures: Query<&MaterialTextures>,
-    gen_entities: Query<&GenEntity>,
-) {
-    use super::model_server::AssetUpdate;
-    use crate::gen3d::asset_gen::GenerationTaskState as State;
-    let Some(worker) = worker else {
-        return;
-    };
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs_f64())
-        .unwrap_or_default();
-    for task in manager.tasks.values_mut() {
-        if matches!(task.state, State::Queued | State::Generating) {
-            task.elapsed_seconds = (now - task.created_at).max(0.0) as f32;
-        }
-    }
-
-    for update in worker.drain() {
-        let task_id = match &update {
-            AssetUpdate::Generating { task_id, .. }
-            | AssetUpdate::MeshReady { task_id, .. }
-            | AssetUpdate::TexturesReady { task_id, .. }
-            | AssetUpdate::Failed { task_id, .. }
-            | AssetUpdate::Cancelled { task_id } => task_id.clone(),
-        };
-        let Some(task) = manager.tasks.get_mut(&task_id) else {
-            continue;
-        };
-        if task.state == State::Cancelled {
-            continue;
-        }
-        match update {
-            AssetUpdate::Generating { .. } => task.state = State::Generating,
-            AssetUpdate::Cancelled { .. } => task.state = State::Cancelled,
-            AssetUpdate::Failed { error, .. } => {
-                task.state = State::Failed;
-                task.error = Some(error);
-            }
-            AssetUpdate::MeshReady { path, .. } => {
-                if registry.contains_name(&task.entity_name) {
-                    task.state = State::Failed;
-                    task.error = Some(format!(
-                        "'{}' was taken while generating; the mesh is at {}",
-                        task.entity_name,
-                        path.display()
-                    ));
-                    continue;
-                }
-                let asset_path = path.to_string_lossy().trim_start_matches('/').to_string();
-                let wid = next_entity_id.alloc();
-                let entity = commands
-                    .spawn((
-                        WorldAssetRoot(asset_server.load(format!("{asset_path}#Scene0"))),
-                        Transform::from_translation(Vec3::from_array(task.position))
-                            .with_scale(Vec3::splat(task.scale)),
-                        Name::new(task.entity_name.clone()),
-                        GenEntity {
-                            entity_type: GenEntityType::Mesh,
-                            world_id: wid,
-                        },
-                        GltfSource {
-                            path: path.to_string_lossy().into_owned(),
-                        },
-                    ))
-                    .id();
-                registry.insert_with_id(task.entity_name.clone(), entity, wid);
-                dirty_tracker.mark_dirty(wid);
-                task.state = State::Complete;
-                task.output_path = Some(path.to_string_lossy().into_owned());
-            }
-            AssetUpdate::TexturesReady { maps, .. } => {
-                let target = registry.get_entity(&task.entity_name);
-                let Some((entity, handle)) =
-                    target.and_then(|e| material_handles.get(e).ok().map(|h| (e, h.0.clone())))
-                else {
-                    task.state = State::Failed;
-                    task.error = Some(format!(
-                        "'{}' no longer exists or has no material",
-                        task.entity_name
-                    ));
-                    continue;
-                };
-                let mut material = materials.get(&handle).cloned().unwrap_or_default();
-                // A generated albedo carries its own colour.
-                material.base_color = Color::WHITE.with_alpha(material.base_color.alpha());
-                let mut textures = existing_textures.get(entity).cloned().unwrap_or_default();
-                for (slot, path) in &maps {
-                    let image = asset_server
-                        .load_builder()
-                        .with_settings(localgpt_world_bevy::texture_settings(*slot))
-                        .load(path.to_string_lossy().trim_start_matches('/').to_string());
-                    match slot {
-                        wt::TextureSlot::BaseColor => material.base_color_texture = Some(image),
-                        wt::TextureSlot::MetallicRoughness => {
-                            material.metallic_roughness_texture = Some(image)
-                        }
-                        wt::TextureSlot::Normal => material.normal_map_texture = Some(image),
-                        wt::TextureSlot::Emissive => material.emissive_texture = Some(image),
-                    }
-                    textures.set(*slot, path.to_string_lossy().into_owned());
-                }
-                if maps.iter().any(|(s, _)| *s == wt::TextureSlot::Normal)
-                    && let Ok(mesh) = mesh_handles.get(entity)
-                    && let Some(mut mesh) = meshes.get_mut(&mesh.0)
-                    && let Err(e) = mesh.generate_tangents()
-                {
-                    tracing::warn!(
-                        "Could not generate tangents for '{}': {e}",
-                        task.entity_name
-                    );
-                }
-                commands
-                    .entity(entity)
-                    .insert((MeshMaterial3d(materials.add(material)), textures));
-                if let Ok(gen_entity) = gen_entities.get(entity) {
-                    dirty_tracker.mark_dirty(gen_entity.world_id);
-                }
-                task.state = State::Complete;
-                task.output_path = maps.first().map(|(_, p)| p.to_string_lossy().into_owned());
-            }
         }
     }
 }
@@ -8423,7 +7960,6 @@ mod tests {
         .init_resource::<BehaviorState>()
         .init_resource::<avatar::CameraMode>()
         .init_resource::<crate::worldgen::NavMeshOverrides>()
-        .init_resource::<crate::gen3d::asset_gen::AssetGenManager>()
         .init_resource::<crate::gen3d::pending_writes::PendingWrites>()
         .init_resource::<crate::gen3d::generation_log::GenerationLog>()
         .init_resource::<crate::gen3d::region_dirty::RegionDirtyFlags>()
@@ -8979,143 +8515,6 @@ mod tests {
         );
         assert_eq!(normal.texture_descriptor.format, TextureFormat::Rgba8Unorm);
         assert_eq!(albedo.size().x, 64);
-    }
-
-    /// Completed generation jobs land in the scene: a mesh spawns as a saved
-    /// entity where it was asked for, texture maps go on the material, and a
-    /// failure is reported on the task.
-    #[test]
-    fn finished_generation_jobs_change_the_scene() {
-        use crate::gen3d::asset_gen::*;
-        use crate::gen3d::model_server::{AssetGenWorker, AssetUpdate};
-        let mut app = App::new();
-        app.add_plugins((
-            MinimalPlugins,
-            bevy::asset::AssetPlugin {
-                file_path: "/".to_string(),
-                ..default()
-            },
-            bevy::image::ImagePlugin::default(),
-        ))
-        .init_asset::<StandardMaterial>()
-        .init_asset::<Mesh>()
-        .init_asset::<WorldAsset>()
-        .init_resource::<AssetGenManager>()
-        .init_resource::<NameRegistry>()
-        .init_resource::<NextEntityId>()
-        .init_resource::<DirtyTracker>()
-        .add_systems(Update, apply_asset_gen_updates);
-        let (worker, updates) = AssetGenWorker::from_updates();
-        app.insert_resource(worker);
-
-        let material = app
-            .world_mut()
-            .resource_mut::<Assets<StandardMaterial>>()
-            .add(StandardMaterial::default());
-        let wall = app
-            .world_mut()
-            .spawn((
-                MeshMaterial3d(material),
-                GenEntity {
-                    entity_type: GenEntityType::Primitive,
-                    world_id: wt::EntityId(99),
-                },
-            ))
-            .id();
-        app.world_mut()
-            .resource_mut::<NameRegistry>()
-            .insert_with_id("wall".into(), wall, wt::EntityId(99));
-
-        let mut manager = app.world_mut().resource_mut::<AssetGenManager>();
-        let barrel = manager.create_task(
-            GenerationTaskType::Mesh,
-            "a barrel".into(),
-            "barrel".into(),
-            GenerationModel::TripoSG,
-            GenerationQuality::Draft,
-            [1.0, 0.0, -2.0],
-            2.0,
-        );
-        let moss = manager.create_task(
-            GenerationTaskType::Texture,
-            "moss".into(),
-            "wall".into(),
-            GenerationModel::Hunyuan3d,
-            GenerationQuality::Standard,
-            [0.0; 3],
-            1.0,
-        );
-        let broken = manager.create_task(
-            GenerationTaskType::Mesh,
-            "x".into(),
-            "x".into(),
-            GenerationModel::TripoSG,
-            GenerationQuality::Draft,
-            [0.0; 3],
-            1.0,
-        );
-        for update in [
-            AssetUpdate::MeshReady {
-                task_id: barrel.clone(),
-                path: "/tmp/gen/barrel.glb".into(),
-            },
-            AssetUpdate::TexturesReady {
-                task_id: moss.clone(),
-                maps: vec![(wt::TextureSlot::BaseColor, "/tmp/gen/moss.png".into())],
-            },
-            AssetUpdate::Failed {
-                task_id: broken.clone(),
-                error: "out of VRAM".into(),
-            },
-        ] {
-            updates.send(update).unwrap();
-        }
-        app.update();
-
-        let world = app.world_mut();
-        let barrel_entity = world
-            .resource::<NameRegistry>()
-            .get_entity("barrel")
-            .unwrap();
-        let t = world.get::<Transform>(barrel_entity).unwrap();
-        assert_eq!(t.translation, Vec3::new(1.0, 0.0, -2.0));
-        assert_eq!(t.scale, Vec3::splat(2.0));
-        assert!(
-            world.get::<GenEntity>(barrel_entity).is_some(),
-            "saved with the world"
-        );
-        assert_eq!(
-            world.get::<GltfSource>(barrel_entity).unwrap().path,
-            "/tmp/gen/barrel.glb"
-        );
-
-        let handle = world
-            .get::<MeshMaterial3d<StandardMaterial>>(wall)
-            .unwrap()
-            .0
-            .clone();
-        let material = world
-            .resource::<Assets<StandardMaterial>>()
-            .get(&handle)
-            .unwrap();
-        assert!(material.base_color_texture.is_some());
-        assert_eq!(
-            world.get::<MaterialTextures>(wall).unwrap().maps,
-            vec![(wt::TextureSlot::BaseColor, "/tmp/gen/moss.png".to_string())]
-        );
-
-        let manager = world.resource::<AssetGenManager>();
-        assert_eq!(
-            manager.get_task(&barrel).unwrap().state,
-            GenerationTaskState::Complete
-        );
-        assert_eq!(
-            manager.get_task(&moss).unwrap().state,
-            GenerationTaskState::Complete
-        );
-        let failed = manager.get_task(&broken).unwrap();
-        assert_eq!(failed.state, GenerationTaskState::Failed);
-        assert_eq!(failed.error.as_deref(), Some("out of VRAM"));
     }
 
     #[test]

@@ -244,49 +244,6 @@ pub enum GenCommand {
         output_path: Option<String>,
     },
 
-    // Tier 22: Styled Preview (WG7.2) runs in the gen_preview_world tool
-    // itself (ComfyUI over HTTP), using RenderDepth for the depth map.
-
-    // Tier 23: AI Asset Generation (AI1)
-    GenerateAsset {
-        prompt: String,
-        name: String,
-        reference_image: Option<String>,
-        position: [f32; 3],
-        scale: f32,
-        model: crate::gen3d::asset_gen::GenerationModel,
-        quality: crate::gen3d::asset_gen::GenerationQuality,
-        pbr: bool,
-    },
-    GenerateTexture {
-        entity: String,
-        prompt: String,
-        style: crate::gen3d::asset_gen::TextureStyle,
-        resolution: u32,
-    },
-    GenerationStatus {
-        task_id: Option<String>,
-        action: String, // "status", "cancel", "list"
-    },
-
-    // Tier 24: AI NPC Intelligence (AI2)
-    SetNpcBrain {
-        entity: String,
-        config: character::npc_brain::NpcBrainConfig,
-    },
-    /// What an entity can perceive: named entities inside its view cone
-    /// (`fov` degrees around its forward) and perception radius.
-    NpcObserve {
-        entity: String,
-        fov: f32,
-    },
-    SetNpcMemory {
-        entity: String,
-        capacity: usize,
-        initial_memories: Vec<String>,
-        auto_memorize: bool,
-    },
-
     // Tier 25: Multi-file WorldGen
     WriteWorldPlan {
         name: String,
@@ -1270,42 +1227,6 @@ pub enum GenResponse {
         width: u32,
         height: u32,
         depth_range: [f32; 2],
-    },
-
-    // AI asset generation responses
-    AssetGenerating {
-        task_id: String,
-        estimated_seconds: u32,
-        message: String,
-    },
-    TextureGenerating {
-        task_id: String,
-        estimated_seconds: u32,
-        message: String,
-    },
-    GenerationStatusResult {
-        status_json: String,
-    },
-
-    // AI NPC responses
-    NpcBrainSet {
-        entity: String,
-        model: String,
-        tick_rate: f32,
-    },
-    NpcObservation {
-        entity: String,
-        position: [f32; 3],
-        radius: f32,
-        /// JSON array of `{name, distance, bearing, position}`, nearest first.
-        perceived_json: String,
-        /// The entity's brain model, if it has a brain.
-        model: Option<String>,
-    },
-    NpcMemorySet {
-        entity: String,
-        capacity: usize,
-        initial_count: usize,
     },
 
     // Multi-file WorldGen responses

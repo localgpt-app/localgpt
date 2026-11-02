@@ -27,15 +27,14 @@ crates/
 ├── world-export/ # localgpt-world-export — the three.js viewer and HTML export, no Bevy
 ├── world-sync/   # localgpt-world-sync — collaborative rooms: shared document, ops, wire protocol, authority
 ├── world-editor/ # localgpt-world-editor — the non-linear editing model: tips, forks, folds, deltas
-├── world-agent/  # localgpt-world-agent — the live authority, packages, the headless commands, the MCP server, the tool-call protocol
-├── relay/        # localgpt-relay — internet reach for collaborative rooms
-└── spacetime/    # localgpt-spacetime — SpacetimeDB multiplayer module (standalone; wasm toolchain)
+├── world-agent/  # localgpt-world-agent — the live authority, packages, the headless commands, the MCP servers, the shared paths
+└── relay/        # localgpt-relay — internet reach for collaborative rooms
 
 apps/
 └── app-desktop/  # the LocalGPT.app bundler (Developer ID + notarization when given)
 
 website*/         # one Cloudflare Worker each: localgpt.app (this site), gen., verse., localgpt.md, localgpt.world
-scripts/          # fetch-model.sh and fetch-assets.sh — the two downloads every app shares
+scripts/          # fetch-assets.sh — the one download every app shares
 ```
 
 ## Dependency Graph
@@ -58,7 +57,7 @@ scripts/          # fetch-model.sh and fetch-assets.sh — the two downloads eve
      previs (deterministic)       md, verse (as libraries)
 ```
 
-`previs-web` is previs as WASM; `relay` and `spacetime` stand alone.
+`previs-web` is previs as WASM; `relay` stands alone.
 
 ## Crate Summary
 
@@ -77,9 +76,8 @@ scripts/          # fetch-model.sh and fetch-assets.sh — the two downloads eve
 | `localgpt-world-export` | lib | The three.js viewer (vendored from the format's npm package) and `generate_html`; no Bevy |
 | `localgpt-world-sync` | lib | Shared world document, validated `EditOp`s, the wire protocol, the room authority; no Bevy, no I/O |
 | `localgpt-world-editor` | lib | History as a tree: a branch index, a fold cache fast enough to scrub, deltas between tips |
-| `localgpt-world-agent` | lib | `LiveWorld` (the live authority), packages, the headless commands behind `localgpt world`, the `Tool` trait and MCP server (`mcp`), the tool-call protocol, the shared directories |
+| `localgpt-world-agent` | lib | `LiveWorld` (the live authority), packages, the headless commands behind `localgpt world`, the `Tool` trait and MCP servers (`mcp`, `mcp-http`), the agent's environment, the shared directories |
 | `localgpt-relay` | bin | Forwards WebSocket frames between a host and its guests by room code; never holds world state (not published) |
-| `localgpt-spacetime` | module | SpacetimeDB rooms: the same ops and validation as a LAN host, in the cloud (standalone workspace) |
 
 ## The world format is shared
 
@@ -131,5 +129,5 @@ Internet reach for collaborative rooms: forwards frames between a NAT'd host and
 1. **One format, one mapping each** — fields go into `world-types`; `world-bevy`, `world-audio` and `world-export` are the only places the format becomes pixels or sound.
 2. **One authority per world** — `LiveWorld` commits; the canvas, the editor model and `localgpt world` follow. A direct write to `manifest.json` is put back.
 3. **The agents are outside** — no process here runs a model or holds a key, and no agent is known by name: a terminal is a login shell, a client is an MCP client, and the history names whoever commits.
-4. **Feature flags for the heavy tiers** — MD's and Verse's local models, the ML mood model, physics and multiplayer are opt-in, and each has a CI job so gated code cannot rot.
-5. **Graceful degradation** — a missing asset pack leaves primitives; a missing model leaves the rule-derived draft on screen.
+4. **Feature flags for the heavy tiers** — Verse's ML analysis models, physics and multiplayer are opt-in, and each has a CI job so gated code cannot rot. No crate loads a language model and no tool calls a service.
+5. **Graceful degradation** — a missing asset pack leaves primitives; a missing sidecar leaves the rule-derived draft on screen.

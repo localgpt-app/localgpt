@@ -10,8 +10,8 @@
 //! See `docs/rfcs/multiplayer/collaborative-world-engine-architecture.md`.
 //!
 //! No Bevy, no async runtime, no sockets: the transport (Gen's session
-//! HTTP server today; a relay, a headless server or a SpacetimeDB
-//! module later) feeds messages in and delivers what comes out.
+//! HTTP server today; a relay or a headless server later) feeds messages
+//! in and delivers what comes out.
 
 pub mod authority;
 pub mod diff;

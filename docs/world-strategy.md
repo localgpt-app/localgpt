@@ -9,7 +9,10 @@ consumer-first product; where it and an earlier section disagree, §13 is later.
 and orders the work for it; where it and §13 disagree, §15 is later.
 **Scope:** turning the placeholder at localgpt.world into a site backed by a
 SpacetimeDB world that LocalGPT Gen hosts write into, with the content shown
-on the web to attract users.
+on the web to attract users. *(2026-11-01: the SpacetimeDB module went,
+never joined from a client, with every model and service in the tree; the
+live-plot path of §1–§6 is closed, and the site stays the static gallery of
+§12. A cloud room, if one comes, is a headless host behind the relay.)*
 
 Where this document cites code it names the repository and path; line
 numbers are as of the commits listed under [Sources](#sources).
@@ -631,6 +634,15 @@ the asset being built.
 
 ### 13.3 Generation tiers
 
+> **2026-11-01.** The local GGUF tier went with the harness: nothing in the
+> tree runs a language model any more, and the on-device Apple tier went
+> with the native apps on 2026-10-31. What remains of this section's table
+> is its first row. A document's authored places and a song's recipe still
+> exist — as the sidecar beside the file, which the coding agent the person
+> already uses writes through the file and the world's API — so the
+> "model" tier is now whatever agent the person brings, at no cost to the
+> download.
+
 The 5 GB local model is the current road to a world and it is a launch
 blocker: 4.9 GB sits in `~/.local/share/localgpt/models/llm`
 (`localgpt/crates/core/src/paths.rs:268`) before a consumer has seen
@@ -1001,6 +1013,8 @@ workspace (§13.6) also means one release pipeline instead of three.
 The local-GGUF tier on the desktop: `local-llm-metal` is macOS-only, so the
 Windows and Linux artifacts need `local-llm` (CPU) or a GPU backend of
 mistral.rs chosen per platform — undecided, and nothing builds them yet.
+*(Moot since 2026-11-01: the tier went, and the bundle builds with no
+optional features.)*
 
 **Gen as a binary**
 

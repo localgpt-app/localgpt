@@ -7,7 +7,6 @@
 //! thread). A tool sends a `GenCommand` through the [`GenBridge`]; the
 //! plugin polls the command channel each frame and answers.
 
-pub mod asset_gen;
 pub mod audio;
 pub mod avatar;
 pub mod behaviors;
@@ -22,7 +21,6 @@ pub mod gltf_export;
 pub mod headless;
 pub mod live;
 pub mod mcp_relay;
-pub mod model_server;
 pub mod offscreen;
 pub mod ops_apply;
 pub mod pending_writes;

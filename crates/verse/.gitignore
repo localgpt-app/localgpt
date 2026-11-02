@@ -10,5 +10,3 @@
 /assets/ml/tokenizer.json
 # Starter music: source of truth is the assets repo's music/, copied in for dev
 /assets/music
-# LLM model: downloaded via the workspace's scripts/fetch-model.sh
-/assets/llm

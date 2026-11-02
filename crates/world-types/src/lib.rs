@@ -46,13 +46,11 @@ pub mod cinematography;
 // LocalGPT's own leaves — never part of the format's schema.
 pub mod genlog;
 pub mod library;
-pub mod npc;
 pub mod region;
 pub mod sync;
 
 pub use genlog::GenLogEntry;
 pub use library::{AudioEmitterSpec, AudioSpec, BehaviorLibrary};
-pub use npc::{NpcBrainDef, NpcDataCollection, NpcDef, NpcMemoryDef, NpcMemoryEntryDef};
 pub use region::{RegionBounds, RegionEntities};
 pub use sync::{
     ClaimExtractionError, DiffType, DomainDrift, DriftReport, StructuralClaim, StructuralDiff,

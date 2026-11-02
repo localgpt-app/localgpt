@@ -1,6 +1,7 @@
 # LocalGPT Web Search Spec
 
-> **Status:** Draft  
+> **Status:** Archived 2026-11-01 — built for the assistant, which went with `localgpt-core`; the agents bring their own web tools  
+> **Status when written:** Draft  
 > **Author:** Yi  
 > **Date:** 2026-02-15  
 > **Milestone:** v0.3.0  

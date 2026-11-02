@@ -4,7 +4,7 @@ title: "Gen Tools Reference"
 
 # Gen Tools Reference
 
-The gen agent has access to 32 specialized tools organized by category. When running as an [MCP server](/docs/gen/mcp-server), 25 additional tools are available for characters, interactions, terrain, UI, and physics.
+Gen serves 88 tools over [MCP](/docs/gen/mcp-server), the same set over stdio, the HTTP transport and the relay; none calls a model or a service. The core scene tools are below, organized by category; characters, interactions, terrain, UI, physics, the [WorldGen pipeline](/docs/gen/worldgen), multi-file worlds and image input are catalogued in the repository's [AGENTS.md](https://github.com/localgpt-app/localgpt/blob/main/AGENTS.md).
 
 ## Scene Query
 

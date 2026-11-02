@@ -8,6 +8,12 @@ replace the simulation with the real thing described in `idea.md`:
 > decode local music → analyze it (beats, sections, energy, mood) → imagine a
 > world per song from a catalog of free 3D assets → react live, comfortably.
 
+> **2026-11-01.** The LLM half of M7 (the recipe and agent tiers on a local
+> GGUF, the `llm`/`llm-metal` features) went with the rest of LocalGPT's
+> model code: nothing in the tree runs a language model. The `WorldRecipe`
+> stays as a sidecar field an agent can author and Verse applies. The
+> milestones below are kept as the record of what was built.
+
 ## 0. Constraints that drive every choice
 
 1. **The seam is already built.** The UI reads two resources —

@@ -136,8 +136,8 @@ is 180,317.
 | `gen/src/mcp/*` | 6,932 | **stays, re-fronted** (0.6.0): the `Tool` impls are shells over `GenBridge` commands, and the commands are the world's vocabulary. `worldgen_tools.rs` and `terrain_tools.rs` are generators that would be rebuilt the next day if deleted with the loop |
 | `gen/src/mcp_server.rs` | 251 | **folds into the shim** — same endpoints, over the live API, as agents-outside-the-window planned |
 | `app/src/desktop/panel.rs`, `chat.rs`, `client_panel.rs`, the model menu, `mcp-server --connect`, the `local-llm*` features, `--prompt` | about 1,500 | **go** — two to three days to delete, then one to five days per mode to make prompt, document and song worlds `.world` packages on the live authority |
-| `world-*`, `previs`, `previs-web`, `md`, `verse`, `relay` | | **unchanged**; none depends on `core` |
-| `spacetime` | 1,437 | **unchanged**; its inference queue is a multiplayer question, not this one |
+| `world-*`, `previs`, `previs-web`, `md`, `verse`, `relay` | | **unchanged**; none depends on `core`. *2026-11-01, later the same day:* MD's and Verse's `llm` tiers, `world-agent`'s agent protocol and GGUF loader, and Gen's service-backed tools (asset generation, NPC brains, the ComfyUI preview) went too — no crate loads a model, no tool calls a service |
+| `spacetime` | 1,437 | ~~**unchanged**; its inference queue is a multiplayer question, not this one~~ *2026-11-01:* **gone**, never joined from a client; a persistent room is a headless host or a relay over `world-sync` |
 
 About 57k lines go: a third of the workspace.
 
@@ -237,7 +237,8 @@ app's own page.
   the mobile cross-compile checks go; the `features` job keeps `md llm`,
   `verse llm`, `gen feathers` and `verse ml` (§13.3's local tier is not the
   harness) and loses `gen local-llm`. `deny.toml` loses the `daemonize`
-  ignore.
+  ignore. *(2026-11-01: the `llm` checks went with the tiers; the job keeps
+  `verse ml` alone, and `deny.toml` lost the mistral.rs ignores.)*
 - `CLAUDE.md` and `AGENTS.md`: the harness's sections (`core`'s modules and
   feature flags, the tool split, mobile) and the rule that `core` compiles
   for iOS and Android go with it. The rules that outlive it name the check
@@ -286,10 +287,10 @@ app's own page.
 ## Not decided
 
 - ~~How a document's regions are authored once there is no model menu.~~
-  Decided 2026-11-01: dropped. The app runs no model; a place a model built
-  comes from MD's sidecar beside the document, written by `localgpt-md
-  --generate` or by an agent working on the file, and the app labels each
-  section with where its place came from.
+  Decided 2026-11-01: dropped. The app runs no model; a place comes from
+  MD's sidecar beside the document, written by an agent working on the
+  file (MD's own `--generate` and its local model went the same day), and
+  the app labels each section with where its place came from.
 - Whether the `localgpt-gen` crate stays on crates.io as a library once its
   binary's agent half is gone, or the app's shell stops being a published
   crate.

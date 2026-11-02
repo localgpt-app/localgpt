@@ -14,22 +14,24 @@ docs/
 │   ├── worldgen/            # The world data model
 │   ├── agent/               # Notifications
 │   └── research/            # Landscape surveys that informed decisions
-├── architecture/            # Current system architecture docs
-│   └── plugin/              # Plugin lifecycle reviews (apply/unapply without restart)
 ├── gen/                     # Gen mode reference (audio, MCP tools, UX)
-├── ecosystem/               # Rust ecosystem integration
-├── roadmap/                 # Implementation tracking (actively maintained)
+├── ecosystem/               # Composing Gen into other agent runtimes
+├── roadmap/                 # Implementation tracking (historical since 2026-03)
 │   ├── gen/                 # Phase 1-4 RFCs + tracker (Doc-0)
 │   ├── headless/            # Headless pipeline TODOs (H1-H5)
-│   └── world/               # World systems TODOs (P0-P5, WG1-WG7, AI1-AI2)
+│   └── world/               # World systems TODOs (P0-P5, WG1-WG7, AI3)
 └── archived/                # Fully implemented or superseded docs
-    ├── rfcs/                # 7 completed RFCs (XDG, security policy, monorepo, etc.)
-    ├── gen/                 # Superseded gen docs
+    ├── rfcs/                # Completed RFCs (XDG, security policy, monorepo, etc.),
+    │                        #   and the SpacetimeDB data model (gone 2026-11-01)
+    ├── gen/                 # Superseded gen docs; AI1 asset generation and AI2 NPC
+    │                        #   brains, the service-backed tiers (gone 2026-11-01)
     ├── security/            # The shell sandbox's spec, the sandbox comparison,
     │                        #   the assistant's security TODO
     ├── mobile/              # The native apps' research (gone 2026-10-31)
     └── architecture/        # Bridges, messaging, pairing, process isolation,
-                             #   local embeddings (gone 2026-10-31)
+                             #   local embeddings (gone 2026-10-31); the SpacetimeDB
+                             #   integration, the provider-layer spec, the assistant's
+                             #   web search and its plugin-lifecycle reviews (gone 2026-11-01)
 ```
 
 ## Key Entry Points

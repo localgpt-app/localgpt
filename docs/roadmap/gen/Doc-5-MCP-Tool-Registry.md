@@ -2,7 +2,15 @@
 
 ## Summary
 
-**Total tools:** 84
+> **2026-11-01.** The registered set is 88 tools (`AGENTS.md` at the
+> repository root is the current catalog). Rows below marked *Removed*
+> went that day with the services they called: `gen_set_npc_brain`,
+> `gen_npc_observe` and `gen_set_npc_memory` (Ollama), `gen_generate_asset`,
+> `gen_generate_texture` and `gen_generation_status` (a model server),
+> `gen_preview_world` (ComfyUI), and the experiment tools (the in-process
+> agent loop). The rest of this document is the record of what was built.
+
+**Total tools:** 84 (as written; 88 registered today)
 **Categories:** Scene (16), Export (4), Audio (4), Behavior (4), World (5), Physics (5), Character (8), Interaction (5), Terrain (6), UI (5), WorldGen (15), MultiFile (10), AssetGen (3), Experiment (3)
 
 **Source files:**
@@ -66,9 +74,9 @@
 | 41 | `gen_add_npc` | Character | P1 | Implemented |
 | 42 | `gen_set_npc_dialogue` | Character | P1 | Implemented |
 | 43 | `gen_set_camera_mode` | Character | P1 | Implemented |
-| 44 | `gen_set_npc_brain` | Character | AI2 | Implemented |
-| 45 | `gen_npc_observe` | Character | AI2 | Implemented |
-| 46 | `gen_set_npc_memory` | Character | AI2 | Implemented |
+| 44 | `gen_set_npc_brain` | Character | AI2 | Removed 2026-11-01 |
+| 45 | `gen_npc_observe` | Character | AI2 | Removed 2026-11-01 |
+| 46 | `gen_set_npc_memory` | Character | AI2 | Removed 2026-11-01 |
 | 47 | `gen_add_trigger` | Interaction | P2 | Implemented |
 | 48 | `gen_add_teleporter` | Interaction | P2 | Implemented |
 | 49 | `gen_add_collectible` | Interaction | P2 | Implemented |
@@ -99,7 +107,7 @@
 | 74 | `gen_edit_navmesh` | WorldGen | WG5 | Implemented |
 | 75 | `gen_regenerate` | WorldGen | WG5 | Implemented |
 | 76 | `gen_render_depth` | WorldGen | WG7 | Implemented |
-| 77 | `gen_preview_world` | WorldGen | WG7 | Implemented |
+| 77 | `gen_preview_world` | WorldGen | WG7 | Removed 2026-11-01 |
 | 78 | `gen_write_world_plan` | MultiFile | MF | Implemented |
 | 79 | `gen_write_region` | MultiFile | MF | Implemented |
 | 80 | `gen_load_region` | MultiFile | MF | Implemented |
@@ -109,10 +117,10 @@
 | 84 | `gen_write_audio` | MultiFile | MF | Implemented |
 | 85 | `gen_check_drift` | MultiFile | MF | Implemented |
 | 86 | `gen_sync` | MultiFile | MF | Implemented |
-| 87 | `gen_generation_status` | MultiFile | MF | Implemented |
-| 88 | `gen_generate_asset` | AssetGen | AI1 | Implemented |
-| 89 | `gen_generate_texture` | AssetGen | AI1 | Implemented |
-| 90 | `gen_generation_status` | AssetGen | AI1 | Implemented |
+| 87 | `gen_generation_status` | MultiFile | MF | Removed 2026-11-01 |
+| 88 | `gen_generate_asset` | AssetGen | AI1 | Removed 2026-11-01 |
+| 89 | `gen_generate_texture` | AssetGen | AI1 | Removed 2026-11-01 |
+| 90 | `gen_generation_status` | AssetGen | AI1 | Removed 2026-11-01 |
 | 91 | `gen_queue_experiment` | Experiment | EXP | Implemented |
 | 92 | `gen_list_experiments` | Experiment | EXP | Implemented |
 | 93 | `gen_experiment_status` | Experiment | EXP | Implemented |

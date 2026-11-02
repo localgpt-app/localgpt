@@ -10,14 +10,12 @@
 
 pub mod blockout;
 pub mod collision_check;
-pub mod comfyui;
 pub mod depth;
 pub mod navmesh;
 pub mod navmesh_edit;
 pub mod ordering;
 pub mod panorama;
 pub mod populate;
-pub mod preview;
 pub mod regenerate;
 pub mod segment;
 pub mod tier;
@@ -29,7 +27,6 @@ pub use navmesh::*;
 pub use navmesh_edit::*;
 pub use ordering::*;
 pub use populate::*;
-pub use preview::*;
 pub use regenerate::*;
 pub use segment::*;
 pub use tier::*;

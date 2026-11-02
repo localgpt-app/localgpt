@@ -9,7 +9,7 @@ schemars + genai + eventsource-stream + tiktoken-rs  |  Single Binary  |  Zero C
 | Version | 1.0 Draft |
 | Date | February 13, 2026 |
 | Author | Yi / LocalGPT |
-| Status | Proposed |
+| Status | Archived 2026-11-01 — the provider layer, SSE parsing and token counting this would have refactored went with `localgpt-core`; nothing in the tree calls a model any more |
 | Priority | P1 — Product Competitiveness |
 | Depends On | LocalGPT Shell Sandbox Spec (P0) |
 

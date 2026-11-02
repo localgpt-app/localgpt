@@ -1,54 +1,33 @@
-//! `localgpt-world-agent` — the shared world agent runtime.
+//! `localgpt-world-agent` — a `.world`'s authority, and what agents reach
+//! it through.
 //!
-//! The LLM-authored side of the LocalGPT world format: a tool-call
-//! **protocol** ([`interpreter::AgentCommand`] and its `*Cmd` structs) and a
-//! pure, in-process **interpreter** ([`interpreter::SceneInterpreter`]) that
-//! applies those commands to `localgpt-world-types` entities — plus the
-//! asset-pack manifest types and deterministic scatter math
-//! ([`assets`]) the `place_asset`/`scatter_field` commands speak.
-//!
-//! This crate is **Bevy-free** (like `localgpt-world-types`): apps that
-//! drive a live scene (Verse) map the same commands onto their own
-//! executor, while apps that compile to a manifest (MD) feed the
-//! interpreter's entities straight into a `WorldManifest`. The
-//! [`interpreter`] and [`assets`] are always compiled so a cached agent
-//! build is renderable without a model.
-//!
-//! The mistral.rs tool-calling loop ([`interpreter::run_session`]) is behind
-//! the **`llm`** feature (model loading stays app-side); **`llm-metal`**
-//! adds the Apple-Silicon GPU path. Grammar-constrained generation is never
-//! used (it hangs on GGUF with mistral.rs 0.8).
+//! - [`live`]: the live authority an app holds over an open package, which
+//!   agents change from outside through batches of ops.
+//! - [`headless`]: the same authority for scripts, CI and the terminal —
+//!   the logic behind `localgpt world`.
+//! - [`session`]: `.world` packages on disk and in their transport form.
+//! - [`starter`]: the worlds a fresh install opens.
+//! - [`agent_env`]: the environment variables that tell an agent in a shell
+//!   which world is open and how to reach it.
+//! - [`paths`]: the app directories and the shared asset pack, resolved by
+//!   one XDG rule for every app.
 //!
 //! The agent-facing tool surface — the [`mcp::Tool`] trait and the MCP
-//! server that serves a tool set to any MCP client — is behind **`mcp`**
+//! servers that serve a tool set to any MCP client — is behind **`mcp`**
 //! (**`mcp-http`** adds the HTTP transport). It is what the shim
 //! (`localgpt world mcp`) and Gen's tool server stand on.
+//!
+//! This crate is **Bevy-free** (like `localgpt-world-types`), and it runs
+//! no model: the agents come from their makers, and reach a world over MCP
+//! or its API.
 
 pub mod agent_env;
-pub mod assets;
 pub mod headless;
-pub mod interpreter;
 pub mod live;
-#[cfg(feature = "llm")]
-pub mod localgguf;
 #[cfg(feature = "mcp")]
 pub mod mcp;
 pub mod paths;
 pub mod session;
 pub mod starter;
 
-pub use assets::{
-    AssetEntry, AssetManifest, Tier, fold_seed, mesh_path, read_manifest_at, resolve_kind,
-    scatter_offsets,
-};
-pub use interpreter::{
-    AgentCommand, AgentResponse, BuildOutput, EnvironmentCmd, ModifyEntityCmd, PlaceAssetCmd,
-    PrimitiveShape, ScatterFieldCmd, SceneBuild, SceneInterpreter, SectionRole, SetLightCmd,
-    SpawnPrimitiveCmd, clamp_local, parse_tool_call, resolve_agent_assets,
-};
-pub use paths::{shared_llm_dir, world_pack_dir};
-
-#[cfg(feature = "llm")]
-pub use interpreter::run_session;
-#[cfg(feature = "llm")]
-pub use localgguf::{CompletionError, LocalGguf};
+pub use paths::world_pack_dir;

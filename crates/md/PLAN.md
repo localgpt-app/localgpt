@@ -5,6 +5,14 @@ into a world; this turns a document into one. Most of the machinery already
 exists in LocalGPT Verse, so this plan is mostly about porting it behind a
 Markdown front end.
 
+> **2026-11-01.** The in-process model of M1 and M3 (`llm.rs`,
+> `generation.rs`, `--generate`, the `llm` features, the agent protocol and
+> interpreter that M5 moved into `localgpt-world-agent`) went with the rest
+> of LocalGPT's model code: nothing in the tree runs a model. What stays is
+> the sidecar those tiers filled (M2) and the draft that applies it — an
+> agent working on the file writes the builds and recipes now. The
+> milestones below are kept as the record of what was built.
+
 ## M0 — Scaffold ✅
 
 - Markdown → sections with BLAKE3 hashes (`doc.rs`).

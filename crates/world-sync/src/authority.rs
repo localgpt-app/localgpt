@@ -4,8 +4,8 @@
 //! act on (dispatching a prompt to the room's AI worker).
 //!
 //! The authority never performs I/O and never holds a connection — the
-//! transport (Gen's session HTTP server today; a relay or a SpacetimeDB
-//! module later) feeds [`ClientMsg`]s in and delivers what comes back.
+//! transport (Gen's session HTTP server today; a relay or a headless server
+//! later) feeds [`ClientMsg`]s in and delivers what comes back.
 //! Because everything flows through here, every op is checked the same way
 //! no matter who authored it.
 

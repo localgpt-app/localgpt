@@ -125,7 +125,7 @@ A `.world` package opened with `--live` is edited through its own API: `localgpt
 
 - **[Live canvas](/docs/gen/live-canvas)** — open a `.world` folder; agents edit it from outside through a local API while you edit by hand; every change is one entry in a history that branches
 - **[Previs](/docs/gen/previs)** — a screenplay's scenes as sets with cast and coverage, revised by asking, treatments compared as boards
-- **[Tools](/docs/gen/tools)** — 95 `gen_*` tools for scenes, characters, interactions, terrain, UI, physics and worldgen
+- **[Tools](/docs/gen/tools)** — 88 `gen_*` tools for scenes, characters, interactions, terrain, UI, physics and worldgen
 - **[WorldGen Pipeline](/docs/gen/worldgen)** — Structured world generation: blockout → navmesh → three-tier placement → evaluation
 - **[Behaviors](/docs/gen/behaviors)** — Data-driven animations (orbit, spin, bounce, etc.)
 - **[Audio](/docs/gen/audio)** — Procedural environmental audio with spatial emitters
@@ -135,7 +135,6 @@ A `.world` package opened with `--live` is edited through its own API: `localgpt
 - **[MCP Server](/docs/gen/mcp-server)** — Use gen tools from Claude Desktop, VS Code, Zed, Cursor, and other MCP clients
 - **[MCP Relay](/docs/gen/cli-mode)** — A coding agent drives the window you are looking at
 - **[Headless](/docs/gen/headless)** — The same tools with no window, for CI and batch work
-- **[External Services](/docs/gen/external-services)** — Optional local services for NPC brains, depth preview, and 3D asset generation
 - **Undo/Redo** — per author, with redo, through the same history the live canvas keeps
 
 ## Templates

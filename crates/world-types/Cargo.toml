@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Unified world data model for LocalGPT Gen — serde-only, no Bevy/SpacetimeDB"
+description = "Unified world data model for LocalGPT Gen — serde-only, no Bevy"
 keywords = ["localgpt", "world", "3d", "types"]
 categories = ["game-development", "rendering::data-formats"]
 

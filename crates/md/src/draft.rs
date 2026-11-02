@@ -2,9 +2,9 @@
 //! and deterministically — one region per section along a winding path, and
 //! a tour with one stop per section.
 //!
-//! This is the world you see before (or without) a local LLM. Authored
-//! content layers on top per section (PLAN.md M3): a ```` ```world ```` fence's
-//! exact entities, then the sidecar's cached agent build, then the cached
+//! This is the world you see before (or without) anything authored for it.
+//! Authored content layers on top per section (PLAN.md M3): a ```` ```world ````
+//! fence's exact entities, then the sidecar's build, then the sidecar's
 //! recipe — the draft is always the fallback, the same split as Verse's
 //! rule-derived world. Authored entities replace the landmark/props/lamp;
 //! ground, platform, and tour stops are always the draft's own.
@@ -73,12 +73,12 @@ pub fn compile_with(doc: &Doc, store: &RecipeStore) -> wt::WorldManifest {
             authored = Some(if has_override {
                 "world override"
             } else {
-                "llm build"
+                "sidecar build"
             });
         } else {
             let recipe = store.get(&section.hash);
             if recipe.is_some() {
-                authored = Some("llm recipe");
+                authored = Some("sidecar recipe");
             }
             entities.extend(region(section, center, recipe, &mut ids));
         }
@@ -268,11 +268,33 @@ fn placed_entities(
             // Clamp in LOCAL space first, then translate — clamping after the
             // offset would drag distant sections' entities back toward the
             // origin.
-            let l = crate::agent::clamp_local(local.transform.position);
+            let l = clamp_local(local.transform.position);
             e.transform.position = [cx + l[0], PLATFORM_TOP + l[1], cz + l[2]];
             e
         })
         .collect()
+}
+
+/// A placed entity's local position stays on the platform's neighbourhood:
+/// this far from the centre horizontally…
+const MAX_RADIUS: f32 = 12.0;
+/// …and between the surface (y = 0) and this high above it.
+const MAX_HEIGHT: f32 = 25.0;
+
+/// Keep a local position on the platform's neighbourhood: within
+/// `MAX_RADIUS` horizontally (a hard radial clamp keeps the region round)
+/// and between the surface and `MAX_HEIGHT`. Applied to every cached or
+/// overridden entity, so the clamp holds no matter who authored it.
+fn clamp_local(position: [f32; 3]) -> [f32; 3] {
+    let [x, y, z] = position.map(|v| if v.is_finite() { v } else { 0.0 });
+    let dist = (x * x + z * z).sqrt();
+    let (x, z) = if dist > MAX_RADIUS {
+        let k = MAX_RADIUS / dist;
+        (x * k, z * k)
+    } else {
+        (x, z)
+    };
+    [x, y.clamp(0.0, MAX_HEIGHT), z]
 }
 
 /// The structural part of every region: the ground strip and the platform.
@@ -632,7 +654,7 @@ mod tests {
         store.insert_build(
             &doc.sections[1].hash,
             crate::sidecar::BuildEntry {
-                model: "m.gguf".into(),
+                model: "an-agent".into(),
                 description: None,
                 entities: locals,
             },
@@ -663,7 +685,7 @@ mod tests {
             with.meta
                 .source
                 .as_deref()
-                .is_some_and(|s| s.contains("llm build"))
+                .is_some_and(|s| s.contains("sidecar build"))
         );
     }
 

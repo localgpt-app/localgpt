@@ -102,8 +102,8 @@ Target outcome: NPCs with LLM-driven dialogue, behavior trees, procedural animat
 
 | # | Deliverable | Status | Est | Actual | Blocked By | Notes |
 |---|-------------|--------|-----|--------|------------|-------|
-| 4.1 | **Local LLM integration** | ⚠️ TODO | 3d | | — | `llama-cpp-2` crate for Nemotron-Mini-4B or Llama 3.2 3B. System prompt per NPC. |
-| 4.2 | **NPC dialogue via LLM** | ⚠️ TODO | 3d | | 4.1, 2.14 | Connect LLM output → dialogue UI. Per-NPC memory. Action extraction. |
+| 4.1 | **Local LLM integration** | ❌ WON'T DO | — | | — | Decided 2026-11-01: nothing in the tree runs a model. An NPC brain, if one comes, is an agent outside the window driving the NPC through the world's API. |
+| 4.2 | **NPC dialogue via LLM** | ❌ WON'T DO | — | | — | Same decision: the dialogue trees stay data; a model behind them is the agent's, outside. |
 | 4.3 | **Behavior trees/Utility AI** | ⚠️ TODO | 3d | | — | Evaluate big-brain vs bevy_behave. Pre-built templates: idle, patrol, wander, guard. |
 | 4.4 | **NPC patrol existing** | 🔍 AUDIT | 1d | | — | `gen_add_npc` with `behavior: patrol` + `patrol_points` exists. Need to verify: NPC actually moves along waypoints |
 | 4.5 | **Procedural IK animation** | ⚠️ TODO | 3d | | — | `bevy_mod_inverse_kinematics` for foot placement. Procedural idle (breathing, weight shift). |
@@ -322,7 +322,7 @@ Track what happened each session. This is the journal that prevents losing conte
 
 **Parallel workstream — Long-term architecture:**
 Four goal documents in `todo-gen/goal/` define the multi-year vision:
-- MMO-scale spatial sharding via SpacetimeDB (BitCraft pattern)
+- MMO-scale spatial sharding (the SpacetimeDB module went 2026-11-01; the substrate is an open question)
 - Multi-scale universe (planetary to galactic via `big_space`)
 - Governance, permissions, content quality scoring
 - AI ecosystems, time archaeology, emergent civilizations

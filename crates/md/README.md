@@ -5,16 +5,15 @@ becomes a place, and saving the file rebuilds the world while you watch.
 
 Built with [Bevy](https://bevyengine.org/). Part of [LocalGPT](https://localgpt.app).
 
-**Status: M3.** Worlds start from a fast rule-based draft, then a local LLM
-(feature `llm`) takes over per section: an **agent** composes each place
-through tool calls — primitives, lights, and real CC0 assets from the
-shared Poly Haven pack — with a one-JSON recipe tier as fallback, and a
-```` ```world ```` fence for exact hand-authored overrides. Everything is
-cached per section in a sidecar next to the document, so nothing is
-generated twice and the no-model build renders cached worlds identically. A
-Markdown deck (`genre: deck`) presents as a 3D talk. The on-device model
-and inference path are ported from LocalGPT Verse (Bonsai-8B via
-mistral.rs; see [PLAN.md](PLAN.md)).
+Worlds start from a fast rule-based draft. What a section's place looks
+like beyond that comes from the **sidecar** next to the document
+(`<doc>.world.json`): per section, keyed by its content hash, a build —
+entities in place, with real CC0 assets from the shared Poly Haven pack —
+or a one-JSON recipe, and a ```` ```world ```` fence in the file itself for
+exact overrides. MD applies the sidecar and never writes it: no model runs
+here. The coding agent you already use writes it, working on the file, and
+a section keeps what was authored for it until its text changes. A
+Markdown deck (`genre: deck`) presents as a 3D talk.
 
 ## Run
 
@@ -29,8 +28,7 @@ cargo run -p localgpt-md -- path/to/notes.md      # open any Markdown file
 The docs are on [localgpt.app/docs/md](https://localgpt.app/docs/md):
 [genres and keys](https://localgpt.app/docs/md#genres),
 [export](https://localgpt.app/docs/md#export) to the LocalGPT world format,
-[screenshot mode](https://localgpt.app/docs/md#screenshot),
-[the LLM tier](https://localgpt.app/docs/md/llm) and
+[screenshot mode](https://localgpt.app/docs/md#screenshot) and
 [how it works](https://localgpt.app/docs/md/how-it-works).
 
 ## Develop

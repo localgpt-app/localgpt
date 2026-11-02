@@ -1,22 +1,18 @@
 //! LocalGPT MD — open a Markdown file and walk through it as a 3D world.
 //!
 //! Every `##` section becomes a place: a rule-based draft lays it out
-//! instantly (PLAN.md M0), the local LLM restyles it from the prose when the
-//! `llm` feature and a model are present (M1), and results are cached per
-//! section hash in a sidecar next to the document (M2) so nothing is ever
-//! generated twice. ←/→ walks between sections; saving the file rebuilds.
+//! instantly (PLAN.md M0), and what an agent authored for a section — a
+//! build or a recipe in the sidecar next to the document (M2), keyed by the
+//! section's hash — replaces the draft for as long as the text stands.
+//! ←/→ walks between sections; saving the file rebuilds. No model runs here.
 //!
 //! Pipeline: [`doc`] (Markdown → sections) → [`draft`] (sections →
 //! `WorldManifest`, LocalGPT's shared world format, styled by [`recipe`] +
 //! [`sidecar`] entries) → [`scene`] (manifest → Bevy), with [`tour`] for
-//! navigation, [`watch`] for hot reload, and [`llm`]/[`gen`] for authoring.
+//! navigation and [`watch`] for hot reload.
 
 use localgpt_md::{assets, doc, draft, sidecar};
 
-#[cfg(feature = "llm")]
-mod generation;
-#[cfg(feature = "llm")]
-mod llm;
 mod scene;
 mod tour;
 mod watch;
@@ -38,29 +34,24 @@ use localgpt_world_types as wt;
 use crate::scene::{CurrentWorld, TourCamera};
 
 const USAGE: &str = "\
-Usage: localgpt-md [FILE.md] [--print-ron] [--export OUT] [--generate]
+Usage: localgpt-md [FILE.md] [--print-ron] [--export OUT]
 
 Opens FILE.md (default: samples/hello.md) as a walkable 3D world. Each ##
 section becomes a place, and the world rebuilds whenever the file is saved.
+What an agent authored for a section (the .world.json sidecar beside the
+file) is applied; no model runs here.
 
   --print-ron   Print the compiled world as RON (LocalGPT Gen's world.ron
-                format) and exit without opening a window. Cached LLM recipes
-                (the .world.json sidecar) are applied.
+                format) and exit without opening a window. The sidecar's
+                builds and recipes are applied.
   --export OUT  Write the compiled world to OUT and exit — no window. The
                 extension picks the format: .json (the LocalGPT world format
                 the web viewer reads), .ron (Gen's world.ron), or .html (a
                 self-contained page with the shared web viewer).
-  --generate    Have the local LLM style every section without a cached
-                recipe, write the sidecar, and exit — no window. Needs the
-                `llm`/`llm-metal` feature and a model (scripts/fetch-model.sh).
 
 Environment:
   LOCALGPT_MD_SCREENSHOT=out.png   Render the first stop offscreen (no window),
-                                   save it as a PNG, and exit.
-  LOCALGPT_MD_LLM=dir              Model directory. Default: the shared one,
-                                   $LOCALGPT_LLM_DIR or
-                                   ~/.local/share/localgpt/models/llm, then
-                                   assets/llm.";
+                                   save it as a PNG, and exit.";
 
 const DEFAULT_DOC: &str = "samples/hello.md";
 
@@ -85,7 +76,6 @@ fn main() -> AppExit {
     let mut path = None;
     let mut print_ron = false;
     let mut export = None;
-    let mut generate = false;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -97,7 +87,6 @@ fn main() -> AppExit {
                     return AppExit::error();
                 }
             },
-            "--generate" => generate = true,
             "-h" | "--help" => {
                 println!("{USAGE}");
                 return AppExit::Success;
@@ -122,22 +111,6 @@ fn main() -> AppExit {
     };
     for issue in draft::validate(&world.manifest) {
         eprintln!("localgpt-md: {:?}: {}", issue.severity, issue.message);
-    }
-
-    if generate {
-        #[cfg(feature = "llm")]
-        {
-            return generate_headless(&world, store, &sidecar_path);
-        }
-        #[cfg(not(feature = "llm"))]
-        {
-            eprintln!(
-                "localgpt-md: --generate needs a build with the llm feature:\n  \
-                 cargo run --features llm-metal -- {} --generate",
-                path.display()
-            );
-            return AppExit::error();
-        }
     }
 
     if print_ron {
@@ -195,13 +168,6 @@ fn main() -> AppExit {
         .insert_resource(world)
         .insert_resource(store)
         .add_plugins((scene::ScenePlugin, tour::TourPlugin, watch::WatchPlugin));
-
-    // The worker owns a multi-GB model; skip it in the screenshot smoke run
-    // (which exits in seconds). Cached recipes still apply via the store.
-    #[cfg(feature = "llm")]
-    if smoke.is_none() {
-        app.add_plugins(generation::GenerationPlugin);
-    }
 
     if let Some(path) = smoke {
         app.insert_resource(Smoke::new(path))
@@ -314,95 +280,6 @@ fn load(path: &Path, recipes: &sidecar::RecipeStore) -> std::io::Result<CurrentW
     let doc = doc::Doc::parse(&src, &fallback_title);
     let manifest = draft::compile_with(&doc, recipes);
     Ok(CurrentWorld { doc, manifest })
-}
-
-/// `--generate` (PLAN.md M1/M3): author every uncached section with the
-/// local LLM, headless — no window, no Bevy — then write the sidecar. Per
-/// section the tier chain is agent build → recipe; a ```` ```world ```` fence
-/// needs no LLM at all. One line per section keeps progress visible in a
-/// terminal or CI log.
-#[cfg(feature = "llm")]
-fn generate_headless(
-    world: &CurrentWorld,
-    mut store: sidecar::RecipeStore,
-    sidecar_path: &Path,
-) -> AppExit {
-    let mut model = match llm::RecipeModel::try_load() {
-        Some(model) => model,
-        None => {
-            eprintln!("localgpt-md: no model found — run scripts/fetch-bonsai.sh");
-            return AppExit::error();
-        }
-    };
-    let manifest = assets::read_manifest_from_disk();
-    if manifest.is_none() {
-        println!("no asset pack — the agent tier runs with primitives only");
-    }
-    let mut built = 0;
-    let mut styled = 0;
-    let mut failed = 0;
-    for section in &world.doc.sections {
-        if section.world.is_some() {
-            println!("fixed   {} (world fence)", section.heading);
-            continue;
-        }
-        if store.get_build(&section.hash).is_some() {
-            println!("have    {}", section.heading);
-            continue;
-        }
-        let started = std::time::Instant::now();
-        let job = generation::Job {
-            heading: section.heading.clone(),
-            excerpt: llm::prompt_excerpt(&section.body),
-            genre: world.doc.genre().to_string(),
-        };
-        match generation::generate_for(Some(&mut model), manifest.as_ref(), &section.hash, &job) {
-            Some(generation::SectionOutput::Build(entry)) => {
-                let entities = entry.entities.len();
-                store.insert_build(&section.hash, entry);
-                built += 1;
-                println!(
-                    "built   {} ({} entities, {:.1}s)",
-                    section.heading,
-                    entities,
-                    started.elapsed().as_secs_f32()
-                );
-            }
-            Some(generation::SectionOutput::Recipe(recipe)) => {
-                store.insert(&section.hash, recipe);
-                styled += 1;
-                println!(
-                    "styled  {} ({:.1}s)",
-                    section.heading,
-                    started.elapsed().as_secs_f32()
-                );
-            }
-            None => {
-                failed += 1;
-                println!(
-                    "draft   {} (no tier succeeded — the rules stand)",
-                    section.heading
-                );
-            }
-        }
-    }
-    if let Err(err) = store.save(&world.doc) {
-        eprintln!("localgpt-md: {}: {err}", sidecar_path.display());
-        return AppExit::error();
-    }
-    println!(
-        "{} built, {} styled, {} failed, {} cached -> {}",
-        built,
-        styled,
-        failed,
-        store.len(),
-        sidecar_path.display()
-    );
-    if built + styled == 0 && failed > 0 {
-        AppExit::error()
-    } else {
-        AppExit::Success
-    }
 }
 
 /// `LOCALGPT_MD_SCREENSHOT=out.png`: render the first stop offscreen once

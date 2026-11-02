@@ -27,7 +27,7 @@ localgpt-gen mcp-server --connect           # the tools of a running `localgpt-g
 localgpt-gen mcp-server --mcp-http 8765     # also the streamable HTTP transport, at http://127.0.0.1:8765/mcp
 ```
 
-**Exposed tools:** 95 `gen_*` tools for scene manipulation, audio, behaviors, world management, avatars and NPCs, physics, terrain, interactions, UI, the worldgen pipeline, asset generation and multimodal input — the same set over every transport.
+**Exposed tools:** 88 `gen_*` tools for scene manipulation, audio, behaviors, world management, avatars and NPCs, physics, terrain, interactions, UI, the worldgen pipeline, multi-file worlds and image input — the same set over every transport. None calls a model or a service.
 
 ### localgpt world mcp (the shim)
 
@@ -145,14 +145,6 @@ Every tool below is Gen's; the names are what `localgpt-gen mcp-server` lists. T
 | `gen_set_npc_dialogue` | Attach a branching conversation tree to an NPC | `npc_id`, `nodes`, `start_node` | `trigger` (proximity/click), `trigger_radius` |
 | `gen_set_camera_mode` | Switch camera mode (first_person, third_person, top_down, fixed) | `mode` | `distance`, `pitch`, `fov`, `transition_duration`, `fixed_position`, `fixed_look_at` |
 
-### Gen: NPC Intelligence (AI2)
-
-| Tool | Description | Required Params | Optional Params |
-|------|-------------|-----------------|-----------------|
-| `gen_set_npc_brain` | Attach an AI brain (local SLM) for autonomous NPC decisions | `entity` | `personality`, `model` (default: llama3.2:3b), `tick_rate`, `perception_radius`, `goals`, `knowledge` |
-| `gen_npc_observe` | Make an NPC observe the scene from its perspective | `entity` | `question`, `fov`, `resolution` |
-| `gen_set_npc_memory` | Configure persistent memory for an NPC | `entity` | `capacity`, `initial_memories`, `auto_memorize` |
-
 ### Gen: Interaction & Triggers (P2)
 
 | Tool | Description | Required Params | Optional Params |
@@ -211,8 +203,7 @@ Every tool below is Gen's; the names are what `localgpt-gen mcp-server` lists. T
 | `gen_validate_navigability` | Check scene traversability between points or overall | -- | point params |
 | `gen_edit_navmesh` | Manually mark walkable/blocked areas on navmesh | edit params | -- |
 | `gen_regenerate` | Regenerate content in modified blockout regions | -- | -- |
-| `gen_render_depth` | Render depth map of scene for preview generation | -- | camera, resolution params |
-| `gen_preview_world` | Generate styled 2D preview from the depth map with ComfyUI | -- | style params |
+| `gen_render_depth` | Render a depth map of the scene to a PNG, for an agent's own image tools | -- | camera, resolution params |
 
 ### Gen: Multi-File WorldGen & Sync
 
@@ -227,15 +218,6 @@ Every tool below is Gen's; the names are what `localgpt-gen mcp-server` lists. T
 | `gen_write_audio` | Write an audio spec .md + .ron file pair | audio params | -- |
 | `gen_check_drift` | Compare .md, .ron, and live scene for inconsistencies | -- | -- |
 | `gen_sync` | Reconcile drift between .md, .ron, and live scene | source-of-truth params | `preview` |
-| `gen_generation_status` | Report current generation phase and progress | -- | -- |
-
-### Gen: AI Asset Generation (AI1)
-
-| Tool | Description | Required Params | Optional Params |
-|------|-------------|-----------------|-----------------|
-| `gen_generate_asset` | Generate a 3D mesh from text prompt via local AI model server | `prompt`, `name` | `reference_image`, `position`, model params |
-| `gen_generate_texture` | Generate PBR textures for an entity from text prompt | entity, prompt params | style params |
-| `gen_generation_status` | Check status of AI asset generation tasks | -- | `task_id`, `action` (cancel) |
 
 ### Gen: Multimodal Input (AI3)
 
@@ -248,7 +230,7 @@ Every tool below is Gen's; the names are what `localgpt-gen mcp-server` lists. T
 
 ## Authentication & Security
 
-- **Local-only.** LocalGPT runs no model and holds no key; nothing it does needs the network, except the external services an operator points it at (`docs/gen/external-services.md`: ComfyUI, the asset model server, Ollama for NPC brains).
+- **Local-only.** LocalGPT runs no model, calls no service and holds no key. The only connections are the ones a person starts: `--world <URL>` fetches a world, and `--host --relay`/`--join` reach a session's relay or host.
 - **No authentication for stdio MCP.** The MCP server inherits the user's OS-level permissions. The HTTP transport binds to localhost.
 - **Scene tools only.** The MCP server exposes Gen's tools and nothing that reads or writes files outside the world, runs a shell or reaches the web: the agent provides those itself, under its own permissions.
 - **A live world's API is local.** `localgpt-gen --live` and the desktop app serve a package's ops API on localhost, with a token in the folder's `.live/endpoint.json`.
@@ -267,6 +249,5 @@ The server advertises the `tools` capability. Resources and prompts are not curr
 
 - `CLAUDE.md` -- Build commands, architecture, feature flags, key patterns
 - `docs/gen/gen-audio.md` -- Audio system architecture and usage
-- `docs/gen/external-services.md` -- External service setup (Ollama, ComfyUI, the asset model server)
-- `docs/gen/mcp-server.md` -- The MCP server, the relay and the HTTP transport
-- `docs/rfcs/authoring/the-harness-goes.md` -- Why there is no assistant, no provider and no key in this tree
+- `website/content/docs/gen/mcp-server.md` -- The MCP server, the relay and the HTTP transport
+- `docs/rfcs/authoring/the-harness-goes.md` -- Why there is no assistant, no provider, no model and no key in this tree

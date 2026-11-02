@@ -60,16 +60,15 @@ cargo run -p localgpt-previs -- script.fdx --out previs/
 cargo run -- world log scene-1.world
 ```
 
-### The two shared downloads
+### The shared download
 
-Every app reads the same two folders under `~/.local/share/localgpt/models/`, so each download happens once per machine:
+Every app reads the same folder under `~/.local/share/localgpt/models/`, so the download happens once per machine:
 
 ```bash
 scripts/fetch-assets.sh    # the 522 MB CC0 asset pack (Poly Haven models) → models/pack
-scripts/fetch-model.sh     # the ~5 GB Bonsai-8B GGUF → models/llm (only for MD's and Verse's llm tiers)
 ```
 
-The pack is what document and song worlds are furnished with; without it the worlds still build, with primitives only. The GGUF is only read by `localgpt-md` and `localgpt-verse` built with `llm`. `$LOCALGPT_WORLD_ASSETS` and `$LOCALGPT_LLM_DIR` move the folders.
+The pack is what document and song worlds are furnished with; without it the worlds still build, with primitives only. `$LOCALGPT_WORLD_ASSETS` moves the folder. There is no model to download: nothing in LocalGPT runs one.
 
 ### The macOS app bundle
 
@@ -94,11 +93,9 @@ cargo install --path crates/cli               # or crates/gen, crates/app, crate
 | Crate | Flag | What it adds | Fetch first |
 |---|---|---|---|
 | `localgpt-gen` | `physics`, `multiplayer` (default) | avian3d physics; `--host`/`--join`/`--web` sessions | — |
-| `localgpt-md`, `localgpt-verse` | `llm`, `llm-metal` (macOS) | the local model authors each section's place / each song's recipe and scene | `scripts/fetch-model.sh` |
 | `localgpt-verse` | `ml` | CLAP zero-shot moods and embedding-ranked placement (CC-BY-NC weights: personal and research use) | `crates/verse/scripts/fetch-clap.sh` |
 
 ```bash
-cargo run -p localgpt-md --features llm-metal -- doc.md       # Apple Silicon; plain `llm` elsewhere
 cargo run -p localgpt-verse --features ml
 ```
 

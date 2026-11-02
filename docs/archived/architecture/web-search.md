@@ -1,6 +1,8 @@
 # Web Search
 
-LocalGPT supports hybrid web search:
+**Status:** Archived 2026-11-01 — the assistant's `web_search` and `web_fetch` tools went with `localgpt-core`; the coding agents in the app's terminals bring their own web tools.
+
+LocalGPT supported hybrid web search:
 
 - Native provider search when the active model supports it (for example Anthropic and xAI)
 - Client-side `web_search` tool fallback with configurable providers

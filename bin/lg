@@ -12,7 +12,7 @@
 #   build <target…> [--release] [-- args…]   cli app gen previs md verse all
 #   build bundle [--debug] [--dmg]           LocalGPT.app for macOS (signed and notarized when given)
 #   verify [--rust|--bevy|--features|--web|--deps]   the CI checks, on this machine
-#   fetch model|assets                       the two shared downloads, once per machine
+#   fetch assets                             the shared asset pack, once per machine
 #
 # Bash 3.2 safe (macOS /bin/bash).
 set -u
@@ -26,7 +26,7 @@ usage: bin/lg <domain> <command> [args…]   |   bin/lg <command> [args…]
   lg build <target…> [--release]          cli app gen previs md verse all (cargo args after --)
   lg build bundle [--debug] [--dmg]       LocalGPT.app (apps/app-desktop/macos/build-app.sh)
   lg verify [--rust|--bevy|…]             the CI checks locally; run before a release or a deploy
-  lg fetch model|assets                   the ~5 GB GGUF, the 522 MB CC0 pack
+  lg fetch assets                         the 522 MB CC0 pack
   lg help [domain]                        this menu, or one domain's commands
 
 Every command also runs directly: bin/web/deploy.sh world, bin/build/target.sh app …
@@ -49,8 +49,7 @@ EOF
 EOF
  ;;
     fetch) cat >&2 <<'EOF'
-  lg fetch model     the shared GGUF  -> ~/.local/share/localgpt/models/llm
-  lg fetch assets    the CC0 pack     -> ~/.local/share/localgpt/models/pack
+  lg fetch assets    the CC0 pack -> ~/.local/share/localgpt/models/pack
 EOF
  ;;
     *) lg_usage >&2 ;;
@@ -92,7 +91,6 @@ case "$cmd" in
   fetch)
     [ $# -gt 0 ] || { lg_domain_help fetch; exit 2; }
     case "$1" in
-      model)  shift; lg_exec "$LG_HOME/../scripts/fetch-model.sh" "$@" ;;
       assets) shift; lg_exec "$LG_HOME/../scripts/fetch-assets.sh" "$@" ;;
       *) lg_domain_help fetch >&2; exit 2 ;;
     esac ;;

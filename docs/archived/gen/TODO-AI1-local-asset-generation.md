@@ -1,5 +1,7 @@
 # AI Integration 1: Local 3D Asset Generation Pipeline
 
+**Status:** Archived 2026-11-01. The Rust side was built (`AssetGenManager`, the model-server client, `gen_generate_asset`, `gen_generate_texture`, `gen_generation_status`) against a model server that was never written, and removed with every other service call in the tree. An agent that wants a generated mesh runs its own generator and loads the result with `gen_load_gltf`.
+
 **Transforms LocalGPT Gen from primitives-only to real 3D content.** Integrates open-source text/image-to-3D models that run on consumer GPUs (8–24 GB VRAM), producing game-engine-ready meshes with PBR materials. Output is standard glTF/GLB — Bevy loads it natively via the existing `gen_load_gltf` pipeline.
 
 **Source:** AI World Generation Research — "Open-source models now enable a local-first 3D generation stack" (TripoSG, Hunyuan3D 2.0/2.1/2mini, Step1X-3D, HunyuanWorld 1.0, TRELLISWorld)

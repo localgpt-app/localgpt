@@ -1,6 +1,8 @@
 # SpacetimeDB Integration Design for LocalGPT Gen
 
-> **Parent spec:** [3D Collaborative World Engine: Architecture Specification](../rfcs/multiplayer/collaborative-world-engine-architecture.md) — this document is the deep-dive on the Distributed State Engine (§2).
+**Status:** Archived 2026-11-01. The module this designed was built (`crates/spacetime`: `submit_ops`/`undo` reducers over the `world-sync` document, an inference queue), never joined from a client, and removed with every other model and service in the tree. A cloud room, if one comes, is a hosted headless Gen behind the relay, the same authority as a persistent room.
+
+> **Parent spec:** [3D Collaborative World Engine: Architecture Specification](../../rfcs/multiplayer/collaborative-world-engine-architecture.md) — this document was the deep-dive on the Distributed State Engine (§2).
 
 ## Executive Summary
 

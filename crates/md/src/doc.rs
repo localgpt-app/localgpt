@@ -33,12 +33,12 @@ pub struct Section {
     pub body: String,
     /// The raw content of a ```` ```world ```` fenced block in this section,
     /// if any: an exact entity override (a JSON array of world entities in
-    /// platform-local coordinates) that replaces the LLM tiers for the
-    /// section — deterministic, no model. Part of the hash.
+    /// platform-local coordinates) that replaces the sidecar's tiers for the
+    /// section — deterministic, in the file itself. Part of the hash.
     pub world: Option<String>,
     /// BLAKE3 of heading + body + world fence: seeds the draft and keys the
-    /// LLM cache, so an unchanged section never regenerates — and editing
-    /// only the fence still invalidates it.
+    /// sidecar, so an unchanged section keeps what was authored for it — and
+    /// editing only the fence still invalidates it.
     pub hash: blake3::Hash,
 }
 
@@ -335,12 +335,12 @@ A talk you can walk through.
 
 ---
 
-## Read by a local model
+## Read by an agent
 
-Runs the recipe tier headless:
+Puts a place in the sidecar:
 
 ```bash
-cargo run --features llm-metal -- deck.md --generate
+localgpt world submit deck.world -m "a dusk shoreline"
 ```
 
 ---
@@ -377,7 +377,7 @@ github.com/localgpt-app/localgpt-md
             [
                 "Markdown, as a place",
                 "One file, one world",
-                "Read by a local model",
+                "Read by an agent",
                 "Thank you",
             ]
         );
@@ -388,7 +388,7 @@ github.com/localgpt-app/localgpt-md
             "every section is a place\nsave the file and it rebuilds"
         );
         // Fenced code is not scenery.
-        assert_eq!(doc.sections[2].body, "Runs the recipe tier headless:");
+        assert_eq!(doc.sections[2].body, "Puts a place in the sidecar:");
         assert_eq!(doc.sections[3].body, "github.com/localgpt-app/localgpt-md");
     }
 

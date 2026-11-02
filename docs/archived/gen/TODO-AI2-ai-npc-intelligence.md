@@ -1,5 +1,7 @@
 # AI Integration 2: AI-Driven NPC Intelligence
 
+**Status:** Archived 2026-11-01. The Rust side was built (`NpcBrain` over an Ollama client, `NpcMemory`, perception, `gen_set_npc_brain`, `gen_npc_observe`, `gen_set_npc_memory`, `npcs.ron`) and removed with every other model call in the tree. NPC patrol, wander and dialogue trees stay as data; a brain behind an NPC, if one comes, is an agent outside the window driving it through the world's API.
+
 **Upgrades NPCs from scripted automatons to contextually-aware AI characters.** Uses locally-running small language models (SLMs) for real-time NPC decision-making, combining the SLM network architecture from recent research with SIMA 2-style visual observation. NPCs perceive their environment, make decisions, form memories, and converse — all via local inference, zero cloud dependency.
 
 **Source:** AI World Generation Research — "Small language models for game NPCs" (arXiv:2601.23206), SIMA 2 visual observation architecture (arXiv:2512.04797), Meta Motivo behavioral foundation model

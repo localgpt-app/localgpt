@@ -3,7 +3,6 @@
 //! worlds, AI asset generation and image input. Each is a `Tool` an MCP
 //! client calls, and each sends a `GenCommand` through the `GenBridge`.
 
-pub mod asset_gen_tools;
 pub mod avatar_tools;
 pub mod interaction_tools;
 pub mod multifile_tools;

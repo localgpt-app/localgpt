@@ -48,7 +48,7 @@ Last updated: 2026-03-18
 |---|-------|------|--------|
 | D3 | Templates marked "coming soon" — removed label | `index.md` | DONE |
 | D4 | WorldGen pipeline doc page — pipeline stages, 15 tools, BlockoutSpec format, three-tier placement, semantic roles | `website/docs/gen/worldgen.md` | DONE |
-| D5 | External services doc — Ollama, ComfyUI, model server setup with status badges | `website/docs/gen/external-services.md` | DONE |
+| D5 | External services doc — Ollama, ComfyUI, model server setup with status badges | ~~`website/docs/gen/external-services.md`~~ | REMOVED 2026-11-01 with the services |
 
 ## Additional Fixes (second pass)
 

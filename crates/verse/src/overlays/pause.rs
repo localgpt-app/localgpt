@@ -25,7 +25,6 @@ pub fn sync_pause_overlay(
     playback: Res<Playback>,
     intensity: Res<WorldIntensity>,
     active_recipe: Res<crate::recipe::ActiveRecipe>,
-    analysis: Res<crate::analysis::AnalysisStore>,
     existing: Query<Entity, With<PauseRoot>>,
 ) {
     if !paused.is_changed() {
@@ -39,7 +38,6 @@ pub fn sync_pause_overlay(
             &playback,
             intensity.0,
             active_recipe.get(),
-            &analysis,
         );
     } else if !paused.0 {
         for e in &existing {
@@ -55,11 +53,10 @@ fn spawn_pause(
     playback: &Playback,
     intensity: f32,
     recipe: Option<&crate::recipe::WorldRecipe>,
-    analysis: &crate::analysis::AnalysisStore,
 ) {
     let accent = theme.accent();
     let track = playback.track();
-    // The eyebrow names the world: the LLM recipe's authored name when it has
+    // The eyebrow names the world: the recipe's authored name when it has
     // one (capped), else the mood's — same rule as the HUD's now-playing slot.
     let world_name = match recipe
         .map(|r| r.world_name.trim())
@@ -75,31 +72,9 @@ fn spawn_pause(
         }
         None => theme.current().world_name.to_string(),
     };
-    // Tier status: which imagination tier authored this world, and the agent's
-    // closing description when it left one. Absent = the rule-derived path
-    // (no line — nothing to claim).
-    let build = track
-        .id
-        .as_deref()
-        .and_then(|id| analysis.get(id))
-        .and_then(|a| a.build.as_ref());
-    let author_line = match (recipe, build) {
-        (Some(_), Some(b)) => Some(format!(
-            "imagined by Bonsai · agent scene: {} parts",
-            b.commands.len()
-        )),
-        (Some(_), None) => Some("world imagined by Bonsai".to_string()),
-        (None, Some(b)) => Some(format!("agent scene: {} parts", b.commands.len())),
-        (None, None) => None,
-    };
-    let description = build.and_then(|b| b.description.as_deref()).map(|d| {
-        let capped: String = d.chars().take(90).collect();
-        if d.chars().count() > 90 {
-            format!("“{capped}…”")
-        } else {
-            format!("“{capped}”")
-        }
-    });
+    // Tier status: whether an authored recipe shapes this world. Absent = the
+    // rule-derived path (no line — nothing to claim).
+    let author_line = recipe.map(|_| "an authored recipe shapes this world".to_string());
     commands
         .spawn((
             PauseRoot,
@@ -143,9 +118,6 @@ fn spawn_pause(
                         theme::TEXT_DIM.with_alpha(0.7),
                         false,
                     );
-                }
-                if let Some(desc) = &description {
-                    label_text(card, fonts, desc, 12.0, theme::text_muted(), false);
                 }
                 card.spawn(Node {
                     height: Val::Px(4.0),

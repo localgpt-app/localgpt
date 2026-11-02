@@ -774,51 +774,6 @@ impl Tool for GenSyncTool {
 }
 
 // ---------------------------------------------------------------------------
-// gen_generation_status
-// ---------------------------------------------------------------------------
-
-pub struct GenGenerationStatusTool {
-    bridge: Arc<GenBridge>,
-}
-
-impl GenGenerationStatusTool {
-    pub fn new(bridge: Arc<GenBridge>) -> Self {
-        Self { bridge }
-    }
-}
-
-#[async_trait]
-impl Tool for GenGenerationStatusTool {
-    fn name(&self) -> &str {
-        "gen_generation_status"
-    }
-
-    fn schema(&self) -> ToolSchema {
-        ToolSchema {
-            name: "gen_generation_status".to_string(),
-            description: "Report current generation phase and progress.".to_string(),
-            parameters: json!({
-                "type": "object",
-                "properties": {}
-            }),
-        }
-    }
-
-    async fn execute(&self, _arguments: &str) -> Result<String> {
-        let cmd = GenCommand::GenerationStatus {
-            task_id: None,
-            action: "status".to_string(),
-        };
-        let response = self.bridge.send(cmd).await?;
-        match response {
-            GenResponse::GenerationStatusResult { status_json } => Ok(status_json),
-            GenResponse::Error { message } => Err(anyhow::anyhow!("{}", message)),
-            _ => Ok("{}".to_string()),
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
@@ -832,7 +787,6 @@ pub fn create_multifile_tools(bridge: Arc<GenBridge>) -> Vec<Box<dyn Tool>> {
         Box::new(GenWriteBehaviorsTool::new(bridge.clone())),
         Box::new(GenWriteAudioTool::new(bridge.clone())),
         Box::new(GenCheckDriftTool::new(bridge.clone())),
-        Box::new(GenSyncTool::new(bridge.clone())),
-        Box::new(GenGenerationStatusTool::new(bridge)),
+        Box::new(GenSyncTool::new(bridge)),
     ]
 }

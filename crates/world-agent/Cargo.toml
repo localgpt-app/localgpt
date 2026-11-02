@@ -5,18 +5,11 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "The shared world agent runtime — the tool-call protocol and pure SceneInterpreter that build localgpt-world-types entities, with the mistral.rs session loop behind `llm`"
+description = "The live authority, packages and headless commands of a .world, the MCP servers its tools are served through, and the shared paths of the LocalGPT apps"
 keywords = ["localgpt", "world", "3d", "agent"]
-categories = ["game-development", "artificial-intelligence"]
+categories = ["game-development"]
 
 [features]
-# The mistral.rs session loop (`run_session`, `tool_schemas`).
-llm = ["dep:mistralrs", "dep:tokio"]
-# Apple-Silicon GPU path (macOS-only; never build this in Linux CI).
-llm-metal = ["llm", "mistralrs/metal"]
-# JsonSchema derives on the protocol types (world-types' `schema` pattern):
-# Verse's recipe/agent schemas derive schemars over them under its `llm`.
-schema = ["dep:schemars"]
 # The `Tool` trait and the stdio MCP server over a tool set (`mcp`): what
 # `localgpt world mcp` and `localgpt-gen mcp-server` serve.
 mcp = ["dep:tokio", "dep:async-trait", "dep:anyhow"]
@@ -38,7 +31,6 @@ openworldformat = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
-schemars = { version = "1.2", optional = true }
 # `session`: the session package on disk (RON base + JSONL log + JSON meta).
 ron = "0.12.1"
 sha2 = "0.11"
@@ -49,9 +41,7 @@ sha2 = "0.11"
 # person opens, so no earlier version will do.
 zip = { version = "9", default-features = false }
 
-mistralrs = { version = "0.8", optional = true }
-# `llm` runs the session loop on it; `mcp` reads stdin and writes stdout
-# with it and listens for Ctrl+C.
+# `mcp` reads stdin and writes stdout with it and listens for Ctrl+C.
 tokio = { version = "1", features = ["rt", "time", "io-util", "io-std", "signal", "macros", "sync"], optional = true }
 # `mcp`: the `Tool` trait is async.
 async-trait = { workspace = true, optional = true }
@@ -62,8 +52,8 @@ tower-http = { version = "0.6", features = ["cors"], optional = true }
 async-stream = { version = "0.3", optional = true }
 futures = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
-# `paths`: the shared model and asset-pack directories, and the app
-# directories, so the XDG rule lives here once instead of in every app.
+# `paths`: the shared asset-pack directory and the app directories, so the
+# XDG rule lives here once instead of in every app.
 etcetera = "0.11"
 
 [dev-dependencies]

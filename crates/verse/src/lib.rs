@@ -6,15 +6,10 @@
 //! modulations — without a window, which is how the one-window LocalGPT app
 //! opens a song.
 
-#[cfg(feature = "llm")]
-mod agent;
-mod agent_types;
 mod analysis;
 mod audio;
 mod demucs;
 mod hud;
-#[cfg(feature = "llm")]
-mod llm;
 #[cfg(feature = "ml")]
 mod ml;
 mod mood_pack;
@@ -262,12 +257,11 @@ pub fn run() {
     .add_plugins(plugins::VersePlugins);
 
     // The analysis worker is the app's one long-lived owner of heavyweight
-    // state (the CLAP, demucs, and recipe models), so it mounts in a scope
-    // whose disposer joins it rather than abandoning it. Mounted here rather
-    // than from a plugin because plugins are add-only: runtime lifecycle needs
+    // state (the CLAP and demucs models), so it mounts in a scope whose
+    // disposer joins it rather than abandoning it. Mounted here rather than
+    // from a plugin because plugins are add-only: runtime lifecycle needs
     // something that can be unwound. See `scope`.
-    let deps = analysis::WorkerDeps::from_world(app.world());
-    analysis::mount_analysis(app.world_mut(), deps);
+    analysis::mount_analysis(app.world_mut());
 
     // `VERSE_PACK=1 cargo run` mounts a demo world pack, exercising runtime
     // mount/withdraw against the live registry. See `mood_pack`.

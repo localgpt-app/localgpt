@@ -1,5 +1,5 @@
 ---
-description: "Install and run LocalGPT Verse, import your music folder, and enable the optional ML and LLM imagination tiers."
+description: "Install and run LocalGPT Verse, import your music folder, and enable the optional ML analysis tier."
 title: "LocalGPT Verse"
 ---
 
@@ -64,23 +64,9 @@ The CLAP weights are **CC-BY-NC** — fine for personal and research use, not cl
 
 :::
 
-## Optional: LLM worlds {#llm}
+## Authored recipes {#recipes}
 
-A second opt-in tier puts a small local language model in charge of imagining within a world. Build with `llm` and fetch the model once:
-
-```bash
-scripts/fetch-model.sh                      # ~5.2 GB GGUF, once for Verse, MD, Gen and the app (any standard Q4_K_M GGUF works)
-cargo run -p localgpt-verse --features llm  # Apple Silicon: --features llm-metal
-```
-
-The model goes to `~/.local/share/localgpt/models/llm/` (`$LOCALGPT_LLM_DIR` moves it), which [MD](/docs/md) and [Gen](/docs/gen) read too, so a model already fetched for either app isn't downloaded again.
-
-Two tiers ride the model, both per-track and both cached in the sidecar so they never re-run:
-
-- **Recipe** — the model writes a `WorldRecipe` (world name, biomes, landmarks, atmosphere, per-section choreography, particles) that modulates the world *within* the detected mood.
-- **Agent** — a tool-calling session that builds a scene entity-by-entity and replays deterministically on every revisit.
-
-Without the feature or the model, LocalGPT Verse keeps the rule-derived world verbatim. See [Under the hood](./analysis.md#llm-tiers) for how both tiers work.
+A track's analysis sidecar can carry a `WorldRecipe` — world name, biomes, landmarks, atmosphere, per-section choreography, particles — that modulates the world *within* the detected mood. Verse applies a recipe it finds there, clamped into its safe ranges, and never writes one: no language model runs in Verse. An agent working on your library's sidecars can author recipes; without one, LocalGPT Verse keeps the rule-derived world verbatim. See [Under the hood](./analysis.md#recipes).
 
 ## The asset pack {#assets}
 

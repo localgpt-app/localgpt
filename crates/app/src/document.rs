@@ -27,13 +27,13 @@
 //! That also makes any editor a way to drive the world, which matters while
 //! the in-app one is young.
 //!
-//! **A place a model built comes from MD's sidecar** beside the document
-//! (`<doc>.world.json`), written by MD's own `--generate` or by an agent
-//! working on the file; the app runs no model. The draft is on screen the
-//! moment a section settles, a build in the sidecar replaces it for every
-//! section whose text did not change, and the outline labels each section
-//! with where its place came from: the writer's own ```world fence, a model's
-//! build, a recipe, or the draft.
+//! **A place an agent built comes from MD's sidecar** beside the document
+//! (`<doc>.world.json`), written by an agent working on the file; neither
+//! the app nor MD runs a model. The draft is on screen the moment a section
+//! settles, a build in the sidecar replaces it for every section whose text
+//! did not change, and the outline labels each section with where its place
+//! came from: the writer's own ```world fence, an authored build, a recipe,
+//! or the draft.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};

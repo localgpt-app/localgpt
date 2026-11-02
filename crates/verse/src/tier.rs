@@ -1,16 +1,15 @@
 //! On-demand model tiers.
 //!
-//! The `ml` and `llm` features decide whether a tier's **code** exists — you
-//! cannot link `ort` without `ml`, and that stays a compile-time fact. This type
+//! The `ml` feature decides whether a tier's **code** exists — you cannot
+//! link `ort` without `ml`, and that stays a compile-time fact. This type
 //! decides whether an **instance** exists, at runtime.
 //!
-//! That split matters here because of how the tiers are actually used: CLAP,
-//! demucs, and the recipe LLM only run on a track that has no sidecar yet. Once
-//! a library has been analyzed they are never consulted again — so eagerly
-//! loading them when the worker starts pays hundreds of MB (and, for the GGUF
-//! recipe model, several GB) for capability the steady state never uses.
-//! [`Tier`] defers the load to the first track that needs it, which in that
-//! steady state means never.
+//! That split matters here because of how the tiers are actually used: CLAP
+//! and demucs only run on a track that has no sidecar yet. Once a library has
+//! been analyzed they are never consulted again — so eagerly loading them
+//! when the worker starts pays hundreds of MB for capability the steady state
+//! never uses. [`Tier`] defers the load to the first track that needs it,
+//! which in that steady state means never.
 //!
 //! A tier that fails to load stays [`Unavailable`](Tier::Unavailable) rather
 //! than retrying: `try_load` does real file and runtime work, and a missing
@@ -18,8 +17,8 @@
 //!
 //! # Status
 //!
-//! Every caller is behind `ml` or `llm`, so the default build constructs no
-//! tiers and warns that the type is unused. The module stays unconditionally
+//! Every caller is behind `ml`, so the default build constructs no tiers and
+//! warns that the type is unused. The module stays unconditionally
 //! compiled anyway: it is generic over the model, so its tests — the ones that
 //! prove a needed model loads once, an unneeded one never loads, and a missing
 //! one is not retried — run in the default build with a dummy type, with no ML

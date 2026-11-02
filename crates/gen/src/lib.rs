@@ -11,7 +11,6 @@
 pub mod character;
 pub mod config;
 pub mod desktop;
-pub mod env;
 pub mod gen3d;
 pub mod inspector;
 pub mod interaction;

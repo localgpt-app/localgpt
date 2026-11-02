@@ -102,7 +102,7 @@
             2.0,
             -48.0
           ],
-          "description": "Then a local model reads your slides",
+          "description": "Then an agent reads your slides",
           "pause_duration": 0.0
         },
         {

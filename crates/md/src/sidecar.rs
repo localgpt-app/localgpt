@@ -1,20 +1,19 @@
-//! The sidecar (PLAN.md M2, v2 in M3): LLM output cached per section hash in
-//! a JSON file next to the document — `<doc>.world.json`. Renderer-free (the
-//! only Bevy touch is the [`Resource`] derive that lets systems share one
-//! live copy).
+//! The sidecar (PLAN.md M2, v2 in M3): what an agent authored for each
+//! section, keyed by the section's hash, in a JSON file next to the document
+//! — `<doc>.world.json`. Renderer-free (the only Bevy touch is the
+//! [`Resource`] derive that lets systems share one live copy).
 //!
 //! Lockfile semantics: the key is the BLAKE3 hash of the section's heading +
-//! body (+ any ```` ```world ```` fence), so an unchanged section is never
-//! regenerated, editing one section invalidates only its own entry, and a
-//! shared `.md` plus its sidecar renders identically on any machine (with or
-//! without the `llm` feature — the default build *applies* cached output, it
-//! just can't author it). Entries for sections no longer in the document are
-//! pruned on save.
+//! body (+ any ```` ```world ```` fence), so an unchanged section keeps its
+//! entry, editing one section invalidates only its own, and a shared `.md`
+//! plus its sidecar renders identically on any machine. MD *applies* the
+//! sidecar; it never writes a build or a recipe into it — an agent working
+//! on the file does, and nothing here runs a model. Entries for sections no
+//! longer in the document are pruned on save.
 //!
-//! v2 (M3) adds `builds`: per-section agent output as plain
-//! `localgpt-world-types` entities in platform-local coordinates, with the
-//! model that authored them. v1 files (recipes only) are rejected with a
-//! warn — regenerate with `--generate`.
+//! v2 (M3) adds `builds`: per-section output as plain
+//! `localgpt-world-types` entities in platform-local coordinates, with who
+//! authored them. v1 files (recipes only) are rejected with a warn.
 
 use std::collections::{BTreeMap, HashSet};
 use std::io;
@@ -31,29 +30,28 @@ use crate::recipe::RegionRecipe;
 /// other versions rather than guessing.
 const VERSION: u32 = 2;
 
-/// One cached agent build: the section's entities in platform-local
-/// coordinates (ids are local placeholders — `draft::compile_with`
-/// renumbers them into the section's id band) plus provenance.
+/// One cached build: the section's entities in platform-local coordinates
+/// (ids are local placeholders — `draft::compile_with` renumbers them into
+/// the section's id band) plus provenance.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildEntry {
-    /// The model that authored this build: MD's GGUF file name (PLAN.md M2's
-    /// open note), or the LocalGPT app's `provider/model` id.
+    /// Who authored this build — an agent's name, or the model it ran. The
+    /// field keeps its v2 name so sidecars written before 2026-11-01 load.
     pub model: String,
-    /// The model's closing description of the place (logged, and there for
+    /// The author's closing description of the place (logged, and there for
     /// future UI surfacing).
     #[serde(default)]
     pub description: Option<String>,
     pub entities: Vec<wt::WorldEntity>,
 }
 
-/// Cached LLM output for a document, keyed by section-hash hex, backed by a
-/// file. A Bevy [`Resource`] so the world, watcher, and generation worker
-/// share one live copy; the module itself stays renderer-free.
+/// What was authored for a document, keyed by section-hash hex, backed by a
+/// file. A Bevy [`Resource`] so the world and the watcher share one live
+/// copy; the module itself stays renderer-free.
 ///
-/// Most methods are called by the `llm` feature's worker or `--generate`;
-/// they stay compiled in the default build (Verse's `tier.rs` precedent) so
-/// the tests proving the cache contract run without the model, and so the
-/// default build still *applies* a cached sidecar.
+/// The writers (`insert`, `insert_build`, `save`) have no caller in MD since
+/// nothing in it authors a place any more; they stay for the tests that
+/// prove the cache contract, and for tooling that writes a sidecar.
 #[derive(Debug, Default)]
 #[cfg_attr(feature = "app", derive(bevy::prelude::Resource))]
 pub struct RecipeStore {
@@ -76,7 +74,7 @@ struct SidecarFile {
     builds: BTreeMap<String, BuildEntry>,
 }
 
-#[allow(dead_code)] // see the type docs: the writers live behind `llm`
+#[allow(dead_code)] // see the type docs: the writers have no caller in MD
 impl RecipeStore {
     /// An empty store with no file behind it.
     pub fn in_memory() -> Self {
@@ -214,7 +212,7 @@ mod tests {
 
     fn build_entry(entities: usize) -> BuildEntry {
         BuildEntry {
-            model: "some-model.gguf".into(),
+            model: "some-agent".into(),
             description: Some("a quiet clearing".into()),
             entities: (1..=entities)
                 .map(|i| wt::WorldEntity::new(i as u64, format!("e{i}")))
@@ -243,7 +241,7 @@ mod tests {
             Some([0.1, 0.2, 0.3])
         );
         let build = reloaded.get_build(&doc.sections[1].hash).unwrap();
-        assert_eq!(build.model, "some-model.gguf");
+        assert_eq!(build.model, "some-agent");
         assert_eq!(build.entities.len(), 3);
         assert_eq!(build.description.as_deref(), Some("a quiet clearing"));
         assert!(reloaded.get_build(&doc.sections[0].hash).is_none());

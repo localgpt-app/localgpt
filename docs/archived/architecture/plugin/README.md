@@ -1,5 +1,7 @@
 # Plugin lifecycle: applying and unapplying without restart
 
+**Status:** Archived 2026-11-01 — these reviews asked what the assistant's plugin system should take from deepseek-harness; the assistant went with `localgpt-core`, and no harness is left to apply plugins to. Kept for the readings.
+
 Four independent reviews of the same question, one per model: **how does
 `deepseek-harness` apply and unapply plugins cleanly without a process restart,
 which of those ideas port to Rust, and what should LocalGPT do about it?**

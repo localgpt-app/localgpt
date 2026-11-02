@@ -1,6 +1,7 @@
 # RFC: SpacetimeDB Server-Side Data Model for 3D Primitives and Audio
 
-**Status:** Draft  
+**Status:** Archived 2026-11-01 — a draft for the SpacetimeDB module, which was built as `crates/spacetime`, never joined from a client, and removed with every other model and service in the tree. Collaborative rooms run on `localgpt-world-sync` over a host or a relay (`docs/rfcs/multiplayer/collaborative-world-engine-architecture.md`).  
+**Status when written:** Draft  
 **Author:** LocalGPT Team  
 **Date:** 2026-02-19  
 **Target crates:** `localgpt-world-types`, `localgpt-world-server`  

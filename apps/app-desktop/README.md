@@ -62,9 +62,7 @@ APPLE_NOTARY_PROFILE=localgpt-notary \
 ```
 
 The CC0 asset pack is not in the bundle; `scripts/fetch-assets.sh` fetches it
-once per machine for every LocalGPT app (`scripts/fetch-model.sh` likewise
-fetches the GGUF that MD's and Verse's own `llm` builds read; the app does
-not).
+once per machine for every LocalGPT app.
 
 ## Release
 

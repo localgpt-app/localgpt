@@ -32,7 +32,7 @@ pub async fn run_mcp_http_server(bridge: Arc<GenBridge>, port: u16) -> Result<()
 
 /// Every gen tool, annotated for MCP: the scene basics, characters,
 /// interactions, terrain, UI, physics, the WorldGen pipeline, multi-file
-/// worlds, AI asset generation and image input.
+/// worlds and image input.
 pub fn create_mcp_tools(bridge: Arc<GenBridge>) -> Vec<Box<dyn Tool>> {
     let mut tools: Vec<Box<dyn Tool>> = crate::gen3d::tools::create_gen_tools(bridge.clone());
     tools.extend(crate::mcp::avatar_tools::create_character_tools(
@@ -52,9 +52,6 @@ pub fn create_mcp_tools(bridge: Arc<GenBridge>) -> Vec<Box<dyn Tool>> {
         bridge.clone(),
     ));
     tools.extend(crate::mcp::multifile_tools::create_multifile_tools(
-        bridge.clone(),
-    ));
-    tools.extend(crate::mcp::asset_gen_tools::create_asset_gen_tools(
         bridge.clone(),
     ));
     tools.extend(crate::mcp::multimodal_tools::create_multimodal_tools(
@@ -121,13 +118,8 @@ fn tool_annotations(name: &str) -> Value {
         "gen_export_world",
         "gen_validate_navigability",
         "gen_render_depth",
-        "gen_preview_world",
         "gen_check_drift",
         "gen_query_terrain_height",
-        "gen_generation_status",
-        "gen_npc_observe",
-        "gen_list_assets",
-        "gen_asset_status",
         "get_avatar_state",
     ];
 
@@ -152,8 +144,6 @@ fn tool_annotations(name: &str) -> Value {
         "gen_set_gravity",
         "gen_set_spawn_point",
         "gen_set_npc_dialogue",
-        "gen_set_npc_brain",
-        "gen_set_npc_memory",
         "gen_set_tier",
         "gen_set_role",
         "gen_modify_blockout",

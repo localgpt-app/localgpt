@@ -1,6 +1,6 @@
 # LocalGPT Gen
 
-The 3D world builder with procedural audio and entity behaviors, built on Bevy, driven by the coding agents you already use: 95 MCP tools for scene creation, manipulation, and export. It runs no model and holds no key.
+The 3D world builder with procedural audio and entity behaviors, built on Bevy, driven by the coding agents you already use: 88 MCP tools for scene creation, manipulation, and export. It runs no model, calls no service and holds no key.
 
 ## Install
 
@@ -117,7 +117,7 @@ localgpt-gen mcp-server --mcp-http 8080
 - **Bevy 0.19** — real-time 3D rendering with PBR materials, dynamic lighting, and an interactive viewport
 - **Procedural Audio** — algorithmic soundscapes (wind, rain, forest, ocean, cave) and spatial emitters via FunDSP
 - **Entity Behaviors** — composable animations (orbit, spin, bob, bounce, path_follow) with no scripting required
-- **NPCs** — characters with patrol AI, branching dialogue trees, and memory
+- **NPCs** — characters with patrol and wander behavior and branching dialogue trees
 - **Physics** — rigid bodies, colliders, joints, and force fields via Avian3D
 - **Interaction** — triggers, teleporters, collectibles, doors, and entity event wiring
 - **Terrain** — heightmap terrain, water bodies, paths, and procedural foliage
@@ -141,16 +141,15 @@ localgpt-gen mcp-server --mcp-http 8080
 | Terrain | add_terrain, add_water, add_path, add_foliage | 4 |
 | UI | add_sign, add_hud, add_label, add_tooltip, add_notification | 5 |
 | Physics | set_physics, add_collider, add_joint, add_force, set_gravity | 5 |
-| WorldGen | plan_layout, apply_blockout, populate_region, evaluate, navmesh, ... | 15 |
+| WorldGen | plan_layout, apply_blockout, populate_region, evaluate, navmesh, render_depth, ... | 14 |
 | Export | export_screenshot, export_gltf, export_html, save/load/export_world | 6 |
 | History | undo, redo, undo_info | 3 |
 | Creations | define_creation, spawn_instance | 2 |
-| NPC brains | set_npc_brain, npc_observe, set_npc_memory (Ollama, `LOCALGPT_GEN_OLLAMA_URL`) | 3 |
-| Multi-file worlds | write_world_plan, write_region, load/unload_region, persist_blockout, write_behaviors, write_audio, check_drift, sync, generation_status | 10 |
-| Asset generation | generate_asset, generate_texture (a model server, ComfyUI) | 2 |
-| Image input | image_to_layout, match_style, reference_board, panorama_to_world | 4 |
+| Multi-file worlds | write_world_plan, write_region, load/unload_region, persist_blockout, write_behaviors, write_audio, check_drift, sync | 9 |
+| Image input | image_to_layout, match_style, reference_board, panorama_to_world (pure image analysis, no service) | 4 |
 
-No memory, web or file tools: the agent brings its own.
+No memory, web or file tools: the agent brings its own. No tool calls a
+model or a service: nothing here needs the network.
 
 ## License
 

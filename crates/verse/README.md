@@ -48,35 +48,18 @@ mood from it, upgrading the rule mapper; the embedding is stored in the
 sidecar for future asset selection. Without the feature or the model file the
 rule mapper runs. Note the CLAP weights are CC-BY-NC (see PLAN.md §4).
 
-**LLM worlds (PLAN.md M7, optional):** build with `--features llm` and run
-`scripts/fetch-bonsai.sh` once (~5.2 GB GGUF; any standard Q4_K_M GGUF +
-`tokenizer.json` works too). The model lives in
-`~/.local/share/localgpt/models/llm/` (`$LOCALGPT_LLM_DIR` overrides), the
-folder LocalGPT MD and Gen read too, so one download serves all three. Two tiers ride it,
-both per-track, both cached in the sidecar so they never re-run:
-
-- **Recipe** — schema-constrained generation of a `WorldRecipe` (world name,
-  biomes, landmarks, atmosphere, per-section choreography, particles) that
-  modulates the world *within* the detected mood. The recipe's world name
-  replaces the mood name in the HUD's now-playing eyebrow and the pause title;
-  choreography shifts energy/motion per song section (with optional palette
-  washes); landmarks raise kind-matched hero assets with emissive beacons;
-  secondary biomes mix in contrasting accent props.
-- **Agent** — a tool-calling session that builds a scene entity-by-entity:
-  `place_asset` places the curated CC0 models by *kind* (`rock`, `tree`,
-  `lamp`, …) — a small stable enum the local model can hold reliably, while
-  the host resolves each call to a concrete variant that fits the track's mood
-  and rotates so repeats differ — `scatter_field` scatters a whole field of
-  one kind in a single call, `spawn_primitive` composes raw shapes, plus
-  lights/environment/`scene_info` to review and iterate. Its `SceneBuild`
-  records both the asked kind and the resolved file, so it replays
-  deterministically on every revisit, and entities are scoped to their track —
-  a lookahead session never pops into the playing world; its scene reveals
-  when the track becomes current.
-
-Every emissive/light value the agent authors passes the Comfort gates at
-execution time. Without the feature or the model the app keeps the
-rule-derived world verbatim (CI compiles both tiers so they can't rot).
+**Authored recipes (PLAN.md M7):** a track's analysis sidecar can carry a
+`WorldRecipe` (world name, biomes, landmarks, atmosphere, per-section
+choreography, particles) that modulates the world *within* the detected
+mood: the recipe's world name replaces the mood name in the HUD's
+now-playing eyebrow and the pause title; choreography shifts energy/motion
+per song section (with optional palette washes); landmarks raise
+kind-matched hero assets with emissive beacons; secondary biomes mix in
+contrasting accent props. Verse applies a recipe it finds, clamped into its
+safe ranges, and never writes one — no language model runs here (the
+in-process one went on 2026-11-01). An agent working on a library's
+sidecars can author recipes; without one the app keeps the rule-derived
+world verbatim.
 
 **Asset pack:** 171 CC0 Poly Haven models live in the separate `verse-assets`
 repo (`fetch_polyhaven.py` downloads + writes the manifest with a semantic

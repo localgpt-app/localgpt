@@ -1,4 +1,4 @@
-//! LLM-authored scene recipe — PLAN.md M7 (`llm` feature).
+//! The authored scene recipe — PLAN.md M7.
 //!
 //! Where [`crate::theme::Theme`] picks *which* of the four built-in worlds a
 //! track lives in, a `WorldRecipe` describes how to dress that world up: how
@@ -7,19 +7,18 @@
 //! top rung of the signal-ownership ladder
 //!
 //! ```text
-//! rule mapper (map_mood) → CLAP zero-shot mood (ml) → WorldRecipe (llm)
+//! rule mapper (map_mood) → CLAP zero-shot mood (ml) → WorldRecipe (authored)
 //! ```
 //!
 //! and like every rung above it, it degrades gracefully: when no recipe is
-//! present (no `llm` feature, no model fetched, or generation failed) the
-//! renderer keeps today's mood-only behaviour verbatim — see [`WorldRecipe::default`].
+//! present the renderer keeps today's mood-only behaviour verbatim — see
+//! [`WorldRecipe::default`].
 //!
-//! The recipe is filled by an LLM via constrained generation
-//! (`mistralrs::Model::generate_structured`), so the [`schemars::JsonSchema`]
-//! derive (compiled only under `feature = "llm"`) *is* the grammar: the model
-//! literally cannot emit a field with a wrong type or out-of-range value.
-//! Doc comments on each field become the schema descriptions the model reads,
-//! so they are written for it.
+//! Nothing in Verse writes a recipe any more (the in-process model that did
+//! went on 2026-11-01): a recipe is a field of the track's analysis sidecar,
+//! which an agent working on a library can author, and which Verse applies
+//! after [`WorldRecipe::clamped`]. The doc comments on each field describe
+//! them for whoever writes one.
 //!
 //! Design rule (idea.md / PLAN §0.3): the recipe **modulates within a mood** —
 //! it never replaces the base palette, which stays owned by [`crate::theme`].
@@ -31,9 +30,9 @@ use serde::{Deserialize, Serialize};
 
 /// The currently playing track's recipe, as a live resource the renderer reads.
 /// Mirrors [`crate::theme::Theme`]'s role for mood: set by `sync_analysis` when
-/// a track's analysis lands, cleared when the track has no recipe (or the `llm`
-/// feature is off). `None` everywhere is the rule-derived path — today's
-/// behaviour — so the renderer never has to special-case the recipe's absence.
+/// a track's analysis lands, cleared when the track has no recipe. `None`
+/// everywhere is the rule-derived path — today's behaviour — so the renderer
+/// never has to special-case the recipe's absence.
 #[derive(Resource, Default)]
 pub struct ActiveRecipe {
     /// The recipe for the track currently playing, already
@@ -51,11 +50,8 @@ impl ActiveRecipe {
     pub fn get(&self) -> Option<&WorldRecipe> {
         self.recipe.as_ref()
     }
-} // `schemars::JsonSchema` is only needed to constrain LLM generation, so it is
-// derived solely under the `llm` feature — the default (rules-only) build stays
-// free of the proc-macro dependency. analysis.rs / world.rs see only
-// Serialize + Deserialize.
-#[cfg_attr(feature = "llm", derive(schemars::JsonSchema))]
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct WorldRecipe {
@@ -104,7 +100,6 @@ pub struct WorldRecipe {
 }
 
 /// A single zone within the world.
-#[cfg_attr(feature = "llm", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Biome {
@@ -126,7 +121,6 @@ pub struct Biome {
 }
 
 /// How props are arranged on the ground.
-#[cfg_attr(feature = "llm", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LayoutStyle {
@@ -154,7 +148,6 @@ impl LayoutStyle {
 }
 
 /// A hero landmark raised from the asset set.
-#[cfg_attr(feature = "llm", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Landmark {
@@ -174,7 +167,6 @@ pub struct Landmark {
 }
 
 /// What sort of hero structure to raise.
-#[cfg_attr(feature = "llm", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LandmarkKind {
@@ -189,7 +181,6 @@ pub enum LandmarkKind {
 }
 
 /// Where a landmark sits.
-#[cfg_attr(feature = "llm", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Anchor {
@@ -202,7 +193,6 @@ pub enum Anchor {
 }
 
 /// Atmosphere settings.
-#[cfg_attr(feature = "llm", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Atmosphere {
@@ -219,7 +209,6 @@ pub struct Atmosphere {
 }
 
 /// A choreographed moment synced to a song section.
-#[cfg_attr(feature = "llm", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SectionMoment {
@@ -241,13 +230,19 @@ pub struct SectionMoment {
 }
 
 /// A song section's musical role (heuristic — the renderer infers from
-/// position). One definition with the other LocalGPT apps: re-exported from
-/// the shared `localgpt-world-agent` crate (M5), where the agent protocol's
-/// `at_role` fields use it.
-pub use localgpt_world_agent::SectionRole;
+/// position).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SectionRole {
+    Intro,
+    Verse,
+    Chorus,
+    Drop,
+    Bridge,
+    Outro,
+}
 
 /// Motion character for a section.
-#[cfg_attr(feature = "llm", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Motion {
@@ -260,7 +255,6 @@ pub enum Motion {
 }
 
 /// Ambient particle layer.
-#[cfg_attr(feature = "llm", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Particles {
@@ -274,7 +268,6 @@ pub struct Particles {
 }
 
 /// Particle visual.
-#[cfg_attr(feature = "llm", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ParticleKind {
@@ -381,12 +374,9 @@ impl WorldRecipe {
             && (self.density - 1.0).abs() < 1e-4
     }
 
-    /// Clamp every free field into its renderer-safe range. Called on any
-    /// recipe before use (whether from the LLM or a sidecar) so a malformed
-    /// value can never blow up the Comfort gates or the perf budget. Only the
-    /// `llm` tier calls it today (the schema's defaults are already in-range),
-    /// so it is dead code without `feature = "llm"`.
-    #[allow(dead_code)]
+    /// Clamp every free field into its renderer-safe range. Called on every
+    /// recipe read from a sidecar before use, so a malformed value can never
+    /// blow up the Comfort gates or the perf budget.
     pub fn clamped(mut self) -> Self {
         self.motion_speed = self.motion_speed.clamp(0.25, 2.5);
         self.density = self.density.clamp(0.3, 2.0);

@@ -1,11 +1,10 @@
-//! Where the shared downloads live: the local-LLM model directory and the CC0
-//! world asset pack.
+//! Where the shared download lives — the CC0 world asset pack — and where an
+//! app keeps its own files.
 //!
-//! Both are large, both are identical for every LocalGPT app, and both were
-//! resolved by hand-copied twins before this module existed — `shared_llm_dir`
-//! in `localgpt-core`, in MD's `llm.rs` and in Verse's `llm.rs`, each carrying
-//! a "keep them in step" comment; the pack in MD's `assets.rs` and Verse's
-//! `world_assets.rs`. This crate is the one every world app already depends
+//! The pack is large and identical for every LocalGPT app, and it was
+//! resolved by hand-copied twins before this module existed (MD's
+//! `assets.rs` and Verse's `world_assets.rs`, each carrying a "keep them in
+//! step" comment). This crate is the one every world app already depends
 //! on, so the rule lives here once.
 //!
 //! An app's own asset *root* stays in the app: only it knows whether it is
@@ -14,8 +13,6 @@
 
 use std::path::{Path, PathBuf};
 
-/// `$LOCALGPT_LLM_DIR` — an absolute override for the model directory.
-pub const LOCALGPT_LLM_DIR: &str = "LOCALGPT_LLM_DIR";
 /// `$LOCALGPT_WORLD_ASSETS` — an override for the asset pack directory.
 pub const LOCALGPT_WORLD_ASSETS: &str = "LOCALGPT_WORLD_ASSETS";
 /// `$LOCALGPT_STARTER_MUSIC` — an override for the starter-track directory.
@@ -24,32 +21,6 @@ pub const LOCALGPT_STARTER_MUSIC: &str = "LOCALGPT_STARTER_MUSIC";
 const PACK_MARKER: &str = "models/manifest.json";
 /// The starter music is the directory that holds this file.
 const MUSIC_MARKER: &str = "music/music.json";
-
-/// The local-LLM model directory every LocalGPT app shares, so one GGUF
-/// download serves Gen, MD and Verse: `$LOCALGPT_LLM_DIR`, else
-/// `<XDG data home>/localgpt/models/llm` (`~/.local/share/localgpt/models/llm`).
-///
-/// Deliberately ignores `LOCALGPT_PROFILE` and `LOCALGPT_DATA_DIR`: a 5 GB
-/// model is the same file for every profile.
-pub fn shared_llm_dir() -> Option<PathBuf> {
-    shared_llm_dir_with_env(|key| std::env::var(key))
-}
-
-/// [`shared_llm_dir`] with a custom env lookup, for tests.
-pub fn shared_llm_dir_with_env<F>(env_fn: F) -> Option<PathBuf>
-where
-    F: Fn(&str) -> Result<String, std::env::VarError>,
-{
-    if let Some(dir) = env_fn(LOCALGPT_LLM_DIR)
-        .ok()
-        .filter(|v| !v.is_empty())
-        .map(PathBuf::from)
-        .filter(|p| p.is_absolute())
-    {
-        return Some(dir);
-    }
-    Some(shared_data_dir()?.join("models").join("llm"))
-}
 
 /// The CC0 asset pack directory — the one whose `models/manifest.json` exists.
 ///
@@ -136,42 +107,6 @@ where
     candidates.into_iter().find(|dir| exists(&dir.join(marker)))
 }
 
-/// The `.gguf` files in `dir`, sorted so "the first one" is stable.
-///
-/// Gen's richer rule, shared: MD and Verse each walked `read_dir` and took
-/// whatever came back first, which is filesystem order and so not reproducible.
-pub fn gguf_files(dir: &Path) -> Vec<String> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
-    let mut files: Vec<String> = entries
-        .filter_map(|entry| {
-            let name = entry.ok()?.file_name().to_string_lossy().into_owned();
-            name.ends_with(".gguf").then_some(name)
-        })
-        .collect();
-    files.sort();
-    files
-}
-
-/// The tokenizer to load beside `gguf`: its own `<name>.tokenizer.json` first,
-/// then a shared `tokenizer.json`. `None` when neither is present.
-pub fn tokenizer_for(dir: &Path, gguf: &str) -> Option<String> {
-    let own = format!("{}.tokenizer.json", gguf.trim_end_matches(".gguf"));
-    [own, "tokenizer.json".to_string()]
-        .into_iter()
-        .find(|name| dir.join(name).is_file())
-}
-
-/// The first usable `(dir, gguf, tokenizer)` trio in `dir`, the form
-/// mistral.rs's `GgufModelBuilder` wants. A missing tokenizer still yields
-/// `tokenizer.json`, since that is the name the fetch script writes.
-pub fn locate_model_in(dir: &Path) -> Option<(PathBuf, String, String)> {
-    let gguf = gguf_files(dir).into_iter().next()?;
-    let tokenizer = tokenizer_for(dir, &gguf).unwrap_or_else(|| "tokenizer.json".to_string());
-    Some((dir.to_path_buf(), gguf, tokenizer))
-}
-
 /// `$LOCALGPT_DATA_DIR` — an absolute override for the data directory.
 pub const LOCALGPT_DATA_DIR: &str = "LOCALGPT_DATA_DIR";
 /// `$LOCALGPT_STATE_DIR` — an absolute override for the state directory.
@@ -187,8 +122,8 @@ pub const LOCALGPT_PROFILE: &str = "LOCALGPT_PROFILE";
 /// `<XDG data home>/localgpt` and `<XDG state home>/localgpt`
 /// (`~/.local/share/localgpt`, `~/.local/state/localgpt`), each movable by
 /// its own absolute override, and all of them by [`LOCALGPT_PROFILE`]. The
-/// shared downloads ([`shared_llm_dir`], [`world_pack_dir`]) deliberately
-/// ignore the profile: a 5 GB model is the same file for every profile.
+/// shared pack ([`world_pack_dir`]) deliberately ignores the profile: 522 MB
+/// of models are the same files for every profile.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Dirs {
     pub data: PathBuf,
@@ -239,7 +174,7 @@ impl Dirs {
     }
 }
 
-/// `<XDG data home>/localgpt` — the base both shared downloads sit under.
+/// `<XDG data home>/localgpt` — the base the shared pack sits under.
 fn shared_data_dir() -> Option<PathBuf> {
     use etcetera::BaseStrategy;
     Some(
@@ -266,43 +201,6 @@ mod tests {
     }
 
     #[test]
-    fn llm_dir_defaults_under_the_shared_data_dir() {
-        let dir = shared_llm_dir_with_env(env(HashMap::new())).unwrap();
-        assert!(dir.ends_with("localgpt/models/llm"), "{}", dir.display());
-    }
-
-    #[test]
-    fn llm_dir_ignores_the_profile_and_data_dir() {
-        // A 5 GB model is the same file for every profile, so unlike every
-        // other LocalGPT directory this one must not move with them.
-        let default = shared_llm_dir_with_env(env(HashMap::new())).unwrap();
-        for var in ["LOCALGPT_PROFILE", "LOCALGPT_DATA_DIR"] {
-            assert_eq!(
-                shared_llm_dir_with_env(env(HashMap::from([(var, "/elsewhere")]))),
-                Some(default.clone()),
-                "{var} moved the shared model directory"
-            );
-        }
-    }
-
-    #[test]
-    fn llm_dir_takes_absolute_overrides_and_ignores_relative_ones() {
-        let default = shared_llm_dir_with_env(env(HashMap::new())).unwrap();
-        assert_eq!(
-            shared_llm_dir_with_env(env(HashMap::from([(LOCALGPT_LLM_DIR, "/models/here")]))),
-            Some(PathBuf::from("/models/here"))
-        );
-        assert_eq!(
-            shared_llm_dir_with_env(env(HashMap::from([(LOCALGPT_LLM_DIR, "relative")]))),
-            Some(default.clone())
-        );
-        assert_eq!(
-            shared_llm_dir_with_env(env(HashMap::from([(LOCALGPT_LLM_DIR, "")]))),
-            Some(default)
-        );
-    }
-
-    #[test]
     fn pack_prefers_an_app_candidate_over_the_shared_download() {
         let app = PathBuf::from("/app/assets");
         let found = world_pack_dir_with(std::slice::from_ref(&app), |p| p.starts_with("/app/"));
@@ -313,45 +211,6 @@ mod tests {
     fn pack_falls_back_to_the_former_asset_repo_name() {
         let found = world_pack_dir_with(&[], |p| p.starts_with("../localgpt-verse-assets"));
         assert_eq!(found, Some(PathBuf::from("../localgpt-verse-assets")));
-    }
-
-    #[test]
-    fn gguf_listing_is_sorted_and_tokenizers_prefer_their_own() {
-        let dir = std::env::temp_dir().join(format!("lga-paths-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        for f in [
-            "b-model.gguf",
-            "a-model.gguf",
-            "a-model.tokenizer.json",
-            "tokenizer.json",
-        ] {
-            std::fs::write(dir.join(f), b"x").unwrap();
-        }
-        assert_eq!(gguf_files(&dir), ["a-model.gguf", "b-model.gguf"]);
-        assert_eq!(
-            tokenizer_for(&dir, "a-model.gguf").as_deref(),
-            Some("a-model.tokenizer.json")
-        );
-        assert_eq!(
-            tokenizer_for(&dir, "b-model.gguf").as_deref(),
-            Some("tokenizer.json"),
-            "no own tokenizer -> the shared one"
-        );
-        assert_eq!(
-            locate_model_in(&dir),
-            Some((
-                dir.clone(),
-                "a-model.gguf".into(),
-                "a-model.tokenizer.json".into()
-            )),
-            "the first gguf is the sorted-first one, not whatever read_dir returns"
-        );
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    #[test]
-    fn locate_model_in_is_none_without_a_gguf() {
-        assert_eq!(locate_model_in(Path::new("/definitely/not/here")), None);
     }
 
     #[test]

@@ -518,14 +518,10 @@ pub fn palette_wash(
     active_recipe: Res<crate::recipe::ActiveRecipe>,
     timbre: Res<crate::analysis::Timbre>,
     blend: Res<crate::analysis::MoodBlend>,
-    env_override: Res<crate::agent_types::EnvOverride>,
     mut wash: ResMut<PaletteWash>,
     world_mats: Option<Res<WorldMaterials>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    // The agent's own ambient entity (M7, `llm`) owns its colour; the wash
-    // owns every other ambient. The marker is ungated so this query compiles
-    // in every feature config.
-    mut ambient_q: Query<&mut AmbientLight, Without<crate::agent_types::AgentAmbient>>,
+    mut ambient_q: Query<&mut AmbientLight>,
     mut fog_q: Query<&mut DistanceFog>,
     mut clear: ResMut<ClearColor>,
 ) {
@@ -594,9 +590,7 @@ pub fn palette_wash(
         }
     }
 
-    // The agent's environment override wins when its track is current; the
-    // mood's sky is the fallback (and the rule path's only value).
-    clear.0 = env_override.background.unwrap_or(p.sky_top);
+    clear.0 = p.sky_top;
     for mut ambient in &mut ambient_q {
         ambient.color = p.ambient;
     }

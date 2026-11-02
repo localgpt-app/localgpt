@@ -23,13 +23,12 @@ crates/verse/             # a member of the localgpt workspace
 │   ├── world_assets.rs   manifest pack, placement, LOD, embeddings
 │   ├── ml.rs             CLAP zero-shot mood + embeddings  (feature: ml)
 │   ├── demucs.rs         stem separation + curves          (feature: ml)
-│   ├── llm.rs            WorldRecipe generation            (feature: llm)
-│   └── agent.rs          tool-calling scene builder        (feature: llm)
-├── assets/               fonts, models (synced), ml/, llm/
+│   └── recipe.rs         the authored WorldRecipe, applied from the sidecar
+├── assets/               fonts, models (synced), ml/
 └── scripts/              fetch-clap.sh, fetch-demucs.sh, bundle.sh
 
 website-verse/            verse.localgpt.app, the landing page (at the workspace root)
-scripts/                  fetch-model.sh and fetch-assets.sh — the downloads every app shares
+scripts/                  fetch-assets.sh — the asset pack every app shares
 ```
 
 Threading is channels-and-atomics only across boundaries (the single shared-state exception is a microsecond `Mutex` around the audio manager). No `unsafe`, no GPL dependencies.
@@ -40,10 +39,8 @@ Threading is channels-and-atomics only across boundaries (the single shared-stat
 |---|---|---|
 | `(default)` | Playback, DSP analysis, rule-mapped worlds | — |
 | `ml` | CLAP zero-shot moods, embedding-ranked placement, Demucs stems | `crates/verse/scripts/fetch-clap.sh` (~78 MB) |
-| `llm` | WorldRecipe generation + agent scene builder | `scripts/fetch-model.sh` (~5.2 GB, into the shared `~/.local/share/localgpt/models/llm/`) |
-| `llm-metal` | Apple-Silicon GPU inference for the LLM tiers (macOS only) | same as `llm` |
 
-CI compiles both optional tiers so they can't rot, and every tier falls back to the rule-derived world when its model is absent.
+CI compiles the optional tier so it can't rot, and it falls back to the rule-derived world when its model is absent. There is no language-model tier: a recipe comes from the sidecar, written by an agent.
 
 ## Smoke test {#smoke}
 
@@ -98,7 +95,7 @@ The 171-model CC0 pack lives in the separate `localgpt-world-assets` repository 
                                                └───────────────────────────┘
 ```
 
-The full review — load-bearing decisions, findings, and the LLM tier details — lives in [ARCHITECTURE.md](https://github.com/localgpt-app/localgpt/blob/main/crates/verse/ARCHITECTURE.md); milestone status in [PLAN.md](https://github.com/localgpt-app/localgpt/blob/main/crates/verse/PLAN.md). The audio engine is now the shared `localgpt-world-audio` crate (one kira mixer, FunDSP graphs as sources), and the GGUF loader the shared `localgpt-world-agent`; Verse's own code keeps its analysis, moods, placement and performance.
+The full review — load-bearing decisions and findings — lives in [ARCHITECTURE.md](https://github.com/localgpt-app/localgpt/blob/main/crates/verse/ARCHITECTURE.md); milestone status in [PLAN.md](https://github.com/localgpt-app/localgpt/blob/main/crates/verse/PLAN.md). The audio engine is now the shared `localgpt-world-audio` crate (one kira mixer, FunDSP graphs as sources); Verse's own code keeps its analysis, moods, placement and performance.
 
 ## Licenses {#licenses}
 
@@ -107,7 +104,6 @@ The full review — load-bearing decisions, findings, and the LLM tier details �
 | LocalGPT Verse code | [Apache License 2.0](https://github.com/localgpt-app/localgpt/blob/main/LICENSE) |
 | Marcellus & Hanken Grotesk fonts | SIL Open Font License 1.1 |
 | 3D model pack & starter music (`localgpt-world-assets`) | CC0 1.0 (public domain) |
-| Bonsai-8B LLM weights | Apache-2.0 |
 | CLAP audio model weights | CC-BY-NC-4.0 — non-commercial only |
 
 The optional model downloads (`scripts/fetch-*.sh`) carry their own licenses; the asset manifest records every model's source, author, and license, and the in-app **Credits & Licenses** screen renders it.

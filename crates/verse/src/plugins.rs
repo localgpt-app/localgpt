@@ -61,9 +61,6 @@ impl Plugin for VersePlugins {
             // LocalGPT world format. Dormant without the variable.
             crate::world_manifest::WorldExportPlugin,
         ));
-
-        #[cfg(feature = "llm")]
-        app.add_plugins(AgentPlugin);
     }
 }
 
@@ -131,9 +128,6 @@ impl Plugin for WorldPlugin {
             // Continuous timbre + mood blend — read by the palette wash.
             .init_resource::<analysis::Timbre>()
             .init_resource::<analysis::MoodBlend>()
-            // The agent's background override (M7) — always present because
-            // the palette wash reads it in every feature config.
-            .init_resource::<crate::agent_types::EnvOverride>()
             .add_systems(Startup, world::setup_world)
             .add_systems(Update, (crate::ease_world_clock, world::spawn_particles))
             .add_systems(Update, world::ground_waves)
@@ -371,33 +365,5 @@ impl Plugin for DiagnosticsPlugin {
                     .run_if(in_state(AppState::InWorld)),
             );
         }
-    }
-}
-
-/// M7 LLM scene-construction agent. Bevy owns the executor (channels + name
-/// registries); the matching bridge is published as a resource so the analysis
-/// worker can be handed it at construction.
-#[cfg(feature = "llm")]
-struct AgentPlugin;
-
-#[cfg(feature = "llm")]
-impl Plugin for AgentPlugin {
-    fn build(&self, app: &mut App) {
-        let (bridge, channels) = crate::agent::create_channels();
-        app.insert_resource(crate::agent::AgentBridgeHandle(bridge));
-        app.insert_resource(crate::agent::AgentExecutor::new(channels));
-        // Ordered: live-issued commands drain first, the cached-build replay
-        // (track change) clears/rebuilds on top, and the scope sync reveals
-        // the current track's scene last — so freshly spawned or replayed
-        // entities are scoped within the same frame.
-        app.add_systems(
-            Update,
-            (
-                crate::agent::drain_agent_commands,
-                crate::agent::replay_cached_build,
-                crate::agent::sync_agent_scene_scope,
-            )
-                .chain(),
-        );
     }
 }

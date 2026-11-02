@@ -130,8 +130,6 @@ pub fn handle_save_world(
     avatar: Option<&AvatarDef>,
     tours: &[TourDef],
     edit_history: &wt::EditHistory,
-    npc_brains: &Query<&crate::character::npc_brain::NpcBrainState>,
-    npc_memories: &Query<&crate::character::npc_memory::NpcMemory>,
     modulated: &Query<&localgpt_world_bevy::modulation::Modulated>,
     soundtrack: Option<&wt::SoundtrackDef>,
     authored: &Query<&super::extras::Authored>,
@@ -648,55 +646,6 @@ To export for external viewers, use `gen_export_world` with format "glb" or "glt
         }
     }
 
-    // Write NPC brain/memory data as npcs.ron
-    let mut npc_defs: Vec<wt::NpcDef> = Vec::new();
-    for (name, bevy_entity) in registry.all_names() {
-        let has_brain = npc_brains.get(bevy_entity).ok();
-        let has_memory = npc_memories.get(bevy_entity).ok();
-        if has_brain.is_none() && has_memory.is_none() {
-            continue;
-        }
-
-        let brain_def = has_brain.map(|b| wt::NpcBrainDef {
-            personality: b.config.personality.clone(),
-            model: b.config.model.clone(),
-            tick_rate: b.config.tick_rate,
-            perception_radius: b.config.perception_radius,
-            goals: b.config.goals.clone(),
-            knowledge: b.config.knowledge.clone(),
-        });
-
-        let memory_def = has_memory.map(|m| wt::NpcMemoryDef {
-            capacity: m.capacity,
-            auto_memorize: m.auto_memorize,
-            entries: m
-                .entries
-                .iter()
-                .map(|e| wt::NpcMemoryEntryDef {
-                    timestamp: e.timestamp,
-                    content: e.content.clone(),
-                    importance: e.importance,
-                })
-                .collect(),
-        });
-
-        npc_defs.push(wt::NpcDef {
-            entity_name: name.to_string(),
-            brain: brain_def,
-            memory: memory_def,
-        });
-    }
-    if !npc_defs.is_empty() {
-        let npc_collection = wt::NpcDataCollection { npcs: npc_defs };
-        let npc_ron =
-            ron::ser::to_string_pretty(&npc_collection, ron::ser::PrettyConfig::default())
-                .unwrap_or_default();
-        if let Err(e) = std::fs::write(skill_dir.join("npcs.ron"), &npc_ron) {
-            // Non-fatal — NPC data is supplementary
-            tracing::warn!("Failed to write npcs.ron: {}", e);
-        }
-    }
-
     GenResponse::WorldSaved {
         path: skill_dir.to_string_lossy().into_owned(),
         skill_name: cmd.name,
@@ -716,8 +665,6 @@ pub struct WorldLoadResult {
     pub ambience: Option<AmbienceCmd>,
     pub emitters: Vec<AudioEmitterCmd>,
     pub environment: Option<EnvironmentCmd>,
-    /// NPC brain/memory data to restore after entity spawning.
-    pub npc_data: Vec<wt::NpcDef>,
     pub camera: Option<CameraCmd>,
     pub avatar: Option<AvatarDef>,
     pub tours: Vec<TourDef>,
@@ -850,9 +797,6 @@ fn load_ron_world(world_dir: &Path, ron_path: &Path) -> Result<WorldLoadResult, 
     // Load edit history from history.jsonl if present
     let edit_history = load_edit_history(&world_dir.join("history.jsonl"));
 
-    // Load NPC brain/memory data from npcs.ron if present
-    let npc_data = load_npc_data(&world_dir.join("npcs.ron"));
-
     Ok(WorldLoadResult {
         world_path: world_dir.to_string_lossy().into_owned(),
         world_entities: scene_entities,
@@ -865,7 +809,6 @@ fn load_ron_world(world_dir: &Path, ron_path: &Path) -> Result<WorldLoadResult, 
         entity_count,
         behavior_count,
         edit_history,
-        npc_data,
         soundtrack: manifest.soundtrack.clone(),
         creations: manifest.creations.clone(),
     })
@@ -906,28 +849,6 @@ fn load_edit_history(path: &std::path::Path) -> Option<wt::EditHistory> {
     let cursor = cursor.min(edits.len());
 
     Some(wt::EditHistory { edits, cursor })
-}
-
-/// Load NPC brain/memory data from npcs.ron. Returns empty Vec if file doesn't exist.
-fn load_npc_data(path: &std::path::Path) -> Vec<wt::NpcDef> {
-    let content = match std::fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(_) => return Vec::new(),
-    };
-
-    match ron::from_str::<wt::NpcDataCollection>(&content) {
-        Ok(collection) => {
-            tracing::info!(
-                "Loaded {} NPC definitions from npcs.ron",
-                collection.npcs.len()
-            );
-            collection.npcs
-        }
-        Err(e) => {
-            tracing::warn!("Failed to parse npcs.ron: {}", e);
-            Vec::new()
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1139,7 +1060,6 @@ fn load_multi_file_world(
     let tours: Vec<TourDef> = manifest.tours.iter().map(|t| t.into()).collect();
 
     let edit_history = load_edit_history(&world_dir.join("history.jsonl"));
-    let npc_data = load_npc_data(&world_dir.join("npcs.ron"));
 
     Ok(WorldLoadResult {
         world_path: world_dir.to_string_lossy().into_owned(),
@@ -1153,7 +1073,6 @@ fn load_multi_file_world(
         entity_count,
         behavior_count,
         edit_history,
-        npc_data,
         soundtrack: manifest.soundtrack.clone(),
         creations: manifest.creations.clone(),
     })

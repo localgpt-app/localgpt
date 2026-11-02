@@ -3,9 +3,12 @@
 **Status:** implemented in part — the parent spec for collaborative rooms, with its own [phase table](#phases) and
 [implementation status](#implementation-status) as the authority on what is done.
 Phases 1–4 and 7 are shipped (`world-sync`, presence, browser guests, the
-relay, one op protocol for every client); phase 8's SpacetimeDB module is
-done but not yet joined from a client. Three deep-dives name this document
-as their parent.
+relay, one op protocol for every client). Phase 8's SpacetimeDB module was
+built, never joined from a client, and removed on 2026-11-01; a cloud room,
+if one comes, is a headless host or a relay over the same `world-sync`
+authority. The room runs no AI since the same day: a guest's prompt is
+refused with the reason, and the host's own agent builds through the
+window. Three deep-dives name this document as their parent.
 
 
 Gen's collaboration is built around one idea: **a world is a shared
@@ -74,7 +77,7 @@ physics didn't replicate, so guests saw a different world than the host.
         presence relay · prompt job queue
                                  │
  runs in:  the host's Gen (local room) · a headless Gen on a server
-           (persistent room) · a SpacetimeDB module (cloud rooms)
+           (persistent room)
  reached:  LAN directly · a relay for internet and browsers
 ```
 
@@ -128,7 +131,7 @@ the browser, which replaces v1's plan for a native mobile renderer.
 |------|-----------|-------|-----------------------|
 | Local room (default) | Inside the host's Gen | LAN; internet via relay | No |
 | Persistent room | Headless Gen on a server | Direct or relay | Yes |
-| Cloud room | SpacetimeDB module | Internet | Yes |
+| Cloud room | ~~SpacetimeDB module~~ removed 2026-11-01; would be a hosted headless Gen behind the relay | Internet | Yes |
 
 The relay only forwards frames between the host and guests by room code; it
 never holds world state. It's small enough to run as one Durable Object per
@@ -226,7 +229,7 @@ presence coalesced to 10 Hz per peer.
 | HLOD summaries, client mesh baking | Kept as client-side rendering optimizations |
 | Content-addressed mesh streaming | Kept; browsers fetch the same blobs (later) |
 | Batch `expected_revision` | Becomes the protocol's conflict check |
-| SpacetimeDB tables and job queue | The cloud-room authority (phase 8) |
+| SpacetimeDB tables and job queue | Were the cloud-room authority (phase 8); removed 2026-11-01 |
 | Lightyear component replication | Retired (phase 7): one protocol for every client |
 
 ## Scope
@@ -249,7 +252,7 @@ Steps 1–4 add up to the first demo worth showing.
 | 5 | **Persistence and history.** Op log in the world folder; replay; per-user undo; time-lapse. | A room reopened later has its history; a build can be replayed. |
 | 6 | **Guest editing.** Editor role; direct manipulation; guests bringing their own model. | A guest moves an object and a desktop guest's own agent builds, both under their names. (Browser editing is Done via `--web-edit`; BYO-model guests arrive with phase 7.) |
 | 7 | **Native clients on ops.** `--join` uses the op protocol; lightyear removed. | Done — one protocol for every client (two-process verified). |
-| 8 | **Cloud rooms.** The SpacetimeDB module as an authority. | Module done — `submit_ops`/`undo` reducers apply and log ops through the same world-sync document (8 tests, wasm-verified). Client SDK wiring (Gen or browser joining a cloud room directly) is the remaining piece. |
+| 8 | **Cloud rooms.** ~~The SpacetimeDB module as an authority.~~ | The module was done (`submit_ops`/`undo` reducers over the world-sync document, wasm-verified) but never joined from a client, and was removed on 2026-11-01. A cloud room would now be a hosted headless Gen behind the relay — the same authority as a persistent room. |
 
 Format gaps that block full sync, and are lost on save today too: terrain,
 water, foliage, sky, in-world UI (signs, HUD, labels) and NPC bodies need
@@ -276,7 +279,7 @@ world-types representations.
 | Relay (`localgpt-relay` + `--relay`; invite links with room codes) | Done | `crates/relay`, `net/relay_client.rs` |
 | Native clients on ops (`--join` over the same WebSocket protocol; lightyear retired) | Done | `net/ops_client.rs` |
 | Guest editing UI (select/drag/rotate/scale/delete; `--web-edit`) | Done | `session-client.js` |
-| Cloud rooms: SpacetimeDB module as an authority (ops, undo, op log) | Done (module side; client SDK wiring next) | `crates/spacetime/src/room.rs` |
+| Cloud rooms: SpacetimeDB module as an authority (ops, undo, op log) | Built, never joined; removed 2026-11-01 | — |
 
 Phase 1 and the core of phase 3 are verified end to end: a browser joined a
 hosting Gen over the invite link, received the world (revision 1), watched a
@@ -288,7 +291,7 @@ while the job states advanced `queued → running`.
 ## Related documents
 
 - [docs/gen/multiplayer.md](../../gen/multiplayer.md) — how to host and join today
-- [SpacetimeDB Integration Design](../../architecture/spacetimedb-integration-design.md) — the cloud-room authority (phase 8)
+- [SpacetimeDB Integration Design](../../archived/architecture/spacetimedb-integration-design.md) — the cloud-room authority that phase 8 built and 2026-11-01 removed (archived)
 - Research, not roadmap: [Massively Multiplayer Persistent World](massively-multiplayer-persistent-world.md),
   [Massively Multiplayer Co-Creation](massively-multiplayer-co-creation.md),
   [Multi-Scale 3D Universe](multi-scale-3d-universe.md)

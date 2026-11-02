@@ -1,5 +1,5 @@
 ---
-description: "How LocalGPT Verse turns audio into worlds: the signal-ownership ladder, the DSP analysis pass, CLAP embeddings, stem reactivity, and the local LLM recipe and agent tiers."
+description: "How LocalGPT Verse turns audio into worlds: the signal-ownership ladder, the DSP analysis pass, CLAP embeddings, stem reactivity, and authored recipes."
 title: "Under the hood"
 ---
 
@@ -26,7 +26,7 @@ Every result lives in a JSON sidecar keyed by the track's blake3 content hash, i
 - Rename- and move-proof — the key is the file's contents, not its path.
 - Human-debuggable — open one and read exactly what LocalGPT Verse heard.
 - Never touches the music folder.
-- No schema migrations; optional tiers (embeddings, recipes, scene builds) are just more fields in the same document.
+- No schema migrations; optional tiers (embeddings, stems, an authored recipe) are just more fields in the same document.
 
 ## CLAP moods & placement {#clap}
 
@@ -45,34 +45,17 @@ Only the **audio→text** direction is used: CLAP's text↔text comparisons meas
 
 Also under `ml`, Demucs stem separation (`stem-splitter-core`, wrapping htdemucs ONNX, CPU-only) splits each track into stems ahead of playback. The world samples the stem curves at the playhead — a stem value wins over the live band estimate — so bass, drums, and vocals can drive separate subsystems of the world.
 
-## The LLM tiers {#llm-tiers}
+## Authored recipes {#recipes}
 
-The opt-in `llm` feature adds a local 8B chat model (**Bonsai-8B**, Qwen3 architecture, Apache-2.0, run as a Q4_K_M GGUF via mistral.rs — Metal-accelerated under `llm-metal`). It is the *imagination layer only*: it never hears the song and never sees the scene.
+The top rung is a `WorldRecipe` in the track's sidecar: world name, 1–2 biomes, 0–3 landmarks, atmosphere, per-section choreography, particles. The renderer interprets it: the recipe's world name replaces the mood name in the HUD, choreography shifts energy and motion per section, landmarks raise kind-matched hero assets with emissive beacons, and secondary biomes mix in contrasting accent props.
 
-```text
-audio file ─► symphonia decode + DSP ─► numbers (BPM, energy,
-                                            sections, mood)
-                                            │
-                                            ▼
-                            Bonsai: text in → text out
-                                            │
-                                            ▼
-                      WorldRecipe JSON / tool-calls ─► Bevy renderer
-```
-
-### Recipe
-
-Once per track, the model receives what the DSP measured and returns one JSON object — a `WorldRecipe`: world name, 1–2 biomes, 0–3 landmarks, atmosphere, per-section choreography, particles. The renderer interprets it: the recipe's world name replaces the mood name in the HUD, choreography shifts energy and motion per section, landmarks raise kind-matched hero assets with emissive beacons, and secondary biomes mix in contrasting accent props.
-
-### Agent
-
-The world-builder alternative: a tool-calling loop over tools like `spawn_primitive`, `modify_entity`, `delete_entity`, `set_light`, `set_environment`, and `scene_info` to review its own work. With the manifest mounted, `place_asset` and `scatter_field` join the set: they place models by **kind** (`rock`, `tree`, `lamp`, … — 19 kinds), a small stable enum the local model can hold reliably, while the host resolves each call to a concrete variant that fits the track's mood and rotates so repeats differ. Sessions run to a 24-tool-call budget and cache as a `SceneBuild` that records both the asked kind and the resolved file, replayed deterministically on every revisit — entities are scoped to their track, so a lookahead session never pops into the playing world.
+Verse reads a recipe; it never writes one. No language model runs in it (the in-process one it had went on 2026-11-01, with the agent tier that built scenes entity by entity). An agent working on a library can author a recipe into a sidecar from what the DSP measured — the sidecar is plain JSON, keyed by the track's content hash — and the world changes on the next analysis.
 
 ## Guardrails & fallback {#guardrails}
 
-- All guardrails live on the Rust side: `WorldRecipe::clamped()` bounds every value, serde defaults patch partial output.
-- Every emissive and light value the agent authors passes the [Comfort](./controls.md#comfort) gates at execution time.
-- Any failure — missing model, malformed JSON, over-budget session — degrades to the rule-derived world. The optional tiers only ever add.
+- All guardrails live on the Rust side: `WorldRecipe::clamped()` bounds every value on read, serde defaults patch partial input.
+- Every emissive and light value a recipe asks for passes the [Comfort](./controls.md#comfort) gates at execution time.
+- Any failure — a missing sidecar, malformed JSON — degrades to the rule-derived world. The optional tiers only ever add.
 
 ## Model licenses {#model-licenses}
 
@@ -81,7 +64,6 @@ The world-builder alternative: a tool-calling loop over tools like `spawn_primit
 | LocalGPT Verse code | Apache-2.0 | Commercial-friendly |
 | Rule mood mapper | Apache-2.0 | The shipping mood tier |
 | stem-splitter-core (Demucs) | MIT / Apache-2.0 | Commercial-friendly |
-| Bonsai-8B weights | Apache-2.0 | Commercial-friendly |
 | CLAP weights (LAION) | CC-BY-NC-4.0 | **Not** cleared for commercial distribution |
 
 :::warning

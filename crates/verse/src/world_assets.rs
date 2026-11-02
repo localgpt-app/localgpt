@@ -83,9 +83,8 @@ pub struct AssetEntry {
     pub name: String,
     /// glTF path relative to `assets/models/`.
     pub file: String,
-    /// Semantic kind (`rock`, `tree`, `lamp`, …) — the stable small vocabulary
-    /// the agent's `place_asset` enum exposes; variants behind it rotate
-    /// ([`resolve_kind`]). Defaults for manifests predating kinds.
+    /// Semantic kind (`rock`, `tree`, `lamp`, …), a small stable vocabulary
+    /// over the variants. Defaults for manifests predating kinds.
     #[serde(default)]
     pub kind: String,
     pub tier: Tier,
@@ -155,98 +154,6 @@ pub struct AssetManifest {
     #[allow(dead_code)]
     pub version: u32,
     pub assets: Vec<AssetEntry>,
-}
-
-impl AssetManifest {
-    /// The distinct kinds present, in first-appearance order — the agent's
-    /// `place_asset` enum ([`agent`]'s tool schema) and a stable, small
-    /// vocabulary however large the variant pool grows.
-    #[cfg_attr(not(feature = "llm"), allow(dead_code))] // agent-only surface
-    pub fn kinds(&self) -> Vec<&str> {
-        let mut kinds: Vec<&str> = Vec::new();
-        for a in &self.assets {
-            if !a.kind.is_empty() && !kinds.contains(&a.kind.as_str()) {
-                kinds.push(a.kind.as_str());
-            }
-        }
-        kinds
-    }
-}
-
-/// Resolve a semantic kind to a concrete manifest variant — the host half of
-/// the two-level vocabulary. The search pool is the *neighbourhood*: the given
-/// mood's own entries plus, for an extended mood, its base quadrant's (same
-/// neighbourhood, different hour). Rotation runs across the whole pool — every
-/// variant is used once before any repeats, so a world asking for six `rock`s
-/// gets six different rocks — and restarts from the top when the neighbourhood
-/// is exhausted rather than reaching for a wrong-mood variant. Only when the
-/// neighbourhood lacks the kind entirely does the pool widen to any mood.
-///
-/// `used` accumulates files across calls (one list per agent session) and is
-/// updated in place. Deterministic: ties break by manifest order, never by
-/// hash or time, so the same (manifest, mood, call sequence) always resolves
-/// the same way.
-#[cfg_attr(not(feature = "llm"), allow(dead_code))] // agent-only surface
-pub fn resolve_kind<'a>(
-    manifest: &'a AssetManifest,
-    kind: &str,
-    mood: Option<usize>,
-    used: &mut Vec<String>,
-) -> Option<&'a AssetEntry> {
-    let of_kind = |m: Option<usize>| {
-        manifest
-            .assets
-            .iter()
-            .filter(|a| a.kind == kind && m.is_none_or(|m| a.mood_index() == m))
-            .collect::<Vec<_>>()
-    };
-    // Neighbourhood pool: own mood (+ base quadrant for extended moods),
-    // widening to any mood only when the neighbourhood is empty for the kind.
-    let mut pool: Vec<&AssetEntry> = vec![];
-    if let Some(mood) = mood.map(|m| m % crate::theme::moods().len()) {
-        pool.extend(of_kind(Some(mood)));
-        if mood >= crate::theme::ASSET_BASE_MOODS {
-            pool.extend(of_kind(Some(mood % crate::theme::ASSET_BASE_MOODS)));
-        }
-    }
-    if pool.is_empty() {
-        pool = of_kind(None);
-    }
-    // Rotate: first unused variant, else restart deterministically from the
-    // top. An empty pool means the pack carries no such kind at all.
-    let first = pool.first()?;
-    let entry = *pool
-        .iter()
-        .find(|e| !used.contains(&e.file))
-        .unwrap_or(first);
-    used.push(entry.file.clone());
-    Some(entry)
-}
-
-/// Deterministic scatter offsets for one `scatter_field` command: `count`
-/// points on a uniform disk of `radius` (sqrt-distributed so the field doesn't
-/// clump at the centre), y always 0 — the executor adds the authored base
-/// position. Seeded by the session track + field name, so a cached build
-/// replays to the identical field.
-#[cfg_attr(not(feature = "llm"), allow(dead_code))] // agent-only surface
-pub(crate) fn scatter_offsets(seed: u64, count: usize, radius: f32) -> Vec<Vec3> {
-    let mut rng = seed | 1; // never zero (splitmix handles it, but stay odd)
-    (0..count)
-        .map(|_| {
-            let ang = rand01(&mut rng) * std::f32::consts::TAU;
-            let dist = rand01(&mut rng).sqrt() * radius.max(0.0);
-            Vec3::new(ang.cos() * dist, 0.0, ang.sin() * dist)
-        })
-        .collect()
-}
-
-/// Deterministic 64-bit fold of a string — the seed source for
-/// [`scatter_offsets`] (track id + field name).
-#[cfg_attr(not(feature = "llm"), allow(dead_code))] // agent-only surface
-pub(crate) fn fold_seed(s: &str) -> u64 {
-    s.bytes().fold(0xC0FFEE_u64, |acc, b| {
-        acc.wrapping_mul(31).wrapping_add(b as u64)
-    })
 }
 
 /// The loaded manifest (None when no asset pack is bundled). Read by both the
@@ -619,7 +526,7 @@ pub fn rise_props(
 /// Everything resolves through here: the Bevy asset server (pinned to this
 /// path via `AssetPlugin::file_path` in `main`) and the direct-filesystem
 /// readers that can't go through it — the model manifest (also read off the
-/// analysis worker thread), the fonts, the ML/LLM models, the starter music.
+/// analysis worker thread), the fonts, the ML models, the starter music.
 /// One root means those two halves cannot disagree about where `assets/` is.
 ///
 /// Resolved once, in this order:
@@ -1663,113 +1570,6 @@ mod tests {
             author: "test".into(),
             source: "test".into(),
         }
-    }
-
-    fn kind_entry(file: &str, kind: &str, tier: Tier, mood: usize) -> AssetEntry {
-        AssetEntry {
-            kind: kind.into(),
-            mood,
-            ..entry(file, file, tier)
-        }
-    }
-
-    /// The two-level vocabulary's host half: mood preference, anti-repeat
-    /// rotation, cross-mood fallback, and determinism.
-    #[test]
-    fn resolve_kind_prefers_mood_then_rotates() {
-        let mut m = AssetManifest {
-            version: 2,
-            assets: vec![
-                kind_entry("tide_rock_a.glb", "rock", Tier::Hero, 2),
-                kind_entry("tide_rock_b.glb", "rock", Tier::Hero, 2),
-                kind_entry("ember_rock.glb", "rock", Tier::Hero, 0),
-                kind_entry("tide_tree.glb", "tree", Tier::Hero, 2),
-            ],
-        };
-        let mut used = Vec::new();
-        // Tide mood: both tide rocks rotate before anything else.
-        assert_eq!(
-            resolve_kind(&m, "rock", Some(2), &mut used).unwrap().file,
-            "tide_rock_a.glb"
-        );
-        assert_eq!(
-            resolve_kind(&m, "rock", Some(2), &mut used).unwrap().file,
-            "tide_rock_b.glb"
-        );
-        // Pool exhausted → restart deterministically from the top, not the
-        // ember fallback (mood pool still preferred over cross-mood).
-        assert_eq!(
-            resolve_kind(&m, "rock", Some(2), &mut used).unwrap().file,
-            "tide_rock_a.glb"
-        );
-        // A mood with no rocks of its own falls back across moods.
-        let mut used = Vec::new();
-        assert_eq!(
-            resolve_kind(&m, "rock", Some(3), &mut used).unwrap().file,
-            "tide_rock_a.glb"
-        );
-        // Unknown kind resolves to None (the session reports an error).
-        let mut used = Vec::new();
-        assert!(resolve_kind(&m, "crystal", Some(2), &mut used).is_none());
-        // Determinism: identical calls, identical answers.
-        let mut a = Vec::new();
-        let mut b = Vec::new();
-        for _ in 0..5 {
-            resolve_kind(&m, "rock", Some(2), &mut a);
-            resolve_kind(&m, "rock", Some(2), &mut b);
-        }
-        assert_eq!(a, b);
-        // Extended mood (6 = abyss, base 2 = tide) consults its own pool
-        // first, then the base quadrant's.
-        m.assets
-            .push(kind_entry("abyss_rock.glb", "rock", Tier::Hero, 6));
-        let mut used = Vec::new();
-        assert_eq!(
-            resolve_kind(&m, "rock", Some(6), &mut used).unwrap().file,
-            "abyss_rock.glb"
-        );
-        assert_eq!(
-            resolve_kind(&m, "rock", Some(6), &mut used).unwrap().file,
-            "tide_rock_a.glb"
-        );
-    }
-
-    #[test]
-    fn manifest_kinds_are_distinct_in_order() {
-        let m = AssetManifest {
-            version: 2,
-            assets: vec![
-                kind_entry("a.glb", "rock", Tier::Hero, 0),
-                kind_entry("b.glb", "rock", Tier::Medium, 0),
-                kind_entry("c.glb", "lamp", Tier::Medium, 1),
-                entry("d.glb", "D", Tier::Scatter), // no kind — excluded
-            ],
-        };
-        assert_eq!(m.kinds(), vec!["rock", "lamp"]);
-    }
-
-    /// Scatter fields replay identically and stay inside their disk.
-    #[test]
-    fn scatter_offsets_are_deterministic_and_bounded() {
-        let a = scatter_offsets(fold_seed("track1|field"), 24, 10.0);
-        let b = scatter_offsets(fold_seed("track1|field"), 24, 10.0);
-        assert_eq!(a, b, "same seed → identical field");
-        assert_ne!(
-            scatter_offsets(fold_seed("track2|field"), 24, 10.0),
-            a,
-            "different track → different field"
-        );
-        assert_eq!(a.len(), 24);
-        for p in &a {
-            assert_eq!(p.y, 0.0);
-            assert!(p.x * p.x + p.z * p.z <= 10.0 * 10.0 + 1e-4, "inside disk");
-        }
-        // Seeds spread: not every offset collapsed onto the first draw.
-        let distinct = a
-            .iter()
-            .map(|p| (p.x * 100.0).round() as i32 * 997 + (p.z * 100.0).round() as i32)
-            .collect::<std::collections::HashSet<_>>();
-        assert!(distinct.len() > 20, "offsets are spread, not stacked");
     }
 
     /// The tier-budget spender: variety-spreading, weight-tilting, budget-cap.

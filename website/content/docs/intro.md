@@ -42,8 +42,7 @@ LocalGPT follows the [XDG Base Directory Specification](https://specifications.f
 │   ├── documents/<key>/         # the app's world for each document
 │   └── sessions/<name>/         # collaborative sessions (a package each)
 └── models/
-    ├── pack/                    # the shared CC0 asset pack (scripts/fetch-assets.sh)
-    └── llm/                     # the shared GGUF for MD's and Verse's llm tiers (scripts/fetch-model.sh)
+    └── pack/                    # the shared CC0 asset pack (scripts/fetch-assets.sh)
 
 ~/.local/state/localgpt/
 ├── gen-settings.json            # what the app opened last

@@ -1,25 +1,18 @@
-//! LLM-authored region recipes (PLAN.md M1): how one section's region should
-//! look — palette, landmark, props — as authored by the local model
-//! ([`crate::llm`]) and cached per section hash ([`crate::sidecar`]).
+//! Region recipes (PLAN.md M1): how one section's region should look —
+//! palette, landmark, props — as an agent writes it into the sidecar
+//! ([`crate::sidecar`]), keyed by the section's hash.
 //!
-//! Pure (no Bevy, no model), and always compiled: the draft applies whatever
-//! recipe it is handed, so the default (no-`llm`) build can still render a
-//! cached sidecar exactly as the `llm` build would. This mirrors Verse's
-//! split, where the recipe type is unconditionally compiled and only the
-//! *authoring* is feature-gated.
+//! Pure (no Bevy, no model): the draft applies whatever recipe it is handed.
 //!
-//! Safety never depends on the model: every field is optional (`None` = the
-//! rule-derived value stands), [`RegionRecipe::clamped`] bounds the free
-//! values, and a malformed reply fails [`RegionRecipe::from_llm_text`] so the
-//! caller keeps the draft. That is why generation is plain instructed-JSON
-//! with a lenient parse rather than mistral.rs's `generate_structured` — the
-//! grammar-constrained path hangs on GGUF in mistral.rs 0.8 (verified in
-//! Verse; see its ARCHITECTURE.md §10).
+//! Safety never depends on the author: every field is optional (`None` =
+//! the rule-derived value stands) and [`RegionRecipe::clamped`] bounds the
+//! free values on sidecar load, so a malformed recipe can at worst be
+//! ignored, never break the draft.
 
 use serde::{Deserialize, Serialize};
 
-/// How one section's region should look. Authored by the local LLM; applied
-/// by [`crate::draft`] on top of the rule-derived draft.
+/// How one section's region should look. Authored into the sidecar by an
+/// agent; applied by [`crate::draft`] on top of the rule-derived draft.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RegionRecipe {
@@ -109,51 +102,12 @@ impl RegionRecipe {
         self
     }
 
-    /// True when nothing is set — not worth caching.
-    // Called by the `llm` tier; kept in the default build with the type.
+    /// True when nothing is set — not worth keeping in a sidecar.
+    // Read by tests and by tooling that writes sidecars; nothing in MD
+    // itself authors a recipe.
     #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         *self == Self::default()
-    }
-
-    /// Parse a recipe out of an LLM reply: the first balanced JSON object,
-    /// tolerating code fences and surrounding prose. `None` when the reply
-    /// holds no complete object (e.g. truncated) or it doesn't parse — the
-    /// caller keeps the rule-derived draft. Ported from Verse's
-    /// `extract_json_object` (Apache-2.0).
-    // Called by the `llm` tier; compiled in the default build so its tests
-    // (and any cached-sidecar tooling) run without the feature.
-    #[allow(dead_code)]
-    pub fn from_llm_text(text: &str) -> Option<Self> {
-        let start = text.find('{')?;
-        let mut depth = 0usize;
-        let mut in_string = false;
-        let mut escaped = false;
-        for (i, c) in text[start..].char_indices() {
-            if in_string {
-                if escaped {
-                    escaped = false;
-                } else if c == '\\' {
-                    escaped = true;
-                } else if c == '"' {
-                    in_string = false;
-                }
-                continue;
-            }
-            match c {
-                '"' => in_string = true,
-                '{' => depth += 1,
-                '}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        let json = &text[start..start + i + c.len_utf8()];
-                        return serde_json::from_str(json).ok();
-                    }
-                }
-                _ => {}
-            }
-        }
-        None // unbalanced (truncated) or no object at all
     }
 }
 
@@ -171,8 +125,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_plain_object() {
-        let recipe = RegionRecipe::from_llm_text(
+    fn parses_plain_object_with_defaults_for_what_is_missing() {
+        let recipe: RegionRecipe = serde_json::from_str(
             r#"{"accent":[0.2,0.4,0.9],"props":{"kind":"spheres","count":9}}"#,
         )
         .unwrap();
@@ -182,25 +136,8 @@ mod tests {
             Some((PropKind::Spheres, 9))
         );
         assert_eq!(recipe.landmark, None);
-    }
 
-    #[test]
-    fn parses_through_prose_and_fences() {
-        let reply = "Sure! Here is the JSON:\n```json\n{\"landmark\":{\"kind\":\"orb\",\"scale\":1.4,\"emissive\":0.2}}\n```\nEnjoy.";
-        let recipe = RegionRecipe::from_llm_text(reply).unwrap();
-        assert_eq!(
-            recipe.landmark,
-            Some(LandmarkSpec {
-                kind: LandmarkKind::Orb,
-                scale: 1.4,
-                emissive: 0.2,
-            })
-        );
-    }
-
-    #[test]
-    fn missing_and_partial_fields_default() {
-        let recipe = RegionRecipe::from_llm_text("{\"landmark\":{\"scale\":2.0}}").unwrap();
+        let recipe: RegionRecipe = serde_json::from_str("{\"landmark\":{\"scale\":2.0}}").unwrap();
         assert_eq!(
             recipe.landmark,
             Some(LandmarkSpec {
@@ -209,12 +146,6 @@ mod tests {
                 emissive: 0.6,
             })
         );
-    }
-
-    #[test]
-    fn truncated_object_is_rejected() {
-        assert!(RegionRecipe::from_llm_text("{\"accent\":[0.1,0.2").is_none());
-        assert!(RegionRecipe::from_llm_text("no json here").is_none());
     }
 
     #[test]

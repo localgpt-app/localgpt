@@ -10,7 +10,7 @@
 #   --rust      fmt, clippy and tests for the workspace minus the Bevy crates,
 #               and the world.schema.json snapshot
 #   --bevy      clippy and tests for app, gen, md, verse, world-bevy, world-audio
-#   --features  cargo check for the opt-in tiers (MD's and Verse's llm, Verse's ml)
+#   --features  cargo check for the opt-in tier (Verse's ml)
 #   --web       the app's interface (typecheck, build, design sheets), the
 #               vendored viewer matches npm, localgpt.world's render check,
 #               the localgpt.md page check (wasm-pack)
@@ -65,8 +65,6 @@ fi
 
 if [ "$want_features" = 1 ]; then
   lg_need_tool cargo "install Rust with rustup"
-  lg_stage "cargo check -p localgpt-md --features llm" cargo check -p localgpt-md --features llm
-  lg_stage "cargo check -p localgpt-verse --features llm" cargo check -p localgpt-verse --features llm
   lg_stage "cargo check -p localgpt-verse --features ml" cargo check -p localgpt-verse --features ml
 fi
 

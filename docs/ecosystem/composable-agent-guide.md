@@ -17,14 +17,14 @@ LocalGPT Gen exposes 70+ tools for 3D world generation, audio, physics, terrain,
 
 The mental model: **your agent is the brain; LocalGPT Gen is the hands.** Your agent decides what to build. LocalGPT Gen spawns primitives, places terrain, configures lighting, saves worlds, and captures screenshots. The MCP wire protocol is the only coupling.
 
-Two server binaries exist:
+Two MCP servers exist:
 
 | Binary | Command | Tools | Use Case |
 |--------|---------|-------|----------|
-| `localgpt` | `localgpt mcp-server` | Memory + web (8 tools) | Note-taking, web research, document loading |
-| `localgpt-gen` | `localgpt-gen mcp-server` | Memory + web + gen (70+ tools) | 3D world generation, audio, physics, terrain |
+| `localgpt-gen` | `localgpt-gen mcp-server` | 88 `gen_*` tools | 3D world generation, audio, physics, terrain |
+| `localgpt` | `localgpt world mcp` | A live `.world` package's tools | Editing a world an app has open, from any MCP client |
 
-This guide focuses on `localgpt-gen mcp-server` since that is where the composable 3D generation lives.
+This guide focuses on `localgpt-gen mcp-server` since that is where the composable 3D generation lives. Neither server runs a model, calls a service or holds a key: the agent is the brain.
 
 ---
 
@@ -290,9 +290,7 @@ The response contains an array of tool definitions, each with `name`, `descripti
 | Terrain | `gen_add_terrain`, `gen_add_water`, `gen_add_foliage` | Landscape generation |
 | Physics | `gen_set_physics`, `gen_add_collider`, `gen_add_joint` | Rigid body simulation |
 | WorldGen pipeline | `gen_plan_layout`, `gen_apply_blockout`, `gen_populate_region` | High-level world creation |
-| AI assets | `gen_generate_asset`, `gen_generate_texture` | AI-generated meshes and textures |
-| Memory | `memory_search`, `memory_save` | Persistent knowledge base |
-| Web | `web_fetch`, `web_search` | Internet access |
+| Image input | `gen_image_to_layout`, `gen_panorama_to_world` | A layout from a picture (pure image analysis) |
 
 The full tool catalog with parameter details is documented in [AGENTS.md](../../AGENTS.md).
 
@@ -485,24 +483,22 @@ The protocol is JSON-RPC 2.0 over newline-delimited stdio or HTTP POST. No custo
 
 ### Tool safety split
 
-LocalGPT deliberately excludes dangerous tools from the MCP server:
+LocalGPT deliberately keeps the MCP server to scene tools:
 
-| Included (safe) | Excluded (dangerous) |
+| Included | Excluded |
 |------------------|----------------------|
-| `memory_search`, `memory_get` | `bash` (shell execution) |
-| `memory_save`, `memory_log` | `read_file` (arbitrary file read) |
-| `web_fetch`, `web_search` | `write_file` (arbitrary file write) |
-| `document_load`, `transcribe_audio` | `edit_file` (arbitrary file edit) |
-| All `gen_*` tools | |
+| All `gen_*` tools | `bash` (shell execution) |
+| | `read_file`, `write_file`, `edit_file` (arbitrary file access) |
+| | memory, web fetch and search, document loading |
+| | anything that calls a model or a service |
 
-The rationale: external agent runtimes (Claude Code, Codex, goose) already provide their own file and shell tools with their own sandboxing. LocalGPT should not duplicate that surface area or weaken the external runtime's security model.
+The rationale: external agent runtimes (Claude Code, Codex, goose) already provide their own file, shell, memory and web tools with their own sandboxing, and their own model. LocalGPT should not duplicate that surface area or weaken the external runtime's security model.
 
 ### Stdio transport security
 
 - No authentication. The MCP server inherits the OS user's permissions.
 - The client (your agent runtime) controls process lifetime -- closing stdin terminates the server.
-- `web_fetch` has SSRF protection (URL validation, DNS/IP deny lists).
-- `memory_save` and `memory_get` are sandboxed to the configured workspace directory. Path traversal is rejected.
+- No tool makes a network call; the only files written are under Gen's own data directory and the world being edited.
 
 ### HTTP transport security
 

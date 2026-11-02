@@ -117,21 +117,16 @@ pub struct TrackAnalysis {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stems: Option<crate::demucs::StemEnergy>,
 
-    /// LLM-authored scene recipe (PLAN.md M7, `llm` feature). The top rung of
-    /// the signal-ownership ladder; `None` when the model is absent or
-    /// generation failed. The renderer keeps the rule-derived path when `None`
-    /// or [`crate::recipe::WorldRecipe::is_empty`].
+    /// An authored scene recipe (PLAN.md M7): the top rung of the
+    /// signal-ownership ladder. Nothing in Verse writes one — an agent
+    /// working on a library's sidecars can — and it is clamped on read
+    /// ([`world_recipe`]). The renderer keeps the rule-derived path when
+    /// `None` or [`crate::recipe::WorldRecipe::is_empty`]. A sidecar written
+    /// before 2026-11-01 may also carry a `build`, the in-process agent's
+    /// tool calls; that field is ignored now (serde skips what it does not
+    /// know), since nothing replays it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recipe: Option<crate::recipe::WorldRecipe>,
-
-    /// Agent-authored scene *build* — the ordered tool-calls Bonsai issued
-    /// (PLAN.md M7, `llm` feature, agent path). Cached so the world is rebuilt
-    /// deterministically on replay (no LLM re-run) and inspectable for debug.
-    /// `None` when the agent feature/model is absent or the session was empty.
-    /// Same serde-default contract as `recipe`: old sidecars without this field
-    /// load as `None` (no `SIDECAR_VERSION` bump needed).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub build: Option<crate::agent_types::SceneBuild>,
 }
 
 impl TrackAnalysis {
@@ -211,7 +206,7 @@ fn save_sidecar(key: &str, analysis: &TrackAnalysis) {
 }
 
 /// A track's analysis without the app: its sidecar, else the rules analysis
-/// run now and cached — the worker's path minus the `ml` and LLM tiers.
+/// run now and cached — the worker's path minus the `ml` tier.
 pub(crate) fn analysis_for(key: &str, path: &Path) -> Option<TrackAnalysis> {
     if let Some(analysis) = load_sidecar(key) {
         return Some(analysis);
@@ -236,11 +231,13 @@ pub(crate) fn layout_seed(a: &TrackAnalysis, path: &Path) -> u64 {
         .unwrap_or_else(|| crate::world_assets::path_seed(path))
 }
 
-/// The recipe the world is placed from. A pinned seed overrides the recipe's
-/// so "Keep this world" stays deterministic even with an LLM recipe.
+/// The recipe the world is placed from, clamped into its renderer-safe
+/// ranges (it comes from a sidecar anyone may have written). A pinned seed
+/// overrides the recipe's so "Keep this world" stays deterministic even with
+/// an authored recipe.
 pub(crate) fn world_recipe(a: &TrackAnalysis) -> Option<crate::recipe::WorldRecipe> {
     a.recipe.as_ref().map(|r| {
-        let mut r = r.clone();
+        let mut r = r.clone().clamped();
         if let Some(seed) = a.pinned_seed {
             r.seed = seed;
         }
@@ -661,7 +658,6 @@ fn analyze(path: &Path) -> Option<TrackAnalysis> {
         embedding: None,
         stems: None,
         recipe: None,
-        build: None,
     })
 }
 
@@ -717,10 +713,9 @@ pub struct AnalysisStore {
 /// Cooperative cancellation for the analysis worker.
 ///
 /// `shutdown` sets it; the worker checks it between tracks and between model
-/// passes, and the agent session checks it between LLM turns. A generation
-/// already inside mistral.rs cannot be interrupted — the checks bound how much
-/// *more* work starts, never the turn in flight (which is what
-/// [`SHUTDOWN_TIMEOUT`]'s detach backstop is for).
+/// passes. A pass already inside a model cannot be interrupted — the checks
+/// bound how much *more* work starts, never the pass in flight (which is
+/// what [`SHUTDOWN_TIMEOUT`]'s detach backstop is for).
 #[derive(Clone, Default)]
 pub struct WorkerCancel(std::sync::Arc<std::sync::atomic::AtomicBool>);
 
@@ -734,57 +729,23 @@ impl WorkerCancel {
     }
 }
 
-/// What the analysis worker needs from the app.
-///
-/// Passed in at construction so the worker owns no globals: it holds exactly
-/// what it was handed, and dropping the store drops those handles with it.
-#[derive(Default)]
-pub struct WorkerDeps {
-    /// The agent bridge for the M7 recipe tier. `None` leaves the tier off.
-    #[cfg(feature = "llm")]
-    pub agent_bridge: Option<std::sync::Arc<crate::agent::AgentBridge>>,
-}
-
-impl WorkerDeps {
-    /// Collect the worker's dependencies from what the plugins published.
-    ///
-    /// Under `llm` this reads the bridge that `AgentPlugin` inserted, so the
-    /// worker is handed a live handle instead of reaching for a global. Absent
-    /// resource means the tier stays off, which is the same graceful
-    /// degradation as a missing model file.
-    #[cfg_attr(not(feature = "llm"), allow(unused_variables))]
-    pub fn from_world(world: &World) -> Self {
-        Self {
-            #[cfg(feature = "llm")]
-            agent_bridge: world
-                .get_resource::<crate::agent::AgentBridgeHandle>()
-                .map(|handle| handle.0.clone()),
-        }
-    }
-}
-
 impl AnalysisStore {
     /// Start the analysis worker and return the store that owns it.
     ///
     /// Construction is explicit rather than `Default` because it spawns a
-    /// thread that can come to own the CLAP, demucs, and recipe models —
-    /// hundreds of MB of state that the caller must be able to release. Pair
-    /// every `spawn` with [`shutdown`](AnalysisStore::shutdown), or mount it in
-    /// a [`crate::scope::Scope`] that does.
+    /// thread that can come to own the CLAP and demucs models — hundreds of
+    /// MB of state that the caller must be able to release. Pair every
+    /// `spawn` with [`shutdown`](AnalysisStore::shutdown), or mount it in a
+    /// [`crate::scope::Scope`] that does.
     ///
     /// The models load on the first track that needs one, not here; a library
     /// whose sidecars are already written never loads any. See [`crate::tier`].
-    pub fn spawn(deps: WorkerDeps) -> Self {
+    pub fn spawn() -> Self {
         let (req_tx, req_rx) = channel::<(String, PathBuf)>();
         let (res_tx, res_rx) = channel::<WorkerResult>();
         let cancel = WorkerCancel::default();
         let worker_cancel = cancel.clone();
         let worker = std::thread::spawn(move || {
-            // Moved in so the worker owns its dependencies for its whole life.
-            // Without `llm` the struct is empty; destructuring consumes it so
-            // there is still one construction path and no unused binding.
-            #[cfg(not(feature = "llm"))]
-            let WorkerDeps {} = deps;
             // The tiers load on the first track that actually needs them, not
             // here — a library whose sidecars are already written never loads a
             // model at all. See `crate::tier`.
@@ -793,13 +754,9 @@ impl AnalysisStore {
             // the model file — rules keep running either way).
             #[cfg(feature = "ml")]
             let mut clap = crate::tier::Tier::<crate::ml::ClapModel>::Cold;
-            // M7 stem tier (rides the same `ort` runtime as CLAP). Below the
-            // recipe tier: stems are an input feature the recipe LLM consumes.
+            // M7 stem tier (rides the same `ort` runtime as CLAP).
             #[cfg(feature = "ml")]
             let mut stems = crate::tier::Tier::<crate::demucs::StemModel>::Cold;
-            // M7 recipe tier — top rung. `llm` feature + model file required.
-            #[cfg(feature = "llm")]
-            let mut recipe_model = crate::tier::Tier::<crate::llm::RecipeModel>::Cold;
             for (id, path) in req_rx {
                 // Shutdown drains the request channel first, so a request
                 // still in flight when cancel landed is dropped here rather
@@ -872,88 +829,6 @@ impl AnalysisStore {
                 } else {
                     analysis
                 };
-                // M7 recipe upgrade pass — the top rung. Only when the LLM
-                // feature + model are present, the sidecar lacks a recipe, and
-                // shutdown hasn't been requested (a cancelled pass would be a
-                // multi-minute generation nothing will read).
-                #[cfg(feature = "llm")]
-                let analysis = if analysis.recipe.is_none()
-                    && !worker_cancel.is_cancelled()
-                    && let Some(model) = recipe_model.get_or_load(crate::llm::RecipeModel::try_load)
-                {
-                    match model.generate(&analysis) {
-                        Some(recipe) => {
-                            info!(
-                                "LLM authored recipe \"{}\" for {}",
-                                recipe.world_name,
-                                path.display()
-                            );
-                            let mut a = analysis;
-                            a.recipe = Some(recipe);
-                            save_sidecar(&id, &a);
-                            a
-                        }
-                        None => analysis,
-                    }
-                } else {
-                    analysis
-                };
-                // M7 agent path — the gen-style alternative to the static
-                // recipe. The model calls tools (spawn_primitive, place_asset,
-                // set_light, ...) to construct the world entity-by-entity,
-                // issuing commands through the bridge handed to this worker at
-                // construction, which the Bevy executor drains each frame.
-                // Skipped when:
-                //   - no bridge was supplied (feature off / plugin absent)
-                //   - the model is absent
-                //   - a build is already cached (build.is_none() gate) — replay
-                //     handles it instead, no LLM re-run.
-                // The resulting SceneBuild is persisted to the sidecar so the
-                // world is rebuilt deterministically on replay and the command
-                // stream is inspectable for debugging.
-                //
-                // Same tier as the recipe pass above, so whichever runs first
-                // pays the load and the other reuses it. The manifest is read
-                // from disk (the worker can't reach the Bevy-side resource) so
-                // the agent's `place_asset` tool carries the real asset
-                // vocabulary; absent manifest → primitives only. The cancel
-                // handle threads through so a session in flight stops at the
-                // next turn boundary (see `run_session`).
-                #[cfg(feature = "llm")]
-                let analysis = if analysis.build.is_none()
-                    && !worker_cancel.is_cancelled()
-                    && let Some(bridge) = deps.agent_bridge.clone()
-                    && let Some(model) = recipe_model.get_or_load(crate::llm::RecipeModel::try_load)
-                {
-                    let m = model.model_mut();
-                    let manifest = crate::world_assets::read_manifest_from_disk();
-                    match crate::agent::run_session(
-                        m,
-                        bridge,
-                        &analysis,
-                        &id,
-                        manifest.as_ref(),
-                        &worker_cancel,
-                    ) {
-                        Some(build) => {
-                            if let Some(d) = &build.description {
-                                info!("Agent described its world for {}: {d}", path.display());
-                            }
-                            info!(
-                                "Agent built {} commands for {}",
-                                build.commands.len(),
-                                path.display()
-                            );
-                            let mut a = analysis;
-                            a.build = Some(build);
-                            save_sidecar(&id, &a);
-                            a
-                        }
-                        None => analysis,
-                    }
-                } else {
-                    analysis
-                };
                 if res_tx.send((id, analysis)).is_err() {
                     return;
                 }
@@ -971,17 +846,16 @@ impl AnalysisStore {
 
     /// How long [`AnalysisStore::shutdown`] waits for the worker before
     /// detaching it. Generous for the cooperative cases (idle, mid-decode,
-    /// between LLM turns); a single LLM generation already inside mistral.rs
-    /// can exceed it — that is exactly the case the detach covers.
+    /// between model passes); a stem separation already inside the model can
+    /// exceed it — that is exactly the case the detach covers.
     const SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 
     /// Stop the worker, waiting at most [`SHUTDOWN_TIMEOUT`].
     ///
     /// Cooperative first: the [`WorkerCancel`] flag makes a worker that is
-    /// idle, decoding, or between model passes exit promptly, and a running
-    /// agent session stop at its next turn boundary. A generation already
-    /// inside mistral.rs cannot be interrupted, so after the bounded wait the
-    /// worker is *detached* — it finishes its turn, fails its (closed) result
+    /// idle, decoding, or between model passes exit promptly. A pass already
+    /// inside a model cannot be interrupted, so after the bounded wait the
+    /// worker is *detached* — it finishes the pass, fails its (closed) result
     /// channel, and releases the models on its own. The `Err` returned on a
     /// detach is a diagnostic (the scope machinery logs it); teardown proceeds
     /// either way.
@@ -1010,7 +884,7 @@ impl AnalysisStore {
         match done_rx.recv_timeout(Self::SHUTDOWN_TIMEOUT) {
             Ok(result) => result,
             Err(_) => Err(format!(
-                "analysis worker detached: still finishing an LLM turn after {}s — \
+                "analysis worker detached: still inside a model pass after {}s — \
                  it exits and releases its models on its own",
                 Self::SHUTDOWN_TIMEOUT.as_secs()
             )),
@@ -1019,9 +893,8 @@ impl AnalysisStore {
 }
 
 impl AnalysisStore {
-    /// The full analysis for a track id, when it's been computed. Used by the
-    /// agent replay path to read a cached `SceneBuild` without re-running the LLM.
-    #[allow(dead_code)]
+    /// The full analysis for a track id, when it's been computed. Read by the
+    /// world export.
     pub fn get(&self, id: &str) -> Option<&TrackAnalysis> {
         self.map.get(id)
     }
@@ -1086,9 +959,9 @@ pub const ANALYSIS_SCOPE: &str = "analysis";
 /// releases the models it holds. This is the app's demonstration of the
 /// registration-carries-its-undo rule: the resource and the thread are
 /// registered together, so they cannot be released apart.
-pub fn mount_analysis(world: &mut World, deps: WorkerDeps) {
+pub fn mount_analysis(world: &mut World) {
     crate::scope::mount(world, ANALYSIS_SCOPE, |scope, world| {
-        world.insert_resource(AnalysisStore::spawn(deps));
+        world.insert_resource(AnalysisStore::spawn());
         scope.defer("AnalysisStore + worker thread", |world| {
             let Some(store) = world.remove_resource::<AnalysisStore>() else {
                 return Ok(());
@@ -1454,7 +1327,6 @@ mod tests {
             embedding: None,
             stems: None,
             recipe: None,
-            build: None,
         }
     }
 
@@ -1564,7 +1436,7 @@ mod tests {
     fn unmounting_removes_the_store_and_joins_the_worker() {
         let mut world = World::new();
 
-        mount_analysis(&mut world, WorkerDeps::default());
+        mount_analysis(&mut world);
         assert!(world.contains_resource::<AnalysisStore>());
         assert!(
             world
@@ -1589,7 +1461,7 @@ mod tests {
         let mut world = World::new();
 
         for _ in 0..3 {
-            mount_analysis(&mut world, WorkerDeps::default());
+            mount_analysis(&mut world);
             assert!(world.contains_resource::<AnalysisStore>());
             crate::scope::unmount(&mut world, ANALYSIS_SCOPE);
             assert!(!world.contains_resource::<AnalysisStore>());
@@ -1598,7 +1470,7 @@ mod tests {
 
     #[test]
     fn shutdown_joins_a_worker_with_no_requests_in_flight() {
-        let store = AnalysisStore::spawn(WorkerDeps::default());
+        let store = AnalysisStore::spawn();
         assert!(store.shutdown().is_ok());
     }
 
@@ -1615,10 +1487,10 @@ mod tests {
     #[test]
     fn shutdown_is_prompt_for_an_idle_worker() {
         // The cooperative path: no work in flight, so the worker notices the
-        // flag and exits well inside the 15s bound. A slow path (mid-LLM-turn
-        // detach) needs a real model and is covered by the bounded-join
+        // flag and exits well inside the 15s bound. A slow path (a detach
+        // mid-pass) needs a real model and is covered by the bounded-join
         // design rather than a unit test.
-        let store = AnalysisStore::spawn(WorkerDeps::default());
+        let store = AnalysisStore::spawn();
         let started = std::time::Instant::now();
         assert!(store.shutdown().is_ok());
         assert!(

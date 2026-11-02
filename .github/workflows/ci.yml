@@ -125,13 +125,12 @@ jobs:
           bin=$(find target/debug/deps -maxdepth 1 -type f -perm -u+x -name 'localgpt_gen-*' | head -1)
           timeout 900 gdb -q -batch -ex 'set pagination off' -ex run -ex 'bt 40' -ex 'bt -15' --args "$bin"
 
-  # The opt-in tiers are compiled by none of the jobs above, so without this
-  # the gated code rots broken while default-feature CI stays green. MD and
-  # Verse each carried a job like this into the workspace. Check only, no
-  # clippy or tests: these pull heavy native deps, and the lint bar stays on
-  # the default build.
+  # The opt-in tier is compiled by none of the jobs above, so without this
+  # the gated code rots broken while default-feature CI stays green. Check
+  # only, no clippy or tests: it pulls a heavy native dep, and the lint bar
+  # stays on the default build.
   features:
-    name: Feature tiers (llm, ml)
+    name: Feature tiers (ml)
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
@@ -142,9 +141,6 @@ jobs:
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL && df -h /
       - name: Install Bevy build deps
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends $BEVY_APT_DEPS
-      # mistral.rs, shared by both: never with `*-metal`, which is macOS-only.
-      - run: cargo check -p localgpt-md --features llm
-      - run: cargo check -p localgpt-verse --features llm
       # Verse's `ml` tier pins ort =2.0.0-rc.11, which targets ONNX Runtime
       # 1.23; nothing else in the workspace links ONNX Runtime any more, so
       # this job fetches that version for it.

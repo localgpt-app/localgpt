@@ -13,7 +13,7 @@ bin/lg build app gen                    # cargo build, by name: cli app gen prev
 bin/lg build bundle --dmg               # LocalGPT.app for macOS
 bin/lg verify                           # the CI checks on this machine (--rust --bevy --features --web --deps)
 bin/lg web deploy world --dry-run       # the family's sites: app gen verse md world, or all
-bin/lg fetch model|assets               # the two shared downloads
+bin/lg fetch assets                     # the shared asset pack
 ```
 
 ```bash
@@ -73,15 +73,14 @@ LOCALGPT_APP_REMOTE=on cargo run -p localgpt-app   # and on a phone on this netw
 
 # MD — a Markdown file as a walkable world
 cargo run -p localgpt-md                           # samples/hello.md
-cargo run -p localgpt-md -- path/to/doc.md         # any file (rebuilds on save)
-cargo run -p localgpt-md --features llm-metal -- doc.md   # LLM-authored scenery
+cargo run -p localgpt-md -- path/to/doc.md         # any file (rebuilds on save; applies
+                                                   # the sidecar an agent wrote beside it)
 
 # Verse — a 3D world for every song
 cargo run -p localgpt-verse
-cargo run -p localgpt-verse --features llm-metal   # LLM recipes, Apple GPU
+cargo run -p localgpt-verse --features ml          # CLAP moods and Demucs stems (ONNX)
 
-# The two shared downloads (once per machine, not per app)
-scripts/fetch-model.sh                             # ~5 GB GGUF
+# The shared download (once per machine, not per app)
 scripts/fetch-assets.sh                            # 522 MB CC0 pack, once;
                                                    # symlinks it into md's and
                                                    # verse's asset roots
@@ -135,44 +134,41 @@ went whole on 2026-11-01, `localgpt-core` with it; what it provided that the
 world still needs — the `Tool` trait, the MCP servers — lives in
 `world-agent::mcp` (`docs/rfcs/authoring/the-harness-goes.md`). The agents
 come from their makers: they run in the app's terminals and reach the world
-over MCP or its ops API, with their own logins. MD's and Verse's opt-in `llm`
-tiers run a local GGUF in-process over `world-agent::localgguf` (no API, no
-key) and are the only model code left; Gen's external services (ComfyUI, the
-asset model server, Ollama for NPC brains) are reached by `LOCALGPT_GEN_*`
-environment variables, never a config file.
+over MCP or its ops API, with their own logins. The local GGUF tiers MD and
+Verse had, Gen's external services (ComfyUI, an asset model server, Ollama
+for NPC brains) and the SpacetimeDB module followed the same day: no crate
+loads a language model, and no tool calls a service. Verse's opt-in `ml`
+tier (CLAP moods, Demucs stems over ONNX Runtime) is audio analysis, not a
+language model, and stays.
 
 ### Workspace
 
 `Cargo.toml` defines 15 members. **MD and Verse are members**, not separate
 repositories — they were folded in so the world format cannot drift between
-apps (see `docs/world-strategy.md` §13.6). `crates/spacetime` is a **standalone** crate
-(its own `[workspace]`) excluded from the main build because it targets
-SpacetimeDB's wasm/module toolchain.
+apps (see `docs/world-strategy.md` §13.6).
 
 ```
 crates/
 ├── cli/          # localgpt — `localgpt world` (a .world package's command line), `world mcp` (the shim), `completion`
-├── gen/          # localgpt-gen — the world builder: Bevy window, 95 tools over MCP (stdio, HTTP, the relay), live canvas, sessions
+├── gen/          # localgpt-gen — the world builder: Bevy window, 88 tools over MCP (stdio, HTTP, the relay), live canvas, sessions
 ├── app/          # localgpt-app — the one desktop app: Gen's world, documents and songs as modes; its interface is the web page in app/ui (docs/rfcs/authoring/the-page.md)
 ├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
 ├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin; `song_world`)
 ├── previs/       # localgpt-previs — screenplay (Fountain, Final Draft .fdx, PDF or Markdown pages) → per-scene .world with set/cast/coverage + board (deterministic)
 ├── previs-web/   # localgpt-previs-web — previs's draft as WASM for the localgpt.md page
-├── world-types/  # localgpt-world-types — serde-only world data model (no Bevy/SpacetimeDB)
+├── world-types/  # localgpt-world-types — serde-only world data model (no Bevy)
 ├── world-bevy/   # localgpt-world-bevy — the one Bevy mapping of the format (Gen, MD, Verse)
 ├── world-audio/  # localgpt-world-audio — the one mapping of the format's audio (kira + FunDSP)
 ├── world-export/ # localgpt-world-export — web viewer (three.js) + HTML export, no Bevy
 ├── world-sync/   # localgpt-world-sync — room authority: shared doc, EditOps, presence
 ├── world-editor/ # localgpt-world-editor — the non-linear editing model: tips, forks, folds, deltas (no engine, no I/O)
-├── world-agent/  # localgpt-world-agent — the live authority, headless commands, tool-call protocol, `mcp` (Tool trait + stdio/HTTP servers), `agent_env`, `paths` (Dirs, shared downloads), `localgguf`
-├── relay/        # localgpt-relay — internet reach for collaborative rooms
-└── spacetime/    # localgpt-spacetime — SpacetimeDB multiplayer world server (standalone)
+├── world-agent/  # localgpt-world-agent — the live authority, headless commands, packages, `mcp` (Tool trait + stdio/HTTP servers), `agent_env`, `paths` (Dirs, the shared pack)
+└── relay/        # localgpt-relay — internet reach for collaborative rooms
 
 apps/
 └── app-desktop/  # LocalGPT.app bundler for the one app (Developer ID + notarization when given; replaced gen-desktop)
 
-scripts/          # The shared downloads, fetched once for every app
-├── fetch-model.sh   # the ~5 GB GGUF -> ~/.local/share/localgpt/models/llm
+scripts/          # The shared download, fetched once for every app
 └── fetch-assets.sh  # the 522 MB CC0 pack -> ~/.local/share/localgpt/models/pack
 
 website*/         # One Cloudflare Worker each, all deployed by hand
@@ -189,7 +185,7 @@ website*/         # One Cloudflare Worker each, all deployed by hand
 localgpt (CLI)  → world-agent (features: mcp), world-editor
 localgpt-gen    → world-agent (features: mcp-http), previs, world-*
 localgpt-app    → gen, md, verse, previs, world-agent, world-bevy, world-types
-md, verse       → world-agent (paths, localgguf behind their `llm` tiers), world-*
+md, verse       → world-agent (paths), world-*
 previs, relay, world-*  → no app crate
 
 World format: world-types → world-bevy (bevy, no windowing) and world-export
@@ -208,16 +204,18 @@ and `generate_html`. Reference scenes live in
 `crates/world-types/conformance/`; render them before and after changing a
 mapping. Add fields to world-types, never a parallel format.
 
-**No model, no key, no agent by name.** Nothing in the workspace calls a
-model API, reads a key or a model's configuration, or treats one coding agent
+**No model, no service, no key, no agent by name.** Nothing in the
+workspace loads a language model, calls a model API or a generation
+service, reads a key or a model's configuration, or treats one coding agent
 differently from another: the agents run in the app's terminals (plain login
-shells) and in MCP clients, under their own logins. Do not add a provider, a
-prompt loop, an agent launcher or an agent-specific affordance (presets, turn
-detection from an agent's output) — `docs/rfcs/authoring/the-harness-goes.md`
-records why. The two exceptions are deliberate and local: MD's and Verse's
-`llm` tiers (a GGUF in-process, `world-agent::localgguf`) and Gen's external
-services (`crates/gen/src/env.rs`: ComfyUI, the asset model server, Ollama for
-NPC brains), reached by `LOCALGPT_GEN_*` variables.
+shells) and in MCP clients, under their own logins, and what a model should
+author (a document's places, a song's recipe) it authors into a sidecar
+through the world's files and API. Do not add a provider, a prompt loop, an
+in-process model, a tool that calls a service, an agent launcher or an
+agent-specific affordance (presets, turn detection from an agent's output) —
+`docs/rfcs/authoring/the-harness-goes.md` records why. Verse's `ml` tier is
+the one model that stays: audio analysis (CLAP moods, Demucs stems), not
+language.
 
 ### Feature Flags
 
@@ -226,15 +224,14 @@ NPC brains), reached by `LOCALGPT_GEN_*` variables.
 | `world-agent` | `mcp` | no | The `Tool` trait, `ToolSchema`, `McpHandler` and the stdio MCP server (the CLI's shim) |
 | `world-agent` | `mcp-http` | no | The streamable HTTP transport over `mcp` (adds axum + tower-http); Gen enables it |
 | `gen` | `multiplayer` | yes | `--host`/`--join`, the ops room, mDNS, the browser guest page |
-| `md`, `verse` | `llm`, `llm-metal` | no | A local GGUF in-process (mistral.rs) for authored scenery and recipes; `-metal` is the Apple GPU path |
-| `verse` | `ml` | no | ONNX Runtime models for analysis (the only tier that links `ort`) |
+| `verse` | `ml` | no | ONNX Runtime models for audio analysis (the only tier that links `ort`) |
 | `world-types` | `schema` | no | Writes `world.schema.json` |
 
 ### Key Patterns
 
 **Tools:** every Gen tool implements `localgpt_world_agent::mcp::Tool`
 (`name`, `schema`, `execute`, optional `annotations`);
-`mcp_server::create_mcp_tools` assembles the 95 and annotates them
+`mcp_server::create_mcp_tools` assembles the 88 and annotates them
 (read-only / destructive / idempotent). Tools reach the Bevy world through
 `GenBridge` (channels into the ECS); the same set serves stdio, HTTP and the
 relay.
@@ -252,21 +249,22 @@ audio device. Gen's `gen3d/audio.rs` engine and Verse's `audio.rs` still run
 their own; migrating them onto this crate is what lets one process play a
 document world's ambience and a song world's soundtrack, which Worlds needs.
 
-**Shared downloads:** the ~5 GB GGUF and the 522 MB CC0 asset pack are
-resolved by `localgpt-world-agent`'s `paths` module — `shared_llm_dir()` and
-`world_pack_dir()` — so one download serves Gen, MD and Verse. It lives there
-because all three depend on that crate. Never re-implement the XDG rule in an
-app; `LOCALGPT_LLM_DIR` and `LOCALGPT_WORLD_ASSETS` override. The same
-module's `Dirs` (`data`, `state`, `logs()`) is where an app's own directories
-come from: `LOCALGPT_DATA_DIR` and `LOCALGPT_STATE_DIR` move one each,
-`LOCALGPT_PROFILE` moves both to `localgpt-<profile>`; the shared downloads
-ignore the profile on purpose.
+**The shared pack:** the 522 MB CC0 asset pack is resolved by
+`localgpt-world-agent`'s `paths` module — `world_pack_dir()` — so one
+download serves Gen, MD and Verse. It lives there because all three depend
+on that crate. Never re-implement the XDG rule in an app;
+`LOCALGPT_WORLD_ASSETS` overrides. The same module's `Dirs` (`data`,
+`state`, `logs()`) is where an app's own directories come from:
+`LOCALGPT_DATA_DIR` and `LOCALGPT_STATE_DIR` move one each,
+`LOCALGPT_PROFILE` moves both to `localgpt-<profile>`; the shared pack
+ignores the profile on purpose.
 
 **Environment names:** the world's are constants in
 `world-agent::agent_env` (`LOCALGPT_WORLD_DIR`, `_API`, `_TOKEN`, `_AUTHOR`),
-the directories' in `world-agent::paths`, Gen's in `crates/gen/src/env.rs`
-(`LOCALGPT_GEN_*`), the app's in `crates/app/src` (`LOCALGPT_APP_*`). Add a
-name to the crate that reads it, as a constant, never a bare string.
+the directories' in `world-agent::paths`, Gen's session PIN in
+`crates/gen/src/net/mod.rs`, the app's in `crates/app/src`
+(`LOCALGPT_APP_*`). Add a name to the crate that reads it, as a constant,
+never a bare string.
 
 ### World-agent's `mcp` module (`crates/world-agent/src/mcp/`)
 
@@ -306,11 +304,11 @@ API (`gen3d/live.rs`). Started with none of these, the window says so and
 shows what was opened last. There is no prompt, no chat and no model in the
 binary; `config::GenConfig { workspace, state_dir }` comes from
 `world-agent::paths::Dirs`, and `settings.rs` remembers only what was opened
-last. World data uses **`localgpt-world-types`** (serde-only, zero
-Bevy/SpacetimeDB deps) so the same types serialize to RON for local saves and
-map to SpacetimeDB rows for multiplayer via `crates/spacetime`. Meshes,
-materials, lights and environment come from `localgpt-world-bevy`;
-`gen_export_html` embeds `localgpt-world-export`'s viewer.
+last. World data uses **`localgpt-world-types`** (serde-only, no Bevy) so
+the same types serialize to RON for local saves and travel as ops in a
+collaborative room. Meshes, materials, lights and environment come from
+`localgpt-world-bevy`; `gen_export_html` embeds `localgpt-world-export`'s
+viewer.
 
 **Multiplayer (`multiplayer` feature, default on):** collaborative rooms
 over the ops protocol — `localgpt-gen --host` runs the room authority
@@ -329,9 +327,9 @@ ops apply back into its scene. Sessions are packages
 edits plus tool/state history — `session.json`, keyframe snapshots; see
 `docs/rfcs/multiplayer/session-package-format.md`) with per-user `/undo`,
 `--resume`, and `--replay` time-lapse. See `docs/gen/multiplayer.md` and
-`crates/gen/src/net/`; the SpacetimeDB module still carries a cloud-tier
-inference queue (`crates/spacetime/src/jobs.rs`), unjoined and with nothing
-in this workspace feeding it.
+`crates/gen/src/net/`. The SpacetimeDB module that was to be the cloud-room
+authority went on 2026-11-01, unjoined; a persistent room is a headless
+host or a relay over the same `world-sync` authority.
 
 **Audio System:** `localgpt-world-audio` — one kira `AudioManager` with the
 FunDSP graphs feeding it as sources. The Bevy side (`gen3d/audio.rs`) keeps
@@ -360,11 +358,13 @@ height, optional model). Tours define guided named waypoint sequences
 (`gen_plan_layout` → `gen_apply_blockout` → `gen_populate_region`), grid navmesh
 with A* pathfinding + slope/erosion, hierarchical hero/medium/decorative
 placement with collision-aware ground snap, screenshot-based evaluation loop,
-incremental blockout editing, semantic scene decomposition, depth/2D preview.
-**95 MCP tools** across P0–P5, WG1–WG7, AI1–AI3 (`AGENTS.md` is the catalog).
-See `docs/gen/external-services.md` for external services (Ollama for NPC
-brains, ComfyUI for previews and textures, the asset model server), each
-reached by a `LOCALGPT_GEN_*` variable from `crates/gen/src/env.rs`.
+incremental blockout editing, semantic scene decomposition, a depth-map
+render. **88 MCP tools** across P0–P5, WG1–WG7 and AI3 (`AGENTS.md` is the
+catalog). AI1 (asset and texture generation on a model server), AI2 (NPC
+brains on Ollama, with their memory and observation) and WG7.2 (a ComfyUI
+preview) went on 2026-11-01: no tool calls a service. AI3's image input
+(layout from an image, a panorama, a style match, the reference board) is
+pure image analysis and stays.
 
 ### A phone or a tablet
 
@@ -377,9 +377,8 @@ device against a running app.
 
 There is no configuration file: `config.toml` and `config.example.toml` went
 with the assistant. What an app needs it takes from flags and environment
-variables — the external services from `LOCALGPT_GEN_*`, the directories
-from `LOCALGPT_DATA_DIR`, `LOCALGPT_STATE_DIR` and `LOCALGPT_PROFILE`, the
-shared downloads from `LOCALGPT_LLM_DIR` and `LOCALGPT_WORLD_ASSETS` — and
+variables — the directories from `LOCALGPT_DATA_DIR`, `LOCALGPT_STATE_DIR`
+and `LOCALGPT_PROFILE`, the shared pack from `LOCALGPT_WORLD_ASSETS` — and
 remembers only what was opened last (`gen-settings.json`). An agent's own
 configuration (its login, its model, its MCP servers) is the agent's.
 
@@ -388,8 +387,7 @@ configuration (its login, its model, its MCP servers) is the agent's.
 ```
 ~/.local/share/localgpt/                 # XDG_DATA_HOME (Dirs::data)
 ├── gen-workspace/                       # Gen's worlds (skills/), sessions/, exports/
-└── models/                              # the shared downloads; ignore LOCALGPT_PROFILE
-    ├── llm/                             # the GGUF (scripts/fetch-model.sh)
+└── models/                              # the shared download; ignores LOCALGPT_PROFILE
     └── pack/                            # the CC0 asset pack (scripts/fetch-assets.sh)
 ~/.local/state/localgpt/                 # XDG_STATE_HOME (Dirs::state)
 ├── gen-settings.json                    # what was opened last
@@ -407,8 +405,8 @@ A profile (`LOCALGPT_PROFILE=x`) moves both roots to `localgpt-x`. Worlds a
   and `cargo fmt --check` must pass (enforced in CI). CI
   (`.github/workflows/ci.yml`) runs fmt, clippy and tests for the workspace
   with the four Bevy crates (`gen`, `md`, `verse`, `world-bevy`) in their own
-  job, a `features` job for the opt-in tiers (MD's and Verse's `llm`,
-  Verse's `ml` — gated code is not compiled by anything else), an `interface` job that typechecks
+  job, a `features` job for the opt-in tier (Verse's `ml` — gated code is
+  not compiled by anything else), an `interface` job that typechecks
   and builds the app's page and its design sheets (`crates/app/ui`), a `viewer` job running
   `website-world`'s headless render check, plus cargo-deny (`deny.toml`); advisories run on main and weekly, never on
   pull requests. Only Verse's `ml` tier links ONNX Runtime; the `features`
@@ -416,12 +414,13 @@ A profile (`LOCALGPT_PROFILE=x`) moves both roots to `localgpt-x`. Worlds a
 - **Commits:** conventional commits (`feat:`, `fix:`, `docs:`, `chore:`,
   `refactor:`, scoped like `feat(gen):`), with no Co-Authored-By or
   Claude-Session trailers.
-- **No model, no key, no agent by name** (above): a change that adds a
-  provider, a prompt loop, a model setting or an agent-specific affordance
-  is wrong by construction, whatever it is for.
+- **No model, no service, no key, no agent by name** (above): a change
+  that adds a provider, a prompt loop, an in-process model, a tool that
+  calls a service, a model setting or an agent-specific affordance is wrong
+  by construction, whatever it is for.
 - **Edition 2024**, workspace-shared version (`0.4.x`), `resolver = "3"`.
-- Related docs live under `docs/` (architecture, gen, security, rfcs,
-  roadmap; retired designs in `docs/archived/`). `AGENTS.md` is the
+- Related docs live under `docs/` (gen, rfcs, roadmap, case studies,
+  ecosystem; retired designs in `docs/archived/`). `AGENTS.md` is the
   longer-form contributor guide.
 - **Websites:** `website/` is the Zola site for localgpt.app, the
   family hub and its only docs site: the app's, the CLI's and the format's

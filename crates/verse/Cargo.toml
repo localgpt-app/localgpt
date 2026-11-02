@@ -50,7 +50,7 @@ ebur128 = "0.1"   # integrated loudness (LUFS) for volume normalization
 # and performs in Gen, MD and the web viewer. Workspace path dependencies
 # since this crate joined the localgpt workspace, which is what makes the
 # two pins impossible to drift apart — they had, by one commit, before the
-# fold. world-agent also owns the shared model and asset-pack directories.
+# fold. world-agent owns the shared asset-pack directory.
 localgpt-world-types = { workspace = true }
 localgpt-world-agent = { workspace = true }
 # The one audio mapping. Verse keeps kira for its own playback layer
@@ -78,23 +78,6 @@ ron = "0.12"      # `.world.ron`, Gen's save format, next to the JSON export
 # matching the existing `ort` default).
 [features]
 ml = ["dep:ort", "dep:rubato", "dep:stem-splitter-core", "dep:tokenizers"]
-# PLAN.md M7 — LLM-authored scene recipes (src/recipe.rs, src/llm.rs). Opt-in:
-# `mistralrs` builds a pure-Rust inference engine (CUDA/Metal via its own
-# optional features, off by default), and the GGUF model is a separate ~4–5 GB
-# download (scripts/fetch-bonsai.sh, or a standard-Q4_K_M fallback). Without the
-# feature (or the model file) the app keeps the rule-derived recipe (today's
-# path). The load-and-complete plumbing is world-agent's `LocalGguf`; this
-# crate keeps its prompt, its lenient parse and the agent tier's channels
-# (`tokio` drives those and the generation probe's runtime). `schemars` must
-# match mistralrs's internal version (derive path) and its `JsonSchema` bound
-# for the probe that documents the `generate_structured` GGUF hang.
-llm = ["dep:mistralrs", "dep:schemars", "dep:tokio", "localgpt-world-agent/llm", "localgpt-world-agent/schema"]
-# Apple-Silicon acceleration for the LLM tiers (PLAN.md M7): runs the GGUF on
-# the Metal GPU — unified memory makes the 5 GB Q4_K_M fit comfortably (the
-# CPU device map saw only ~7.6 GB free and refused) and generation is an order
-# of magnitude faster. Opt-in because candle-metal is macOS-only, so this
-# feature must never be built into the Linux CI job.
-llm-metal = ["llm", "mistralrs/metal"]
 
 [dependencies.ort]
 # Pinned to rc.11 to match `stem-splitter-core` (which pins =2.0.0-rc.11). Since
@@ -119,23 +102,4 @@ optional = true
 version = "0.21"
 default-features = false
 features = ["fancy-regex"]
-optional = true
-
-[dependencies.mistralrs]
-version = "0.8"
-optional = true
-
-# Must be the same major/minor mistralrs re-exports (`pub use schemars`) so the
-# `T: schemars::JsonSchema` bound on `Model::generate_structured` resolves to
-# the same trait. mistralrs 0.8.1 re-exports schemars 1.x; verify on the first
-# `cargo check --features llm` and bump in lockstep with mistralrs.
-[dependencies.schemars]
-version = "1"
-optional = true
-
-# Drives the agent tier's channels and the generation probe's runtime
-# (mistral.rs is async; the app is sync).
-[dependencies.tokio]
-version = "1"
-features = ["rt", "time"]
 optional = true

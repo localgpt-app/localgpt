@@ -25,13 +25,14 @@ no waiting. Every place is deterministic: same text, same world.
 
 ---
 
-## Then a local model reads your slides
+## Then an agent reads your slides
 
-Behind the `llm` feature, an on-device model restyles each place from what
-the prose actually says. Nothing leaves the machine.
+Put the coding agent you already use on the file: what it authors for a
+slide goes into the sidecar beside the deck, and the place changes with it.
+No model runs in here.
 
 ```bash
-cargo run --features llm-metal -- samples/deck.md --generate
+localgpt world mcp          # the deck's world, as tools for the agent
 ```
 
 ---

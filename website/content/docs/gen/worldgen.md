@@ -4,9 +4,9 @@ title: "WorldGen Pipeline"
 
 # WorldGen Pipeline
 
-The WorldGen pipeline transforms LocalGPT Gen from "LLM places things one by one" to "LLM designs worlds through a structured interface." Instead of the LLM generating geometry directly, it generates **parameters** — layout specs, density hints, style references — and procedural systems handle the actual placement.
+The WorldGen pipeline transforms LocalGPT Gen from "the agent places things one by one" to "the agent designs worlds through a structured interface." Instead of the agent's model generating geometry directly, it generates **parameters** — layout specs, density hints, style references — and procedural systems handle the actual placement.
 
-This mirrors the architecture described in [Meta's WorldGen paper](https://www.meta.com/blog/worldgen-3d-world-generation-reality-labs-generative-ai-research/): LLMs should generate parameters, not geometry.
+This mirrors the architecture described in [Meta's WorldGen paper](https://www.meta.com/blog/worldgen-3d-world-generation-reality-labs-generative-ai-research/): language models should generate parameters, not geometry.
 
 ## Pipeline Stages
 
@@ -19,7 +19,7 @@ This mirrors the architecture described in [Meta's WorldGen paper](https://www.m
    ↓
 4. Populate      gen_populate_region    Regions → entities (hero/medium/decorative)
    ↓
-5. Evaluate      gen_evaluate_scene     Screenshot + highlighting → LLM feedback
+5. Evaluate      gen_evaluate_scene     Screenshot + highlighting → the agent's feedback
    ↓
 6. Refine        gen_auto_refine        Automated evaluate → adjust loop
    ↓
@@ -60,15 +60,14 @@ This mirrors the architecture described in [Meta's WorldGen paper](https://www.m
 
 | Tool | Description |
 |------|-------------|
-| `gen_evaluate_scene` | Take a screenshot with optional entity highlighting (red emissive overlay) and camera presets (current, top-down, isometric, front, entity-focus). Annotate with entity names and bounding boxes. For LLM self-evaluation. |
-| `gen_auto_refine` | Automated generate → screenshot → evaluate → adjust loop. The LLM evaluates its own output and makes corrections. |
+| `gen_evaluate_scene` | Take a screenshot with optional entity highlighting (red emissive overlay) and camera presets (current, top-down, isometric, front, entity-focus). Annotate with entity names and bounding boxes. For the agent's own evaluation. |
+| `gen_auto_refine` | Automated generate → screenshot → evaluate → adjust loop. The agent evaluates its own output and makes corrections. |
 
-### Depth & Preview
+### Depth
 
 | Tool | Description |
 |------|-------------|
-| `gen_render_depth` | Render a depth map of the scene from a specified camera angle (top-down, isometric, front, custom). Outputs grayscale PNG. |
-| `gen_preview_world` | Generate a styled 2D preview image from a depth map (requires [external service](/docs/gen/external-services)). |
+| `gen_render_depth` | Render a depth map of the scene from a specified camera angle (top-down, isometric, front, custom). Outputs a grayscale PNG an agent can hand to its own image tools. |
 
 ## Three-Tier Placement
 

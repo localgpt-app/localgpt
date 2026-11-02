@@ -3,8 +3,8 @@
 **Status:** deferred, 2026-03-22. A §2 deep-dive on coordinate systems and spatial partitioning at planetary scale under
 [collaborative-world-engine-architecture.md](collaborative-world-engine-architecture.md).
 Nothing here is scheduled: the parent's phase 8 (cloud rooms) is where this
-work would land, and `crates/spacetime` is still a standalone crate excluded
-from the main build.
+work would land. It is written over SpacetimeDB, and `crates/spacetime`
+went on 2026-11-01; the substrate would have to be chosen again.
 
 
 > **Parent spec:** [3D Collaborative World Engine: Architecture Specification](collaborative-world-engine-architecture.md) — this document is the deep-dive on coordinate systems and spatial partitioning at planetary scale (§2).

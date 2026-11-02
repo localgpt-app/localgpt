@@ -30,7 +30,7 @@ LocalGPT Gen does not output media files. It outputs **source code**.
 
 The generation pipeline works as follows:
 
-1. The LLM (Claude, GPT, Ollama, or any configured provider) generates RON (Rusty Object Notation) scene definitions -- plain text describing parametric shapes, materials, transforms, behaviors, and audio parameters.
+1. The agent driving Gen (Claude Code, Codex, Gemini CLI, any MCP client, on whatever model it runs) generates RON (Rusty Object Notation) scene definitions -- plain text describing parametric shapes, materials, transforms, behaviors, and audio parameters.
 2. These RON definitions are compiled by the Bevy game engine during the build step into native GPU data structures.
 3. The final game binary contains Bevy-compiled geometry, not AI-generated assets.
 

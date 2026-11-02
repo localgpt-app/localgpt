@@ -39,9 +39,12 @@ Counted on 2026-11-01 (`git ls-files`); the tree is 154,336 lines of Rust in
 | C under Rust in the app's tree (`cargo tree -p localgpt-app --all-features`): aws-lc through `jsonwebtoken` ← `localgpt-core`, and through `rustls` ← `reqwest` ← `hf-hub` ← `mistralrs`; `ring` the same way; SQLite through `rusqlite` ← `localgpt-core`; ONNX Runtime in Verse's `ml` tier (`ort` 2.0.0-rc.11, for htdemucs stems) | four libraries | [C under Rust](#c-under-rust-the-last-mile) |
 
 Already Rust and staying: the format crates and `world-bevy`, Gen, previs
-(`previs-web` is already WebAssembly on localgpt.md), the model tiers
-(mistral.rs on candle; llama.cpp is gone), kira and FunDSP, the live API on
-axum, Zola for the sites, `portable-pty` under the terminals.
+(`previs-web` is already WebAssembly on localgpt.md), kira and FunDSP, the
+live API on axum, Zola for the sites, `portable-pty` under the terminals.
+(The model tiers — mistral.rs on candle — were on this list when it was
+written and went later the same day, with `localgpt-core`: the dependency
+rows below that name them describe a tree that no longer exists, and
+ONNX Runtime in Verse's `ml` tier is the one C library left under the app.)
 
 ## The stack
 

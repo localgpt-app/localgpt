@@ -8,6 +8,11 @@
 
 **Priority within WorldGen series:** 7 of 7 (lowest priority — depends on external API availability)
 
+> **2026-11-01.** WG7.1 (`gen_render_depth`) stays: a depth map an agent can
+> hand to its own image tools. WG7.2 (`gen_preview_world`, the ComfyUI
+> client and the prompt composer) was removed with every other service call
+> in the tree.
+
 ---
 
 ## Spec WG7.1: `gen_render_depth` — Depth Map from Blockout

@@ -1,6 +1,6 @@
 # RFC: AI NPCs & Advanced Audio — Gap Closure
 
-**Status:** Draft
+**Status:** Withdrawn 2026-11-01 — the NPC brain, its memory and the Ollama client this RFC wired were removed with every other model call in the tree (`docs/rfcs/authoring/the-harness-goes.md`). The audio half shipped as `localgpt-world-audio`. Kept as the record of what was built.
 **Author:** Yi
 **Date:** 2026-03-22
 **Target crates:** `localgpt-gen`

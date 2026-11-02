@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.localgpt-app/localgpt-gen",
   "title": "LocalGPT Gen",
-  "description": "AI-driven 3D world builder: Bevy visuals, procedural audio, and entity behaviors.",
+  "description": "The 3D world builder: Bevy visuals, procedural audio and entity behaviors, driven by the agent that connects. Runs no model, calls no service, holds no key.",
   "version": "0.3.5",
   "privacyPolicyUrl": "https://github.com/localgpt-app/localgpt/blob/main/crates/gen/PRIVACY.md",
   "websiteUrl": "https://localgpt.app",
@@ -33,15 +33,8 @@
         },
         {
           "type": "named",
-          "name": "--network",
-          "description": "Network mode. Use 'host' if local models (Ollama, llama.cpp) are running on the host.",
-          "isRequired": false,
-          "default": "host"
-        },
-        {
-          "type": "named",
           "name": "-v",
-          "description": "Mount a local workspace directory. Exposes memory, skills, and saved worlds to the container.",
+          "description": "Mount the LocalGPT data directory, so saved worlds, sessions and exports persist across containers.",
           "isRequired": false,
           "default": "${HOME}/.local/share/localgpt:/root/.local/share/localgpt"
         }
@@ -58,23 +51,17 @@
       ],
       "environmentVariables": [
         {
-          "name": "LOCALGPT_WORKSPACE",
-          "description": "Path to workspace directory (memory, skills, saved worlds). Defaults to ~/.local/share/localgpt/workspace.",
+          "name": "LOCALGPT_DATA_DIR",
+          "description": "Where Gen keeps its worlds, sessions and exports. Defaults to ~/.local/share/localgpt.",
           "isRequired": false,
-          "default": "~/.local/share/localgpt/workspace",
-          "placeholder": "/path/to/your/workspace"
+          "default": "~/.local/share/localgpt",
+          "placeholder": "/path/to/localgpt"
         },
         {
-          "name": "ANTHROPIC_API_KEY",
-          "description": "Anthropic API key for anthropic/* models.",
+          "name": "LOCALGPT_WORLD_ASSETS",
+          "description": "The CC0 asset pack directory, when it is not in the default place.",
           "isRequired": false,
-          "isSecret": true
-        },
-        {
-          "name": "OPENAI_API_KEY",
-          "description": "OpenAI API key for GPT-4o or OpenAI-compatible providers (OpenRouter, Groq, DeepSeek, etc.).",
-          "isRequired": false,
-          "isSecret": true
+          "placeholder": "/path/to/pack"
         }
       ]
     }
@@ -93,19 +80,19 @@
       "installAlternative": "cargo install localgpt-gen && localgpt-gen mcp-server",
       "capabilities": {
         "visual": {
-          "description": "Real-time 3D scene rendering via Bevy engine. Opens an interactive viewport for scene exploration with first-person/third-person navigation, orbit camera, and a live inspector overlay.",
-          "engine": "Bevy 0.18",
+          "description": "Real-time 3D scene rendering via Bevy engine. Opens an interactive viewport for scene exploration with first-person/third-person navigation and an orbit camera; --headless serves the same tools with no window.",
+          "engine": "Bevy 0.19",
           "features": [
             "PBR materials and dynamic lighting",
             "glTF/GLB import and export",
             "Self-contained HTML export via Three.js",
-            "Screenshot capture for LLM self-evaluation",
+            "Screenshot and depth-map capture for the agent's own evaluation",
             "Undo/redo history"
           ]
         },
         "audio": {
           "description": "Procedural environmental soundscapes and spatial audio emitters synthesized in real time. No pre-recorded samples — all audio is generated algorithmically.",
-          "engine": "FunDSP 0.23 + cpal 0.17",
+          "engine": "kira + FunDSP",
           "ambientSoundscapes": ["wind", "rain", "forest", "ocean", "cave", "stream", "silence"],
           "spatialEmitters": ["water", "fire", "hum", "wind", "custom waveform"],
           "features": [
@@ -118,7 +105,7 @@
           "description": "Data-driven entity behaviors, interactive logic, physics, NPCs, and trigger/action wiring — no scripting required.",
           "features": [
             "Composable entity animations: orbit, spin, bob, look_at, pulse, path_follow, bounce",
-            "NPC characters with idle, patrol, and wander AI",
+            "NPC characters with idle, patrol, and wander behavior",
             "Branching NPC dialogue trees",
             "Trigger/action system: proximity, click, area, collision, timer",
             "Interactive doors, collectibles, and teleporters",
@@ -131,7 +118,7 @@
       },
       "toolCategories": {
         "scene": ["gen_scene_info", "gen_entity_info", "gen_clear_scene"],
-        "spawn": ["gen_spawn_primitive", "gen_spawn_batch", "gen_spawn_mesh", "gen_load_gltf"],
+        "spawn": ["gen_spawn_primitive", "gen_spawn_batch", "gen_spawn_mesh", "gen_load_gltf", "gen_define_creation", "gen_spawn_instance"],
         "modify": ["gen_modify_entity", "gen_modify_batch", "gen_delete_entity", "gen_delete_batch"],
         "camera": ["gen_set_camera", "gen_set_camera_mode"],
         "lighting": ["gen_set_light", "gen_set_environment", "gen_set_sky"],
@@ -139,20 +126,18 @@
         "behavior": ["gen_add_behavior", "gen_remove_behavior", "gen_list_behaviors", "gen_pause_behaviors"],
         "character": ["gen_spawn_player", "gen_set_spawn_point", "gen_add_npc", "gen_set_npc_dialogue"],
         "interaction": ["gen_add_trigger", "gen_add_teleporter", "gen_add_collectible", "gen_add_door", "gen_link_entities"],
-        "terrain": ["gen_add_terrain", "gen_add_water", "gen_add_path", "gen_add_foliage"],
+        "terrain": ["gen_add_terrain", "gen_add_water", "gen_add_path", "gen_add_foliage", "gen_query_terrain_height"],
         "ui": ["gen_add_sign", "gen_add_hud", "gen_add_label", "gen_add_tooltip", "gen_add_notification"],
         "physics": ["gen_set_physics", "gen_add_collider", "gen_add_joint", "gen_add_force", "gen_set_gravity"],
-        "worldgen": ["gen_plan_layout", "gen_apply_blockout", "gen_populate_region", "gen_evaluate_scene", "gen_auto_refine", "gen_build_navmesh", "gen_validate_navigability", "gen_edit_navmesh"],
-        "assetGen": ["gen_generate_asset", "gen_asset_status", "gen_list_assets"],
-        "experiments": ["gen_queue_experiment", "gen_list_experiments", "gen_experiment_status"],
-        "worldSkills": ["gen_save_world", "gen_load_world", "gen_export_world"],
+        "worldgen": ["gen_plan_layout", "gen_apply_blockout", "gen_populate_region", "gen_set_tier", "gen_set_role", "gen_bulk_modify", "gen_modify_blockout", "gen_evaluate_scene", "gen_auto_refine", "gen_build_navmesh", "gen_validate_navigability", "gen_edit_navmesh", "gen_regenerate", "gen_render_depth"],
+        "multiFile": ["gen_write_world_plan", "gen_write_region", "gen_load_region", "gen_unload_region", "gen_persist_blockout", "gen_write_behaviors", "gen_write_audio", "gen_check_drift", "gen_sync"],
+        "imageInput": ["gen_image_to_layout", "gen_match_style", "gen_reference_board", "gen_panorama_to_world"],
+        "worldSkills": ["gen_save_world", "gen_load_world", "gen_export_world", "gen_fork_world"],
         "export": ["gen_export_screenshot", "gen_export_gltf", "gen_export_html"],
         "history": ["gen_undo", "gen_redo", "gen_undo_info"],
-        "memory": ["memory_search", "memory_get", "memory_save", "memory_log"],
-        "web": ["web_fetch", "web_search"],
         "screenshot": ["gen_screenshot"]
       },
-      "totalTools": 83,
+      "totalTools": 88,
       "supportedClients": [
         "Claude Code",
         "Gemini CLI",

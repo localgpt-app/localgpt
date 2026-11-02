@@ -3,7 +3,9 @@
 **Status:** implemented, then moved upstream. `localgpt-world-types` shipped as
 this RFC describes and is still the workspace's world data model — but the
 format itself is now the published `openworldformat` crate, which this
-workspace consumes. Change the format there, never here.
+workspace consumes. Change the format there, never here. The "two backends"
+below were RON files and SpacetimeDB rows; the SpacetimeDB module went on
+2026-11-01, and a world travels between processes as ops over `world-sync`.
 
 
 ## Problem

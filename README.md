@@ -7,7 +7,7 @@
 [![CI](https://github.com/localgpt-app/localgpt/workflows/CI/badge.svg)](https://github.com/localgpt-app/localgpt/actions)
 [![Discord](https://img.shields.io/discord/691052431525675048.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/spKRr6mRyp)
 
-**A desktop app where a document, a song, a screenplay or a prompt becomes a `.world` you can walk through, with your own coding agents in the terminals beside it.** A world is a package with a history: people edit it in the window, agents edit it from outside, and every change is logged, attributed, undoable and branchable. LocalGPT runs no model and holds no key; the agents bring their own. Open source, Apache 2.0, runs on your machine.
+**A desktop app where a document, a song, a screenplay or a prompt becomes a `.world` you can walk through, with your own coding agents in the terminals beside it.** A world is a package with a history: people edit it in the window, agents edit it from outside, and every change is logged, attributed, undoable and branchable. LocalGPT runs no model, calls no service and holds no key; the agents bring their own. Open source, Apache 2.0, runs on your machine.
 
 [![LocalGPT Gen Demo](https://img.youtube.com/vi/R__tg7YY0T8/maxresdefault.jpg)](https://www.youtube.com/watch?v=R__tg7YY0T8)
 
@@ -16,7 +16,7 @@
 | | Where | What |
 |---|---|---|
 | **LocalGPT**, the desktop app | `crates/app` | One window, every mode: a world from a prompt (Gen), from a Markdown document (MD) or from a song (Verse), or any `.world` package opened as a live canvas. |
-| **LocalGPT Gen**, the binary | `crates/gen` · `cargo install localgpt-gen` | The world builder on its own: its 95 tools over MCP for Claude Desktop, Claude Code, Codex, Gemini CLI and editors, a relay so an agent drives the window you are looking at, the live canvas, headless, collaborative sessions on the LAN or through a relay. |
+| **LocalGPT Gen**, the binary | `crates/gen` · `cargo install localgpt-gen` | The world builder on its own: its 88 tools over MCP for Claude Desktop, Claude Code, Codex, Gemini CLI and editors, a relay so an agent drives the window you are looking at, the live canvas, headless, collaborative sessions on the LAN or through a relay. |
 | **Previs** | `crates/previs` · `cargo install localgpt-previs` · [localgpt.md](https://localgpt.md) | A screenplay in — PDF, Final Draft, Fountain or Markdown — and per scene a `.world` with the set, the cast and the coverage, plus a printable board and a shot list. Deterministic, no model; the same code runs in the browser tab. |
 | **`localgpt`**, the world's command line | `crates/cli` · `cargo install localgpt` | `localgpt world`: commit, undo, log, tips, verify, screenshot — and `localgpt world mcp`, the shim that serves an open world's tools to any MCP agent. The assistant that this binary was through 0.4.2 (chat, daemon, memory, heartbeat) went on 2026-11-01 ([why](docs/rfcs/authoring/the-harness-goes.md)); `cargo install localgpt --version 0.4.2` keeps it. |
 | **The world crates** | `crates/world-*` | `world-types`, `world-bevy`, `world-audio`, `world-export`, `world-sync`, `world-editor`, `world-agent`: one format for every app, over the [Open World Format](https://openworldformat.org) reference crate. |
@@ -40,9 +40,8 @@ cargo run -p localgpt-app -- --song track.mp3         # a song as a world that p
 cargo run -p localgpt-app -- --world scene-1.world    # a package, opened as a live canvas
 apps/app-desktop/macos/build-app.sh                   # LocalGPT.app for macOS
 
-# The two shared downloads, once per machine, read by every app
+# The shared download, once per machine, read by every app
 scripts/fetch-assets.sh    # the 522 MB CC0 asset pack (Poly Haven models)
-scripts/fetch-model.sh     # the ~5 GB GGUF for MD's and Verse's optional in-process `llm` tier
 ```
 
 Rust stable (edition 2024, so 1.85 or newer). On Linux the desktop crates need Bevy's system packages: `libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev libfontconfig1-dev libdbus-1-dev pkg-config`. Full options, feature flags and headless builds: [Installation](https://localgpt.app/docs/installation/).
@@ -133,7 +132,7 @@ Posing, animatics and a generated look wait until people who previs today have u
 
 ## <img src="https://localgpt.app/logo/localgpt-icon.svg" width="32" height="32" alt="LocalGPT" /> LocalGPT Gen, the binary
 
-`localgpt-gen` is the world builder with the Bevy engine: the window, the 95 tools that build in it, and nothing that prompts them. It runs no model and holds no key; an agent outside the window drives it over MCP or through a live package's API.
+`localgpt-gen` is the world builder with the Bevy engine: the window, the 88 tools that build in it, and nothing that prompts them. It runs no model and holds no key; an agent outside the window drives it over MCP or through a live package's API.
 
 ```bash
 localgpt-gen --mcp-relay                            # the window, with a relay beside it for the agent in your terminal
@@ -148,7 +147,7 @@ localgpt-gen --host --relay https://relay.example   # reach guests beyond the LA
 ```
 
 - **What it builds.** Parametric shapes (box, sphere, cylinder, cone, capsule, plane, torus, pyramid, wedge and more), PBR materials, point/spot/directional lights, sky and fog, glTF meshes, data-driven behaviors (orbit, spin, bob, look-at, pulse, path-follow, bounce), procedural audio (ambient wind, rain, forest, ocean, cave, stream; spatial emitters), NPCs with dialogue, triggers and collectibles, terrain and water, optional physics, and a blockout-first WorldGen pipeline with a navmesh and a screenshot evaluation loop.
-- **Tools.** 95 `gen_*` tools, the same set over every transport: stdio MCP, the streamable HTTP transport (`--mcp-http`), and the relay.
+- **Tools.** 88 `gen_*` tools, the same set over every transport: stdio MCP, the streamable HTTP transport (`--mcp-http`), and the relay. None calls a model or a service.
 - **Two ways to drive it.** A coding agent in a terminal (Claude Code, Codex, Gemini CLI, any MCP client) whose tool calls reach the window you are looking at through the relay — `localgpt-gen --mcp-relay` beside the window, `localgpt-gen mcp-server --connect` as the agent's MCP server — with the agent's own login and nothing of it in LocalGPT; or an app that runs `localgpt-gen mcp-server` as its own process and gets a window with it.
 
   ```json
@@ -194,7 +193,7 @@ Every app reads and writes one format, so a document world, a song world and a d
 | [`localgpt-world-export`](https://crates.io/crates/localgpt-world-export) | The web side with no Bevy: the three.js viewer (vendored from the format's npm package) and self-contained HTML export. |
 | [`localgpt-world-sync`](https://crates.io/crates/localgpt-world-sync) | Collaborative rooms: the shared document, validated ops, the wire protocol and the room authority. No Bevy, no I/O. |
 | [`localgpt-world-editor`](https://crates.io/crates/localgpt-world-editor) | The non-linear editing model: tips, forks, folds and deltas, fast enough to scrub. No engine, no I/O. |
-| [`localgpt-world-agent`](https://crates.io/crates/localgpt-world-agent) | The live authority (`LiveWorld`), packages, the headless commands behind `localgpt world`, the tool-call protocol an agent builds with, the `Tool` trait and the MCP servers (stdio and HTTP) Gen and the shim run on, and the shared paths for the model and asset downloads. |
+| [`localgpt-world-agent`](https://crates.io/crates/localgpt-world-agent) | The live authority (`LiveWorld`), packages, the headless commands behind `localgpt world`, the `Tool` trait and the MCP servers (stdio and HTTP) Gen and the shim run on, the environment an agent in a shell reads, and the shared paths for the apps' directories and the asset pack. |
 | [`localgpt-previs`](https://crates.io/crates/localgpt-previs) | Script to board, deterministic. |
 
 Two renderers draw the conformance worlds, Bevy and three.js; `website-world`'s headless render check runs in CI and is the automated check on the web renderer. The rule inside the workspace: add fields to `world-types`, never a parallel format.
@@ -211,7 +210,7 @@ cargo run -p localgpt-md -- notes.md          # MD and Verse still run on their 
 cargo run -p localgpt-verse
 ```
 
-CI runs fmt, clippy and tests, the Bevy crates in their own job, a job for the opt-in feature tiers (MD's and Verse's `llm`, Verse's `ml`), the headless render check of the web viewer and the previs page, and cargo-deny. Releases publish every crate to crates.io from a signed `vX.Y.Z` tag through Trusted Publishing. [`CLAUDE.md`](CLAUDE.md) is the map of the workspace, [`AGENTS.md`](AGENTS.md) the tool catalog, [`docs/`](docs/) the RFCs, the roadmap and [`world-strategy.md`](docs/world-strategy.md), where the decisions behind the shape of all this are recorded with their dates.
+CI runs fmt, clippy and tests, the Bevy crates in their own job, a job for the opt-in feature tier (Verse's `ml`), the headless render check of the web viewer and the previs page, and cargo-deny. Releases publish every crate to crates.io from a signed `vX.Y.Z` tag through Trusted Publishing. [`CLAUDE.md`](CLAUDE.md) is the map of the workspace, [`AGENTS.md`](AGENTS.md) the tool catalog, [`docs/`](docs/) the RFCs, the roadmap and [`world-strategy.md`](docs/world-strategy.md), where the decisions behind the shape of all this are recorded with their dates.
 
 ## Devlog
 
@@ -219,7 +218,7 @@ CI runs fmt, clippy and tests, the Bevy crates in their own job, a job for the o
 
 ## Built With
 
-Rust, Tokio, Axum, Bevy, React and Tailwind, CodeMirror, xterm.js, kira and FunDSP, three.js, mistral.rs, wasm-bindgen, Zola, Cloudflare Workers
+Rust, Tokio, Axum, Bevy, React and Tailwind, CodeMirror, xterm.js, kira and FunDSP, three.js, wasm-bindgen, Zola, Cloudflare Workers
 
 ## Contributors
 
