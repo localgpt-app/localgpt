@@ -257,6 +257,7 @@ pub enum SearchProviderType {
     Brave,
     Tavily,
     Perplexity,
+    Keenable,
     #[default]
     None,
 }
@@ -292,6 +293,9 @@ pub struct WebSearchConfig {
 
     #[serde(default)]
     pub perplexity: Option<PerplexityConfig>,
+
+    #[serde(default)]
+    pub keenable: Option<KeenableConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -336,6 +340,14 @@ pub struct PerplexityConfig {
 
     #[serde(default = "default_sonar")]
     pub model: String,
+}
+
+/// Keenable web search (https://keenable.ai). `api_key` is optional: when it
+/// is empty, the rate-limited key-free public endpoint is used.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct KeenableConfig {
+    #[serde(default)]
+    pub api_key: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -1022,6 +1034,11 @@ impl Config {
         {
             perplexity.api_key = expand_env(&perplexity.api_key);
         }
+        if let Some(ref mut ws) = self.tools.web_search
+            && let Some(ref mut keenable) = ws.keenable
+        {
+            keenable.api_key = expand_env(&keenable.api_key);
+        }
         if let Some(ref mut gemini) = self.providers.gemini {
             gemini.api_key = expand_env(&gemini.api_key);
         }
@@ -1144,7 +1161,7 @@ level = "info"
 
 # Web search (optional)
 # [tools.web_search]
-# provider = "searxng"            # searxng | brave | tavily | perplexity | none
+# provider = "searxng"            # searxng | brave | tavily | perplexity | keenable | none
 # cache_enabled = true
 # cache_ttl = 900                 # seconds (default: 15 min)
 # max_results = 5                 # 1-10
@@ -1166,6 +1183,9 @@ level = "info"
 # [tools.web_search.perplexity]
 # api_key = "${PERPLEXITY_API_KEY}"
 # model = "sonar"
+#
+# [tools.web_search.keenable]       # optional; works key-free without it
+# api_key = "${KEENABLE_API_KEY}"
 "#;
 
 #[cfg(test)]

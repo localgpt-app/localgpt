@@ -14,7 +14,8 @@ use tracing::{debug, warn};
 use super::Tool;
 use crate::agent::providers::ToolSchema;
 use crate::config::{
-    BraveConfig, PerplexityConfig, SearchProviderType, SearxngConfig, TavilyConfig, WebSearchConfig,
+    BraveConfig, KeenableConfig, PerplexityConfig, SearchProviderType, SearxngConfig, TavilyConfig,
+    WebSearchConfig,
 };
 
 /// Percent-encode a string for use in URL query parameters.
@@ -627,6 +628,107 @@ impl SearchCache {
     }
 }
 
+// ── Keenable Provider ────────────────────────────────────────────────────────
+
+pub struct KeenableProvider {
+    client: reqwest::Client,
+    config: KeenableConfig,
+}
+
+impl KeenableProvider {
+    pub fn new(config: KeenableConfig) -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            config,
+        }
+    }
+
+    /// Key-free requests go to the public endpoint; a configured key uses
+    /// the authenticated endpoint.
+    fn request(&self, query: &str, max_results: u8) -> reqwest::RequestBuilder {
+        let key = self.config.api_key.trim();
+        let req = if key.is_empty() {
+            self.client
+                .post("https://api.keenable.ai/v1/search/public")
+                .header("X-Keenable-Title", "LocalGPT")
+        } else {
+            self.client
+                .post("https://api.keenable.ai/v1/search")
+                .header("X-API-Key", key)
+        };
+        req.header("Content-Type", "application/json").json(&json!({
+            "query": query,
+            "max_results": max_results
+        }))
+    }
+
+    pub fn parse_response(body: &Value, max_results: u8) -> Vec<SearchResult> {
+        let empty = vec![];
+        body["results"]
+            .as_array()
+            .unwrap_or(&empty)
+            .iter()
+            .take(max_results as usize)
+            .filter_map(|r| {
+                let snippet = r["snippet"]
+                    .as_str()
+                    .filter(|s| !s.trim().is_empty())
+                    .or_else(|| r["description"].as_str())
+                    .unwrap_or("");
+                Some(SearchResult {
+                    title: r["title"].as_str()?.to_string(),
+                    url: r["url"].as_str()?.to_string(),
+                    snippet: snippet.to_string(),
+                    score: None,
+                    published_date: r["published_at"].as_str().map(|s| s.to_string()),
+                })
+            })
+            .collect()
+    }
+}
+
+#[async_trait]
+impl SearchProvider for KeenableProvider {
+    fn name(&self) -> &str {
+        "keenable"
+    }
+
+    async fn search(&self, query: &str, max_results: u8) -> Result<SearchResponse> {
+        let start = Instant::now();
+
+        let resp = self.request(query, max_results).send().await?;
+
+        if !resp.status().is_success() {
+            anyhow::bail!("Keenable API returned HTTP {}", resp.status());
+        }
+
+        let body: Value = resp.json().await?;
+        let latency = start.elapsed().as_millis() as u64;
+        let results = Self::parse_response(&body, max_results);
+
+        Ok(SearchResponse {
+            meta: SearchMeta {
+                provider: "keenable".to_string(),
+                query: query.to_string(),
+                result_count: results.len(),
+                latency_ms: latency,
+                estimated_cost_usd: self.cost_per_query(),
+                answer: None,
+                cached: false,
+            },
+            results,
+        })
+    }
+
+    fn cost_per_query(&self) -> f64 {
+        if self.config.api_key.trim().is_empty() {
+            0.0
+        } else {
+            0.004
+        }
+    }
+}
+
 // ── Router ───────────────────────────────────────────────────────────────────
 
 pub struct SearchRouter {
@@ -679,6 +781,9 @@ impl SearchRouter {
                 })?;
                 Box::new(PerplexityProvider::new(c.clone()))
             }
+            SearchProviderType::Keenable => Box::new(KeenableProvider::new(
+                config.keenable.clone().unwrap_or_default(),
+            )),
             SearchProviderType::None => {
                 anyhow::bail!("Web search is disabled (provider = 'none')")
             }
@@ -962,6 +1067,7 @@ mod tests {
             brave: None,
             tavily: None,
             perplexity: None,
+            keenable: None,
         };
         let result = SearchRouter::from_config(&config);
         assert!(result.is_err());
@@ -985,6 +1091,7 @@ mod tests {
             brave: None,
             tavily: None,
             perplexity: None,
+            keenable: None,
         };
         let result = SearchRouter::from_config(&config);
         assert!(result.is_err());
@@ -1008,10 +1115,60 @@ mod tests {
             brave: None,
             tavily: None,
             perplexity: None,
+            keenable: None,
         };
         let result = SearchRouter::from_config(&config);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("disabled"));
+    }
+
+    #[test]
+    fn test_router_keenable_works_without_config() {
+        let config = WebSearchConfig {
+            provider: SearchProviderType::Keenable,
+            cache_enabled: true,
+            cache_ttl: 900,
+            max_results: 5,
+            prefer_native: true,
+            searxng: None,
+            brave: None,
+            tavily: None,
+            perplexity: None,
+            keenable: None,
+        };
+        let router = SearchRouter::from_config(&config).unwrap();
+        assert_eq!(router.provider_name(), "keenable");
+    }
+
+    #[test]
+    fn test_keenable_request_and_parse() {
+        let free = KeenableProvider::new(KeenableConfig::default());
+        let req = free.request("rust", 5).build().unwrap();
+        assert_eq!(
+            req.url().as_str(),
+            "https://api.keenable.ai/v1/search/public"
+        );
+        assert_eq!(req.headers().get("X-Keenable-Title").unwrap(), "LocalGPT");
+
+        let keyed = KeenableProvider::new(KeenableConfig {
+            api_key: "kn-test".to_string(),
+        });
+        let req = keyed.request("rust", 5).build().unwrap();
+        assert_eq!(req.url().as_str(), "https://api.keenable.ai/v1/search");
+        assert_eq!(req.headers().get("X-API-Key").unwrap(), "kn-test");
+
+        let body = json!({
+            "results": [
+                {"title": "A", "url": "https://a.example", "description": "", "snippet": "sa", "published_at": "2026-01-01"},
+                {"title": "B", "url": "https://b.example", "description": "db"},
+                {"url": "https://no-title.example"}
+            ]
+        });
+        let results = KeenableProvider::parse_response(&body, 5);
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].snippet, "sa");
+        assert_eq!(results[0].published_date.as_deref(), Some("2026-01-01"));
+        assert_eq!(results[1].snippet, "db");
     }
 
     #[test]
@@ -1026,6 +1183,7 @@ mod tests {
             brave: None,
             tavily: None,
             perplexity: None,
+            keenable: None,
         };
         let result = SearchRouter::from_config(&config);
         assert!(result.is_err());
@@ -1049,6 +1207,7 @@ mod tests {
             brave: None,
             tavily: None,
             perplexity: None,
+            keenable: None,
         };
         let result = SearchRouter::from_config(&config);
         assert!(result.is_err());
@@ -1230,6 +1389,7 @@ mod tests {
             brave: None,
             tavily: None,
             perplexity: None,
+            keenable: None,
         };
         let router = SearchRouter::from_config(&config).unwrap();
         let tool = WebSearchTool::new(Arc::new(router));

@@ -47,6 +47,7 @@ Set `tools.web_search.provider` to one of:
 - `brave`
 - `tavily`
 - `perplexity`
+- `keenable` (works key-free; the key section is optional)
 
 Then add the matching API key section:
 
@@ -66,6 +67,12 @@ include_answer = true
 [tools.web_search.perplexity]
 api_key = "${PERPLEXITY_API_KEY}"
 model = "sonar"
+```
+
+```toml
+# Optional: without it Keenable uses its rate-limited key-free endpoint
+[tools.web_search.keenable]
+api_key = "${KEENABLE_API_KEY}"
 ```
 
 ## Native Search Behavior

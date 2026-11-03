@@ -587,6 +587,7 @@ impl Agent {
             SearchProviderType::Brave => 0.005,
             SearchProviderType::Tavily => 0.005,
             SearchProviderType::Perplexity => 0.003,
+            SearchProviderType::Keenable => 0.004,
             SearchProviderType::None => 0.0,
         }
     }
