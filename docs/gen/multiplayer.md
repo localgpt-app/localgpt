@@ -28,7 +28,7 @@ localgpt-gen --join 192.168.1.5:9879 --pin 482913
 #   send the invite link the host prints — http://<host>:<port>/#t=<token>
 
 # History:
-localgpt-gen --replay ~/.local/share/localgpt/workspace/sessions/<name>/ops.jsonl
+localgpt-gen --replay ~/.local/share/localgpt/gen-workspace/sessions/<name>/ops.jsonl
 ```
 
 - **Host:** the normal interactive gen window plus a session HTTP server on

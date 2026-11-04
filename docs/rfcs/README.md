@@ -63,17 +63,13 @@ rooms are Gen's; rooms in the desktop app, over the `.world` it has open, are
 | [multiplayer/multi-scale-3d-universe.md](multiplayer/multi-scale-3d-universe.md) | deferred — §2 deep-dive: coordinates and partitioning at planetary scale. Written over SpacetimeDB, which went 2026-11-01 |
 | [../archived/rfcs/spacetimedb-3d-audio-data-model.md](../archived/rfcs/spacetimedb-3d-audio-data-model.md) | archived 2026-11-01 — the server-side data model for the SpacetimeDB module, which went |
 
+The assistant's own RFC, [../archived/rfcs/notifications.md](../archived/rfcs/notifications.md) (alerts from its heartbeat), was archived 2026-11-04 with the assistant gone.
+
 ## The world data model
 
 | RFC | Status |
 |---|---|
 | [worldgen/unified-world-data-model.md](worldgen/unified-world-data-model.md) | implemented, then moved upstream — `world-types` shipped, and the format is now the published `openworldformat` crate. Change the format there |
-
-## Agent
-
-| RFC | Status |
-|---|---|
-| [agent/notifications.md](agent/notifications.md) | draft |
 
 ## Research
 
@@ -86,7 +82,7 @@ decisions already made.
 | [research/gen-technical-foundations.md](research/gen-technical-foundations.md) | the dual-artifact pattern that became `world-types` and the `.world` package |
 | [research/three-tier-artifact-architecture.md](research/three-tier-artifact-architecture.md) | the Prompt / WorldSpec / WorldInstance split. Its bidirectional-sync problem is settled differently in `authoring/world-editor-stack.md` |
 | [research/world-package-format.md](research/world-package-format.md) | the package format. Superseded in substance; the landscape survey stays useful |
-| [research/multi-agent-strategy.md](research/multi-agent-strategy.md) | shipping subagent spawning before multi-user. `spawn_agent` is in core |
+| [research/multi-agent-strategy.md](research/multi-agent-strategy.md) | shipping subagent spawning before multi-user. `spawn_agent` went with `localgpt-core` on 2026-11-01; the agents spawn their own, and multi-user is back as rooms |
 | [research/interaction-paradigms.md](research/interaction-paradigms.md) | the design frontier for persistent AI worlds. Nothing scheduled |
 
 ## Where the format's own RFCs live

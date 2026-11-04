@@ -8,7 +8,7 @@
 | Date | September 20, 2026 |
 | Author | Yi / LocalGPT |
 | Status | Design — not implemented |
-| Motivation | [../../ecosystem/orca-architecture-and-rust-feasibility.md](../../ecosystem/orca-architecture-and-rust-feasibility.md) §4.2 |
+| Motivation | [orca-architecture-and-rust-feasibility.md](orca-architecture-and-rust-feasibility.md) §4.2 |
 
 ---
 

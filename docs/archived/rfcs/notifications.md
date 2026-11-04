@@ -1,6 +1,6 @@
 # RFC: Notification Subsystem
 
-**Status:** Draft
+**Status:** Draft, 2026-02-24; archived 2026-11-04. The assistant this was for — its heartbeat, its autonomous tasks, its channels — went on 2026-11-01 with the harness ([../../rfcs/authoring/the-harness-goes.md](../../rfcs/authoring/the-harness-goes.md)); nothing in the tree runs unattended, so there is nothing to notify from. Kept for the channel survey.
 **Author:** Claude
 **Date:** 2026-02-24
 

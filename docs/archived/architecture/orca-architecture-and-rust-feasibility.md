@@ -7,9 +7,9 @@
 | Version | 1.0 |
 | Date | September 20, 2026 |
 | Author | Yi / LocalGPT |
-| Status | Research — no commitment |
+| Status | Research — no commitment. Archived 2026-11-04: the foundation it assessed (`localgpt-core`, the bridges, the pairing plane) went on 2026-11-01 with the harness (`../../rfcs/authoring/the-harness-goes.md`); the agents LocalGPT defers to orchestrate their own subagents |
 | Subject | `stablyai/orca` @ `b5b727bd` (2026-09-19), MIT |
-| Related | [rust-ecosystem-integration-spec.md](./rust-ecosystem-integration-spec.md), [../archived/architecture/bridge-development.md](../archived/architecture/bridge-development.md), [../archived/architecture/pairing-auth-plane.md](../archived/architecture/pairing-auth-plane.md) |
+| Related | [rust-ecosystem-integration-spec.md](rust-ecosystem-integration-spec.md), [bridge-development.md](bridge-development.md), [pairing-auth-plane.md](pairing-auth-plane.md) |
 
 ---
 
@@ -347,7 +347,7 @@ Ranges, not estimates — anchored to a small team.
 5. **Treat `login.onorca.dev` as the real moat.** The relay being open is not the same as the
    product being self-hostable. If LocalGPT ever ships a companion app, the auth plane is the
    part to design first, because Orca demonstrates it is the part everyone keeps private.
-   Design follow-up: [../archived/architecture/pairing-auth-plane.md](../archived/architecture/pairing-auth-plane.md),
+   Design follow-up: [pairing-auth-plane.md](pairing-auth-plane.md),
    which argues the plane can be built with no identity provider at all.
 
 ---
