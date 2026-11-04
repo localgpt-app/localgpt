@@ -48,6 +48,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The Apple-silicon runner starts with about 14 GB free, and a release
+      # build of the app with Bevy fills it: the first run built for 77
+      # minutes and then hdiutil failed with "No space left on device". The
+      # Xcodes that are not the selected one, the simulator runtimes and the
+      # Android SDK take most of the disk, and none of them is used here.
+      - name: Make room on the runner
+        run: |
+          df -h / | tail -1
+          selected="$(cd "$(xcode-select -p)/../.." && pwd -P)"
+          for x in /Applications/Xcode*.app; do
+            real="$(cd "$x" && pwd -P)"
+            if [ "$real" != "$selected" ] && [ ! -L "$x" ]; then
+              sudo rm -rf "$x"
+            fi
+          done
+          sudo rm -rf /Library/Developer/CoreSimulator/Volumes \
+            ~/Library/Developer/CoreSimulator/Caches ~/Library/Android \
+            /usr/local/share/dotnet ~/.dotnet 2>/dev/null || true
+          df -h / | tail -1
+
       - name: The tag matches the version
         if: startsWith(github.ref, 'refs/tags/')
         env:
