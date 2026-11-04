@@ -16,7 +16,7 @@ The process is the MCP client's own: the client spawns it, calls the gen tools o
 
 Interactive work means sitting and watching one scene. Variation and comparison — five lighting passes over a village, three densities of a forest — are scripting jobs, and an agent that can run a loop runs them: it queues its own prompts, calls the tools, saves each result as a world, and you open the results in the morning.
 
-The agent is yours — Claude Code, Codex, a script with an MCP client — and so is its memory of your preferences. Gen keeps none: what it keeps is the worlds, under `workspace/skills/<name>/`, each loadable with `gen_load_world` and openable in the window.
+The agent is yours — Claude Code, Codex, a script with an MCP client — and so is its memory of your preferences. Gen keeps none: what it keeps is the worlds, under `~/.local/share/localgpt/gen-workspace/skills/<name>/`, each loadable with `gen_load_world` and openable in the window.
 
 ## Exit codes
 

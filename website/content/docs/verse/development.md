@@ -51,11 +51,8 @@ VERSE_SMOKE=1 cargo run -p localgpt-verse                    # walk every screen
 VERSE_SMOKE=1 VERSE_SHOT=/tmp cargo run -p localgpt-verse  # + save verse-hud.png / verse-overlays.png
 ```
 
-:::note
-
-Screenshot readback can intermittently return black frames on some machines (that's why Photo mode retries). A *consistent* black frame is a scene bug, not the flake — check the logs.
-
-:::
+> [!NOTE]
+> Screenshot readback can intermittently return black frames on some machines (that's why Photo mode retries). A *consistent* black frame is a scene bug, not the flake — check the logs.
 
 ## Perf stress test {#stress}
 

@@ -68,11 +68,11 @@ LocalGPT Gen starts a **TCP relay server** alongside the Bevy window. When the c
 When you run `localgpt-gen --mcp-relay`:
 
 1. **Bevy window opens** on the main thread
-2. **MCP relay starts** on port 9878
-3. **Agent loop starts** — you see:
+2. **MCP relay starts** on port 9878 — you see:
    ```
    MCP relay active on port 9878 (external MCP clients can connect to this window)
    ```
+3. Nothing else runs in the window: no agent, no prompt
 4. When you prompt the agent in its own terminal:
    - It reads its MCP config
    - It spawns `localgpt-gen mcp-server --connect`
@@ -90,7 +90,7 @@ Gen has no prompt of its own: the relay, `mcp-server`, or a live package's API i
 localgpt-gen --mcp-relay
 ```
 
-Without the flag no port is opened and no relay message is shown. (The relay used to start by itself when the configured model was a coding agent run as a subprocess; the agents are no longer model backends, so it starts only when asked.)
+Without the flag no port is opened and no relay message is shown.
 
 ### Point the client at it
 
@@ -136,13 +136,11 @@ command = "localgpt-gen"
 args = ["mcp-server", "--connect"]
 ```
 
-:::tip Migrating from standalone MCP
-If you previously configured `localgpt-gen mcp-server` **without** `--connect`, update your configs to add `"--connect"` to the args array. This prevents the duplicate window issue.
-:::
+A config that already names `localgpt-gen mcp-server` **without** `--connect` spawns a window of its own; add `"--connect"` to its args to reach the one you have open.
 
 ### Standalone MCP mode
 
-If you want to run gen as a **standalone MCP server** (no interactive mode, the CLI is the sole orchestrator), use `mcp-server` without `--connect`:
+To run Gen as a **standalone MCP server** — the client spawns the whole of Gen, window included — use `mcp-server` without `--connect`:
 
 ```bash
 localgpt-gen mcp-server
@@ -179,11 +177,11 @@ Any MCP client that can spawn a stdio server. The three that come up most:
 
 ### "No relay port specified and no running gen process found"
 
-The `--connect` process can't find the relay. Make sure `localgpt-gen` is running interactively first:
+The `--connect` process can't find the relay. Make sure a window with the relay is open first:
 
 ```bash
-# Terminal 1: start gen interactively
-localgpt-gen
+# Terminal 1: the window, with the relay
+localgpt-gen --mcp-relay
 
 # Terminal 2: the MCP connect process finds it automatically
 localgpt-gen mcp-server --connect
@@ -191,15 +189,7 @@ localgpt-gen mcp-server --connect
 
 ### Still seeing two windows
 
-Check that your MCP configs use `--connect`:
-
-```bash
-# Check workspace configs
-cat ~/.local/share/localgpt/workspace/.mcp.json
-cat ~/.local/share/localgpt/workspace/.gemini/settings.json
-```
-
-Both should have `["mcp-server", "--connect"]` in the args. If they show `["mcp-server"]` without `--connect`, update them.
+Check the client's own MCP config (`.mcp.json`, `.gemini/settings.json`, `~/.codex/config.toml`): the entry should have `["mcp-server", "--connect"]` in its args. If it shows `["mcp-server"]` without `--connect`, the client is spawning a window of its own.
 
 ### Relay port conflict
 

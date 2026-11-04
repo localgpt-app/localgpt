@@ -18,8 +18,8 @@ The two halves meet at a simple point: an agent that can edit files is one comma
 
 | | What it is | Get it |
 |---|---|---|
-| [**LocalGPT**, the desktop app](/docs/app/) | One window, every mode: a world from a document (MD), from a song (Verse), from a prompt (Gen), or any `.world` opened as a live canvas, with terminals for your agents beside it | `cargo run -p localgpt-app` from a checkout; `LocalGPT.app` from `apps/app-desktop/` |
-| [**LocalGPT Gen**](/docs/gen/) | The world builder as a binary: its 95 tools over MCP, the live canvas, collaborative sessions, headless | `cargo install localgpt-gen` |
+| [**LocalGPT**, the desktop app](/docs/app/) | One window, every mode: a world from a document (MD), from a song (Verse), or any `.world` opened as a live canvas that your own agent builds in (Gen), with terminals for your agents beside it | `cargo run -p localgpt-app` from a checkout; `LocalGPT.app` from `apps/app-desktop/` |
+| [**LocalGPT Gen**](/docs/gen/) | The world builder as a binary: its 88 tools over MCP, the live canvas, collaborative sessions, headless | `cargo install localgpt-gen` |
 | [**Previs**](/docs/gen/previs/) | A screenplay in; per scene a `.world` with set, cast and coverage, plus a board and a shot list. Deterministic, no model | [localgpt.md](https://localgpt.md) in the browser, or `cargo install localgpt-previs` |
 | [**`localgpt`**, the world's command line](/docs/cli-commands/) | `localgpt world`: commit, undo, log, tips, verify, screenshot, and `localgpt world mcp`, the shim that serves an open world's tools to any MCP agent | `cargo install localgpt` |
 | [**localgpt.world**](https://localgpt.world) | The gallery, and the one web viewer every exported page carries | a browser |

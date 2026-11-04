@@ -10,7 +10,7 @@ LocalGPT Gen can run as an [MCP](https://modelcontextprotocol.io/) (Model Contex
 
 LocalGPT Gen runs no model of its own: the window and the tools that build in it are the whole binary, and whatever drives them runs in another process — Claude Desktop, Codex Desktop, a coding agent in a terminal, an editor's built-in AI.
 
-MCP is how they reach it. It's a standard protocol that these tools already support. By running `localgpt-gen mcp-server`, the Bevy window opens and all gen tools become available to any MCP client over stdio. The AI backend is the orchestrator — it manages the conversation, calls tools, and drives the scene building — under its own login; Gen holds no key.
+MCP is how they reach it. It's a standard protocol that these tools already support. By running `localgpt-gen mcp-server`, the Bevy window opens and all gen tools become available to any MCP client over stdio. The client is the orchestrator — it manages the conversation, calls tools, and drives the scene building — under its own login; Gen holds no key.
 
 ## Quick Start
 
@@ -19,7 +19,7 @@ MCP is how they reach it. It's a standard protocol that these tools already supp
 localgpt-gen mcp-server
 ```
 
-Then configure your AI tool to connect to it (see sections below).
+Then configure your client to spawn it (see sections below).
 
 ## Available Tools
 
@@ -140,26 +140,19 @@ Restart Claude Desktop after saving. The gen tools appear in Claude's tool list 
 
 Claude will call `gen_spawn_primitive`, `gen_set_light`, `gen_set_camera`, etc. to construct the scene in the Bevy window.
 
-## Codex Desktop
+## Codex
 
-Add to your Codex configuration:
+Add to `~/.codex/config.toml`, which Codex's CLI and app share:
 
-- **Config file**: `~/.codex/config.json`
-
-```json
-{
-  "mcpServers": {
-    "localgpt-gen": {
-      "command": "localgpt-gen",
-      "args": ["mcp-server"]
-    }
-  }
-}
+```toml
+[mcp_servers.localgpt-gen]
+command = "localgpt-gen"
+args = ["mcp-server"]
 ```
 
-## CLI Tools
+## Coding agents in a terminal
 
-To drive a Gen window that is already open — started with `--mcp-relay` — point the client at `localgpt-gen mcp-server --connect` instead, a bridge to that window rather than a new one: see [MCP Relay](/docs/gen/cli-mode).
+Claude Code, Codex and Gemini CLI take the same entry in their own MCP configs. To drive a Gen window that is already open — started with `--mcp-relay` — point the client at `localgpt-gen mcp-server --connect` instead, a bridge to that window rather than a new one: see [MCP Relay](/docs/gen/cli-mode).
 
 ## VS Code (Copilot)
 
@@ -199,7 +192,7 @@ Add to your Zed settings (`~/.config/zed/settings.json`):
 }
 ```
 
-The gen tools become available in Zed's AI assistant panel.
+The gen tools become available in Zed's agent panel.
 
 ## Cursor
 
@@ -266,7 +259,7 @@ You can load an existing scene while starting the MCP server:
 localgpt-gen mcp-server --scene ./my-scene.glb
 ```
 
-The AI backend can then modify the pre-loaded scene.
+The agent then works on the loaded scene.
 
 ## The world's own shim
 
@@ -281,4 +274,4 @@ claude mcp add world -- localgpt world mcp
 - **Verbose logging**: Add `--verbose` to see MCP protocol messages and tool list in stderr: `localgpt-gen mcp-server --verbose`
 - **Binary path**: If `localgpt-gen` is not in your `$PATH`, use the full path (e.g., `/Users/you/.cargo/bin/localgpt-gen`) in the MCP server configuration
 - **One instance**: Each standalone `mcp-server` spawns its own Bevy window. If a Gen window is already open with `--mcp-relay`, use `--connect` to reach it instead (see [MCP Relay](/docs/gen/cli-mode))
-- **Screenshots**: The AI can take screenshots via `gen_screenshot` to see what it built and course-correct — this works the same as in interactive mode
+- **Screenshots**: the agent can take screenshots via `gen_screenshot` to see what it built and course-correct

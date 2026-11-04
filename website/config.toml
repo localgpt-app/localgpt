@@ -1,6 +1,6 @@
 base_url = "https://localgpt.app"
 title = "LocalGPT"
-description = "A local AI agent with persistent memory, and a desktop app where prompts, documents, songs and screenplays become 3D worlds that people and agents edit together."
+description = "The desktop app where a document, a song, a screenplay or a prompt becomes a 3D world that people and agents edit together, with your own coding agents in the terminals beside it. No model inside, no key."
 compile_sass = false
 build_search_index = true
 generate_feeds = false
@@ -24,7 +24,7 @@ youtube_gen = "https://www.youtube.com/@localgpt-gen"
 [[extra.family]]
 name = "LocalGPT"
 url = "https://localgpt.app"
-blurb = "A local AI agent, and the desktop app for worlds."
+blurb = "The desktop app for worlds, with your agents beside them."
 
 [[extra.family]]
 name = "LocalGPT Gen"

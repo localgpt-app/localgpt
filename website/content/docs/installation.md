@@ -93,7 +93,7 @@ cargo install --path crates/cli               # or crates/gen, crates/app, crate
 | Crate | Flag | What it adds | Fetch first |
 |---|---|---|---|
 | `localgpt-gen` | `physics`, `multiplayer` (default) | avian3d physics; `--host`/`--join`/`--web` sessions | — |
-| `localgpt-verse` | `ml` | CLAP zero-shot moods and embedding-ranked placement (CC-BY-NC weights: personal and research use) | `crates/verse/scripts/fetch-clap.sh` |
+| `localgpt-verse` | `ml` | CLAP zero-shot moods and embedding-ranked placement (CC-BY-NC weights: personal and research use), Demucs stems — audio analysis, not a language model | `crates/verse/scripts/fetch-clap.sh`, `fetch-demucs.sh` |
 
 ```bash
 cargo run -p localgpt-verse --features ml

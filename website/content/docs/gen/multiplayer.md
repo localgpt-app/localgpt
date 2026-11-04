@@ -4,17 +4,19 @@ title: "Collaborative Sessions"
 
 # Collaborative Sessions
 
-Build a world together. One machine **hosts** a session — it runs the AI and owns the world — and friends on the same network **join** from their own machines. Everyone walks around the same world in their own window, and anyone can ask the host's AI to build something where they're looking.
+Build a world together. One machine **hosts** a session and owns the world; friends on the same network **join** from their own Gen window, or from a browser with the invite link, and everyone walks the same world live. No model runs for the room: the host builds with its own agent, outside the window, and every change reaches every guest.
 
 ## Quick Start
 
 On the host machine:
 
 ```bash
-localgpt-gen --host
+localgpt-gen --host                 # prints a 6-digit session PIN
+localgpt-gen --host --web           # also a join page and an invite link for browsers
+localgpt-gen --host --mcp-relay     # and your agent builds in the hosted world over MCP
 ```
 
-The host console prints a 6-digit **session PIN**:
+The host console prints the PIN:
 
 ```
   Session PIN: 482 913   (joiners: localgpt-gen --join <this-host> --pin <PIN>)
@@ -23,11 +25,17 @@ The host console prints a 6-digit **session PIN**:
 On each joining machine:
 
 ```bash
-localgpt-gen --join                            # find sessions on the LAN, you'll be asked for the PIN
+localgpt-gen --join                            # find sessions on the LAN; you'll be asked for the PIN
 localgpt-gen --join 192.168.1.5 --pin 482913   # or connect directly
 ```
 
-A line typed in the joiner's terminal is chat to the room. No AI runs for a session: the host builds with its own agent, through the window's [MCP relay](/docs/gen/cli-mode/) or a live package's API, and every change streams to everyone; browser guests joined with `--web-edit` edit directly.
+A browser guest opens the invite link the host prints (`http://<host>:<port>/#t=<token>`): nothing to install and no internet, since the host serves the page itself.
+
+## Who builds
+
+The room runs no AI. The host's own agent builds — over the window's [MCP relay](/docs/gen/cli-mode/) (`--mcp-relay` beside `--host`) or through a live package's API — and its edits reach everyone as the host's ops. A guest who wants something built says so in chat, and the host asks its agent; a prompt a guest's client sends is refused by the room with the reason.
+
+Browser guests joined with `--web-edit` edit directly: click to select, drag to move, `Q`/`E` rotate, `+`/`-` scale, `Delete` remove, and `/undo` steps back through their own changes. Native joiners watch, walk and chat.
 
 ## Options
 
@@ -36,50 +44,50 @@ A line typed in the joiner's terminal is chat to the room. No AI runs for a sess
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--session-name <name>` | `<user>'s world` | Name shown to joiners browsing the LAN |
-| `--port <port>` | `9879` | Session port (UDP for the world, TCP for pairing and assets) |
+| `--port <port>` | `9879` | The session port: the join page and the WebSocket the room runs over |
 | `--open` | off | Skip the PIN (anyone on the network can join). Trusted networks only |
+| `--web` | off | Serve the join page and print an invite link for browsers |
+| `--web-edit` | off | With `--web`: browser guests edit directly, not just watch and chat |
+| `--relay <url>` | — | Reach guests beyond the LAN through a `localgpt-relay` ([below](#beyond-the-lan)) |
+| `--resume <session>` | — | With `--web`: replay a session's log before guests join |
 
 **Join (`--join [address]`)**
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--pin <PIN>` | prompt | The host's session PIN |
-| `--view-radius <n>` | `2` | How many 64-unit chunks around you stream in full detail (max 8) |
-| `--no-bake` | off | Disable mesh merging (see [Performance](#performance)) |
 
 With no address, `--join` browses the LAN over mDNS and joins the first session it finds.
 
-### Joiner controls
+### In a joiner's window
 
-- **WASD / arrows** — move · **Q/E** — down/up · **right-drag** — look · **scroll** — speed
-- `/stats` — what your client is receiving (entities, placeholders, merged meshes, streamed assets)
-- `/goto x y z` — jump the camera somewhere
+- **W A S D**, mouse — fly and look, as in any Gen window; every guest is a labelled capsule
+- `/stats` — what your client is receiving
+- `/quit` — leave
 
-Everything else you type goes to the host's AI.
+Any other line typed in the joiner's terminal is chat to the room.
 
-## How Prompts Work
+## Sessions are packages
 
-Joiners' prompts go into a queue on the host and run one at a time, in order. You'll see your place in line:
+Every session is a package under `~/.local/share/localgpt/gen-workspace/sessions/<name>/`: a base world (`world.ron`), one log of every committed batch (`ops.jsonl`), `session.json` and keyframe snapshots. The log is the history, so:
 
+- `/undo` takes back your own newest batch; undoing an undo redoes it.
+- `localgpt-gen --host --web --resume <session>` restores a session before guests join.
+- `localgpt-gen --replay <session> [--replay-speed 4]` rebuilds it batch by batch in a window, as a time-lapse.
+- `localgpt-gen --export-session <name> [--out x.world]` zips the package into the one-file `.world` other software reads; `--resume` and `--replay` take those archives back.
+
+## Beyond the LAN {#beyond-the-lan}
+
+Run `localgpt-relay` anywhere with a public address, and host with it:
+
+```bash
+localgpt-relay 9911                                   # on the server; put a TLS terminator in front for wss
+localgpt-gen --host --relay https://relay.example.com # prints: Internet guests: https://relay.example.com/r/Q8QJVD/#t=<token>
 ```
-[queue] job #3 queued — 1 ahead of it
-[queue] job #3 is being built…
-[queue] job #3 done
-```
 
-The AI is told where you were looking when you sent the prompt, so "build a tower here" lands in front of you. Each joiner can have up to 4 prompts waiting.
-
-## Performance
-
-Sessions are built to stay smooth as worlds grow:
-
-- **Nearby detail only** — the host streams full detail only for the area around each joiner. Distant areas show as simple colored blocks, so the horizon isn't empty.
-- **Mesh merging** — once part of the world stops changing for a few seconds, your client merges its static pieces into a handful of meshes, cutting draw calls. Anything that changes is un-merged instantly.
-- **On-demand assets** — custom geometry is downloaded once, verified, and cached on disk, so rejoining (or reusing the same model) doesn't download it again.
+The relay forwards frames by room code and keeps no world state, but it encrypts nothing and serves the join page itself, so whoever runs a relay can read its rooms: run your own, and relay only a world you would show anyone. LAN guests and relay guests share the same room.
 
 ## Security
-
-Joiners steer an AI running on **the host's machine**, so sessions are locked down by default.
 
 ### Joining takes the PIN
 
@@ -89,18 +97,19 @@ Joiners steer an AI running on **the host's machine**, so sessions are locked do
 - Through a relay (`--relay`), guests join with the invite link's token only, never the PIN, and whoever runs the relay can read the session.
 - `--open` skips the PIN — only use it on networks where you trust everyone.
 
-### Joiners can only edit the scene
+### Guests can only edit the scene
 
-Nothing a joiner sends runs on the host beyond the world's own ops:
+Nothing a guest sends runs on the host beyond the world's own ops:
 
 - No AI runs for the room: a prompt a guest sends is refused by the authority with the reason, and the host's agent is the host's alone
 - No shell commands, no reading or writing files, no web access
 - No saving or exporting to the host's disk — the host saves worlds
-- Scene edits (browser guests with `--web-edit`) are regular edits the host can undo
+- Scene edits (browser guests with `--web-edit`) are regular edits the host can undo, and the authority checks every op from anyone: roles, schema, limits, revision
 
 ## Current Limitations
 
 - Native joiners watch and chat but don't edit directly; browser guests edit with `--web-edit`.
-- Terrain, water, foliage, sky, in-world UI, NPCs, and loaded glTF models aren't shared with joiners yet (glTF models show as placeholders).
-- Host and joiners must run the same `localgpt-gen` version.
-- Any paired joiner can prompt changes anywhere in the world — there are no per-user permissions yet.
+- glTF meshes show as placeholders for guests. Terrain, water, foliage, sky, in-world UI and NPC bodies aren't in the world format, so they are neither saved nor synced.
+- Guests sync the whole document, which is fine at room scale; a room holds 16 guests.
+- Host and joiners must speak the same protocol version; a session announces its own on the LAN, and browsing skips sessions on another.
+- A guest's own agent building through the room, rather than through the host's window, is a follow-up the protocol is shaped for.

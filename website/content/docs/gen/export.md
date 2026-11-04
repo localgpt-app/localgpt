@@ -28,12 +28,7 @@ Export the scene as a standard [glTF 2.0](https://www.khronos.org/gltf/) binary 
 
 ### Usage
 
-```bash
-# In the Gen terminal
-> Export the scene as glTF
-```
-
-Or call the tool directly:
+Ask your agent to export the scene as glTF, or call the tool directly:
 
 ```json
 {
@@ -87,14 +82,7 @@ Export the world as a **self-contained HTML file** that runs in any browser. Thi
 
 ### Usage
 
-Save the world first, then export:
-
-```bash
-> Save this world as "my-castle"
-> Export as HTML
-```
-
-Or via tools:
+Save the world first, then export — ask your agent, or call the tools:
 
 ```json
 {"name": "gen_save_world", "arguments": {"name": "my-castle"}}
@@ -116,7 +104,7 @@ Or via tools:
 The HTML file is written to the world skill's `export/` directory:
 
 ```
-workspace/skills/my-castle/
+gen-workspace/skills/my-castle/
 ├── world.ron          # Native format
 ├── SKILL.md           # Metadata
 ├── history.jsonl      # Edit history
@@ -164,7 +152,7 @@ Capture a high-resolution image of the current scene.
 | `width` | 1920 | Image width in pixels |
 | `height` | 1080 | Image height in pixels |
 
-The AI uses screenshots during generation to see what it built and course-correct. You can also use `gen_screenshot` (the in-scene version) which captures to a temp file and returns the image for the AI to analyze.
+An agent uses screenshots while it builds to see what it made and course-correct. `gen_screenshot` (the in-scene version) captures to a temp file and returns the image for the agent to look at.
 
 ## World Export (`gen_export_world`)
 
@@ -179,7 +167,7 @@ A convenience tool that exports the entire saved world as glTF:
 }
 ```
 
-Exports to the world skill's `export/` directory (e.g., `workspace/skills/my-castle/export/scene.glb`). Supports `"glb"` (default) or `"gltf"` format.
+Exports to the world skill's `export/` directory (e.g., `gen-workspace/skills/my-castle/export/scene.glb`). Supports `"glb"` (default) or `"gltf"` format.
 
 ## Choosing an Export Format
 

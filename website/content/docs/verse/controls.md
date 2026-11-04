@@ -50,11 +50,8 @@ Comfort is a cross-cutting gate, checked at the effect sites rather than in the 
 - **Reduce flashing** — holds the world glow steady (no beat pulse) and caps UI pulses.
 - **Gentler world motion** — damps the sway.
 
-:::note
-
-[verse.localgpt.app](https://verse.localgpt.app/) follows the same rule: palette cycling and reveal animations switch off entirely under your system's `prefers-reduced-motion` setting.
-
-:::
+> [!NOTE]
+> [verse.localgpt.app](https://verse.localgpt.app/) follows the same rule: palette cycling and reveal animations switch off entirely under your system's `prefers-reduced-motion` setting.
 
 ## Photo mode {#photo}
 

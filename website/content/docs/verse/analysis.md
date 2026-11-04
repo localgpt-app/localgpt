@@ -35,11 +35,8 @@ Behind the opt-in `ml` feature, a [CLAP](https://github.com/LAION-AI/CLAP) model
 - **Zero-shot mood** — the track's 512-d audio embedding (three windows averaged) is compared against precomputed text embeddings for the moods. The mel frontend is validated against the reference feature extractor (≤0.5 dB; end-to-end cosine >0.995).
 - **Embedding-ranked placement** — the CLAP text tower embeds each manifest entry's name on a background thread, and placement weights medium-tier counts and the hero fallback by `cos(track audio embedding, asset text embedding)`, min-max normalized to [0.4, 1.6] — neutral without either signal.
 
-:::note
-
-Only the **audio→text** direction is used: CLAP's text↔text comparisons measured off-manifold, so recipe prose stays keyword-matched.
-
-:::
+> [!NOTE]
+> Only the **audio→text** direction is used: CLAP's text↔text comparisons measured off-manifold, so recipe prose stays keyword-matched.
 
 ## Stem reactivity {#stems}
 
@@ -66,8 +63,5 @@ Verse reads a recipe; it never writes one. No language model runs in it (the in-
 | stem-splitter-core (Demucs) | MIT / Apache-2.0 | Commercial-friendly |
 | CLAP weights (LAION) | CC-BY-NC-4.0 | **Not** cleared for commercial distribution |
 
-:::warning
-
-**Weights ≠ code.** A model's code being Apache/MIT says nothing about its checkpoint. Verify each weight file's terms before shipping anything commercially — the CLAP weights in particular are research-only.
-
-:::
+> [!WARNING]
+> **Weights ≠ code.** A model's code being Apache/MIT says nothing about its checkpoint. Verify each weight file's terms before shipping anything commercially — the CLAP weights in particular are research-only.

@@ -41,11 +41,8 @@ Click through it, or press **Skip setup** / <kbd>Enter</kbd> to jump straight in
 
 Analysis results are cached as JSON sidecars, keyed by a blake3 content hash and stored in the app data directory — rename- and move-proof, and **your music folder is never written to**. A track is analyzed once, then never again.
 
-:::note[Dev shortcut]
-
-`VERSE_IMPORT=<dir> cargo run -p localgpt-verse` imports that folder at startup. Without an import (or an audio device), LocalGPT Verse falls back to a silent simulated transport so the HUD and worlds still run.
-
-:::
+> [!NOTE]
+> **Dev shortcut.** `VERSE_IMPORT=<dir> cargo run -p localgpt-verse` imports that folder at startup. Without an import (or an audio device), LocalGPT Verse falls back to a silent simulated transport so the HUD and worlds still run.
 
 ## Optional: ML moods {#ml}
 
@@ -58,11 +55,8 @@ cargo run -p localgpt-verse --features ml
 
 Each track then gets a 512-dimensional CLAP embedding (three windows averaged) and a zero-shot mood vote, and the embedding is stored in the sidecar where it also ranks which assets a world plants. Without the feature or the model file, the rule mapper runs unchanged.
 
-:::warning[License note]
-
-The CLAP weights are **CC-BY-NC** — fine for personal and research use, not cleared for commercial distribution. The rule mapper is the commercial shipping tier; the app runs fully without `ml`.
-
-:::
+> [!WARNING]
+> **License note.** The CLAP weights are **CC-BY-NC** — fine for personal and research use, not cleared for commercial distribution. The rule mapper is the commercial shipping tier; the app runs fully without `ml`.
 
 ## Authored recipes {#recipes}
 

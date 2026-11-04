@@ -608,6 +608,25 @@ main.main-content {
   background: var(--bg-subtle);
   border-radius: 0 6px 6px 0;
 }
+/* GitHub-style alerts (> [!NOTE], > [!WARNING]) as Zola renders them */
+.prose .markdown-alert {
+  border-left: 4px solid var(--primary);
+  padding: 0.6rem 1rem;
+  margin: 1.5rem 0;
+  background: var(--bg-subtle);
+  border-radius: 0 6px 6px 0;
+}
+.prose .markdown-alert p { margin-bottom: 0.4rem; }
+.prose .markdown-alert p:last-child { margin-bottom: 0; }
+.prose .markdown-alert-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+.prose .markdown-alert-warning { border-left-color: #e5a50a; }
+.prose .markdown-alert-warning .markdown-alert-title { color: #e5a50a; }
 .prose table {
   width: 100%;
   border-collapse: collapse;

@@ -20,7 +20,7 @@ A comparison of AI systems that generate or interact with 3D explorable worlds.
 | [Unity AI Beta](https://discussions.unity.com/t/unity-ai-beta-2026-is-here/1703625) | Text | 3D Scenes | Cloud + Local | AI-assisted game development |
 | [Roblox AI](https://www.developer-tech.com/news/roblox-brings-ai-generated-game-objects-to-its-developer-tools/) | Text | Game Objects | Cloud | AI-generated game objects |
 | [Moonlake Reverie](https://moonlakeai.com/) | Text | Interactive 2D/3D | Cloud | Generative game engine |
-| **LocalGPT Gen** | Text | Interactive 3D (glTF) | Local | Open-source world building |
+| **LocalGPT Gen** | Text, through the agent you already use | Interactive 3D (`.world`, glTF) | Local | Open-source world building |
 
 ## Feature Comparison
 
@@ -93,7 +93,7 @@ Generative Game Engine (GGE) from Moonlake AI that transforms text descriptions 
 
 ### LocalGPT Gen
 
-Open-source, local-first 3D world generation powered by Bevy. Features procedural audio synthesis, data-driven behaviors, glTF and HTML export, collaborative sessions, and a [live canvas](/docs/gen/live-canvas/) where outside agents edit a `.world` package through a logged, branchable history. Runs entirely on your machine without cloud dependencies.
+Open-source, local-first 3D world building on Bevy, driven over MCP by the coding agent you already use: Gen runs no model of its own. Procedural audio synthesis, data-driven behaviors, glTF and HTML export, collaborative sessions, and a [live canvas](/docs/gen/live-canvas/) where outside agents edit a `.world` package through a logged, branchable history. Runs entirely on your machine without cloud dependencies.
 
 **Showcases:**
 - [localgpt.world](https://localgpt.world/) — worlds from every LocalGPT app, playable in the browser with their behaviors, audio and tours

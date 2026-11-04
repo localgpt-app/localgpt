@@ -15,7 +15,6 @@ cargo run -p localgpt-app                             # reopens what was opened 
 cargo run -p localgpt-app -- --md notes.md            # a document as a world
 cargo run -p localgpt-app -- --song track.mp3         # a song as a world that performs it
 cargo run -p localgpt-app -- --world scene-1.world    # a package, opened live
-cargo run -p localgpt-app -- --md notes.md --no-author   # rules and fences only, no model
 ```
 
 **Open…** at the top of the window takes a document, a song or a world file. With nothing given and nothing remembered, the app opens a starter song from the CC0 pack. The app is not on crates.io; it ships as a build — see [Installation](/docs/installation/#the-macos-app-bundle) for `LocalGPT.app`.
@@ -34,9 +33,7 @@ A Markdown file opens with its panel: the file's outline, the selected section's
 
 The rule-based draft is the first frame. What a section's place looks like beyond that comes from MD's sidecar next to the document (`<doc>.world.json`), keyed by each section's content hash: a build or a recipe an agent authored for it. The app runs no model and never writes the sidecar; the agent in the terminal beside the world does, working on the file, and a section keeps what was authored for it until its text changes. A ```` ```world ```` fence in the file itself overrides both.
 
-The text and the world map onto each other: the outline labels each section with where its place came from (fence, build, recipe, draft); a click on a section, or the cursor moving into one (**Follow cursor**), flies the camera there; the place card shows the build's description and what the place is made of, and a click on a thing selects it in the world and flies to it; clicking a thing in the world selects its section and brings its heading into view.
-
-The app runs no model: a place a model built comes from MD's sidecar beside the document (`<doc>.world.json`), written by `localgpt-md --generate` or by an agent working on the file, and the outline labels each section with where its place came from (fence, model, recipe, draft). The app shows no model menu and manages no agent's or model's configuration.
+The text and the world map onto each other: the outline labels each section with where its place came from (fence, build, recipe, draft); a click on a section, or the cursor moving into one (**Follow cursor**), flies the camera there; the place card shows the build's description and what the place is made of, and a click on a thing selects it in the world and flies to it; clicking a thing in the world selects its section and brings its heading into view. The app shows no model menu and manages no agent's or model's configuration.
 
 ### A song {#song}
 
@@ -68,11 +65,9 @@ Under the tree the inspector shows the selected thing part by part. Its name, tr
 
 ## The agents {#agents}
 
-**+** at the top of the right-hand panel opens a tab: **Claude Code**, **Codex**, **agy**, **Gemini CLI**, **OpenCode**, or a **Shell**. Each is a full terminal — the agent's own interface, its approvals, `/commands` and sign-in — started through your login shell in the folder of what is open: the package, the document's folder, or the song's world. So an agent finds a package's `AGENTS.md` and `.live/endpoint.json` from where it starts, and the guide teaches it [`localgpt world`](/docs/cli-commands/#world), which sends each command to the open window. A tab opened on a package also carries it as `LOCALGPT_WORLD_DIR`, and an agent's tab its name as `LOCALGPT_WORLD_AUTHOR`, so those commands find the world from any folder the agent goes to and its batches are recorded under its name. `localgpt world mcp` gives an MCP agent the same calls as tools.
+**+** at the top of the right-hand panel opens a terminal: your login shell, started in the folder of what is open — the package, the document's folder, or the song's world. Run whatever agent you have in it — `claude`, `codex`, `gemini`, `opencode`, or none — and it is a full terminal: the agent's own interface, its approvals, `/commands` and sign-in. An agent finds a package's `AGENTS.md` and `.live/endpoint.json` from where it starts, and the guide teaches it [`localgpt world`](/docs/cli-commands/#world), which sends each command to the open window. A tab opened on a package also carries the folder as `LOCALGPT_WORLD_DIR`, so those commands find the world from any folder the agent goes to; `--author`, or `LOCALGPT_WORLD_AUTHOR` in the agent's own environment, puts its name on its batches. `localgpt world mcp` gives an MCP agent the same calls as tools.
 
-The app knows each agent by its command's name and nothing more: no keys, no models, no settings — those stay with the agent. A link in a terminal opens in your browser. **Shift+Enter** sends a new line the way Claude Code expects one. A tab whose program has ended stays open to read; close it with its **×**.
-
-A tab is labelled with what the program in it calls itself in its terminal title, and nothing else: the app reads no more from a tab than that, and knows no agent by name.
+The app knows no agent by name: no keys, no models, no settings, no presets — those stay with the agent, and a tab is labelled with what the program in it calls itself in its terminal title and nothing else. A link in a terminal opens in your browser. **Shift+Enter** sends a new line the way the agents' prompts expect one. A tab whose program has ended stays open to read; close it with its **×**.
 
 ## A phone or a tablet {#phone}
 
@@ -122,9 +117,9 @@ apps/app-desktop/macos/build-app.sh --debug    # a quick bundle of the debug bui
 
 The script builds the interface first (`crates/app/ui`, which needs node 22) and the release binary carries it inside. Without credentials the bundle is ad-hoc signed and runs on the Mac that built it. Given `APPLE_SIGNING_IDENTITY` and `APPLE_NOTARY_PROFILE`, the script signs with a Developer ID, enables the hardened runtime and notarizes. The asset pack is not in the bundle: `scripts/fetch-assets.sh` fetches it once per machine. There is no model to fetch; the app runs none.
 
-For work on the interface itself: `npm run dev` in `crates/app/ui` serves it with reload, and `LOCALGPT_APP_UI_URL=http://localhost:5174` points the app at it; `LOCALGPT_APP_UI_OPEN=claude,shell` starts with those tabs (`outliner` starts the left panel on its Outliner tab); `LOCALGPT_APP_UI=none` leaves the interface out. In a plain browser, `?preview=document`, `world` or `song` shows the page with stand-in data, and `npm run design` serves the design sheets new interface is reviewed on before it is built.
+For work on the interface itself: `npm run dev` in `crates/app/ui` serves it with reload, and `LOCALGPT_APP_UI_URL=http://localhost:5174` points the app at it; `LOCALGPT_APP_UI_OPEN=terminal` starts with a terminal open (`outliner` starts the left panel on its Outliner tab); `LOCALGPT_APP_UI=none` leaves the interface out. In a plain browser, `?preview=document`, `world` or `song` shows the page with stand-in data, and `npm run design` serves the design sheets new interface is reviewed on before it is built.
 
-`localgpt-gen` stays a binary of its own for the MCP server, headless generation and `--host`/`--join`, and `cargo install localgpt-gen` keeps working; it takes its prompts from the terminal it runs in, and there is no second desktop bundle.
+`localgpt-gen` stays a binary of its own for the MCP server, headless generation and `--host`/`--join`, and `cargo install localgpt-gen` keeps working; it takes no prompt of its own — an agent outside drives it over MCP or through a live package's API — and there is no second desktop bundle.
 
 ## What is next {#next}
 

@@ -83,7 +83,7 @@ localgpt world mcp scene-1.world
 claude mcp add scene -- localgpt world mcp scene-1.world    # Claude Code, then ask
 ```
 
-Or start the agent in the folder and tell it to read `AGENTS.md`; the guide and the endpoint are files it can read. In the [desktop app](/docs/app/#agents), an agent's tab starts there, with `LOCALGPT_WORLD_DIR` and its name as `LOCALGPT_WORLD_AUTHOR`, so `localgpt world` finds the world from wherever the agent goes and its batches carry the agent's name.
+Or start the agent in the folder and tell it to read `AGENTS.md`; the guide and the endpoint are files it can read. In the [desktop app](/docs/app/#agents), a terminal starts there with the folder in `LOCALGPT_WORLD_DIR`, so `localgpt world` finds the world from wherever the agent goes; `--author` puts the agent's name on its batches.
 
 ## Edit by hand {#hand}
 
@@ -148,4 +148,4 @@ Run inside the folder, or with `LOCALGPT_WORLD_DIR` set, and the folder argument
 
 ## Where this is going {#next}
 
-The window has no agent of its own, and the [desktop app](/docs/app/#agents) hosts yours instead: Claude Code, Codex and the rest, each in a full terminal in a tab beside the world, started in the package's folder. A timeline for the world's clock is designed and next. The RFCs are in the repository under `docs/rfcs/authoring/`, and the [previs](/docs/gen/previs/) walk is the live canvas in use.
+The window has no agent of its own, and the [desktop app](/docs/app/#agents) hosts yours instead: Claude Code, Codex and the rest, each in a full terminal in a tab beside the world, started in the package's folder. There, the [timeline](/docs/app/#timeline) plays the world's clock and edits a package's shots, and the [outliner and inspector](/docs/app/#outliner) edit it field by field, through the same authority. Other people in the open world — a room the app hosts, each person committing under a key of their own — are designed next, in `docs/rfcs/authoring/rooms-and-the-channel.md` in the repository; the [previs](/docs/gen/previs/) walk is the live canvas in use.

@@ -11,8 +11,8 @@ Save and load complete worlds as reusable skills. Worlds are stored as skill dir
 A saved world consists of:
 
 ```
-~/.localgpt/workspace/skills/my-world/
-├── SKILL.md          # Skill description for LLM context
+~/.local/share/localgpt/gen-workspace/skills/my-world/
+├── SKILL.md          # What the world is, for the agent that loads it
 ├── world.ron         # WorldManifest (entities, materials, behaviors, audio, tours, camera, avatar)
 ├── history.jsonl     # Undo/redo edit history
 └── assets/
@@ -146,7 +146,7 @@ gen_save_world({
 })
 ```
 
-This saves the current scene to `~/.localgpt/workspace/skills/forest-clearing/`.
+This saves the current scene to `~/.local/share/localgpt/gen-workspace/skills/forest-clearing/`.
 
 ## Loading Worlds
 

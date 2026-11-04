@@ -64,7 +64,7 @@ scripts/          # fetch-assets.sh — the one download every app shares
 | Crate | Type | Purpose |
 |-------|------|---------|
 | `localgpt` | bin | `localgpt world` and `localgpt world mcp` |
-| `localgpt-gen` | lib+bin | The world builder: Bevy viewport, 95 tools served over MCP (stdio, the relay, HTTP), headless, sessions, the live canvas |
+| `localgpt-gen` | lib+bin | The world builder: Bevy viewport, 88 tools served over MCP (stdio, the relay, HTTP), headless, sessions, the live canvas |
 | `localgpt-app` | bin | The one desktop app, assembled from the gen library with MD and Verse as libraries; a web page over the viewport with terminals in it (not published) |
 | `localgpt-md` | lib+bin | Markdown → sections → a world; the pure library is what the app compiles documents with |
 | `localgpt-verse` | lib+bin | Song analysis → mood → a furnished, performing world; `song_world` is what the app calls |
@@ -95,7 +95,7 @@ An agent never runs inside a LocalGPT process. Three doors lead in, all to the s
 |---|---|---|
 | The folder | `AGENTS.md` and `.live/endpoint.json` in a live package; the app's terminals open there with `$LOCALGPT_WORLD_DIR` set | a coding agent in a terminal, with `localgpt world` |
 | The shim | `localgpt world mcp`: eight tools over stdio against the open world's API | any MCP client |
-| Gen's tools | `localgpt-gen mcp-server` (the agent's own window) or `--mcp-relay` with `mcp-server --connect` (the window you are looking at): the 95 `gen_*` tools | MCP clients and editors, until they move behind the shim |
+| Gen's tools | `localgpt-gen mcp-server` (the agent's own window) or `--mcp-relay` with `mcp-server --connect` (the window you are looking at): the 88 `gen_*` tools | MCP clients and editors, until they move behind the shim |
 
 The `Tool` trait and the MCP server they share live in `world-agent::mcp`. Every change lands as one log entry, attributed to whoever sent it.
 
@@ -110,7 +110,7 @@ The `Tool` trait and the MCP server they share live in `world-agent::mcp`. Every
 
 ### `localgpt-gen`
 
-The world builder: a Bevy window and 95 `gen_*` tools; `mcp-server` (stdio, `--mcp-http`, `--headless`, `--connect` to a running window's relay); `--mcp-relay`; `--host`/`--join`/`--web`/`--relay` collaborative sessions over `world-sync`; `--live` for the live canvas; `--replay`. See [LocalGPT Gen](/docs/gen/).
+The world builder: a Bevy window and 88 `gen_*` tools; `mcp-server` (stdio, `--mcp-http`, `--headless`, `--connect` to a running window's relay); `--mcp-relay`; `--host`/`--join`/`--web`/`--relay` collaborative sessions over `world-sync`; `--live` for the live canvas; `--replay`. See [LocalGPT Gen](/docs/gen/).
 
 ### `localgpt-app`
 
