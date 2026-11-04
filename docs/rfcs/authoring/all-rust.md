@@ -4,7 +4,8 @@
 it. If adopted it supersedes [the-page.md](the-page.md) (decided 2026-10-30)
 and the decision of [the-world-in-the-page.md](the-world-in-the-page.md)
 (2026-10-31), and answers that RFC's open question, who owns the window.
-[The two tests](#the-two-tests-first) come before any of it.
+[The two tests](#the-two-tests-first) came before any of it, and ran on
+2026-11-04 ([what they showed](#what-the-two-tests-showed)).
 
 ## The question
 
@@ -427,12 +428,136 @@ status) is the test it must pass. **Not first.**
 The live API and the ops, the format crates, the seam's messages and
 snapshots, previs and its board, the agents as processes in PTYs, Zola.
 
+## What the two tests showed
+
+Run on 2026-11-04, each as a crate of its own on a branch of its own
+(`spike/egui-terminal`, `spikes/egui-terminal/`; `spike/bevy-in-eframe`,
+`spikes/bevy-in-eframe/`), outside the workspace, with each run's report,
+its GPU samples and the screenshots under the crate's `results/`. Both ran
+on the M2 Max with the Mac **locked** (another session was working on it):
+nothing was presented, so there was no vsync, and the windows' rates below
+are the spikes' own pacing (a sleep at 1/120 s), not the display's. What
+the lock did not touch is measured as is; what it did is named.
+
+### Test 1: the terminal widget
+
+egui 0.37 on wgpu; `alacritty_terminal` 0.26 as the emulator, with its own
+PTY and reader thread; Menlo's three faces from `/System/Library/Fonts`;
+`egui_system_font_provider` for every other glyph; and box drawing, block
+elements and braille drawn rather than typeset, as every terminal does
+(the font's glyphs broke the lines). About 1,100 lines, one session.
+
+- **Claude Code and Codex run in it** and draw as they do in a terminal:
+  Claude Code's welcome, prompt box and status lines (it set the tab's
+  title to `✳ Claude Code`), Codex's trust dialog with its highlighted row.
+- **CJK is two cells wide and aligned** (你好，世界, 日本語, 한국어, 全角);
+  colour emoji come from Apple Color Emoji through the provider; the 16,
+  256 and true colours, bold, italic, underline, strikeout, inverse and dim
+  are right. Nerd Font glyphs (powerline) are blank: no such font is
+  installed.
+- **The input method's path works, by the widget's half**: a preedit drawn
+  at the cursor, underlined, then a commit sent to the PTY (`SPIKE_IME`),
+  with `IMEOutput { purpose: Terminal, cursor_rect }` telling the OS where
+  its candidate window goes. The Mac was locked, so Chinese typed through
+  the real input method is the one thing left for a hand at the keyboard.
+- **A resize reaches the shell**: the window shrunk from 142×50 to 106×39
+  cells and `os.get_terminal_size()` in the PTY said so a second later.
+- **Under the loads** (`scripts/world-in-the-page/load.py`, 20 s each), the
+  window redrawing every frame, paced at 120 Hz:
+
+  | load | frames/s | frame interval p50 / p95 / p99 ms | worst ms | update CPU ms | grid paint ms | galleys a frame |
+  |---|---|---|---|---|---|---|
+  | idle | 84 | 12.0 / 13.3 / 15.3 | 120 (the first) | 1.24 | 0.32 | 0 |
+  | agent, an Ink region at 10 Hz | 97 | 11.5 / 13.2 / 14.2 | 41 | 1.61 | 0.42 | 30 |
+  | build, 150 lines/s | 96 | 11.5 / 13.2 / 13.9 | 86 | 1.83 | 0.53 | 98 |
+  | flood, 0.9 MB/s | 102 | 11.1 / 13.0 / 13.3 | 43 | 1.90 | 0.64 | 98 |
+  | deluge, 3.8 MB/s | 112 | 10.3 / 12.9 / 13.8 | 47 | 2.44 | 0.93 | 98 |
+
+  "Update CPU" is eframe's whole frame (panels, grid, tessellation, the
+  wgpu encode); "grid paint" is the widget's part of it. The parser runs
+  on the reader thread and never held the window: the deluge, five hundred
+  times what three agents write, cost 2.4 ms a frame, and the one frame
+  over 50 ms (86, in the build run) came in a window shared with another
+  session's builds. The page's xterm.js held 60 of 60 under the same agent,
+  build and flood loads and went late under the deluge in WebKit
+  ([the-world-in-the-page.md](the-world-in-the-page.md), "What the page's
+  side showed"); the widget has the same shape with more headroom, at a
+  tenth of a frame. Codex's own redraws, its whole screen at once, cost
+  11 ms of CPU a frame against Claude Code's 4: the galley cache misses
+  whenever most cells change, which is where a glyph atlas of our own
+  would go.
+- **Not written**: mouse reporting to the PTY, hyperlinks, underline
+  colours and styles, OSC 52, the kitty keyboard protocol, watermarks (stop
+  reading while behind), bidi, accessibility. Weeks, not months: the
+  emulator is the crate's, and what a session wrote here is the grid, the
+  keys, the faces, the drawn glyphs, the selection, the paste, the
+  scrollback, the resize and the input method's plumbing.
+
+### Test 2: Bevy windowless on eframe's device
+
+egui 0.35, the last on wgpu 29 (Bevy 0.19's), over a `wgpu::Device` the
+spike makes the way Bevy makes its own (every feature and limit the adapter
+has, experimental features on) and hands to eframe as `WgpuSetup::Existing`
+and to Bevy as `RenderCreation::Manual`; Bevy with `DefaultPlugins` and no
+window (`WindowPlugin { primary_window: None }`, no winit), ticked by a
+thread of its own at a chosen rate; the camera's `RenderTarget::TextureView`
+a texture the spike made on the shared device, registered with egui as a
+native texture and drawn with `ui.image` in the main window and in a
+deferred viewport. The world is the song world the earlier measurement
+wrote (`amber-drift`: 178 entities, 40 of them Poly Haven models, one
+directional light with shadows) at 2880×1720, that measurement's window
+size, through `localgpt-world-bevy`'s mapping and Bevy's own glTF loader.
+About 600 lines.
+
+What it took, for the plan: egui 0.35, not the current 0.37 (wgpu 30);
+`reflect_auto_register` on, or Bevy's glTF spawner panics on an
+unregistered `Transform`; eframe's `RenderState` carries no `Instance`, so
+the device is made first and given to both.
+
+- **One device, one texture, no copy**: what Bevy's render thread draws,
+  egui's pass samples on the same queue. The texture read back
+  (`results/hz60-c4.png`) is the song world as the app draws it, shadows
+  and fog included.
+- **Two windows at once** cost the GPU nothing measurable: 10.5 ms a frame
+  with one window, 10.4 with two.
+- **Hidden, Bevy keeps drawing**: with both windows hidden, eframe fell to
+  7 frames a second (its own wake-ups) and Bevy held its paced 60 or 120
+  ticks a second, the GPU as busy as before. No surface is involved.
+- **GPU time per frame** (ioreg's per-process share from `gpu.py`, divided
+  by Bevy's ticks; egui's own drawing is in it, under a millisecond):
+
+  | cascades | Bevy paced at | ticks/s held | GPU busy | ms per world frame |
+  |---|---|---|---|---|
+  | 4 | 60 | 60.5 | 63% | 10.4 |
+  | 1 | 60 | 60.4 | 53% | 8.8 |
+  | 1 | 120 | 120.3 (min 118) | 88% | 7.3 |
+  | 4 | 120 | 99–114, GPU-bound | 99% | 8.7–10.5 |
+
+  The app's own measurement had Bevy at 12–14 ms with four cascades and 7
+  with one; here 10.4 and 7.3. With one cascade the world holds 120 a
+  second at the ProMotion display's size with the GPU at 88%; with four it
+  does not, the finding the app's measurement made.
+- **Not measured**: the windows at the display's real rate, since the Mac
+  was locked; the spike paces its own repaint at 120 and reached 86–91,
+  the sleep's overshoot, not a limit.
+
+Neither test failed the way the plan said would send it back: the widget
+is weeks, and the world draws on eframe's device in two windows, hidden or
+not, at the rate the plan needs with one cascade. What a hand still has to
+do: type Chinese into Claude Code through the input method, and run both
+with the display awake.
+
 ## Status
 
 - [ ] Decided
-- [ ] Test 1: the terminal widget on `alacritty_terminal`, with Claude Code,
-      Codex and the input method
-- [ ] Test 2: Bevy windowless on eframe's device, two windows, hidden window
+- [x] Test 1: the terminal widget on `alacritty_terminal`, with Claude Code,
+      Codex and the input method: run 2026-11-04 (`spike/egui-terminal`,
+      [what it showed](#test-1-the-terminal-widget)); the input method by
+      hand, and a run with the display awake, remain
+- [x] Test 2: Bevy windowless on eframe's device, two windows, hidden window:
+      run 2026-11-04 (`spike/bevy-in-eframe`,
+      [what it showed](#test-2-bevy-windowless-on-eframes-device)); the
+      display's real rate remains
 - [ ] Steps 0–7 of [Order and cost](#order-and-cost)
 - [ ] The last mile of C, with 0.5.0
 - [ ] The WebAssembly world renderer for the link
