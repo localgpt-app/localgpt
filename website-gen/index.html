@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>LocalGPT Gen: describe a place, walk into it</title>
-<meta name="description" content="LocalGPT Gen turns what you type into an explorable 3D world, with geometry, materials, lighting, behaviors, and sound. Build alone or with friends on your network. Open source, and it runs on your machine.">
+<meta name="description" content="LocalGPT Gen turns what you ask your agent for into an explorable 3D world, with geometry, materials, lighting, behaviors, and sound. Build alone or with friends on your network. Open source, no model inside, and it runs on your machine.">
 <link rel="canonical" href="https://gen.localgpt.app/">
 <link rel="icon" href="localgpt-icon.svg" type="image/svg+xml">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="LocalGPT Gen">
 <meta property="og:title" content="LocalGPT Gen: describe a place, walk into it">
-<meta property="og:description" content="Type a description and walk into the 3D world it becomes. Build alone or with friends on your network. Open source, and it runs on your machine.">
+<meta property="og:description" content="Describe a place to your agent and walk into the 3D world it becomes. Build alone or with friends on your network. Open source, no model inside, and it runs on your machine.">
 <meta property="og:url" content="https://gen.localgpt.app/">
 <meta property="og:image" content="https://gen.localgpt.app/og.jpg">
 <meta property="og:image:width" content="1200">
@@ -215,7 +215,7 @@
       <div>
         <p class="eyebrow">Worlds from words</p>
         <h1>Describe a place. Walk into&nbsp;it.</h1>
-        <p class="lede">LocalGPT Gen turns what you type into an explorable 3D world, with geometry, materials, lighting, behaviors, and sound. Build alone, or host a session and build with friends on your network.</p>
+        <p class="lede">LocalGPT Gen turns what you ask your agent for into an explorable 3D world, with geometry, materials, lighting, behaviors, and sound. Gen runs no model: the coding agent you already use drives it. Build alone, or host a session and build with friends on your network.</p>
         <div class="install">
           <code>cargo install localgpt-gen</code>
           <button type="button" class="copy" data-copy="cargo install localgpt-gen">Copy</button>
@@ -239,7 +239,7 @@
   <section class="section" id="features">
     <div class="wrap">
       <h2>More than shapes on a plane</h2>
-      <p class="section-lede">Gen's AI builds with more than 40 tools for geometry, lighting, sound, and physics. It takes screenshots of its own work and keeps adjusting, and you can watch its progress and ask for changes from a panel inside the window.</p>
+      <p class="section-lede">Your agent builds with 88 tools for geometry, lighting, sound, physics and a blockout-first pipeline, over MCP. It takes screenshots of its own work and keeps adjusting; you watch the world appear in the window and ask for changes in the agent's own terminal.</p>
       <div class="grid three">
         <article class="card">
           <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19 9 10l4 6 3-4 5 7Z"/><circle cx="17" cy="6" r="2"/></svg>
@@ -279,26 +279,27 @@
     <div class="wrap split">
       <div>
         <h2>Build together</h2>
-        <p>Host a session and friends on the same network join from their own machines. Everyone walks the same world in their own window, and anyone can ask your AI to build where they're looking.</p>
+        <p>Host a session and friends on the same network join from their own machines, or from a browser with the invite link. Everyone walks the same world live and chats, and your agent builds where they ask.</p>
         <ul class="points">
-          <li>A 6-digit PIN pairs each friend. No accounts and no cloud server.</li>
-          <li>Prompts queue on the host and run in order, and a placeholder marks where each build will land.</li>
-          <li>Friends' prompts can only edit the world. They get no shell or file access unless you allow it.</li>
+          <li>A 6-digit PIN pairs each friend. No accounts and no cloud server; a relay you run reaches guests beyond the LAN.</li>
+          <li>No model runs for the room: the host's agent builds, and every change reaches every guest. Browser guests can edit directly with <code>--web-edit</code>.</li>
+          <li>Nothing a guest sends runs on the host beyond the world's own edits, which the host can undo. Every session is a package with per-user undo and replay.</li>
         </ul>
         <p><a href="https://localgpt.app/docs/gen/multiplayer">How collaborative sessions work&nbsp;&rarr;</a></p>
       </div>
       <div class="terminal">
         <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
-<pre><code><span class="c"># your machine</span>
-<span class="p">$ </span>localgpt-gen --host
+<pre><code><span class="c"># your machine: the window, the room, and the relay your agent builds through</span>
+<span class="p">$ </span>localgpt-gen --host --web --mcp-relay
   Session PIN: <span class="hl">482 913</span>
+  Browser guests: http://192.168.1.5:9879/#t=…
 
 <span class="c"># a friend's machine, same network</span>
 <span class="p">$ </span>localgpt-gen --join
 Session PIN (shown on the host's console): <span class="hl">482913</span>
 
-<span class="c"># then, in the friend's terminal</span>
-You: put a lighthouse on that hill</code></pre>
+<span class="c"># then, in the friend's terminal: chat to the room</span>
+put a lighthouse on that hill?</code></pre>
       </div>
     </div>
   </section>
@@ -356,9 +357,9 @@ localgpt-gen mcp-server --connect</code></pre>
   <section class="section">
     <div class="wrap">
       <h2>The LocalGPT family</h2>
-      <p class="section-lede">Open source apps that turn what you type, write, and listen to into places you can explore, all running locally.</p>
+      <p class="section-lede">Open source apps that turn what you ask for, write, and listen to into places you can explore, all running locally.</p>
       <div class="family">
-        <a href="https://localgpt.app"><b>LocalGPT</b><span>A local AI assistant with persistent memory.</span></a>
+        <a href="https://localgpt.app"><b>LocalGPT</b><span>The desktop app for worlds, with your agents beside them.</span></a>
         <a href="https://verse.localgpt.app"><b>LocalGPT Verse</b><span>A 3D world for every song.</span></a>
         <a href="https://localgpt.app/docs/md/"><b>LocalGPT MD</b><span>Walk through your notes as a world.</span></a>
         <a href="https://localgpt.world"><b>localgpt.world</b><span>Worlds from every app, in your browser.</span></a>
