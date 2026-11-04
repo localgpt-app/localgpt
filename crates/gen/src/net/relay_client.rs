@@ -3,9 +3,10 @@
 //!
 //! The host POSTs `/rooms`, connects OUT to the relay (no port forwarding),
 //! and every relay guest becomes a peer in the same [`WebBridge`] local
-//! sockets use — frames ride the relay's envelope, the room protocol inside
-//! is unchanged, and the invite token is still checked end-to-end. Local
-//! LAN guests keep working alongside relay guests.
+//! sockets use — frames ride the relay's envelope and the room protocol
+//! inside is unchanged. The host still checks the invite token, but it and
+//! everything else cross the relay in the clear, so the relay can read them.
+//! Local LAN guests keep working alongside relay guests.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex as StdMutex};

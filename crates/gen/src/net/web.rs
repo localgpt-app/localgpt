@@ -831,8 +831,9 @@ fn handle_client_msg(
                 return;
             }
             // Two bearer secrets open the room: the invite token (browser
-            // links) and the session PIN (native --join). `==` on the
-            // strings is fine on a LAN; the relay phase adds TLS.
+            // links) and the session PIN (native --join). Both arrive in
+            // the clear, on a LAN and through a relay, which reads them;
+            // either is taken on any connection, relayed ones included.
             let presented = token.as_deref().unwrap_or("");
             let ok = match (&room.bridge.token, &room.session_pin) {
                 (None, None) => true,

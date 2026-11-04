@@ -2,8 +2,11 @@
 //!
 //! A host runs behind NAT and connects OUT to the relay; guests connect to
 //! the relay with a room code from the invite link. The relay forwards
-//! WebSocket frames between them, wrapped in a tiny envelope — it never
-//! inspects or holds world state, so the room's secrets stay end-to-end.
+//! WebSocket frames between them, wrapped in a tiny envelope. It never parses
+//! them or keeps world state, but it encrypts nothing: a guest's hello with
+//! the invite token, every op and every chat line pass through it in the
+//! clear, and it serves the join page, so whoever runs a relay can read its
+//! rooms. The end-to-end layer is `docs/rfcs/authoring/rooms-and-the-channel.md`'s.
 //!
 //! Endpoints:
 //! - `POST /rooms` → create a room: `{code, host_secret}`
@@ -13,7 +16,7 @@
 //!
 //! Envelope on the host connection (JSON text frames):
 //! `{"type":"open"|"close","conn":N}` and `{"type":"frame","conn":N,"data":"…"}`
-//! where `data` is the room protocol's raw message, opaque to the relay.
+//! where `data` is the room protocol's raw message, passed on unparsed.
 
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};

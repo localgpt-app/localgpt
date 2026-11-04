@@ -204,9 +204,13 @@ presence coalesced to 10 Hz per peer.
 - **Invite links are bearer tokens.** A PIN session's link carries a random
   128-bit token that the page sends in `hello`. On a LAN the page is plain
   HTTP, so anyone who can read the network traffic can read the token. Use
-  `--web` on networks you trust; the relay (phase 4) adds TLS. Browser PIN
-  pairing (SPAKE2 compiled to wasm) is a follow-up. An `--open` session
-  needs no token.
+  `--web` on networks you trust. The relay (phase 4) doesn't change that: TLS
+  in front of it ends at the relay, which reads the token and the room as
+  they pass and serves the join page, and a relayed guest may present the PIN
+  in place of the token. A key per person and end-to-end encryption are
+  [rooms-and-the-channel.md](../authoring/rooms-and-the-channel.md)'s.
+  Browser PIN pairing (SPAKE2 compiled to wasm) is a follow-up. An `--open`
+  session needs no token.
 - **Cross-origin sockets are refused.** The upgrade must come from the page
   the host served (the `Origin` must match the `Host`), or from a native
   client (no `Origin`), so a malicious website can't drive a LAN session from

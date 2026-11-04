@@ -43,6 +43,9 @@ localgpt-gen --replay ~/.local/share/localgpt/workspace/sessions/<name>/ops.json
 - **Building:** no model runs for the room. The host's own agent builds —
   outside the window, over MCP (`--mcp-relay` beside `--host`) or through a
   live package's API — and its edits reach every guest as the host's ops.
+- **Not from the desktop app:** its Collaborate section went with the
+  prompt panel. Rooms in the app, over the `.world` it has open, are
+  `docs/rfcs/authoring/rooms-and-the-channel.md`'s.
 
 ## Architecture
 
@@ -125,16 +128,27 @@ localgpt-gen --host --relay https://relay.example.com
 # prints: Internet guests: https://relay.example.com/r/Q8QJVD/#t=<token>
 ```
 
-The relay only forwards frames by room code (the world and the room's
-secrets never touch it — the invite token is still checked by the host
-end-to-end). Local LAN guests and relay guests share the same room.
+The relay forwards frames by room code and keeps no world state, but it
+encrypts nothing. The room's messages pass through it in the clear (a
+guest's hello with the invite token, every op, chat line and prompt), and it
+serves the join page itself, so whoever runs a relay can read its rooms and
+could serve a page of its own. A TLS terminator in front of it protects the
+hops to the relay, not the room from it: run your own. The host still checks
+the invite token. Local LAN guests and relay guests share the same room.
 
 ## Trust model
 
-- Rooms are **LAN rooms with bearer secrets**: the PIN (native joiners) and
-  the invite token (browser links) are checked at hello; `--open` skips both.
-  On a hostile network, treat the room as public — secrets ride plaintext
-  WebSocket. The internet relay (with TLS) is phase 4.
+- Rooms are guarded by **bearer secrets**: the PIN (native joiners) and the
+  invite token (browser links) are checked at hello; `--open` skips both.
+  Every guest presents a secret they all share and picks their own name, and
+  the WebSocket is plaintext, on a LAN and through a relay alike. On a
+  network you don't trust, treat the room as public.
+- Through a relay, the PIN guards little: a relayed guest may present it in
+  place of the token, and anyone with the room's code can reach it. Relay
+  only a world you would show anyone.
+- A key per person and end-to-end encryption, for rooms in the desktop app
+  and through the relay, are designed in
+  `docs/rfcs/authoring/rooms-and-the-channel.md`.
 - Browser sockets must come from the host's own page (Origin check) and
   guests can't edit the document directly unless they're editors. Nothing a
   guest sends runs a model or a tool on the host: a prompt is refused, and
@@ -152,7 +166,7 @@ end-to-end). Local LAN guests and relay guests share the same room.
 - Not in the world format (so neither saved nor synced): terrain, water,
   foliage, sky, in-world UI (signs/HUD/labels), NPC bodies.
 - The PIN is six digits with no attempt limit; don't host sensitive worlds
-  on untrusted networks.
+  on untrusted networks or through a relay.
 - A guest's *own* agent building through the room — rather than through the
   host's window — is a follow-up the protocol is shaped for: the prompt and
   job messages are kept for it, and the room refuses them until then.

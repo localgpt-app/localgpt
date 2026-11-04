@@ -81,12 +81,13 @@ Sessions are built to stay smooth as worlds grow:
 
 Joiners steer an AI running on **the host's machine**, so sessions are locked down by default.
 
-### Joining requires the PIN
+### Joining takes the PIN
 
-- Each session has its own secret key that never leaves the host. A joiner gets in only by proving it knows the PIN.
-- The PIN exchange is designed so that someone watching network traffic learns nothing, and a fake host that doesn't know the PIN can't impersonate yours.
-- After 5 wrong PINs the host picks a new one and prints it.
-- `--open` turns all of this off — only use it on networks where you trust everyone.
+- A joiner sends the PIN when it says hello, and the host lets in whoever sends the right one. Every joiner uses the same PIN and picks their own name.
+- The PIN, like everything else in a session, crosses the network unencrypted: anyone who can watch the traffic can read it and the world. Host on a network where you trust everyone, or one you'd show the world to.
+- The PIN is six digits, and nothing limits wrong guesses.
+- Through a relay (`--relay`), whoever runs the relay can read the session, and anyone with its room code can try the PIN.
+- `--open` skips the PIN — only use it on networks where you trust everyone.
 
 ### Joiners can only edit the scene
 
