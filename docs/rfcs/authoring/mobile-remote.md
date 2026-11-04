@@ -204,10 +204,12 @@ Mac.
 
 1. **The local remote.** Built 2026-10-31; see *Step 1, as built*.
 2. **Away from home without a VPN, with push**, when step 1's users ask for
-   it. Through `crates/relay`, which forwards frames without reading them
-   (`crates/relay/src/main.rs:1–6`) but encrypts nothing, so whoever runs it
+   it. Through `crates/relay`, which forwards frames without parsing them
+   (`crates/relay/src/main.rs:1–9`) but encrypts nothing, so whoever runs it
    could read a terminal. First, then, an end-to-end layer keyed at pairing
-   (an X25519 key in the QR code, as Orca's relay cells use). The page's code
+   (an X25519 key in the QR code, as Orca's relay cells use), which
+   [rooms-and-the-channel.md](rooms-and-the-channel.md) designs for the phone
+   and for rooms together. The page's code
    must then come from somewhere other than the relay, or the relay could
    serve a page that reads the keys: a thin wrapper app (a web view holding
    the page's bundle, and push registration) does that and gets push too.

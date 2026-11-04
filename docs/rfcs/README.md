@@ -36,6 +36,7 @@ this order; each answers what the previous one left open.
 | [authoring/mobile-remote.md](authoring/mobile-remote.md) | decided; step 1 built 2026-10-31, not yet tried on a phone in a hand — a phone or an iPad runs no agent: it is a remote for the desktop app, which serves it the page, pairs it by a QR code, mirrors the terminals and sends the world as frames. `apps/apple` and `apps/android` went with `mobile-ffi` on 2026-10-31 |
 | [authoring/the-world-in-the-page.md](authoring/the-world-in-the-page.md) | decided 2026-10-31, who owns the window open — the world moves into the page first, drawn by the format's web viewer; one scene in several windows and simulation on every core are wanted later. Headless, the page held 60 fps with the world under every load an agent makes; in the app, the page drawing the world ran at 45–51 fps against Bevy's 30 in the first round and 53 in the second; Bevy's four shadow cascades double its GPU cost. Windows is handed over (`scripts/world-in-the-page/WINDOWS.md`). Holds what Bevy would be kept for, and who else owns their window |
 | [authoring/all-rust.md](authoring/all-rust.md) | proposal, 2026-11-01, not decided — nothing but Rust above the operating system: eframe owns the windows, egui the panels, a widget over `alacritty_terminal` the agents' terminals, and Bevy runs windowless on the shared wgpu device drawing into textures; the page, the viewer's JavaScript and the scripts go. Two tests first (the terminal with the input method; Bevy to a texture in two windows). Keeps Apache 2.0: GPL buys nothing needed but VST3 hosting. An engine from scratch is not first. A DAW and an editing room driven by agents fit: an own real-time engine over `cpal` and Firewheel, video through the OS's codecs, both commanded through the world's API, each an extension of the format first |
+| [authoring/rooms-and-the-channel.md](authoring/rooms-and-the-channel.md) | proposal — other people in an open world: the app hosts a room whose guests commit through `LiveWorld` as agents do, each under a key of their own, first on a network the person trusts; then an end-to-end channel, shared with the phone remote, before any room goes through a relay. Step 0 closes a hole Gen's relayed rooms have today |
 
 ## Lessons from other tools
 
@@ -49,7 +50,9 @@ Readings of other applications' source, for designs to adopt, adapt or avoid.
 
 ## Multiplayer — collaborative rooms
 
-One parent spec and three deep-dives that name it as their parent.
+One parent spec and three deep-dives that name it as their parent. These
+rooms are Gen's; rooms in the desktop app, over the `.world` it has open, are
+[authoring/rooms-and-the-channel.md](authoring/rooms-and-the-channel.md)'s.
 
 | RFC | Status |
 |---|---|
