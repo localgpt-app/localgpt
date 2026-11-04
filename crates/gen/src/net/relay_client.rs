@@ -4,17 +4,20 @@
 //! The host POSTs `/rooms`, connects OUT to the relay (no port forwarding),
 //! and every relay guest becomes a peer in the same [`WebBridge`] local
 //! sockets use — frames ride the relay's envelope and the room protocol
-//! inside is unchanged. The host still checks the invite token, but it and
-//! everything else cross the relay in the clear, so the relay can read them.
-//! Local LAN guests keep working alongside relay guests.
+//! inside is unchanged. A relayed guest is let in by the invite token
+//! alone, never the session PIN (anyone with the room code can open a
+//! relayed connection), and a refused hello ends its connection as it ends
+//! a direct one. The token and everything else still cross the relay in
+//! the clear, so the relay can read them. Local LAN guests keep working
+//! alongside relay guests.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex as StdMutex};
 
-use localgpt_world_sync::ClientMsg;
+use localgpt_world_sync::{ClientMsg, PeerId};
 use tokio::sync::mpsc;
 
-use super::web::{InboundEvent, WebBridge};
+use super::web::{InboundEvent, OutboundFrame, WebBridge};
 
 /// The relay's envelope on the host connection (kept in sync with
 /// `crates/relay/src/main.rs`).
@@ -33,6 +36,16 @@ impl Envelope {
             kind: "frame".into(),
             conn,
             data: Some(data),
+        })
+        .expect("envelope")
+    }
+
+    /// Ends a guest's connection at the relay.
+    fn close(conn: u64) -> String {
+        serde_json::to_string(&Envelope {
+            kind: "close".into(),
+            conn,
+            data: None,
         })
         .expect("envelope")
     }
@@ -120,7 +133,7 @@ async fn run(bridge: WebBridge, relay_url: String, token: Option<String>) {
     }
 
     // Relay conn id ↔ bridge peer id, and each peer's frame sender.
-    let peers: Arc<StdMutex<HashMap<u64, u64>>> = Arc::new(StdMutex::new(HashMap::new()));
+    let peers: Arc<StdMutex<HashMap<u64, PeerId>>> = Arc::new(StdMutex::new(HashMap::new()));
     // Frames headed to the relay, wrapped per guest.
     let (relay_out_tx, mut relay_out_rx) = mpsc::unbounded_channel::<String>();
 
@@ -135,19 +148,19 @@ async fn run(bridge: WebBridge, relay_url: String, token: Option<String>) {
                         match env.kind.as_str() {
                             "open" => {
                                 let peer = bridge.alloc_peer_id();
-                                let (frame_tx, mut frame_rx) =
-                                    mpsc::unbounded_channel::<super::web::OutboundFrame>();
+                                let (frame_tx, frame_rx) =
+                                    mpsc::unbounded_channel::<OutboundFrame>();
                                 bridge.insert_conn(peer, frame_tx);
                                 peers.lock().expect("peers").insert(env.conn, peer);
                                 let _ = bridge.send_inbound(InboundEvent::Connected { id: peer });
-                                // Forward this guest's outbound frames to the relay.
-                                let relay_out = relay_out_tx.clone();
-                                let conn = env.conn;
-                                tokio::spawn(async move {
-                                    while let Some(frame) = frame_rx.recv().await {
-                                        let _ = relay_out.send(Envelope::frame(conn, frame.text));
-                                    }
-                                });
+                                tokio::spawn(forward_guest(
+                                    env.conn,
+                                    peer,
+                                    frame_rx,
+                                    relay_out_tx.clone(),
+                                    peers.clone(),
+                                    bridge.clone(),
+                                ));
                             }
                             "frame" => {
                                 let Some(data) = env.data else { continue };
@@ -190,5 +203,78 @@ async fn run(bridge: WebBridge, relay_url: String, token: Option<String>) {
                 }
             }
         }
+    }
+}
+
+/// Forward one relay guest's outbound frames to the relay. A frame that
+/// closes the connection (a refused hello) is followed by a close envelope,
+/// so the relay ends the guest's socket as the host ends a direct one; and
+/// the guest is forgotten on this side at once, so a relay that ignores the
+/// close can't keep it talking to the room.
+async fn forward_guest(
+    conn: u64,
+    peer: PeerId,
+    mut frames: mpsc::UnboundedReceiver<OutboundFrame>,
+    relay_out: mpsc::UnboundedSender<String>,
+    peers: Arc<StdMutex<HashMap<u64, PeerId>>>,
+    bridge: WebBridge,
+) {
+    while let Some(frame) = frames.recv().await {
+        let _ = relay_out.send(Envelope::frame(conn, frame.text));
+        if frame.close {
+            let _ = relay_out.send(Envelope::close(conn));
+            peers.lock().expect("peers").remove(&conn);
+            bridge.remove_conn(peer);
+            let _ = bridge.send_inbound(InboundEvent::Disconnected { id: peer });
+            return;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_closing_frame_ends_the_relayed_connection_on_both_sides() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let (bridge, mut inbound) = WebBridge::new(None, "test");
+            let peer = bridge.alloc_peer_id();
+            let (frame_tx, frame_rx) = mpsc::unbounded_channel();
+            bridge.insert_conn(peer, frame_tx.clone());
+            let peers = Arc::new(StdMutex::new(HashMap::from([(3, peer)])));
+            let (relay_out, mut to_relay) = mpsc::unbounded_channel();
+
+            frame_tx
+                .send(OutboundFrame {
+                    text: "{\"type\":\"error\"}".into(),
+                    close: true,
+                })
+                .unwrap();
+            forward_guest(3, peer, frame_rx, relay_out, peers.clone(), bridge.clone()).await;
+
+            let sent: Vec<Envelope> = std::iter::from_fn(|| to_relay.try_recv().ok())
+                .map(|text| serde_json::from_str(&text).unwrap())
+                .collect();
+            let sent: Vec<(&str, u64, Option<&str>)> = sent
+                .iter()
+                .map(|e| (e.kind.as_str(), e.conn, e.data.as_deref()))
+                .collect();
+            assert_eq!(
+                sent,
+                [
+                    ("frame", 3, Some("{\"type\":\"error\"}")),
+                    ("close", 3, None)
+                ]
+            );
+            assert!(peers.lock().unwrap().is_empty());
+            assert!(matches!(
+                inbound.try_recv(),
+                Ok(InboundEvent::Disconnected { id }) if id == peer
+            ));
+        });
     }
 }

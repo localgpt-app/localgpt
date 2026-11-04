@@ -16,7 +16,10 @@
 //!
 //! Envelope on the host connection (JSON text frames):
 //! `{"type":"open"|"close","conn":N}` and `{"type":"frame","conn":N,"data":"…"}`
-//! where `data` is the room protocol's raw message, passed on unparsed.
+//! where `data` is the room protocol's raw message, passed on unparsed. The
+//! relay says `open` and `close` as guests come and go; the host sends
+//! frames, and a `close` to end a guest's connection (a refused hello), as
+//! it would close a direct socket.
 
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -124,7 +127,21 @@ async fn main() {
         .and_then(|a| a.parse().ok())
         .unwrap_or(9911);
 
-    let app = axum::Router::new()
+    let app = router(RelayState::default());
+
+    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port);
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .expect("relay bind");
+    tracing::info!(
+        "localgpt-relay listening on {addr} — hosts POST /rooms, guests open /r/<code>/"
+    );
+    axum::serve(listener, app).await.expect("relay serve");
+}
+
+/// The relay's routes over its rooms.
+fn router(state: RelayState) -> axum::Router {
+    axum::Router::new()
         .route("/rooms", post(create_room))
         .route("/rooms/{code}/host", get(host_ws))
         .route("/r/{code}/", get(join_page))
@@ -147,16 +164,7 @@ async fn main() {
             get(vendor_bgu),
         )
         .route("/healthz", get(|| async { "ok" }))
-        .with_state(RelayState::default());
-
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port);
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .expect("relay bind");
-    tracing::info!(
-        "localgpt-relay listening on {addr} — hosts POST /rooms, guests open /r/<code>/"
-    );
-    axum::serve(listener, app).await.expect("relay serve");
+        .with_state(state)
 }
 
 async fn create_room(State(state): State<RelayState>) -> impl IntoResponse {
@@ -252,20 +260,33 @@ async fn run_host(code: String, socket: WebSocket, state: RelayState) {
         let Ok(env) = serde_json::from_str::<Envelope>(&text) else {
             continue;
         };
-        if env.kind != "frame" {
-            continue;
-        }
-        let Some(data) = env.data else {
-            continue;
-        };
-        let guest_tx = {
-            let rooms = state.rooms.read().expect("rooms lock");
-            rooms
-                .get(&code)
-                .and_then(|room| room.guests.get(&env.conn).cloned())
-        };
-        if let Some(tx) = guest_tx {
-            let _ = tx.send(data);
+        match env.kind.as_str() {
+            "frame" => {
+                let Some(data) = env.data else {
+                    continue;
+                };
+                let guest_tx = {
+                    let rooms = state.rooms.read().expect("rooms lock");
+                    rooms
+                        .get(&code)
+                        .and_then(|room| room.guests.get(&env.conn).cloned())
+                };
+                if let Some(tx) = guest_tx {
+                    let _ = tx.send(data);
+                }
+            }
+            // The host ends a guest's connection (a refused hello): its
+            // sender goes, and `run_guest` closes the socket once what was
+            // sent before is written.
+            "close" => {
+                let mut rooms = state.rooms.write().expect("rooms lock");
+                if let Some(room) = rooms.get_mut(&code)
+                    && room.guests.remove(&env.conn).is_some()
+                {
+                    tracing::debug!("room {code}: host closed guest {}", env.conn);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -327,21 +348,28 @@ async fn run_guest(
     tracing::debug!("room {code}: guest {conn} connected");
 
     let (mut sink, mut stream) = socket.split();
-    let writer = tokio::spawn(async move {
-        while let Some(text) = guest_rx.recv().await {
-            if sink.send(Message::Text(text.into())).await.is_err() {
-                break;
-            }
-        }
-    });
-
-    while let Some(Ok(msg)) = stream.next().await {
-        match msg {
-            Message::Text(text) => {
-                let _ = host.send(Envelope::frame(conn, text.to_string()));
-            }
-            Message::Close(_) => break,
-            _ => {}
+    loop {
+        tokio::select! {
+            msg = stream.next() => match msg {
+                Some(Ok(Message::Text(text))) => {
+                    let _ = host.send(Envelope::frame(conn, text.to_string()));
+                }
+                Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
+                Some(Ok(_)) => {}
+            },
+            out = guest_rx.recv() => match out {
+                Some(text) => {
+                    if sink.send(Message::Text(text.into())).await.is_err() {
+                        break;
+                    }
+                }
+                // The sender went: the host closed this guest, or the room
+                // closed. End the socket once what was sent is written.
+                None => {
+                    let _ = sink.close().await;
+                    break;
+                }
+            },
         }
     }
 
@@ -353,7 +381,6 @@ async fn run_guest(
     }
     let _ = host.send(Envelope::close(conn));
     tracing::debug!("room {code}: guest {conn} disconnected");
-    writer.abort();
 }
 
 // ---------------------------------------------------------------------------
@@ -400,4 +427,84 @@ fn js(body: &'static str) -> impl IntoResponse {
         )],
         body,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio_tungstenite::tungstenite::Message as WsMessage;
+
+    type Socket = tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >;
+
+    /// The relay on a free port with one room: its address, the room's code
+    /// and the host's secret.
+    async fn relay_with_a_room() -> (SocketAddr, String, String) {
+        let state = RelayState::default();
+        let (code, secret) = (room_code(), host_secret());
+        let (host_tx, _) = mpsc::unbounded_channel();
+        state.rooms.write().unwrap().insert(
+            code.clone(),
+            Room {
+                host: host_tx,
+                host_secret: secret.clone(),
+                guests: HashMap::new(),
+                next_conn: 1,
+            },
+        );
+        let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, router(state)).await.unwrap() });
+        (addr, code, secret)
+    }
+
+    /// The next envelope the host is sent.
+    async fn envelope(host: &mut Socket) -> Envelope {
+        let msg = host.next().await.unwrap().unwrap();
+        serde_json::from_str(msg.into_text().unwrap().as_str()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_close_from_the_host_ends_the_guests_socket() {
+        let (addr, code, secret) = relay_with_a_room().await;
+        let (mut host, _) = tokio_tungstenite::connect_async(format!(
+            "ws://{addr}/rooms/{code}/host?secret={secret}"
+        ))
+        .await
+        .unwrap();
+        let (mut guest, _) =
+            tokio_tungstenite::connect_async(format!("ws://{addr}/r/{code}/session"))
+                .await
+                .unwrap();
+
+        // The guest's opening and its first message reach the host, wrapped.
+        let open = envelope(&mut host).await;
+        assert_eq!((open.kind.as_str(), open.conn), ("open", 1));
+        guest.send(WsMessage::Text("hello".into())).await.unwrap();
+        let frame = envelope(&mut host).await;
+        assert_eq!(
+            (frame.kind.as_str(), frame.conn, frame.data.as_deref()),
+            ("frame", 1, Some("hello"))
+        );
+
+        // The host refuses and closes: the guest reads the refusal, then its
+        // socket ends, and the host hears the close back.
+        host.send(WsMessage::Text(Envelope::frame(1, "refused".into()).into()))
+            .await
+            .unwrap();
+        host.send(WsMessage::Text(Envelope::close(1).into()))
+            .await
+            .unwrap();
+        let refused = guest.next().await.unwrap().unwrap();
+        assert_eq!(refused.into_text().unwrap().as_str(), "refused");
+        assert!(matches!(
+            guest.next().await,
+            Some(Ok(WsMessage::Close(_))) | None
+        ));
+        let close = envelope(&mut host).await;
+        assert_eq!((close.kind.as_str(), close.conn), ("close", 1));
+    }
 }

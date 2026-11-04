@@ -51,6 +51,14 @@ const SNAPSHOT_EVERY: u64 = 500;
 /// rejects anything bigger at the document level anyway).
 const MAX_WS_MESSAGE_BYTES: usize = 1024 * 1024;
 
+/// Wrong PINs a session takes before it stops taking the PIN at all: six
+/// digits can be guessed, and a connection costs nothing. The invite token
+/// (128 bits) stays good, and a new session gets a new PIN.
+const PIN_GUESSES: u32 = 5;
+
+/// What a hello with the PIN is told once the session no longer takes it.
+const PIN_LOCKED: &str = "the PIN is no longer taken: too many wrong ones";
+
 // ---------------------------------------------------------------------------
 // The bridge between the session-HTTP thread and Bevy
 // ---------------------------------------------------------------------------
@@ -64,6 +72,9 @@ pub(crate) struct OutboundFrame {
 
 struct ConnTx {
     tx: mpsc::UnboundedSender<OutboundFrame>,
+    /// Came through `localgpt-relay`, where anyone with the room code can
+    /// open one: it is let in by the invite token alone, never the PIN.
+    via_relay: bool,
 }
 
 /// Events from socket tasks into Bevy.
@@ -113,10 +124,22 @@ impl WebBridge {
 
     /// Register a relay guest's frame channel as a connection.
     pub(crate) fn insert_conn(&self, id: PeerId, tx: mpsc::UnboundedSender<OutboundFrame>) {
+        self.conns.lock().expect("conns lock poisoned").insert(
+            id,
+            ConnTx {
+                tx,
+                via_relay: true,
+            },
+        );
+    }
+
+    /// Whether a connection came through the relay.
+    fn via_relay(&self, id: PeerId) -> bool {
         self.conns
             .lock()
             .expect("conns lock poisoned")
-            .insert(id, ConnTx { tx });
+            .get(&id)
+            .is_some_and(|conn| conn.via_relay)
     }
 
     /// Drop a relay guest's connection.
@@ -157,6 +180,8 @@ pub struct WebRoom {
     /// The session PIN, when this isn't an open session. Native guests
     /// authenticate with it (browsers use the invite token).
     session_pin: Option<String>,
+    /// Wrong PINs so far; at [`PIN_GUESSES`] the PIN is no longer taken.
+    wrong_pins: u32,
 }
 
 impl WebRoom {
@@ -182,6 +207,7 @@ impl WebRoom {
             scene_rebuild_pending: false,
             web_edit,
             session_pin,
+            wrong_pins: 0,
         };
         // History first: replay what a previous session left behind, then
         // open the log so this session's ops keep appending to it.
@@ -198,6 +224,16 @@ impl WebRoom {
         room.session_dir = Some(session_dir_path(workspace, session_name));
         room.ensure_package();
         room
+    }
+
+    /// The PIN has been guessed at too often to be taken any more.
+    fn pin_locked(&self) -> bool {
+        self.wrong_pins >= PIN_GUESSES
+    }
+
+    /// A hello with the PIN joins: the session has one and it isn't locked.
+    fn pin_taken(&self) -> bool {
+        self.session_pin.is_some() && !self.pin_locked()
     }
 
     /// Make the session directory a package: write the base and metadata
@@ -609,11 +645,13 @@ async fn session_ws(
 async fn handle_conn(socket: WebSocket, bridge: WebBridge) {
     let id = bridge.next_conn.fetch_add(1, Ordering::Relaxed) + 1;
     let (tx, mut rx) = mpsc::unbounded_channel::<OutboundFrame>();
-    bridge
-        .conns
-        .lock()
-        .expect("conns lock poisoned")
-        .insert(id, ConnTx { tx: tx.clone() });
+    bridge.conns.lock().expect("conns lock poisoned").insert(
+        id,
+        ConnTx {
+            tx: tx.clone(),
+            via_relay: false,
+        },
+    );
     let _ = bridge.inbound.send(InboundEvent::Connected { id });
 
     let (mut sink, mut stream) = socket.split();
@@ -832,15 +870,41 @@ fn handle_client_msg(
             }
             // Two bearer secrets open the room: the invite token (browser
             // links) and the session PIN (native --join). Both arrive in
-            // the clear, on a LAN and through a relay, which reads them;
-            // either is taken on any connection, relayed ones included.
+            // the clear, on a LAN and through a relay, which reads them.
+            // A connection through the relay is anyone's with the room
+            // code, so it is let in by the 128-bit token alone, never the
+            // six-digit PIN; and after a few wrong PINs the session stops
+            // taking the PIN, so it can't be guessed on a LAN either. A
+            // refused hello closes the connection, a relayed one included.
             let presented = token.as_deref().unwrap_or("");
+            let via_relay = room.bridge.via_relay(id);
             let ok = match (&room.bridge.token, &room.session_pin) {
                 (None, None) => true,
-                (t, p) => t.as_deref() == Some(presented) || p.as_deref() == Some(presented),
+                (t, p) => {
+                    t.as_deref() == Some(presented)
+                        || (!via_relay && room.pin_taken() && p.as_deref() == Some(presented))
+                }
             };
             if !ok {
-                deliver(room, error_to(id, "bad invite token or PIN"));
+                let pin_shaped =
+                    presented.len() == 6 && presented.bytes().all(|b| b.is_ascii_digit());
+                if !via_relay && pin_shaped && room.pin_taken() {
+                    room.wrong_pins += 1;
+                    if room.pin_locked() {
+                        eprintln!(
+                            "web session: {PIN_GUESSES} wrong PINs — the PIN is no longer taken \
+                             (the invite link still is; a new session gets a new PIN)"
+                        );
+                    }
+                }
+                let reason = if via_relay {
+                    "bad invite token"
+                } else if pin_shaped && room.pin_locked() {
+                    PIN_LOCKED
+                } else {
+                    "bad invite token or PIN"
+                };
+                deliver(room, error_to(id, reason));
                 return;
             }
             let role = if room.web_edit {
@@ -1105,7 +1169,13 @@ mod tests {
         let (bridge, mut rx) = WebBridge::new(Some("tok".into()), "test");
         let (tx, _frame_rx) = mpsc::unbounded_channel::<OutboundFrame>();
         let id = 7;
-        bridge.conns.lock().unwrap().insert(id, ConnTx { tx });
+        bridge.conns.lock().unwrap().insert(
+            id,
+            ConnTx {
+                tx,
+                via_relay: false,
+            },
+        );
         bridge
             .inbound
             .send(InboundEvent::Message {
@@ -1119,5 +1189,126 @@ mod tests {
         }
         // The connection's frame channel is reachable from the bridge.
         assert!(bridge.conns.lock().unwrap().contains_key(&id));
+    }
+
+    /// A PIN session with the invite token `tok`, its package in `workspace`.
+    fn pin_room(pin: &str, workspace: &std::path::Path) -> WebRoom {
+        let (bridge, rx) = WebBridge::new(Some("tok".into()), "test");
+        WebRoom::new("test", bridge, rx, workspace, None, false, Some(pin.into()))
+    }
+
+    /// A connection to the room: its peer id and the frames sent to it.
+    fn connect(
+        room: &WebRoom,
+        via_relay: bool,
+    ) -> (PeerId, mpsc::UnboundedReceiver<OutboundFrame>) {
+        let id = room.bridge.alloc_peer_id();
+        let (tx, rx) = mpsc::unbounded_channel();
+        room.bridge
+            .conns
+            .lock()
+            .unwrap()
+            .insert(id, ConnTx { tx, via_relay });
+        (id, rx)
+    }
+
+    fn hello(secret: &str) -> ClientMsg {
+        ClientMsg::Hello {
+            protocol: sync::PROTOCOL_VERSION,
+            name: "guest".into(),
+            token: Some(secret.into()),
+            client: sync::ClientKind::Gen,
+        }
+    }
+
+    /// Why the room refused a hello, and whether the refusal closes the
+    /// connection.
+    fn refusal(rx: &mut mpsc::UnboundedReceiver<OutboundFrame>) -> Option<(String, bool)> {
+        let frame = rx.try_recv().ok()?;
+        match serde_json::from_str::<ServerMsg>(&frame.text) {
+            Ok(ServerMsg::Error { reason }) => Some((reason, frame.close)),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn a_relayed_hello_is_let_in_by_the_token_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut room = pin_room("482913", dir.path());
+        let mut pending = PendingSceneOps::default();
+
+        let (direct, _rx) = connect(&room, false);
+        handle_client_msg(&mut room, &mut pending, direct, hello("482913"));
+        assert!(
+            room.authority.peer(direct).is_some(),
+            "the PIN joins directly"
+        );
+
+        let (relayed, mut rx) = connect(&room, true);
+        handle_client_msg(&mut room, &mut pending, relayed, hello("482913"));
+        assert!(room.authority.peer(relayed).is_none());
+        assert_eq!(refusal(&mut rx), Some(("bad invite token".into(), true)));
+
+        let (relayed, _rx) = connect(&room, true);
+        handle_client_msg(&mut room, &mut pending, relayed, hello("tok"));
+        assert!(
+            room.authority.peer(relayed).is_some(),
+            "the token joins through the relay"
+        );
+    }
+
+    #[test]
+    fn wrong_pins_stop_the_pin_being_taken() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut room = pin_room("482913", dir.path());
+        let mut pending = PendingSceneOps::default();
+
+        for wrong in ["000000", "111111", "222222", "333333"] {
+            let (id, mut rx) = connect(&room, false);
+            handle_client_msg(&mut room, &mut pending, id, hello(wrong));
+            assert_eq!(
+                refusal(&mut rx),
+                Some(("bad invite token or PIN".into(), true))
+            );
+            assert!(room.pin_taken());
+        }
+        // The fifth wrong one locks the PIN, and is told so.
+        let (id, mut rx) = connect(&room, false);
+        handle_client_msg(&mut room, &mut pending, id, hello("444444"));
+        assert_eq!(refusal(&mut rx), Some((PIN_LOCKED.into(), true)));
+        assert!(!room.pin_taken());
+
+        let (id, mut rx) = connect(&room, false);
+        handle_client_msg(&mut room, &mut pending, id, hello("482913"));
+        assert!(
+            room.authority.peer(id).is_none(),
+            "the right PIN no longer joins"
+        );
+        assert_eq!(refusal(&mut rx), Some((PIN_LOCKED.into(), true)));
+
+        let (id, _rx) = connect(&room, false);
+        handle_client_msg(&mut room, &mut pending, id, hello("tok"));
+        assert!(
+            room.authority.peer(id).is_some(),
+            "the invite token still joins"
+        );
+    }
+
+    #[test]
+    fn only_a_pin_shaped_guess_on_a_direct_connection_counts() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut room = pin_room("482913", dir.path());
+        let mut pending = PendingSceneOps::default();
+
+        for _ in 0..PIN_GUESSES {
+            // Through the relay the PIN isn't taken, so a guess there isn't one.
+            let (id, _rx) = connect(&room, true);
+            handle_client_msg(&mut room, &mut pending, id, hello("000000"));
+            // A wrong invite token isn't a PIN guess either.
+            let (id, _rx) = connect(&room, false);
+            handle_client_msg(&mut room, &mut pending, id, hello("not-the-token"));
+        }
+        assert_eq!(room.wrong_pins, 0);
+        assert!(room.pin_taken());
     }
 }

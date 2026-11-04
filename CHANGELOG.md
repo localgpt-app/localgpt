@@ -25,6 +25,7 @@ All notable changes to LocalGPT are documented in this file.
 
 ### Fixed
 
+- **A room's PIN can't be guessed through the relay, or at all.** A relayed guest is let in by the invite link's 128-bit token alone, never the six-digit PIN, since anyone with the room code can open a relayed connection; a refused hello now ends a relayed connection as it ends a direct one (the relay client sends the close on, and the relay acts on it); and after five wrong PINs a session stops taking the PIN, the invite link still working. Before, a relayed guest could present the PIN on one connection as often as it liked.
 - **The live API's token can be neither guessed nor read by another user.** It is 128 random bits, where it was a hash of the process id, the time and the folder. `.live/` is now the owner's alone (0700), and so is `endpoint.json` (0600). The token rides a query string only to `GET /board`, the page a person opens in a browser.
 - **A live package's `manifest.json` carries every scene-wide field its log changes.** The head was composed with the base's ambience, tours and song, so a committed `SetAmbience` never reached the file.
 

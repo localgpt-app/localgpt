@@ -143,9 +143,10 @@ the invite token. Local LAN guests and relay guests share the same room.
   Every guest presents a secret they all share and picks their own name, and
   the WebSocket is plaintext, on a LAN and through a relay alike. On a
   network you don't trust, treat the room as public.
-- Through a relay, the PIN guards little: a relayed guest may present it in
-  place of the token, and anyone with the room's code can reach it. Relay
-  only a world you would show anyone.
+- Through a relay, a hello is let in by the invite token alone: the PIN is
+  not taken on a relayed connection, which anyone with the room's code can
+  open, and a refused hello ends the connection. The room still crosses the
+  relay in the clear, so relay only a world you would show anyone.
 - A key per person and end-to-end encryption, for rooms in the desktop app
   and through the relay, are designed in
   `docs/rfcs/authoring/rooms-and-the-channel.md`.
@@ -165,8 +166,10 @@ the invite token. Local LAN guests and relay guests share the same room.
   fine at room scale.
 - Not in the world format (so neither saved nor synced): terrain, water,
   foliage, sky, in-world UI (signs/HUD/labels), NPC bodies.
-- The PIN is six digits with no attempt limit; don't host sensitive worlds
-  on untrusted networks or through a relay.
+- The PIN is six digits. After five wrong ones the session stops taking it
+  (the invite link still works; a new session gets a new PIN), so it can't
+  be guessed, but anyone on the network reads it as a guest sends it. Don't
+  host sensitive worlds on untrusted networks or through a relay.
 - A guest's *own* agent building through the room — rather than through the
   host's window — is a follow-up the protocol is shaped for: the prompt and
   job messages are kept for it, and the room refuses them until then.

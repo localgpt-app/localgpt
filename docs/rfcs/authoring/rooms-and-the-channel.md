@@ -1,6 +1,7 @@
 # Rooms: other people in an open world, and the channel they come through
 
-**Status:** proposal, 2026-10-31. Nothing built against it. Moves rooms up,
+**Status:** proposal, 2026-10-31; step 0 done 2026-11-03, nothing else built
+against it. Moves rooms up,
 revising [world-strategy.md](../../world-strategy.md) §13.1 ("Multiplayer in
 v1: Out") and §15.3 ("Moved down"). Puts rooms in the desktop app, over the
 `.world` it has open, under the one authority of
@@ -28,8 +29,8 @@ join. What exists for that is Gen's, and it falls short in five ways:
   implementations of submit and undo is one too many."
 - **Who is in a room is a claim.** A hello carries a name the guest picks and
   one secret that every guest shares, the invite token or the 6-digit PIN
-  (`crates/world-sync/src/protocol.rs:139–147`). Everyone it lets in gets the
-  same role (`crates/gen/src/net/web.rs:846–863`), and a guest may take any
+  (`crates/world-sync/src/protocol.rs:141–147`). Everyone it lets in gets the
+  same role (`crates/gen/src/net/web.rs:910–916`), and a guest may take any
   name not in use, an absent person's included. On a live canvas every entry
   has an author, and `undo --own`, the outliner's marks and proposals depend
   on it. With one shared secret, removing one person for good means a new
@@ -38,17 +39,19 @@ join. What exists for that is Gen's, and it falls short in five ways:
   through the relay alike. `localgpt-relay` doesn't parse what it forwards,
   but all of it passes through in the clear: the hello and its secret, every
   op, chat line and prompt. It also serves the join page
-  (`crates/relay/src/main.rs:363`), so whoever runs a relay can read its
+  (`crates/relay/src/main.rs:390`), so whoever runs a relay can read its
   rooms and could hand guests a page of its own. TLS in front of the relay
   protects the hops to it, not the room from it.
-- **A hole that shouldn't wait for this design.** Through the relay, the PIN
-  is reachable by anyone with a room's code, and nothing limits the guesses.
-  A relayed guest may present the PIN in place of the token (`web.rs:846–857`).
-  A failed hello closes a direct socket (`web.rs:705`), but not a relayed
-  one: the relay client forwards the error and drops its close flag
-  (`crates/gen/src/net/relay_client.rs:147–149`), and the relay acts on
-  nothing from the host but frames (`crates/relay/src/main.rs:255`). Step 0
-  closes it.
+- **A hole that didn't wait for this design.** Through the relay, the PIN
+  was reachable by anyone with a room's code, and nothing limited the
+  guesses: a relayed guest could present the PIN in place of the token, and
+  a failed hello closed a direct socket but not a relayed one, since the
+  relay client dropped the close and the relay acted on nothing from the
+  host but frames. Step 0 closed it on 2026-11-03: a relayed hello is let in
+  by the token alone (`web.rs:871–909`), a refused hello's close reaches the
+  relay (`crates/gen/src/net/relay_client.rs:214–232`,
+  `crates/relay/src/main.rs:281–288`), and five wrong PINs stop a session
+  taking the PIN (`web.rs:57`).
 
 ## What others do
 
@@ -77,7 +80,7 @@ wire protocol (hello, welcome, presence, chat, the ops fan-out) and its
 limits. It gives up its own document, revision and undo stacks.
 
 A guest's edit becomes a batch handed to `live_world`
-(`crates/gen/src/gen3d/live.rs:1801`). That is the one system that owns
+(`crates/gen/src/gen3d/live.rs:1761`). That is the one system that owns
 `LiveWorld`, and it already drains the live API's calls and takes the
 person's edits and review decisions. The batch's author is the guest's name.
 Both sides speak `wt::EditOp`, so nothing is translated.
@@ -93,7 +96,7 @@ So a guest's edit gets everything an agent's has:
 
 Every commit goes to the room as ops, whoever made it (the person, an agent
 or a guest). It leaves from where `live_world` publishes `LiveHistory`
-(`live.rs:1639`). A guest who arrives late gets the head's world first, then
+(`live.rs:1600`). A guest who arrives late gets the head's world first, then
 everything after it.
 
 **Roles.** Each person has one, given with the invite and changed in the
@@ -120,13 +123,13 @@ Gen's desktop mode went.
 
 An **invite** is a link or a QR code. It holds the room's address and a
 one-time code (128 bits, used once, gone in minutes), as the phone's pairing
-link does (`crates/app/src/webui/remote.rs:388`). It names the role it grants
+link does (`crates/app/src/webui/remote.rs:387`). It names the role it grants
 and, from step 2, carries the host's public key.
 
 At the first join, the one-time code is traded for the guest's key and binds
 it to the invite's role and to the name the host sees. In step 1 that key is
 a bearer key the app makes and keeps the hash of, as the phone's pairing
-does (`remote.rs:642`). From step 2 it is a key pair the device makes, and
+does (`remote.rs:641`). From step 2 it is a key pair the device makes, and
 the host keeps only the public half, so nothing on its disk opens the room.
 From then on **the key is the person**:
 
@@ -205,13 +208,14 @@ into the page, the guest's page and the app's converge.
 
 ## Steps
 
-0. **Close the relay's PIN hole now**, before any of this:
-   - a relayed hello takes the token only;
-   - a failed hello ends a relayed connection as it ends a direct one, so the
-     relay learns a close from the host;
-   - a room stops taking the PIN after a few wrong ones.
+0. **Close the relay's PIN hole now**, before any of this. Done 2026-11-03:
+   - a relayed hello is let in by the token only;
+   - a refused hello ends a relayed connection as it ends a direct one: the
+     relay client sends the close on, and the relay acts on it;
+   - a session stops taking the PIN after five wrong ones; the invite token
+     still joins, and a new session gets a new PIN.
 
-   It touches `crates/gen/src/net` and `crates/relay`.
+   In `crates/gen/src/net` and `crates/relay`.
 1. **The room in the app, on a network the person trusts.**
    - The app hosts a room for its open world on a listener of its own: 9879,
      Gen's session port, or any free port when that is taken. It is never
@@ -281,7 +285,7 @@ previs crews want that is a question for the previs user test
 - [x] the relay's claims corrected in `docs/gen/multiplayer.md`, the
       collaborative RFC, the website's multiplayer page and the code's
       comments (2026-10-31)
-- [ ] step 0: the relay's PIN hole
+- [x] step 0: the relay's PIN hole (2026-11-03)
 - [ ] step 1: the room in the app, by the phone's pairing, on a network the
       person trusts
 - [ ] step 2: the channel, for rooms and the phone

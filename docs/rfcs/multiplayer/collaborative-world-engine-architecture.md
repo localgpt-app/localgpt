@@ -206,8 +206,10 @@ presence coalesced to 10 Hz per peer.
   HTTP, so anyone who can read the network traffic can read the token. Use
   `--web` on networks you trust. The relay (phase 4) doesn't change that: TLS
   in front of it ends at the relay, which reads the token and the room as
-  they pass and serves the join page, and a relayed guest may present the PIN
-  in place of the token. A key per person and end-to-end encryption are
+  they pass and serves the join page. A relayed guest is let in by the token
+  alone, never the PIN, and a refused hello ends its connection; on a LAN,
+  five wrong PINs stop the session taking the PIN. A key per person and
+  end-to-end encryption are
   [rooms-and-the-channel.md](../authoring/rooms-and-the-channel.md)'s.
   Browser PIN pairing (SPAKE2 compiled to wasm) is a follow-up. An `--open`
   session needs no token.
