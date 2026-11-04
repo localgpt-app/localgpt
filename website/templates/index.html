@@ -144,24 +144,4 @@
     </div>
   </div>
 </section>
-<!-- Templates Preview -->
-<section class="section-templates">
-  <div class="container">
-    <h2 class="section-title">World Templates</h2>
-    <p class="section-subtitle">Jumpstart your project with production-ready environments. Fully explorable, customizable, and free.</p>
-    <div class="templates-grid">
-      {% set templates_section = get_section(path="templates/_index.md") %}
-      {% for t in templates_section.pages[:8] %}
-      <a href="{{ t.permalink }}" class="template-card">
-        <span class="template-cat">{{ t.extra.category | default(value="World") }}</span>
-        <h4 class="template-title">{{ t.title }}</h4>
-        <p class="template-desc">{{ t.description | truncate(length=90) }}</p>
-      </a>
-      {% endfor %}
-    </div>
-    <div style="text-align: center; margin-top: 2.5rem;">
-      <a href="/templates/" class="btn btn-secondary">Browse All Templates &rarr;</a>
-    </div>
-  </div>
-</section>
 {% endblock content %}

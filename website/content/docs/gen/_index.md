@@ -137,17 +137,6 @@ A `.world` package opened with `--live` is edited through its own API: `localgpt
 - **[Headless](/docs/gen/headless)** — The same tools with no window, for CI and batch work
 - **Undo/Redo** — per author, with redo, through the same history the live canvas keeps
 
-## Templates
-
-Jumpstart your project with ready-to-customize world templates:
-
-- **Fantasy** — [Medieval Village](/templates/medieval-village), [Enchanted Forest](/templates/enchanted-forest), [Japanese Temple](/templates/japanese-temple), [Cozy Farm](/templates/cozy-farm), [Winter Wonderland](/templates/winter-wonderland)
-- **Sci-Fi** — [Space Station](/templates/space-station), [Underwater World](/templates/underwater-world), [Alien World](/templates/alien-world)
-- **Horror** — [Haunted House](/templates/haunted-house), [Backrooms](/templates/backrooms)
-- **Urban** — [Cyberpunk City](/templates/cyberpunk-city), [Modern City](/templates/modern-city)
-
-[Browse all templates →](/templates)
-
 ## Current Limitations
 
 - Visual output depends on the agent's spatial reasoning ability
