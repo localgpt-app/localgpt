@@ -12,7 +12,7 @@ the terminals are plain login shells now. The agent presets (a tab per
 named agent, a launcher that knew their commands), the turn marks read
 from an agent's title glyphs and `TurnEnded` went with the rest of the
 harness: the app knows no agent by name, and a tab is whatever the person
-runs in it.
+runs in it. The page at its fullest, presets and turn marks still in, is tagged `desktop-the-page` (`d554ecf`), the last commit before the removal.
 
 ## The problem
 
