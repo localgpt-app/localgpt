@@ -1,0 +1,26 @@
+[package]
+name = "spike-bevy-in-eframe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Test 2 of docs/rfcs/authoring/all-rust.md: Bevy windowless on eframe's wgpu device, the world as a texture in two viewports"
+
+# A crate of its own, outside the workspace: nothing here reaches the apps.
+[workspace]
+
+[dependencies]
+# egui 0.35 is the last on wgpu 29, which Bevy 0.19 uses: one device for both.
+eframe = { version = "0.35", default-features = false, features = ["wgpu", "default_fonts", "accesskit"] }
+egui = "0.35"
+egui-wgpu = "0.35"
+wgpu = "29"
+# No window, no winit: Bevy as a library drawing into a texture.
+bevy = { version = "0.19.1", default-features = false, features = ["std", "multi_threaded", "bevy_asset", "bevy_render", "bevy_core_pipeline", "bevy_pbr", "bevy_log", "bevy_scene", "bevy_gltf", "bevy_world_serialization", "bevy_mesh", "bevy_image", "bevy_animation", "reflect_auto_register", "png", "jpeg", "tonemapping_luts", "ktx2", "zstd_rust"] }
+# The one Bevy mapping of the format, and the format: the song world's manifest.json is loaded as is.
+localgpt-world-bevy = { path = "../../crates/world-bevy" }
+localgpt-world-types = { path = "../../crates/world-types" }
+serde_json = "1"
+pollster = "0.4"
+image = { version = "0.25", default-features = false, features = ["png"] }
+log = "0.4"
+env_logger = "0.11"

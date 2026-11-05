@@ -1,0 +1,14 @@
+{
+  "label": "run6",
+  "size": [2880, 1720],
+  "tick_hz": 120,
+  "cascades": 4,
+  "two_windows": true,
+  "phases": {"hide": 12, "show": 20, "exit": 26},
+  "t0_unix": 1793800512.510,
+  "visible": {"main_window_fps": 90.7, "second_window_fps": 90.7, "bevy_ticks_per_s_mean": 96.7, "bevy_ticks_per_s_min": 7},
+  "hidden": {"main_window_fps": 7.3, "second_window_fps": 7.3, "bevy_ticks_per_s_mean": 95.9, "bevy_ticks_per_s_min": 90},
+  "visible_again": {"main_window_fps": 87.8, "second_window_fps": 87.8, "bevy_ticks_per_s_mean": 119.4, "bevy_ticks_per_s_min": 117},
+  "bevy_ticks_total": 2510,
+  "ticks_per_second": [[2.2, 7], [3.2, 47], [4.2, 120], [5.2, 120], [6.2, 110], [7.3, 114], [8.3, 118], [9.3, 120], [10.3, 112], [11.3, 99], [12.3, 99], [13.3, 99], [14.3, 100], [15.3, 103], [16.3, 90], [17.3, 97], [18.3, 91], [19.3, 91], [20.3, 96], [21.3, 120], [22.3, 119], [23.3, 117], [24.3, 120], [25.3, 121]]
+}
