@@ -4,6 +4,8 @@ All notable changes to LocalGPT are documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-04
+
 ### Added
 
 - **Your coding agents, in the desktop app.** Terminals in the page, each a full terminal (xterm.js over a PTY) running your login shell in the folder of what is open, with `LOCALGPT_WORLD_DIR` set on a live package, so an agent started there finds the world's `AGENTS.md` and endpoint. You type the agent's command; the app knows no agent by name and holds no keys, models or settings.
@@ -467,7 +469,8 @@ Initial release of LocalGPT — a local-only AI assistant with persistent markdo
 - **Zero-config startup** defaulting to `claude-cli/opus`.
 - **Auto-migration** from OpenClaw config if present.
 
-[Unreleased]: https://github.com/localgpt-app/localgpt/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/localgpt-app/localgpt/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/localgpt-app/localgpt/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/localgpt-app/localgpt/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/localgpt-app/localgpt/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/localgpt-app/localgpt/compare/v0.3.6...v0.4.0
