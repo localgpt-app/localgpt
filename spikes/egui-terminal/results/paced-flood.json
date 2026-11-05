@@ -1,0 +1,19 @@
+{
+  "label": "paced-flood",
+  "seconds": 20.07,
+  "frames": 2048,
+  "frames_per_second": 102.1,
+  "frame_ms": {"mean": 9.79, "p50": 11.06, "p95": 13.01, "p99": 13.27, "max": 42.64},
+  "late_frames": 649,
+  "hitches": 0,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 1.902,
+  "grid_paint_ms_mean": 0.635,
+  "grid_paint_ms_max": 7.954,
+  "galleys_per_frame_mean": 98.0,
+  "wakeups": 776,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

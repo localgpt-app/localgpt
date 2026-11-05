@@ -1,0 +1,19 @@
+{
+  "label": "paced-deluge",
+  "seconds": 20.09,
+  "frames": 2240,
+  "frames_per_second": 111.5,
+  "frame_ms": {"mean": 8.96, "p50": 10.31, "p95": 12.93, "p99": 13.78, "max": 46.71},
+  "late_frames": 558,
+  "hitches": 0,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 2.444,
+  "grid_paint_ms_mean": 0.925,
+  "grid_paint_ms_max": 14.181,
+  "galleys_per_frame_mean": 98.3,
+  "wakeups": 1577,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

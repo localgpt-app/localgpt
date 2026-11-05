@@ -1,0 +1,19 @@
+{
+  "label": "anim-agent",
+  "seconds": 20.06,
+  "frames": 78635,
+  "frames_per_second": 3919.8,
+  "frame_ms": {"mean": 0.25, "p50": 0.25, "p95": 0.30, "p99": 0.35, "max": 81.21},
+  "late_frames": 2,
+  "hitches": 1,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 0.249,
+  "grid_paint_ms_mean": 0.088,
+  "grid_paint_ms_max": 0.612,
+  "galleys_per_frame_mean": 29.4,
+  "wakeups": 189,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

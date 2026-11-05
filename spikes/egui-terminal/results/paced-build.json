@@ -1,0 +1,19 @@
+{
+  "label": "paced-build",
+  "seconds": 20.14,
+  "frames": 1935,
+  "frames_per_second": 96.1,
+  "frame_ms": {"mean": 10.39, "p50": 11.52, "p95": 13.22, "p99": 13.92, "max": 85.57},
+  "late_frames": 689,
+  "hitches": 1,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 1.832,
+  "grid_paint_ms_mean": 0.529,
+  "grid_paint_ms_max": 11.393,
+  "galleys_per_frame_mean": 97.5,
+  "wakeups": 210,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

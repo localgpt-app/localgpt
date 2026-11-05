@@ -1,0 +1,18 @@
+[package]
+name = "spike-egui-terminal"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Test 1 of docs/rfcs/authoring/all-rust.md: a terminal widget on alacritty_terminal in an egui panel"
+
+# A crate of its own, outside the workspace: nothing here reaches the apps.
+[workspace]
+
+[dependencies]
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts", "accesskit", "clipboard"] }
+egui = "0.37"
+alacritty_terminal = "0.26"
+egui_system_font_provider = "0.37"
+log = "0.4"
+env_logger = "0.11"
+image = { version = "0.25", default-features = false, features = ["png"] }

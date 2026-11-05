@@ -1,0 +1,19 @@
+{
+  "label": "paced-idle",
+  "seconds": 20.04,
+  "frames": 1690,
+  "frames_per_second": 84.3,
+  "frame_ms": {"mean": 11.85, "p50": 12.01, "p95": 13.29, "p99": 15.33, "max": 120.16},
+  "late_frames": 701,
+  "hitches": 2,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 1.243,
+  "grid_paint_ms_mean": 0.320,
+  "grid_paint_ms_max": 5.673,
+  "galleys_per_frame_mean": 0.0,
+  "wakeups": 1,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

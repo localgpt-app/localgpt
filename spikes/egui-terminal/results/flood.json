@@ -1,0 +1,19 @@
+{
+  "label": "flood",
+  "seconds": 20.08,
+  "frames": 578,
+  "frames_per_second": 28.8,
+  "frame_ms": {"mean": 34.50, "p50": 4.63, "p95": 106.59, "p99": 117.62, "max": 121.36},
+  "late_frames": 192,
+  "hitches": 187,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 2.420,
+  "grid_paint_ms_mean": 1.198,
+  "grid_paint_ms_max": 5.824,
+  "galleys_per_frame_mean": 98.0,
+  "wakeups": 665,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

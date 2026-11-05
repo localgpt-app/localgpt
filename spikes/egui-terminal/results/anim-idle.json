@@ -1,0 +1,19 @@
+{
+  "label": "anim-idle",
+  "seconds": 20.05,
+  "frames": 111863,
+  "frames_per_second": 5580.1,
+  "frame_ms": {"mean": 0.18, "p50": 0.17, "p95": 0.19, "p99": 0.23, "max": 121.93},
+  "late_frames": 2,
+  "hitches": 1,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 0.173,
+  "grid_paint_ms_mean": 0.079,
+  "grid_paint_ms_max": 5.898,
+  "galleys_per_frame_mean": 0.0,
+  "wakeups": 1,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

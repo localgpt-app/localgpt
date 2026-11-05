@@ -1,0 +1,19 @@
+{
+  "label": "anim-build",
+  "seconds": 20.08,
+  "frames": 71766,
+  "frames_per_second": 3574.6,
+  "frame_ms": {"mean": 0.28, "p50": 0.27, "p95": 0.30, "p99": 0.37, "max": 84.76},
+  "late_frames": 2,
+  "hitches": 1,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 0.274,
+  "grid_paint_ms_mean": 0.101,
+  "grid_paint_ms_max": 0.969,
+  "galleys_per_frame_mean": 97.7,
+  "wakeups": 193,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

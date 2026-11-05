@@ -1,0 +1,19 @@
+{
+  "label": "anim-flood",
+  "seconds": 20.15,
+  "frames": 65416,
+  "frames_per_second": 3245.9,
+  "frame_ms": {"mean": 0.31, "p50": 0.30, "p95": 0.33, "p99": 0.42, "max": 83.03},
+  "late_frames": 2,
+  "hitches": 1,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 0.302,
+  "grid_paint_ms_mean": 0.101,
+  "grid_paint_ms_max": 1.712,
+  "galleys_per_frame_mean": 98.0,
+  "wakeups": 512,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

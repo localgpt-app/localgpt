@@ -1,0 +1,19 @@
+{
+  "label": "probe2",
+  "seconds": 12.15,
+  "frames": 42,
+  "frames_per_second": 3.5,
+  "frame_ms": {"mean": 276.75, "p50": 489.97, "p95": 509.60, "p99": 511.34, "max": 511.34},
+  "late_frames": 25,
+  "hitches": 23,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 4.285,
+  "grid_paint_ms_mean": 0.960,
+  "grid_paint_ms_max": 14.543,
+  "galleys_per_frame_mean": 219.8,
+  "wakeups": 17,
+  "cols": 106,
+  "rows": 39,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

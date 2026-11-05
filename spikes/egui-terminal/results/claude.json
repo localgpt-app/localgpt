@@ -1,0 +1,19 @@
+{
+  "label": "claude",
+  "seconds": 16.35,
+  "frames": 57,
+  "frames_per_second": 3.5,
+  "frame_ms": {"mean": 277.53, "p50": 436.64, "p95": 511.09, "p99": 514.50, "max": 521.66},
+  "late_frames": 39,
+  "hitches": 39,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 4.014,
+  "grid_paint_ms_mean": 0.510,
+  "grid_paint_ms_max": 10.556,
+  "galleys_per_frame_mean": 17.4,
+  "wakeups": 12,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": "✳ Claude Code"
+}

@@ -1,0 +1,19 @@
+{
+  "label": "codex",
+  "seconds": 16.34,
+  "frames": 84,
+  "frames_per_second": 5.1,
+  "frame_ms": {"mean": 187.95, "p50": 15.68, "p95": 518.21, "p99": 532.97, "max": 545.55},
+  "late_frames": 45,
+  "hitches": 37,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 11.093,
+  "grid_paint_ms_mean": 0.719,
+  "grid_paint_ms_max": 15.912,
+  "galleys_per_frame_mean": 8.3,
+  "wakeups": 29,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

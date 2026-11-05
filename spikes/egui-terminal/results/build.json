@@ -1,0 +1,19 @@
+{
+  "label": "build",
+  "seconds": 20.13,
+  "frames": 383,
+  "frames_per_second": 19.0,
+  "frame_ms": {"mean": 52.22, "p50": 5.64, "p95": 106.87, "p99": 108.65, "max": 115.94},
+  "late_frames": 189,
+  "hitches": 187,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 2.525,
+  "grid_paint_ms_mean": 1.082,
+  "grid_paint_ms_max": 5.088,
+  "galleys_per_frame_mean": 96.8,
+  "wakeups": 197,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

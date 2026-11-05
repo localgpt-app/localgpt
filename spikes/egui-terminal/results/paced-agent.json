@@ -1,0 +1,19 @@
+{
+  "label": "paced-agent",
+  "seconds": 20.11,
+  "frames": 1948,
+  "frames_per_second": 96.8,
+  "frame_ms": {"mean": 10.31, "p50": 11.47, "p95": 13.20, "p99": 14.21, "max": 40.68},
+  "late_frames": 673,
+  "hitches": 0,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 1.613,
+  "grid_paint_ms_mean": 0.416,
+  "grid_paint_ms_max": 10.458,
+  "galleys_per_frame_mean": 30.5,
+  "wakeups": 193,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

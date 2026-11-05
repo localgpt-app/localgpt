@@ -1,0 +1,19 @@
+{
+  "label": "anim-deluge",
+  "seconds": 20.13,
+  "frames": 64168,
+  "frames_per_second": 3188.0,
+  "frame_ms": {"mean": 0.31, "p50": 0.29, "p95": 0.33, "p99": 0.58, "max": 91.65},
+  "late_frames": 2,
+  "hitches": 1,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 0.308,
+  "grid_paint_ms_mean": 0.104,
+  "grid_paint_ms_max": 2.140,
+  "galleys_per_frame_mean": 98.0,
+  "wakeups": 777,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}

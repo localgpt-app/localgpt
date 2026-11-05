@@ -1,0 +1,19 @@
+{
+  "label": "agent",
+  "seconds": 20.17,
+  "frames": 379,
+  "frames_per_second": 18.8,
+  "frame_ms": {"mean": 52.85, "p50": 6.53, "p95": 108.22, "p99": 109.60, "max": 110.10},
+  "late_frames": 189,
+  "hitches": 188,
+  "display_hz": 120,
+  "update_cpu_ms_mean": 2.045,
+  "grid_paint_ms_mean": 0.510,
+  "grid_paint_ms_max": 1.867,
+  "galleys_per_frame_mean": 30.4,
+  "wakeups": 194,
+  "cols": 142,
+  "rows": 50,
+  "cell": [7.83, 15.12],
+  "title": ""
+}
