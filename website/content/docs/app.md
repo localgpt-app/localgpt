@@ -71,11 +71,13 @@ The app knows no agent by name: no keys, no models, no settings, no presets — 
 
 ## A phone or a tablet {#phone}
 
-**Phone**, at the right of the top bar, lets a phone or a tablet on the same network use the window. Turn it on and it shows a QR code. Scan the code with the device's camera, and its browser opens the app's page, paired. The page there has three views at the thumb:
+**Phone**, at the right of the top bar, lets a phone or a tablet on the same network use the window. Turn it on and it shows a QR code. Scan the code with the device's camera, and its browser opens the app's page, paired. On a phone the page has three views at the thumb:
 
-- **Agents**: each tab's terminal, the agent's own. Under it are **esc**, **⇥**, **⇧⇥**, the arrows, **^C** and **⏎**, and a box to write or dictate a prompt.
+- **Terminals**: each tab's terminal, the agent's own. Under it are **esc**, **⇥**, **⇧⇥**, the arrows, **^C** and **⏎**, and a box to write or dictate a prompt.
 - **World**: the world as the window shows it, the shots to look through, and the song to play or pause.
 - **History**: the history, with its transport.
+
+A tablet shows the world and the terminals at once: side by side when it is turned, as the window has them, and the world over the terminals when it is upright. Under the world's frame, a tab each holds the history and the shots. A page narrower than 600 pixels, such as an iPad's in Split View, gets the phone's views.
 
 A waiting proposal can be accepted or rejected from any view. A tab started on the phone shows up in the window too.
 

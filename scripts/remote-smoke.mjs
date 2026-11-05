@@ -14,7 +14,7 @@
 //   - the socket: an unpaired key refused, a paired one welcomed, nothing
 //     sent before the page is ready, then the window's snapshots and tabs;
 //   - a shell opened from the device, attached (its size, then its screen
-//     from a reset), typed into, and titled — a spinner, then ✳;
+//     from a reset), typed into, and titled — the title its label;
 //   - a second device attaching late and getting the screen; the size
 //     following whichever device typed, and going back when it leaves;
 //   - a frame of the window; the listener's own asks refused to a device.
@@ -22,6 +22,10 @@
 // With --phone, the device's page also runs in headless Chromium at an
 // iPhone's size (Playwright, from website-world's node_modules): a shell
 // opened and typed into through the prompt box, each view screenshotted.
+// Then at an iPad's, turned and upright: the world beside the terminals,
+// then over them, with the terminal and its screen kept through the turn.
+// A run that fails prints the app's last log lines, and a page step that
+// times out leaves the page as it was in failed.png.
 //
 //     cargo build -p localgpt-app && (cd crates/app/ui && npm run build)
 //     target/debug/localgpt world init demo.world
@@ -135,7 +139,7 @@ await phone.wait((m) => m.t === "term.list");
 const order = phone.got.map((m) => m.t);
 check("ready: the window's snapshots, then the tabs", order.includes("mode") && order.indexOf("term.list") > order.indexOf("mode"), order.join(" "));
 
-phone.say({ t: "term.open", id: "smoke", kind: "shell", cols: 60, rows: 20 });
+phone.say({ t: "term.open", id: "smoke", cols: 60, rows: 20 });
 check("a tab the device opens is listed for every page", !!(await phone.wait((m) => m.t === "term.list" && m.tabs.some((t) => t.id === "smoke"))));
 phone.say({ t: "term.attach", id: "smoke", cols: 60, rows: 20 });
 const size = await phone.wait((m) => m.t === "term.size" && m.id === "smoke");
@@ -146,17 +150,17 @@ await sleep(1500); // the login shell's first prompt
 phone.say({ t: "term.input", id: "smoke", data: "echo hello-$((40+2))\r" });
 for (let i = 0; i < 100 && !text(phone, "smoke").includes("hello-42"); i++) await sleep(50);
 check("typing runs in the tab, and its output comes back", text(phone, "smoke").includes("hello-42"));
-phone.say({ t: "term.input", id: "smoke", data: "printf '\\033]0;\\342\\240\\202 Fix the jetty\\007'; sleep 0.5; printf '\\033]0;\\342\\234\\263 Fix the jetty\\007'\r" });
-const working = await phone.wait((m) => m.t === "term.state" && m.id === "smoke" && m.activity === "working");
-check("a spinner in the title: working", working?.label === "Fix the jetty", JSON.stringify(working));
-check("✳ in the title: at rest", !!(await phone.wait((m) => m.t === "term.state" && m.id === "smoke" && m.activity === "idle")));
+phone.say({ t: "term.input", id: "smoke", data: "printf '\\033]0;Fix the jetty\\007'\r" });
+const titled = await phone.wait((m) => m.t === "term.state" && m.id === "smoke" && m.label === "Fix the jetty");
+check("the title a program sets is the tab's label", !!titled);
 
 const late = connect(key);
 await late.wait((m) => m.t === "remote.welcome");
 late.say({ t: "ready" });
 await late.wait((m) => m.t === "term.list");
 late.say({ t: "term.attach", id: "smoke", cols: 40, rows: 12 });
-const lateScreen = await late.wait((m) => m.t === "term.data" && m.id === "smoke");
+// Its screen, from a reset: what the shell still writes reaches it too.
+const lateScreen = await late.wait((m) => m.t === "term.data" && m.id === "smoke" && Buffer.from(m.b64, "base64").toString().startsWith("\x1bc"));
 check("a second device attaches late and gets the screen", !!lateScreen && Buffer.from(lateScreen.b64, "base64").toString().includes("hello-42"));
 late.say({ t: "term.input", id: "smoke", data: "" });
 const taken = await phone.wait((m) => m.t === "term.size" && m.id === "smoke" && m.cols === 40);
@@ -179,30 +183,80 @@ stranger.close();
 if (phoneDir) {
   const { chromium, devices } = await import(join(ROOT, "website-world/node_modules/playwright/index.mjs"));
   const browser = await chromium.launch();
-  const context = await browser.newContext({ ...devices["iPhone 15"] });
-  await context.addInitScript((key) => localStorage.setItem("lg.remote.key", key), key);
-  const page = await context.newPage();
-  const errors = [];
-  page.on("pageerror", (e) => errors.push(String(e)));
-  await page.goto(`${origin}/`);
-  await page.getByText("Smoke phone").waitFor({ timeout: 10000 });
-  await page.getByRole("button", { name: "Shell", exact: true }).click();
-  await page.waitForTimeout(2500);
-  await page.getByRole("button", { name: "Write a prompt" }).click();
-  await page.getByPlaceholder("Write or dictate a prompt").fill("echo 'from the phone'");
-  await page.getByRole("button", { name: "Send" }).click();
-  await page.waitForTimeout(1500);
-  await page.screenshot({ path: join(phoneDir, "phone-agents.png") });
-  check("the phone's page types into its shell", (await page.locator(".phone-term .xterm-rows").innerText()).includes("from the phone"));
-  await page.getByRole("button", { name: "World", exact: true }).click();
-  await page.locator('img[alt="The world, as the window shows it"]').waitFor({ timeout: 10000 });
-  await page.screenshot({ path: join(phoneDir, "phone-world.png") });
-  await page.getByRole("button", { name: "History", exact: true }).click();
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: join(phoneDir, "phone-history.png") });
-  check("the phone's page shows each view, with no page errors", errors.length === 0, errors.join(" | "));
-  await browser.close();
+  // A step that times out fails like a check, with the page as it was; the
+  // summary still comes.
+  let last = null;
+  try {
+    const context = await browser.newContext({ ...devices["iPhone 15"] });
+    await context.addInitScript((key) => localStorage.setItem("lg.remote.key", key), key);
+    const page = await context.newPage();
+    last = page;
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(String(e)));
+    await page.goto(`${origin}/`);
+    await page.getByText("Smoke phone").waitFor({ timeout: 10000 });
+    await page.getByRole("button", { name: "New terminal", exact: true }).click();
+    await page.waitForTimeout(2500);
+    await page.getByRole("button", { name: "Write a prompt" }).click();
+    await page.getByPlaceholder("Write or dictate a prompt").fill("echo 'from the phone'");
+    await page.getByRole("button", { name: "Send" }).click();
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: join(phoneDir, "phone-agents.png") });
+    check("the phone's page types into its shell", (await page.locator(".phone-term .xterm-rows").innerText()).includes("from the phone"));
+    await page.getByRole("button", { name: "World", exact: true }).click();
+    await page.locator('img[alt="The world, as the window shows it"]').waitFor({ timeout: 10000 });
+    await page.screenshot({ path: join(phoneDir, "phone-world.png") });
+    await page.getByRole("button", { name: "History", exact: true }).click();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: join(phoneDir, "phone-history.png") });
+    check("the phone's page shows each view, with no page errors", errors.length === 0, errors.join(" | "));
+    await context.close();
+
+    // An iPad, turned: the world and the terminals at once, no views to pick.
+    const tablet = await browser.newContext({ ...devices["iPad Pro 11 landscape"], screen: { width: 1194, height: 834 } });
+    await tablet.addInitScript((key) => localStorage.setItem("lg.remote.key", key), key);
+    const pad = await tablet.newPage();
+    last = pad;
+    pad.on("pageerror", (e) => errors.push(String(e)));
+    await pad.goto(`${origin}/`);
+    await pad.getByText("Smoke phone").waitFor({ timeout: 10000 });
+    const world = pad.locator('img[alt="The world, as the window shows it"]');
+    await world.waitFor({ timeout: 10000 });
+    check("an iPad's page shows the world with no view picked", (await pad.getByRole("button", { name: "World", exact: true }).count()) === 0);
+    check("and the live world's history beside it", await pad.getByText(/^\d+ entr(y|ies)$/).isVisible());
+    await pad.getByRole("button", { name: "New terminal", exact: true }).click();
+    await pad.waitForTimeout(2500);
+    await pad.getByRole("button", { name: "Write a prompt" }).click();
+    await pad.getByPlaceholder("Write or dictate a prompt").fill("echo 'from the tablet'");
+    await pad.getByRole("button", { name: "Send" }).click();
+    await pad.waitForTimeout(1500);
+    // The phone's tab is still open, behind this one.
+    const screen = pad.locator(".phone-term .xterm-screen >> visible=true");
+    const rows = pad.locator(".phone-term .xterm-rows >> visible=true");
+    const at = async () => ({ world: await world.boundingBox(), term: await screen.boundingBox() });
+    const turned = await at();
+    check("turned: the world beside the terminal", turned.world.x + turned.world.width <= turned.term.x + 1, JSON.stringify(turned));
+    check("the iPad types into its shell", (await rows.innerText()).includes("from the tablet"));
+    await pad.screenshot({ path: join(phoneDir, "tablet-turned.png") });
+
+    // Upright: the world over the terminals, the same terminal.
+    await pad.evaluate(() => ([...document.querySelectorAll(".phone-term .xterm")].find((el) => !el.closest(".invisible")).dataset.kept = "yes"));
+    await pad.setViewportSize({ width: 834, height: 1194 });
+    await pad.waitForTimeout(1500);
+    const upright = await at();
+    check("upright: the world over the terminal", upright.world.y + upright.world.height <= upright.term.y + 1, JSON.stringify(upright));
+    const kept = await pad.evaluate(() => [...document.querySelectorAll(".phone-term .xterm")].find((el) => !el.closest(".invisible"))?.dataset.kept === "yes");
+    check("a turn keeps the terminal and its screen", kept && (await rows.innerText()).includes("from the tablet"));
+    await pad.screenshot({ path: join(phoneDir, "tablet-upright.png") });
+    check("the iPad's page, with no page errors", errors.length === 0, errors.join(" | "));
+  } catch (e) {
+    check("the device pages ran to the end", false, String(e.message ?? e).split("\n")[0]);
+    await last?.screenshot({ path: join(phoneDir, "failed.png") }).catch(() => {});
+  } finally {
+    await browser.close();
+  }
 }
 
+if (failed) console.log(`the app's log, last lines:\n${log.trim().split("\n").slice(-30).join("\n")}`);
 console.log(failed ? `${failed} failed` : "all passed");
 process.exit(failed ? 1 : 0);

@@ -134,7 +134,23 @@ a tap looks through one, and the song plays and pauses.
 - a note when an agent's turn ends.
 
 Open…, the timeline, the outliner and the document stay the window's, at
-its width. An iPad gets the phone's layout, roomier.
+its width.
+
+**A tablet** (built 2026-11-04, `ui/src/phone/layout.tsx`) shows the world
+and the terminals at once. The layout goes by the page's width on a screen
+whose short side is 600 px or more, so a phone turned sideways keeps its
+views:
+
+- side by side, as the window has them, from 1100 px, or from 900 on a
+  tablet turned sideways;
+- the world over the terminals otherwise, keeping a third of the height;
+- the phone's views under 600 px, as an iPad's in Split View is.
+
+The world's pane holds the history and the shots, in a tab each under its
+frame, with the history first. Never the height: the keyboard takes it, and
+a layout that followed it would move the terminal from under the fingers
+typing. The terminals sit first in every layout, so a turn keeps their
+screens.
 
 **Telling the person** (as built 2026-10-31; removed 2026-11-01, since
 reading one agent's glyphs is knowing it by name — a notification that
@@ -261,16 +277,34 @@ The frames' pixels came back black, as did the live API's own
 `GET /screenshot`, because the Mac's screen was locked; what a frame shows
 is unchecked.
 
+On 2026-11-04 the script went over the tablet's layout too, and all 33 of
+its checks passed. The two turn-mark checks had become one, that the title
+a program sets is the tab's label. Then its iPad pass ran headless Chromium
+at an 11-inch iPad Pro's size:
+
+- turned: the world beside the terminal, with no view to pick, and the
+  live world's history under it;
+- a shell opened from the tablet and typed into through the compose box;
+- upright: the world over the terminal;
+- after the turn, the same terminal, with its screen kept.
+
+One of the eight runs that day lost the iPad's line for more than half a
+minute. Nothing said why: there was no crash report, and the next six runs
+passed. A failed run now prints the app's last log lines and saves the page
+as it was. Two other runs failed the late device's check: it took the
+first bytes it was sent for the screen, while the shell was still drawing
+its prompt. That check now waits for the screen, which starts with a reset.
+
 Still to do:
 
 - **On a phone in a hand:** iOS Safari's keyboard with xterm.js, its
   dictation in the compose box, Android Chrome, and the first macOS
-  firewall prompt for port 9880.
+  firewall prompt for port 9880. **On a tablet in a hand:** an iPad and an
+  Android tablet, turned both ways and with the keyboard up.
 - **The addresses besides the primary one** in the panel, such as a
   Tailscale address. A browser keeps the key per address, so a device opened
   at another address pairs again.
 - **The viewer** for a live canvas's World view.
-- **A layout for the iPad** that uses its width.
 
 ## Who it is for
 
@@ -314,7 +348,9 @@ the previs user test to say, and
 - [x] step 1: the transport, the listener and pairing; the terminals'
       screens, fan-out and size rule; frames; the phone layout and its
       sheet (`design/phone.html`)
-- [ ] step 1 on a phone in a hand, and the sheet reviewed
+- [x] a tablet's layout: the world and the terminals at once, beside or
+      over each other by the page's width (2026-11-04)
+- [ ] step 1 on a phone and a tablet in a hand, and the sheet reviewed
 - [ ] the previs user test's mobile question asked
 - [ ] step 2, when step 1's users ask
 - [ ] steps 3 and 4, if previs testers ask

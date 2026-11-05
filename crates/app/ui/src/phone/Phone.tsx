@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { History, Mode, TermTab, TimelineView } from "../bridge";
 import { listen, send } from "../bridge";
 import { HistoryPanel } from "../HistoryPanel";
@@ -6,9 +6,10 @@ import { Icon, type IconName } from "../Icon";
 import { PlaybackBar } from "../PlaybackBar";
 import { type Line, unpair, watchLine } from "../remote";
 import { tabDot } from "../TerminalsPanel";
-import { Frame } from "../timeline/Frame";
 import type { Shot } from "../timeline/model";
+import { Body, useLayout } from "./layout";
 import { PhoneTerminal } from "./PhoneTerminal";
+import { FrameBox, type RailTab, ShotGrid, WorldPane } from "./WorldPane";
 
 export type View = "terminals" | "world" | "history";
 
@@ -18,8 +19,9 @@ const EMPTY: History = { rows: [], current: null, status: null };
 
 /** The page on a paired phone or tablet: the window's, laid out for one
  *  hand. The terminals first — what runs in them is the reason to look —
- *  then the world as the window shows it, then the history. Everything
- *  comes from the messages the window's page gets. */
+ *  then the world as the window shows it, then the history. A tablet shows
+ *  the world and the terminals at once (`layout.tsx`). Everything comes
+ *  from the messages the window's page gets. */
 export function Phone() {
   const [line, setLine] = useState<Line>({ state: "connecting", why: null, device: null });
   const [view, setView] = useState<View>("terminals");
@@ -33,7 +35,10 @@ export function Phone() {
   const [clockPlaying, setClockPlaying] = useState(false);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [menu, setMenu] = useState(false);
+  const [rail, setRail] = useState<RailTab | null>(null);
   const height = useVisualHeight();
+  const layout = useLayout();
+  const stage = useRef<HTMLDivElement>(null);
   const live = line.state === "live";
 
   useEffect(() => watchLine(setLine), []);
@@ -86,8 +91,12 @@ export function Phone() {
   const proposal = timeline?.proposal ?? null;
   const open = () => {
     const id = `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
-    // A first guess at what fits; the terminal says exactly once it is drawn.
-    send({ t: "term.open", id, cols: Math.max(20, Math.floor((innerWidth - 16) / 7.3)), rows: Math.max(8, Math.floor((height - 200) / 15)) });
+    // A first guess at what fits — the terminals' pane, less the key row,
+    // or the page while another view hides it; the terminal says exactly
+    // once it is drawn.
+    const box = stage.current;
+    const [w, h] = box?.clientWidth ? [box.clientWidth - 8, box.clientHeight - 60] : [innerWidth - 16, height - 200];
+    send({ t: "term.open", id, cols: Math.max(20, Math.floor(w / 7.3)), rows: Math.max(8, Math.floor(h / 15)) });
     setActive(id);
     setView("terminals");
     setMenu(false);
@@ -96,6 +105,7 @@ export function Phone() {
     setActive(id);
     setView("terminals");
   };
+  const phone = layout === "phone";
 
   if (line.state === "unpaired" || line.state === "pairing") return <Unpaired line={line} height={height} />;
 
@@ -104,22 +114,43 @@ export function Phone() {
       <PhoneHeader title={title} line={line} onMenu={() => setMenu(!menu)} />
       {menu && <Menu close={() => setMenu(false)} />}
       {proposal && <ProposalBar proposal={proposal} live={live} />}
-      <main className="relative min-h-0 flex-1">
-        <div className={view === "terminals" ? "flex h-full flex-col" : "hidden"}>
-          {tabs.length > 0 && <TabChips tabs={tabs} active={shown?.id ?? null} onPick={look} onOpen={open} />}
-          <div className="relative min-h-0 flex-1">
-            {tabs.map((t) => (
-              <PhoneTerminal key={t.id} tab={t} visible={view === "terminals" && t.id === shown?.id} live={live} />
-            ))}
-            {tabs.length === 0 && <NoTabs onOpen={open} />}
-          </div>
-        </div>
-        {view === "world" && (
-          <WorldView live={live} timeline={timeline} thumbs={thumbs} clockPlaying={clockPlaying} />
-        )}
-        {view === "history" && <HistoryView mode={mode} history={history} playing={playing} />}
-      </main>
-      <PhoneNav view={view} onView={setView} />
+      <Body
+        layout={layout}
+        view={view}
+        terminals={
+          <>
+            {tabs.length > 0 && <TabChips tabs={tabs} active={shown?.id ?? null} onPick={look} onOpen={open} />}
+            <div ref={stage} className="relative min-h-0 flex-1">
+              {tabs.map((t) => (
+                <PhoneTerminal key={t.id} tab={t} visible={(!phone || view === "terminals") && t.id === shown?.id} live={live} />
+              ))}
+              {tabs.length === 0 && <NoTabs onOpen={open} />}
+            </div>
+          </>
+        }
+        world={
+          phone ? (
+            view === "world" ? (
+              <WorldView live={live} timeline={timeline} thumbs={thumbs} clockPlaying={clockPlaying} />
+            ) : (
+              view === "history" && <HistoryView mode={mode} history={history} playing={playing} />
+            )
+          ) : (
+            <LiveWorldPane
+              dir={layout === "side" ? "column" : "row"}
+              live={live}
+              timeline={timeline}
+              thumbs={thumbs}
+              clockPlaying={clockPlaying}
+              history={mode.history ? history : null}
+              playing={playing}
+              tab={rail}
+              onTab={setRail}
+            />
+          )
+        }
+      />
+      {phone && <PhoneNav view={view} onView={setView} />}
     </div>
   );
 }
@@ -239,19 +270,20 @@ export function TabChips({ tabs, active, onPick, onOpen }: { tabs: TermTab[]; ac
 
 function NoTabs({ onOpen }: { onOpen: () => void }) {
   return (
-    <div className="grid h-full content-center gap-2 p-6">
-      <p className="mb-2 text-center text-muted">No terminal is open in this world. Open one: it runs on the computer, in the world's folder, and your agent runs in it.</p>
-      <button onClick={onOpen} className="rounded-md border border-line px-4 py-3 text-left active:bg-raised">
-        New terminal
-      </button>
+    <div className="grid h-full content-center p-6">
+      <div className="mx-auto grid w-full max-w-[420px] gap-2">
+        <p className="mb-2 text-center text-muted">No terminal is open in this world. Open one: it runs on the computer, in the world's folder, and your agent runs in it.</p>
+        <button onClick={onOpen} className="rounded-md border border-line px-4 py-3 text-left active:bg-raised">
+          New terminal
+        </button>
+      </div>
     </div>
   );
 }
 
 /** The world as the window shows it: a frame read back from the window,
- *  asked again as each arrives while this view is open. The shots look
- *  through their cameras; the song plays and pauses. */
-function WorldView({ live, timeline, thumbs, clockPlaying }: { live: boolean; timeline: TimelineView | null; thumbs: Record<string, string>; clockPlaying: boolean }) {
+ *  asked again as each arrives, for as long as what shows it is open. */
+function useFrame(live: boolean): string | null {
   const [frame, setFrame] = useState<string | null>(null);
   useEffect(() => {
     if (!live) return;
@@ -267,25 +299,76 @@ function WorldView({ live, timeline, thumbs, clockPlaying }: { live: boolean; ti
     });
     ask();
     // A frame that never came — the window hidden, the computer locked —
-    // is asked for again.
+    // is asked for again; and at once when the page is looked at again.
     const watchdog = window.setInterval(ask, 6000);
+    document.addEventListener("visibilitychange", ask);
     return () => {
       stop();
       clearTimeout(next);
       clearInterval(watchdog);
+      document.removeEventListener("visibilitychange", ask);
     };
   }, [live]);
-  const shots = useMemo(() => timeline?.tracks.flatMap((track) => (track.kind === "shots" ? track.shots : [])) ?? [], [timeline]);
+  return frame;
+}
+
+/** The shots on the world's timeline, to look through. */
+function useShots(timeline: TimelineView | null): Shot[] {
+  return useMemo(() => timeline?.tracks.flatMap((track) => (track.kind === "shots" ? track.shots : [])) ?? [], [timeline]);
+}
+
+/** A phone's World view: the frame, the song's play button, the shots. */
+function WorldView({ live, timeline, thumbs, clockPlaying }: { live: boolean; timeline: TimelineView | null; thumbs: Record<string, string>; clockPlaying: boolean }) {
+  const frame = useFrame(live);
+  const shots = useShots(timeline);
   return <WorldFrame frame={frame} shots={shots} thumbs={thumbs} clock={timeline?.clock ? clockPlaying : null} />;
+}
+
+/** A tablet's world pane, beside or over the terminals; its frames are
+ *  asked for while the page is open. */
+function LiveWorldPane({
+  dir,
+  live,
+  timeline,
+  thumbs,
+  clockPlaying,
+  history,
+  playing,
+  tab,
+  onTab,
+}: {
+  dir: "column" | "row";
+  live: boolean;
+  timeline: TimelineView | null;
+  thumbs: Record<string, string>;
+  clockPlaying: boolean;
+  history: History | null;
+  playing: boolean;
+  tab: RailTab | null;
+  onTab: (tab: RailTab) => void;
+}) {
+  const frame = useFrame(live);
+  const shots = useShots(timeline);
+  return (
+    <WorldPane
+      dir={dir}
+      frame={frame}
+      shots={shots}
+      thumbs={thumbs}
+      clock={timeline?.clock ? clockPlaying : null}
+      history={history}
+      playing={playing}
+      tab={tab}
+      onTab={onTab}
+    />
+  );
 }
 
 /** `clock`: whether the world's clock plays, or null when it keeps none. */
 export function WorldFrame({ frame, shots, thumbs, clock, still }: { frame: string | null; shots: Shot[]; thumbs: Record<string, string>; clock: boolean | null; still?: ReactNode }) {
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <div className="grid aspect-video w-full shrink-0 place-items-center bg-black">
-        {frame ? <img alt="The world, as the window shows it" src={frame} className="max-h-full max-w-full object-contain" /> : (still ?? <span className="text-faint">Waiting for a frame…</span>)}
-      </div>
+      <FrameBox frame={frame} still={still} className="aspect-video w-full shrink-0" />
       {clock !== null && (
         <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2">
           <button
@@ -306,18 +389,7 @@ export function WorldFrame({ frame, shots, thumbs, clock, still }: { frame: stri
               Free camera
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {shots.map((shot) => (
-              <button key={shot.id} onClick={() => send({ t: "shot.look", id: Number(shot.id) })} className="overflow-hidden rounded-md border border-line text-left active:border-accent">
-                <div className="aspect-video bg-raised">
-                  {thumbs[shot.id] ? <img alt="" src={thumbs[shot.id]} className="size-full object-cover" /> : shot.look && <Frame look={shot.look} className="size-full" />}
-                </div>
-                <div className="truncate px-2 py-1">
-                  <span className="font-semibold">{shot.name}</span> <span className="text-faint">{shot.size}</span>
-                </div>
-              </button>
-            ))}
-          </div>
+          <ShotGrid shots={shots} thumbs={thumbs} />
         </div>
       )}
     </div>
@@ -358,15 +430,17 @@ export function PhoneNav({ view, onView }: { view: View; onView?: (view: View) =
 /** Not paired, or forgotten: how to pair. */
 export function Unpaired({ line, height }: { line: Line; height?: number }) {
   return (
-    <div className="grid content-center gap-4 bg-panel p-8 text-[14px] text-ink" style={{ height: height ?? "100%" }}>
-      <Icon name="phone" className="size-8 text-accent" />
-      <h1 className="text-[20px] font-semibold">{line.state === "pairing" ? "Pairing…" : "Pair this device"}</h1>
-      <ol className="list-decimal space-y-1.5 pl-5 text-muted">
-        <li>On the computer, in LocalGPT's top bar: Phone.</li>
-        <li>Pair a device.</li>
-        <li>Scan the code with this device's camera.</li>
-      </ol>
-      {line.why && <p className="text-faint">{line.why}</p>}
+    <div className="grid content-center bg-panel p-8 text-[14px] text-ink" style={{ height: height ?? "100%" }}>
+      <div className="mx-auto grid w-full max-w-[420px] gap-4">
+        <Icon name="phone" className="size-8 text-accent" />
+        <h1 className="text-[20px] font-semibold">{line.state === "pairing" ? "Pairing…" : "Pair this device"}</h1>
+        <ol className="list-decimal space-y-1.5 pl-5 text-muted">
+          <li>On the computer, in LocalGPT's top bar: Phone.</li>
+          <li>Pair a device.</li>
+          <li>Scan the code with this device's camera.</li>
+        </ol>
+        {line.why && <p className="text-faint">{line.why}</p>}
+      </div>
     </div>
   );
 }

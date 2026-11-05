@@ -4,8 +4,10 @@ import type { RemoteView, TermTab } from "../src/bridge";
 import { HistoryPanel } from "../src/HistoryPanel";
 import { Icon } from "../src/Icon";
 import { PlaybackBar } from "../src/PlaybackBar";
+import { Body, type Layout } from "../src/phone/layout";
 import { PhoneHeader, PhoneNav, ProposalBar, TabChips, Unpaired, type View, WorldFrame } from "../src/phone/Phone";
 import { Compose, KeyRow } from "../src/phone/PhoneTerminal";
+import { WorldPane } from "../src/phone/WorldPane";
 import { RemotePanel } from "../src/RemotePanel";
 import { Frame } from "../src/timeline/Frame";
 import * as w from "./fixtures";
@@ -14,13 +16,18 @@ import "./design.css";
 
 // A paired phone's page, for review: the window's Phone button and what it
 // shows, then the page on the phone — the terminals, the world and a
-// proposal, the history — and pairing. Drawn with the
+// proposal, the history — then on a tablet, and pairing. Drawn with the
 // components the app wires (`src/phone/`, `src/RemotePanel.tsx`), so the
 // sheet stays their reference; the terminal is a transcript, as on the
 // other sheets.
 
 const PHONE = { w: 390, h: 844 };
+/** An 11-inch iPad held upright, in CSS pixels; turned, the other way. */
+const TABLET = { w: 820, h: 1180 };
+/** What an iPad's keyboard takes of an upright screen, its suggestions included. */
+const KEYBOARD = 398;
 const live = { state: "live" as const, why: null, device: "iPhone" };
+const onIpad = { ...live, device: "iPad" };
 
 const TRANSCRIPT = `> cut 3B two bars later, so it
   lands on the bridge's second
@@ -55,6 +62,38 @@ const ASKING = `  world.submit — 1 op:
    3. No, and tell Claude what
       to do differently
 ────────────────────────────────`;
+
+/** The same agent at a tablet's width. */
+const WIDE = `~/worlds/harbour.world $ claude
+
+> cut 3B two bars later, so it lands on the bridge's second phrase
+
+  Reading the shot list through the world's MCP. 3B starts with the
+  bridge at 1:55.20; two bars at 92 bpm is 5.22 s.
+
+  world.submit — 1 op: 3B in_s 115.20 → 120.42
+
+  Proposed. It waits in the timeline for review.
+
+──────────────────────────────────────────────────────────────────────
+>
+──────────────────────────────────────────────────────────────────────
+  ? for shortcuts`;
+
+const WIDE_ASKING = `> hold the last stop of the dusk tour a beat longer
+
+  The dusk tour ends at the lantern, held 2.0 s; a beat at 92 bpm is
+  0.65 s.
+
+  world.submit — 1 op: tour "dusk" stop 4 hold 2.00 → 2.65
+
+──────────────────────────────────────────────────────────────────────
+ Do you want to make this edit to the world?
+
+ ❯ 1. Yes
+   2. Yes, and don't ask again this session
+   3. No, and tell Claude what to do differently
+──────────────────────────────────────────────────────────────────────`;
 
 const tabs: TermTab[] = [
   { id: "t1", cols: 46, rows: 30, label: "Cut 3B on the bridge" },
@@ -130,10 +169,24 @@ function Terminal({ text }: { text: string }) {
   return <pre className="m-0 min-h-0 flex-1 overflow-hidden px-2.5 py-2 font-mono text-[12px] leading-[17px] text-ink/90">{text}</pre>;
 }
 
+/** A tablet's page at its size in CSS pixels, drawn at `scale`: the
+ *  header, then the two panes as the app lays them out. */
+function Tablet({ layout, w, h, scale, proposal, terminal, world }: { layout: Layout; w: number; h: number; scale: number; proposal?: boolean; terminal: ReactNode; world: ReactNode }) {
+  return (
+    <div style={{ width: w * scale, height: h * scale }}>
+      <div className="flex flex-col overflow-hidden bg-panel text-[13px] text-ink" style={{ width: w, height: h, transform: `scale(${scale})`, transformOrigin: "0 0" }}>
+        <PhoneHeader title="World · harbour.world" line={onIpad} />
+        {proposal && <ProposalBar proposal={{ author: "claude", what: "3B two bars later, on the bridge's second phrase", shots: [] }} live />}
+        <Body layout={layout} view="terminals" terminals={terminal} world={world} />
+      </div>
+    </div>
+  );
+}
+
 function App() {
   return (
     <Sheet
-      title="A phone"
+      title="A phone or a tablet"
       lede={
         <>
           The window's page on a phone or a tablet, served by the app on the local network: the agents' own terminals to read and answer, the world as
@@ -266,6 +319,126 @@ function App() {
                 <PlaybackBar history={w.history} playing={false} />
               </div>
             </Phone>
+          </Figure>
+        </Row>
+      </Section>
+
+      <Section
+        title="A tablet"
+        lede="The world and the terminals at once: side by side when the tablet is turned, as the window has them, and the world over the terminals when it is upright. The world's pane keeps the history and the shots in a tab each under its frame, so a tap on an entry shows it above."
+        notes={
+          <>
+            <p>
+              <b>By the page's width</b>, on a screen whose short side is 600 px or more: two panes from 600 px, side by side from 1100, or from 900
+              when the tablet is turned. Narrower — an iPad in Split View — gets the phone's three views, and a phone turned sideways keeps them.
+            </p>
+            <p>
+              <b>Never by the height:</b> the keyboard takes it, and a layout that changed with it would move the terminal from under the fingers
+              typing. Upright, the world keeps a third of what is above the keyboard, between 180 and 440 px.
+            </p>
+            <p>
+              <b>A turn keeps the terminals:</b> they sit first in every layout, so each keeps its screen; the PTY takes the new size when the tablet
+              next types.
+            </p>
+            <p>
+              <b>The history first</b>, when the world keeps one: what the agents did, entry by entry. A world with neither history nor shots — a
+              document's — is the frame alone.
+            </p>
+            <p>
+              <b>Frames while the page is open</b>, since the world is always in view: two or three a second, about 70 KB each, none while the page
+              is hidden.
+            </p>
+          </>
+        }
+      >
+        <Row cols={1}>
+          <Figure title="Turned: 1180 × 820" caption="The world beside the terminals, as in the window, the history under its frame. The proposal waits over both.">
+            <Tablet
+              layout="side"
+              w={TABLET.h}
+              h={TABLET.w}
+              scale={0.75}
+              proposal
+              terminal={
+                <>
+                  <TabChips tabs={tabs} active="t1" />
+                  <Terminal text={WIDE} />
+                  <KeyRow live compose={false} />
+                </>
+              }
+              world={
+                <WorldPane
+                  dir="column"
+                  frame={null}
+                  still={<Frame look={w.shots[5].look!} className="size-full" />}
+                  shots={w.shots}
+                  thumbs={{}}
+                  clock={false}
+                  history={w.history}
+                  playing={false}
+                  tab="History"
+                />
+              }
+            />
+          </Figure>
+        </Row>
+        <Row cols={2}>
+          <Figure title="Upright: 820 × 1180" caption="The world over the terminals, its frame beside the shots; the terminal gets the rest, more than a hundred columns wide.">
+            <Tablet
+              layout="stacked"
+              w={TABLET.w}
+              h={TABLET.h}
+              scale={0.55}
+              terminal={
+                <>
+                  <TabChips tabs={tabs} active="t1" />
+                  <Terminal text={WIDE} />
+                  <KeyRow live compose={false} />
+                </>
+              }
+              world={
+                <WorldPane
+                  dir="row"
+                  frame={null}
+                  still={<Frame look={w.shots[0].look!} className="size-full" />}
+                  shots={w.shots}
+                  thumbs={{}}
+                  clock
+                  history={w.history}
+                  playing={false}
+                  tab="Shots"
+                />
+              }
+            />
+          </Figure>
+          <Figure title="Upright, typing" caption="The keyboard up: the page is what is above it, and the world keeps a third of that.">
+            <Tablet
+              layout="stacked"
+              w={TABLET.w}
+              h={TABLET.h - KEYBOARD}
+              scale={0.55}
+              terminal={
+                <>
+                  <TabChips tabs={tabs} active="t1" />
+                  <Terminal text={WIDE_ASKING} />
+                  <KeyRow live compose />
+                  <Compose text="and after that, start the boat's rocking on the chorus" live />
+                </>
+              }
+              world={
+                <WorldPane
+                  dir="row"
+                  frame={null}
+                  still={<Frame look={w.shots[4].look!} className="size-full" />}
+                  shots={w.shots}
+                  thumbs={{}}
+                  clock={false}
+                  history={w.history}
+                  playing={false}
+                  tab="History"
+                />
+              }
+            />
           </Figure>
         </Row>
       </Section>

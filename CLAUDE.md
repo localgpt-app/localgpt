@@ -370,8 +370,12 @@ pure image analysis and stays.
 
 No native app: the desktop app serves its own page to a paired device's
 browser (`crates/app/src/webui/remote.rs`, `crates/app/ui/src/phone/`;
-`docs/rfcs/authoring/mobile-remote.md`). `scripts/remote-smoke.mjs` plays a
-device against a running app.
+`docs/rfcs/authoring/mobile-remote.md`). A phone gets three views; a
+tablet the world and the terminals at once, beside or over each other
+(`phone/layout.tsx`: by the page's width, never its height, which the
+keyboard takes). `scripts/remote-smoke.mjs` plays a device against a
+running app, and with `--phone` drives its page at an iPhone's and an
+iPad's size.
 
 ## Configuration
 
