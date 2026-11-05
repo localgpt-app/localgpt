@@ -6335,7 +6335,7 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "localgpt"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6353,7 +6353,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-app"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -6391,7 +6391,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-gen"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6435,7 +6435,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-md"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "bevy 0.19.1",
  "blake3",
@@ -6452,7 +6452,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-previs"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "base64 0.22.1",
  "localgpt-world-export",
@@ -6466,7 +6466,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-previs-web"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "localgpt-previs",
  "serde_json",
@@ -6475,7 +6475,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-relay"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "axum",
  "futures",
@@ -6492,7 +6492,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-verse"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "bevy 0.19.1",
  "blake3",
@@ -6518,7 +6518,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-agent"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -6543,7 +6543,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-audio"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "fundsp",
  "kira",
@@ -6554,7 +6554,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-bevy"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "bevy 0.19.1",
  "localgpt-world-types",
@@ -6563,7 +6563,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-editor"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "localgpt-world-sync",
  "openworldformat",
@@ -6573,7 +6573,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-export"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "base64 0.22.1",
  "localgpt-world-types",
@@ -6583,7 +6583,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-sync"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "localgpt-world-types",
  "openworldformat",
@@ -6593,7 +6593,7 @@ dependencies = [
 
 [[package]]
 name = "localgpt-world-types"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "openworldformat",
  "ron",
