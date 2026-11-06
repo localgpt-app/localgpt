@@ -76,8 +76,9 @@ feature-depth = 1
 ignore = [
     { id = "RUSTSEC-2024-0436", reason = "paste: unmaintained, transitive dep of tokenizers/rav1e; no upgrade available" },
     { id = "RUSTSEC-2026-0192", reason = "ttf-parser: unmaintained, transitive via winit -> sctk-adwaita (Wayland window decorations); no upgrade available" },
-    { id = "RUSTSEC-2026-0344", reason = "ruzstd 0.8 decompression bomb (DoS only, no memory unsafety): reached through bevy_image's KTX2 zstd path, which no app here feeds untrusted .zst textures; fixed in 0.9.1, which bevy_image 0.19 does not accept — drop when Bevy bumps" },
-    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error: unmaintained, transitive via wry -> webkit2gtk -> gtk 0.18 -> glib-macros, the page's Linux host; nothing compiles it on macOS or Windows, and no upgrade exists while webkit2gtk pins gtk-rs 0.18 — goes with wry" },
+    { id = "RUSTSEC-2026-0370", reason = "zvariant: unmaintained (merged into zbus 6), transitive via eframe -> egui-winit -> accesskit_winit -> accesskit_unix -> atspi/zbus 5, the shell's accessibility bridge on Linux; nothing compiles it on macOS or Windows, and no upgrade exists until accesskit moves to zbus 6 — drop when it does" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names: unmaintained (merged into zbus 6), the same path as RUSTSEC-2026-0370" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: unmaintained (merged into zbus 6), the same path as RUSTSEC-2026-0370" },
 ]
 # If this is true, then cargo deny will use the git executable to fetch advisory database.
 # If this is false, then it uses a built-in git library.
