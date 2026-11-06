@@ -174,10 +174,11 @@ jobs:
           ORT_LIB_LOCATION: /opt/onnxruntime-1.23/lib
           ORT_PREFER_DYNAMIC_LINK: "1"
 
-  # The desktop app's interface: one page (crates/app/ui — React, Tailwind,
-  # CodeMirror, xterm.js) over the Bevy viewport, carried inside the release
-  # binary, and the design sheets its components are reviewed on before they
-  # are wired (docs/rfcs/authoring/the-page.md). The Rust side builds without
+  # The page a paired phone or tablet gets from the desktop app (crates/app/ui
+  # — React, Tailwind, xterm.js), carried inside the release binary, and its
+  # design sheet. The desktop window's interface is the shell, in Rust; this
+  # page goes when the shell's panels are built for the browser
+  # (docs/rfcs/authoring/all-rust.md, step F). The Rust side builds without
   # it — the bevy job's app is a build with no page in it — so the page's
   # types and its build are checked here.
   interface:

@@ -3,8 +3,9 @@
 **Status:** superseded by [all-rust.md](all-rust.md), decided 2026-11-05: the
 shell (`crates/app/src/shell`) was built beside the page as one more client
 of its protocol, and is the default since 2026-11-06, when it had every
-panel; the page stays behind `LOCALGPT_APP_SHELL=page` on macOS until its
-host goes, and a paired phone keeps it. Decided and built on macOS,
+panel. The page's host went from the window the same day (all-rust.md,
+step E); what stays of the page is a paired phone's, until the shell's
+panels are built for the browser. Decided and built on macOS,
 2026-10-30. Supersedes the answer
 of [egui-or-not.md](egui-or-not.md) (stage egui out onto `bevy_ui` and
 feathers) and the chrome half of

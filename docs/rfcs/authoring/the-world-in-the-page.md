@@ -4,15 +4,15 @@
 moves into the page first, and two things only Bevy does, one scene in
 several windows and simulation on every core, are wanted later. Who owns
 the window is open. Measured headless and in the app on an M2 Max; on
-Windows, handed over
-([`scripts/world-in-the-page/WINDOWS.md`](../../../scripts/world-in-the-page/WINDOWS.md)).
+Windows, handed over (`scripts/world-in-the-page/WINDOWS.md`).
 Asks of [the-page.md](the-page.md)'s "the world stays native" what
 [mobile-remote.md](mobile-remote.md) raises: the phone is to draw a live
 canvas's world with the format's web viewer (its first step sends this
 window's frames instead), so this same page would hold both renderers. The
-harness is in the tree — `crates/app/src/spike.rs`,
-`crates/app/ui/src/spike.ts`, `scripts/world-in-the-page/` — and nothing in
-it runs unless its variable or `?spike=` asks.
+harness — `crates/app/src/spike.rs`, `crates/app/ui/src/spike.ts`,
+`scripts/world-in-the-page/` — went with the page's host on 2026-11-06
+([all-rust.md](all-rust.md), step E), which answered who owns the window:
+eframe does. Tag `desktop-the-page` holds it as it ran here.
 
 ## The question
 
@@ -413,8 +413,7 @@ that size in pixels, as the frame log's `# monitor` lines name it; and
 headless browser (`webkit`, `chromium` or `msedge`; `HEADED=1` for a window
 on the real display), standing in for the app. On Windows, which has no
 web view host yet, the page's side runs in Edge and Chromium and Bevy runs
-alone: [`WINDOWS.md`](../../../scripts/world-in-the-page/WINDOWS.md) is
-the handover.
+alone: `WINDOWS.md` there (tag `desktop-the-page`) was the handover.
 
 ## Not decided
 
@@ -509,7 +508,7 @@ owning the window and the system's web view over it.
 - [ ] Why Bevy behind the page drew at 53 in the second round: the on-top
       A/B, on a quiet Mac
 - [ ] Windows: Edge and Chromium, headless and in a window, and Bevy alone
-      ([`WINDOWS.md`](../../../scripts/world-in-the-page/WINDOWS.md))
+      (`WINDOWS.md`, tag `desktop-the-page`)
 - [ ] A screenshot of each renderer from the same camera, for the parity
       the format promises
 - [ ] Watermark flow control for the terminals, wanted whoever draws the

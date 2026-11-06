@@ -599,7 +599,7 @@ renderer) keep their places after these.
 - [x] Test 1: the terminal widget on `alacritty_terminal`, with Claude Code,
       Codex and the input method: run 2026-11-04 (`spike/egui-terminal`,
       [what it showed](#test-1-the-terminal-widget)); the input method by
-      hand, and a run with the display awake, remain
+      hand and a run with the display awake, in the app, 2026-11-06 (E)
 - [x] Test 2: Bevy windowless on eframe's device, two windows, hidden window:
       run 2026-11-04 (`spike/bevy-in-eframe`,
       [what it showed](#test-2-bevy-windowless-on-eframes-device)); the
@@ -632,15 +632,18 @@ renderer) keep their places after these.
       authority the agents use; the document on `TextEdit` (outline, place
       card, Follow, edits saved, a picked place revealed); Open… and the
       top bar, with the phone remote's panel (`scripts/remote-smoke.mjs`
-      passes with the shell as the interface). What the page has that the
-      shell has not: CodeMirror's search in the document; the input method
-      by hand and a run with the display awake remain from the first test
-- [ ] E: the shell the default, 2026-11-06: a plain launch opens it, and the
-      screenshot hook (`LOCALGPT_APP_SCREENSHOT`) takes its window, panels
-      and all. The web page over Bevy's window stays behind
-      `LOCALGPT_APP_SHELL=page` on macOS until a person has typed into the
-      shell with an input method and run it with the display awake (the
-      first test's two open items); then it, `wry` and the hit-test view go
+      passes with the shell as the interface); then the document's find
+      and the timeline's keys, the last of what the page had alone
+- [x] E: the shell the default, and the page's host gone, 2026-11-06: a
+      plain launch opens the shell, and the screenshot hook
+      (`LOCALGPT_APP_SCREENSHOT`) takes its window, panels and all. A person
+      then typed Chinese into a terminal through the input method, ran
+      Claude Code in one, and found the window smooth with the display
+      awake (the first test's two open items), so the web page over Bevy's
+      window went: `LOCALGPT_APP_SHELL`, `wry`, the hit-test view
+      (`webui/mac.rs`), the world-in-the-page harness, and the page's
+      desktop layout. What stays of `crates/app/ui` is a paired phone's,
+      until F. The bundle opened from Finder is not tried yet
 - [ ] F: the phone as the WebAssembly build, the page gone
 - [ ] G: `cargo xtask`, `egui_kittest`
 - [ ] The last mile of C, with 0.5.0

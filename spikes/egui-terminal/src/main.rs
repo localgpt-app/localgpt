@@ -1,7 +1,8 @@
 //! Test 1 of docs/rfcs/authoring/all-rust.md: a terminal widget on
 //! alacritty_terminal in an egui panel, measured under the loads of
-//! scripts/world-in-the-page/load.py. A crate of its own: nothing here
-//! reaches the apps.
+//! scripts/world-in-the-page/load.py (gone with the page's host; tag
+//! `desktop-the-page` has it). A crate of its own: nothing here reaches
+//! the apps.
 //!
 //! Environment:
 //!   SPIKE_CMD       a command for `zsh -lc`; unset, the login shell

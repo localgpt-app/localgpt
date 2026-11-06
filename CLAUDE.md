@@ -64,17 +64,12 @@ cargo run -p localgpt-app -- --world harbour.world  # a .world package opens as 
                                                    # agents edit through its API ("at" an
                                                    # earlier entry forks), the history panel
                                                    # draws the branches and plays them
-(cd crates/app/ui && npm run dev)                  # the page with reload; run the app with
-                                                   # LOCALGPT_APP_SHELL=page and
-                                                   # LOCALGPT_APP_UI_URL=http://localhost:5174
-(cd crates/app/ui && npm run design)               # the design sheets: new interface is drawn
-                                                   # there and reviewed before it is wired
+(cd crates/app/ui && npm run design)               # the phone's design sheet; a debug build reads
+                                                   # the built page from disk, so after `npm run
+                                                   # build` a phone's reload shows a change
 LOCALGPT_APP_REMOTE=on cargo run -p localgpt-app   # and on a phone on this network: prints a
                                                    # pairing link (webui/remote.rs; port 9880,
                                                    # LOCALGPT_APP_REMOTE_PORT for another)
-LOCALGPT_APP_SHELL=page cargo run -p localgpt-app # the web page over Bevy's window instead of the
-                                                   # shell, on macOS, until its host goes (all-rust.md,
-                                                   # step E)
 LOCALGPT_APP_SHELL_DRIVE='4:click 0.5 0.5;6:shot /tmp/s.png;7:quit' \
   cargo run -p localgpt-app                        # the shell by a script, a check without a hand
                                                    # (shell/drive.rs: click, tap, key, drag, swipe,
@@ -422,7 +417,7 @@ A profile (`LOCALGPT_PROFILE=x`) moves both roots to `localgpt-x`. Worlds a
   with the four Bevy crates (`gen`, `md`, `verse`, `world-bevy`) in their own
   job, a `features` job for the opt-in tier (Verse's `ml` — gated code is
   not compiled by anything else), an `interface` job that typechecks
-  and builds the app's page and its design sheets (`crates/app/ui`), a `viewer` job running
+  and builds the phone's page and its design sheet (`crates/app/ui`), a `viewer` job running
   `website-world`'s headless render check, a `rule` job (`cargo xtask rule`, below), plus cargo-deny (`deny.toml`); advisories run on main and weekly, never on
   pull requests. Only Verse's `ml` tier links ONNX Runtime; the `features`
   job fetches the version it pins.

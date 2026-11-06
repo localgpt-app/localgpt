@@ -19,7 +19,7 @@ cargo run -p localgpt-app -- --world scene-1.world    # a package, opened live
 
 **Open…** at the top of the window takes a document, a song or a world file. With nothing given and nothing remembered, the app opens a starter song from the CC0 pack. The app is not on crates.io; it ships as a build — see [Installation](/docs/installation/#the-macos-app-bundle) for `LocalGPT.app`.
 
-The app draws its interface itself, in Rust (egui), so it is not tied to a web view: the panels below are the same on macOS, Windows and Linux, though on the last two they are new and less tried. The web page that was the interface until now still opens on macOS with `LOCALGPT_APP_SHELL=page`, until it goes; a paired phone gets that page.
+The app draws its interface itself, in Rust (egui), so it is not tied to a web view: the panels below are the same on macOS, Windows and Linux, though on the last two they are new and less tried. A paired [phone or tablet](#phone) gets a web page of its own, until the same panels are built for the browser.
 
 ## The window {#window}
 
@@ -119,10 +119,10 @@ apps/app-desktop/macos/build-app.sh --debug    # a quick bundle of the debug bui
 
 The script builds a phone's page first (`crates/app/ui`, which needs node 22) and the release binary carries it inside. Without credentials the bundle is ad-hoc signed and runs on the Mac that built it. Given `APPLE_SIGNING_IDENTITY` and `APPLE_NOTARY_PROFILE`, the script signs with a Developer ID, enables the hardened runtime and notarizes. The asset pack is not in the bundle: `scripts/fetch-assets.sh` fetches it once per machine. There is no model to fetch; the app runs none.
 
-For work on the interface itself: it is `crates/app/src/shell`, and `LOCALGPT_APP_SHELL_DRIVE` plays it a script of clicks, keys and pictures for a check without a hand; `LOCALGPT_APP_UI_OPEN=terminal` starts with a terminal open (`outliner` starts the left column on its Outliner tab). A phone's page is `crates/app/ui`: `npm run dev` serves it with reload, and with `LOCALGPT_APP_SHELL=page`, `LOCALGPT_APP_UI_URL=http://localhost:5174` points the window at it, or `LOCALGPT_APP_UI=none` leaves it out. In a plain browser, `?preview=document`, `world` or `song` shows the page with stand-in data, and `npm run design` serves the design sheets.
+For work on the interface itself: it is `crates/app/src/shell`, and `LOCALGPT_APP_SHELL_DRIVE` plays it a script of clicks, keys and pictures for a check without a hand; `LOCALGPT_APP_UI_OPEN=terminal` starts with a terminal open (`outliner` starts the left column on its Outliner tab). A phone's page is `crates/app/ui`: a debug build reads it from disk, so after `npm run build` a reload on the phone shows a change, and `npm run design` serves its design sheet with stand-in data.
 
 `localgpt-gen` stays a binary of its own for the MCP server, headless generation and `--host`/`--join`, and `cargo install localgpt-gen` keeps working; it takes no prompt of its own — an agent outside drives it over MCP or through a live package's API — and there is no second desktop bundle.
 
 ## What is next {#next}
 
-The web page's host goes from the window, and a phone's page becomes the same panels built for the browser; adding a behavior and its fields, and another kind of shape or light, in the inspector. `docs/rfcs/authoring/all-rust.md` in the repository records the decision and the order.
+A phone's page becomes the same panels built for the browser; adding a behavior and its fields, and another kind of shape or light, in the inspector. `docs/rfcs/authoring/all-rust.md` in the repository records the decision and the order.

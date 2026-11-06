@@ -10,8 +10,12 @@ All notable changes to LocalGPT are documented in this file.
 
 ### Changed
 
-- **The desktop app's interface is drawn by the app, in Rust.** eframe owns the window and egui draws the panels — the terminals, the history as a graph with its playback, the timeline with its edits, the outliner and the inspector, the document with ⌘F's find, Open… and the top bar with the phone remote — as tiles to drag and resize, and Bevy draws the world into a texture one of them shows, on the same GPU device. The panels are one more client of the protocol the page spoke, so a paired phone, which keeps the page, sees what the window does. They are the same on macOS, Windows and Linux, where the page had no host. The web page still opens on macOS with `LOCALGPT_APP_SHELL=page`, until it goes; `LOCALGPT_APP_SCREENSHOT` now takes the shell's window. `docs/rfcs/authoring/all-rust.md` has the decision and the order.
+- **The desktop app's interface is drawn by the app, in Rust.** eframe owns the window and egui draws the panels — the terminals, the history as a graph with its playback, the timeline with its edits, the outliner and the inspector, the document with ⌘F's find, Open… and the top bar with the phone remote — as tiles to drag and resize, and Bevy draws the world into a texture one of them shows, on the same GPU device. The panels are one more client of the protocol the page spoke, so a paired phone, which keeps the page, sees what the window does. They are the same on macOS, Windows and Linux, where the page had no host. `LOCALGPT_APP_SCREENSHOT` now takes the shell's window. `docs/rfcs/authoring/all-rust.md` has the decision and the order.
 - **The workspace is on Bevy 0.20** (wgpu 30), with avian3d 0.8 and bevy-tnua 0.33.
+
+### Removed
+
+- **The web page over the desktop window**, with its host: `LOCALGPT_APP_SHELL`, `LOCALGPT_APP_UI_URL` and `LOCALGPT_APP_UI`, `wry` and the hit-test view, and the page's desktop layout and design sheets (CodeMirror with them). What stays of `crates/app/ui` is the page a paired phone or tablet gets, until the same panels are built for the browser. The world-in-the-page measuring harness went too; tag `desktop-the-page` keeps the page as it was at its fullest.
 
 ### Fixed
 
