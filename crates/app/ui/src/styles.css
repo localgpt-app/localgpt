@@ -9,8 +9,7 @@ body,
 }
 
 body {
-  /* Transparent: the world shows through the viewport's hole. */
-  background: transparent;
+  background: var(--color-panel);
   color: var(--color-ink);
   font-family: var(--font-sans);
   font-size: 12px;
@@ -25,10 +24,9 @@ body {
   padding: 6px 0 0 8px;
 }
 
-/* A paired phone's page: nothing behind it, and its terminal drawn at the
-   PTY's size and scaled, not fitted. Text it types into takes a caret. */
+/* A paired phone's page: its terminal drawn at the PTY's size and scaled,
+   not fitted. Text it types into takes a caret. */
 body.phone {
-  background: var(--color-panel);
   overscroll-behavior: none;
 }
 

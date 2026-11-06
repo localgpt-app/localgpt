@@ -1,25 +1,22 @@
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import type { RemoteView, TermTab } from "../src/bridge";
+import type { TermTab } from "../src/bridge";
 import { HistoryPanel } from "../src/HistoryPanel";
-import { Icon } from "../src/Icon";
 import { PlaybackBar } from "../src/PlaybackBar";
 import { Body, type Layout } from "../src/phone/layout";
 import { PhoneHeader, PhoneNav, ProposalBar, TabChips, Unpaired, type View, WorldFrame } from "../src/phone/Phone";
 import { Compose, KeyRow } from "../src/phone/PhoneTerminal";
 import { WorldPane } from "../src/phone/WorldPane";
-import { RemotePanel } from "../src/RemotePanel";
 import { Frame } from "../src/timeline/Frame";
 import * as w from "./fixtures";
 import { Figure, Row, Section, Sheet } from "./Sheet";
 import "./design.css";
 
-// A paired phone's page, for review: the window's Phone button and what it
-// shows, then the page on the phone — the terminals, the world and a
+// A paired phone's page, for review: the terminals, the world and a
 // proposal, the history — then on a tablet, and pairing. Drawn with the
-// components the app wires (`src/phone/`, `src/RemotePanel.tsx`), so the
-// sheet stays their reference; the terminal is a transcript, as on the
-// other sheets.
+// components the app wires (`src/phone/`), so the sheet stays their
+// reference; the terminal is a transcript. The window's Phone button is the
+// shell's (`crates/app/src/shell/bar.rs`).
 
 const PHONE = { w: 390, h: 844 };
 /** An 11-inch iPad held upright, in CSS pixels; turned, the other way. */
@@ -100,61 +97,6 @@ const tabs: TermTab[] = [
   { id: "t2", cols: 46, rows: 30, label: null },
 ];
 
-/** A pairing code as the app draws one: a stand-in pattern, not a code. */
-function standInQr(): string {
-  const n = 25;
-  let cells = "";
-  for (let y = 0; y < n; y++)
-    for (let x = 0; x < n; x++) {
-      const finder = (cx: number, cy: number) => x >= cx && x < cx + 7 && y >= cy && y < cy + 7 && (x === cx || x === cx + 6 || y === cy || y === cy + 6 || (x >= cx + 2 && x <= cx + 4 && y >= cy + 2 && y <= cy + 4));
-      const zone = (cx: number, cy: number) => x >= cx - 1 && x <= cx + 7 && y >= cy - 1 && y <= cy + 7;
-      const on = finder(0, 0) || finder(18, 0) || finder(0, 18) || (!zone(0, 0) && !zone(18, 0) && !zone(0, 18) && (x * 7 + y * 13 + x * y) % 3 === 0);
-      if (on) cells += `<rect x="${x + 2}" y="${y + 2}" width="1" height="1"/>`;
-    }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 29 29"><rect width="29" height="29" fill="#fff"/><g fill="#0f1218">${cells}</g></svg>`;
-}
-
-const url = "http://192.168.1.20:9880/";
-const views: Record<string, RemoteView> = {
-  off: { on: false, url: null, pairing: null, devices: [], error: null },
-  pairing: { on: true, url, pairing: { url: `${url}#pair=4f0c9a1d…`, qr: standInQr(), left_s: 581 }, devices: [], error: null },
-  devices: {
-    on: true,
-    url,
-    pairing: null,
-    devices: [
-      { id: "a1", name: "iPhone", paired_ms: 0, seen_ms: Date.now(), attached: true },
-      { id: "b2", name: "iPad", paired_ms: 0, seen_ms: Date.now() - 3 * 3600_000, attached: false },
-    ],
-    error: null,
-  },
-};
-
-/** The top bar's right end, with the Phone button as it shows each state. */
-function Bar({ label, attached }: { label: string; attached?: boolean }) {
-  return (
-    <div className="flex h-9 w-80 items-center justify-end gap-3 border-b border-line bg-panel px-3 text-[12px]">
-      <span className="truncate text-faint">3 entries · main at lantern</span>
-      <span className={`flex shrink-0 items-center gap-1.5 rounded px-1.5 py-0.5 ${attached ? "text-ink" : "text-muted"}`}>
-        <Icon name="phone" className="size-3.5" />
-        {label}
-        {attached && <span className="size-1.5 rounded-full bg-[#9ece6a]" />}
-      </span>
-    </div>
-  );
-}
-
-function Panel({ view, label, attached }: { view: RemoteView; label: string; attached?: boolean }) {
-  return (
-    <div className="bg-[#0b0e13] pb-3">
-      <Bar label={label} attached={attached} />
-      <div className="relative h-[460px] w-80 [&>div]:top-2 [&>div]:right-0">
-        <RemotePanel view={view} left={view.pairing?.left_s ?? 0} />
-      </div>
-    </div>
-  );
-}
-
 /** The device, at an iPhone's size. */
 function Phone({ view = "terminals", children }: { view?: View; children: ReactNode }) {
   return (
@@ -195,38 +137,6 @@ function App() {
         </>
       }
     >
-      <Section
-        title="The Phone button"
-        lede="At the right of the window's top bar. Off until it is turned on; on, it shows a code to pair with, and the devices, each of which can be forgotten. It says when one is attached."
-        notes={
-          <>
-            <p>
-              <b>Off by default</b>, and remembered once on. The app listens on port 9880 of every interface; the live API stays on 127.0.0.1.
-            </p>
-            <p>
-              <b>The code works once</b>, for ten minutes, and is traded for a key the device keeps; the app keeps the key's hash, in a file only its
-              owner can read. Turned on with nothing paired, the code shows at once.
-            </p>
-            <p>
-              <b>Seen:</b> the button names the device attached, with a dot. A paired device that can type into the terminals is a shell on this
-              computer, and the panel says so.
-            </p>
-          </>
-        }
-      >
-        <Row cols={3}>
-          <Figure title="Off" caption="What it is for, and the one button.">
-            <Panel view={views.off} label="Phone" />
-          </Figure>
-          <Figure title="On, pairing" caption="Scan with the device's camera: the address and the code, in one link.">
-            <Panel view={views.pairing} label="Phone: on" />
-          </Figure>
-          <Figure title="On, a device attached" caption="The iPhone is here now; the iPad was, three hours ago.">
-            <Panel view={views.devices} label="iPhone" attached />
-          </Figure>
-        </Row>
-      </Section>
-
       <Section
         title="The terminals, at the thumb"
         lede="Each tab as a chip, labelled with what its program calls itself in its title. The terminal is the program's own — a coding agent, whatever the person started — with the keys a phone lacks under it and a box to write or dictate a prompt."

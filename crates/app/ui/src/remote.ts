@@ -7,8 +7,6 @@
 import { setStandIn } from "./bridge";
 
 /** Served to a device by the app, rather than opened in the window. */
-export const isRemote = () => document.querySelector('meta[name="lg-remote"]') !== null;
-
 /** Where the line is: trading a code, connecting, open, refused (not
  *  paired, or forgotten), or lost and trying again. */
 export type Line = {

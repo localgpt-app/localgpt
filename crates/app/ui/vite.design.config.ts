@@ -2,9 +2,9 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 
-// The design sheets in design/: documents about the interface, drawn with
-// its own components and fixture data, reviewed before behaviour is written
-// (`npm run design`). Nothing here reaches the app's bundle.
+// The design sheet in design/: a paired phone's page, drawn with its own
+// components and fixture data, reviewed before behaviour is written (`npm
+// run design`, then /phone.html). Nothing here reaches the app's bundle.
 export default defineConfig({
   root: "design",
   plugins: [react(), tailwindcss()],
@@ -14,7 +14,6 @@ export default defineConfig({
     emptyOutDir: true,
     target: "safari18",
     chunkSizeWarningLimit: 1500,
-    // One page per sheet.
-    rollupOptions: { input: { timeline: "design/index.html", scene: "design/scene.html", phone: "design/phone.html" } },
+    rollupOptions: { input: { phone: "design/phone.html" } },
   },
 });

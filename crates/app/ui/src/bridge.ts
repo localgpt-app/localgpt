@@ -1,7 +1,8 @@
-// The page's line to the app. Messages come in through window.__lg.recv
-// (the app calls it) and go out through window.ipc (wry's). Opened in a plain
-// browser — the dev server without the app — sends go nowhere and the page
-// still draws, which is how it is designed and checked.
+// The page's line to the app, on a paired phone or tablet: messages come in
+// through window.__lg.recv, which the WebSocket calls (`remote.ts`), and go
+// out over it. Opened in a plain browser — the dev server without the app —
+// sends go nowhere and the page still draws, which is how it is designed and
+// checked. The window's interface is the shell's, in Rust.
 
 import type { Entity, Rgba } from "./scene/model";
 import type { Clock, Shot, Signal, Track } from "./timeline/model";
@@ -149,7 +150,6 @@ export type ToPage =
 
 export type FromPage =
   | { t: "ready" }
-  | { t: "viewport"; x: number; y: number; w: number; h: number }
   | { t: "seek"; id: string | null }
   | { t: "step"; to: "first" | "prev" | "next" | "last" }
   | { t: "play"; playing: boolean }
@@ -191,7 +191,6 @@ export type FromPage =
 
 declare global {
   interface Window {
-    ipc?: { postMessage(message: string): void };
     __lg?: { recv(message: ToPage): void };
   }
 }
@@ -216,19 +215,15 @@ export function last<T extends ToPage["t"]>(t: T): Extract<ToPage, { t: T }> | u
   return newest.get(t) as Extract<ToPage, { t: T }> | undefined;
 }
 
-/** Inside the app, rather than a browser tab. */
-export const inApp = () => window.ipc !== undefined;
-
-/** In a browser tab there is no app behind the page; `?preview=` puts a
- *  stand-in there (`preview.ts`). */
+/** Where a message goes: the paired device's WebSocket (`remote.ts`). With
+ *  none, as in a browser tab with no app behind it, nowhere. */
 let standIn: ((message: FromPage) => void) | null = null;
 export function setStandIn(fn: (message: FromPage) => void) {
   standIn = fn;
 }
 
 export function send(message: FromPage) {
-  if (window.ipc) window.ipc.postMessage(JSON.stringify(message));
-  else standIn?.(message);
+  standIn?.(message);
 }
 
 export function listen(listener: (message: ToPage) => void): () => void {

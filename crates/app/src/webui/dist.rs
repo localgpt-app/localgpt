@@ -1,8 +1,7 @@
 //! The built page (`npm run build` in `crates/app/ui`): read from disk in a
-//! debug build and inside the binary in a release one. The window's web view
-//! reads it through the `lgui://` scheme (`mac.rs`), and a paired device's
-//! browser over HTTP (`remote.rs`). A build without it still runs, and the
-//! page says how to build it.
+//! debug build and inside the binary in a release one, for a paired
+//! device's browser over HTTP (`remote.rs`). A build without it still runs,
+//! and the page says how to build it.
 
 use std::borrow::Cow;
 
@@ -30,9 +29,8 @@ pub fn file(path: &str) -> Option<(Cow<'static, [u8]>, &'static str)> {
 }
 
 const NOT_BUILT: &str = "<body style='font:14px system-ui;color:#ddd;background:#111;padding:2em'>\
-    The interface is not built: <code>npm ci &amp;&amp; npm run build</code> in \
-    <code>crates/app/ui</code>, then build the app again — or set LOCALGPT_APP_UI_URL \
-    to its dev server.</body>";
+    The phone's page is not built: <code>npm ci &amp;&amp; npm run build</code> in \
+    <code>crates/app/ui</code>, then build the app again.</body>";
 
 fn mime(path: &str) -> &'static str {
     match path.rsplit('.').next() {
