@@ -15,11 +15,15 @@
 //! it, and a container while anything in it shows, so a mode's panes go
 //! with the mode wherever they were dragged.
 
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
+
 use eframe::egui::{self, Color32, Stroke, Vec2};
 use egui_tiles::{
     Container, LinearDir, SimplificationOptions, TabState, Tabs, Tile, TileId, Tiles, Tree,
     UiResponse,
 };
+use serde::{Deserialize, Serialize};
 
 use super::document::Document;
 use super::history::History;
@@ -32,7 +36,7 @@ use super::world;
 use crate::webui::link::ShellEnd;
 
 /// What a tile shows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Pane {
     Document,
     History,
@@ -123,7 +127,33 @@ pub struct Layout {
     folds: Vec<Fold>,
     /// `LOCALGPT_APP_UI_OPEN=outliner`: the Outliner first, once it is there.
     outliner_first: bool,
+    /// Where the layout is kept between launches (`<state>/app-layout.json`);
+    /// none in tests.
+    path: Option<PathBuf>,
+    /// When a hand last changed the panels, until that is kept.
+    changed: Option<Instant>,
+    /// As a hand left it at the last launch: the first mode that shows the
+    /// left column keeps its widths and its tab in front, rather than the
+    /// page's.
+    restored: bool,
 }
+
+/// The panels as a hand left them, kept between launches.
+#[derive(Serialize, Deserialize)]
+struct Saved {
+    version: u32,
+    tree: Tree<Pane>,
+    hidden: [bool; 6],
+    /// Each folded container, and its size open.
+    folds: Vec<(TileId, f32)>,
+    timeline_height: Option<f32>,
+}
+
+/// The kept layout's version: a file of another is set aside.
+const SAVED: u32 = 1;
+/// How long after a hand's change the layout is kept: a drag of a gap
+/// changes it every frame.
+const KEEP_AFTER: Duration = Duration::from_secs(1);
 
 /// A container folded to its bar, or in a row to a strip.
 struct Fold {
@@ -180,6 +210,123 @@ impl Layout {
             timeline_height: None,
             folds: Vec::new(),
             outliner_first,
+            path: None,
+            changed: None,
+            restored: false,
+        }
+    }
+
+    /// The layout a hand left at the last launch, when it is whole, else the
+    /// page's; kept at `path` from here on.
+    pub fn open(outliner_first: bool, path: Option<PathBuf>) -> Self {
+        let saved = path.as_deref().and_then(|path| {
+            let text = std::fs::read_to_string(path).ok()?;
+            serde_json::from_str::<Saved>(&text)
+                .inspect_err(|e| {
+                    tracing::warn!("{}: {e}; the panels start where they began", path.display())
+                })
+                .ok()
+        });
+        let mut layout = saved
+            .and_then(|saved| Self::restore(saved, outliner_first))
+            .unwrap_or_else(|| Self::new(outliner_first));
+        layout.path = path;
+        layout
+    }
+
+    /// A kept layout, when it is this version's and holds every pane once.
+    fn restore(saved: Saved, outliner_first: bool) -> Option<Self> {
+        if saved.version != SAVED {
+            return None;
+        }
+        let tiles = saved.tree.tiles;
+        let mut found = [None; 6];
+        for (id, tile) in tiles.iter() {
+            if let Tile::Pane(pane) = tile {
+                let i = Pane::ALL.iter().position(|p| p == pane)?;
+                if found[i].replace(*id).is_some() {
+                    return None;
+                }
+            }
+        }
+        let mut panes = [TileId::from_u64(0); 6];
+        for (pane, found) in panes.iter_mut().zip(found) {
+            *pane = found?;
+        }
+        let root = saved.tree.root.filter(|root| tiles.get(*root).is_some())?;
+        let home = |pane: TileId| tiles.parent_of(pane).unwrap_or(pane);
+        let (left, world, terminals) = (home(panes[0]), home(panes[3]), home(panes[4]));
+        let folds = saved
+            .folds
+            .into_iter()
+            .filter(|(container, _)| {
+                matches!(
+                    tiles.get(*container),
+                    Some(Tile::Container(Container::Tabs(_)))
+                )
+            })
+            .map(|(container, open)| Fold {
+                container,
+                open,
+                share: None,
+            })
+            .collect();
+        Some(Self {
+            tree: Tree::new(egui::Id::unique("the shell's panels"), root, tiles),
+            left,
+            world,
+            terminals,
+            panes,
+            hidden: saved.hidden,
+            shown: [false; 3],
+            sized_for: None,
+            timeline_height: saved.timeline_height,
+            folds,
+            outliner_first,
+            path: None,
+            changed: None,
+            restored: true,
+        })
+    }
+
+    /// The layout as a hand left it, for the next launch.
+    fn keep(&mut self) {
+        self.changed = None;
+        let Some(path) = &self.path else {
+            return;
+        };
+        let saved = Saved {
+            version: SAVED,
+            tree: self.tree.clone(),
+            hidden: self.hidden,
+            folds: self
+                .folds
+                .iter()
+                .map(|fold| (fold.container, fold.open))
+                .collect(),
+            timeline_height: self.timeline_height,
+        };
+        let kept = serde_json::to_string(&saved)
+            .map_err(anyhow::Error::from)
+            .and_then(|json| {
+                if let Some(dir) = path.parent() {
+                    std::fs::create_dir_all(dir)?;
+                }
+                // Whole or not at all: a launch never reads half a file.
+                let part = path.with_extension("json.part");
+                std::fs::write(&part, json)?;
+                std::fs::rename(&part, path)?;
+                Ok(())
+            });
+        if let Err(e) = kept {
+            tracing::warn!("{}: {e:#}", path.display());
+        }
+    }
+
+    /// The window closes: what a hand changed since it was last kept is kept.
+    pub fn on_exit(&mut self) {
+        if self.changed.is_some() {
+            self.keep();
         }
     }
 
@@ -201,8 +348,13 @@ impl Layout {
         }
         let left = [visible[0], visible[1], visible[2]];
         if left != self.shown {
+            // A kept layout's left column comes back with the tab a hand
+            // left in front.
+            let keep_front = self.restored && !self.shown.iter().any(|shown| *shown);
             self.shown = left;
-            let first = if self.outliner_first && left[2] {
+            let first = if keep_front {
+                None
+            } else if self.outliner_first && left[2] {
                 Some(self.panes[2])
             } else {
                 self.panes
@@ -221,17 +373,32 @@ impl Layout {
             Pane::ALL[..3].iter().any(|pane| pane.there(state)),
         );
         if self.sized_for != Some(mode) {
-            let width = if state.mode_document {
-                LEFT_DOCUMENT
+            if self.restored {
+                // The widths a hand left, until the mode changes after the
+                // first that shows the left column.
+                if mode.1 {
+                    self.sized_for = Some(mode);
+                    self.restored = false;
+                }
             } else {
-                LEFT
-            };
-            if self.size(width.min(area.x * 0.3).max(240.0), area.x) {
-                self.sized_for = Some(mode);
+                let width = if state.mode_document {
+                    LEFT_DOCUMENT
+                } else {
+                    LEFT
+                };
+                if self.size(width.min(area.x * 0.3).max(240.0), area.x) {
+                    self.sized_for = Some(mode);
+                }
             }
         }
         self.fit_timeline(state, area.y);
         self.keep_folds();
+        if self
+            .changed
+            .is_some_and(|changed| changed.elapsed() >= KEEP_AFTER)
+        {
+            self.keep();
+        }
     }
 
     /// The left column at `left` points and the terminals at the page's
@@ -441,6 +608,7 @@ impl Layout {
     }
 
     fn answer(&mut self, ask: Ask) {
+        self.changed = Some(Instant::now());
         match ask {
             Ask::Hide(tile) => {
                 if let Some(i) = self.panes.iter().position(|pane| *pane == tile) {
@@ -460,6 +628,7 @@ impl Layout {
 
     /// A panel shown again from the menu comes unfolded and in front.
     fn show(&mut self, i: usize, on: bool) {
+        self.changed = Some(Instant::now());
         self.hidden[i] = !on;
         if on {
             let pane = self.panes[i];
@@ -472,9 +641,12 @@ impl Layout {
         }
     }
 
-    /// Every panel where it began, shown and unfolded.
+    /// Every panel where it began, shown and unfolded, and kept so.
     fn reset(&mut self) {
+        let path = self.path.take();
         *self = Self::new(self.outliner_first);
+        self.path = path;
+        self.changed = Some(Instant::now());
     }
 
     /// The panels' menu: each panel shown or hidden, and all of them put
@@ -555,9 +727,13 @@ impl Layout {
             foldable: foldables,
             homes,
             asks: Vec::new(),
+            edited: false,
             world_drawn: false,
         };
         self.tree.ui(&mut panes, ui);
+        if panes.edited {
+            self.changed = Some(Instant::now());
+        }
         for ask in std::mem::take(&mut panes.asks) {
             self.answer(ask);
         }
@@ -670,6 +846,8 @@ struct Panes<'a> {
     foldable: Vec<TileId>,
     homes: Vec<(TileId, TileId)>,
     asks: Vec<Ask>,
+    /// A hand resized a tile or dropped one somewhere new.
+    edited: bool,
     world_drawn: bool,
 }
 
@@ -846,6 +1024,17 @@ impl egui_tiles::Behavior<Pane> for Panes<'_> {
     fn on_tab_close(&mut self, _tiles: &mut Tiles<Pane>, tile: TileId) -> bool {
         self.asks.push(Ask::Hide(tile));
         false
+    }
+
+    /// A resize or a drop is a hand's; a tab selected may be egui's own
+    /// pick, and is kept with the next change a hand makes.
+    fn on_edit(&mut self, action: egui_tiles::EditAction) {
+        if matches!(
+            action,
+            egui_tiles::EditAction::TileResized | egui_tiles::EditAction::TileDropped
+        ) {
+            self.edited = true;
+        }
     }
 
     fn gap_width(&self, _style: &egui::Style) -> f32 {
@@ -1094,5 +1283,51 @@ mod tests {
         layout.unfold(timeline, None);
         frame(&ctx, &mut layout, &state);
         assert!((height(&layout, timeline) - resized).abs() < 0.5);
+    }
+
+    #[test]
+    fn the_panels_come_back_as_a_hand_left_them() {
+        let dir = std::env::temp_dir().join(format!("localgpt-app-layout-{}", std::process::id()));
+        let path = dir.join("app-layout.json");
+        let _ = std::fs::remove_dir_all(&dir);
+        let state = State::default();
+
+        let ctx = egui::Context::default();
+        let mut layout = Layout::open(false, Some(path.clone()));
+        frames(&ctx, &mut layout, &state);
+        // A hand widens the world and hides the timeline, then folds the
+        // terminals; nothing is kept until the hand has let things be.
+        let world_tabs = layout.world;
+        drag(&mut layout, world_tabs, 1.5);
+        layout.answer(Ask::Hide(layout.panes[5]));
+        frames(&ctx, &mut layout, &state);
+        let world = width(&layout, layout.world);
+        assert!(world > 1000.0, "{world}");
+        layout.answer(Ask::Toggle(layout.terminals));
+        frames(&ctx, &mut layout, &state);
+        assert!(!path.exists());
+        layout.on_exit();
+        assert!(path.exists());
+
+        let ctx = egui::Context::default();
+        let mut again = Layout::open(false, Some(path.clone()));
+        frames(&ctx, &mut again, &state);
+        assert!(again.hidden[5], "the timeline stays hidden");
+        assert!(again.folded(again.terminals));
+        assert!((width(&again, again.terminals) - STRIP).abs() < 0.5);
+        // The world kept what the hand gave it, not the page's width.
+        let unfolded = {
+            again.unfold(again.terminals, None);
+            frame(&ctx, &mut again, &state);
+            width(&again, again.world)
+        };
+        assert!((unfolded - world).abs() < 1.0, "{unfolded} against {world}");
+
+        // A file that is not whole is set aside: the panels start where they
+        // began.
+        std::fs::write(&path, "{\"version\": 1}").unwrap();
+        let fresh = Layout::open(false, Some(path.clone()));
+        assert!(fresh.folds.is_empty() && fresh.hidden == [false; 6] && !fresh.restored);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

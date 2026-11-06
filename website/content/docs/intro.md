@@ -47,6 +47,7 @@ LocalGPT follows the [XDG Base Directory Specification](https://specifications.f
 ~/.local/state/localgpt/
 ├── gen-settings.json            # what the app opened last
 ├── app-remote.json              # the paired phones' key hashes (0600)
+├── app-layout.json              # the panels as you left them
 └── logs/localgpt-app.log        # the app's log, when it has no terminal
 ```
 

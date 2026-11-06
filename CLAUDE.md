@@ -389,7 +389,8 @@ There is no configuration file: `config.toml` and `config.example.toml` went
 with the assistant. What an app needs it takes from flags and environment
 variables — the directories from `LOCALGPT_DATA_DIR`, `LOCALGPT_STATE_DIR`
 and `LOCALGPT_PROFILE`, the shared pack from `LOCALGPT_WORLD_ASSETS` — and
-remembers only what was opened last (`gen-settings.json`). An agent's own
+remembers only what was opened last (`gen-settings.json`) and, in the
+desktop app, where its panels were (`app-layout.json`). An agent's own
 configuration (its login, its model, its MCP servers) is the agent's.
 
 ## Runtime Directory Structure (XDG Base Directory Specification)
@@ -402,6 +403,7 @@ configuration (its login, its model, its MCP servers) is the agent's.
 ~/.local/state/localgpt/                 # XDG_STATE_HOME (Dirs::state)
 ├── gen-settings.json                    # what was opened last
 ├── app-remote.json                      # The phone remote's paired devices (key hashes, 0600)
+├── app-layout.json                      # The panels as a hand left them (tiles, hidden, folded)
 └── logs/                                # Application logs, when there is no terminal
 ```
 

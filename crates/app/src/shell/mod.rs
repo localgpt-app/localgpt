@@ -276,8 +276,13 @@ impl Shell {
         let open = std::env::var(crate::webui::LOCALGPT_APP_UI_OPEN).unwrap_or_default();
         let opens = |what: &str| open.split(',').any(|o| o == what);
         let terminals = terminals::Terminals::new(ctx, opens("terminal"));
-        // `outliner` starts the left column on its Outliner tab.
-        let layout = tiles::Layout::new(opens("outliner"));
+        // `outliner` starts the left column on its Outliner tab. The panels
+        // come back as a hand left them (`<state>/app-layout.json`).
+        let layout = tiles::Layout::open(
+            opens("outliner"),
+            localgpt_world_agent::paths::Dirs::resolve()
+                .map(|dirs| dirs.state.join("app-layout.json")),
+        );
         // `LOCALGPT_APP_SCREENSHOT=<png>`: a picture of the window a while
         // in, then quit.
         let shot = std::env::var(LOCALGPT_APP_SCREENSHOT).ok().map(|path| {
@@ -324,6 +329,10 @@ impl Shell {
 }
 
 impl eframe::App for Shell {
+    fn on_exit(&mut self) {
+        self.layout.on_exit();
+    }
+
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         if let Some(drive) = &mut self.drive {
             drive.inject(ctx, raw_input, self.world_rect);
