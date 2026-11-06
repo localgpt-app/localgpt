@@ -7,18 +7,19 @@
 //! The app runs no agent and no model, and holds no agent's or model's
 //! configuration (`docs/rfcs/authoring/the-page.md`).
 //!
-//! Two interfaces, one protocol, while the second catches up with the first
-//! (`docs/rfcs/authoring/all-rust.md`): by default Bevy owns the window and a
-//! web page lies over it (`webui`, built from `ui/`); with
-//! `LOCALGPT_APP_SHELL=egui`, eframe owns the window, egui draws the panels,
-//! and Bevy draws the world into a texture the shell shows (`shell`).
+//! The interface is the shell (`docs/rfcs/authoring/all-rust.md`): eframe
+//! owns the window, egui draws the panels, and Bevy draws the world into a
+//! texture the shell shows (`shell`). Both speak one protocol (`webui`),
+//! which a paired phone's page speaks too. Until its host goes, the web page
+//! over Bevy's window (`ui/`) is still there on macOS, with
+//! `LOCALGPT_APP_SHELL=page`.
 //!
 //! ```sh
 //! cargo run -p localgpt-app                          # reopens what was opened last
 //! cargo run -p localgpt-app -- --md notes.md         # a document as a world
 //! cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
 //! cargo run -p localgpt-app -- --world harbour.world # a package, live: agents edit it
-//! LOCALGPT_APP_SHELL=egui cargo run -p localgpt-app  # the interface in Rust
+//! LOCALGPT_APP_SHELL=page cargo run -p localgpt-app  # the web page, on macOS, until it goes
 //! ```
 //!
 //! A document (`--md`) compiles with MD's pure lib — the rule-derived draft
@@ -27,8 +28,8 @@
 //! for it, which Gen's viewport plays. A `.world` package opens as a live
 //! canvas: this window holds its authority and serves the API agents change
 //! it through. Everything heavy comes from the gen lib; this crate is the
-//! thin assembly. The page is macOS's for now: elsewhere the window shows
-//! the world alone, unless the shell is the interface.
+//! thin assembly. The shell runs wherever eframe and Bevy do; the page's
+//! host was macOS's alone.
 
 mod document;
 mod open;
@@ -124,8 +125,9 @@ fn main() -> anyhow::Result<()> {
     let opened = open_launch(&args)?;
 
     // The shell: eframe takes this thread, and the app is built and run on
-    // a thread of its own, drawing on the shell's device.
-    if shell::requested() {
+    // a thread of its own, drawing on the shell's device. The page, asked
+    // for, is Bevy's window with the web view over it, as before.
+    if !shell::page_requested() {
         let gpu = shell::Gpu::new()?;
         return shell::run(gpu, move |app| assemble(app, opened));
     }

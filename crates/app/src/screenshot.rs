@@ -1,12 +1,14 @@
 //! A dev hook for looking at the window without a person at it:
-//! `LOCALGPT_APP_SCREENSHOT=<png>` saves one frame of the primary window, a
-//! few seconds after launch, then exits. `LOCALGPT_APP_SCREENSHOT_AFTER`
-//! sets the delay in seconds (default 12 — long enough for a world's assets
-//! and a model's first builds to land).
+//! `LOCALGPT_APP_SCREENSHOT=<png>` saves one frame of the window, a few
+//! seconds after launch, then exits. `LOCALGPT_APP_SCREENSHOT_AFTER` sets
+//! the delay in seconds (default 12 — long enough for a world's assets and
+//! a model's first builds to land).
 //!
-//! It reads the window back through Bevy, so it needs no screen-recording
-//! permission; like MD's and Verse's hooks, the frame comes back black when
-//! the Mac is locked.
+//! Under the shell (the default), the shell takes the picture, its panels in
+//! it (`shell::Shell`); this plugin reads Bevy's window back, for the page
+//! (`LOCALGPT_APP_SHELL=page`). Either needs no screen-recording permission;
+//! like MD's and Verse's hooks, the frame comes back black when the Mac is
+//! locked.
 
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
@@ -22,6 +24,10 @@ pub struct ScreenshotPlugin {
 
 impl ScreenshotPlugin {
     pub fn from_env() -> Option<Self> {
+        // The shell takes its own, of the whole window.
+        if !crate::shell::page_requested() {
+            return None;
+        }
         let path = std::env::var(LOCALGPT_APP_SCREENSHOT).ok()?;
         let after_secs = std::env::var(LOCALGPT_APP_SCREENSHOT_AFTER)
             .ok()

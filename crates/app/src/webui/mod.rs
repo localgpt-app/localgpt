@@ -1,30 +1,29 @@
-//! The app's interface: a web page in one web view over the window.
+//! The app's interface protocol, and the page that speaks it.
 //!
-//! Bevy owns the window and draws the world; the page — React, Tailwind,
-//! CodeMirror and xterm.js, built from `crates/app/ui` — draws everything
-//! else: the history graph and its playback, the document and its outline,
-//! the timeline, Open…, and the agents' terminals. It leaves a hole
-//! where the world shows through and reports where it is: clicks inside it
-//! fall through to Bevy (`mac::HoleView`), and the world camera draws into
-//! it. Nothing else draws chrome; Gen has no panels of its own.
+//! The interface asks with [`FromPage`] and is answered with [`ToPage`].
+//! Each side keeps its own state: the interface asks with the app's
+//! messages ([`SeekTo`], [`DocumentAsk`], [`OpenFile`], [`TimelineAsk`]) and
+//! the app sends it snapshots of what it keeps — the history, the document,
+//! the timeline, the scene and the clock.
 //!
-//! The page posts [`FromPage`] as JSON through `window.ipc`; the app answers
-//! with [`ToPage`] through `window.__lg.recv(…)`. Each side keeps its own
-//! state: the page asks with the app's messages ([`SeekTo`], [`DocumentAsk`],
-//! [`OpenFile`], [`TimelineAsk`]) and the app sends it snapshots, so the page
-//! also opens in a plain browser, with nothing behind it, to be designed.
+//! Its clients: the shell, the window's interface (`crate::shell`), over an
+//! in-process channel (`link.rs`); a paired phone's page, over a WebSocket
+//! (`remote.rs`); and, until its host goes (`docs/rfcs/authoring/
+//! all-rust.md`, step E), the page itself over Bevy's window on macOS with
+//! `LOCALGPT_APP_SHELL=page`. That page — React, Tailwind, CodeMirror and
+//! xterm.js, built from `crates/app/ui` — posts its asks as JSON through
+//! `window.ipc` and is answered through `window.__lg.recv(…)`; it leaves a
+//! hole where the world shows through, and clicks inside it fall through to
+//! Bevy (`mac::HoleView`). The host is a [`Host`]: a WKWebView over Bevy's
+//! view (`mac.rs`), serving the built page from the binary (`ui/dist`, read
+//! from disk in a debug build). The page also opens in a plain browser,
+//! with nothing behind it, to be designed.
 //!
-//! The window's side is a [`Host`]: on macOS a WKWebView over Bevy's view
-//! (`mac.rs`), serving the built page from the binary (`ui/dist`, read from
-//! disk in a debug build). Windows and Linux have no host yet: the window
-//! shows the world alone, and the rest of this module — the protocol, the
-//! terminals — is built and tested there all the same, waiting for one.
-//!
+//! `LOCALGPT_APP_UI_OPEN=terminal` starts with a terminal open (`outliner`
+//! starts the left column on its Outliner tab); with the page,
 //! `LOCALGPT_APP_UI_URL` loads a dev server instead of the built page (`npm
-//! run dev` in `crates/app/ui`, which reloads as the page is edited);
-//! `LOCALGPT_APP_UI_OPEN=terminal` starts with a terminal open
-//! (`outliner` starts the left panel on its Outliner tab); and
-//! `LOCALGPT_APP_UI=none` leaves the page out, the world alone in the window.
+//! run dev` in `crates/app/ui`, which reloads as the page is edited), and
+//! `LOCALGPT_APP_UI=none` leaves it out, the world alone in the window.
 //!
 //! The same page also opens on a paired phone or tablet, over the local
 //! network (`remote.rs`): what the window is sent, the device is sent, and
@@ -78,9 +77,12 @@ pub struct WebUiPlugin {
 }
 
 impl WebUiPlugin {
-    /// The interface, unless `LOCALGPT_APP_UI=none` asks for the world alone.
+    /// The interface, unless `LOCALGPT_APP_UI=none` asks the page's window
+    /// for the world alone. The shell always has it: its panels are what
+    /// it is sent.
     pub fn from_env(cwd: PathBuf) -> Option<Self> {
-        let off = std::env::var(LOCALGPT_APP_UI).is_ok_and(|v| v == "none");
+        let off = crate::shell::page_requested()
+            && std::env::var(LOCALGPT_APP_UI).is_ok_and(|v| v == "none");
         (!off).then(|| Self {
             cwd,
             url: std::env::var(LOCALGPT_APP_UI_URL).ok(),

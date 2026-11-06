@@ -41,6 +41,7 @@ env = dict(
     LOCALGPT_DATA_DIR=str(envdir / "data"),
     LOCALGPT_STATE_DIR=str(envdir / "state"),
     LOCALGPT_CACHE_DIR=str(envdir / "cache"),
+    LOCALGPT_APP_SHELL="page",
     LOCALGPT_APP_UI="none",
     LOCALGPT_SPIKE_FRAMES=str(out / "alone-idle-bevy.csv"),
     LOCALGPT_SPIKE_MANIFEST="1",

@@ -53,7 +53,7 @@ for spec in "$@"; do
   [ "$mode" = web ] && web=1
   url="http://127.0.0.1:$PORT/?spike=$mode&load=$load&run=$id&secs=$SECS&open=shell,shell,shell&loadpy=$HERE/load.py"
   LOCALGPT_DATA_DIR="$ENVDIR/data" LOCALGPT_STATE_DIR="$ENVDIR/state" LOCALGPT_CACHE_DIR="$ENVDIR/cache" \
-    LOCALGPT_WORLD_ASSETS="$PACK" LOCALGPT_APP_UI_URL="$url" \
+    LOCALGPT_WORLD_ASSETS="$PACK" LOCALGPT_APP_SHELL=page LOCALGPT_APP_UI_URL="$url" \
     LOCALGPT_SPIKE_FRAMES="$OUT/$id-bevy.csv" LOCALGPT_SPIKE_MANIFEST=1 LOCALGPT_SPIKE_WEB_WORLD=$web \
     "$BIN" --song "$SONG" >"$OUT/$id-app.log" 2>&1 &
   app=$!
