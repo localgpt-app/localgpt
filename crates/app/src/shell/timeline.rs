@@ -612,6 +612,21 @@ impl Timeline {
         track: &TrackView,
         end: &ShellEnd,
     ) {
+        // A click where nothing takes it seeks there. Registered first, so
+        // what the lane draws that takes a click (a shot) is above it.
+        let response = ui.interact(
+            lane,
+            ui.scope_id().with(("lane", describe(track).0)),
+            Sense::click(),
+        );
+        if response.clicked()
+            && !matches!(track, TrackView::Shots { .. })
+            && let Some(p) = response.interact_pointer_pos()
+        {
+            end.ask(FromPage::ClockSeek {
+                at: s.t(p.x).clamp(0.0, clock.duration),
+            });
+        }
         let painter = ui.painter_at(lane);
         let h = lane.height();
         match track {
@@ -729,20 +744,6 @@ impl Timeline {
                     theme::AMBIENCE,
                 );
             }
-        }
-        // A click where nothing takes it seeks there.
-        let response = ui.interact(
-            lane,
-            ui.scope_id().with(("lane", describe(track).0)),
-            Sense::click(),
-        );
-        if response.clicked()
-            && !matches!(track, TrackView::Shots { .. })
-            && let Some(p) = response.interact_pointer_pos()
-        {
-            end.ask(FromPage::ClockSeek {
-                at: s.t(p.x).clamp(0.0, clock.duration),
-            });
         }
     }
 
