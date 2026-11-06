@@ -45,11 +45,11 @@
 
 use bevy::camera::primitives::Aabb;
 use bevy::ecs::system::SystemParam;
-use bevy::math::bounding::Aabb3d;
-use bevy::picking::events::{Click, Drag, DragEnd, DragStart, Pointer};
+use bevy::picking::events::{PointerClick, PointerDrag, PointerDragEnd, PointerDragStart};
 use bevy::picking::hover::HoverMap;
 use bevy::picking::pointer::{PointerButton, PointerId, PointerLocation};
 use bevy::prelude::*;
+use bevy::shape::Aabb3d;
 use serde_json::Value;
 
 use super::avatar;
@@ -1006,10 +1006,10 @@ fn handle_edits(
 /// Clicks select; drags move.
 #[allow(clippy::too_many_arguments)]
 fn pointer_edits(
-    mut clicks: MessageReader<Pointer<Click>>,
-    mut starts: MessageReader<Pointer<DragStart>>,
-    mut drags: MessageReader<Pointer<Drag>>,
-    mut ends: MessageReader<Pointer<DragEnd>>,
+    mut clicks: MessageReader<PointerClick>,
+    mut starts: MessageReader<PointerDragStart>,
+    mut drags: MessageReader<PointerDrag>,
+    mut ends: MessageReader<PointerDragEnd>,
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     settings: Res<CanvasSettings>,
@@ -1082,7 +1082,7 @@ fn pointer_edits(
     }
 
     for click in clicks.read() {
-        if click.event.button != PointerButton::Primary {
+        if click.button != PointerButton::Primary {
             continue;
         }
         // The release that ends a drag reports a click on whatever is under
@@ -1112,16 +1112,14 @@ fn pointer_edits(
     }
 
     for start in starts.read() {
-        if start.event.button != PointerButton::Primary || marquee.0.is_some() {
+        if start.button != PointerButton::Primary || marquee.0.is_some() {
             continue;
         }
         let Some(owner) = scene.owner(start.entity) else {
             continue;
         };
-        let (Some(ray), Ok(global)) = (
-            scene.ray(start.pointer_location.position),
-            scene.globals.get(owner),
-        ) else {
+        let (Some(ray), Ok(global)) = (scene.ray(start.pointer.position), scene.globals.get(owner))
+        else {
             continue;
         };
         let origin = global.translation();
@@ -1169,7 +1167,7 @@ fn pointer_edits(
             continue;
         }
         let Some(hit) = scene
-            .ray(drag.pointer_location.position)
+            .ray(drag.pointer.position)
             .and_then(|ray| hit_plane(ray, grab.origin, grab.normal))
         else {
             continue;
@@ -1203,10 +1201,10 @@ fn pointer_edits(
 /// Forget this frame's picking events: they belong to a panel, a handle or
 /// a box, not to the world.
 fn drain_pointer(
-    clicks: &mut MessageReader<Pointer<Click>>,
-    starts: &mut MessageReader<Pointer<DragStart>>,
-    drags: &mut MessageReader<Pointer<Drag>>,
-    ends: &mut MessageReader<Pointer<DragEnd>>,
+    clicks: &mut MessageReader<PointerClick>,
+    starts: &mut MessageReader<PointerDragStart>,
+    drags: &mut MessageReader<PointerDrag>,
+    ends: &mut MessageReader<PointerDragEnd>,
 ) {
     clicks.clear();
     starts.clear();

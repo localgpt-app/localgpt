@@ -68,8 +68,9 @@ pub struct Fonts {
     pub ui_semibold: Handle<Font>,
 }
 
-/// Build a [`TextFont`] with a pixel size. Bevy 0.19 wraps text sizes in the
-/// `FontSize` enum, so this centralises the `f32` → `FontSize::Px` conversion.
+/// Build a [`TextFont`] with a pixel size. Bevy wraps text sizes in the
+/// `FontSize` enum (and since 0.20 defaults to `Rem(1.)`), so this
+/// centralises the `f32` → `FontSize::Px` conversion.
 pub fn text_font(font: Handle<Font>, size: f32) -> TextFont {
     TextFont {
         font: FontSource::Handle(font),

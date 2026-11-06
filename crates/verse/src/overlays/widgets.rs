@@ -1,6 +1,7 @@
 //! Shared overlay widgets: pills, labels, layout primitives.
 
 use bevy::prelude::*;
+use bevy::ui_widgets::Button;
 
 use crate::theme::{self, Fonts, RADIUS_PILL, TEXT, text_font};
 

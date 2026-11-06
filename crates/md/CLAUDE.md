@@ -16,7 +16,7 @@ Guidance for Claude Code when working in this repository.
 ## What this is
 
 LocalGPT MD opens a Markdown file and turns it into a walkable 3D world
-(Bevy 0.19). Each `##` section becomes a place; the file is watched and the
+(Bevy 0.20). Each `##` section becomes a place; the file is watched and the
 world rebuilds on save. What a section's place looks like beyond the
 rule-based draft comes from the **sidecar** beside the document
 (`<doc>.world.json`): a build (entities in place, real CC0 pack assets) or
@@ -113,7 +113,7 @@ and builds) and `assets.rs` (where the pack is).
   everything is clamped (`RegionRecipe::clamped`, on sidecar insert and
   load), and a missing or malformed entry keeps the draft.
 
-## Bevy 0.19 notes
+## Bevy 0.20 notes
 
 Match LocalGPT Verse's idioms (`../verse/src`): `Hdr` is its own
 component (`bevy::camera::Hdr`); scene-wide ambient light is the

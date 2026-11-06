@@ -15,7 +15,7 @@ Guidance for Claude Code when working in this repository.
 
 ## What this is
 
-LocalGPT Verse: a desktop app (Bevy 0.19) that imagines a 3D world for every
+LocalGPT Verse: a desktop app (Bevy 0.20) that imagines a 3D world for every
 song, driven by on-device music analysis. `README.md` covers running it and
 the optional `ml` tier; `ARCHITECTURE.md` is the system map and the
 load-bearing decisions; `PLAN.md` the milestones. No language model runs

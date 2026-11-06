@@ -658,7 +658,7 @@ fn focus_camera_system(
 /// panel never gets here: the page takes the pointer everywhere but the
 /// viewport.
 fn on_mesh_clicked(
-    on: On<Pointer<Click>>,
+    on: On<PointerClick>,
     gen_entities: Query<&GenEntity>,
     parent_q: Query<&ChildOf>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -670,7 +670,7 @@ fn on_mesh_clicked(
     }
 
     // Only left click
-    if on.event.button != PointerButton::Primary {
+    if on.button != PointerButton::Primary {
         return;
     }
     let extend = keys.any_pressed([

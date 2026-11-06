@@ -26,7 +26,7 @@ path = "src/main.rs"
 # fallback glyphs — e.g. Microsoft YaHei / PingFang for CJK track titles the
 # bundled Latin fonts (Marcellus, Hanken Grotesk) can't render. Without it,
 # non-Latin characters show as blank (tofu).
-bevy = { version = "0.19", features = ["jpeg", "system_font_discovery"] }
+bevy = { version = "0.20", features = ["jpeg", "system_font_discovery"] }
 
 # M1 — real playback core (see PLAN.md §1.1)
 # mixer on cpal: precise clocks, tweens, streaming symphonia decode.

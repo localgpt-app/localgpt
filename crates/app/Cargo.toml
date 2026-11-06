@@ -44,7 +44,7 @@ ron = "0.12.1"
 # The native "Open…" picker (Verse's version, so one copy in the build).
 rfd = "0.17"
 
-bevy = { version = "0.19", features = ["jpeg", "system_font_discovery"] }
+bevy = { version = "0.20", features = ["jpeg", "system_font_discovery"] }
 # The agents' terminals: a PTY per tab (WezTerm's crate), its bytes to xterm.js.
 portable-pty = "0.9"
 # Each tab's screen as a terminal draws it, for a page that attaches late,

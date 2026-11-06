@@ -53,7 +53,7 @@ futures = { workspace = true }
 clap = { version = "4.6", features = ["derive"] }
 
 # 3D generation via Bevy
-bevy = "0.19"
+bevy = "0.20"
 image = "0.25"
 
 # glTF/GLB export
@@ -78,17 +78,15 @@ axum = { version = "0.8", features = ["ws"] }
 # Native ops client (--join): plain-WebSocket client to the host's /session
 tokio-tungstenite = { version = "0.29", default-features = false, optional = true }
 
-# Physics (P5): avian3d 0.7 targets Bevy 0.19.
-avian3d = { version = "0.7", optional = true }
+# Physics (P5): avian3d 0.8 targets Bevy 0.20.
+avian3d = { version = "0.8", optional = true }
 
-# Floating character controller (P1): bevy-tnua + bevy-tnua-avian3d.
-# BLOCKED on Bevy 0.19 — the latest releases (bevy-tnua 0.31 / bevy-tnua-avian3d
-# 0.11) still target Bevy 0.18, and two Bevy versions cannot link into one
-# binary. Gated behind the off-by-default `character-controller` feature; the
-# player falls back to a transform-based controller until upstream ships 0.19.
-# Re-enable the `character-controller` feature once those crates support 0.19.
-bevy-tnua = { version = "0.31", optional = true }
-bevy-tnua-avian3d = { version = "0.11", optional = true }
+# Floating character controller (P1): bevy-tnua + bevy-tnua-avian3d. They
+# target Bevy 0.20 (tnua 0.33, its avian3d integration 0.13), so the
+# off-by-default `character-controller` feature builds again; the player uses
+# a transform-based controller without it.
+bevy-tnua = { version = "0.33", optional = true }
+bevy-tnua-avian3d = { version = "0.13", optional = true }
 
 # Noise for procedural terrain (P3)
 noise = "0.9"
@@ -108,7 +106,7 @@ tempfile = "3.27"
 [features]
 default = ["physics", "multiplayer"]
 # Avian3d rigid-body physics, colliders, joints, forces, gravity, spatial
-# queries (camera spring-arm). Works on Bevy 0.19.
+# queries (camera spring-arm). Works on Bevy 0.20.
 physics = ["dep:avian3d"]
 # Collaborative rooms over the ops protocol (world-sync over WebSocket),
 # with mDNS discovery. `--host` / `--join` require this feature.
@@ -118,7 +116,7 @@ multiplayer = [
     "dep:tokio-tungstenite",
 ]
 # bevy-tnua floating character controller for the player. Requires `physics`.
-# OFF by default: no Bevy 0.19-compatible bevy-tnua release exists yet, so
-# enabling this currently fails to build. When enabled the player uses the
-# Tnua walk/jump controller; otherwise a transform-based controller is used.
+# Off by default: it builds on Bevy 0.20 but has not been played in a world
+# since Bevy 0.18. When enabled the player uses the Tnua walk/jump
+# controller; otherwise a transform-based controller is used.
 character-controller = ["physics", "dep:bevy-tnua", "dep:bevy-tnua-avian3d"]

@@ -81,7 +81,7 @@
       "capabilities": {
         "visual": {
           "description": "Real-time 3D scene rendering via Bevy engine. Opens an interactive viewport for scene exploration with first-person/third-person navigation and an orbit camera; --headless serves the same tools with no window.",
-          "engine": "Bevy 0.19",
+          "engine": "Bevy 0.20",
           "features": [
             "PBR materials and dynamic lighting",
             "glTF/GLB import and export",

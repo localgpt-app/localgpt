@@ -56,7 +56,10 @@ pub enum ButtonAction {
     Quit,
 }
 
+/// One of the overlays' buttons. It is Bevy's headless button, and picking
+/// keeps its `Hovered` current for the tint (`dispatch_buttons`).
 #[derive(Component, Clone, Copy)]
+#[require(bevy::ui_widgets::Button, bevy::picking::hover::Hovered)]
 pub struct UiButton {
     pub action: ButtonAction,
     pub primary: bool,
@@ -141,22 +144,31 @@ pub fn poll_folder_pick(
 }
 
 /// Hover/press tint + broadcast presses as [`UiAction`] messages.
+///
+/// A press is the frame Bevy's button gains `Pressed`, as it was; the tint
+/// follows `Hovered`, which picking keeps on each button (`widgets::button`
+/// spawns it), and goes back to the base when the pointer leaves.
 pub fn dispatch_buttons(
-    mut interactions: Query<(&Interaction, &UiButton, &mut BackgroundColor), Changed<Interaction>>,
+    pressed: Query<&UiButton, Added<bevy::ui::Pressed>>,
+    mut tints: Query<
+        (
+            &bevy::picking::hover::Hovered,
+            &UiButton,
+            &mut BackgroundColor,
+        ),
+        Changed<bevy::picking::hover::Hovered>,
+    >,
     mut actions: MessageWriter<UiAction>,
 ) {
-    for (interaction, button, mut bg) in &mut interactions {
-        match *interaction {
-            Interaction::Pressed => {
-                actions.write(UiAction(button.action));
-            }
-            Interaction::Hovered => {
-                bg.0 = lighten(button.base, if button.primary { 0.10 } else { 0.14 });
-            }
-            Interaction::None => {
-                bg.0 = button.base;
-            }
-        }
+    for button in &pressed {
+        actions.write(UiAction(button.action));
+    }
+    for (hovered, button, mut bg) in &mut tints {
+        bg.0 = if hovered.get() {
+            lighten(button.base, if button.primary { 0.10 } else { 0.14 })
+        } else {
+            button.base
+        };
     }
 }
 

@@ -14,4 +14,4 @@ localgpt-world-types = { workspace = true }
 serde_json = { workspace = true }
 # Only the rendering data model: no windowing, no audio, no default plugins.
 # The app that uses this crate brings the rest of Bevy.
-bevy = { version = "0.19", default-features = false, features = ["std", "bevy_asset", "bevy_pbr"] }
+bevy = { version = "0.20", default-features = false, features = ["std", "bevy_asset", "bevy_pbr"] }

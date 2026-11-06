@@ -27,7 +27,7 @@ required-features = ["app"]
 # pack model fails to load with "invalid image mime type: image/jpeg".
 # `system_font_discovery` lets parley/fontique fall back to OS fonts, so CJK
 # and other non-Latin headings render instead of showing as blank boxes.
-bevy = { version = "0.19", features = ["jpeg", "system_font_discovery"], optional = true }
+bevy = { version = "0.20", features = ["jpeg", "system_font_discovery"], optional = true }
 
 # Markdown → sections. Parsing only; the `html` renderer isn't needed.
 pulldown-cmark = { version = "0.13", default-features = false }

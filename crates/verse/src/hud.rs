@@ -13,6 +13,10 @@
 //! remains (spec 1e).
 
 use bevy::prelude::*;
+// Bevy 0.20's headless button: it keeps `Pressed` on the node while a pointer
+// holds it (the prelude's `Button` is the deprecated one).
+use bevy::ui::Pressed;
+use bevy::ui_widgets::Button;
 
 use crate::playback::{Beat, Playback, Repeat, fmt_time};
 use crate::theme::{self, Fonts, RADIUS_PILL, RADIUS_SM, TEXT, Theme, text_font};
@@ -1358,16 +1362,13 @@ pub fn update_transport(
 /// Route transport-button presses to the transport — mirrors the keyboard
 /// bindings in `input_in_world`. Play/pause freezes in place (no menu).
 pub fn transport_clicks(
-    q: Query<(&TransportButton, &Interaction), Changed<Interaction>>,
+    q: Query<&TransportButton, Added<Pressed>>,
     mut playback: ResMut<Playback>,
     mut theme: ResMut<Theme>,
     mut seek: ResMut<crate::SeekRequest>,
     mut activity: ResMut<HudActivity>,
 ) {
-    for (btn, interaction) in &q {
-        if *interaction != Interaction::Pressed {
-            continue;
-        }
+    for btn in &q {
         match btn.0 {
             Transport::Shuffle => playback.toggle_shuffle(),
             Transport::Prev => {
@@ -1432,14 +1433,9 @@ pub fn update_reticle(mode: Res<CameraMode>, mut q: Query<&mut Visibility, With<
 }
 
 /// Clicking an Explore/Drift tab switches the camera feel (in addition to `F`).
-pub fn mode_tab_clicks(
-    mut mode: ResMut<CameraMode>,
-    q: Query<(&ModeTab, &Interaction), Changed<Interaction>>,
-) {
-    for (tab, interaction) in &q {
-        if *interaction == Interaction::Pressed {
-            *mode = tab.0;
-        }
+pub fn mode_tab_clicks(mut mode: ResMut<CameraMode>, q: Query<&ModeTab, Added<Pressed>>) {
+    for tab in &q {
+        *mode = tab.0;
     }
 }
 
@@ -1447,14 +1443,12 @@ pub fn mode_tab_clicks(
 pub fn chip_clicks(
     mut stack: ResMut<crate::OverlayStack>,
     mut queue_open: ResMut<crate::QueueOpen>,
-    q: Query<(&HudChip, &Interaction), Changed<Interaction>>,
+    q: Query<&HudChip, Added<Pressed>>,
 ) {
-    for (chip, interaction) in &q {
-        if *interaction == Interaction::Pressed {
-            match chip.0 {
-                ChipKind::Library => stack.toggle(crate::Overlay::Library),
-                ChipKind::Queue => queue_open.0 = !queue_open.0,
-            }
+    for chip in &q {
+        match chip.0 {
+            ChipKind::Library => stack.toggle(crate::Overlay::Library),
+            ChipKind::Queue => queue_open.0 = !queue_open.0,
         }
     }
 }
@@ -1508,14 +1502,14 @@ pub fn update_section_notches(
 /// window-centred element, so its screen rect is a pure function of the window
 /// width (see the layout constants). Only active while the HUD is Visible.
 pub fn seek_strip_scrub(
-    strip_q: Query<&Interaction, With<SeekStrip>>,
+    strip_q: Query<Has<Pressed>, With<SeekStrip>>,
     window_q: Query<&Window, With<bevy::window::PrimaryWindow>>,
     playback: Res<Playback>,
     mut activity: ResMut<HudActivity>,
     mut seek: ResMut<crate::SeekRequest>,
     mut last_sent: Local<Option<f32>>,
 ) {
-    let pressed = strip_q.iter().any(|i| *i == Interaction::Pressed);
+    let pressed = strip_q.iter().any(|held| held);
     if !pressed {
         *last_sent = None;
         return;
@@ -1564,8 +1558,7 @@ mod tests {
             .insert_resource(SeekRequest::default())
             .insert_resource(HudActivity::default())
             .add_systems(Update, transport_clicks);
-        app.world_mut()
-            .spawn((TransportButton(action), Interaction::Pressed));
+        app.world_mut().spawn((TransportButton(action), Pressed));
         app.update();
         app
     }

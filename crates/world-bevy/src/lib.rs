@@ -492,7 +492,7 @@ mod tests {
     use bevy::camera::primitives::MeshAabb;
 
     fn half_extents(mesh: &Mesh) -> [f32; 3] {
-        let aabb = mesh.compute_aabb().expect("positions");
+        let aabb = mesh.get_aabb().expect("positions");
         aabb.half_extents.to_array()
     }
 
@@ -547,7 +547,7 @@ mod tests {
     fn meshes_match_declared_bounds() {
         for shape in shapes() {
             let mesh = shape_mesh(&shape);
-            let aabb = mesh.compute_aabb().unwrap();
+            let aabb = mesh.get_aabb().unwrap();
             let center = aabb.center.to_array();
             let half = half_extents(&mesh);
             let declared = shape.local_aabb_half();

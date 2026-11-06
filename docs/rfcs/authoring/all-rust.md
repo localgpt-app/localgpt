@@ -604,7 +604,8 @@ renderer) keep their places after these.
       run 2026-11-04 (`spike/bevy-in-eframe`,
       [what it showed](#test-2-bevy-windowless-on-eframes-device)); the
       display's real rate remains
-- [ ] A: the workspace on Bevy 0.20
+- [x] A: the workspace on Bevy 0.20, 2026-11-06: clippy clean at CI's scope,
+      the 941 tests passing; Gen's `character-controller` builds again
 - [ ] B: the rule and its check
 - [ ] C: the shell, with the world as a panel
 - [ ] D: the panels

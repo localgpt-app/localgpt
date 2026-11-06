@@ -8,6 +8,7 @@
 
 use bevy::prelude::*;
 use bevy::ui::GlobalZIndex;
+use bevy::ui_widgets::Button;
 
 use crate::playback::{Playback, fmt_time};
 use crate::theme::{self, Fonts, RADIUS_SM, TEXT, Theme, text_font};
