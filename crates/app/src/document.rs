@@ -432,9 +432,11 @@ pub struct Document {
     world_dir: PathBuf,
     /// The editor buffer.
     text: String,
-    /// Counts the times the buffer was replaced from here — opened, or
+    /// Changes each time the buffer is replaced from here — opened, or
     /// reloaded from the file — rather than typed into, so the page's editor
-    /// takes the new text and keeps its own otherwise.
+    /// takes the new text and keeps its own otherwise. Drawn from one count
+    /// for every document ([`next_text_rev`]): a document opened in place of
+    /// another must not start at a revision the page already has.
     text_rev: u64,
     /// The last text read from or written to the file.
     on_disk: String,
@@ -466,6 +468,12 @@ pub struct Document {
     shown: wt::WorldManifest,
 }
 
+/// A text revision no document has had in this process.
+fn next_text_rev() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
 impl Document {
     /// Open a document whose world was just built from `text` at `world_dir`.
     pub fn new(
@@ -482,7 +490,7 @@ impl Document {
             on_disk: text.clone(),
             built: text.clone(),
             text,
-            text_rev: 1,
+            text_rev: next_text_rev(),
             disk_mtime,
             edited_at: None,
             polled_at: Instant::now(),
@@ -795,7 +803,7 @@ fn watch_file(mut doc: ResMut<Document>) {
     if doc.text == doc.on_disk {
         // Clean buffer: follow the file, and rebuild on the next tick.
         doc.text = current.clone();
-        doc.text_rev += 1;
+        doc.text_rev = next_text_rev();
         doc.on_disk = current;
         doc.conflict = false;
         doc.edited_at = Some(Instant::now() - SETTLE);
@@ -1252,6 +1260,28 @@ mod tests {
     /// The page's side of the editor: what it asks lands in the document,
     /// and what it shows comes back as one snapshot.
     #[test]
+    fn a_document_opened_in_place_of_another_has_a_text_revision_of_its_own() {
+        let text = "# One\n\n## Room\n\nA chair.\n";
+        let md = std::env::temp_dir().join("localgpt-app-revs/one.md");
+        let (doc, world) = compile(text, &md);
+        let open = || {
+            Document::new(
+                md.clone(),
+                md.with_extension("world"),
+                text.to_string(),
+                &doc,
+                &world,
+            )
+        };
+        let (first, second) = (open(), open());
+        assert_ne!(
+            first.text().1,
+            second.text().1,
+            "a client that has the first's revision would keep the first's text"
+        );
+    }
+
+    #[test]
     fn the_page_edits_the_text_and_moves_through_its_places() {
         let text = "# Trip\n\n## Harbor\n\nBoats.\n\n## Lighthouse\n\nA beam.\n";
         let md = std::env::temp_dir().join("localgpt-app-asks/trip.md");
@@ -1277,11 +1307,12 @@ mod tests {
         // An edit is the whole text; it waits to settle, and its own echo
         // (the same text again) is no edit.
         let edited = format!("{text}\nGulls.\n");
+        let opened = app.world().resource::<Document>().text().1;
         ask(&mut app, DocumentAsk::Edit(edited.clone()));
         let doc = app.world().resource::<Document>();
         assert_eq!(
             doc.text(),
-            (edited.as_str(), 1),
+            (edited.as_str(), opened),
             "typed in, not replaced from here"
         );
         assert!(doc.edited_at.is_some());
