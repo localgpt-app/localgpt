@@ -151,9 +151,89 @@ impl Held {
     }
 }
 
-/// What a shot's drag needs to know of the rest of the timeline.
+/// The shortest a recut leaves a section, seconds.
+const MIN_SECTION: f32 = 1.0;
+/// How near its neighbour a section's start comes before the two join,
+/// points.
+const JOIN: f32 = 6.0;
+
+/// A section's start held on the band: where it would go, and whether it is
+/// onto a neighbour, to join it.
+#[derive(Clone, Debug)]
+struct Recutting {
+    /// The start held: section `section` (from 0) begins there.
+    section: usize,
+    to: f32,
+    snapped: Option<Line>,
+    join: bool,
+    moved: bool,
+}
+
+impl Recutting {
+    /// The sections' starts if it were let go now.
+    fn apply(&self, starts: &[f32]) -> Vec<f32> {
+        let mut next = starts.to_vec();
+        if self.section < next.len() {
+            if self.join {
+                next.remove(self.section);
+            } else {
+                next[self.section] = self.to;
+            }
+        }
+        next
+    }
+
+    /// The recut in words, as the page's toolbar says it.
+    fn describe(&self) -> String {
+        if self.join {
+            format!("§{} and §{} join", self.section, self.section + 1)
+        } else {
+            match &self.snapped {
+                None => timecode(self.to),
+                Some(line) if line.label.starts_with("playhead") => line.label.clone(),
+                Some(line) => format!("{} · {}", line.label, timecode(self.to)),
+            }
+        }
+    }
+}
+
+/// A tour stop's hold, held by its end.
+#[derive(Clone, Debug)]
+struct Holding {
+    track: String,
+    tour: String,
+    stop: usize,
+    /// When the camera reaches the stop, and how long it held there.
+    at: f32,
+    was: f32,
+    hold: f32,
+    snapped: Option<Line>,
+    moved: bool,
+}
+
+/// A tour's stops with one stop's hold changed: the stops after it come
+/// later by as much, and the travel between them stays.
+fn held_keys(keys: &[CameraKey], stop: usize, hold: f32) -> Vec<CameraKey> {
+    let by = hold - keys.get(stop).and_then(|k| k.hold).unwrap_or(0.0);
+    keys.iter()
+        .enumerate()
+        .map(|(i, key)| match i.cmp(&stop) {
+            std::cmp::Ordering::Equal => CameraKey {
+                hold: (hold > 0.0).then_some(hold),
+                ..key.clone()
+            },
+            std::cmp::Ordering::Greater => CameraKey {
+                t: key.t + by,
+                ..key.clone()
+            },
+            std::cmp::Ordering::Less => key.clone(),
+        })
+        .collect()
+}
+
+/// What a drag needs to know of the rest of the timeline.
 struct Editing<'a> {
-    /// A live canvas, and the shots' track not locked.
+    /// A live canvas: its authority takes the edits.
     can: bool,
     clock: &'a ClockView,
     now: f32,
@@ -161,6 +241,8 @@ struct Editing<'a> {
     /// A song is the clock's length; a shot list's grows with its last shot.
     has_song: bool,
     snap: Snap,
+    /// The shots, for the cuts a drag snaps to.
+    shots: &'a [Clip],
 }
 
 /// Seconds across the lanes: `from` at `x0`, `to` at `x0 + width`.
@@ -217,6 +299,13 @@ pub struct Timeline {
     /// Shots' new times sent and not yet in a view the app sent: drawn where
     /// they were let go until the app's word on them arrives.
     pending: HashMap<String, (f32, f32)>,
+    /// A section's start under the pointer, and the sections sent.
+    recutting: Option<Recutting>,
+    pending_sections: Option<Vec<f32>>,
+    /// A tour stop's hold under the pointer, and the hold sent: the track,
+    /// the stop, the seconds.
+    holding: Option<Holding>,
+    pending_hold: Option<(String, usize, f32)>,
     /// The timeline view last drawn, by its arrival.
     seen: u64,
 }
@@ -236,6 +325,10 @@ impl Timeline {
             snap: None,
             held: None,
             pending: HashMap::new(),
+            recutting: None,
+            pending_sections: None,
+            holding: None,
+            pending_hold: None,
             seen: 0,
         }
     }
@@ -273,6 +366,8 @@ impl Timeline {
         if state.timeline_serial != self.seen {
             self.seen = state.timeline_serial;
             self.pending.clear();
+            self.pending_sections = None;
+            self.pending_hold = None;
         }
         let snap = *self.snap.get_or_insert(if clock.bpm > 0.0 {
             Snap::Beats
@@ -280,8 +375,11 @@ impl Timeline {
             Snap::Shots
         });
         // Esc lets go of a drag without writing anything.
-        if self.held.is_some() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        let dragging = self.held.is_some() || self.recutting.is_some() || self.holding.is_some();
+        if dragging && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.held = None;
+            self.recutting = None;
+            self.holding = None;
         }
         let duration = clock.duration.max(0.01);
         // The whole clock in view to begin with, and again when the world
@@ -322,6 +420,14 @@ impl Timeline {
                 .iter()
                 .any(|t| matches!(t, TrackView::Soundtrack { .. })),
             snap,
+            shots: timeline
+                .tracks
+                .iter()
+                .find_map(|t| match t {
+                    TrackView::Shots { shots, .. } => Some(shots.as_slice()),
+                    _ => None,
+                })
+                .unwrap_or(&[]),
         };
         let full = ui.available_rect_before_wrap();
         let lanes_x = full.left() + HEADER;
@@ -335,7 +441,7 @@ impl Timeline {
         // The ruler, which stays put while the lanes scroll.
         let ruler = Rect::from_min_size(full.min, vec2(full.width(), RULER));
         ui.allocate_rect(ruler, Sense::hover());
-        self.ruler(ui, ruler, s, clock, now, state.clock.looping, end);
+        self.ruler(ui, ruler, s, &editing, state.clock.looping, end);
 
         // The wheel pans; with ⌘ or Ctrl it zooms about the pointer.
         let hovered = ui.rect_contains_pointer(full);
@@ -527,6 +633,23 @@ impl Timeline {
                 ui.strong(name);
                 ui.label(RichText::new(detail).color(theme::MUTED));
             }
+            if let Some(recut) = self.recutting.as_ref().filter(|r| r.moved) {
+                ui.separator();
+                ui.strong(format!("§{}", recut.section + 1));
+                ui.label(RichText::new(recut.describe()).color(theme::MUTED));
+            }
+            if let Some(held) = self.holding.as_ref().filter(|h| h.moved) {
+                ui.separator();
+                ui.strong("Camera");
+                ui.label(
+                    RichText::new(format!(
+                        "holds {:.1} s · the stops after {}",
+                        held.hold,
+                        signed(held.hold - held.was)
+                    ))
+                    .color(theme::MUTED),
+                );
+            }
             if let Some(proposal) = &timeline.proposal {
                 ui.separator();
                 ui.colored_label(
@@ -560,17 +683,23 @@ impl Timeline {
         ui: &mut egui::Ui,
         rect: Rect,
         s: Scale,
-        clock: &ClockView,
-        now: f32,
+        editing: &Editing,
         looping: Option<[f32; 2]>,
         end: &ShellEnd,
     ) {
+        let (clock, now) = (editing.clock, editing.now);
         let painter = ui.painter_at(rect);
         painter.rect_filled(rect, 0.0, theme::RAISED);
         let lanes = Rect::from_min_max(pos2(s.x0, rect.top()), rect.max);
-        // The sections band: a block per section, numbered.
+        // The sections band: a block per section, numbered; as a recut
+        // holds them, or as they were sent until the app's view has them.
         let band = Rect::from_min_max(lanes.min, pos2(lanes.right(), lanes.top() + 14.0));
-        let starts: Vec<f32> = clock.sections.iter().map(|f| f * clock.duration).collect();
+        let fractions = self.pending_sections.as_ref().unwrap_or(&clock.sections);
+        let base: Vec<f32> = fractions.iter().map(|f| f * clock.duration).collect();
+        let starts = match self.recutting.as_ref().filter(|r| r.moved) {
+            Some(recut) => recut.apply(&base),
+            None => base.clone(),
+        };
         for (i, start) in starts.iter().enumerate() {
             let next = starts.get(i + 1).copied().unwrap_or(clock.duration);
             let (a, b) = (s.x(*start).max(band.left()), s.x(next).min(band.right()));
@@ -667,6 +796,112 @@ impl Timeline {
         if response.drag_stopped() || response.clicked() {
             self.scrubbed = None;
         }
+        // A song's sections recut on a live canvas: each start but the
+        // first a grip on the band, over the ruler; a double click on the
+        // band starts a new section there.
+        if !(editing.can && editing.has_song) {
+            return;
+        }
+        let duration = clock.duration;
+        if response.double_clicked()
+            && let Some(p) = response.interact_pointer_pos()
+            && band.contains(p)
+        {
+            let free = ui.input(|i| i.modifiers.alt);
+            let at = s.t(p.x);
+            let lines = if free {
+                Vec::new()
+            } else {
+                recut_lines(editing, s)
+            };
+            let t = nearest(&lines, at, PULL / s.pps()).map_or(at, |l| l.at);
+            let room = t >= MIN_SECTION
+                && t <= duration - MIN_SECTION
+                && base.iter().all(|start| (start - t).abs() >= MIN_SECTION);
+            if room {
+                let mut next = base.clone();
+                next.push(t);
+                next.sort_by(f32::total_cmp);
+                self.send_sections(&next, duration, end);
+            }
+        }
+        for k in 1..base.len() {
+            let x = s.x(starts.get(k).copied().unwrap_or(base[k]));
+            let grip = Rect::from_min_max(
+                pos2(x - GRIP / 2.0, band.top()),
+                pos2(x + GRIP / 2.0, band.bottom()),
+            );
+            let response = ui
+                .interact(grip, ui.scope_id().with(("section", k)), Sense::drag())
+                .on_hover_cursor(egui::CursorIcon::ResizeColumn)
+                .on_hover_text(format!(
+                    "§{} starts here — drag it along the band; onto its neighbour to join them",
+                    k + 1
+                ));
+            if response.drag_started() {
+                self.recutting = Some(Recutting {
+                    section: k,
+                    to: base[k],
+                    snapped: None,
+                    join: false,
+                    moved: false,
+                });
+            }
+            if response.dragged()
+                && let Some(recut) = self.recutting.as_mut()
+                && let Some((origin, pointer, free)) = ui.input(|i| {
+                    Some((
+                        i.pointer.press_origin()?,
+                        i.pointer.latest_pos()?,
+                        i.modifiers.alt,
+                    ))
+                })
+            {
+                let dx = pointer.x - origin.x;
+                if recut.moved || dx.abs() >= 3.0 {
+                    recut.moved = true;
+                    let (before, after) =
+                        (base[k - 1], base.get(k + 1).copied().unwrap_or(duration));
+                    let t = base[k] + dx / s.pps();
+                    let reach = JOIN / s.pps();
+                    if t <= before + reach || t >= after - reach {
+                        // Onto a neighbour: the two sections join.
+                        recut.to = if t <= before + reach { before } else { after };
+                        recut.snapped = None;
+                        recut.join = true;
+                    } else {
+                        let lines = if free {
+                            Vec::new()
+                        } else {
+                            recut_lines(editing, s)
+                        };
+                        let line = nearest(&lines, t, PULL / s.pps());
+                        let to = clamp(
+                            line.map_or(t, |l| l.at),
+                            before + MIN_SECTION,
+                            after - MIN_SECTION,
+                        );
+                        recut.snapped = line.filter(|l| l.at == to).cloned();
+                        recut.to = to;
+                        recut.join = false;
+                    }
+                }
+            }
+            if response.drag_stopped()
+                && let Some(recut) = self.recutting.take()
+                && recut.moved
+            {
+                self.send_sections(&recut.apply(&base), duration, end);
+            }
+        }
+    }
+
+    /// The sections' starts, sent as fractions of the clock, and drawn so
+    /// until the app's view has them.
+    fn send_sections(&mut self, starts: &[f32], duration: f32, end: &ShellEnd) {
+        let sections: Vec<f32> = starts.iter().map(|t| t / duration.max(0.01)).collect();
+        self.pending_sections = Some(sections.clone());
+        end.ask(FromPage::SongSections { sections });
     }
 
     /// Bar lines, section starts and the loop, under the lanes.
@@ -829,7 +1064,20 @@ impl Timeline {
                 let locked = self.flags.get(id).is_some_and(|f| f.locked);
                 self.shots(ui, &painter, lane, s, shots, editing, !locked, end)
             }
-            TrackView::Camera { keys, .. } => camera(&painter, lane, s, keys),
+            TrackView::Camera { id, tour, keys, .. } => {
+                let locked = self.flags.get(id).is_some_and(|f| f.locked);
+                self.camera_lane(
+                    ui,
+                    &painter,
+                    lane,
+                    s,
+                    (id, tour),
+                    keys,
+                    editing,
+                    !locked,
+                    end,
+                )
+            }
             TrackView::Soundtrack {
                 title,
                 artist,
@@ -1121,20 +1369,119 @@ impl Timeline {
             .filter(|h| h.moved)
             .and_then(|h| h.snapped.as_ref())
         {
-            let x = s.x(line.at);
-            painter.add(Shape::dashed_line(
-                &[pos2(x, lane.top()), pos2(x, lane.bottom())],
-                Stroke::new(1.0, theme::HEAD),
-                4.0,
-                3.0,
-            ));
-            painter.text(
-                pos2(x + 4.0, lane.top() + 2.0),
-                Align2::LEFT_TOP,
-                &line.label,
-                FontId::proportional(10.0),
-                theme::HEAD,
-            );
+            snapped_line(painter, lane, s, line);
+        }
+    }
+
+    /// A tour's stops on the clock. On a live canvas the end of each stop's
+    /// hold is a grip (a stop that holds nothing has it on the stop): a drag
+    /// changes how long the camera waits there, the stops after it coming
+    /// later by as much, and letting go writes it (`tour.hold`).
+    #[allow(clippy::too_many_arguments)]
+    fn camera_lane(
+        &mut self,
+        ui: &mut egui::Ui,
+        painter: &egui::Painter,
+        lane: Rect,
+        s: Scale,
+        (id, tour): (&str, &str),
+        keys: &[CameraKey],
+        editing: &Editing,
+        unlocked: bool,
+        end: &ShellEnd,
+    ) {
+        let shown = match (&self.holding, &self.pending_hold) {
+            (Some(h), _) if h.moved && h.track == id => held_keys(keys, h.stop, h.hold),
+            (_, Some((track, stop, hold))) if track == id => held_keys(keys, *stop, *hold),
+            _ => keys.to_vec(),
+        };
+        camera(painter, lane, s, &shown);
+        if !(editing.can && unlocked) {
+            return;
+        }
+        for (i, key) in shown.iter().enumerate() {
+            let hold = key.hold.unwrap_or(0.0);
+            let left = s.x(key.t + hold) - if hold > 0.0 { GRIP / 2.0 } else { 0.0 };
+            let grip = Rect::from_min_max(pos2(left, lane.top()), pos2(left + GRIP, lane.bottom()));
+            let tip = if hold > 0.0 {
+                format!("The camera waits {hold} s here — drag to change it")
+            } else {
+                "Drag to keep the camera here a while".to_string()
+            };
+            let response = ui
+                .interact(
+                    grip.intersect(lane),
+                    ui.scope_id().with(("hold", id, i)),
+                    Sense::drag(),
+                )
+                .on_hover_cursor(egui::CursorIcon::ResizeHorizontal)
+                .on_hover_text(tip);
+            if response.drag_started() {
+                self.holding = Some(Holding {
+                    track: id.to_string(),
+                    tour: tour.to_string(),
+                    stop: i,
+                    at: key.t,
+                    was: hold,
+                    hold,
+                    snapped: None,
+                    moved: false,
+                });
+            }
+            if response.dragged()
+                && let Some(held) = self.holding.as_mut()
+                && let Some((origin, pointer, free)) = ui.input(|i| {
+                    Some((
+                        i.pointer.press_origin()?,
+                        i.pointer.latest_pos()?,
+                        i.modifiers.alt,
+                    ))
+                })
+            {
+                let dx = pointer.x - origin.x;
+                if held.moved || dx.abs() >= 3.0 {
+                    held.moved = true;
+                    let t = held.at + held.was + dx / s.pps();
+                    let lines = if free || editing.snap == Snap::Off {
+                        Vec::new()
+                    } else {
+                        snap_lines(
+                            editing.snap,
+                            editing.clock,
+                            editing.shots,
+                            &[],
+                            editing.now,
+                            [s.from, s.to],
+                        )
+                    };
+                    let line = nearest(&lines, t, PULL / s.pps());
+                    held.hold = (line.map_or(t, |l| l.at) - held.at).max(0.0);
+                    held.snapped = line
+                        .filter(|l| (l.at - held.at - held.hold).abs() < 1e-5)
+                        .cloned();
+                }
+            }
+            if response.drag_stopped()
+                && let Some(held) = self.holding.take()
+                && held.moved
+                && (held.hold - held.was).abs() >= 0.005
+            {
+                let hold = (held.hold * 100.0).round() / 100.0;
+                self.pending_hold = Some((held.track, held.stop, hold));
+                end.ask(FromPage::TourHold {
+                    tour: held.tour,
+                    stop: held.stop,
+                    hold,
+                });
+            }
+        }
+        if let Some(line) = self
+            .holding
+            .as_ref()
+            .filter(|h| h.moved && h.track == id)
+            .and_then(|h| h.snapped.as_ref())
+        {
+            snapped_line(painter, lane, s, line);
         }
     }
 
@@ -1596,6 +1943,50 @@ fn snap_lines(
     lines
 }
 
+/// The line a drag snapped to, dashed across the lane, with what it is.
+fn snapped_line(painter: &egui::Painter, lane: Rect, s: Scale, line: &Line) {
+    let x = s.x(line.at);
+    painter.add(Shape::dashed_line(
+        &[pos2(x, lane.top()), pos2(x, lane.bottom())],
+        Stroke::new(1.0, theme::HEAD),
+        4.0,
+        3.0,
+    ));
+    painter.text(
+        pos2(x + 4.0, lane.top() + 2.0),
+        Align2::LEFT_TOP,
+        &line.label,
+        FontId::proportional(10.0),
+        theme::HEAD,
+    );
+}
+
+/// What a section's start snaps to, as the page has it: the bars, or the
+/// shots' cuts, and the playhead.
+fn recut_lines(editing: &Editing, s: Scale) -> Vec<Line> {
+    let view = [s.from, s.to];
+    match editing.snap {
+        Snap::Off => Vec::new(),
+        Snap::Shots => snap_lines(
+            Snap::Shots,
+            editing.clock,
+            editing.shots,
+            &[],
+            editing.now,
+            view,
+        ),
+        Snap::Beats | Snap::Sections => {
+            snap_lines(Snap::Beats, editing.clock, &[], &[], editing.now, view)
+                .into_iter()
+                .filter(|l| {
+                    l.label.starts_with("playhead")
+                        || (l.label.starts_with("bar ") && !l.label.contains('·'))
+                })
+                .collect()
+        }
+    }
+}
+
 /// The line nearest `t`, within `pull` seconds.
 fn nearest(lines: &[Line], t: f32, pull: f32) -> Option<&Line> {
     lines
@@ -1688,6 +2079,58 @@ mod tests {
             from,
             to,
         }
+    }
+
+    #[test]
+    fn a_longer_hold_moves_the_stops_after_it_and_keeps_the_travel() {
+        let key = |t: f32, hold: Option<f32>| CameraKey { t, hold };
+        let keys = [key(0.0, Some(1.0)), key(3.0, None), key(6.0, Some(2.0))];
+        let held = held_keys(&keys, 1, 1.5);
+        assert_eq!(held[0], keys[0], "before the stop: as it was");
+        assert_eq!(held[1], key(3.0, Some(1.5)));
+        assert_eq!(held[2], key(7.5, Some(2.0)), "after it: later by the hold");
+        assert_eq!(held_keys(&keys, 0, 0.0)[0].hold, None, "no hold is none");
+    }
+
+    #[test]
+    fn a_recut_moves_a_start_or_joins_two_sections() {
+        let starts = [0.0, 15.0, 45.0];
+        let mut recut = Recutting {
+            section: 1,
+            to: 18.1,
+            snapped: Some(line(18.1)),
+            join: false,
+            moved: true,
+        };
+        assert_eq!(recut.apply(&starts), [0.0, 18.1, 45.0]);
+        assert_eq!(recut.describe(), "at 18.1 · 0:18.10");
+        recut.join = true;
+        assert_eq!(recut.apply(&starts), [0.0, 45.0]);
+        assert_eq!(recut.describe(), "§1 and §2 join");
+        let clock = ClockView {
+            duration: 8.0,
+            bpm: 120.0,
+            beat_offset: 0.0,
+            sections: vec![0.0, 0.5],
+        };
+        let editing = Editing {
+            can: true,
+            clock: &clock,
+            now: 1.0,
+            view: [0.0, 8.0],
+            has_song: true,
+            snap: Snap::Beats,
+            shots: &[],
+        };
+        let s = Scale {
+            from: 0.0,
+            to: 4.0,
+            x0: 0.0,
+            width: 400.0,
+        };
+        // A section starts on a bar, not on a beat inside one.
+        let at: Vec<f32> = recut_lines(&editing, s).iter().map(|l| l.at).collect();
+        assert_eq!(at, [1.0, 0.0, 2.0, 4.0]);
     }
 
     #[test]
