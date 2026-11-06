@@ -10,6 +10,7 @@
 //! 2:tap 120 140          a left click at a point of the window
 //! 3:key W 1.5            W held for 1.5 s (keys as egui names them)
 //! 5:drag right 300 0     a right-button drag by points, over half a second
+//! 5:swipe 80 200 40 0    a left-button drag from a point of the window
 //! 6:type hello\r         text, as typed (`\r` is Enter, `\e` Escape)
 //! 7:shot /tmp/a.png      a picture of the window
 //! 9:quit
@@ -39,6 +40,13 @@ enum Step {
     },
     Drag {
         button: egui::PointerButton,
+        dx: f32,
+        dy: f32,
+    },
+    /// A left-button drag from a point of the window, in points.
+    Swipe {
+        x: f32,
+        y: f32,
         dx: f32,
         dy: f32,
     },
@@ -127,8 +135,14 @@ impl Drive {
                         event: press(false),
                     });
                 }
-                Step::Drag { button, dx, dy } => {
-                    let from = world.center();
+                Step::Drag { .. } | Step::Swipe { .. } => {
+                    let (from, button, dx, dy) = match step {
+                        Step::Drag { button, dx, dy } => (world.center(), button, dx, dy),
+                        Step::Swipe { x, y, dx, dy } => {
+                            (egui::pos2(x, y), egui::PointerButton::Primary, dx, dy)
+                        }
+                        _ => unreachable!("matched above"),
+                    };
                     input.events.push(egui::Event::PointerMoved(from));
                     input.events.push(egui::Event::PointerButton {
                         pos: from,
@@ -202,6 +216,12 @@ fn parse(script: &str) -> Vec<(f64, Step)> {
                     dx: words.next()?.parse().ok()?,
                     dy: words.next()?.parse().ok()?,
                 },
+                "swipe" => Step::Swipe {
+                    x: words.next()?.parse().ok()?,
+                    y: words.next()?.parse().ok()?,
+                    dx: words.next()?.parse().ok()?,
+                    dy: words.next()?.parse().ok()?,
+                },
                 "type" => {
                     let text = what.trim_start().strip_prefix("type")?.trim_start();
                     Step::Type(text.replace("\\r", "\r").replace("\\e", "\x1b"))
@@ -224,7 +244,7 @@ mod tests {
     #[test]
     fn a_script_reads_as_steps_in_time_order() {
         let steps = parse(
-            "3:key W 1.5; 2:click 0.5 0.25; 5:drag right 300 -20; 6:type ls\\r; 7:shot /tmp/a.png; 9:quit; x:nonsense",
+            "3:key W 1.5; 2:click 0.5 0.25; 5:drag right 300 -20; 5.5:swipe 80 200 40 0; 6:type ls\\r; 7:shot /tmp/a.png; 9:quit; x:nonsense",
         );
         assert_eq!(
             steps,
@@ -243,6 +263,15 @@ mod tests {
                         button: egui::PointerButton::Secondary,
                         dx: 300.0,
                         dy: -20.0
+                    }
+                ),
+                (
+                    5.5,
+                    Step::Swipe {
+                        x: 80.0,
+                        y: 200.0,
+                        dx: 40.0,
+                        dy: 0.0
                     }
                 ),
                 (6.0, Step::Type("ls\r".into())),

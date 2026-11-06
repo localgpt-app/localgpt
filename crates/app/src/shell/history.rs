@@ -36,14 +36,8 @@ impl History {
             return;
         };
         let rows = &history.rows;
-        ui.horizontal(|ui| {
-            ui.weak(count(rows.len()));
-            if let Some(status) = &history.status {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add(egui::Label::new(RichText::new(status).color(theme::FAINT)).truncate());
-                });
-            }
-        });
+        // The status is the bar's, as the page has it.
+        ui.weak(count(rows.len()));
         egui::ScrollArea::vertical()
             .id_salt("history")
             .max_height((ui.available_height() - BAR).max(ROW))
