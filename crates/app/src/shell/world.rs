@@ -494,10 +494,18 @@ impl Panel {
             egui::Color32::WHITE,
         );
 
-        // The keyboard is the world's once it is clicked into, until
-        // something else takes the focus.
+        // The keyboard is the world's once it is clicked into, until a press
+        // lands anywhere else: keys go where the last click went, as the
+        // page's do, so a click in the timeline gives them to it.
         if response.clicked() || response.drag_started() || response.secondary_clicked() {
             response.request_focus();
+        } else if response.has_focus()
+            && ui.input(|i| {
+                i.pointer.any_pressed()
+                    && i.pointer.interact_pos().is_some_and(|p| !rect.contains(p))
+            })
+        {
+            response.surrender_focus();
         }
         let focused = response.has_focus();
         if focused {

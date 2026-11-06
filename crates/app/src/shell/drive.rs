@@ -9,6 +9,7 @@
 //! 2:click 0.5 0.5        a left click, at fractions of the world panel
 //! 2:tap 120 140          a left click at a point of the window
 //! 3:key W 1.5            W held for 1.5 s (keys as egui names them)
+//! 3:key Cmd+F            with modifiers held (Cmd, Shift, Alt, Ctrl)
 //! 5:drag right 300 0     a right-button drag by points, over half a second
 //! 5:swipe 80 200 40 0    a left-button drag from a point of the window
 //! 5:wheel 80 600 -300    the wheel turned at a point, by points (less
@@ -39,6 +40,8 @@ enum Step {
     Key {
         key: egui::Key,
         hold: f64,
+        /// Held with it: `Cmd+F`, `Shift+ArrowRight`.
+        with: egui::Modifiers,
     },
     Drag {
         button: egui::PointerButton,
@@ -129,19 +132,30 @@ impl Drive {
                         });
                     }
                 }
-                Step::Key { key, hold } => {
+                Step::Key { key, hold, with } => {
                     let press = |pressed| egui::Event::Key {
                         key,
                         physical_key: Some(key),
                         pressed,
                         repeat: false,
-                        modifiers,
+                        modifiers: with,
                     };
+                    // The modifiers go down before the key and up after it,
+                    // as a hand's do (egui reads them from these events).
+                    if !with.is_none() {
+                        input.events.push(egui::Event::ModifiersChanged(with));
+                    }
                     input.events.push(press(true));
                     self.later.push(Later {
                         at: now + hold,
                         event: press(false),
                     });
+                    if !with.is_none() {
+                        self.later.push(Later {
+                            at: now + hold,
+                            event: egui::Event::ModifiersChanged(egui::Modifiers::NONE),
+                        });
+                    }
                 }
                 Step::Drag { .. } | Step::Swipe { .. } => {
                     let (from, button, dx, dy) = match step {
@@ -226,10 +240,26 @@ fn parse(script: &str) -> Vec<(f64, Step)> {
                     x: words.next()?.parse().ok()?,
                     y: words.next()?.parse().ok()?,
                 },
-                "key" => Step::Key {
-                    key: egui::Key::from_name(words.next()?)?,
-                    hold: words.next().and_then(|h| h.parse().ok()).unwrap_or(0.1),
-                },
+                "key" => {
+                    // `Cmd+Shift+F`: the modifiers, then the key.
+                    let mut parts: Vec<&str> = words.next()?.split('+').collect();
+                    let key = egui::Key::from_name(parts.pop()?)?;
+                    let mut with = egui::Modifiers::NONE;
+                    for part in parts {
+                        with |= match part {
+                            "Cmd" | "Command" => egui::Modifiers::COMMAND,
+                            "Shift" => egui::Modifiers::SHIFT,
+                            "Alt" => egui::Modifiers::ALT,
+                            "Ctrl" => egui::Modifiers::CTRL,
+                            _ => return None,
+                        };
+                    }
+                    Step::Key {
+                        key,
+                        hold: words.next().and_then(|h| h.parse().ok()).unwrap_or(0.1),
+                        with,
+                    }
+                }
                 "drag" => Step::Drag {
                     button: match words.next()? {
                         "left" => egui::PointerButton::Primary,
@@ -275,6 +305,19 @@ mod tests {
         let steps = parse(
             "3:key W 1.5; 2:click 0.5 0.25; 5:drag right 300 -20; 5.5:swipe 80 200 40 0; 6:type ls\\r; 7:shot /tmp/a.png; 9:quit; x:nonsense",
         );
+        let with = parse("1:key Cmd+Shift+F");
+        assert_eq!(
+            with,
+            vec![(
+                1.0,
+                Step::Key {
+                    key: egui::Key::F,
+                    hold: 0.1,
+                    with: egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                }
+            )]
+        );
+        assert!(parse("1:key Hyper+F").is_empty(), "an unknown modifier");
         assert_eq!(
             steps,
             vec![
@@ -283,7 +326,8 @@ mod tests {
                     3.0,
                     Step::Key {
                         key: egui::Key::W,
-                        hold: 1.5
+                        hold: 1.5,
+                        with: egui::Modifiers::NONE,
                     }
                 ),
                 (

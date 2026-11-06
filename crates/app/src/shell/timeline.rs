@@ -312,6 +312,9 @@ pub struct Timeline {
     /// once, and ringed for a moment from when it was asked.
     scroll_to: Option<String>,
     flash: Option<(String, std::time::Instant)>,
+    /// The keys are the timeline's: the last press was in it, as the
+    /// page's keys go where the last click went.
+    focused: bool,
 }
 
 /// How long a lane asked for stays ringed.
@@ -339,6 +342,7 @@ impl Timeline {
             seen: 0,
             scroll_to: None,
             flash: None,
+            focused: false,
         }
     }
 
@@ -347,6 +351,73 @@ impl Timeline {
     pub fn reveal(&mut self, track: String) {
         self.scroll_to = Some(track.clone());
         self.flash = Some((track, std::time::Instant::now()));
+    }
+
+    /// The timeline's keys, as the page's are: Space plays and pauses; ←
+    /// and → move a beat (a second with no beat grid), and with Shift go to
+    /// the cut before or after; Home and End go to the start and the end;
+    /// Enter and Esc accept and reject a waiting proposal, and Esc else
+    /// lets go of the selected shot.
+    fn keys(
+        &mut self,
+        ui: &egui::Ui,
+        timeline: &TimelineView,
+        clock: &ClockView,
+        state: &State,
+        end: &ShellEnd,
+    ) {
+        use egui::Key;
+        let duration = clock.duration.max(0.01);
+        let now = state.clock.now().min(duration);
+        let beat = if clock.bpm > 0.0 {
+            60.0 / clock.bpm
+        } else {
+            1.0
+        };
+        let seek = |at: f32| {
+            end.ask(FromPage::ClockSeek {
+                at: at.clamp(0.0, duration),
+            })
+        };
+        let pressed = |key| ui.input(|i| i.key_pressed(key));
+        if pressed(Key::Space) {
+            end.ask(FromPage::ClockPlay {
+                playing: !state.clock.playing,
+            });
+        }
+        if pressed(Key::Enter) && timeline.proposal.is_some() {
+            end.ask(FromPage::Review { accept: true });
+        }
+        if pressed(Key::Escape) {
+            if timeline.proposal.is_some() {
+                end.ask(FromPage::Review { accept: false });
+            } else {
+                self.selected = None;
+            }
+        }
+        let (left, right) = (pressed(Key::ArrowLeft), pressed(Key::ArrowRight));
+        if left || right {
+            let forward = right;
+            if ui.input(|i| i.modifiers.shift) {
+                let cuts = cuts(timeline, clock);
+                let to = if forward {
+                    cuts.iter().find(|t| **t > now + 0.02)
+                } else {
+                    cuts.iter().rev().find(|t| **t < now - 0.02)
+                };
+                if let Some(to) = to {
+                    seek(*to);
+                }
+            } else {
+                seek(now + if forward { beat } else { -beat });
+            }
+        }
+        if pressed(Key::Home) {
+            seek(0.0);
+        }
+        if pressed(Key::End) {
+            seek(duration);
+        }
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, state: &State, end: &ShellEnd) {
@@ -392,10 +463,24 @@ impl Timeline {
         });
         // Esc lets go of a drag without writing anything.
         let dragging = self.held.is_some() || self.recutting.is_some() || self.holding.is_some();
-        if dragging && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        let let_go = dragging && ui.input(|i| i.key_pressed(egui::Key::Escape));
+        if let_go {
             self.held = None;
             self.recutting = None;
             self.holding = None;
+        }
+        // The keys go where the last press went, as the page's do: into
+        // the timeline when it was pressed in, and nowhere else then.
+        if let Some(at) = ui.input(|i| {
+            i.pointer
+                .any_pressed()
+                .then(|| i.pointer.interact_pos())
+                .flatten()
+        }) {
+            self.focused = ui.max_rect().contains(at);
+        }
+        if self.focused && !let_go && !ui.ctx().egui_wants_keyboard_input() {
+            self.keys(ui, timeline, clock, state, end);
         }
         let duration = clock.duration.max(0.01);
         // The whole clock in view to begin with, and again when the world
@@ -587,12 +672,12 @@ impl Timeline {
             let label = if looping { "⟲ Loop on" } else { "⟲ Loop" };
             if ui
                 .selectable_label(looping, label)
-                .on_hover_text("Loop what is in view")
+                .on_hover_text("Loop the selected shot, else the section under the playhead, else what is in view")
                 .clicked()
             {
-                end.ask(FromPage::ClockLoop {
-                    span: (!looping).then_some(*view),
-                });
+                let span = (!looping)
+                    .then(|| loop_span(timeline, clock, self.selected.as_deref(), now, *view));
+                end.ask(FromPage::ClockLoop { span });
             }
             if ui
                 .button("Fit")
@@ -1085,8 +1170,10 @@ impl Timeline {
             ui.scope_id().with(("lane", describe(track).0)),
             Sense::click(),
         );
-        if response.clicked()
-            && !matches!(track, TrackView::Shots { .. })
+        // In the shots' lane, a click between shots lets the selected go.
+        if response.clicked() && matches!(track, TrackView::Shots { .. }) {
+            self.selected = None;
+        } else if response.clicked()
             && let Some(p) = response.interact_pointer_pos()
         {
             end.ask(FromPage::ClockSeek {
@@ -1352,7 +1439,9 @@ impl Timeline {
             if body.clicked() {
                 self.selected = Some(shot.id.clone());
             }
+            // A double click looks through it from its first frame.
             if body.double_clicked() {
+                end.ask(FromPage::ClockSeek { at: shot.from });
                 end.ask(FromPage::ShotLook {
                     id: shot.id.parse().ok(),
                 });
@@ -1885,6 +1974,58 @@ fn timecode(t: f32) -> String {
 fn timecode_short(t: f32) -> String {
     let t = t.max(0.0).round() as u32;
     format!("{}:{:02}", t / 60, t % 60)
+}
+
+/// Where the cuts are, for Shift and an arrow: the shots' ins and outs, or
+/// with no shots the sections' starts; and the clock's two ends.
+fn cuts(timeline: &TimelineView, clock: &ClockView) -> Vec<f32> {
+    let shots: Vec<f32> = timeline
+        .tracks
+        .iter()
+        .filter_map(|t| match t {
+            TrackView::Shots { shots, .. } => Some(shots),
+            _ => None,
+        })
+        .flatten()
+        .flat_map(|s| [s.from, s.to])
+        .collect();
+    let mut all = if shots.is_empty() {
+        clock.sections.iter().map(|f| f * clock.duration).collect()
+    } else {
+        shots
+    };
+    all.extend([0.0, clock.duration]);
+    all.sort_by(f32::total_cmp);
+    all.dedup_by(|a, b| (*a - *b).abs() < 1e-4);
+    all
+}
+
+/// What Loop loops, as the page chooses: the selected shot, else the
+/// section under the playhead, else what is in view.
+fn loop_span(
+    timeline: &TimelineView,
+    clock: &ClockView,
+    selected: Option<&str>,
+    now: f32,
+    view: [f32; 2],
+) -> [f32; 2] {
+    let shot = selected.and_then(|id| {
+        timeline.tracks.iter().find_map(|t| match t {
+            TrackView::Shots { shots, .. } => shots.iter().find(|s| s.id == id),
+            _ => None,
+        })
+    });
+    if let Some(shot) = shot {
+        return [shot.from, shot.to];
+    }
+    let mut starts: Vec<f32> = clock.sections.iter().map(|f| f * clock.duration).collect();
+    starts.push(clock.duration);
+    if starts.len() > 2
+        && let Some(w) = starts.windows(2).find(|w| now >= w[0] && now < w[1])
+    {
+        return [w[0], w[1]];
+    }
+    view
 }
 
 /// "+0.50 s", "−1.25 s": how far a drag moved an edge.
