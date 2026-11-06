@@ -337,7 +337,14 @@ fn read_input(
                     pointer.0.push((at, action));
                 }
             }
-            Input::Moved { at, delta } => pointer.0.push((at, PointerAction::Move { delta })),
+            Input::Moved { at, delta } => {
+                pointer.0.push((at, PointerAction::Move { delta }));
+                // The window says where the pointer is, as winit's would:
+                // the texture's pixels are the window's.
+                if let Ok(mut surface) = windows.get_mut(window) {
+                    surface.set_physical_cursor_position(Some(at.as_dvec2()));
+                }
+            }
             Input::Motion(delta) => {
                 motion.write(MouseMotion { delta });
             }
@@ -359,7 +366,12 @@ fn read_input(
                     },
                 ));
             }
-            Input::Left => pointer.1 = true,
+            Input::Left => {
+                pointer.1 = true;
+                if let Ok(mut surface) = windows.get_mut(window) {
+                    surface.set_physical_cursor_position(None);
+                }
+            }
             Input::Scale(points) => {
                 if (scale.0 - points).abs() > f32::EPSILON {
                     scale.0 = points;
