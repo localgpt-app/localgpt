@@ -1,18 +1,24 @@
 //! The LocalGPT desktop app — one window, every mode.
 //!
-//! Gen's world in a Bevy window, and around it the app's interface: one web
-//! page over the viewport (`webui`, built from `ui/`) with the history and
-//! its playback, the document and its outline, the timeline of the world's
-//! clock across the window, Open…, and terminals, each a login shell started
-//! in the folder of what is open, where the person runs whatever agent they
-//! have. The app runs no agent and no model, and holds no agent's or model's
+//! Gen's world, and around it the app's interface: the history and its
+//! playback, the document and its outline, the timeline of the world's clock
+//! across the window, Open…, and terminals, each a login shell started in the
+//! folder of what is open, where the person runs whatever agent they have.
+//! The app runs no agent and no model, and holds no agent's or model's
 //! configuration (`docs/rfcs/authoring/the-page.md`).
+//!
+//! Two interfaces, one protocol, while the second catches up with the first
+//! (`docs/rfcs/authoring/all-rust.md`): by default Bevy owns the window and a
+//! web page lies over it (`webui`, built from `ui/`); with
+//! `LOCALGPT_APP_SHELL=egui`, eframe owns the window, egui draws the panels,
+//! and Bevy draws the world into a texture the shell shows (`shell`).
 //!
 //! ```sh
 //! cargo run -p localgpt-app                          # reopens what was opened last
 //! cargo run -p localgpt-app -- --md notes.md         # a document as a world
 //! cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
 //! cargo run -p localgpt-app -- --world harbour.world # a package, live: agents edit it
+//! LOCALGPT_APP_SHELL=egui cargo run -p localgpt-app  # the interface in Rust
 //! ```
 //!
 //! A document (`--md`) compiles with MD's pure lib — the rule-derived draft
@@ -22,13 +28,14 @@
 //! canvas: this window holds its authority and serves the API agents change
 //! it through. Everything heavy comes from the gen lib; this crate is the
 //! thin assembly. The page is macOS's for now: elsewhere the window shows
-//! the world alone.
+//! the world alone, unless the shell is the interface.
 
 mod document;
 mod open;
 mod peaks;
 mod scene;
 mod screenshot;
+mod shell;
 mod song;
 mod spike;
 mod starter;
@@ -114,6 +121,57 @@ fn main() -> anyhow::Result<()> {
         unsafe { std::env::set_var("PATH", merged) };
     }
 
+    let opened = open_launch(&args)?;
+
+    // The shell: eframe takes this thread, and the app is built and run on
+    // a thread of its own, drawing on the shell's device.
+    if shell::requested() {
+        let gpu = shell::Gpu::new()?;
+        return shell::run(gpu, move |app| assemble(app, opened));
+    }
+
+    let mut app = App::new();
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "LocalGPT".into(),
+                    resolution: bevy::window::WindowResolution::new(1440, 860),
+                    present_mode: bevy::window::PresentMode::AutoVsync,
+                    composite_alpha_mode: bevy::window::CompositeAlphaMode::Auto,
+                    ..default()
+                }),
+                ..default()
+            })
+            .set(bevy::asset::AssetPlugin {
+                file_path: "/".to_string(),
+                ..default()
+            })
+            .disable::<bevy::log::LogPlugin>(),
+    );
+    assemble(&mut app, opened)?;
+    app.run();
+    Ok(())
+}
+
+/// What the launch opens, worked out before the app is built: the first
+/// world, the document or canvas behind it, and where the terminals start.
+struct Opened {
+    workspace: PathBuf,
+    showing: Option<String>,
+    initial_world: Option<String>,
+    /// A document: MD's pipeline builds the first world (camera included —
+    /// it places the view once), and the live Document drives every rebuild
+    /// after.
+    live_document: Option<document::Document>,
+    /// A package opened as a live canvas: the window holds the authority and
+    /// serves the ops API, and the agents change the world through it.
+    live_canvas: Option<PathBuf>,
+    /// Where the agents' terminals start: beside what is open.
+    agents_dir: Option<PathBuf>,
+}
+
+fn open_launch(args: &Args) -> anyhow::Result<Opened> {
     // Gen's directories and settings: a desktop app opens on a machine with
     // nothing on disk, reads no config file and writes none. Same path as
     // `localgpt-gen`.
@@ -139,15 +197,10 @@ fn main() -> anyhow::Result<()> {
                 arg.to_string()
             })
     };
-    // A document: MD's pipeline builds the first world (camera included — it
-    // places the view once), and the live Document drives every rebuild after.
     let mut live_document = None;
-    // A package opened as a live canvas: the window holds the authority and
-    // serves the ops API, and the agents change the world through it.
     let mut live_canvas: Option<PathBuf> = None;
     let showing;
     let initial_world;
-    // Where the agents' terminals start: beside what is open.
     let mut agents_dir: Option<PathBuf> = None;
     // What to remember for the next bare launch, and what a bare launch
     // fell back to (not remembered again — it already is).
@@ -280,6 +333,28 @@ fn main() -> anyhow::Result<()> {
     {
         eprintln!("localgpt-app: couldn't remember what it opened: {e}");
     }
+    Ok(Opened {
+        workspace,
+        showing,
+        initial_world,
+        live_document,
+        live_canvas,
+        agents_dir,
+    })
+}
+
+/// Everything the app is, on top of Bevy's own plugins: Gen's world, the
+/// mode that opened, the timeline and the scene, and the interface's
+/// protocol (`webui`), whichever interface draws it.
+fn assemble(app: &mut App, opened: Opened) -> anyhow::Result<()> {
+    let Opened {
+        workspace,
+        showing,
+        initial_world,
+        live_document,
+        live_canvas,
+        agents_dir,
+    } = opened;
 
     // No agent runs in the window: Gen's command channel has no one on its
     // far end, and the scene changes only through the modes below.
@@ -294,31 +369,12 @@ fn main() -> anyhow::Result<()> {
     // in it.
     let canvas = live_canvas.is_some();
 
-    let mut app = App::new();
-    app.add_plugins(
-        DefaultPlugins
-            .set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "LocalGPT".into(),
-                    resolution: bevy::window::WindowResolution::new(1440, 860),
-                    present_mode: bevy::window::PresentMode::AutoVsync,
-                    composite_alpha_mode: bevy::window::CompositeAlphaMode::Auto,
-                    ..default()
-                }),
-                ..default()
-            })
-            .set(bevy::asset::AssetPlugin {
-                file_path: "/".to_string(),
-                ..default()
-            })
-            .disable::<bevy::log::LogPlugin>(),
-    );
     // Opening from the window, as the launch arguments do.
     app.insert_resource(open::Launch {
         workspace: workspace.clone(),
     })
     .insert_resource(open::Showing(showing));
-    gen3d::plugin::setup_gen_app(&mut app, channels, workspace, None);
+    gen3d::plugin::setup_gen_app(app, channels, workspace, None);
     // A canvas starts from the package's own log — the live plugin builds the
     // scene from it — so there is no initial world to load. Any startup
     // defaults would collide with the ids the log reuses, the same reason a
@@ -329,7 +385,7 @@ fn main() -> anyhow::Result<()> {
     if let Some(dir) = &live_canvas {
         // The app has no `--review` of its own yet: an agent's batch commits
         // as soon as the authority takes it, as it did before Gen grew one.
-        localgpt_gen::gen3d::live::setup_live(&mut app, dir, false)?;
+        localgpt_gen::gen3d::live::setup_live(app, dir, false)?;
     } else {
         app.add_plugins((document::DocumentPlugin, open::OpenPlugin));
     }
@@ -348,8 +404,9 @@ fn main() -> anyhow::Result<()> {
         app.add_plugins(shot);
     }
     app.add_plugins(spike::SpikePlugin);
-    // The interface: a page over the viewport, its terminals in the folder
-    // of what is open.
+    // The interface's protocol, its terminals in the folder of what is open:
+    // a page over the viewport, or the shell's panels (`shell::run`
+    // inserted its link before this).
     if let Some(ui) = webui::WebUiPlugin::from_env(
         live_canvas
             .clone()
@@ -359,7 +416,6 @@ fn main() -> anyhow::Result<()> {
     ) {
         app.add_plugins(ui);
     }
-    app.run();
     Ok(())
 }
 

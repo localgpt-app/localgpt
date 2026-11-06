@@ -354,16 +354,9 @@ fn offscreen_canvas(
     mut cameras: Query<(Entity, &mut bevy::camera::RenderTarget), With<FlyCam>>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    let (width, height) = (offscreen.width, offscreen.height);
     for (camera, mut target) in &mut cameras {
         if matches!(*target, bevy::camera::RenderTarget::Window(_)) {
-            let handle = offscreen
-                .image_handle
-                .get_or_insert_with(|| {
-                    super::offscreen::create_offscreen_image(&mut images, width, height)
-                })
-                .clone();
-            *target = bevy::camera::RenderTarget::Image(handle.into());
+            *target = offscreen.target(&mut images);
             // `bevy_ui` draws through the camera that targets the primary
             // window; with none, the world's HUD and the selection box would
             // be laid out against nothing and drawn nowhere. This camera is
@@ -2382,10 +2375,9 @@ fn live_view(
     for path in std::mem::take(&mut live.shots) {
         // The window's surface — or the image the canvas renders into
         // when it has one (headless, or `LOCALGPT_OFFSCREEN_SHOTS=1`).
-        let shot = match offscreen.as_ref().and_then(|o| o.image_handle.clone()) {
-            Some(image) => Screenshot::image(image),
-            None => Screenshot::primary_window(),
-        };
+        let shot = offscreen
+            .as_ref()
+            .map_or_else(Screenshot::primary_window, |o| o.screenshot());
         commands.spawn(shot).observe(save_to_disk(path));
     }
 }

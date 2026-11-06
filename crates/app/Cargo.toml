@@ -45,6 +45,14 @@ ron = "0.12.1"
 rfd = "0.17"
 
 bevy = { version = "0.20", features = ["jpeg", "system_font_discovery"] }
+# The shell (`src/shell`, `docs/rfcs/authoring/all-rust.md`): eframe owns
+# the window and egui draws the panels, on the same wgpu device Bevy draws
+# the world with (both on wgpu 30). Its defaults bring the system fonts for
+# what egui's own lack, accesskit, the clipboard, and x11 and wayland.
+eframe = "0.37"
+# Each terminal tab's screen in the shell: the emulator under Zed's and
+# Alacritty's terminals, fed the same PTY bytes the page is sent.
+alacritty_terminal = "0.26"
 # The agents' terminals: a PTY per tab (WezTerm's crate), its bytes to xterm.js.
 portable-pty = "0.9"
 # Each tab's screen as a terminal draws it, for a page that attaches late,

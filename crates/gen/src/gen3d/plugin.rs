@@ -4534,7 +4534,7 @@ fn process_pending_screenshots(
     gen_entities: Query<(&GenEntity, &Transform), Without<Camera>>,
     offscreen: Res<super::offscreen::OffscreenRenderTarget>,
 ) {
-    use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
+    use bevy::render::view::screenshot::ScreenshotCaptured;
 
     let mut completed = Vec::new();
 
@@ -4657,10 +4657,7 @@ fn process_pending_screenshots(
         // Capture the window, or the offscreen image the camera renders to
         // when there is no window (headless). The file is written, the view
         // restored and the tool answered only once the frame has rendered.
-        let target = match offscreen.image_handle.clone() {
-            Some(image) => Screenshot::image(image),
-            None => Screenshot::primary_window(),
-        };
+        let target = offscreen.screenshot();
         if cameras.iter().next().is_none() {
             restore_screenshot_view(
                 original_emissive,

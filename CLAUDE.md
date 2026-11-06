@@ -71,6 +71,10 @@ cargo run -p localgpt-app -- --world harbour.world  # a .world package opens as 
 LOCALGPT_APP_REMOTE=on cargo run -p localgpt-app   # and on a phone on this network: prints a
                                                    # pairing link (webui/remote.rs; port 9880,
                                                    # LOCALGPT_APP_REMOTE_PORT for another)
+LOCALGPT_APP_SHELL=egui cargo run -p localgpt-app # the interface in Rust (all-rust.md): eframe owns
+                                                   # the window, Bevy draws the world into the world
+                                                   # panel's texture; the page stays the default until
+                                                   # the shell has every panel (src/shell)
 
 # MD — a Markdown file as a walkable world
 cargo run -p localgpt-md                           # samples/hello.md

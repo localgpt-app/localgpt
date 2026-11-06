@@ -608,8 +608,15 @@ renderer) keep their places after these.
       the 941 tests passing; Gen's `character-controller` builds again
 - [x] B: the rule and its check, 2026-11-06: `cargo xtask rule`, CI's `rule`
       job; 90 files and 84,634 lines not Rust yet, the app alone on wry
-- [ ] C: the shell, with the world as a panel
-- [ ] D: the panels
+- [ ] C: the shell, with the world as a panel. First cut 2026-11-06
+      (`crates/app/src/shell`): eframe on the shared device, Bevy built and
+      run on its own thread, the world panel's texture following its size,
+      keys, buttons, motion, the wheel and picking's pointer bridged (a
+      scripted hand, `LOCALGPT_APP_SHELL_DRIVE`, moves the fly camera), the
+      shell a typed client of the page's protocol (`webui/link.rs`).
+      `egui_tiles` remains
+- [ ] D: the panels. Begun: the terminals on the app's PTYs (the first
+      test's widget), the history as a list, the clock's transport
 - [ ] E: the shell the default, the web view's host gone
 - [ ] F: the phone as the WebAssembly build, the page gone
 - [ ] G: `cargo xtask`, `egui_kittest`

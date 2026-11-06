@@ -33,8 +33,9 @@ pub struct MacHost {
 }
 
 impl super::Host for MacHost {
-    fn run(&self, script: &str) {
-        if let Err(e) = self.webview.evaluate_script(script) {
+    fn send(&self, _message: &super::ToPage, json: &str) {
+        let script = format!("window.__lg&&window.__lg.recv({json})");
+        if let Err(e) = self.webview.evaluate_script(&script) {
             tracing::warn!("interface: {e}");
         }
     }

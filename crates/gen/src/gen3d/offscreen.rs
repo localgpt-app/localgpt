@@ -3,12 +3,16 @@
 //! With no primary window (`--headless`), cameras aimed at the window render
 //! nowhere and `Screenshot::primary_window()` captures nothing. The
 //! [`attach_offscreen_target`] system gives those cameras an image to render
-//! into instead, and `gen_screenshot` captures that image.
+//! into instead, and `gen_screenshot` captures that image. When the app's
+//! shell draws the interface, the cameras render into the texture it made
+//! for its world panel instead ([`OffscreenRenderTarget::texture_view`]).
 
+use bevy::camera::ManualTextureViewHandle;
 use bevy::prelude::*;
 use bevy::render::render_resource::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
 };
+use bevy::render::view::screenshot::Screenshot;
 use std::path::Path;
 
 /// Configuration for the offscreen render target.
@@ -17,6 +21,10 @@ pub struct OffscreenRenderTarget {
     pub width: u32,
     pub height: u32,
     pub image_handle: Option<Handle<Image>>,
+    /// A texture someone else made and keeps the size of — the desktop
+    /// app's shell, which shows it as its world panel. When set, cameras
+    /// render into it and no image is made.
+    pub texture_view: Option<ManualTextureViewHandle>,
 }
 
 impl Default for OffscreenRenderTarget {
@@ -25,6 +33,33 @@ impl Default for OffscreenRenderTarget {
             width: 1280,
             height: 720,
             image_handle: None,
+            texture_view: None,
+        }
+    }
+}
+
+impl OffscreenRenderTarget {
+    /// Where a camera without a window renders: the shell's texture, else
+    /// the image (made on first use).
+    pub fn target(&mut self, images: &mut Assets<Image>) -> bevy::camera::RenderTarget {
+        if let Some(view) = self.texture_view {
+            return bevy::camera::RenderTarget::TextureView(view);
+        }
+        let (width, height) = (self.width, self.height);
+        let handle = self
+            .image_handle
+            .get_or_insert_with(|| create_offscreen_image(images, width, height))
+            .clone();
+        bevy::camera::RenderTarget::Image(handle.into())
+    }
+
+    /// A screenshot of what the cameras render into: the shell's texture,
+    /// the image, or else the window.
+    pub fn screenshot(&self) -> Screenshot {
+        match (self.texture_view, self.image_handle.clone()) {
+            (Some(view), _) => Screenshot::texture_view(view),
+            (None, Some(image)) => Screenshot::image(image),
+            (None, None) => Screenshot::primary_window(),
         }
     }
 }
@@ -41,15 +76,10 @@ pub fn attach_offscreen_target(
     if !windows.is_empty() {
         return;
     }
-    let (width, height) = (offscreen.width, offscreen.height);
     let mut ui_camera_set = false;
     for (camera, mut target) in &mut cameras {
         if matches!(*target, bevy::camera::RenderTarget::Window(_)) {
-            let handle = offscreen
-                .image_handle
-                .get_or_insert_with(|| create_offscreen_image(&mut images, width, height))
-                .clone();
-            *target = bevy::camera::RenderTarget::Image(handle.into());
+            *target = offscreen.target(&mut images);
             // `bevy_ui` draws through the camera that targets the primary
             // window; with none, its nodes are laid out against nothing
             // and drawn nowhere. The first retargeted camera is it.

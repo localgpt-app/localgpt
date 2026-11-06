@@ -34,10 +34,14 @@
 //! a device's is the interface.
 
 mod dist;
+pub mod link;
 #[cfg(target_os = "macos")]
 mod mac;
 mod remote;
 mod term;
+
+pub use remote::RemoteView;
+pub use term::Tab;
 
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, channel};
@@ -126,12 +130,15 @@ struct Settings {
     url: Option<String>,
 }
 
-/// What a platform gives the page: somewhere to run script in it, and a way
-/// to cut the hole the world shows through. macOS's is `mac::MacHost`;
-/// Windows and Linux have none yet, and there the window shows the world
-/// alone. Everything else here is the same on every platform.
+/// What hosts the window's interface: something to send it each message,
+/// and a way to cut the hole the world shows through. macOS's web view is
+/// `mac::MacHost`, which runs the JSON in the page; the shell is
+/// `link::ShellHost`, which takes the typed message. Windows and Linux have
+/// no web view host, and there the window shows the world alone unless the
+/// shell is the interface. Everything else here is the same on every
+/// platform.
 trait Host {
-    fn run(&self, script: &str);
+    fn send(&self, message: &ToPage, json: &str);
     fn set_hole(&self, hole: [f64; 4]);
 }
 
@@ -142,6 +149,8 @@ trait Host {
 struct Page {
     host: Option<Box<dyn Host>>,
     inbox: Receiver<String>,
+    /// The shell's asks, typed: they need no JSON (`link`).
+    shell: Option<Receiver<FromPage>>,
     /// Everything sent goes to the paired devices too.
     mirror: Mirror,
     /// The page said it is listening; until then nothing is sent.
@@ -193,11 +202,17 @@ impl ClockSent {
 }
 
 impl Page {
-    fn new(host: Option<Box<dyn Host>>, inbox: Receiver<String>, mirror: Mirror) -> Self {
+    fn new(
+        host: Option<Box<dyn Host>>,
+        inbox: Receiver<String>,
+        shell: Option<Receiver<FromPage>>,
+        mirror: Mirror,
+    ) -> Self {
         Self {
             ready: host.is_none(),
             host,
             inbox,
+            shell,
             mirror,
             fresh: true,
             sent: Sent::default(),
@@ -207,7 +222,7 @@ impl Page {
     /// To every page: the window's, and the devices'.
     fn send(&self, message: &ToPage) {
         if let Ok(json) = serde_json::to_string(message) {
-            self.run(&json);
+            self.to_host(message, &json);
             self.mirror.broadcast(&json);
         }
     }
@@ -215,7 +230,7 @@ impl Page {
     /// To the window's page alone.
     fn send_window(&self, message: &ToPage) {
         if let Ok(json) = serde_json::to_string(message) {
-            self.run(&json);
+            self.to_host(message, &json);
         }
     }
 
@@ -230,9 +245,9 @@ impl Page {
         }
     }
 
-    fn run(&self, json: &str) {
+    fn to_host(&self, message: &ToPage, json: &str) {
         if let Some(host) = &self.host {
-            host.run(&format!("window.__lg&&window.__lg.recv({json})"));
+            host.send(message, json);
         }
     }
 }
@@ -251,9 +266,11 @@ struct Play {
     waited: f32,
 }
 
-#[derive(Deserialize)]
+/// What a page asks: the window's web view and a device's as JSON, the
+/// shell's as these values (`link`).
+#[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "t")]
-enum FromPage {
+pub enum FromPage {
     #[serde(rename = "ready")]
     Ready,
     #[serde(rename = "viewport")]
@@ -362,9 +379,9 @@ enum FromPage {
     RemoteForget { id: String },
 }
 
-#[derive(Deserialize, Clone, Copy)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
-enum Step {
+pub enum Step {
     First,
     Prev,
     Next,
@@ -419,8 +436,13 @@ enum ToPage<'a> {
     /// A shot's newest frame, by its camera entity's id.
     #[serde(rename = "thumb")]
     Thumb { id: String, url: &'a str },
+    /// A tab's bytes: base64 in the page's JSON, as they are in the shell's.
     #[serde(rename = "term.data")]
-    TermData { id: &'a str, b64: String },
+    TermData {
+        id: &'a str,
+        #[serde(rename = "b64", serialize_with = "base64_bytes")]
+        bytes: &'a [u8],
+    },
     #[serde(rename = "term.exit")]
     TermExit {
         id: &'a str,
@@ -441,6 +463,10 @@ enum ToPage<'a> {
     Remote { view: &'a remote::RemoteView },
 }
 
+fn base64_bytes<S: serde::Serializer>(bytes: &&[u8], serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_str(&base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+
 #[derive(Serialize)]
 struct Row<'a> {
     id: &'a str,
@@ -457,8 +483,24 @@ struct Row<'a> {
 /// Opens the page once Bevy's window and surface exist (an exclusive
 /// system, so it runs on the main thread). A failure is logged once.
 fn open_page(world: &mut World, mut tried: Local<bool>) {
+    if *tried {
+        return;
+    }
+    // The shell is the interface: its page needs no window, and opens at
+    // once. It asks with typed messages, and says when it is ready.
+    if let Some(link) = world.get_resource::<link::ShellLink>() {
+        let host = link.host.lock().ok().and_then(|mut h| h.take());
+        let asks = link.asks.lock().ok().and_then(|mut a| a.take());
+        if let Some(host) = host {
+            *tried = true;
+            let (_never, inbox) = channel::<String>();
+            let mirror = world.resource::<Remote>().mirror();
+            world.insert_non_send(Page::new(Some(Box::new(host)), inbox, asks, mirror));
+        }
+        return;
+    }
     // Bevy makes its surface on the first frames; the page goes above it.
-    if *tried || world.resource::<FrameCount>().0 < 3 {
+    if world.resource::<FrameCount>().0 < 3 {
         return;
     }
     let Ok(window) = world
@@ -490,11 +532,11 @@ fn open_page(world: &mut World, mut tried: Local<bool>) {
     *tried = true;
     let mirror = world.resource::<Remote>().mirror();
     match host {
-        Ok(host) => world.insert_non_send(Page::new(Some(host), inbox, mirror)),
+        Ok(host) => world.insert_non_send(Page::new(Some(host), inbox, None, mirror)),
         Err(e) => {
             tracing::warn!("the interface did not open: {e:#}");
             // A paired device's page can still be the interface.
-            world.insert_non_send(Page::new(None, inbox, mirror));
+            world.insert_non_send(Page::new(None, inbox, None, mirror));
         }
     }
 }
@@ -531,30 +573,46 @@ fn read_page(
     let Some(mut page) = page else {
         return;
     };
-    // The window's asks and the devices', in the order each sent them; a
-    // device that went is `None`.
-    let mut inbox: Vec<(Client, Option<String>)> = page
+    // The window's asks and the devices', in the order each sent them: the
+    // web view's and a device's as JSON, the shell's typed; a device that
+    // went is `Gone`.
+    enum Incoming {
+        Json(String),
+        Ask(FromPage),
+        Gone,
+    }
+    let mut inbox: Vec<(Client, Incoming)> = page
         .inbox
         .try_iter()
-        .map(|raw| (Client::Window, Some(raw)))
+        .map(|raw| (Client::Window, Incoming::Json(raw)))
         .collect();
+    if let Some(shell) = &page.shell {
+        inbox.extend(
+            shell
+                .try_iter()
+                .map(|ask| (Client::Window, Incoming::Ask(ask))),
+        );
+    }
     inbox.extend(remote.take_inbox().into_iter().map(|came| match came {
-        Inbound::Message(conn, raw) => (Client::Device(conn), Some(raw)),
-        Inbound::Gone(conn) => (Client::Device(conn), None),
+        Inbound::Message(conn, raw) => (Client::Device(conn), Incoming::Json(raw)),
+        Inbound::Gone(conn) => (Client::Device(conn), Incoming::Gone),
     }));
-    for (client, raw) in inbox {
-        let Some(raw) = raw else {
-            // The tabs it drove go back to the window.
-            terms.leave(client);
-            if let Client::Device(conn) = client {
-                frames.forget(conn);
-            }
-            continue;
-        };
-        let message = match serde_json::from_str::<FromPage>(&raw) {
-            Ok(message) => message,
-            Err(e) => {
-                tracing::warn!("interface: {e}: {raw}");
+    for (client, incoming) in inbox {
+        let message = match incoming {
+            Incoming::Ask(message) => message,
+            Incoming::Json(raw) => match serde_json::from_str::<FromPage>(&raw) {
+                Ok(message) => message,
+                Err(e) => {
+                    tracing::warn!("interface: {e}: {raw}");
+                    continue;
+                }
+            },
+            Incoming::Gone => {
+                // The tabs it drove go back to the window.
+                terms.leave(client);
+                if let Client::Device(conn) = client {
+                    frames.forget(conn);
+                }
                 continue;
             }
         };
@@ -699,7 +757,7 @@ fn read_page(
                             client,
                             &ToPage::TermData {
                                 id: &id,
-                                b64: base64::engine::general_purpose::STANDARD.encode(screen),
+                                bytes: &screen,
                             },
                         );
                     }
@@ -1004,10 +1062,7 @@ fn flush(page: &Page, data: &mut Vec<(String, Vec<u8>)>, id: &str) {
 }
 
 fn send_data(page: &Page, id: &str, bytes: &[u8]) {
-    page.send(&ToPage::TermData {
-        id,
-        b64: base64::engine::general_purpose::STANDARD.encode(bytes),
-    });
+    page.send(&ToPage::TermData { id, bytes });
 }
 
 /// The world camera draws into the page's hole.
