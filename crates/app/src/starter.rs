@@ -31,12 +31,18 @@ use localgpt_world_agent::starter;
 /// build never prefers a stale source checkout that happens to be on the
 /// machine that built it. Nothing is relative to the working directory: an
 /// app launched from Finder has one unrelated to where it was installed.
+///
+/// `LocalGPT.app` carries the tracks in `Resources/starter`, not
+/// `Resources/assets`: Verse takes one asset root and prefers the bundle's
+/// `assets` whenever it exists, so a folder there holding only music would
+/// hide the shared pack's models from every song's world.
 fn candidates() -> Vec<PathBuf> {
     let mut out = Vec::new();
     if let Ok(exe) = std::env::current_exe()
         && let Some(dir) = exe.parent()
     {
         out.push(dir.join("assets"));
+        out.push(dir.join("../Resources/starter"));
         out.push(dir.join("../Resources/assets"));
     }
     out.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("assets"));

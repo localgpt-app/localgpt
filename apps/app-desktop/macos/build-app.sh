@@ -52,11 +52,11 @@ APP_FEATURES="${APP_FEATURES-}"
 FEATURE_FLAG=""
 [ -z "$APP_FEATURES" ] || FEATURE_FLAG="--features=$APP_FEATURES"
 
-# The interface: the page the release binary carries inside it
+# The page a paired phone gets, which the release binary carries inside it
 # (crates/app/ui), built first so the embed finds it. A debug build reads it
 # from disk, so it is built for one too.
-echo "==> the interface (crates/app/ui)"
-command -v npm >/dev/null || { echo "npm not found: the interface needs node 22" >&2; exit 1; }
+echo "==> the phone's page (crates/app/ui)"
+command -v npm >/dev/null || { echo "npm not found: the phone's page needs node 22" >&2; exit 1; }
 (cd "$ROOT/crates/app/ui" && npm ci --no-audit --no-fund && npm run build)
 
 echo "==> cargo build ($PROFILE${APP_FEATURES:+, features: $APP_FEATURES})"
@@ -117,6 +117,43 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
+
+# The four CC0 starter tracks, which a cold start opens (crates/app/src/
+# starter.rs looks in Resources/starter): a few megabytes, where the 522 MB
+# pack is fetched once per machine instead. Not in Resources/assets: Verse
+# takes that folder, whenever it exists, as its one asset root, and would
+# then miss the pack's models. From the asset root
+# LOCALGPT_STARTER_MUSIC names, a sibling localgpt-world-assets checkout, or
+# the shared pack, whichever has music/music.json first. Without them the
+# bundle still works, but its first launch opens nothing.
+MUSIC=""
+PACK_ROOT="${LOCALGPT_WORLD_ASSETS:-${XDG_DATA_HOME:-$HOME/.local/share}/localgpt/models/pack}"
+for root in "${LOCALGPT_STARTER_MUSIC:-}" "$ROOT/../localgpt-world-assets" \
+  "$ROOT/../localgpt-verse-assets" "$PACK_ROOT"; do
+  if [ -n "$root" ] && [ -f "$root/music/music.json" ]; then
+    # The tracks are LFS objects: a checkout without LFS holds pointers.
+    pointers=0
+    for track in "$root/music/"*.mp3; do
+      case "$(head -c 24 "$track" | tr -d '\000')" in
+        "version https://git-lfs"*) pointers=1 ;;
+      esac
+    done
+    if [ "$pointers" = 1 ]; then
+      echo "    warn: $root/music holds LFS pointers, not tracks (git lfs pull there)"
+      continue
+    fi
+    MUSIC="$root/music"
+    break
+  fi
+done
+if [ -n "$MUSIC" ]; then
+  mkdir -p "$APP/Contents/Resources/starter/music"
+  cp "$MUSIC/music.json" "$MUSIC"/*.mp3 "$APP/Contents/Resources/starter/music/"
+  [ ! -f "$MUSIC/NOTICE" ] || cp "$MUSIC/NOTICE" "$APP/Contents/Resources/starter/music/"
+  echo "    starter music from $MUSIC"
+else
+  echo "    warn: no starter music (LOCALGPT_STARTER_MUSIC, ../localgpt-world-assets or the pack); a first launch opens nothing"
+fi
 
 if [ -n "$IDENTITY" ]; then
   echo "==> signing with $IDENTITY (hardened runtime)"

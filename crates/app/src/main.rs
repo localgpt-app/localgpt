@@ -281,7 +281,9 @@ fn open_launch(args: &Args) -> anyhow::Result<Opened> {
                         // Deliberately not remembered: the starter is where a
                         // cold start begins, not somewhere the user chose to
                         // be, and remembering it would make the second launch
-                        // look like a choice they made.
+                        // look like a choice they made. Its terminals open in
+                        // its world's folder, as any song's do.
+                        agents_dir = Some(PathBuf::from(&dir));
                         initial_world = Some(dir);
                     }
                     Ok(None) => {
@@ -373,17 +375,60 @@ fn assemble(app: &mut App, opened: Opened) -> anyhow::Result<()> {
     // the shell's panels (`shell::run` inserted its link before this) and a
     // paired phone's page.
     app.add_plugins(webui::WebUiPlugin {
-        cwd: live_canvas
-            .clone()
-            .or(agents_dir)
-            .or_else(|| std::env::current_dir().ok())
-            .unwrap_or_default(),
+        cwd: terminals_dir(
+            live_canvas.clone().or(agents_dir),
+            std::env::current_dir().ok(),
+            std::env::var_os("HOME").map(PathBuf::from),
+        ),
     });
     Ok(())
+}
+
+/// Where the terminals open: the folder of what is open; with nothing open,
+/// the folder the app was started in — but not the root, which is where
+/// Finder starts an app — and then the home folder.
+fn terminals_dir(
+    open: Option<PathBuf>,
+    started_in: Option<PathBuf>,
+    home: Option<PathBuf>,
+) -> PathBuf {
+    open.or(started_in.filter(|dir| dir.parent().is_some()))
+        .or(home)
+        .unwrap_or_default()
 }
 
 fn file_name(path: &std::path::Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terminals_open_where_something_is_never_in_finders_root() {
+        let path = |p: &str| Some(PathBuf::from(p));
+        let home = path("/Users/someone");
+        // What is open wins.
+        assert_eq!(
+            terminals_dir(path("/worlds/harbour.world"), path("/"), home.clone()),
+            PathBuf::from("/worlds/harbour.world")
+        );
+        // Nothing open: where a terminal started the app...
+        assert_eq!(
+            terminals_dir(None, path("/Users/someone/project"), home.clone()),
+            PathBuf::from("/Users/someone/project")
+        );
+        // ...but Finder starts it in the root, and then the home folder.
+        assert_eq!(
+            terminals_dir(None, path("/"), home.clone()),
+            PathBuf::from("/Users/someone")
+        );
+        assert_eq!(
+            terminals_dir(None, None, home),
+            PathBuf::from("/Users/someone")
+        );
+    }
 }

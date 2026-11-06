@@ -20,6 +20,8 @@ All notable changes to LocalGPT are documented in this file.
 
 ### Fixed
 
+- **A first launch of `LocalGPT.app` opened nothing.** The bundle now carries the four CC0 starter tracks, in `Resources/starter` (in `Resources/assets` they would hide the shared pack's models from every song's world), and the release workflow fetches them from the asset repository.
+- **A terminal in an app opened from Finder started in `/`.** The starter song's terminals open in its world's folder, as any song's do; with nothing open, the folder the app was started in, but never the root, where Finder starts an app: the home folder then.
 - **A document opened in place of another** sent the page the new outline over the old document's text, until the file was reloaded: each document's text now has a revision of its own.
 
 ## [0.5.0] - 2026-11-04

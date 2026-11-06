@@ -1,9 +1,11 @@
 # LocalGPT desktop app
 
 The one LocalGPT desktop app (`crates/app`, binary `localgpt-app`): Gen's
-world in a Bevy viewport with one interface around it — a web page over the
-window (`crates/app/ui`) — where documents, songs and worlds open as places
-and the person's own coding agents run in terminals beside them.
+world in a Bevy viewport with the app's own panels around it — egui, drawn
+in Rust (`crates/app/src/shell`) — where documents, songs and worlds open as
+places and the person's own coding agents run in terminals beside them. A
+paired phone gets a web page of its own (`crates/app/ui`), which the release
+binary carries.
 `docs/world-strategy.md` §13.1 records why it is one app. It replaces the
 `LocalGPT Gen.app` bundle; `localgpt-gen` itself stays a binary (the MCP
 server and relay, headless generation, `--host`/`--join`).
@@ -62,7 +64,10 @@ APPLE_NOTARY_PROFILE=localgpt-notary \
 ```
 
 The CC0 asset pack is not in the bundle; `scripts/fetch-assets.sh` fetches it
-once per machine for every LocalGPT app.
+once per machine for every LocalGPT app. The four CC0 starter tracks are, in
+`Resources/starter`, so a first launch opens a song: the script takes them
+from the asset root `LOCALGPT_STARTER_MUSIC` names, a `localgpt-world-assets`
+checkout beside the repository, or the pack, and warns when it finds none.
 
 ## Release
 
@@ -119,7 +124,6 @@ install -Dm644 website/static/logo/localgpt-icon.svg \
   it was written — and neither has the workflow: the first `desktop-v` tag
   is its first run.
 - **Windows and Linux packages.** No Windows installer or Linux AppImage
-  yet, and the page is macOS's for now: there the window shows the world
-  alone.
+  yet. The panels run there as on macOS, though they are new and less tried.
 - **A proper app icon.** QuickLook flattens the SVG onto white; a real macOS
   icon wants a designed rounded-square tile.

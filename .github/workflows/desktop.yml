@@ -138,15 +138,30 @@ jobs:
           FEATURES: ${{ inputs.features }}
         run: echo "APP_FEATURES=$FEATURES" >> "$GITHUB_ENV"
 
-      # The interface is a page the binary carries (crates/app/ui); the
-      # bundle script builds it before the app.
+      # The page a paired phone gets is carried by the binary
+      # (crates/app/ui); the bundle script builds it before the app.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: crates/app/ui/package-lock.json
 
+      # The four CC0 starter tracks a first launch opens, which the bundle
+      # carries in Resources/starter (crates/app/src/starter.rs): the asset
+      # repository's music/, a few megabytes of LFS objects. Only those are
+      # pulled; the rest of that repository's LFS objects stay where they are.
+      - uses: actions/checkout@v4
+        with:
+          repository: localgpt-app/localgpt-world-assets
+          path: starter-assets
+          sparse-checkout: music
+      - name: The starter tracks
+        working-directory: starter-assets
+        run: git lfs pull --include="music/*.mp3"
+
       - name: LocalGPT.app and the .dmg
+        env:
+          LOCALGPT_STARTER_MUSIC: ${{ github.workspace }}/starter-assets
         run: apps/app-desktop/macos/build-app.sh --dmg
 
       - name: Name the .dmg by architecture
