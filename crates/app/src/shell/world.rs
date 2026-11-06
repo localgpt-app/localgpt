@@ -402,6 +402,7 @@ impl Panel {
         let rect = ui.available_rect_before_wrap();
         let id = ui.scope_id().with("world");
         let response = ui.interact(rect, id, egui::Sense::click_and_drag());
+        ui.advance_cursor_after_rect(rect);
         let ppp = ui.ctx().pixels_per_point();
         if (ppp - self.points).abs() > f32::EPSILON {
             self.points = ppp;

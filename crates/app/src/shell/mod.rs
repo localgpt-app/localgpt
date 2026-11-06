@@ -18,6 +18,8 @@ mod history;
 mod state;
 mod terminal;
 mod terminals;
+mod theme;
+mod timeline;
 pub mod world;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -231,6 +233,7 @@ struct Shell {
     end: ShellEnd,
     world: world::Panel,
     terminals: terminals::Terminals,
+    timeline: timeline::Timeline,
     state: State,
     started: Instant,
     shot: Option<(f64, std::path::PathBuf)>,
@@ -245,6 +248,7 @@ impl Shell {
     fn new(ctx: &egui::Context, end: ShellEnd, world: world::Panel) -> Self {
         // Until it is ready, the app sends a page nothing.
         end.ask(FromPage::Ready);
+        theme::apply(ctx);
         // `LOCALGPT_APP_UI_OPEN=terminal` starts with a tab, as it does the
         // page.
         let open_terminal = std::env::var(crate::webui::LOCALGPT_APP_UI_OPEN)
@@ -262,6 +266,7 @@ impl Shell {
             end,
             world,
             terminals,
+            timeline: timeline::Timeline::new(),
             state: State::default(),
             started: Instant::now(),
             shot,
@@ -269,37 +274,6 @@ impl Shell {
             drive: drive::Drive::from_env(),
             world_rect: egui::Rect::NOTHING,
         }
-    }
-
-    /// The world's clock, where it is, played and paused from here — the
-    /// timeline's transport, until the timeline is a panel.
-    fn clock(&self, ui: &mut egui::Ui) {
-        let Some(duration) = self
-            .state
-            .timeline
-            .as_ref()
-            .and_then(|t| t.clock.as_ref())
-            .map(|c| c.duration)
-        else {
-            return;
-        };
-        let clock = &self.state.clock;
-        ui.separator();
-        let play = if clock.playing { "⏸" } else { "▶" };
-        if ui
-            .button(play)
-            .on_hover_text("Play the world's clock")
-            .clicked()
-        {
-            self.end.ask(FromPage::ClockPlay {
-                playing: !clock.playing,
-            });
-        }
-        let at = clock.now().min(duration);
-        let looped = clock.looping.map_or(String::new(), |[from, to]| {
-            format!("  ⟲ {}–{}", mmss(from), mmss(to))
-        });
-        ui.monospace(format!("{} / {}{looped}", mmss(at), mmss(duration)));
     }
 
     fn check_shot(&mut self, ctx: &egui::Context) {
@@ -341,9 +315,16 @@ impl eframe::App for Shell {
                     ui.separator();
                     ui.label(title);
                 }
-                self.clock(ui);
             });
         });
+        // The timeline runs across the window, under everything else.
+        if self.state.timeline.is_some() {
+            egui::Panel::bottom("timeline")
+                .resizable(true)
+                .default_size(300.0)
+                .min_size(120.0)
+                .show(ui, |ui| self.timeline.ui(ui, &self.state, &self.end));
+        }
         if self.state.history.is_some() {
             egui::Panel::left("history")
                 .resizable(true)
@@ -367,12 +348,6 @@ impl eframe::App for Shell {
         // The world moves on its own: show its newest frame.
         ctx.request_repaint_after(Duration::from_millis(16));
     }
-}
-
-/// Seconds as minutes and seconds.
-fn mmss(seconds: f32) -> String {
-    let s = seconds.max(0.0) as u32;
-    format!("{}:{:02}", s / 60, s % 60)
 }
 
 fn save_png(path: &std::path::Path, image: &egui::ColorImage) {

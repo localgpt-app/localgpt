@@ -202,6 +202,8 @@ impl Screen {
         let mut asks = Asks::default();
         let rect = ui.available_rect_before_wrap();
         let response = ui.interact(rect, id, Sense::click_and_drag());
+        // The grid takes the rest of the panel; the panel hears it is used.
+        ui.advance_cursor_after_rect(rect);
         if response.clicked() || response.drag_started() {
             response.request_focus();
             asks.focused = true;
