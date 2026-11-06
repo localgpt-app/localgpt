@@ -608,15 +608,36 @@ renderer) keep their places after these.
       the 941 tests passing; Gen's `character-controller` builds again
 - [x] B: the rule and its check, 2026-11-06: `cargo xtask rule`, CI's `rule`
       job; 90 files and 84,634 lines not Rust yet, the app alone on wry
-- [ ] C: the shell, with the world as a panel. First cut 2026-11-06
+- [x] C: the shell, with the world as a panel, 2026-11-06
       (`crates/app/src/shell`): eframe on the shared device, Bevy built and
       run on its own thread, the world panel's texture following its size,
-      keys, buttons, motion, the wheel and picking's pointer bridged (a
-      scripted hand, `LOCALGPT_APP_SHELL_DRIVE`, moves the fly camera), the
-      shell a typed client of the page's protocol (`webui/link.rs`).
-      `egui_tiles` remains
-- [ ] D: the panels. Begun: the terminals on the app's PTYs (the first
-      test's widget), the history as a list, the clock's transport
+      keys, buttons, motion, the wheel and picking's pointer bridged, the
+      shell a typed client of the page's protocol (`webui/link.rs`), the
+      panels on `egui_tiles` (the page's columns, tabs to drag). A scripted
+      hand (`LOCALGPT_APP_SHELL_DRIVE`) drives the checks. What it taught:
+      picking casts no ray without a primary window, and the stand-in for
+      one must be a `Window` (one that nothing gives a surface), because a
+      focus request bubbles until it reaches a `Window` and Bevy's
+      propagation has no cycle guard: on a bare `PrimaryWindow` the first
+      click froze the world's thread. The stand-in's cursor position
+      follows the pointer; nothing in the app sets a cursor icon or a grab,
+      so none is sent back yet
+- [ ] D: the panels. Each has a first version, driven by the scripted
+      hand: the terminals on the app's PTYs (the first test's widget); the
+      history as the page draws it, a lane a branch, with its playback bar;
+      the timeline (the ruler, every kind of lane, seek, loop, look through,
+      a proposal's Accept and Reject, mute and hide); the outliner and the
+      inspector (transform, shape, material, light, name and visibility,
+      edited on a live canvas through the authority the agents use, one
+      history entry a field let go of); the document on `TextEdit` (outline,
+      place card, Follow, edits saved, a picked place revealed in the text);
+      Open… and the top bar, with the phone remote's panel
+      (`scripts/remote-smoke.mjs` passes with the shell as the interface).
+      Remaining: the timeline's edits (dragging shots, recutting sections,
+      holding a stop), the inspector's other sections (a light's kind,
+      range, cone and shadows; camera and shot; mesh; behaviors; what the
+      song moves; sound; the world's summary when nothing is selected), and
+      a check of shots and camera tracks on a previs world
 - [ ] E: the shell the default, the web view's host gone
 - [ ] F: the phone as the WebAssembly build, the page gone
 - [ ] G: `cargo xtask`, `egui_kittest`

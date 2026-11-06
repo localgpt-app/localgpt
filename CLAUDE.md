@@ -72,9 +72,13 @@ LOCALGPT_APP_REMOTE=on cargo run -p localgpt-app   # and on a phone on this netw
                                                    # pairing link (webui/remote.rs; port 9880,
                                                    # LOCALGPT_APP_REMOTE_PORT for another)
 LOCALGPT_APP_SHELL=egui cargo run -p localgpt-app # the interface in Rust (all-rust.md): eframe owns
-                                                   # the window, Bevy draws the world into the world
-                                                   # panel's texture; the page stays the default until
-                                                   # the shell has every panel (src/shell)
+                                                   # the window, egui_tiles the panels, Bevy draws the
+                                                   # world into the world panel's texture; the page stays
+                                                   # the default until the shell has every panel (src/shell)
+LOCALGPT_APP_SHELL_DRIVE='4:click 0.5 0.5;6:shot /tmp/s.png;7:quit' \
+LOCALGPT_APP_SHELL=egui cargo run -p localgpt-app # the shell by a script, a check without a hand
+                                                   # (shell/drive.rs: click, tap, key, drag, swipe,
+                                                   # type, shot, quit)
 
 # MD — a Markdown file as a walkable world
 cargo run -p localgpt-md                           # samples/hello.md
