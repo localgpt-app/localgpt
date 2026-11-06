@@ -1,11 +1,11 @@
 # All Rust: nothing but Rust above the operating system
 
-**Status:** proposal, 2026-11-01; asked, not decided, nothing built against
-it. If adopted it supersedes [the-page.md](the-page.md) (decided 2026-10-30)
-and the decision of [the-world-in-the-page.md](the-world-in-the-page.md)
-(2026-10-31), and answers that RFC's open question, who owns the window.
-[The two tests](#the-two-tests-first) came before any of it, and ran on
-2026-11-04 ([what they showed](#what-the-two-tests-showed)).
+**Status:** decided 2026-11-05 ([the order from here](#decided-the-order-from-here)).
+Proposed 2026-11-01. It supersedes [the-page.md](the-page.md) (decided
+2026-10-30) and the decision of [the-world-in-the-page.md](the-world-in-the-page.md)
+(2026-10-31), and answers that RFC's open question, who owns the window:
+eframe does. [The two tests](#the-two-tests-first) came before any of it,
+and ran on 2026-11-04 ([what they showed](#what-the-two-tests-showed)).
 
 ## The question
 
@@ -56,7 +56,8 @@ paint callback, and the same program runs in a browser as WebAssembly.
 
 Why egui: two agent-built applications of 752K and 224K lines prove it
 carries a GPU canvas, a dock of panels and a browser build;
-`egui_dock` (MIT) is the dock; `egui_kittest` (MIT OR Apache-2.0) drives it
+`egui_tiles` (MIT OR Apache-2.0) is the dock (`egui_dock` was the first
+choice; [why it changed](#decided-the-order-from-here)); `egui_kittest` (MIT OR Apache-2.0) drives it
 headless for tests; `egui_system_font_provider` (0.37) loads the system's
 fonts for characters its own lack, which is how CADCraft draws its Chinese,
 Korean and Arabic interfaces; and egui has several native windows from one
@@ -77,7 +78,7 @@ having are GPL ([what it buys and costs](#gpl-what-it-buys-and-what-it-costs)).
 
 ### The window and the panels
 
-eframe owns the windows; `egui_dock` lays out the panels: the history graph,
+eframe owns the windows; `egui_tiles` lays out the panels: the history graph,
 the timeline, the outliner and inspector, the document, the agents, Open….
 Each panel reads the same snapshots the page reads today — the history, the
 document's view, the timeline, the entities and the selection
@@ -547,9 +548,54 @@ not, at the rate the plan needs with one cascade. What a hand still has to
 do: type Chinese into Claude Code through the input method, and run both
 with the display awake.
 
+## Decided: the order from here
+
+Decided 2026-11-05, after the two tests. Four things the tests and the
+crates' versions taught change the order and the stack:
+
+- **Bevy 0.20 first.** The terminal's bar needs egui 0.37: font fallback
+  (`add_font_provider`) and colour glyphs arrived in epaint 0.37, and 0.35,
+  the last egui on wgpu 29, has neither. egui 0.36 and 0.37 are on wgpu 30,
+  and so is Bevy 0.20 (2026-10-08; 0.20.1 on 2026-10-28), which keeps winit
+  0.30, the version eframe 0.37 and wry 0.57 use. One device for the panels
+  and the world means one wgpu, so the workspace moves to Bevy 0.20 before
+  the shell is written. avian3d 0.8 and bevy-tnua 0.33 are already there.
+- **`egui_tiles`, not `egui_dock`.** egui_tiles (MIT OR Apache-2.0) is
+  released with each egui by the team that makes egui, and has 0.37;
+  egui_dock's newest, 0.21.1, is for egui 0.36. A dock that trails egui
+  would pin the whole interface a release behind.
+- **The shell is a client of the protocol, beside the page.** The page
+  asks with the app's own messages and is sent snapshots of resources the
+  app already keeps (`webui/mod.rs`: `FromPage`, `ToPage`, built from the
+  history, the document, the timeline, the scene and the clock). The shell
+  is one more client of that protocol over an in-process channel, the way a
+  paired phone is one over a WebSocket, so every ask the page makes the
+  shell makes too, and neither drifts from the other. `LOCALGPT_APP_SHELL=egui`
+  opens it; the page stays the default until the shell has every panel.
+  The web view's host goes when the shell is the default; the phone keeps
+  the page, served by the app, until its WebAssembly build replaces it.
+- **One emulator per tab, fed by the same PTYs.** The tabs stay the app's
+  (`webui/term.rs`, portable-pty), so a phone still attaches to the tab the
+  window opened. The shell feeds each tab's bytes into an
+  `alacritty_terminal` `Term` through `vte`'s processor and draws it with the
+  widget the first test built; `vt100` goes when the phone draws the grid.
+
+| Step | What | Days |
+|---|---|---|
+| A | The workspace on Bevy 0.20 (wgpu 30), avian3d 0.8, bevy-tnua 0.33 | 1–2 |
+| B | The rule in `CLAUDE.md` and its check, in Rust: no new file in another language, no new crate on `wry` (`cargo xtask rule`, a ratchet the CI runs) | 1 |
+| C | The shell: eframe 0.37, Bevy windowless on its device, the world as a panel with the input, the cursor and picking bridged to Bevy; `egui_tiles` | 5–8 |
+| D | The panels in order of size: the terminals (the widget, tabs), the history graph, the timeline, the outliner and inspector, the document on `TextEdit`, Open… and the top bar | 15–25 |
+| E | The shell the default; the web view's host, wry and the hit-test view go | 1–2 |
+| F | The phone as the WebAssembly build of the same panels, the terminals as streamed grids; then the page, `rust-embed` of `ui/dist`, the Node build, the `interface` job and the design sheets go | 5–10 |
+| G | `cargo xtask` for the scripts; `egui_kittest` for the smoke and the sheets | 5 |
+
+Steps 8 and 9 of the table above (the last mile of C, the WebAssembly world
+renderer) keep their places after these.
+
 ## Status
 
-- [ ] Decided
+- [x] Decided, 2026-11-05: [the order from here](#decided-the-order-from-here)
 - [x] Test 1: the terminal widget on `alacritty_terminal`, with Claude Code,
       Codex and the input method: run 2026-11-04 (`spike/egui-terminal`,
       [what it showed](#test-1-the-terminal-widget)); the input method by
@@ -558,7 +604,13 @@ with the display awake.
       run 2026-11-04 (`spike/bevy-in-eframe`,
       [what it showed](#test-2-bevy-windowless-on-eframes-device)); the
       display's real rate remains
-- [ ] Steps 0–7 of [Order and cost](#order-and-cost)
+- [ ] A: the workspace on Bevy 0.20
+- [ ] B: the rule and its check
+- [ ] C: the shell, with the world as a panel
+- [ ] D: the panels
+- [ ] E: the shell the default, the web view's host gone
+- [ ] F: the phone as the WebAssembly build, the page gone
+- [ ] G: `cargo xtask`, `egui_kittest`
 - [ ] The last mile of C, with 0.5.0
 - [ ] The WebAssembly world renderer for the link
 - [ ] The audio engine, after parity: the arrangement extension in the spec
