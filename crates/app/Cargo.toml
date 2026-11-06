@@ -50,6 +50,9 @@ bevy = { version = "0.20", features = ["jpeg", "system_font_discovery"] }
 # the world with (both on wgpu 30). Its defaults bring the system fonts for
 # what egui's own lack, accesskit, the clipboard, and x11 and wayland.
 eframe = "0.37"
+# The shell's panels as tiles: tabs to drag, splits to resize. Released with
+# each egui by egui's makers (egui_dock trails a release).
+egui_tiles = "0.18"
 # Each terminal tab's screen in the shell: the emulator under Zed's and
 # Alacritty's terminals, fed the same PTY bytes the page is sent.
 alacritty_terminal = "0.26"

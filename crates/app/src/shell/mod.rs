@@ -22,6 +22,7 @@ mod state;
 mod terminal;
 mod terminals;
 mod theme;
+mod tiles;
 mod timeline;
 pub mod world;
 
@@ -247,26 +248,6 @@ pub fn run(
     result.map_err(|e| anyhow!("the shell: {e}"))
 }
 
-/// The left panel's tabs, as the page has them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Left {
-    /// The first there is, until one is chosen.
-    Auto,
-    Document,
-    History,
-    Outliner,
-}
-
-impl Left {
-    fn label(self) -> &'static str {
-        match self {
-            Left::Document => "Document",
-            Left::History => "History",
-            Left::Outliner | Left::Auto => "Outliner",
-        }
-    }
-}
-
 /// The window: what the app said, and the panels that show it.
 struct Shell {
     end: ShellEnd,
@@ -277,8 +258,8 @@ struct Shell {
     scene: scene::Scene,
     document: document::Document,
     history: history::History,
-    /// The left panel's tab.
-    left: Left,
+    /// Where the panels are: the page's columns, until a hand moves them.
+    layout: tiles::Layout,
     state: State,
     started: Instant,
     shot: Option<(f64, std::path::PathBuf)>,
@@ -299,12 +280,8 @@ impl Shell {
         let open = std::env::var(crate::webui::LOCALGPT_APP_UI_OPEN).unwrap_or_default();
         let opens = |what: &str| open.split(',').any(|o| o == what);
         let terminals = terminals::Terminals::new(ctx, opens("terminal"));
-        // `outliner` starts the left panel on its Outliner tab.
-        let left = if opens("outliner") {
-            Left::Outliner
-        } else {
-            Left::Auto
-        };
+        // `outliner` starts the left column on its Outliner tab.
+        let layout = tiles::Layout::new(opens("outliner"));
         let shot = std::env::var(LOCALGPT_APP_SHELL_SHOT)
             .ok()
             .and_then(|s| s.parse::<f64>().ok())
@@ -322,7 +299,7 @@ impl Shell {
             scene: scene::Scene::new(),
             document: document::Document::new(),
             history: history::History::default(),
-            left,
+            layout,
             state: State::default(),
             started: Instant::now(),
             shot,
@@ -378,65 +355,25 @@ impl eframe::App for Shell {
                 .exact_size(height)
                 .show(ui, |ui| self.timeline.ui(ui, &self.state, &self.end));
         }
-        // What is open has its panel on the left: the document, a live
-        // canvas's history, and the world's things.
-        let tabs: Vec<Left> = [
-            (Left::Document, self.state.document.is_some()),
-            (Left::History, self.state.history.is_some()),
-            (Left::Outliner, self.state.scene.is_some()),
-        ]
-        .into_iter()
-        .filter_map(|(tab, there)| there.then_some(tab))
-        .collect();
-        if let Some(first) = tabs.first().copied() {
-            if !tabs.contains(&self.left) {
-                self.left = first;
-            }
-            // The page's widths: a document's column is wider. One panel for
-            // each, so a document opened in place of a world opens at its
-            // own width, and each keeps the width it was dragged to.
-            let left = if self.state.mode_document {
-                420.0
-            } else {
-                340.0
-            };
-            egui::Panel::left(("left", self.state.mode_document))
-                .resizable(true)
-                .default_size(f32::min(left, full * 0.3).max(240.0))
-                .min_size(240.0)
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        for tab in &tabs {
-                            ui.selectable_value(&mut self.left, *tab, tab.label());
-                        }
-                    });
-                    ui.separator();
-                    match self.left {
-                        Left::Document => {
-                            // Kept until the document is shown: the latest
-                            // place picked is where its text opens.
-                            let reveal = self.state.reveal.take();
-                            self.document.ui(ui, &self.state, reveal, &self.end)
-                        }
-                        Left::History => self.history.ui(ui, &self.state, &self.end),
-                        Left::Outliner | Left::Auto => self.scene.ui(ui, &self.state, &self.end),
-                    }
-                    ui.advance_cursor_after_rect(ui.available_rect_before_wrap());
-                });
-        }
-        // The terminals: the page's 480, wide enough for an agent's TUI,
-        // never the window.
-        egui::Panel::right("terminals")
-            .resizable(true)
-            .default_size(f32::min(480.0, full * 0.4).max(280.0))
-            .min_size(280.0)
-            .max_size((full * 0.6).max(320.0))
-            .show(ui, |ui| self.terminals.ui(ui, &self.end));
+        // The rest are tiles: the left column (the document, a live
+        // canvas's history, the world's things), the world, the terminals.
+        self.layout.follow(&self.state, full);
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ui, |ui| {
-                self.world_rect = ui.available_rect_before_wrap();
-                self.world.ui(ui, frame);
+                let mut panes = tiles::Panes {
+                    state: &mut self.state,
+                    end: &self.end,
+                    frame,
+                    world: &mut self.world,
+                    world_rect: &mut self.world_rect,
+                    terminals: &mut self.terminals,
+                    scene: &mut self.scene,
+                    document: &mut self.document,
+                    history: &mut self.history,
+                    alone: self.layout.alone(),
+                };
+                self.layout.ui(ui, &mut panes);
             });
         // The world moves on its own: show its newest frame.
         ctx.request_repaint_after(Duration::from_millis(16));
