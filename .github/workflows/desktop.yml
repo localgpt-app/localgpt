@@ -48,18 +48,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The Apple-silicon runner starts with about 14 GB free, and a release
-      # build of the app with Bevy fills it: the first run built for 77
-      # minutes and then hdiutil failed with "No space left on device". The
-      # Xcodes that are not the selected one, the simulator runtimes and the
-      # Android SDK take most of the disk, and none of them is used here.
+      # A release build of the app with Bevy fills the Apple-silicon runner:
+      # the first run built for 77 minutes and then hdiutil failed with "No
+      # space left on device", on the macos-26-arm64 image whose df says
+      # 96 GiB free. The Xcodes that are not the selected one, the simulator
+      # runtimes and the Android SDK take most of the disk, and none of them
+      # is used here. The image names some Xcodes twice, a link beside the
+      # directory (Xcode_26.0.app -> Xcode_26.0.1.app), and the glob visits
+      # the directory first: only directories are removed, and a link is
+      # never entered, so one whose directory went is left dangling instead
+      # of failing the step as it did (`cd` into it, under `-e`).
       - name: Make room on the runner
         run: |
           df -h / | tail -1
           selected="$(cd "$(xcode-select -p)/../.." && pwd -P)"
           for x in /Applications/Xcode*.app; do
-            real="$(cd "$x" && pwd -P)"
-            if [ "$real" != "$selected" ] && [ ! -L "$x" ]; then
+            if [ -L "$x" ] || [ ! -d "$x" ]; then
+              continue
+            fi
+            if [ "$(cd "$x" && pwd -P)" != "$selected" ]; then
               sudo rm -rf "$x"
             fi
           done
