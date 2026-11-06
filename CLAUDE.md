@@ -110,7 +110,9 @@ the rest from their packages and uploads them in dependency order, through
 Trusted Publishing. A crate published for the first time needs the
 `CARGO_REGISTRY_TOKEN` secret, since crates.io can only trust a workflow
 for a crate that exists; crates.io also limits how many new crates go up
-at once, and a rerun picks up the rest. Members with `publish = false`
+at once, and cargo waits only a minute for an upload to reach the index
+before publishing what depends on it (0.4.2 lost two crates to that): a
+rerun of the failed job picks up the rest. Members with `publish = false`
 (app, md, verse, relay, previs-web) stay off crates.io; `localgpt-core`
 published its last version, 0.4.2, and is no longer in the tree.
 `cargo publish --workspace --dry-run` is the local check.

@@ -9,10 +9,13 @@
 #   git push origin main vX.Y.Z
 # and this job does the rest. It refuses a tag that is not the workspace's
 # version; asks crates.io which crates are already up at that version
-# (scripts/release-plan.py), so a rerun after a partial publish, such as
-# crates.io's limit on new crates, finishes the release instead of failing
-# on the first crate already there; builds every remaining crate from its
-# package; and only then uploads them, in dependency order.
+# (scripts/release-plan.py), so a rerun after a partial publish finishes
+# the release instead of failing on the first crate already there — after
+# crates.io's limit on new crates, or after cargo gave up waiting for an
+# upload to reach the index before publishing what depends on it, which
+# cost 0.4.2 its last two crates (the wait is a minute, and `publish.timeout`
+# is still unstable, so it can't be lengthened); builds every remaining
+# crate from its package; and only then uploads them, in dependency order.
 #
 # Credentials: Trusted Publishing, so no token lives in the repository.
 # crates.io issues a short-lived token because each crate's settings name
