@@ -1,0 +1,28 @@
+[package]
+name = "spike-egui-phone"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Test 3 of docs/rfcs/authoring/all-rust.md: egui in a phone's browser — the keyboard, an input method, dictation, a terminal's grid, scrolling"
+
+# A crate of its own, outside the workspace: nothing here reaches the apps.
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# The page is WebAssembly; natively the crate is only the server below.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts"] }
+egui = "0.37"
+vt100 = "0.18"
+# The CLI wasm-pack runs must be this version exactly.
+wasm-bindgen = "=0.2.129"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement", "Response"] }
+console_error_panic_hook = "0.1"
+log = "0.4"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

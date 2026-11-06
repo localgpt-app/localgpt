@@ -644,7 +644,21 @@ renderer) keep their places after these.
       (`webui/mac.rs`), the world-in-the-page harness, and the page's
       desktop layout. What stays of `crates/app/ui` is a paired phone's,
       until F. The bundle opened from Finder is not tried yet
-- [ ] F: the phone as the WebAssembly build, the page gone
+- [ ] F: the phone as the WebAssembly build, the page gone. Test 3 first,
+      as tests 1 and 2 came before C: egui in a phone's browser
+      (`spikes/egui-phone`, built 2026-11-06). In WebKit at an iPhone's
+      size it draws at the phone's scale, takes typed text into a field,
+      and a terminal's grid (vt100's) answers the key bar
+      (`results/webkit-iphone13.png`). Chinese draws only through a font
+      egui is handed: the browser keeps the system's fonts from it, so the
+      test fetches 23.5 MB of this Mac's Hiragino, and the page would ship
+      one (Noto Sans CJK, under the OFL). Besides: `alacritty_terminal`
+      does not build for wasm32 (its terminal device and `polling`), so
+      the phone streams the app's grids or parses the bytes itself; and
+      Chromium's phone emulation reports `devicePixelContentBoxSize` in CSS
+      pixels, so egui comes out three times too big there, to check on an
+      Android phone. A phone in a hand remains: the keyboard coming up, an
+      input method composing, dictation, and scrolling under a finger
 - [ ] G: `cargo xtask`, `egui_kittest`
 - [ ] The last mile of C, with 0.5.0
 - [ ] The WebAssembly world renderer for the link
