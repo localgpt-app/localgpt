@@ -308,7 +308,14 @@ pub struct Timeline {
     pending_hold: Option<(String, usize, f32)>,
     /// The timeline view last drawn, by its arrival.
     seen: u64,
+    /// A lane asked to be shown (the inspector's link): brought into view
+    /// once, and ringed for a moment from when it was asked.
+    scroll_to: Option<String>,
+    flash: Option<(String, std::time::Instant)>,
 }
+
+/// How long a lane asked for stays ringed.
+const FLASH: std::time::Duration = std::time::Duration::from_millis(1600);
 
 impl Timeline {
     pub fn new() -> Self {
@@ -330,7 +337,16 @@ impl Timeline {
             holding: None,
             pending_hold: None,
             seen: 0,
+            scroll_to: None,
+            flash: None,
         }
+    }
+
+    /// Bring the lane of `track` into view and ring it for a moment, as the
+    /// page does when the inspector asks for a modulation's track.
+    pub fn reveal(&mut self, track: String) {
+        self.scroll_to = Some(track.clone());
+        self.flash = Some((track, std::time::Instant::now()));
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, state: &State, end: &ShellEnd) {
@@ -486,6 +502,26 @@ impl Timeline {
                     self.header(ui, row, track);
                     let lane = Rect::from_min_max(pos2(lanes_x, row.top()), row.max);
                     self.lane(ui, lane, s, &editing, &timeline.signals, track, end);
+                    // A lane asked for: into view once, ringed a moment.
+                    let id = describe(track).0;
+                    if self.scroll_to.as_deref() == Some(id) {
+                        self.scroll_to = None;
+                        ui.scroll_to_rect(row, Some(egui::Align::Center));
+                    }
+                    if let Some((_, since)) = self.flash.as_ref().filter(|(t, _)| t == id) {
+                        let left = 1.0 - since.elapsed().as_secs_f32() / FLASH.as_secs_f32();
+                        if left > 0.0 {
+                            painter.rect_stroke(
+                                row.shrink(1.0),
+                                3.0,
+                                Stroke::new(1.5, alpha(theme::HEAD, left)),
+                                egui::StrokeKind::Inside,
+                            );
+                            ui.ctx().request_repaint();
+                        } else {
+                            self.flash = None;
+                        }
+                    }
                     painter.line_segment(
                         [
                             pos2(rect.left(), row.bottom()),

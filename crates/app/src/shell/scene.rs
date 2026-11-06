@@ -281,6 +281,9 @@ pub struct Scene {
     naming: Option<(u64, String)>,
     /// A shot's in and out points while a drag holds them: its id, in, out.
     timing: Option<(u64, f64, f64)>,
+    /// A timeline lane asked to be shown (a modulation's "timeline" link),
+    /// for the shell to pass on.
+    reveal: Option<String>,
 }
 
 impl Scene {
@@ -292,7 +295,13 @@ impl Scene {
             held: None,
             naming: None,
             timing: None,
+            reveal: None,
         }
+    }
+
+    /// The lane the inspector asked the timeline to show, once.
+    pub fn take_reveal(&mut self) -> Option<String> {
+        self.reveal.take()
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, state: &State, end: &ShellEnd) {
@@ -613,10 +622,20 @@ impl Scene {
                     if let Some(glow) = rgba(material.get("emissive"))
                         && glow[..3].iter().any(|c| *c > 0.0)
                     {
+                        // Its colour picked as a colour, written back at its
+                        // strength (an emissive brighter than 1), as the
+                        // page's `atStrength` does.
                         ui.label("Glow");
                         ui.horizontal(|ui| {
                             let strength = glow[..3].iter().fold(1.0f32, |m, c| m.max(*c));
-                            swatch(ui, glow.map(|c| (c / strength).clamp(0.0, 1.0)));
+                            let colour = [glow[0], glow[1], glow[2]].map(|c| c / strength);
+                            let mut picked = colour;
+                            if ui.color_edit_button_rgb(&mut picked).changed() && picked != colour {
+                                let at = |c: f32| (c * strength * 1e4).round() / 1e4;
+                                let value =
+                                    json!([at(picked[0]), at(picked[1]), at(picked[2]), glow[3]]);
+                                self.commit(&chosen, "material.emissive", value, end);
+                            }
                             ui.label(RichText::new(format!("× {strength:.1}")).color(theme::MUTED));
                         });
                         ui.end_row();
@@ -773,11 +792,25 @@ impl Scene {
                     });
                 }
             }
-            if let Some(modulations) = primary.get("modulations").and_then(Value::as_array)
-                && !modulations.is_empty()
+        });
+        // What the song moves edits nothing here: its link to the lane
+        // works on a world built from a file too.
+        if let Some(modulations) = primary.get("modulations").and_then(Value::as_array)
+            && !modulations.is_empty()
+        {
             {
                 part(ui, "Moved by the song");
-                for modulation in modulations {
+                // Each one's lane on the timeline, where the timeline has it.
+                let lanes: Vec<Option<String>> = (0..modulations.len())
+                    .map(|i| {
+                        let track = state.scene.as_deref()?.tracks.get(&id)?.get(i)?;
+                        let shown = state.timeline.as_deref()?.tracks.iter().any(|t| {
+                            matches!(t, crate::timeline::TrackView::Modulation { id, .. } if id == track)
+                        });
+                        shown.then(|| track.clone())
+                    })
+                    .collect();
+                for (modulation, lane) in modulations.iter().zip(lanes) {
                     ui.horizontal(|ui| {
                         let target = modulation
                             .get("target")
@@ -797,9 +830,25 @@ impl Scene {
                         {
                             ui.label(RichText::new(format!("{lo}–{hi}")).color(theme::MUTED));
                         }
+                        if let Some(lane) = lane {
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui
+                                        .small_button("timeline ↗")
+                                        .on_hover_text("Its track on the timeline")
+                                        .clicked()
+                                    {
+                                        self.reveal = Some(lane);
+                                    }
+                                },
+                            );
+                        }
                     });
                 }
             }
+        }
+        ui.add_enabled_ui(editable, |ui| {
             if let Some(audio) = primary.get("audio").filter(|v| !v.is_null()) {
                 part(ui, "Sound");
                 egui::Grid::new("sound").num_columns(2).show(ui, |ui| {

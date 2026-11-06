@@ -375,6 +375,10 @@ impl eframe::App for Shell {
                 };
                 self.layout.ui(ui, &mut panes);
             });
+        // A modulation's link in the inspector: its lane, shown next frame.
+        if let Some(track) = self.scene.take_reveal() {
+            self.timeline.reveal(track);
+        }
         // The world moves on its own: show its newest frame.
         ctx.request_repaint_after(Duration::from_millis(16));
     }
