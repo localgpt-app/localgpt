@@ -168,17 +168,15 @@ pub(super) struct ShellHost {
 }
 
 impl Host for ShellHost {
-    fn send(&self, message: &ToPage, _json: &str) {
+    fn send(&self, message: &ToPage) {
         if self.events.send(ShellEvent::of(message)).is_ok() {
             (self.wake)();
         }
     }
-
-    fn set_hole(&self, _hole: [f64; 4]) {}
 }
 
-/// The app's end of the link: inserted before the app starts, taken when the
-/// page would open (`open_page`), which then needs no window.
+/// The app's end of the link: inserted before the app starts, and taken
+/// when the window's side of the protocol opens (`open_page`).
 #[derive(Resource)]
 pub struct ShellLink {
     pub(super) host: std::sync::Mutex<Option<ShellHost>>,
@@ -226,14 +224,13 @@ mod tests {
             id: "t1",
             label: Some("Fix the jetty"),
         };
-        let json = serde_json::to_string(&message).unwrap();
-        host.send(&message, &json);
+        host.send(&message);
         let bytes = [27u8, b'[', b'1', b'm', b'h', b'i'];
         let data = ToPage::TermData {
             id: "t1",
             bytes: &bytes,
         };
-        host.send(&data, "");
+        host.send(&data);
         match end.events.try_recv().unwrap() {
             ShellEvent::TermState { id, label } => {
                 assert_eq!(

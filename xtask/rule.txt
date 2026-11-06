@@ -6,8 +6,7 @@
 # is added only by hand, with its reason in review.
 
 [wry]
-# The page's web view host: goes when the shell is the default (step E).
-localgpt-app
+# None: the page's web view host went in step E, 2026-11-06.
 
 [files]
 apps/app-desktop/macos/build-app.sh
@@ -75,13 +74,6 @@ scripts/release-plan.py
 scripts/remote-smoke.mjs
 scripts/sync-viewer.sh
 scripts/trust-release-workflow.py
-scripts/world-in-the-page/alone.py
-scripts/world-in-the-page/analyze.py
-scripts/world-in-the-page/gpu.py
-scripts/world-in-the-page/headless.mjs
-scripts/world-in-the-page/load.py
-scripts/world-in-the-page/run.sh
-scripts/world-in-the-page/serve.py
 spikes/egui-terminal/probe.py
 website-gen/deploy.sh
 website-md/deploy.sh

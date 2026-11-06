@@ -7,35 +7,22 @@
 //! the timeline, the scene and the clock.
 //!
 //! Its clients: the shell, the window's interface (`crate::shell`), over an
-//! in-process channel (`link.rs`); a paired phone's page, over a WebSocket
-//! (`remote.rs`); and, until its host goes (`docs/rfcs/authoring/
-//! all-rust.md`, step E), the page itself over Bevy's window on macOS with
-//! `LOCALGPT_APP_SHELL=page`. That page — React, Tailwind, CodeMirror and
-//! xterm.js, built from `crates/app/ui` — posts its asks as JSON through
-//! `window.ipc` and is answered through `window.__lg.recv(…)`; it leaves a
-//! hole where the world shows through, and clicks inside it fall through to
-//! Bevy (`mac::HoleView`). The host is a [`Host`]: a WKWebView over Bevy's
-//! view (`mac.rs`), serving the built page from the binary (`ui/dist`, read
-//! from disk in a debug build). The page also opens in a plain browser,
-//! with nothing behind it, to be designed.
+//! in-process channel (`link.rs`), its asks and answers typed; and a paired
+//! phone or tablet, over the local network (`remote.rs`), as JSON. The
+//! device gets the page — React, Tailwind and xterm.js, built from
+//! `crates/app/ui` and served from the binary (`ui/dist`, read from disk in
+//! a debug build) — until the shell's panels are built for its browser
+//! (`docs/rfcs/authoring/all-rust.md`, step F). What the window is sent,
+//! the device is sent, and what the device asks is asked as the window's
+//! would be, bar the asks that belong to this computer (Open…, a link for
+//! its browser, the listener). The terminals are every client's
+//! (`term.rs`).
 //!
 //! `LOCALGPT_APP_UI_OPEN=terminal` starts with a terminal open (`outliner`
-//! starts the left column on its Outliner tab); with the page,
-//! `LOCALGPT_APP_UI_URL` loads a dev server instead of the built page (`npm
-//! run dev` in `crates/app/ui`, which reloads as the page is edited), and
-//! `LOCALGPT_APP_UI=none` leaves it out, the world alone in the window.
-//!
-//! The same page also opens on a paired phone or tablet, over the local
-//! network (`remote.rs`): what the window is sent, the device is sent, and
-//! what the device asks is asked as the window's would be — bar the asks
-//! that belong to this computer (the hole, Open…, a link for its browser).
-//! The terminals are every page's (`term.rs`). Where no host opens the page,
-//! a device's is the interface.
+//! starts the left column on its Outliner tab).
 
 mod dist;
 pub mod link;
-#[cfg(target_os = "macos")]
-mod mac;
 mod remote;
 mod term;
 
@@ -43,17 +30,13 @@ pub use remote::RemoteView;
 pub use term::Tab;
 
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, channel};
+use std::sync::mpsc::Receiver;
 
 use base64::Engine;
-use bevy::camera::Viewport;
-use bevy::diagnostic::FrameCount;
 use bevy::ecs::message::Messages;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
-use bevy::window::PrimaryWindow;
 use localgpt_gen::gen3d::live::{LiveHistory, SeekTo};
-use localgpt_gen::gen3d::plugin::FlyCam;
 use serde::{Deserialize, Serialize};
 
 use crate::document::{Document, DocumentAsk, DocumentView};
@@ -63,8 +46,6 @@ use crate::timeline::{ShotTime, Thumbs, Timeline, TimelineAsk, TimelineView, Wor
 use remote::{Frames, Inbound, Mirror, Remote};
 use term::{TermOut, Terms};
 
-pub const LOCALGPT_APP_UI: &str = "LOCALGPT_APP_UI";
-pub const LOCALGPT_APP_UI_URL: &str = "LOCALGPT_APP_UI_URL";
 pub const LOCALGPT_APP_UI_OPEN: &str = "LOCALGPT_APP_UI_OPEN";
 
 /// History entries per second while playing.
@@ -73,30 +54,13 @@ const PLAY_RATE: f32 = 2.0;
 pub struct WebUiPlugin {
     /// Where the agents' terminals start: the open world's folder.
     pub cwd: PathBuf,
-    url: Option<String>,
-}
-
-impl WebUiPlugin {
-    /// The interface, unless `LOCALGPT_APP_UI=none` asks the page's window
-    /// for the world alone. The shell always has it: its panels are what
-    /// it is sent.
-    pub fn from_env(cwd: PathBuf) -> Option<Self> {
-        let off = crate::shell::page_requested()
-            && std::env::var(LOCALGPT_APP_UI).is_ok_and(|v| v == "none");
-        (!off).then(|| Self {
-            cwd,
-            url: std::env::var(LOCALGPT_APP_UI_URL).ok(),
-        })
-    }
 }
 
 impl Plugin for WebUiPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Settings {
             cwd: self.cwd.clone(),
-            url: self.url.clone(),
         })
-        .init_resource::<Hole>()
         .init_resource::<Play>()
         .insert_resource(Remote::from_env())
         .init_resource::<Frames>()
@@ -109,7 +73,6 @@ impl Plugin for WebUiPlugin {
                 play_history,
                 push_page,
                 pump_terms,
-                fit_camera,
                 remote::show,
                 remote::tick,
             )
@@ -118,8 +81,8 @@ impl Plugin for WebUiPlugin {
     }
 }
 
-/// Who a message came from or goes to: the page in the window, or one on a
-/// paired device, by its connection.
+/// Who a message came from or goes to: the window's interface, or a paired
+/// device's page, by its connection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Client {
     Window,
@@ -129,28 +92,21 @@ pub enum Client {
 #[derive(Resource)]
 struct Settings {
     cwd: PathBuf,
-    url: Option<String>,
 }
 
-/// What hosts the window's interface: something to send it each message,
-/// and a way to cut the hole the world shows through. macOS's web view is
-/// `mac::MacHost`, which runs the JSON in the page; the shell is
-/// `link::ShellHost`, which takes the typed message. Windows and Linux have
-/// no web view host, and there the window shows the world alone unless the
-/// shell is the interface. Everything else here is the same on every
-/// platform.
+/// What the window's interface is sent through: the shell's link
+/// (`link::ShellHost`), which takes each message typed.
 trait Host {
-    fn send(&self, message: &ToPage, json: &str);
-    fn set_hole(&self, hole: [f64; 4]);
+    fn send(&self, message: &ToPage);
 }
 
-/// The page, once it is open. Web views live on the main thread, so this is
-/// a non-send resource, and the systems that touch it run there. Without a
-/// host (no web view on this platform yet) it is still made, ready from the
-/// start, so a paired device's page has everything to draw.
+/// The window's side of the protocol, once it is open. The terminals' PTYs
+/// it pumps belong to the thread that made them, so this is a non-send
+/// resource, and the systems that touch it run there. Without a host (a
+/// test) it is still made, ready from the start, so a paired device's page
+/// has everything to draw.
 struct Page {
     host: Option<Box<dyn Host>>,
-    inbox: Receiver<String>,
     /// The shell's asks, typed: they need no JSON (`link`).
     shell: Option<Receiver<FromPage>>,
     /// Everything sent goes to the paired devices too.
@@ -204,16 +160,10 @@ impl ClockSent {
 }
 
 impl Page {
-    fn new(
-        host: Option<Box<dyn Host>>,
-        inbox: Receiver<String>,
-        shell: Option<Receiver<FromPage>>,
-        mirror: Mirror,
-    ) -> Self {
+    fn new(host: Option<Box<dyn Host>>, shell: Option<Receiver<FromPage>>, mirror: Mirror) -> Self {
         Self {
             ready: host.is_none(),
             host,
-            inbox,
             shell,
             mirror,
             fresh: true,
@@ -221,18 +171,18 @@ impl Page {
         }
     }
 
-    /// To every page: the window's, and the devices'.
+    /// To every client: the window's, and the devices', as JSON.
     fn send(&self, message: &ToPage) {
+        self.send_window(message);
         if let Ok(json) = serde_json::to_string(message) {
-            self.to_host(message, &json);
             self.mirror.broadcast(&json);
         }
     }
 
-    /// To the window's page alone.
+    /// To the window's interface alone, typed.
     fn send_window(&self, message: &ToPage) {
-        if let Ok(json) = serde_json::to_string(message) {
-            self.to_host(message, &json);
+        if let Some(host) = &self.host {
+            host.send(message);
         }
     }
 
@@ -246,17 +196,7 @@ impl Page {
             }
         }
     }
-
-    fn to_host(&self, message: &ToPage, json: &str) {
-        if let Some(host) = &self.host {
-            host.send(message, json);
-        }
-    }
 }
-
-/// The page's hole, in CSS pixels from the window's top left.
-#[derive(Resource, Default)]
-struct Hole(Option<[f64; 4]>);
 
 /// Playing the history: one entry after another, in the order written.
 #[derive(Resource, Default)]
@@ -275,8 +215,6 @@ struct Play {
 pub enum FromPage {
     #[serde(rename = "ready")]
     Ready,
-    #[serde(rename = "viewport")]
-    Viewport { x: f64, y: f64, w: f64, h: f64 },
     /// `None` is the base.
     #[serde(rename = "seek")]
     Seek { id: Option<String> },
@@ -482,65 +420,24 @@ struct Row<'a> {
     head: bool,
 }
 
-/// Opens the page once Bevy's window and surface exist (an exclusive
-/// system, so it runs on the main thread). A failure is logged once.
-fn open_page(world: &mut World, mut tried: Local<bool>) {
-    if *tried {
+/// Opens the window's side of the protocol, once (an exclusive system, so
+/// it runs on the thread that owns the terminals): the shell's link, typed
+/// both ways, which says when it is ready. Without a link (a test), the
+/// side opens with no host, for paired devices alone.
+fn open_page(world: &mut World, mut opened: Local<bool>) {
+    if std::mem::replace(&mut *opened, true) {
         return;
     }
-    // The shell is the interface: its page needs no window, and opens at
-    // once. It asks with typed messages, and says when it is ready.
-    if let Some(link) = world.get_resource::<link::ShellLink>() {
-        let host = link.host.lock().ok().and_then(|mut h| h.take());
-        let asks = link.asks.lock().ok().and_then(|mut a| a.take());
-        if let Some(host) = host {
-            *tried = true;
-            let (_never, inbox) = channel::<String>();
-            let mirror = world.resource::<Remote>().mirror();
-            world.insert_non_send(Page::new(Some(Box::new(host)), inbox, asks, mirror));
-        }
-        return;
-    }
-    // Bevy makes its surface on the first frames; the page goes above it.
-    if world.resource::<FrameCount>().0 < 3 {
-        return;
-    }
-    let Ok(window) = world
-        .query_filtered::<Entity, With<PrimaryWindow>>()
-        .single(world)
-    else {
-        return;
+    let (host, asks) = match world.get_resource::<link::ShellLink>() {
+        Some(link) => (
+            link.host.lock().ok().and_then(|mut h| h.take()),
+            link.asks.lock().ok().and_then(|mut a| a.take()),
+        ),
+        None => (None, None),
     };
-    let dev = world.resource::<Settings>().url.clone();
-    let query = std::env::var(LOCALGPT_APP_UI_OPEN)
-        .map(|open| format!("?open={open}"))
-        .unwrap_or_default();
-    let (tx, inbox) = channel::<String>();
-    #[cfg(target_os = "macos")]
-    let host: anyhow::Result<Box<dyn Host>> = {
-        let Some(ns_view) = mac::content_view(window) else {
-            return;
-        };
-        mac::open(ns_view, dev.as_deref(), &query, tx).map(|host| Box::new(host) as Box<dyn Host>)
-    };
-    #[cfg(not(target_os = "macos"))]
-    let host: anyhow::Result<Box<dyn Host>> = {
-        // Nothing to open them with yet.
-        drop((window, dev, query, tx));
-        Err(anyhow::anyhow!(
-            "it opens on macOS only so far, and this window shows the world alone"
-        ))
-    };
-    *tried = true;
     let mirror = world.resource::<Remote>().mirror();
-    match host {
-        Ok(host) => world.insert_non_send(Page::new(Some(host), inbox, None, mirror)),
-        Err(e) => {
-            tracing::warn!("the interface did not open: {e:#}");
-            // A paired device's page can still be the interface.
-            world.insert_non_send(Page::new(None, inbox, None, mirror));
-        }
-    }
+    let host = host.map(|host| Box::new(host) as Box<dyn Host>);
+    world.insert_non_send(Page::new(host, asks, mirror));
 }
 
 /// Where the page's asks go: each is one of the app's own messages, there
@@ -568,7 +465,6 @@ fn read_page(
     history: Option<Res<LiveHistory>>,
     mut asks: Asks,
     mut play: ResMut<Play>,
-    mut hole: ResMut<Hole>,
     mut remote: ResMut<Remote>,
     mut frames: ResMut<Frames>,
 ) {
@@ -576,18 +472,13 @@ fn read_page(
         return;
     };
     // The window's asks and the devices', in the order each sent them: the
-    // web view's and a device's as JSON, the shell's typed; a device that
-    // went is `Gone`.
+    // shell's typed, a device's as JSON; a device that went is `Gone`.
     enum Incoming {
         Json(String),
         Ask(FromPage),
         Gone,
     }
-    let mut inbox: Vec<(Client, Incoming)> = page
-        .inbox
-        .try_iter()
-        .map(|raw| (Client::Window, Incoming::Json(raw)))
-        .collect();
+    let mut inbox: Vec<(Client, Incoming)> = Vec::new();
     if let Some(shell) = &page.shell {
         inbox.extend(
             shell
@@ -618,13 +509,12 @@ fn read_page(
                 continue;
             }
         };
-        // What belongs to this computer is the window's to ask: where its
-        // page leaves the hole, Open…, a link for its browser, the listener.
+        // What belongs to this computer is the window's to ask: Open…, a
+        // link for its browser, the listener.
         if client != Client::Window
             && matches!(
                 message,
-                FromPage::Viewport { .. }
-                    | FromPage::Open { .. }
+                FromPage::Open { .. }
                     | FromPage::OpenFile
                     | FromPage::RemoteOn { .. }
                     | FromPage::RemotePair
@@ -648,12 +538,6 @@ fn read_page(
                     remote.ready(conn, tabs.into_iter().collect());
                 }
             },
-            FromPage::Viewport { x, y, w, h } => {
-                if let Some(host) = &page.host {
-                    host.set_hole([x, y, w, h]);
-                }
-                hole.0 = Some([x, y, w, h]);
-            }
             FromPage::Seek { id } => {
                 play.playing = false;
                 ask(&mut asks.seeks, SeekTo(id));
@@ -1065,40 +949,6 @@ fn flush(page: &Page, data: &mut Vec<(String, Vec<u8>)>, id: &str) {
 
 fn send_data(page: &Page, id: &str, bytes: &[u8]) {
     page.send(&ToPage::TermData { id, bytes });
-}
-
-/// The world camera draws into the page's hole.
-fn fit_camera(
-    hole: Res<Hole>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    mut cameras: Query<&mut Camera, With<FlyCam>>,
-) {
-    let (Some([x, y, w, h]), Ok(window)) = (hole.0, windows.single()) else {
-        return;
-    };
-    let scale = window.scale_factor() as f64;
-    let size = window.physical_size();
-    if size.x == 0 || size.y == 0 || w <= 0.0 || h <= 0.0 {
-        return;
-    }
-    let at =
-        UVec2::new((x * scale).round() as u32, (y * scale).round() as u32).min(size - UVec2::ONE);
-    let extent = UVec2::new((w * scale).round() as u32, (h * scale).round() as u32)
-        .min(size - at)
-        .max(UVec2::ONE);
-    for mut camera in &mut cameras {
-        let same = camera
-            .viewport
-            .as_ref()
-            .is_some_and(|v| v.physical_position == at && v.physical_size == extent);
-        if !same {
-            camera.viewport = Some(Viewport {
-                physical_position: at,
-                physical_size: extent,
-                ..default()
-            });
-        }
-    }
 }
 
 #[cfg(test)]

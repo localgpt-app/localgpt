@@ -184,12 +184,16 @@ fn report(root: &Path, files: &BTreeSet<String>, wry: &BTreeSet<String>) {
         .iter()
         .map(|(ext, (n, lines))| format!("{n} {ext} ({lines} lines)"))
         .collect();
+    let on_wry = if wry.is_empty() {
+        "no crate".to_string()
+    } else {
+        wry.iter().cloned().collect::<Vec<_>>().join(", ")
+    };
     println!(
-        "all-Rust rule: holds. Not Rust yet: {} files, {} lines — {}; on wry: {}.",
+        "all-Rust rule: holds. Not Rust yet: {} files, {} lines — {}; on wry: {on_wry}.",
         total.0,
         total.1,
         parts.join(", "),
-        wry.iter().cloned().collect::<Vec<_>>().join(", ")
     );
 }
 

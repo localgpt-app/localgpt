@@ -1,13 +1,12 @@
 //! The shell: the app's interface, in Rust (`docs/rfcs/authoring/all-rust.md`,
-//! decided 2026-11-05), and the default since 2026-11-06.
+//! decided 2026-11-05).
 //!
 //! eframe owns the window and egui draws the panels. Bevy runs on a thread
 //! of its own with no window, and draws the world into a texture on the same
-//! wgpu device, which the world panel shows (`world.rs`). The panels are one
-//! more client of the page's protocol (`webui::link`): they are sent what the
-//! page is sent and ask what the page asks, so a paired phone, which keeps
-//! the page, sees what the window does. `LOCALGPT_APP_SHELL=page` opens the
-//! web page instead, on macOS, until its host goes (all-rust.md, step E).
+//! wgpu device, which the world panel shows (`world.rs`). The panels are a
+//! client of the app's interface protocol (`webui::link`), as a paired
+//! phone's page is: they are sent what it is sent and ask what it asks, so
+//! the phone sees what the window does.
 //!
 //! The whole Bevy app is built on its own thread, not built here and sent
 //! there: a non-send resource (the terminals, the page) belongs to the thread
@@ -41,17 +40,17 @@ use crate::webui::FromPage;
 use crate::webui::link::{self, ShellEnd};
 use state::State;
 
-/// `page`: the web page over Bevy's window is the interface, not the shell.
-pub const LOCALGPT_APP_SHELL: &str = "LOCALGPT_APP_SHELL";
-/// Bevy's ticks a second while the shell is the interface (default 60).
+/// Bevy's ticks a second (default 60).
 pub const LOCALGPT_APP_SHELL_HZ: &str = "LOCALGPT_APP_SHELL_HZ";
+/// A dev hook for a look without a hand: a picture of the window, panels
+/// and all, to this path, a while after launch, then quit; the frame comes
+/// back black when the Mac is locked.
+pub const LOCALGPT_APP_SCREENSHOT: &str = "LOCALGPT_APP_SCREENSHOT";
+/// The while, in seconds (default 12: long enough for a world's assets to
+/// land).
+pub const LOCALGPT_APP_SCREENSHOT_AFTER: &str = "LOCALGPT_APP_SCREENSHOT_AFTER";
 /// How long a closed window waits for the world to stop.
 const STOP_WAIT: Duration = Duration::from_secs(5);
-
-/// Whether the web page, not the shell, is to be the interface.
-pub fn page_requested() -> bool {
-    std::env::var(LOCALGPT_APP_SHELL).is_ok_and(|v| v == "page")
-}
 
 /// One device for the panels and the world, made the way Bevy makes its
 /// own: every feature and limit the adapter has.
@@ -280,17 +279,14 @@ impl Shell {
         // `outliner` starts the left column on its Outliner tab.
         let layout = tiles::Layout::new(opens("outliner"));
         // `LOCALGPT_APP_SCREENSHOT=<png>`: a picture of the window a while
-        // in (`LOCALGPT_APP_SCREENSHOT_AFTER`, 12 s), then quit — the app's
-        // hook for a look without a hand, the panels in it.
-        let shot = std::env::var(crate::screenshot::LOCALGPT_APP_SCREENSHOT)
-            .ok()
-            .map(|path| {
-                let at = std::env::var(crate::screenshot::LOCALGPT_APP_SCREENSHOT_AFTER)
-                    .ok()
-                    .and_then(|s| s.parse::<f64>().ok())
-                    .unwrap_or(12.0);
-                (at, std::path::PathBuf::from(path))
-            });
+        // in, then quit.
+        let shot = std::env::var(LOCALGPT_APP_SCREENSHOT).ok().map(|path| {
+            let at = std::env::var(LOCALGPT_APP_SCREENSHOT_AFTER)
+                .ok()
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(12.0);
+            (at, std::path::PathBuf::from(path))
+        });
         Self {
             end,
             bar: bar::Bar::default(),

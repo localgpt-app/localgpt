@@ -5,21 +5,18 @@
 //! across the window, Open…, and terminals, each a login shell started in the
 //! folder of what is open, where the person runs whatever agent they have.
 //! The app runs no agent and no model, and holds no agent's or model's
-//! configuration (`docs/rfcs/authoring/the-page.md`).
+//! configuration (`docs/rfcs/authoring/the-harness-goes.md`).
 //!
 //! The interface is the shell (`docs/rfcs/authoring/all-rust.md`): eframe
 //! owns the window, egui draws the panels, and Bevy draws the world into a
-//! texture the shell shows (`shell`). Both speak one protocol (`webui`),
-//! which a paired phone's page speaks too. Until its host goes, the web page
-//! over Bevy's window (`ui/`) is still there on macOS, with
-//! `LOCALGPT_APP_SHELL=page`.
+//! texture the shell shows (`shell`). The panels and the app speak one
+//! protocol (`webui`), which a paired phone's page speaks too.
 //!
 //! ```sh
 //! cargo run -p localgpt-app                          # reopens what was opened last
 //! cargo run -p localgpt-app -- --md notes.md         # a document as a world
 //! cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
 //! cargo run -p localgpt-app -- --world harbour.world # a package, live: agents edit it
-//! LOCALGPT_APP_SHELL=page cargo run -p localgpt-app  # the web page, on macOS, until it goes
 //! ```
 //!
 //! A document (`--md`) compiles with MD's pure lib — the rule-derived draft
@@ -28,17 +25,14 @@
 //! for it, which Gen's viewport plays. A `.world` package opens as a live
 //! canvas: this window holds its authority and serves the API agents change
 //! it through. Everything heavy comes from the gen lib; this crate is the
-//! thin assembly. The shell runs wherever eframe and Bevy do; the page's
-//! host was macOS's alone.
+//! thin assembly.
 
 mod document;
 mod open;
 mod peaks;
 mod scene;
-mod screenshot;
 mod shell;
 mod song;
-mod spike;
 mod starter;
 mod timeline;
 mod webui;
@@ -125,35 +119,9 @@ fn main() -> anyhow::Result<()> {
     let opened = open_launch(&args)?;
 
     // The shell: eframe takes this thread, and the app is built and run on
-    // a thread of its own, drawing on the shell's device. The page, asked
-    // for, is Bevy's window with the web view over it, as before.
-    if !shell::page_requested() {
-        let gpu = shell::Gpu::new()?;
-        return shell::run(gpu, move |app| assemble(app, opened));
-    }
-
-    let mut app = App::new();
-    app.add_plugins(
-        DefaultPlugins
-            .set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "LocalGPT".into(),
-                    resolution: bevy::window::WindowResolution::new(1440, 860),
-                    present_mode: bevy::window::PresentMode::AutoVsync,
-                    composite_alpha_mode: bevy::window::CompositeAlphaMode::Auto,
-                    ..default()
-                }),
-                ..default()
-            })
-            .set(bevy::asset::AssetPlugin {
-                file_path: "/".to_string(),
-                ..default()
-            })
-            .disable::<bevy::log::LogPlugin>(),
-    );
-    assemble(&mut app, opened)?;
-    app.run();
-    Ok(())
+    // a thread of its own, drawing on the shell's device.
+    let gpu = shell::Gpu::new()?;
+    shell::run(gpu, move |app| assemble(app, opened))
 }
 
 /// What the launch opens, worked out before the app is built: the first
@@ -222,7 +190,6 @@ fn open_launch(args: &Args) -> anyhow::Result<Opened> {
         // then its world, which Gen loads and plays.
         eprintln!("localgpt-app: listening to {} …", track.display());
         let (dir, world) = song::prepare(track, &workspace)?;
-        spike::write_manifest(&dir, &world);
         let soundtrack = world.soundtrack.as_ref();
         eprintln!(
             "localgpt-app: {} -> {} ({} entities; {} — {}, {:.0} bpm)",
@@ -402,22 +369,16 @@ fn assemble(app: &mut App, opened: Opened) -> anyhow::Result<()> {
     if let Some(live) = live_document {
         app.insert_resource(live);
     }
-    if let Some(shot) = screenshot::ScreenshotPlugin::from_env() {
-        app.add_plugins(shot);
-    }
-    app.add_plugins(spike::SpikePlugin);
     // The interface's protocol, its terminals in the folder of what is open:
-    // a page over the viewport, or the shell's panels (`shell::run`
-    // inserted its link before this).
-    if let Some(ui) = webui::WebUiPlugin::from_env(
-        live_canvas
+    // the shell's panels (`shell::run` inserted its link before this) and a
+    // paired phone's page.
+    app.add_plugins(webui::WebUiPlugin {
+        cwd: live_canvas
             .clone()
             .or(agents_dir)
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_default(),
-    ) {
-        app.add_plugins(ui);
-    }
+    });
     Ok(())
 }
 

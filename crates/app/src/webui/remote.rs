@@ -36,15 +36,12 @@ use axum::routing::{get, post};
 use base64::Engine;
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
-use bevy::window::PrimaryWindow;
 use futures::{SinkExt, StreamExt};
 use localgpt_gen::gen3d::offscreen::OffscreenRenderTarget;
 use localgpt_world_agent::session::sha256_hex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
-
-use super::Hole;
 
 /// `on` starts the listener at launch and shows a pairing code in the
 /// terminal the app was started from; `off` keeps it off, whatever was
@@ -867,18 +864,14 @@ impl Frames {
     }
 }
 
-/// The pairing code's clock, and the frames asked for: the window read back
-/// once for all who asked, cut to the world's part of it, and encoded on a
-/// thread of its own. A world that renders into a texture (the shell's
-/// panel, an offscreen canvas) is read from that, whole: the window there
-/// never presents.
+/// The pairing code's clock, and the frames asked for: the world read back
+/// once for all who asked, from the texture it renders into (the shell's
+/// world panel), and encoded on a thread of its own.
 pub fn tick(
     mut commands: Commands,
     remote: Option<ResMut<Remote>>,
     mut frames: ResMut<Frames>,
     time: Res<Time>,
-    hole: Res<Hole>,
-    windows: Query<&Window, With<PrimaryWindow>>,
     offscreen: Option<Res<OffscreenRenderTarget>>,
 ) {
     let Some(mut remote) = remote else {
@@ -900,15 +893,6 @@ pub fn tick(
     frames.since = Some(now);
     let busy = Arc::clone(&frames.busy);
     let mirror = remote.mirror();
-    let offscreen = offscreen.filter(|o| o.texture_view.is_some() || o.image_handle.is_some());
-    let crop = match offscreen {
-        Some(_) => None,
-        None => windows.single().ok().and_then(|window| {
-            let [x, y, w, h] = hole.0?;
-            let scale = window.scale_factor() as f64;
-            Some([x * scale, y * scale, w * scale, h * scale].map(|v| v.round().max(0.0) as u32))
-        }),
-    };
     let shot = offscreen.map_or_else(Screenshot::primary_window, |o| o.screenshot());
     commands.spawn(shot).observe(
         move |captured: On<ScreenshotCaptured>, mut commands: Commands| {
@@ -918,7 +902,7 @@ pub fn tick(
             let _ = std::thread::Builder::new()
                 .name("remote-frame".into())
                 .spawn(move || {
-                    if let Some(url) = frame_url(image, crop) {
+                    if let Some(url) = frame_url(image) {
                         let json = json!({"t": "frame", "url": url}).to_string();
                         for conn in to {
                             mirror.to(conn, json.clone());
@@ -930,18 +914,9 @@ pub fn tick(
     );
 }
 
-/// The window's frame as a JPEG data URL: the world's part of it, no wider
-/// than a phone's screen.
-fn frame_url(image: Image, crop: Option<[u32; 4]>) -> Option<String> {
+/// The world's frame as a JPEG data URL, no wider than a phone's screen.
+fn frame_url(image: Image) -> Option<String> {
     let mut frame = image.try_into_dynamic().ok()?.to_rgb8();
-    if let Some([x, y, w, h]) = crop {
-        let (fw, fh) = frame.dimensions();
-        let (x, y) = (x.min(fw.saturating_sub(1)), y.min(fh.saturating_sub(1)));
-        let (w, h) = (w.min(fw - x), h.min(fh - y));
-        if w > 0 && h > 0 {
-            frame = image::imageops::crop_imm(&frame, x, y, w, h).to_image();
-        }
-    }
     if frame.width() > FRAME_WIDTH {
         let height = (frame.height() as u64 * FRAME_WIDTH as u64 / frame.width() as u64) as u32;
         frame = image::imageops::resize(

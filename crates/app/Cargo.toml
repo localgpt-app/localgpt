@@ -62,9 +62,9 @@ portable-pty = "0.9"
 # and the titles that say what an agent is doing.
 vt100 = "0.18"
 base64 = { workspace = true }
-# The built page (ui/dist), for the window's web view and a paired device's
-# browser: read from disk in a debug build, so a rebuilt page needs no Rust
-# rebuild; inside the binary in a release one.
+# The built page (ui/dist), for a paired device's browser: read from disk in
+# a debug build, so a rebuilt page needs no Rust rebuild; inside the binary
+# in a release one.
 rust-embed = "8"
 # A paired phone's line: the page over HTTP and its messages over a
 # WebSocket — Gen's axum, so no second server stack — and the pairing code
@@ -73,14 +73,3 @@ axum = { version = "0.8", features = ["ws"] }
 futures = { workspace = true }
 rand = { workspace = true }
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
-
-# The interface's host: one WebKit view over the window (wry), and the
-# AppKit view that lets clicks in the page's hole fall through to the
-# viewport. macOS first; Windows (WebView2) next, and Linux needs webkit2gtk,
-# where wry nests a view on X11 only.
-[target.'cfg(target_os = "macos")'.dependencies]
-wry = { version = "0.57", features = ["devtools"] }
-raw-window-handle = "0.6"
-objc2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["NSGeometry"] }
-objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSEvent", "NSMenu", "NSMenuItem", "NSResponder", "NSView"] }
