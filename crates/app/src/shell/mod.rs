@@ -13,8 +13,10 @@
 //! there: a non-send resource (the terminals, the page) belongs to the thread
 //! that inserted it.
 
+mod document;
 mod drive;
 mod history;
+mod scene;
 mod state;
 mod terminal;
 mod terminals;
@@ -44,6 +46,8 @@ pub const LOCALGPT_APP_SHELL_HZ: &str = "LOCALGPT_APP_SHELL_HZ";
 /// `LOCALGPT_APP_SHELL_SHOT_PATH` and quits: a check without a hand.
 pub const LOCALGPT_APP_SHELL_SHOT: &str = "LOCALGPT_APP_SHELL_SHOT";
 pub const LOCALGPT_APP_SHELL_SHOT_PATH: &str = "LOCALGPT_APP_SHELL_SHOT_PATH";
+/// How long a closed window waits for the world to stop.
+const STOP_WAIT: Duration = Duration::from_secs(5);
 
 /// Whether the shell, not the page, is to be the interface.
 pub fn requested() -> bool {
@@ -220,12 +224,46 @@ pub fn run(
         }),
     );
     stop.store(true, Ordering::Relaxed);
-    match bevy.join() {
-        Ok(Ok(())) => {}
-        Ok(Err(e)) => tracing::error!("the world: {e:#}"),
-        Err(_) => tracing::error!("the world's thread panicked"),
+    // The world finishes its frame and drops (the terminals' shells hang
+    // up). A world that does not stop must not keep a closed window's
+    // process alive: past the wait, the thread is left to the exit.
+    let deadline = Instant::now() + STOP_WAIT;
+    while !bevy.is_finished() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    if bevy.is_finished() {
+        match bevy.join() {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => tracing::error!("the world: {e:#}"),
+            Err(_) => tracing::error!("the world's thread panicked"),
+        }
+    } else {
+        tracing::error!(
+            "the world did not stop within {} s of the window closing",
+            STOP_WAIT.as_secs()
+        );
     }
     result.map_err(|e| anyhow!("the shell: {e}"))
+}
+
+/// The left panel's tabs, as the page has them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Left {
+    /// The first there is, until one is chosen.
+    Auto,
+    Document,
+    History,
+    Outliner,
+}
+
+impl Left {
+    fn label(self) -> &'static str {
+        match self {
+            Left::Document => "Document",
+            Left::History => "History",
+            Left::Outliner | Left::Auto => "Outliner",
+        }
+    }
 }
 
 /// The window: what the app said, and the panels that show it.
@@ -234,6 +272,10 @@ struct Shell {
     world: world::Panel,
     terminals: terminals::Terminals,
     timeline: timeline::Timeline,
+    scene: scene::Scene,
+    document: document::Document,
+    /// The left panel's tab.
+    left: Left,
     state: State,
     started: Instant,
     shot: Option<(f64, std::path::PathBuf)>,
@@ -251,9 +293,15 @@ impl Shell {
         theme::apply(ctx);
         // `LOCALGPT_APP_UI_OPEN=terminal` starts with a tab, as it does the
         // page.
-        let open_terminal = std::env::var(crate::webui::LOCALGPT_APP_UI_OPEN)
-            .is_ok_and(|open| open.split(',').any(|o| o == "terminal"));
-        let terminals = terminals::Terminals::new(ctx, open_terminal);
+        let open = std::env::var(crate::webui::LOCALGPT_APP_UI_OPEN).unwrap_or_default();
+        let opens = |what: &str| open.split(',').any(|o| o == what);
+        let terminals = terminals::Terminals::new(ctx, opens("terminal"));
+        // `outliner` starts the left panel on its Outliner tab.
+        let left = if opens("outliner") {
+            Left::Outliner
+        } else {
+            Left::Auto
+        };
         let shot = std::env::var(LOCALGPT_APP_SHELL_SHOT)
             .ok()
             .and_then(|s| s.parse::<f64>().ok())
@@ -267,6 +315,9 @@ impl Shell {
             world,
             terminals,
             timeline: timeline::Timeline::new(),
+            scene: scene::Scene::new(),
+            document: document::Document::new(),
+            left,
             state: State::default(),
             started: Instant::now(),
             shot,
@@ -307,6 +358,10 @@ impl eframe::App for Shell {
         self.terminals.take(&mut self.state);
         let ctx = ui.ctx().clone();
         self.check_shot(&ctx);
+        // The panels' first sizes come from the window, as the page's
+        // columns do, not from what the panels before them left: those
+        // appear when the app's first messages arrive, sooner or later.
+        let full = ui.available_width();
 
         egui::Panel::top("bar").show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -319,25 +374,64 @@ impl eframe::App for Shell {
         });
         // The timeline runs across the window, under everything else.
         if self.state.timeline.is_some() {
+            let wanted = timeline::wanted_height(self.state.timeline.as_deref());
             egui::Panel::bottom("timeline")
                 .resizable(true)
-                .default_size(300.0)
-                .min_size(120.0)
+                .default_size(wanted)
+                .min_size(40.0)
                 .show(ui, |ui| self.timeline.ui(ui, &self.state, &self.end));
         }
-        if self.state.history.is_some() {
-            egui::Panel::left("history")
+        // What is open has its panel on the left: the document, a live
+        // canvas's history, and the world's things.
+        let tabs: Vec<Left> = [
+            (Left::Document, self.state.document.is_some()),
+            (Left::History, self.state.history.is_some()),
+            (Left::Outliner, self.state.scene.is_some()),
+        ]
+        .into_iter()
+        .filter_map(|(tab, there)| there.then_some(tab))
+        .collect();
+        if let Some(first) = tabs.first().copied() {
+            if !tabs.contains(&self.left) {
+                self.left = first;
+            }
+            // The page's widths: a document's column is wider.
+            let left = if self.state.mode_document {
+                420.0
+            } else {
+                340.0
+            };
+            egui::Panel::left("left")
                 .resizable(true)
-                .default_size(300.0)
-                .show(ui, |ui| history::ui(ui, &self.state, &self.end));
+                .default_size(f32::min(left, full * 0.3).max(240.0))
+                .min_size(240.0)
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        for tab in &tabs {
+                            ui.selectable_value(&mut self.left, *tab, tab.label());
+                        }
+                    });
+                    ui.separator();
+                    match self.left {
+                        Left::Document => {
+                            // Kept until the document is shown: the latest
+                            // place picked is where its text opens.
+                            let reveal = self.state.reveal.take();
+                            self.document.ui(ui, &self.state, reveal, &self.end)
+                        }
+                        Left::History => history::ui(ui, &self.state, &self.end),
+                        Left::Outliner | Left::Auto => self.scene.ui(ui, &self.state, &self.end),
+                    }
+                    ui.advance_cursor_after_rect(ui.available_rect_before_wrap());
+                });
         }
-        // The terminals: wide enough for an agent's TUI, never the window.
-        let width = ui.available_width();
+        // The terminals: the page's 480, wide enough for an agent's TUI,
+        // never the window.
         egui::Panel::right("terminals")
             .resizable(true)
-            .default_size((width * 0.4).clamp(360.0, 640.0))
+            .default_size(f32::min(480.0, full * 0.4).max(280.0))
             .min_size(280.0)
-            .max_size((width * 0.65).max(320.0))
+            .max_size((full * 0.6).max(320.0))
             .show(ui, |ui| self.terminals.ui(ui, &self.end));
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)

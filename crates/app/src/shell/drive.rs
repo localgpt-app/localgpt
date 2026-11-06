@@ -7,6 +7,7 @@
 //!
 //! ```text
 //! 2:click 0.5 0.5        a left click, at fractions of the world panel
+//! 2:tap 120 140          a left click at a point of the window
 //! 3:key W 1.5            W held for 1.5 s (keys as egui names them)
 //! 5:drag right 300 0     a right-button drag by points, over half a second
 //! 6:type hello\r         text, as typed (`\r` is Enter, `\e` Escape)
@@ -24,6 +25,11 @@ pub const LOCALGPT_APP_SHELL_DRIVE: &str = "LOCALGPT_APP_SHELL_DRIVE";
 #[derive(Debug, Clone, PartialEq)]
 enum Step {
     Click {
+        x: f32,
+        y: f32,
+    },
+    /// A click at a point of the window, in points.
+    Tap {
         x: f32,
         y: f32,
     },
@@ -82,25 +88,30 @@ impl Drive {
                 break;
             }
             let (_, step) = self.steps.remove(0);
+            tracing::debug!("drive at {now:.2} s: {step:?}");
             match step {
-                Step::Click { x, y } => {
-                    let pos = world.lerp_inside(egui::vec2(x, y));
+                Step::Click { .. } | Step::Tap { .. } => {
+                    let pos = match step {
+                        Step::Click { x, y } => world.lerp_inside(egui::vec2(x, y)),
+                        Step::Tap { x, y } => egui::pos2(x, y),
+                        _ => unreachable!("matched above"),
+                    };
+                    // The pointer arrives first and the press comes after, as
+                    // a hand's does: a press counts on what is already under
+                    // the pointer (picking's hover map), so one in the same
+                    // frame as the move would land on nothing.
                     input.events.push(egui::Event::PointerMoved(pos));
-                    input.events.push(egui::Event::PointerButton {
-                        pos,
-                        button: egui::PointerButton::Primary,
-                        pressed: true,
-                        modifiers,
-                    });
-                    self.later.push(Later {
-                        at: now + 0.05,
-                        event: egui::Event::PointerButton {
-                            pos,
-                            button: egui::PointerButton::Primary,
-                            pressed: false,
-                            modifiers,
-                        },
-                    });
+                    for (after, pressed) in [(0.1, true), (0.16, false)] {
+                        self.later.push(Later {
+                            at: now + after,
+                            event: egui::Event::PointerButton {
+                                pos,
+                                button: egui::PointerButton::Primary,
+                                pressed,
+                                modifiers,
+                            },
+                        });
+                    }
                 }
                 Step::Key { key, hold } => {
                     let press = |pressed| egui::Event::Key {
@@ -170,6 +181,10 @@ fn parse(script: &str) -> Vec<(f64, Step)> {
             let mut words = what.split_whitespace();
             let step = match words.next()? {
                 "click" => Step::Click {
+                    x: words.next()?.parse().ok()?,
+                    y: words.next()?.parse().ok()?,
+                },
+                "tap" => Step::Tap {
                     x: words.next()?.parse().ok()?,
                     y: words.next()?.parse().ok()?,
                 },

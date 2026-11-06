@@ -25,6 +25,7 @@ use bevy::picking::pointer::{
 };
 use bevy::prelude::*;
 use bevy::render::texture::{ManualTextureView, ManualTextureViews};
+use bevy::window::{PrimaryWindow, WindowResolution};
 use eframe::egui;
 use eframe::wgpu;
 use localgpt_gen::gen3d::offscreen::OffscreenRenderTarget;
@@ -159,10 +160,39 @@ struct Inbox {
 #[derive(Resource, Default)]
 struct PointerQueue(Vec<(Vec2, PointerAction)>, bool);
 
-/// A stand-in for the window entity Bevy's input messages name: there is
-/// none, and nothing here reads which.
+/// A stand-in for the window: the entity Bevy's input messages name, a
+/// `Window` marked `PrimaryWindow` that nothing gives a surface. Picking asks
+/// for a primary window before it casts a ray from any camera, even one
+/// rendering into a texture (bevy_picking 0.20, `Location::is_in_viewport`),
+/// and focus requests (`AcquireFocus` on a press, `FocusedInput` for each
+/// key) bubble until they reach an entity with a `Window`: on a primary
+/// window without one they bounce on it forever, since propagation has no
+/// cycle guard. The renderer draws only windows with a native handle, which
+/// this never gets (WinitPlugin is off), so it is seen by input and focus
+/// and not by the renderer. Its size and scale follow the panel, for what
+/// asks the window how big it is. Gen, seeing a primary window, leaves its
+/// cameras on it; `aim_cameras` points them at the texture instead.
 #[derive(Resource)]
 struct Surface(Entity);
+
+/// Every camera aimed at the window renders into the world's texture, and
+/// the first is the one the world's own interface (`bevy_ui`) draws through.
+fn aim_cameras(
+    mut commands: Commands,
+    mut cameras: Query<(Entity, &mut bevy::camera::RenderTarget), With<Camera>>,
+    ui_camera: Query<(), With<bevy::ui::IsDefaultUiCamera>>,
+) {
+    let mut has_ui_camera = !ui_camera.is_empty();
+    for (camera, mut target) in &mut cameras {
+        if matches!(*target, bevy::camera::RenderTarget::Window(_)) {
+            *target = bevy::camera::RenderTarget::TextureView(VIEW);
+            if !has_ui_camera {
+                commands.entity(camera).insert(bevy::ui::IsDefaultUiCamera);
+                has_ui_camera = true;
+            }
+        }
+    }
+}
 
 impl Plugin for Bridge {
     fn build(&self, app: &mut App) {
@@ -188,11 +218,35 @@ impl Plugin for Bridge {
             resize: Mutex::new(resize),
         })
         .init_resource::<PointerQueue>()
-        .add_systems(PreStartup, |mut commands: Commands| {
-            let entity = commands.spawn(Name::new("the shell's world panel")).id();
-            commands.insert_resource(Surface(entity));
+        .add_systems(PreStartup, {
+            let size = self.size;
+            move |mut commands: Commands| {
+                let entity = commands
+                    .spawn((
+                        Name::new("the shell's world panel"),
+                        Window {
+                            title: "LocalGPT".into(),
+                            resolution: WindowResolution::new(size[0], size[1]),
+                            ..default()
+                        },
+                        PrimaryWindow,
+                    ))
+                    .id();
+                commands.insert_resource(Surface(entity));
+            }
         })
         .add_systems(First, follow_resize)
+        // Before the camera system resolves targets, whenever a camera was
+        // spawned: one left on the window would draw nowhere, since the
+        // window has no surface.
+        .add_systems(
+            PostStartup,
+            aim_cameras.before(bevy::camera::CameraUpdateSystems),
+        )
+        .add_systems(
+            PostUpdate,
+            aim_cameras.before(bevy::camera::CameraUpdateSystems),
+        )
         .add_systems(PreUpdate, read_input.before(bevy::input::InputSystems))
         .add_systems(
             PreUpdate,
@@ -209,6 +263,7 @@ fn follow_resize(
     inbox: Res<Inbox>,
     mut views: ResMut<ManualTextureViews>,
     mut offscreen: ResMut<OffscreenRenderTarget>,
+    mut window: Query<&mut Window, With<PrimaryWindow>>,
 ) {
     let Ok(resize) = inbox.resize.lock() else {
         return;
@@ -218,6 +273,11 @@ fn follow_resize(
         views.insert(VIEW, manual(&last.view, last.size));
         offscreen.width = last.size[0];
         offscreen.height = last.size[1];
+        if let Ok(mut window) = window.single_mut() {
+            window
+                .resolution
+                .set_physical_resolution(last.size[0], last.size[1]);
+        }
     }
 }
 
@@ -232,6 +292,7 @@ fn read_input(
     mut wheels: MessageWriter<MouseWheel>,
     mut pointer: ResMut<PointerQueue>,
     mut scale: ResMut<UiScale>,
+    mut windows: Query<&mut Window>,
 ) {
     let window = surface.map_or(Entity::PLACEHOLDER, |s| s.0);
     let Ok(input) = inbox.input.lock() else {
@@ -302,6 +363,11 @@ fn read_input(
             Input::Scale(points) => {
                 if (scale.0 - points).abs() > f32::EPSILON {
                     scale.0 = points;
+                }
+                if let Ok(mut surface) = windows.get_mut(window)
+                    && surface.resolution.scale_factor_override() != Some(points)
+                {
+                    surface.resolution.set_scale_factor_override(Some(points));
                 }
             }
         }

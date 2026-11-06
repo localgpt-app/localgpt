@@ -507,7 +507,8 @@ impl Timeline {
             galley,
             theme::INK,
         );
-        if row.height() >= 26.0 {
+        // The kind under the name, where the lane has room for two lines.
+        if row.height() >= 30.0 {
             painter.text(
                 pos2(rect.left() + 8.0, rect.top() + 20.0),
                 Align2::LEFT_TOP,
@@ -892,6 +893,21 @@ fn describe(track: &TrackView) -> (&str, &str, &'static str, Color32, &[&'static
         TrackView::Ambience {
             id, name, toggles, ..
         } => (id, name, "ambience", theme::AMBIENCE, toggles),
+    }
+}
+
+/// The height the timeline's panel opens at, as the page's is sized: the
+/// toolbar, the ruler and every lane, until the lanes pass the page's 280
+/// and scroll; one line for a world with no clock.
+pub fn wanted_height(timeline: Option<&TimelineView>) -> f32 {
+    const TOOLBAR: f32 = 34.0;
+    const MAX_LANES: f32 = 280.0;
+    match timeline {
+        Some(timeline) if timeline.clock.is_some() => {
+            let lanes: f32 = timeline.tracks.iter().map(height).sum();
+            TOOLBAR + RULER + lanes.min(MAX_LANES) + 12.0
+        }
+        _ => 40.0,
     }
 }
 
