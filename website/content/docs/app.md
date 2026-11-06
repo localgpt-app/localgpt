@@ -10,7 +10,7 @@ There is one LocalGPT desktop app, `localgpt-app`, and its modes are the apps th
 
 ```bash
 # from a checkout of the repository
-(cd crates/app/ui && npm ci && npm run build)         # the interface, once (node 22)
+(cd crates/app/ui && npm ci && npm run build)         # a phone's page, once (node 22)
 cargo run -p localgpt-app                             # reopens what was opened last
 cargo run -p localgpt-app -- --md notes.md            # a document as a world
 cargo run -p localgpt-app -- --song track.mp3         # a song as a world that performs it
@@ -19,11 +19,11 @@ cargo run -p localgpt-app -- --world scene-1.world    # a package, opened live
 
 **Open…** at the top of the window takes a document, a song or a world file. With nothing given and nothing remembered, the app opens a starter song from the CC0 pack. The app is not on crates.io; it ships as a build — see [Installation](/docs/installation/#the-macos-app-bundle) for `LocalGPT.app`.
 
-The interface is macOS's for now. On Windows and Linux the window shows the world alone, with none of the panels below; their hosts come next.
+The app draws its interface itself, in Rust (egui), so it is not tied to a web view: the panels below are the same on macOS, Windows and Linux, though on the last two they are new and less tried. The web page that was the interface until now still opens on macOS with `LOCALGPT_APP_SHELL=page`, until it goes; a paired phone gets that page.
 
 ## The window {#window}
 
-What is open has its panel on the left — a document, or a package's history with its [outliner](#outliner) in a tab beside it — the world is in the middle, the agents are on the right, and the [timeline](#timeline) runs across the foot of all three. A click in the world gives it the mouse and the keys; a click in a panel or a terminal gives them back to the page.
+What is open has its panel on the left — a document, or a package's history with its [outliner](#outliner) in a tab beside it — the world is in the middle, the agents are on the right, and the [timeline](#timeline) runs across the foot of all three. A click in the world gives it the mouse and the keys; a click in a panel or a terminal gives them back to the panels. The panels are tiles: drag a tab beside the world, over the terminals or off on its own, and drag the gaps between them to resize.
 
 ## The modes {#modes}
 
@@ -81,7 +81,7 @@ A tablet shows the world and the terminals at once: side by side when it is turn
 
 A waiting proposal can be accepted or rejected from any view. A tab started on the phone shows up in the window too.
 
-A terminal has one size. The page that last typed into it or clicked into it sets the size, and the other page draws the terminal scaled to fit.
+A terminal has one size. The window or the device that last typed into it or clicked into it sets the size, and the other draws the terminal scaled to fit.
 
 The code works once, for ten minutes. The device keeps a key of its own, and the app keeps only the key's hash, in `~/.local/state/localgpt/app-remote.json`. The panel lists the paired devices and can forget any of them, and the button names a device while it is attached.
 
@@ -99,7 +99,7 @@ The connection is plain HTTP on port 9880. A paired device can type into the ter
 | **Home**, **End** | In the timeline: to the start, to the end |
 | **Enter**, **Esc** | Accept or reject an agent's proposal, in the world or the timeline |
 | **⌥** while dragging | In the timeline: no snapping |
-| **⌘C ⌘V ⌘A ⌘Z** | In the page: copy, paste, select all, undo |
+| **⌘C ⌘V ⌘A ⌘Z** | In a field or the document: copy, paste, select all, undo |
 | **⌘F** | In the document editor: find |
 | **Shift+Enter** | In an agent's terminal: a new line |
 
@@ -117,12 +117,12 @@ apps/app-desktop/macos/build-app.sh --dmg      # also dist/LocalGPT-<version>.dm
 apps/app-desktop/macos/build-app.sh --debug    # a quick bundle of the debug build
 ```
 
-The script builds the interface first (`crates/app/ui`, which needs node 22) and the release binary carries it inside. Without credentials the bundle is ad-hoc signed and runs on the Mac that built it. Given `APPLE_SIGNING_IDENTITY` and `APPLE_NOTARY_PROFILE`, the script signs with a Developer ID, enables the hardened runtime and notarizes. The asset pack is not in the bundle: `scripts/fetch-assets.sh` fetches it once per machine. There is no model to fetch; the app runs none.
+The script builds a phone's page first (`crates/app/ui`, which needs node 22) and the release binary carries it inside. Without credentials the bundle is ad-hoc signed and runs on the Mac that built it. Given `APPLE_SIGNING_IDENTITY` and `APPLE_NOTARY_PROFILE`, the script signs with a Developer ID, enables the hardened runtime and notarizes. The asset pack is not in the bundle: `scripts/fetch-assets.sh` fetches it once per machine. There is no model to fetch; the app runs none.
 
-For work on the interface itself: `npm run dev` in `crates/app/ui` serves it with reload, and `LOCALGPT_APP_UI_URL=http://localhost:5174` points the app at it; `LOCALGPT_APP_UI_OPEN=terminal` starts with a terminal open (`outliner` starts the left panel on its Outliner tab); `LOCALGPT_APP_UI=none` leaves the interface out. In a plain browser, `?preview=document`, `world` or `song` shows the page with stand-in data, and `npm run design` serves the design sheets new interface is reviewed on before it is built.
+For work on the interface itself: it is `crates/app/src/shell`, and `LOCALGPT_APP_SHELL_DRIVE` plays it a script of clicks, keys and pictures for a check without a hand; `LOCALGPT_APP_UI_OPEN=terminal` starts with a terminal open (`outliner` starts the left column on its Outliner tab). A phone's page is `crates/app/ui`: `npm run dev` serves it with reload, and with `LOCALGPT_APP_SHELL=page`, `LOCALGPT_APP_UI_URL=http://localhost:5174` points the window at it, or `LOCALGPT_APP_UI=none` leaves it out. In a plain browser, `?preview=document`, `world` or `song` shows the page with stand-in data, and `npm run design` serves the design sheets.
 
 `localgpt-gen` stays a binary of its own for the MCP server, headless generation and `--host`/`--join`, and `cargo install localgpt-gen` keeps working; it takes no prompt of its own — an agent outside drives it over MCP or through a live package's API — and there is no second desktop bundle.
 
 ## What is next {#next}
 
-Adding a behavior and its fields, and another kind of shape or light, in the inspector; and the Windows host. `docs/rfcs/authoring/the-page.md` in the repository records the decision and the order.
+The web page's host goes from the window, and a phone's page becomes the same panels built for the browser; adding a behavior and its fields, and another kind of shape or light, in the inspector. `docs/rfcs/authoring/all-rust.md` in the repository records the decision and the order.

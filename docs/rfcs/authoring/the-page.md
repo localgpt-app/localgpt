@@ -1,9 +1,11 @@
 # The page: one interface over the world
 
 **Status:** superseded by [all-rust.md](all-rust.md), decided 2026-11-05: the
-shell (`crates/app/src/shell`, `LOCALGPT_APP_SHELL=egui`) is built beside the
-page as one more client of its protocol, and the page stays the default until
-the shell has every panel. Decided and built on macOS, 2026-10-30. Supersedes the answer
+shell (`crates/app/src/shell`) was built beside the page as one more client
+of its protocol, and is the default since 2026-11-06, when it had every
+panel; the page stays behind `LOCALGPT_APP_SHELL=page` on macOS until its
+host goes, and a paired phone keeps it. Decided and built on macOS,
+2026-10-30. Supersedes the answer
 of [egui-or-not.md](egui-or-not.md) (stage egui out onto `bevy_ui` and
 feathers) and the chrome half of
 [world-editor-stack.md](world-editor-stack.md); builds tier 2 of

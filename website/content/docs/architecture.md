@@ -16,7 +16,7 @@ Nothing in the workspace runs a model as an agent, or holds a key: the coding ag
 crates/
 ├── cli/          # localgpt — `localgpt world`, a .world package's command line, and `localgpt world mcp`, the shim
 ├── gen/          # localgpt-gen — the world builder (Bevy): its tools over MCP, the relay, the live canvas, sessions, headless
-├── app/          # localgpt-app — the one desktop app: Gen's viewport, a web page over it, terminals for the agents
+├── app/          # localgpt-app — the one desktop app: Gen's viewport in native panels, terminals for the agents
 ├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
 ├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin)
 ├── previs/       # localgpt-previs — screenplay → per-scene .world with set/cast/coverage, a board, a shot list
@@ -65,7 +65,7 @@ scripts/          # fetch-assets.sh — the one download every app shares
 |-------|------|---------|
 | `localgpt` | bin | `localgpt world` and `localgpt world mcp` |
 | `localgpt-gen` | lib+bin | The world builder: Bevy viewport, 88 tools served over MCP (stdio, the relay, HTTP), headless, sessions, the live canvas |
-| `localgpt-app` | bin | The one desktop app, assembled from the gen library with MD and Verse as libraries; a web page over the viewport with terminals in it (not published) |
+| `localgpt-app` | bin | The one desktop app, assembled from the gen library with MD and Verse as libraries; native panels around the viewport (egui on eframe, the world drawn by Bevy into one of them), with terminals in them (not published) |
 | `localgpt-md` | lib+bin | Markdown → sections → a world; the pure library is what the app compiles documents with |
 | `localgpt-verse` | lib+bin | Song analysis → mood → a furnished, performing world; `song_world` is what the app calls |
 | `localgpt-previs` | lib+bin | Screenplay → per-scene `.world`, board and shot list; deterministic, no model, no network |
@@ -114,7 +114,7 @@ The world builder: a Bevy window and 88 `gen_*` tools; `mcp-server` (stdio, `--m
 
 ### `localgpt-app`
 
-[The desktop app](/docs/app/): Gen's viewport plus `--md`, `--song` and `--world`, one web page over it with the history, the outliner and inspector, the document, the timeline and the terminals. Thin by design — everything heavy comes from the gen library, MD's pure library compiles documents, and Verse's library builds song worlds.
+[The desktop app](/docs/app/): Gen's viewport plus `--md`, `--song` and `--world`, in native panels with the history, the outliner and inspector, the document, the timeline and the terminals. Thin by design — everything heavy comes from the gen library, MD's pure library compiles documents, and Verse's library builds song worlds.
 
 ### `localgpt-previs`
 

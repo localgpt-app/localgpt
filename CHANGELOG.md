@@ -4,6 +4,19 @@ All notable changes to LocalGPT are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`cargo xtask rule`**: the all-Rust rule, checked. Nothing new in another language and no new crate on `wry`: the tracked files in other languages and the crates on `wry` are held against `xtask/rule.txt`, a list of what is not Rust yet that may only shrink (`--write` drops what has gone). CI's `rule` job and `bin/lg verify --rust` run it.
+
+### Changed
+
+- **The desktop app's interface is drawn by the app, in Rust.** eframe owns the window and egui draws the panels — the terminals, the history as a graph with its playback, the timeline with its edits, the outliner and the inspector, the document with ⌘F's find, Open… and the top bar with the phone remote — as tiles to drag and resize, and Bevy draws the world into a texture one of them shows, on the same GPU device. The panels are one more client of the protocol the page spoke, so a paired phone, which keeps the page, sees what the window does. They are the same on macOS, Windows and Linux, where the page had no host. The web page still opens on macOS with `LOCALGPT_APP_SHELL=page`, until it goes; `LOCALGPT_APP_SCREENSHOT` now takes the shell's window. `docs/rfcs/authoring/all-rust.md` has the decision and the order.
+- **The workspace is on Bevy 0.20** (wgpu 30), with avian3d 0.8 and bevy-tnua 0.33.
+
+### Fixed
+
+- **A document opened in place of another** sent the page the new outline over the old document's text, until the file was reloaded: each document's text now has a revision of its own.
+
 ## [0.5.0] - 2026-11-04
 
 ### Added

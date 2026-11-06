@@ -53,10 +53,10 @@ cargo run -p localgpt-gen -- --host                # Host a collaborative sessio
 cargo run -p localgpt-gen -- --join 192.168.1.5    # Join a session (or --join to browse)
 cargo run -p localgpt-gen -- --replay castle       # a session as a time-lapse
 
-# The one desktop app — Gen's world, one web page around it (crates/app/ui:
-# React, Tailwind, CodeMirror, xterm.js) with plain terminals in it, where
-# the person runs whatever agent they have
-(cd crates/app/ui && npm ci && npm run build)      # the page, once; the binary carries it
+# The one desktop app — Gen's world in the shell's panels (egui on eframe,
+# crates/app/src/shell; docs/rfcs/authoring/all-rust.md) with plain terminals
+# in them, where the person runs whatever agent they have
+(cd crates/app/ui && npm ci && npm run build)      # a phone's page, once; the binary carries it
 cargo run -p localgpt-app                          # reopens what was opened last
 cargo run -p localgpt-app -- --md notes.md         # edit a document, the world rebuilds
 cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
@@ -65,20 +65,20 @@ cargo run -p localgpt-app -- --world harbour.world  # a .world package opens as 
                                                    # earlier entry forks), the history panel
                                                    # draws the branches and plays them
 (cd crates/app/ui && npm run dev)                  # the page with reload; run the app with
+                                                   # LOCALGPT_APP_SHELL=page and
                                                    # LOCALGPT_APP_UI_URL=http://localhost:5174
 (cd crates/app/ui && npm run design)               # the design sheets: new interface is drawn
                                                    # there and reviewed before it is wired
 LOCALGPT_APP_REMOTE=on cargo run -p localgpt-app   # and on a phone on this network: prints a
                                                    # pairing link (webui/remote.rs; port 9880,
                                                    # LOCALGPT_APP_REMOTE_PORT for another)
-LOCALGPT_APP_SHELL=egui cargo run -p localgpt-app # the interface in Rust (all-rust.md): eframe owns
-                                                   # the window, egui_tiles the panels, Bevy draws the
-                                                   # world into the world panel's texture; the page stays
-                                                   # the default until the shell has every panel (src/shell)
+LOCALGPT_APP_SHELL=page cargo run -p localgpt-app # the web page over Bevy's window instead of the
+                                                   # shell, on macOS, until its host goes (all-rust.md,
+                                                   # step E)
 LOCALGPT_APP_SHELL_DRIVE='4:click 0.5 0.5;6:shot /tmp/s.png;7:quit' \
-LOCALGPT_APP_SHELL=egui cargo run -p localgpt-app # the shell by a script, a check without a hand
+  cargo run -p localgpt-app                        # the shell by a script, a check without a hand
                                                    # (shell/drive.rs: click, tap, key, drag, swipe,
-                                                   # type, shot, quit)
+                                                   # wheel, type, shot, quit)
 
 # MD — a Markdown file as a walkable world
 cargo run -p localgpt-md                           # samples/hello.md
@@ -136,7 +136,7 @@ the draft.
 ## Architecture
 
 LocalGPT is the desktop app where a prompt, a document, a song or a
-screenplay becomes a walkable `.world`, with the coding agents in its page's
+screenplay becomes a walkable `.world`, with the coding agents in its
 terminals; the `localgpt` CLI, a `.world` package's command line and the MCP
 shim; Gen, MD, Verse and Previs; and the format crates. **Nothing in the tree
 runs a model, holds a key, or knows an agent by name.** The assistant (chat,
@@ -162,7 +162,7 @@ apps (see `docs/world-strategy.md` §13.6).
 crates/
 ├── cli/          # localgpt — `localgpt world` (a .world package's command line), `world mcp` (the shim), `completion`
 ├── gen/          # localgpt-gen — the world builder: Bevy window, 88 tools over MCP (stdio, HTTP, the relay), live canvas, sessions
-├── app/          # localgpt-app — the one desktop app: Gen's world, documents and songs as modes; its interface is the web page in app/ui (docs/rfcs/authoring/the-page.md)
+├── app/          # localgpt-app — the one desktop app: Gen's world, documents and songs as modes; its interface is the shell in app/src/shell (egui, docs/rfcs/authoring/all-rust.md), and the page in app/ui is a paired phone's
 ├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
 ├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin; `song_world`)
 ├── previs/       # localgpt-previs — screenplay (Fountain, Final Draft .fdx, PDF or Markdown pages) → per-scene .world with set/cast/coverage + board (deterministic)

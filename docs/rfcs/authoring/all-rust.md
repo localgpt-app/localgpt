@@ -635,7 +635,12 @@ renderer) keep their places after these.
       passes with the shell as the interface). What the page has that the
       shell has not: CodeMirror's search in the document; the input method
       by hand and a run with the display awake remain from the first test
-- [ ] E: the shell the default, the web view's host gone
+- [ ] E: the shell the default, 2026-11-06: a plain launch opens it, and the
+      screenshot hook (`LOCALGPT_APP_SCREENSHOT`) takes its window, panels
+      and all. The web page over Bevy's window stays behind
+      `LOCALGPT_APP_SHELL=page` on macOS until a person has typed into the
+      shell with an input method and run it with the display awake (the
+      first test's two open items); then it, `wry` and the hit-test view go
 - [ ] F: the phone as the WebAssembly build, the page gone
 - [ ] G: `cargo xtask`, `egui_kittest`
 - [ ] The last mile of C, with 0.5.0
