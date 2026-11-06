@@ -11,6 +11,8 @@ pub const MUTED: Color32 = Color32::from_rgb(0x8a, 0x93, 0xa6);
 pub const FAINT: Color32 = Color32::from_rgb(0x59, 0x61, 0x73);
 pub const ACCENT: Color32 = Color32::from_rgb(0x7a, 0xa2, 0xff);
 pub const DANGER: Color32 = Color32::from_rgb(0xf7, 0x76, 0x8e);
+/// An attached device's dot.
+pub const ATTACHED: Color32 = Color32::from_rgb(0x9e, 0xce, 0x6a);
 
 pub const SHOT: Color32 = Color32::from_rgb(0x7a, 0xa2, 0xff);
 pub const CAMERA: Color32 = Color32::from_rgb(0x7d, 0xcf, 0xff);

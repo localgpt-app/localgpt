@@ -61,6 +61,8 @@ struct Flags {
 pub struct Timeline {
     /// The part of the clock in view, seconds.
     view: Option<[f32; 2]>,
+    /// The clock's length the view was last fitted to.
+    fitted: Option<f32>,
     flags: HashMap<String, Flags>,
     stems_open: bool,
     selected: Option<String>,
@@ -77,6 +79,7 @@ impl Timeline {
     pub fn new() -> Self {
         Self {
             view: None,
+            fitted: None,
             flags: HashMap::new(),
             stems_open: false,
             selected: None,
@@ -104,6 +107,16 @@ impl Timeline {
         };
         self.thumbnails(ui.ctx(), state);
         let duration = clock.duration.max(0.01);
+        // The whole clock in view to begin with, and again when the world
+        // changes under a view that showed all of it, or ran past its end.
+        if self.fitted != Some(duration) {
+            if let (Some([from, to]), Some(was)) = (self.view, self.fitted)
+                && ((from <= 1e-3 && (to - was).abs() < 1e-2) || to > duration)
+            {
+                self.view = None;
+            }
+            self.fitted = Some(duration);
+        }
         let mut view = self.view.unwrap_or([0.0, duration]);
         view[1] = view[1].min(duration).max(view[0] + 0.05);
         view[0] = view[0].clamp(0.0, (duration - 0.05).max(0.0));
@@ -896,16 +909,18 @@ fn describe(track: &TrackView) -> (&str, &str, &'static str, Color32, &[&'static
     }
 }
 
-/// The height the timeline's panel opens at, as the page's is sized: the
-/// toolbar, the ruler and every lane, until the lanes pass the page's 280
-/// and scroll; one line for a world with no clock.
-pub fn wanted_height(timeline: Option<&TimelineView>) -> f32 {
+/// The timeline's height, as the page sizes its own: the toolbar, the ruler
+/// and every lane, the lanes up to 30% of the window's height (between 110
+/// and 340) and scrolling past it; one line for a world with no clock. It
+/// follows what the timeline holds, so a world opened in place of another
+/// gets its own.
+pub fn wanted_height(timeline: Option<&TimelineView>, window: f32) -> f32 {
     const TOOLBAR: f32 = 34.0;
-    const MAX_LANES: f32 = 280.0;
     match timeline {
         Some(timeline) if timeline.clock.is_some() => {
             let lanes: f32 = timeline.tracks.iter().map(height).sum();
-            TOOLBAR + RULER + lanes.min(MAX_LANES) + 12.0
+            let most = (window * 0.3).clamp(110.0, 340.0);
+            TOOLBAR + RULER + lanes.min(most) + 12.0
         }
         _ => 40.0,
     }

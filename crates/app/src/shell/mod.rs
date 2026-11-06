@@ -13,6 +13,7 @@
 //! there: a non-send resource (the terminals, the page) belongs to the thread
 //! that inserted it.
 
+mod bar;
 mod document;
 mod drive;
 mod history;
@@ -269,6 +270,7 @@ impl Left {
 /// The window: what the app said, and the panels that show it.
 struct Shell {
     end: ShellEnd,
+    bar: bar::Bar,
     world: world::Panel,
     terminals: terminals::Terminals,
     timeline: timeline::Timeline,
@@ -312,6 +314,7 @@ impl Shell {
             });
         Self {
             end,
+            bar: bar::Bar::default(),
             world,
             terminals,
             timeline: timeline::Timeline::new(),
@@ -361,24 +364,16 @@ impl eframe::App for Shell {
         // The panels' first sizes come from the window, as the page's
         // columns do, not from what the panels before them left: those
         // appear when the app's first messages arrive, sooner or later.
-        let full = ui.available_width();
+        let (full, tall) = (ui.available_width(), ui.available_height());
 
-        egui::Panel::top("bar").show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.strong("LocalGPT");
-                if let Some(title) = &self.state.title {
-                    ui.separator();
-                    ui.label(title);
-                }
-            });
-        });
-        // The timeline runs across the window, under everything else.
+        egui::Panel::top("bar").show(ui, |ui| self.bar.ui(ui, &self.state, &self.end));
+        // The timeline runs across the window, under everything else, as
+        // tall as what it holds (the page's rule, `timeline::wanted_height`).
         if self.state.timeline.is_some() {
-            let wanted = timeline::wanted_height(self.state.timeline.as_deref());
+            let height = timeline::wanted_height(self.state.timeline.as_deref(), tall);
             egui::Panel::bottom("timeline")
-                .resizable(true)
-                .default_size(wanted)
-                .min_size(40.0)
+                .resizable(false)
+                .exact_size(height)
                 .show(ui, |ui| self.timeline.ui(ui, &self.state, &self.end));
         }
         // What is open has its panel on the left: the document, a live
@@ -395,13 +390,15 @@ impl eframe::App for Shell {
             if !tabs.contains(&self.left) {
                 self.left = first;
             }
-            // The page's widths: a document's column is wider.
+            // The page's widths: a document's column is wider. One panel for
+            // each, so a document opened in place of a world opens at its
+            // own width, and each keeps the width it was dragged to.
             let left = if self.state.mode_document {
                 420.0
             } else {
                 340.0
             };
-            egui::Panel::left("left")
+            egui::Panel::left(("left", self.state.mode_document))
                 .resizable(true)
                 .default_size(f32::min(left, full * 0.3).max(240.0))
                 .min_size(240.0)

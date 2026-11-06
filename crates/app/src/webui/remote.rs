@@ -38,6 +38,7 @@ use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
 use bevy::window::PrimaryWindow;
 use futures::{SinkExt, StreamExt};
+use localgpt_gen::gen3d::offscreen::OffscreenRenderTarget;
 use localgpt_world_agent::session::sha256_hex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -868,7 +869,9 @@ impl Frames {
 
 /// The pairing code's clock, and the frames asked for: the window read back
 /// once for all who asked, cut to the world's part of it, and encoded on a
-/// thread of its own.
+/// thread of its own. A world that renders into a texture (the shell's
+/// panel, an offscreen canvas) is read from that, whole: the window there
+/// never presents.
 pub fn tick(
     mut commands: Commands,
     remote: Option<ResMut<Remote>>,
@@ -876,6 +879,7 @@ pub fn tick(
     time: Res<Time>,
     hole: Res<Hole>,
     windows: Query<&Window, With<PrimaryWindow>>,
+    offscreen: Option<Res<OffscreenRenderTarget>>,
 ) {
     let Some(mut remote) = remote else {
         return;
@@ -896,12 +900,17 @@ pub fn tick(
     frames.since = Some(now);
     let busy = Arc::clone(&frames.busy);
     let mirror = remote.mirror();
-    let crop = windows.single().ok().and_then(|window| {
-        let [x, y, w, h] = hole.0?;
-        let scale = window.scale_factor() as f64;
-        Some([x * scale, y * scale, w * scale, h * scale].map(|v| v.round().max(0.0) as u32))
-    });
-    commands.spawn(Screenshot::primary_window()).observe(
+    let offscreen = offscreen.filter(|o| o.texture_view.is_some() || o.image_handle.is_some());
+    let crop = match offscreen {
+        Some(_) => None,
+        None => windows.single().ok().and_then(|window| {
+            let [x, y, w, h] = hole.0?;
+            let scale = window.scale_factor() as f64;
+            Some([x * scale, y * scale, w * scale, h * scale].map(|v| v.round().max(0.0) as u32))
+        }),
+    };
+    let shot = offscreen.map_or_else(Screenshot::primary_window, |o| o.screenshot());
+    commands.spawn(shot).observe(
         move |captured: On<ScreenshotCaptured>, mut commands: Commands| {
             commands.entity(captured.entity).despawn();
             let image = captured.image.clone();

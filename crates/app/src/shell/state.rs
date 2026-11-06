@@ -41,6 +41,23 @@ pub struct State {
     /// What the tabs said, for the terminals' panel to take.
     pub terms: Vec<TermEvent>,
     pub remote: Option<Box<RemoteView>>,
+    /// When the remote's view came: its pairing code's seconds count down
+    /// from there.
+    pub remote_at: Option<Instant>,
+}
+
+impl State {
+    /// The pairing code's seconds still to run, counted down here between
+    /// the app's messages, as the page does.
+    pub fn remote_left(&self) -> u64 {
+        let from = self
+            .remote
+            .as_ref()
+            .and_then(|r| r.pairing.as_ref())
+            .map_or(0, |p| p.left_s);
+        let gone = self.remote_at.map_or(0, |at| at.elapsed().as_secs());
+        from.saturating_sub(gone)
+    }
 }
 
 pub struct History {
@@ -147,7 +164,10 @@ impl State {
                 self.terms.push(TermEvent::Size(id, cols, rows))
             }
             ShellEvent::TermState { id, label } => self.terms.push(TermEvent::Label(id, label)),
-            ShellEvent::Remote(view) => self.remote = Some(view),
+            ShellEvent::Remote(view) => {
+                self.remote = Some(view);
+                self.remote_at = Some(Instant::now());
+            }
         }
     }
 }
