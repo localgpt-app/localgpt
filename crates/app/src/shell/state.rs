@@ -32,6 +32,9 @@ pub struct State {
     /// A line of the text to bring into view.
     pub reveal: Option<usize>,
     pub timeline: Option<Box<TimelineView>>,
+    /// How many timeline views have come: a new one is the app's word on
+    /// the edits sent before it.
+    pub timeline_serial: u64,
     pub scene: Option<Box<SceneView>>,
     pub selection: Vec<u64>,
     pub clock: Clock,
@@ -137,7 +140,10 @@ impl State {
             ShellEvent::Document(doc) => self.document = Some(doc),
             ShellEvent::DocText { text, rev } => self.text = Some((text, rev)),
             ShellEvent::DocReveal(line) => self.reveal = Some(line),
-            ShellEvent::Timeline(view) => self.timeline = view,
+            ShellEvent::Timeline(view) => {
+                self.timeline = view;
+                self.timeline_serial += 1;
+            }
             ShellEvent::Scene(view) => self.scene = view,
             ShellEvent::Selection(ids) => self.selection = ids,
             ShellEvent::Clock {

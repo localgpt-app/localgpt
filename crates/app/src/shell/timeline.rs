@@ -5,9 +5,10 @@
 //!
 //! What it shows comes from the app (`TimelineView`, built from the world's
 //! document); what it keeps is its own: the part of the clock in view, the
-//! headers' toggles, the selected shot. It asks with the page's messages:
-//! a seek, play, a loop, a look through a shot, the muted and hidden tracks,
-//! a review's answer.
+//! headers' toggles, the selected shot, a drag in progress. It asks with the
+//! page's messages: a seek, play, a loop, a look through a shot, the muted
+//! and hidden tracks, a review's answer, and on a live canvas a shot's new
+//! in and out points, which land as one entry in the history.
 
 use std::collections::{BTreeMap, HashMap};
 use std::hash::{Hash, Hasher};
@@ -19,7 +20,7 @@ use eframe::egui::{
 
 use super::state::State;
 use super::theme::{self, alpha};
-use crate::timeline::{CameraKey, Clip, ClockView, Signal, TimelineView, TrackView};
+use crate::timeline::{CameraKey, Clip, ClockView, ShotTime, Signal, TimelineView, TrackView};
 use crate::webui::FromPage;
 use crate::webui::link::ShellEnd;
 
@@ -28,6 +29,139 @@ const HEADER: f32 = 176.0;
 const RULER: f32 = 44.0;
 /// A row of overlapping shots — coverage under its master.
 const SHOT_ROW: f32 = 40.0;
+/// A shot's edges, where a drag trims it, points wide.
+const GRIP: f32 = 6.0;
+/// How near a line a dragged edge comes before it snaps there, points.
+const PULL: f32 = 8.0;
+/// The shortest a trim leaves a shot, seconds.
+const SHORTEST: f32 = 0.1;
+
+/// What a drag of a shot holds: its in point, its out point, or all of it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Edge {
+    In,
+    Out,
+    Body,
+}
+
+/// What a drag snaps to, as the page's menu has it. The playhead always.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Snap {
+    Beats,
+    Sections,
+    Shots,
+    Off,
+}
+
+impl Snap {
+    const ALL: [Snap; 4] = [Snap::Beats, Snap::Sections, Snap::Shots, Snap::Off];
+
+    fn label(self) -> &'static str {
+        match self {
+            Snap::Beats => "Beats",
+            Snap::Sections => "Sections",
+            Snap::Shots => "Shots",
+            Snap::Off => "Off",
+        }
+    }
+}
+
+/// A time a drag can snap to, and what it is.
+#[derive(Clone, Debug, PartialEq)]
+struct Line {
+    at: f32,
+    label: String,
+}
+
+/// A shot held by the pointer: what was pressed, the neighbour whose cut
+/// rolls with it, and where it would go if let go now.
+#[derive(Clone, Debug)]
+struct Held {
+    edge: Edge,
+    shot: Clip,
+    partner: Option<Clip>,
+    from: f32,
+    to: f32,
+    snapped: Option<Line>,
+    moved: bool,
+}
+
+impl Held {
+    /// Where `id` is drawn while this is held: the shot where it would go,
+    /// its partner with the rolled cut.
+    fn times_of(&self, id: &str) -> Option<(f32, f32)> {
+        if !self.moved {
+            return None;
+        }
+        if self.shot.id == id {
+            return Some((self.from, self.to));
+        }
+        let partner = self.partner.as_ref().filter(|p| p.id == id)?;
+        Some(match self.edge {
+            Edge::Out => (self.to, partner.to),
+            _ => (partner.from, self.from),
+        })
+    }
+
+    /// The edit letting go writes: the shot, and its partner's rolled cut.
+    fn edits(&self) -> Vec<ShotTime> {
+        let id = |clip: &Clip| clip.id.parse().unwrap_or_default();
+        let mut edits = vec![ShotTime {
+            id: id(&self.shot),
+            in_s: self.from,
+            out_s: self.to,
+        }];
+        if let Some(partner) = &self.partner {
+            let (in_s, out_s) = match self.edge {
+                Edge::Out => (self.to, partner.to),
+                _ => (partner.from, self.from),
+            };
+            edits.push(ShotTime {
+                id: id(partner),
+                in_s,
+                out_s,
+            });
+        }
+        edits
+    }
+
+    /// The drag in words, as the page's toolbar says it.
+    fn describe(&self) -> (String, String) {
+        let name = match (&self.partner, self.edge) {
+            (Some(p), Edge::In) => format!("{} | {}", p.name, self.shot.name),
+            (Some(p), _) => format!("{} | {}", self.shot.name, p.name),
+            (None, _) => self.shot.name.clone(),
+        };
+        let detail = if self.edge == Edge::Out {
+            format!(
+                "out {} → {} · {}",
+                timecode(self.shot.to),
+                timecode(self.to),
+                signed(self.to - self.shot.to)
+            )
+        } else {
+            format!(
+                "in {} → {} · {}",
+                timecode(self.shot.from),
+                timecode(self.from),
+                signed(self.from - self.shot.from)
+            )
+        };
+        (name, detail)
+    }
+}
+
+/// What a shot's drag needs to know of the rest of the timeline.
+struct Editing<'a> {
+    /// A live canvas, and the shots' track not locked.
+    can: bool,
+    clock: &'a ClockView,
+    now: f32,
+    view: [f32; 2],
+    /// A song is the clock's length; a shot list's grows with its last shot.
+    has_song: bool,
+    snap: Snap,
+}
 
 /// Seconds across the lanes: `from` at `x0`, `to` at `x0 + width`.
 #[derive(Clone, Copy, Debug)]
@@ -75,6 +209,16 @@ pub struct Timeline {
     sent_hide: Option<Vec<String>>,
     /// The last seek a scrub asked for.
     scrubbed: Option<f32>,
+    /// What a drag snaps to; until chosen, beats where there is a beat grid,
+    /// else the other shots' cuts.
+    snap: Option<Snap>,
+    /// A shot under the pointer, being moved or trimmed.
+    held: Option<Held>,
+    /// Shots' new times sent and not yet in a view the app sent: drawn where
+    /// they were let go until the app's word on them arrives.
+    pending: HashMap<String, (f32, f32)>,
+    /// The timeline view last drawn, by its arrival.
+    seen: u64,
 }
 
 impl Timeline {
@@ -89,6 +233,10 @@ impl Timeline {
             sent_mute: None,
             sent_hide: None,
             scrubbed: None,
+            snap: None,
+            held: None,
+            pending: HashMap::new(),
+            seen: 0,
         }
     }
 
@@ -120,6 +268,21 @@ impl Timeline {
             return;
         };
         self.thumbnails(ui.ctx(), state);
+        // A new view is the app's word on the edits sent: what was sent is
+        // in it, or was refused.
+        if state.timeline_serial != self.seen {
+            self.seen = state.timeline_serial;
+            self.pending.clear();
+        }
+        let snap = *self.snap.get_or_insert(if clock.bpm > 0.0 {
+            Snap::Beats
+        } else {
+            Snap::Shots
+        });
+        // Esc lets go of a drag without writing anything.
+        if self.held.is_some() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.held = None;
+        }
         let duration = clock.duration.max(0.01);
         // The whole clock in view to begin with, and again when the world
         // changes under a view that showed all of it, or ran past its end.
@@ -149,6 +312,17 @@ impl Timeline {
         ui.separator();
 
         let tracks = self.tracks(timeline);
+        let editing = Editing {
+            can: timeline.editable,
+            clock,
+            now,
+            view,
+            has_song: timeline
+                .tracks
+                .iter()
+                .any(|t| matches!(t, TrackView::Soundtrack { .. })),
+            snap,
+        };
         let full = ui.available_rect_before_wrap();
         let lanes_x = full.left() + HEADER;
         let s = Scale {
@@ -205,7 +379,7 @@ impl Timeline {
                     let row = Rect::from_min_size(pos2(rect.left(), y), vec2(rect.width(), h));
                     self.header(ui, row, track);
                     let lane = Rect::from_min_max(pos2(lanes_x, row.top()), row.max);
-                    self.lane(ui, lane, s, clock, &timeline.signals, track, end);
+                    self.lane(ui, lane, s, &editing, &timeline.signals, track, end);
                     painter.line_segment(
                         [
                             pos2(rect.left(), row.bottom()),
@@ -332,6 +506,26 @@ impl Timeline {
                 if ui.button("Free camera").clicked() {
                     end.ask(FromPage::ShotLook { id: None });
                 }
+            }
+            // On a live canvas, what a drag snaps to.
+            if timeline.editable {
+                ui.separator();
+                let mut snap = self.snap.unwrap_or(Snap::Shots);
+                egui::ComboBox::from_id_salt("snap")
+                    .selected_text(format!("Snap: {}", snap.label()))
+                    .show_ui(ui, |ui| {
+                        for option in Snap::ALL {
+                            ui.selectable_value(&mut snap, option, option.label());
+                        }
+                    });
+                self.snap = Some(snap);
+            }
+            // A drag in words while it is held.
+            if let Some(held) = self.held.as_ref().filter(|h| h.moved) {
+                let (name, detail) = held.describe();
+                ui.separator();
+                ui.strong(name);
+                ui.label(RichText::new(detail).color(theme::MUTED));
             }
             if let Some(proposal) = &timeline.proposal {
                 ui.separator();
@@ -607,11 +801,12 @@ impl Timeline {
         ui: &mut egui::Ui,
         lane: Rect,
         s: Scale,
-        clock: &ClockView,
+        editing: &Editing,
         signals: &BTreeMap<String, Signal>,
         track: &TrackView,
         end: &ShellEnd,
     ) {
+        let clock = editing.clock;
         // A click where nothing takes it seeks there. Registered first, so
         // what the lane draws that takes a click (a shot) is above it.
         let response = ui.interact(
@@ -630,7 +825,10 @@ impl Timeline {
         let painter = ui.painter_at(lane);
         let h = lane.height();
         match track {
-            TrackView::Shots { shots, .. } => self.shots(ui, &painter, lane, s, shots, end),
+            TrackView::Shots { id, shots, .. } => {
+                let locked = self.flags.get(id).is_some_and(|f| f.locked);
+                self.shots(ui, &painter, lane, s, shots, editing, !locked, end)
+            }
             TrackView::Camera { keys, .. } => camera(&painter, lane, s, keys),
             TrackView::Soundtrack {
                 title,
@@ -747,6 +945,11 @@ impl Timeline {
         }
     }
 
+    /// The shots in rows, each with its frame. A click selects one and a
+    /// double click looks through it; on a live canvas a drag moves it and
+    /// one on an edge trims it, rolling the cut with a shot that meets it
+    /// there, and letting go writes one entry (`ShotTimes`).
+    #[allow(clippy::too_many_arguments)]
     fn shots(
         &mut self,
         ui: &mut egui::Ui,
@@ -754,21 +957,47 @@ impl Timeline {
         lane: Rect,
         s: Scale,
         shots: &[Clip],
+        editing: &Editing,
+        unlocked: bool,
         end: &ShellEnd,
     ) {
+        let can = editing.can && unlocked;
+        // Each where a drag holds it, or where it was let go until the
+        // app's view has it.
+        let shown: Vec<Clip> = shots
+            .iter()
+            .map(|shot| {
+                let (from, to) = self
+                    .held
+                    .as_ref()
+                    .and_then(|held| held.times_of(&shot.id))
+                    .or_else(|| self.pending.get(&shot.id).copied())
+                    .unwrap_or((shot.from, shot.to));
+                Clip {
+                    from,
+                    to,
+                    ..shot.clone()
+                }
+            })
+            .collect();
+        // The rows are the view's, so a held shot keeps its row.
         let (placed, rows, count) = pack(shots);
         let row_h = if count == 1 {
             lane.height() - 8.0
         } else {
             SHOT_ROW
         };
-        for (shot, row) in placed.iter().zip(rows) {
+        for (view_shot, row) in placed.iter().zip(rows) {
+            let Some(shot) = shown.iter().find(|c| c.id == view_shot.id) else {
+                continue;
+            };
             let top = lane.top() + 4.0 + row as f32 * (SHOT_ROW + 4.0);
             let rect = Rect::from_min_max(
                 pos2(s.x(shot.from) + 1.0, top),
                 pos2(s.x(shot.to) - 1.0, top + row_h),
             );
-            if rect.right() < lane.left() || rect.left() > lane.right() {
+            let held_here = self.held.as_ref().is_some_and(|h| h.shot.id == shot.id);
+            if !held_here && (rect.right() < lane.left() || rect.left() > lane.right()) {
                 continue;
             }
             let selected = self.selected.as_deref() == Some(shot.id.as_str());
@@ -824,22 +1053,136 @@ impl Timeline {
                     theme::MUTED,
                 );
             }
-            let response = ui
-                .interact(
-                    rect.intersect(lane),
-                    ui.scope_id().with(("shot", &shot.id)),
-                    Sense::click(),
-                )
-                .on_hover_text("A click selects it; a double click looks through it");
-            if response.clicked() {
+            let id = ui.scope_id().with(("shot", &shot.id));
+            let body = if can {
+                ui.interact(rect.intersect(lane), id, Sense::click_and_drag())
+                    .on_hover_cursor(egui::CursorIcon::Grab)
+                    .on_hover_text(
+                        "A click selects it; a double click looks through it; a drag moves it, \
+                         and one on an edge trims it (Alt: no snapping, Esc: let go)",
+                    )
+            } else {
+                ui.interact(rect.intersect(lane), id, Sense::click())
+                    .on_hover_text("A click selects it; a double click looks through it")
+            };
+            if body.clicked() {
                 self.selected = Some(shot.id.clone());
             }
-            if response.double_clicked() {
+            if body.double_clicked() {
                 end.ask(FromPage::ShotLook {
                     id: shot.id.parse().ok(),
                 });
             }
+            let mut handles = vec![(Edge::Body, body)];
+            if can {
+                // The edges over the body, so a press there trims.
+                let left = Rect::from_min_max(rect.min, pos2(rect.left() + GRIP, rect.bottom()));
+                let right = Rect::from_min_max(pos2(rect.right() - GRIP, rect.top()), rect.max);
+                for (edge, grip, salt) in [(Edge::In, left, "in"), (Edge::Out, right, "out")] {
+                    let response = ui
+                        .interact(grip.intersect(lane), id.with(salt), Sense::drag())
+                        .on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
+                    handles.push((edge, response));
+                }
+            }
+            for (edge, response) in handles {
+                if response.drag_started() && can {
+                    self.selected = Some(shot.id.clone());
+                    self.held = Some(Held {
+                        edge,
+                        shot: shot.clone(),
+                        partner: partner_of(&shown, shot, edge),
+                        from: shot.from,
+                        to: shot.to,
+                        snapped: None,
+                        moved: false,
+                    });
+                }
+                if response.dragged() {
+                    self.drag(ui, s, editing, &shown);
+                }
+                if response.drag_stopped()
+                    && let Some(held) = self.held.take()
+                    && held.moved
+                {
+                    let edits = held.edits();
+                    for edit in &edits {
+                        self.pending
+                            .insert(edit.id.to_string(), (edit.in_s, edit.out_s));
+                    }
+                    end.ask(FromPage::ShotTimes { edits });
+                }
+            }
         }
+        // What the held edge snapped to, across the lane.
+        if let Some(line) = self
+            .held
+            .as_ref()
+            .filter(|h| h.moved)
+            .and_then(|h| h.snapped.as_ref())
+        {
+            let x = s.x(line.at);
+            painter.add(Shape::dashed_line(
+                &[pos2(x, lane.top()), pos2(x, lane.bottom())],
+                Stroke::new(1.0, theme::HEAD),
+                4.0,
+                3.0,
+            ));
+            painter.text(
+                pos2(x + 4.0, lane.top() + 2.0),
+                Align2::LEFT_TOP,
+                &line.label,
+                FontId::proportional(10.0),
+                theme::HEAD,
+            );
+        }
+    }
+
+    /// The held shot follows the pointer, past 3 points of travel: snapped to
+    /// the lines the menu chose and the playhead, unless Alt is down.
+    fn drag(&mut self, ui: &egui::Ui, s: Scale, editing: &Editing, shown: &[Clip]) {
+        let Some(held) = self.held.as_mut() else {
+            return;
+        };
+        let Some((origin, pointer, free)) = ui.input(|i| {
+            Some((
+                i.pointer.press_origin()?,
+                i.pointer.latest_pos()?,
+                i.modifiers.alt,
+            ))
+        }) else {
+            return;
+        };
+        let dx = pointer.x - origin.x;
+        if !held.moved && dx.abs() < 3.0 {
+            return;
+        }
+        held.moved = true;
+        let ids: Vec<String> = std::iter::once(held.shot.id.clone())
+            .chain(held.partner.as_ref().map(|p| p.id.clone()))
+            .collect();
+        let except: Vec<&str> = ids.iter().map(String::as_str).collect();
+        let lines = if free || editing.snap == Snap::Off {
+            Vec::new()
+        } else {
+            snap_lines(
+                editing.snap,
+                editing.clock,
+                shown,
+                &except,
+                editing.now,
+                editing.view,
+            )
+        };
+        let limit = if editing.has_song {
+            editing.clock.duration
+        } else {
+            f32::INFINITY
+        };
+        let (from, to, snapped) = place(held, dx / s.pps(), &lines, PULL / s.pps(), limit);
+        held.from = from;
+        held.to = to;
+        held.snapped = snapped;
     }
 
     /// Each shot's newest frame, decoded once for each version the app sends.
@@ -1161,6 +1504,155 @@ fn timecode_short(t: f32) -> String {
     format!("{}:{:02}", t / 60, t % 60)
 }
 
+/// "+0.50 s", "−1.25 s": how far a drag moved an edge.
+fn signed(d: f32) -> String {
+    format!("{}{:.2} s", if d < 0.0 { "−" } else { "+" }, d.abs())
+}
+
+/// The page's clamp: `lo` wins when the range is empty.
+fn clamp(v: f32, lo: f32, hi: f32) -> f32 {
+    v.max(lo).min(lo.max(hi))
+}
+
+/// The shot whose cut an edge's trim rolls: the one that meets `shot` at
+/// that edge.
+fn partner_of(shown: &[Clip], shot: &Clip, edge: Edge) -> Option<Clip> {
+    let near = |a: f32, b: f32| (a - b).abs() < 0.01;
+    shown
+        .iter()
+        .find(|other| {
+            other.id != shot.id
+                && match edge {
+                    Edge::Out => near(other.from, shot.to),
+                    Edge::In => near(other.to, shot.from),
+                    Edge::Body => false,
+                }
+        })
+        .cloned()
+}
+
+/// What a drag can snap to under `snap`, and the playhead always: the beats
+/// in view (bars named), the sections' starts and the end, or the other
+/// shots' cuts.
+fn snap_lines(
+    snap: Snap,
+    clock: &ClockView,
+    shots: &[Clip],
+    except: &[&str],
+    now: f32,
+    view: [f32; 2],
+) -> Vec<Line> {
+    let mut lines = vec![Line {
+        at: now,
+        label: format!("playhead · {}", timecode(now)),
+    }];
+    if snap == Snap::Beats && clock.bpm > 0.0 {
+        let beat = 60.0 / clock.bpm;
+        let mut i = ((view[0] - clock.beat_offset) / beat).floor().max(0.0) as u32;
+        loop {
+            let t = clock.beat_offset + i as f32 * beat;
+            if t > view[1].min(clock.duration) {
+                break;
+            }
+            let bar = i / 4 + 1;
+            let label = if i.is_multiple_of(4) {
+                format!("bar {bar}")
+            } else {
+                format!("bar {bar} · {}", i % 4 + 1)
+            };
+            lines.push(Line { at: t, label });
+            i += 1;
+        }
+    }
+    if matches!(snap, Snap::Beats | Snap::Sections) {
+        for (i, t) in clock
+            .sections
+            .iter()
+            .map(|f| f * clock.duration)
+            .enumerate()
+        {
+            lines.push(Line {
+                at: t,
+                label: format!("§{} · {}", i + 1, timecode(t)),
+            });
+        }
+        lines.push(Line {
+            at: clock.duration,
+            label: format!("end · {}", timecode(clock.duration)),
+        });
+    }
+    if snap == Snap::Shots {
+        for shot in shots.iter().filter(|s| !except.contains(&s.id.as_str())) {
+            lines.push(Line {
+                at: shot.from,
+                label: format!("{} in", shot.name),
+            });
+            lines.push(Line {
+                at: shot.to,
+                label: format!("{} out", shot.name),
+            });
+        }
+    }
+    lines
+}
+
+/// The line nearest `t`, within `pull` seconds.
+fn nearest(lines: &[Line], t: f32, pull: f32) -> Option<&Line> {
+    lines
+        .iter()
+        .filter(|line| (line.at - t).abs() <= pull)
+        .min_by(|a, b| (a.at - t).abs().total_cmp(&(b.at - t).abs()))
+}
+
+/// Where a held shot goes for the pointer `dt` seconds on, as the page
+/// places it: a trim leaves the shot `SHORTEST` long and stops short of its
+/// partner's far end; a move snaps whichever edge comes nearer a line; and
+/// nothing goes before 0 or past `limit` (a song's end).
+fn place(held: &Held, dt: f32, lines: &[Line], pull: f32, limit: f32) -> (f32, f32, Option<Line>) {
+    let shot = &held.shot;
+    let snapped = |line: Option<&Line>, at: f32| line.filter(|l| l.at == at).cloned();
+    match held.edge {
+        Edge::In => {
+            let line = nearest(lines, shot.from + dt, pull);
+            let lo = held.partner.as_ref().map_or(0.0, |p| p.from + SHORTEST);
+            let from = clamp(
+                line.map_or(shot.from + dt, |l| l.at),
+                lo,
+                shot.to - SHORTEST,
+            );
+            (from, shot.to, snapped(line, from))
+        }
+        Edge::Out => {
+            let line = nearest(lines, shot.to + dt, pull);
+            let hi = held.partner.as_ref().map_or(limit, |p| p.to - SHORTEST);
+            let to = clamp(
+                line.map_or(shot.to + dt, |l| l.at),
+                shot.from + SHORTEST,
+                hi,
+            );
+            (shot.from, to, snapped(line, to))
+        }
+        Edge::Body => {
+            let length = shot.to - shot.from;
+            let start = shot.from + dt;
+            let a = nearest(lines, start, pull);
+            let b = nearest(lines, start + length, pull);
+            let (from, line) = match (a, b) {
+                (Some(a), b)
+                    if b.is_none_or(|b| (a.at - start).abs() <= (b.at - start - length).abs()) =>
+                {
+                    (a.at, Some(a))
+                }
+                (_, Some(b)) => (b.at - length, Some(b)),
+                _ => (start, None),
+            };
+            let placed = clamp(from, 0.0, limit - length);
+            let line = if placed == from { line.cloned() } else { None };
+            (placed, placed + length, line)
+        }
+    }
+}
+
 fn seconds(span: f32) -> String {
     if span < 60.0 {
         format!("{span:.1} s")
@@ -1237,5 +1729,94 @@ mod tests {
         assert_eq!(bar_beat(&clock, 0.0), Some((1, 1)));
         assert_eq!(bar_beat(&clock, 2.5), Some((2, 2)));
         assert_eq!(timecode(75.5), "1:15.50");
+    }
+
+    fn held(edge: Edge, shot: Clip, partner: Option<Clip>) -> Held {
+        Held {
+            edge,
+            from: shot.from,
+            to: shot.to,
+            shot,
+            partner,
+            snapped: None,
+            moved: true,
+        }
+    }
+
+    fn line(at: f32) -> Line {
+        Line {
+            at,
+            label: format!("at {at}"),
+        }
+    }
+
+    #[test]
+    fn a_trimmed_edge_snaps_within_the_pull_and_rolls_its_partner() {
+        // 1A 0–4 meets 1B 4–9; its out edge dragged 0.9 s on, a line at 5.
+        let a = clip("1", 0.0, 4.0);
+        let b = clip("2", 4.0, 9.0);
+        let shots = [a.clone(), b.clone()];
+        let mut h = held(Edge::Out, a.clone(), partner_of(&shots, &a, Edge::Out));
+        assert_eq!(h.partner.as_ref().map(|p| p.id.as_str()), Some("2"));
+        let (from, to, snapped) = place(&h, 0.9, &[line(5.0)], 0.2, 60.0);
+        assert_eq!((from, to), (0.0, 5.0), "pulled onto the line");
+        assert_eq!(snapped, Some(line(5.0)));
+        (h.from, h.to) = (from, to);
+        let edits = h.edits();
+        assert_eq!(edits.len(), 2, "the cut rolls: one edit, both shots");
+        assert_eq!((edits[1].id, edits[1].in_s, edits[1].out_s), (2, 5.0, 9.0));
+        assert_eq!(h.times_of("2"), Some((5.0, 9.0)));
+        // Past the partner's end, the cut stops short of it.
+        let (_, to, _) = place(&h, 20.0, &[], 0.2, 60.0);
+        assert!((to - (9.0 - SHORTEST)).abs() < 1e-5);
+    }
+
+    #[test]
+    fn a_move_snaps_its_nearer_edge_and_stays_on_the_clock() {
+        let shot = clip("1", 2.0, 5.0);
+        let h = held(Edge::Body, shot, None);
+        // Moved 1.1 s on: its in at 3.1 is 0.1 from a line at 3; its out at
+        // 6.1 is 0.05 from a line at 6.05, nearer, so the out snaps.
+        let (from, to, snapped) = place(&h, 1.1, &[line(3.0), line(6.05)], 0.2, 60.0);
+        assert!((from - 3.05).abs() < 1e-5 && (to - 6.05).abs() < 1e-5);
+        assert_eq!(snapped, Some(line(6.05)));
+        // Not before the start, nor past a song's end.
+        assert_eq!(place(&h, -10.0, &[], 0.2, 60.0).0, 0.0);
+        assert_eq!(place(&h, 100.0, &[], 0.2, 8.0).1, 8.0);
+        // A trim leaves the shot its shortest.
+        let h = held(Edge::In, clip("1", 2.0, 5.0), None);
+        assert!((place(&h, 10.0, &[], 0.2, 60.0).0 - (5.0 - SHORTEST)).abs() < 1e-5);
+    }
+
+    #[test]
+    fn the_snap_lines_are_the_menus_choice_and_the_playhead() {
+        let clock = ClockView {
+            duration: 8.0,
+            bpm: 120.0,
+            beat_offset: 0.0,
+            sections: vec![0.0, 0.5],
+        };
+        let shots = [clip("1", 0.0, 3.0), clip("2", 3.0, 8.0)];
+        let beats = snap_lines(Snap::Beats, &clock, &shots, &[], 1.25, [0.0, 2.0]);
+        let labels: Vec<&str> = beats.iter().map(|l| l.label.as_str()).collect();
+        assert!(labels[0].starts_with("playhead"));
+        // Half a second a beat, 0 to 2 in view: five beats, bar 2 at 2 s.
+        assert_eq!(
+            &labels[1..6],
+            ["bar 1", "bar 1 · 2", "bar 1 · 3", "bar 1 · 4", "bar 2"]
+        );
+        assert!(labels.contains(&"§2 · 0:04.00") && labels.contains(&"end · 0:08.00"));
+        let cuts = snap_lines(Snap::Shots, &clock, &shots, &["2"], 0.0, [0.0, 8.0]);
+        let at: Vec<f32> = cuts.iter().map(|l| l.at).collect();
+        assert_eq!(
+            at,
+            [0.0, 0.0, 3.0],
+            "the playhead, then the other shot's in and out"
+        );
+        assert_eq!(
+            snap_lines(Snap::Off, &clock, &shots, &[], 2.0, [0.0, 8.0]).len(),
+            1
+        );
+        assert_eq!(signed(-1.25), "−1.25 s");
     }
 }
