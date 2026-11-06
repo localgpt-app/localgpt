@@ -1,9 +1,9 @@
-//! The bar across the top (the header in `crates/app/ui/src/App.tsx`, and
-//! `RemotePanel.tsx`): what is open, Open… for another document, song or
-//! world, the opener's or the history's status, and the phone remote. Its
-//! button names the attached devices; its panel turns the listener on and
-//! off, shows the pairing code and lists the devices, each of which can be
-//! forgotten.
+//! The bar across the top: what is open, Open… for another document, song
+//! or world, the opener's or the history's status, the panels' menu, and
+//! the phone remote. The panels' menu shows and hides each panel and puts
+//! them back where they began. The phone's button names the attached
+//! devices; its panel turns the listener on and off, shows the pairing code
+//! and lists the devices, each of which can be forgotten.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -11,6 +11,7 @@ use eframe::egui::{self, Color32, RichText};
 
 use super::state::State;
 use super::theme;
+use super::tiles;
 use crate::webui::FromPage;
 use crate::webui::RemoteView;
 use crate::webui::link::ShellEnd;
@@ -23,7 +24,13 @@ pub struct Bar {
 }
 
 impl Bar {
-    pub fn ui(&mut self, ui: &mut egui::Ui, state: &State, end: &ShellEnd) {
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        state: &State,
+        end: &ShellEnd,
+        layout: &mut tiles::Layout,
+    ) {
         ui.horizontal(|ui| {
             ui.strong("LocalGPT");
             ui.separator();
@@ -45,6 +52,7 @@ impl Bar {
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 self.phone(ui, state, end);
+                layout.menu(ui, state);
                 let status = if state.mode_history {
                     state.history.as_ref().and_then(|h| h.status.as_deref())
                 } else {

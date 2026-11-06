@@ -532,6 +532,17 @@ impl Panel {
         self.pointer(ui, rect, ppp, focused);
     }
 
+    /// Not drawn this frame (folded, hidden, or behind another tab): the
+    /// keys it held go back, as when a click lands elsewhere.
+    pub fn away(&mut self) {
+        if self.focused {
+            self.focused = false;
+            self.release_modifiers();
+            self.send(Input::FocusLost);
+            tracing::debug!("world panel focused: false (not shown)");
+        }
+    }
+
     /// The texture follows the panel's size in pixels, once it holds still.
     fn follow_size(&mut self, rect: egui::Rect, ppp: f32, frame: &eframe::Frame) {
         let want = [

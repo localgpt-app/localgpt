@@ -337,41 +337,40 @@ impl eframe::App for Shell {
         self.terminals.take(&mut self.state);
         let ctx = ui.ctx().clone();
         self.check_shot(&ctx);
-        // The panels' first sizes come from the window, as the page's
-        // columns do, not from what the panels before them left: those
-        // appear when the app's first messages arrive, sooner or later.
-        let (full, tall) = (ui.available_width(), ui.available_height());
 
-        egui::Panel::top("bar").show(ui, |ui| self.bar.ui(ui, &self.state, &self.end));
-        // The timeline runs across the window, under everything else, as
-        // tall as what it holds (the page's rule, `timeline::wanted_height`).
-        if self.state.timeline.is_some() {
-            let height = timeline::wanted_height(self.state.timeline.as_deref(), tall);
-            egui::Panel::bottom("timeline")
-                .resizable(false)
-                .exact_size(height)
-                .show(ui, |ui| self.timeline.ui(ui, &self.state, &self.end));
-        }
+        egui::Panel::top("bar").show(ui, |ui| {
+            self.bar.ui(ui, &self.state, &self.end, &mut self.layout)
+        });
         // The rest are tiles: the left column (the document, a live
-        // canvas's history, the world's things), the world, the terminals.
-        self.layout.follow(&self.state, full);
-        egui::CentralPanel::default()
+        // canvas's history, the world's things), the world, the terminals,
+        // and the timeline across their foot, until a hand moves them. Their
+        // first sizes come from the window, as the page's columns do, not
+        // from what the panels before them left: those appear when the
+        // app's first messages arrive, sooner or later.
+        self.layout.follow(&self.state, ui.available_size());
+        let world_drawn = egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ui, |ui| {
-                let mut panes = tiles::Panes {
-                    state: &mut self.state,
-                    end: &self.end,
-                    frame,
-                    world: &mut self.world,
-                    world_rect: &mut self.world_rect,
-                    terminals: &mut self.terminals,
-                    scene: &mut self.scene,
-                    document: &mut self.document,
-                    history: &mut self.history,
-                    alone: self.layout.alone(),
-                };
-                self.layout.ui(ui, &mut panes);
-            });
+                self.layout.ui(
+                    ui,
+                    tiles::Panels {
+                        state: &mut self.state,
+                        end: &self.end,
+                        frame,
+                        world: &mut self.world,
+                        world_rect: &mut self.world_rect,
+                        terminals: &mut self.terminals,
+                        scene: &mut self.scene,
+                        document: &mut self.document,
+                        history: &mut self.history,
+                        timeline: &mut self.timeline,
+                    },
+                )
+            })
+            .inner;
+        if !world_drawn {
+            self.world.away();
+        }
         // A modulation's link in the inspector: its lane, shown next frame.
         if let Some(track) = self.scene.take_reveal() {
             self.timeline.reveal(track);

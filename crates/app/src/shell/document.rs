@@ -1,5 +1,6 @@
-//! The document: its outline, the selected section's place, and the text
-//! (`crates/app/ui/src/DocumentPanel.tsx` in the page). Each edit goes to
+//! The document: its outline, the selected section's place, and the text,
+//! as the desktop page drew them until it went (tag `desktop-the-page`,
+//! `crates/app/ui/src/DocumentPanel.tsx`). Each edit goes to
 //! the app, which rebuilds the sections that changed in place; the caret's
 //! line follows the world when Follow is on; an outline row or a thing on
 //! the place card flies the camera there.

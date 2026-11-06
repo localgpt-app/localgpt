@@ -23,7 +23,7 @@ The app draws its interface itself, in Rust (egui), so it is not tied to a web v
 
 ## The window {#window}
 
-What is open has its panel on the left — a document, or a package's history with its [outliner](#outliner) in a tab beside it — the world is in the middle, the agents are on the right, and the [timeline](#timeline) runs across the foot of all three. A click in the world gives it the mouse and the keys; a click in a panel or a terminal gives them back to the panels. The panels are tiles: drag a tab beside the world, over the terminals or off on its own, and drag the gaps between them to resize.
+What is open has its panel on the left — a document, or a package's history with its [outliner](#outliner) in a tab beside it — the world is in the middle, the agents are on the right, and the [timeline](#timeline) runs across the foot of all three. A click in the world gives it the mouse and the keys; a click in a panel or a terminal gives them back to the panels. Every panel is a tile with a tab, the world and the timeline too: drag a tab beside another panel, over it as one more tab, or off on its own, and drag the gaps between them to resize. A tab's × hides its panel, and **Panels** in the top bar shows it again, or puts every panel back where it began. The – at the right of a tab bar, or a double click on a tab, folds the panels under it: in a column to the bar alone, in a row to a strip of their names. A click on the strip or on the bar's box unfolds them, and so does dragging a folded panel's edge.
 
 ## The modes {#modes}
 

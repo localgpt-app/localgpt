@@ -1,8 +1,7 @@
 //! The outliner's and the inspector's half in the app: the world's things
 //! as its document has them — the entities as `manifest.json` writes them,
 //! from the world the timeline reads — and the one selection, which the
-//! page draws in the left panel's Outliner tab (`ui/src/scene`, drawn first
-//! in `ui/design/scene.html`).
+//! shell draws in its Outliner panel (`shell/scene.rs`).
 //!
 //! **An edit** is the person's, through the authority the agents use: a
 //! field let go of is one [`PersonIntent::Patch`] — a merge patch for each
