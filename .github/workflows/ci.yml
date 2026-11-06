@@ -40,6 +40,18 @@ jobs:
           components: rustfmt
       - run: cargo fmt --all -- --check
 
+  # The all-Rust rule (docs/rfcs/authoring/all-rust.md): no new file in
+  # another language and no new crate on wry. xtask/rule.txt lists what is
+  # not Rust yet, and may only shrink.
+  rule:
+    name: All Rust (the rule)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo xtask rule
+
   # Every crate except the ones that need native audio and windowing headers;
   # those are the `bevy` job.
   #

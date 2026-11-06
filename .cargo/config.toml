@@ -1,0 +1,4 @@
+# `cargo xtask <command>`: the repo's own tooling, in Rust
+# (docs/rfcs/authoring/all-rust.md, "Tooling and checks").
+[alias]
+xtask = "run --package xtask --quiet --"

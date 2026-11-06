@@ -12,6 +12,7 @@ also runs directly:
 bin/lg build app gen                    # cargo build, by name: cli app gen previs md verse all
 bin/lg build bundle --dmg               # LocalGPT.app for macOS
 bin/lg verify                           # the CI checks on this machine (--rust --bevy --features --web --deps)
+cargo xtask rule                        # the all-Rust rule: nothing new in another language, nothing new on wry
 bin/lg web deploy world --dry-run       # the family's sites: app gen verse md world, or all
 bin/lg fetch assets                     # the shared asset pack
 ```
@@ -414,9 +415,17 @@ A profile (`LOCALGPT_PROFILE=x`) moves both roots to `localgpt-x`. Worlds a
   job, a `features` job for the opt-in tier (Verse's `ml` — gated code is
   not compiled by anything else), an `interface` job that typechecks
   and builds the app's page and its design sheets (`crates/app/ui`), a `viewer` job running
-  `website-world`'s headless render check, plus cargo-deny (`deny.toml`); advisories run on main and weekly, never on
+  `website-world`'s headless render check, a `rule` job (`cargo xtask rule`, below), plus cargo-deny (`deny.toml`); advisories run on main and weekly, never on
   pull requests. Only Verse's `ml` tier links ONNX Runtime; the `features`
   job fetches the version it pins.
+- **Rust above the operating system** (`docs/rfcs/authoring/all-rust.md`,
+  decided 2026-11-05): nothing new in another language — no JavaScript,
+  TypeScript, Python or shell — and no new crate depending on `wry`. A
+  script is an `xtask` command (`xtask/`, run as `cargo xtask <command>`),
+  a check a Rust test. `cargo xtask rule` checks both against
+  `xtask/rule.txt`, the list of what is not Rust yet, which may only
+  shrink: CI's `rule` job and `bin/lg verify --rust` run it, `--write`
+  drops what is gone, and an exception is added to the list by hand.
 - **Commits:** conventional commits (`feat:`, `fix:`, `docs:`, `chore:`,
   `refactor:`, scoped like `feat(gen):`), with no Co-Authored-By or
   Claude-Session trailers.

@@ -27,6 +27,8 @@ target
 !.gitignore
 !.gitattributes
 !.github/
+# `cargo xtask`'s alias (the all-Rust rule's tooling).
+!.cargo/
 # Each website-*/ deploys as a Cloudflare Worker whose static-assets directory
 # is ".", so its .assetsignore is what keeps deploy.sh and wrangler.toml from
 # being published as site content. The blanket `.*` above had left the MD,

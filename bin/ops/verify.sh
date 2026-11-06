@@ -7,8 +7,9 @@
 #   bin/ops/verify.sh [--rust] [--bevy] [--features] [--web] [--deps]   (default: all)
 #   bin/lg verify …
 #
-#   --rust      fmt, clippy and tests for the workspace minus the Bevy crates,
-#               and the world.schema.json snapshot
+#   --rust      fmt, the all-Rust rule (cargo xtask rule), clippy and tests for
+#               the workspace minus the Bevy crates, and the world.schema.json
+#               snapshot
 #   --bevy      clippy and tests for app, gen, md, verse, world-bevy, world-audio
 #   --features  cargo check for the opt-in tier (Verse's ml)
 #   --web       the app's interface (typecheck, build, design sheets), the
@@ -48,6 +49,7 @@ not_bevy="--exclude localgpt-gen --exclude localgpt-world-bevy --exclude localgp
 if [ "$want_rust" = 1 ]; then
   lg_need_tool cargo "install Rust with rustup"
   lg_stage "cargo fmt --check" cargo fmt --all -- --check
+  lg_stage "the all-Rust rule (cargo xtask rule)" cargo xtask rule
   # shellcheck disable=SC2086 # the exclude list is one string on purpose
   lg_stage "cargo clippy --workspace (minus Bevy, -D warnings)" cargo clippy --workspace $not_bevy -- -D warnings
   # shellcheck disable=SC2086

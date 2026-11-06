@@ -15,6 +15,7 @@ members = [
     "crates/world-editor",
     "crates/world-agent",
     "crates/relay",
+    "xtask",
 ]
 default-members = ["crates/cli"]
 resolver = "3"

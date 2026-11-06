@@ -606,7 +606,8 @@ renderer) keep their places after these.
       display's real rate remains
 - [x] A: the workspace on Bevy 0.20, 2026-11-06: clippy clean at CI's scope,
       the 941 tests passing; Gen's `character-controller` builds again
-- [ ] B: the rule and its check
+- [x] B: the rule and its check, 2026-11-06: `cargo xtask rule`, CI's `rule`
+      job; 90 files and 84,634 lines not Rust yet, the app alone on wry
 - [ ] C: the shell, with the world as a panel
 - [ ] D: the panels
 - [ ] E: the shell the default, the web view's host gone
