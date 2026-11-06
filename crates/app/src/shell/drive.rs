@@ -11,6 +11,8 @@
 //! 3:key W 1.5            W held for 1.5 s (keys as egui names them)
 //! 5:drag right 300 0     a right-button drag by points, over half a second
 //! 5:swipe 80 200 40 0    a left-button drag from a point of the window
+//! 5:wheel 80 600 -300    the wheel turned at a point, by points (less
+//!                        than 0 brings what is below into view)
 //! 6:type hello\r         text, as typed (`\r` is Enter, `\e` Escape)
 //! 7:shot /tmp/a.png      a picture of the window
 //! 9:quit
@@ -48,6 +50,12 @@ enum Step {
         x: f32,
         y: f32,
         dx: f32,
+        dy: f32,
+    },
+    /// The wheel turned at a point of the window, by points.
+    Wheel {
+        x: f32,
+        y: f32,
         dy: f32,
     },
     Type(String),
@@ -174,6 +182,22 @@ impl Drive {
                         },
                     });
                 }
+                Step::Wheel { x, y, dy } => {
+                    // Over the point first: a wheel turns what is under the
+                    // pointer.
+                    let at = egui::pos2(x, y);
+                    input.events.push(egui::Event::PointerMoved(at));
+                    self.later.push(Later {
+                        at: now + 0.05,
+                        event: egui::Event::MouseWheel {
+                            unit: egui::MouseWheelUnit::Point,
+                            delta: egui::vec2(0.0, dy),
+                            phase: egui::TouchPhase::Move,
+                            source: egui::MouseWheelSource::Unknown,
+                            modifiers,
+                        },
+                    });
+                }
                 Step::Type(text) => input.events.push(egui::Event::Text(text)),
                 Step::Shot(path) => {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(
@@ -220,6 +244,11 @@ fn parse(script: &str) -> Vec<(f64, Step)> {
                     x: words.next()?.parse().ok()?,
                     y: words.next()?.parse().ok()?,
                     dx: words.next()?.parse().ok()?,
+                    dy: words.next()?.parse().ok()?,
+                },
+                "wheel" => Step::Wheel {
+                    x: words.next()?.parse().ok()?,
+                    y: words.next()?.parse().ok()?,
                     dy: words.next()?.parse().ok()?,
                 },
                 "type" => {
