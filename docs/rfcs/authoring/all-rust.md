@@ -622,22 +622,19 @@ renderer) keep their places after these.
       click froze the world's thread. The stand-in's cursor position
       follows the pointer; nothing in the app sets a cursor icon or a grab,
       so none is sent back yet
-- [ ] D: the panels. Each has a first version, driven by the scripted
-      hand: the terminals on the app's PTYs (the first test's widget); the
-      history as the page draws it, a lane a branch, with its playback bar;
-      the timeline (the ruler, every kind of lane, seek, loop, look through,
-      a proposal's Accept and Reject, mute and hide); the outliner and the
-      inspector (transform, shape, material, light, name and visibility,
-      edited on a live canvas through the authority the agents use, one
-      history entry a field let go of); the document on `TextEdit` (outline,
-      place card, Follow, edits saved, a picked place revealed in the text);
-      Open… and the top bar, with the phone remote's panel
-      (`scripts/remote-smoke.mjs` passes with the shell as the interface).
-      Remaining: the timeline's edits (dragging shots, recutting sections,
-      holding a stop), the inspector's other sections (a light's kind,
-      range, cone and shadows; camera and shot; mesh; behaviors; what the
-      song moves; sound; the world's summary when nothing is selected), and
-      a check of shots and camera tracks on a previs world
+- [x] D: the panels, 2026-11-06, each driven by the scripted hand: the
+      terminals on the app's PTYs (the first test's widget); the history
+      as the page draws it, a lane a branch, with its playback bar; the
+      timeline with every kind of lane and the page's edits on a live
+      canvas (shots moved and trimmed, the cut rolled, sections recut and
+      joined, a tour stop's hold), snapped as the page snaps; the outliner
+      and the inspector with the page's sections, edited through the
+      authority the agents use; the document on `TextEdit` (outline, place
+      card, Follow, edits saved, a picked place revealed); Open… and the
+      top bar, with the phone remote's panel (`scripts/remote-smoke.mjs`
+      passes with the shell as the interface). What the page has that the
+      shell has not: CodeMirror's search in the document; the input method
+      by hand and a run with the display awake remain from the first test
 - [ ] E: the shell the default, the web view's host gone
 - [ ] F: the phone as the WebAssembly build, the page gone
 - [ ] G: `cargo xtask`, `egui_kittest`
