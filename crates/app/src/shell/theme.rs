@@ -13,6 +13,18 @@ pub const ACCENT: Color32 = Color32::from_rgb(0x7a, 0xa2, 0xff);
 pub const DANGER: Color32 = Color32::from_rgb(0xf7, 0x76, 0x8e);
 /// An attached device's dot.
 pub const ATTACHED: Color32 = Color32::from_rgb(0x9e, 0xce, 0x6a);
+/// Main's tip in the history.
+pub const HEAD: Color32 = Color32::from_rgb(0xff, 0xd1, 0x66);
+/// The history's branches, a colour a lane, in turn.
+pub const LANES: [Color32; 7] = [
+    Color32::from_rgb(0x7a, 0xa2, 0xff),
+    Color32::from_rgb(0xf7, 0x76, 0x8e),
+    Color32::from_rgb(0x9e, 0xce, 0x6a),
+    Color32::from_rgb(0xe0, 0xaf, 0x68),
+    Color32::from_rgb(0xbb, 0x9a, 0xf7),
+    Color32::from_rgb(0x7d, 0xcf, 0xff),
+    Color32::from_rgb(0xff, 0x9e, 0x64),
+];
 
 pub const SHOT: Color32 = Color32::from_rgb(0x7a, 0xa2, 0xff);
 pub const CAMERA: Color32 = Color32::from_rgb(0x7d, 0xcf, 0xff);

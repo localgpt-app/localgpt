@@ -276,6 +276,7 @@ struct Shell {
     timeline: timeline::Timeline,
     scene: scene::Scene,
     document: document::Document,
+    history: history::History,
     /// The left panel's tab.
     left: Left,
     state: State,
@@ -320,6 +321,7 @@ impl Shell {
             timeline: timeline::Timeline::new(),
             scene: scene::Scene::new(),
             document: document::Document::new(),
+            history: history::History::default(),
             left,
             state: State::default(),
             started: Instant::now(),
@@ -416,7 +418,7 @@ impl eframe::App for Shell {
                             let reveal = self.state.reveal.take();
                             self.document.ui(ui, &self.state, reveal, &self.end)
                         }
-                        Left::History => history::ui(ui, &self.state, &self.end),
+                        Left::History => self.history.ui(ui, &self.state, &self.end),
                         Left::Outliner | Left::Auto => self.scene.ui(ui, &self.state, &self.end),
                     }
                     ui.advance_cursor_after_rect(ui.available_rect_before_wrap());

@@ -13,7 +13,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::hash::{Hash, Hasher};
 
 use base64::Engine;
-use eframe::egui::{self, Align2, Color32, FontId, Rect, Sense, Shape, Stroke, pos2, vec2};
+use eframe::egui::{
+    self, Align2, Color32, FontId, Rect, RichText, Sense, Shape, Stroke, pos2, vec2,
+};
 
 use super::state::State;
 use super::theme::{self, alpha};
@@ -100,8 +102,20 @@ impl Timeline {
             return;
         };
         let Some(clock) = timeline.clock.as_ref() else {
-            ui.centered_and_justified(|ui| {
-                ui.weak("This world has no clock: no song, no shots, no tour.")
+            // One quiet line, as the page has it, and the world gets the
+            // height back.
+            ui.horizontal_centered(|ui| {
+                ui.label(RichText::new("This world keeps no time yet.").color(theme::MUTED));
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(
+                            "A soundtrack, a shot list or a tour gives it a clock; its \
+                             behaviors loop without one.",
+                        )
+                        .color(theme::FAINT),
+                    )
+                    .truncate(),
+                );
             });
             return;
         };
