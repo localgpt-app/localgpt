@@ -1,7 +1,7 @@
 ---
 slug: "/intro"
 title: "Introduction"
-description: "LocalGPT is a native desktop app and a set of local tools for building, editing and sharing Open World Format packages with your own coding agents."
+description: "LocalGPT is a native desktop app and a set of tools for building, editing and sharing Open World Format packages with your own coding agents."
 ---
 
 # Introduction

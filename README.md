@@ -7,7 +7,7 @@
 [![CI](https://github.com/localgpt-app/localgpt/workflows/CI/badge.svg)](https://github.com/localgpt-app/localgpt/actions)
 [![Discord](https://img.shields.io/discord/691052431525675048.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/spKRr6mRyp)
 
-**A desktop app where a document, a song, a screenplay or a prompt becomes a `.world` you can walk through, with your own coding agents in the terminals beside it.** A world is a package with a history: people edit it in the window, agents edit it from outside, and every change is logged, attributed, undoable and branchable. LocalGPT runs no model, calls no service and holds no key; the agents bring their own. Open source, Apache 2.0, runs on your machine.
+**A desktop app where a document, a song, a screenplay or a prompt becomes a `.world` you can walk through, with your own coding agents in the terminals beside it.** A world is a package with a history: people edit it in the window, agents edit it from outside, and every change is logged, attributed, undoable and branchable. LocalGPT runs no model, calls no service and holds no key; the agents bring their own, whichever coding agent you use. Open source, Apache 2.0.
 
 [![LocalGPT desktop app demo](https://img.youtube.com/vi/7Q0KCXS_1OI/maxresdefault.jpg)](https://www.youtube.com/watch?v=7Q0KCXS_1OI)
 
