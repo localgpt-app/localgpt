@@ -659,7 +659,18 @@ renderer) keep their places after these.
       pixels, so egui comes out three times too big there, to check on an
       Android phone. A phone in a hand remains: the keyboard coming up, an
       input method composing, dictation, and scrolling under a finger
-- [ ] G: `cargo xtask`, `egui_kittest`
+- [ ] G: `cargo xtask`, `egui_kittest`. Begun 2026-11-06: the shell's
+      first tests by a hand without a window (egui_kittest): a terminal
+      opened or picked is typed into at once, long tab labels leave the
+      grid its panel's width, keys go where the last press went between a
+      terminal and the timeline, and the Panels menu hides, shows and puts
+      back. They found what the scripted hand had not: the tab's "●" and
+      the timeline's "▶" are in none of egui's own fonts (the app reaches
+      the system's for them). `cargo xtask verify` is the first script in
+      Rust (was `bin/ops/verify.sh`; `bin/lg verify` routes to it). Left:
+      the other scripts (`build-app.sh`, `fetch-assets.sh`, the sites'
+      deploys, `release-plan.py` and `trust-release-workflow.py`,
+      `live-smoke.py`), and `remote-smoke.mjs`, which goes with the page
 - [ ] The last mile of C, with 0.5.0
 - [ ] The WebAssembly world renderer for the link
 - [ ] The audio engine, after parity: the arrangement extension in the spec

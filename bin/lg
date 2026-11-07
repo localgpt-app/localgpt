@@ -72,7 +72,8 @@ case "$cmd" in
     if [ $# -gt 0 ]; then lg_domain_help "$1"; else lg_usage; fi
     exit 0
     ;;
-  verify) lg_exec "$LG_HOME/ops/verify.sh" "$@" ;;
+  # Rust now (xtask/src/verify.rs): bin/lg only routes to it.
+  verify) cd "$LG_HOME/.." && exec cargo xtask verify "$@" ;;
 
   web)
     [ $# -gt 0 ] || { lg_domain_help web; exit 2; }

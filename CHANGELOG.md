@@ -7,7 +7,8 @@ All notable changes to LocalGPT are documented in this file.
 ### Added
 
 - **Every panel of the desktop app moves, hides and folds.** The world, the terminals and the timeline have tabs like the others, so any panel can be dragged beside another, over it as a tab, or off on its own. A tab's × hides its panel, and **Panels** in the top bar shows it again or puts every panel back where it began. The – at the right of a tab bar, or a double click on a tab, folds its panels to the bar, or in a row to a strip of their names; a click there, or dragging the folded panel's edge, unfolds them. The panels come back as they were left at the next launch (`<state>/app-layout.json`).
-- **`cargo xtask rule`**: the all-Rust rule, checked. Nothing new in another language and no new crate on `wry`: the tracked files in other languages and the crates on `wry` are held against `xtask/rule.txt`, a list of what is not Rust yet that may only shrink (`--write` drops what has gone). CI's `rule` job and `bin/lg verify --rust` run it.
+- **`cargo xtask rule`**: the all-Rust rule, checked. Nothing new in another language and no new crate on `wry`: the tracked files in other languages and the crates on `wry` are held against `xtask/rule.txt`, a list of what is not Rust yet that may only shrink (`--write` drops what has gone). CI's `rule` job and `cargo xtask verify --rust` run it.
+- **`cargo xtask verify`**: the CI checks on this machine, in CI's order, in Rust (it was `bin/ops/verify.sh`; `bin/lg verify` runs it).
 
 ### Changed
 

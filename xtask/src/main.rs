@@ -5,9 +5,11 @@
 //! ```text
 //! cargo xtask rule            # the all-Rust rule's ratchet, as CI runs it
 //! cargo xtask rule --write    # drop the listed paths that are gone
+//! cargo xtask verify          # the CI checks on this machine (--rust --bevy …)
 //! ```
 
 mod rule;
+mod verify;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -17,6 +19,7 @@ fn main() -> ExitCode {
     let root = repo_root();
     let result = match args.first().map(String::as_str) {
         Some("rule") => rule::run(&root, args.iter().skip(1).any(|a| a == "--write")),
+        Some("verify") => verify::run(&root, &args[1..]),
         Some(other) => Err(format!("unknown command {other:?}\n\n{USAGE}")),
         None => Err(USAGE.to_string()),
     };
@@ -29,10 +32,16 @@ fn main() -> ExitCode {
     }
 }
 
-const USAGE: &str = "usage: cargo xtask <command>
+const USAGE: &str = concat!(
+    "usage: cargo xtask <command>
 
   rule [--write]   the all-Rust rule: no new file in another language, no new
-                   crate on wry (xtask/rule.txt is what may only shrink)";
+                   crate on wry (xtask/rule.txt is what may only shrink)
+",
+    // `cargo xtask verify --help` says more.
+    "  verify [--rust] [--bevy] [--features] [--web] [--deps]
+                   the CI checks on this machine, in CI's order (default: all)"
+);
 
 /// The workspace root: the xtask crate's parent folder. `cargo run` names
 /// the crate's folder as it runs it, which holds where the build was made
