@@ -196,15 +196,19 @@ impl Screen {
         id: egui::Id,
         style: &mut Style,
         blink: bool,
+        // The keys are given to it now, as a click in it gives them.
+        focus: bool,
     ) -> Asks {
         style.measure(ui.ctx());
         let cell = style.cell;
         let mut asks = Asks::default();
-        let rect = ui.available_rect_before_wrap();
+        // Never past what shows: a grid wider than its panel would put the
+        // cursor out of sight.
+        let rect = ui.available_rect_before_wrap().intersect(ui.clip_rect());
         let response = ui.interact(rect, id, Sense::click_and_drag());
         // The grid takes the rest of the panel; the panel hears it is used.
         ui.advance_cursor_after_rect(rect);
-        if response.clicked() || response.drag_started() {
+        if focus || response.clicked() || response.drag_started() {
             response.request_focus();
             asks.focused = true;
             self.drives = true;
@@ -247,7 +251,7 @@ impl Screen {
     /// a tab opens or attaches at.
     pub fn fits(ui: &egui::Ui, style: &mut Style) -> (u16, u16) {
         style.measure(ui.ctx());
-        let rect = ui.available_rect_before_wrap();
+        let rect = ui.available_rect_before_wrap().intersect(ui.clip_rect());
         if style.cell.x <= 0.0 || style.cell.y <= 0.0 {
             return (80, 24);
         }

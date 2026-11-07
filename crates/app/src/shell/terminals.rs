@@ -41,6 +41,10 @@ pub struct Terminals {
     style: Style,
     born: Instant,
     made: u32,
+    /// The keys go to the tab in front when it next draws: one opened,
+    /// picked or left in front by a hand here is typed into at once, as in
+    /// any terminal, without a click in it first.
+    focus: bool,
 }
 
 impl Terminals {
@@ -52,6 +56,7 @@ impl Terminals {
             style: Style::install(ctx, 13.0),
             born: Instant::now(),
             made: 0,
+            focus: false,
         };
         if open {
             terminals.open();
@@ -79,6 +84,7 @@ impl Terminals {
             asked: false,
         });
         self.active = Some(id);
+        self.focus = true;
     }
 
     fn tab(&mut self, id: &str) -> Option<&mut Tab> {
@@ -139,34 +145,85 @@ impl Terminals {
 
     pub fn ui(&mut self, ui: &mut egui::Ui, end: &ShellEnd) {
         let mut close: Option<String> = None;
+        let mut picked: Option<String> = None;
+        let mut new = false;
         ui.horizontal(|ui| {
-            for tab in &self.tabs {
-                let dot = if tab.ended { "○" } else { "●" };
-                let full = tab.label.as_deref().unwrap_or("Terminal");
-                let label = format!("{dot} {}", shorten(full, 28));
-                let selected = self.active.as_deref() == Some(tab.id.as_str());
-                let response = ui.selectable_label(selected, label).on_hover_text(full);
-                if response.clicked() {
-                    self.active = Some(tab.id.clone());
-                }
-                if ui
-                    .small_button("×")
-                    .on_hover_text("Close this terminal")
-                    .clicked()
-                {
-                    close = Some(tab.id.clone());
-                }
-                ui.separator();
-            }
-            if ui.button("+").on_hover_text("New terminal").clicked() {
-                self.open();
-            }
+            // The tabs scroll when they are more than the panel holds, and
+            // "+" stays at their end in reach: a strip wider than the panel
+            // would widen the grid under it past what shows, its cursor
+            // and its lines' ends out of sight.
+            let plus = 2.0 * ui.spacing().button_padding.x + 16.0 + ui.spacing().item_spacing.x;
+            egui::ScrollArea::horizontal()
+                .id_salt("the terminals' tabs")
+                .max_width((ui.available_width() - plus).max(0.0))
+                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        for tab in &self.tabs {
+                            let full = tab.label.as_deref().unwrap_or("Terminal");
+                            let selected = self.active.as_deref() == Some(tab.id.as_str());
+                            // The dot is painted, not a glyph: "●" is in
+                            // none of egui's own fonts, and looking it up in
+                            // the system's costs the first tab a hitch.
+                            let dot = egui::IdSalt::new(("tab dot", &tab.id));
+                            let shown = egui::Button::selectable(
+                                selected,
+                                (
+                                    egui::Atom::custom(dot, egui::vec2(8.0, 8.0)),
+                                    shorten(full, 28),
+                                ),
+                            )
+                            .atom_ui(ui);
+                            if let Some(at) = shown.rect(dot) {
+                                let ink = ui
+                                    .style()
+                                    .interact_selectable(&shown, selected)
+                                    .text_color();
+                                let (center, radius) = (at.center(), 3.5);
+                                if tab.ended {
+                                    ui.painter().circle_stroke(
+                                        center,
+                                        radius,
+                                        egui::Stroke::new(1.0, ink),
+                                    );
+                                } else {
+                                    ui.painter().circle_filled(center, radius, ink);
+                                }
+                            }
+                            let response = shown.response.on_hover_text(full);
+                            if selected && self.focus {
+                                // Just opened or picked: in view.
+                                response.scroll_to_me(None);
+                            }
+                            if response.clicked() {
+                                picked = Some(tab.id.clone());
+                            }
+                            if ui
+                                .small_button("×")
+                                .on_hover_text("Close this terminal")
+                                .clicked()
+                            {
+                                close = Some(tab.id.clone());
+                            }
+                            ui.separator();
+                        }
+                    });
+                });
+            new = ui.button("+").on_hover_text("New terminal").clicked();
         });
+        if let Some(id) = picked {
+            self.active = Some(id);
+            self.focus = true;
+        }
+        if new {
+            self.open();
+        }
         if let Some(id) = close {
             end.ask(FromPage::TermClose { id: id.clone() });
             self.tabs.retain(|t| t.id != id);
             if self.active.as_deref() == Some(id.as_str()) {
                 self.active = self.tabs.last().map(|t| t.id.clone());
+                self.focus = true;
             }
         }
         ui.separator();
@@ -198,7 +255,8 @@ impl Terminals {
             });
         }
         let id = ui.scope_id().with(("terminal", &tab.id));
-        let asks = tab.screen.show(ui, id, &mut self.style, blink);
+        let focus = std::mem::take(&mut self.focus);
+        let asks = tab.screen.show(ui, id, &mut self.style, blink, focus);
         if asks.focused {
             end.ask(FromPage::TermFocus { id: tab.id.clone() });
         }
@@ -215,5 +273,147 @@ impl Terminals {
                 data: asks.input.concat(),
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::mpsc::{Receiver, channel};
+
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable;
+
+    use super::*;
+
+    /// The panel as the shell has it, made on its first frame (its fonts
+    /// want a context), with the app's end of the link kept to read.
+    struct Panel {
+        terminals: Option<Terminals>,
+        end: ShellEnd,
+    }
+
+    fn panel(width: f32) -> (Harness<'static, Panel>, Receiver<FromPage>) {
+        let (asks, asked) = channel();
+        let (_tell, events) = channel();
+        let panel = Panel {
+            terminals: None,
+            end: ShellEnd { events, asks },
+        };
+        let harness = Harness::builder()
+            .with_size(egui::vec2(width, 600.0))
+            .build_ui_state(
+                |ui, panel: &mut Panel| {
+                    panel
+                        .terminals
+                        .get_or_insert_with(|| Terminals::new(ui.ctx(), false))
+                        .ui(ui, &panel.end);
+                },
+                panel,
+            );
+        (harness, asked)
+    }
+
+    /// The tabs opened so far, in order, and the sizes they opened at.
+    fn opened(asked: &[FromPage]) -> Vec<(String, u16)> {
+        asked
+            .iter()
+            .filter_map(|ask| match ask {
+                FromPage::TermOpen { id, cols, .. } => Some((id.clone(), *cols)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn typed_into(asked: &[FromPage], text: &str) -> Option<String> {
+        asked.iter().find_map(|ask| match ask {
+            FromPage::TermInput { id, data } if data == text => Some(id.clone()),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn a_new_terminal_is_typed_into_without_a_click() {
+        let (mut harness, asked) = panel(480.0);
+        harness.run_steps(2);
+        harness.get_by_label("+").click();
+        harness.run_steps(3);
+        harness.event(egui::Event::Text("ls".into()));
+        harness.run_steps(2);
+        let asked: Vec<FromPage> = asked.try_iter().collect();
+        let tabs = opened(&asked);
+        assert_eq!(tabs.len(), 1, "one terminal opened");
+        assert_eq!(typed_into(&asked, "ls"), Some(tabs[0].0.clone()));
+    }
+
+    #[test]
+    fn a_tab_picked_takes_the_keys() {
+        let (mut harness, asked) = panel(480.0);
+        harness.run_steps(2);
+        harness.get_by_label("+").click();
+        harness.run_steps(3);
+        harness.get_by_label("+").click();
+        harness.run_steps(3);
+        // Two tabs, the second in front; the first picked by its label.
+        harness.get_all_by_label("Terminal").next().unwrap().click();
+        harness.run_steps(3);
+        harness.event(egui::Event::Text("pwd".into()));
+        harness.run_steps(2);
+        let asked: Vec<FromPage> = asked.try_iter().collect();
+        let tabs = opened(&asked);
+        assert_eq!(tabs.len(), 2);
+        assert_eq!(typed_into(&asked, "pwd"), Some(tabs[0].0.clone()));
+    }
+
+    #[test]
+    fn long_tab_labels_never_widen_the_grid_past_the_panel() {
+        let (mut harness, asked) = panel(480.0);
+        harness.run_steps(2);
+        harness.get_by_label("+").click();
+        harness.run_steps(3);
+        let first = opened(&asked.try_iter().collect::<Vec<_>>())[0].clone();
+        // Each tab titled with a long folder, as a shell's prompt sets it.
+        let long = "/Users/someone/Library/Application Support/LocalGPT/worlds/harbour";
+        for _ in 0..2 {
+            harness.get_by_label("+").click();
+            harness.run_steps(3);
+            let ids: Vec<String> = harness
+                .state()
+                .terminals
+                .as_ref()
+                .unwrap()
+                .tabs
+                .iter()
+                .map(|t| t.id.clone())
+                .collect();
+            let mut state = State {
+                terms: ids
+                    .into_iter()
+                    .map(|id| TermEvent::Label(id, Some(long.into())))
+                    .collect(),
+                ..State::default()
+            };
+            harness
+                .state_mut()
+                .terminals
+                .as_mut()
+                .unwrap()
+                .take(&mut state);
+            harness.run_steps(3);
+        }
+        let asked: Vec<FromPage> = asked.try_iter().collect();
+        let widest = asked
+            .iter()
+            .filter_map(|ask| match ask {
+                FromPage::TermOpen { cols, .. } | FromPage::TermResize { cols, .. } => Some(*cols),
+                _ => None,
+            })
+            .max()
+            .unwrap();
+        assert_eq!(opened(&asked).len(), 2);
+        assert!(
+            widest <= first.1,
+            "a grid took {widest} columns where the panel holds {}",
+            first.1
+        );
     }
 }

@@ -73,3 +73,9 @@ axum = { version = "0.8", features = ["ws"] }
 futures = { workspace = true }
 rand = { workspace = true }
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+
+[dev-dependencies]
+# The shell's panels under test without a window: egui driven headlessly,
+# its widgets found through AccessKit, clicked and typed into
+# (docs/rfcs/authoring/all-rust.md, step G). Released with each egui.
+egui_kittest = "0.37"
