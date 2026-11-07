@@ -25,7 +25,7 @@ pub const USAGE: &str = "  sync-viewer [--check]
                    vendor the web renderer from openworldformat on npm
                    (--check: fail if the vendored copy has drifted)";
 
-const OWF_VERSION: &str = "0.3.6";
+const OWF_VERSION: &str = "0.3.7";
 /// Upstream file, and its vendored name.
 const FILES: [(&str, &str); 2] = [
     ("render.js", "world-viewer.js"),

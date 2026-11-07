@@ -43,6 +43,10 @@ rate-limit.new-packages = 10
 # renderer), `Author.source` (hand/library/ai), the ext-h3 geo frame
 # extension, and the geometry table every shape now follows — breaking
 # for exhaustive `Shape` matches and spelled-out `Author` literals.
+# 0.5.0: a behavior runs from the authored transform, in array order; a spin
+# and a pulse turn and breathe about a `pivot` with a `phase`, the `Swing`
+# rocks, and a kind the crate does not know is carried as `Other` — breaking
+# for exhaustive `BehaviorDef` matches.
 openworldformat = "0.5.0"
 
 # Async runtime

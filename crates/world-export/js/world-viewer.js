@@ -40,7 +40,7 @@ import { cameraOf, frameOf, viewOf, aimPointOf, shotList } from './cinematograph
 /** @typedef {import('./index.js').EnvironmentDef} EnvironmentDef */
 /** @typedef {import('./index.js').Shape} Shape */
 
-export const VIEWER_VERSION = '0.3.6'; // the package version — js/test/version.test.mjs pins it to package.json
+export const VIEWER_VERSION = '0.3.7'; // the package version — js/test/version.test.mjs pins it to package.json
 
 /// Calibration between Bevy's light units and three.js', in one place.
 /// Bevy renders physical units through an exposure; three's lights are
@@ -83,12 +83,13 @@ const TAU = Math.PI * 2;
  * @property {THREE.Object3D} object
  * @property {THREE.Material|null} material
  * @property {THREE.Light|null} light
- * @property {{position: THREE.Vector3, scale: THREE.Vector3,
+ * @property {{position: THREE.Vector3, quaternion: THREE.Quaternion, scale: THREE.Vector3,
  *             emissive: THREE.Color|null, emissiveIntensity: number,
  *             lightIntensity: number, opacity: number}} base
  * @property {((dt: number, t: number) => void)[]} behaviors
  * @property {{def: any, target: string, s: number}[]} mods
  * @property {boolean} resetPosition
+ * @property {boolean} resetRotation
  * @property {boolean} resetScale
  * @property {TriggerState[]} triggers
  * @property {ViewerAnimation|null} [anim]
@@ -256,7 +257,7 @@ function wedgeGeometry(x, y, z) {
 }
 
 // ---------------------------------------------------------------------------
-// The prism (experimental; spec/world.md "The geometry of the shapes") — the
+// The prism (spec/world.md "The geometry of the shapes") — the
 // normative triangles as plain arrays, exported so node can test the vertex
 // order with no renderer (js/test/prism.test.mjs). Origin at the centroid,
 // axis +Y, flat caps at y = ±height/2; `radius` is the circumradius: cap
@@ -324,7 +325,7 @@ export function createGeometry(shape) {
     case 'Tetrahedron': return new THREE.TetrahedronGeometry(p.radius ?? 1);
     case 'Icosahedron': return new THREE.IcosahedronGeometry(p.radius ?? 1, 0);
     case 'Wedge': return wedgeGeometry(p.x ?? 1, p.y ?? 1, p.z ?? 1);
-    // Experimental (spec/world.md "The prism"): the normative triangles, flat-shaded.
+    // spec/world.md "The geometry of the shapes": the normative triangles, flat-shaded.
     case 'Prism': return flatGeometry(prismTriangles(p.sides ?? 6, p.radius ?? 0.5, p.height ?? 1));
     default: return new THREE.BoxGeometry(1, 1, 1);
   }
@@ -441,8 +442,29 @@ function createLight(def, position) {
 }
 
 // ---------------------------------------------------------------------------
-// Behaviors (all seven, evaluated from the entity's authored transform)
+// Behaviors (all eight, evaluated from the entity's authored transform as
+// functions of folded time; spec/world.md "Behavior and triggers")
 // ---------------------------------------------------------------------------
+
+/** A behavior's pivot as a vector, or null at the origin — the default,
+ *  where there is nothing to hold. @param {any} p @returns {THREE.Vector3|null} */
+export function pivotOf(p) {
+  if (!Array.isArray(p) || p.length < 3) return null;
+  const v = new THREE.Vector3(+p[0] || 0, +p[1] || 0, +p[2] || 0);
+  return v.lengthSq() > 0 ? v : null;
+}
+
+/** Keep a local point where it stood: `obj`'s rotation or scale just changed
+ *  from (`q0`, `s0`) to what it holds now, so move it by what that change did
+ *  to `pivot` — a point in the entity's local frame, metres, before its
+ *  scale. The pivot stays where the authored transform put it.
+ *  @param {THREE.Object3D} obj @param {THREE.Vector3} pivot
+ *  @param {THREE.Quaternion} q0 @param {THREE.Vector3} s0 */
+export function holdPivot(obj, pivot, q0, s0) {
+  const before = pivot.clone().multiply(s0).applyQuaternion(q0);
+  const after = pivot.clone().multiply(obj.scale).applyQuaternion(obj.quaternion);
+  obj.position.add(before.sub(after));
+}
 
 /**
  * @param {any} def
@@ -451,23 +473,40 @@ function createLight(def, position) {
  * @param {Map<string, EntityRecord>} byId
  * @returns {((dt: number, t: number) => void)|null}
  */
-function makeBehavior(def, rec, byName, byId) {
+export function makeBehavior(def, rec, byName, byId) {
   const [kind, p] = variant(def);
+  // A bare name or a non-object body is no behavior: carried by the
+  // references, never run — like a kind the switch below does not know.
+  if (!p || typeof p !== 'object') return null;
   const obj = rec.object;
-  const base = rec.base;
   switch (kind) {
     case 'Spin': {
       const axis = new THREE.Vector3(...(p.axis || [0, 1, 0])).normalize();
       const speed = THREE.MathUtils.degToRad(p.speed ?? 90);
-      return (dt) => { obj.rotateOnAxis(axis, speed * dt); };
+      const phase = THREE.MathUtils.degToRad(p.phase ?? 0);
+      const pivot = pivotOf(p.pivot);
+      const q = new THREE.Quaternion();
+      // Absolute in folded time, composed onto the authored rotation (put
+      // back each frame), so two spins compose and a seek lands where it says.
+      rec.resetRotation = true;
+      if (pivot) rec.resetPosition = true;
+      return (dt, t) => {
+        const q0 = obj.quaternion.clone();
+        obj.quaternion.multiply(q.setFromAxisAngle(axis, speed * t + phase));
+        if (pivot) holdPivot(obj, pivot, q0, obj.scale);
+      };
     }
     case 'Bob': {
       const axis = p.axis || [0, 1, 0];
       const amp = p.amplitude ?? 0.5, freq = p.frequency ?? 0.5, phase = THREE.MathUtils.degToRad(p.phase ?? 0);
+      // From what the behaviors before it left: the authored position, put
+      // back each frame, unless a spin about a pivot moved it first.
       rec.resetPosition = true;
       return (dt, t) => {
         const off = Math.sin(t * freq * TAU + phase) * amp;
-        obj.position.set(base.position.x + axis[0] * off, base.position.y + axis[1] * off, base.position.z + axis[2] * off);
+        obj.position.x += axis[0] * off;
+        obj.position.y += axis[1] * off;
+        obj.position.z += axis[2] * off;
       };
     }
     case 'Orbit': {
@@ -497,11 +536,31 @@ function makeBehavior(def, rec, byName, byId) {
       };
     }
     case 'Pulse': {
-      const mn = p.min_scale ?? 0.8, mx = p.max_scale ?? 1.2, freq = p.frequency ?? 0.5;
+      // The schema's defaults (0.9 and 1.1), where this once read 0.8 and 1.2.
+      const mn = p.min_scale ?? 0.9, mx = p.max_scale ?? 1.1, freq = p.frequency ?? 0.5;
+      const phase = THREE.MathUtils.degToRad(p.phase ?? 0);
+      const pivot = pivotOf(p.pivot);
       rec.resetScale = true;
+      if (pivot) rec.resetPosition = true;
       return (dt, t) => {
-        const s = mn + (mx - mn) * (Math.sin(t * freq * TAU) * 0.5 + 0.5);
-        obj.scale.set(base.scale.x * s, base.scale.y * s, base.scale.z * s);
+        const s = mn + (mx - mn) * (Math.sin(t * freq * TAU + phase) * 0.5 + 0.5);
+        const s0 = obj.scale.clone();
+        obj.scale.multiplyScalar(s);
+        if (pivot) holdPivot(obj, pivot, obj.quaternion, s0);
+      };
+    }
+    case 'Swing': {
+      const axis = new THREE.Vector3(...(p.axis || [1, 0, 0])).normalize();
+      const amp = THREE.MathUtils.degToRad(p.amplitude ?? 30), freq = p.frequency ?? 0.5;
+      const phase = THREE.MathUtils.degToRad(p.phase ?? 0);
+      const pivot = pivotOf(p.pivot);
+      const q = new THREE.Quaternion();
+      rec.resetRotation = true;
+      if (pivot) rec.resetPosition = true;
+      return (dt, t) => {
+        const q0 = obj.quaternion.clone();
+        obj.quaternion.multiply(q.setFromAxisAngle(axis, amp * Math.sin(t * freq * TAU + phase)));
+        if (pivot) holdPivot(obj, pivot, q0, obj.scale);
       };
     }
     case 'Bounce': {
@@ -1042,13 +1101,14 @@ export function createWorldViewer(container, manifest, options = {}) {
       def, object: obj, material, light,
       base: {
         position: obj.position.clone(),
+        quaternion: obj.quaternion.clone(),
         scale: obj.scale.clone(),
         emissive: std?.emissive ? std.emissive.clone() : null,
         emissiveIntensity: std?.emissiveIntensity ?? 0,
         lightIntensity: light?.intensity ?? 0,
         opacity: std?.opacity ?? 1,
       },
-      behaviors: [], mods: [], resetPosition: false, resetScale: false,
+      behaviors: [], mods: [], resetPosition: false, resetRotation: false, resetScale: false,
       triggers: [], anim: null,
     };
   }
@@ -1064,6 +1124,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     rec.behaviors = [];
     rec.mods = [];
     rec.resetPosition = false;
+    rec.resetRotation = false;
     rec.resetScale = false;
     for (const b of rec.def.behaviors || []) { const fn = makeBehavior(b, rec, byName, byId); if (fn) rec.behaviors.push(fn); }
     for (const m of rec.def.modulations || []) {
@@ -1136,6 +1197,7 @@ export function createWorldViewer(container, manifest, options = {}) {
       rec.object.scale.set(...(/** @type {Vec3} */ (t.scale || [1, 1, 1])));
       rec.object.visible = t.visible !== false;
       rec.base.position.copy(rec.object.position);
+      rec.base.quaternion.copy(rec.object.quaternion);
       rec.base.scale.copy(rec.object.scale);
     }
     if (patch.parent !== undefined) {
@@ -1593,6 +1655,7 @@ export function createWorldViewer(container, manifest, options = {}) {
     elapsed += dt;
     for (const rec of records) {
       if (rec.resetPosition) rec.object.position.copy(rec.base.position);
+      if (rec.resetRotation) rec.object.quaternion.copy(rec.base.quaternion);
       if (rec.resetScale) rec.object.scale.copy(rec.base.scale);
     }
     for (const rec of records) for (const b of rec.behaviors) b(dt, elapsed);
