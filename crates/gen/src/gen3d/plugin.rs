@@ -744,14 +744,19 @@ fn process_gen_commands(
                 // when entity position/scale changes
                 if let GenResponse::Modified { .. } = &resp
                     && let Some(entity) = params.registry.get_entity(&cmd.name)
-                    && (cmd.position.is_some() || cmd.scale.is_some())
+                    && (cmd.position.is_some()
+                        || cmd.rotation_degrees.is_some()
+                        || cmd.scale.is_some())
                 {
                     let new_transform = params.transforms.get(entity).copied().unwrap_or_default();
-                    // Update behavior base_position/base_scale
+                    // Update the behaviors' authored transform
                     if let Ok(mut behaviors) = params.behaviors_query.get_mut(entity) {
                         for bi in &mut behaviors.behaviors {
                             if cmd.position.is_some() {
                                 bi.base_position = new_transform.translation;
+                            }
+                            if cmd.rotation_degrees.is_some() {
+                                bi.base_rotation = new_transform.rotation;
                             }
                             if cmd.scale.is_some() {
                                 bi.base_scale = new_transform.scale;
@@ -2083,11 +2088,7 @@ fn process_gen_commands(
                     continue;
                 };
                 let entity_name = p.entity_id.clone();
-                let position = params
-                    .transforms
-                    .get(entity)
-                    .map(|t| t.translation)
-                    .unwrap_or(Vec3::ZERO);
+                let authored = params.transforms.get(entity).copied().unwrap_or_default();
                 // Add bob + spin idle animation for collectibles
                 let bob = behaviors::BehaviorInstance {
                     id: format!("collectible_bob_{}", entity_name),
@@ -2097,17 +2098,21 @@ fn process_gen_commands(
                         frequency: 0.5,
                         phase: 0.0,
                     },
-                    base_position: position,
-                    base_scale: Vec3::ONE,
+                    base_position: authored.translation,
+                    base_rotation: authored.rotation,
+                    base_scale: authored.scale,
                 };
                 let spin = behaviors::BehaviorInstance {
                     id: format!("collectible_spin_{}", entity_name),
                     def: BehaviorDef::Spin {
                         axis: [0.0, 1.0, 0.0],
                         speed: 45.0,
+                        phase: 0.0,
+                        pivot: [0.0; 3],
                     },
-                    base_position: position,
-                    base_scale: Vec3::ONE,
+                    base_position: authored.translation,
+                    base_rotation: authored.rotation,
+                    base_scale: authored.scale,
                 };
                 commands.entity(entity).insert((
                     crate::interaction::InteractionEntity,
@@ -2116,7 +2121,7 @@ fn process_gen_commands(
                         category: p.category.clone(),
                         pickup_effect: p.pickup_effect,
                         respawn_time: p.respawn_time,
-                        original_position: position,
+                        original_position: authored.translation,
                         respawn_timer: None,
                     },
                     EntityBehaviors {
@@ -4923,6 +4928,7 @@ fn process_pending_world_setup(
                     id: behavior_state.next_id(),
                     def: def.clone(),
                     base_position: base_transform.translation,
+                    base_rotation: base_transform.rotation,
                     base_scale: base_transform.scale,
                 })
                 .collect();
@@ -6289,6 +6295,7 @@ pub(crate) fn spawn_world_entities(
                     id: behavior_state.next_id(),
                     def: cmd_behavior,
                     base_position: transform.translation,
+                    base_rotation: transform.rotation,
                     base_scale: transform.scale,
                 });
             }

@@ -2102,11 +2102,11 @@ impl Tool for GenAddBehaviorTool {
                     },
                     "behavior": {
                         "type": "object",
-                        "description": "Behavior definition. Types: orbit {center, center_point, radius, speed (deg/s), axis, phase, tilt}, spin {axis, speed}, bob {axis, amplitude, frequency, phase}, look_at {target}, pulse {min_scale, max_scale, frequency}, path_follow {waypoints: [[x,y,z],...], speed (u/s), mode: loop|ping_pong|once, orient_to_path}, bounce {height, gravity, damping, surface_y}",
+                        "description": "Behavior definition. Types: orbit {center, center_point, radius, speed (deg/s), axis, phase, tilt}, spin {axis, speed (deg/s), phase (deg), pivot}, bob {axis, amplitude, frequency, phase}, look_at {target}, pulse {min_scale, max_scale, frequency, phase, pivot}, swing {axis, amplitude (deg), frequency, phase, pivot}, path_follow {waypoints: [[x,y,z],...], speed (u/s), mode: loop|ping_pong|once, orient_to_path}, bounce {height, gravity, damping, surface_y}. A pivot is a local point [x,y,z], metres before the scale, that stays put while the entity turns or scales about it: [0,-h/2,0] makes a wheel of a spin or keeps a pulse on the ground, [0,h/2,0] hangs a swing from its top. Behaviors apply in the order added, each from what the ones before it left.",
                         "properties": {
                             "type": {
                                 "type": "string",
-                                "enum": ["orbit", "spin", "bob", "look_at", "pulse", "path_follow", "bounce"]
+                                "enum": ["orbit", "spin", "bob", "look_at", "pulse", "swing", "path_follow", "bounce"]
                             }
                         },
                         "required": ["type"]
@@ -2127,6 +2127,14 @@ impl Tool for GenAddBehaviorTool {
 
         let behavior_id = args["behavior_id"].as_str().map(|s| s.to_string());
         let behavior: BehaviorDef = serde_json::from_value(args["behavior"].clone())?;
+        // A kind the renderer does not know is carried when it comes from a
+        // file, but typed here it is a mistake to name, not a no-op to keep.
+        if let BehaviorDef::Other(value) = &behavior {
+            anyhow::bail!(
+                "Unknown behavior type {}; the types are orbit, spin, bob, look_at, pulse, swing, path_follow and bounce",
+                value.get("type").cloned().unwrap_or(Value::Null)
+            );
+        }
 
         let cmd = AddBehaviorCmd {
             entity,

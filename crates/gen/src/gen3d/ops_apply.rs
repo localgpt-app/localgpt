@@ -218,6 +218,7 @@ impl OpsApplier<'_, '_> {
             if let Ok(mut ebs) = self.behaviors_query.get_mut(bevy_entity) {
                 for b in &mut ebs.behaviors {
                     b.base_position = Vec3::from_array(t.position);
+                    b.base_rotation = rotation;
                     b.base_scale = Vec3::from_array(t.scale);
                 }
             }
@@ -292,6 +293,7 @@ impl OpsApplier<'_, '_> {
                     id: self.behavior_state.next_id(),
                     def: GenBehaviorDef::from(def),
                     base_position: base.translation,
+                    base_rotation: base.rotation,
                     base_scale: base.scale,
                 });
             }

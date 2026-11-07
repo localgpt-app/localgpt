@@ -3,9 +3,17 @@
 //! Each behavior is a serializable definition that the tick system evaluates
 //! every frame. Behaviors modify entity transforms (position, rotation, scale)
 //! based on elapsed time, producing continuous animation from pure data.
+//!
+//! The format's rule (spec/world.md "Behavior and triggers"): a behavior is a
+//! function of folded time from the entity's authored transform, an entity's
+//! behaviors apply in array order, each from what the ones before it left,
+//! and a spin, pulse or swing acts about a pivot that stays where the
+//! authored transform put it. Every frame starts from the authored transform
+//! again, so nothing accumulates and a seek lands where the clock says.
 
 use bevy::prelude::*;
 use std::collections::HashMap;
+use std::f32::consts::TAU;
 
 use super::commands::*;
 use super::registry::{GenEntity, NameRegistry};
@@ -19,9 +27,12 @@ use super::registry::{GenEntity, NameRegistry};
 pub struct BehaviorInstance {
     pub id: String,
     pub def: BehaviorDef,
-    /// Base position captured when the behavior was added (for additive behaviors like Bob).
+    /// The authored position, captured when the behavior was added and kept
+    /// in step by every edit: where each frame starts from.
     pub base_position: Vec3,
-    /// Base scale captured when added (for Pulse).
+    /// The authored rotation, likewise: a spin or a swing composes onto it.
+    pub base_rotation: Quat,
+    /// The authored scale, likewise: a pulse scales it.
     pub base_scale: Vec3,
 }
 
@@ -107,25 +118,45 @@ pub fn behavior_tick(
     }
 
     for (_entity, mut transform, behaviors, _) in query.iter_mut() {
-        if behaviors.behaviors.is_empty() {
-            continue;
-        }
-
-        for behavior in &behaviors.behaviors {
-            apply_behavior(
-                &behavior.def,
-                behavior,
-                t,
-                &center_positions,
-                &mut transform,
-            );
-        }
+        pose(&behaviors.behaviors, t, &center_positions, &mut transform);
     }
+}
+
+/// Pose an entity at folded time `t`: its authored transform, then every
+/// behavior in array order, each from what the ones before it left — so two
+/// spins compose, a bob rides a wheel, and a seek lands where the clock says.
+/// The authored transform is the first instance's base (the edits keep every
+/// instance's base in step). Nothing to do without a behavior.
+pub fn pose(
+    behaviors: &[BehaviorInstance],
+    t: f64,
+    centers: &HashMap<String, Vec3>,
+    transform: &mut Transform,
+) {
+    let Some(first) = behaviors.first() else {
+        return;
+    };
+    transform.translation = first.base_position;
+    transform.rotation = first.base_rotation;
+    transform.scale = first.base_scale;
+    for behavior in behaviors {
+        apply_behavior(&behavior.def, t, centers, transform);
+    }
+}
+
+/// Keep a local point where it stood: the rotation or scale just changed from
+/// (`q0`, `s0`) to what `transform` holds now, so move the entity by what that
+/// change did to `pivot` — a point in its local frame, metres, before its
+/// scale. The pivot stays where the authored transform put it; at the origin
+/// nothing moves.
+fn hold_pivot(transform: &mut Transform, pivot: Vec3, q0: Quat, s0: Vec3) {
+    let before = q0 * (s0 * pivot);
+    let after = transform.rotation * (transform.scale * pivot);
+    transform.translation += before - after;
 }
 
 fn apply_behavior(
     def: &BehaviorDef,
-    instance: &BehaviorInstance,
     t: f64,
     centers: &HashMap<String, Vec3>,
     transform: &mut Transform,
@@ -164,14 +195,20 @@ fn apply_behavior(
             transform.translation = center_pos + offset;
         }
 
-        BehaviorDef::Spin { axis, speed } => {
+        BehaviorDef::Spin {
+            axis,
+            speed,
+            phase,
+            pivot,
+        } => {
+            // Absolute in folded time, composed onto what the frame left — the
+            // authored rotation, or an earlier behavior's — about the pivot.
             let spin_axis = Vec3::from_array(*axis).normalize_or(Vec3::Y);
-            let delta_angle = speed.to_radians() * (t as f32 - (t - 1.0 / 60.0).max(0.0) as f32);
-            // Accumulate rotation directly from total elapsed time for stability
-            let total_angle = speed.to_radians() * t as f32;
-            let base_rotation = Quat::from_axis_angle(spin_axis, total_angle);
-            transform.rotation = base_rotation;
-            let _ = delta_angle; // used total angle approach instead
+            let angle = (speed * t as f32 + phase).to_radians();
+            let q0 = transform.rotation;
+            transform.rotation = q0 * Quat::from_axis_angle(spin_axis, angle);
+            let scale = transform.scale;
+            hold_pivot(transform, Vec3::from_array(*pivot), q0, scale);
         }
 
         BehaviorDef::Bob {
@@ -180,16 +217,11 @@ fn apply_behavior(
             frequency,
             phase,
         } => {
+            // Along its axis from what the frame left: the authored position,
+            // or where a spin about a pivot ahead of it moved the entity.
             let bob_axis = Vec3::from_array(*axis).normalize_or(Vec3::Y);
-            let phase_rad = phase.to_radians();
-            let offset =
-                (2.0 * std::f32::consts::PI * frequency * t as f32 + phase_rad).sin() * *amplitude;
-            // Apply bob relative to base position
-            // Only modify the component along the bob axis, preserving other position changes
-            let current_along_axis = transform.translation.dot(bob_axis);
-            let base_along_axis = instance.base_position.dot(bob_axis);
-            let diff = (base_along_axis + offset) - current_along_axis;
-            transform.translation += bob_axis * diff;
+            let offset = (TAU * frequency * t as f32 + phase.to_radians()).sin() * *amplitude;
+            transform.translation += bob_axis * offset;
         }
 
         BehaviorDef::LookAt { target } => {
@@ -205,10 +237,33 @@ fn apply_behavior(
             min_scale,
             max_scale,
             frequency,
+            phase,
+            pivot,
         } => {
-            let t_val = (2.0 * std::f32::consts::PI * frequency * t as f32).sin();
-            let scale_factor = *min_scale + (*max_scale - *min_scale) * (t_val * 0.5 + 0.5);
-            transform.scale = instance.base_scale * scale_factor;
+            let wave = (TAU * frequency * t as f32 + phase.to_radians()).sin();
+            let factor = *min_scale + (*max_scale - *min_scale) * (wave * 0.5 + 0.5);
+            let s0 = transform.scale;
+            transform.scale = s0 * factor;
+            let q = transform.rotation;
+            hold_pivot(transform, Vec3::from_array(*pivot), q, s0);
+        }
+
+        BehaviorDef::Swing {
+            axis,
+            amplitude,
+            frequency,
+            phase,
+            pivot,
+        } => {
+            // A pendulum about the hinge through the pivot — hung from its
+            // top with `[0, h/2, 0]`.
+            let hinge = Vec3::from_array(*axis).normalize_or(Vec3::X);
+            let angle =
+                amplitude.to_radians() * (TAU * frequency * t as f32 + phase.to_radians()).sin();
+            let q0 = transform.rotation;
+            transform.rotation = q0 * Quat::from_axis_angle(hinge, angle);
+            let scale = transform.scale;
+            hold_pivot(transform, Vec3::from_array(*pivot), q0, scale);
         }
 
         BehaviorDef::PathFollow {
@@ -313,6 +368,9 @@ fn apply_behavior(
             let y = vel * time_remaining - 0.5 * gravity * time_remaining * time_remaining;
             transform.translation.y = surface_y + y.max(0.0);
         }
+
+        // Carried, never run: the entity draws where it was authored.
+        BehaviorDef::Other(_) => {}
     }
 }
 
@@ -336,16 +394,24 @@ pub fn handle_add_behavior(
 
     let behavior_id = cmd.behavior_id.unwrap_or_else(|| state.next_id());
 
+    // The authored transform: what the entity's behaviors already start from,
+    // if it has any — its transform right now is mid-animation — else where
+    // it stands.
     let base_transform = transforms.get(entity).copied().unwrap_or_default();
-
-    let instance = BehaviorInstance {
+    let mut instance = BehaviorInstance {
         id: behavior_id.clone(),
         def: cmd.behavior,
         base_position: base_transform.translation,
+        base_rotation: base_transform.rotation,
         base_scale: base_transform.scale,
     };
 
     if let Ok(mut behaviors) = behaviors_query.get_mut(entity) {
+        if let Some(first) = behaviors.behaviors.first() {
+            instance.base_position = first.base_position;
+            instance.base_rotation = first.base_rotation;
+            instance.base_scale = first.base_scale;
+        }
         behaviors.behaviors.push(instance);
     } else {
         commands.entity(entity).insert(EntityBehaviors {
@@ -449,8 +515,19 @@ fn behavior_type_name(def: &BehaviorDef) -> String {
         BehaviorDef::Bob { .. } => "bob".to_string(),
         BehaviorDef::LookAt { .. } => "look_at".to_string(),
         BehaviorDef::Pulse { .. } => "pulse".to_string(),
+        BehaviorDef::Swing { .. } => "swing".to_string(),
         BehaviorDef::PathFollow { .. } => "path_follow".to_string(),
         BehaviorDef::Bounce { .. } => "bounce".to_string(),
+        BehaviorDef::Other(_) => "unknown".to_string(),
+    }
+}
+
+/// " about [x,y,z]" for a pivot off the origin, else nothing.
+fn about(pivot: &[f32; 3]) -> String {
+    if *pivot == [0.0; 3] {
+        String::new()
+    } else {
+        format!(" about [{:.2},{:.2},{:.2}]", pivot[0], pivot[1], pivot[2])
     }
 }
 
@@ -473,10 +550,16 @@ fn behavior_description(def: &BehaviorDef) -> String {
                 around, radius, speed
             )
         }
-        BehaviorDef::Spin { axis, speed } => {
+        BehaviorDef::Spin {
+            axis, speed, pivot, ..
+        } => {
             format!(
-                "Spin [{:.1},{:.1},{:.1}] at {:.1} deg/s",
-                axis[0], axis[1], axis[2], speed
+                "Spin [{:.1},{:.1},{:.1}] at {:.1} deg/s{}",
+                axis[0],
+                axis[1],
+                axis[2],
+                speed,
+                about(pivot)
             )
         }
         BehaviorDef::Bob {
@@ -489,9 +572,29 @@ fn behavior_description(def: &BehaviorDef) -> String {
             min_scale,
             max_scale,
             frequency,
+            pivot,
+            ..
         } => format!(
-            "Pulse {:.2}-{:.2}x at {:.2}Hz",
-            min_scale, max_scale, frequency
+            "Pulse {:.2}-{:.2}x at {:.2}Hz{}",
+            min_scale,
+            max_scale,
+            frequency,
+            about(pivot)
+        ),
+        BehaviorDef::Swing {
+            axis,
+            amplitude,
+            frequency,
+            pivot,
+            ..
+        } => format!(
+            "Swing [{:.1},{:.1},{:.1}] ±{:.1}° at {:.2}Hz{}",
+            axis[0],
+            axis[1],
+            axis[2],
+            amplitude,
+            frequency,
+            about(pivot)
         ),
         BehaviorDef::PathFollow {
             waypoints,
@@ -512,6 +615,13 @@ fn behavior_description(def: &BehaviorDef) -> String {
         } => format!(
             "Bounce h={:.1} g={:.1} damp={:.2}",
             height, gravity, damping
+        ),
+        BehaviorDef::Other(value) => format!(
+            "A behavior this version does not know ({}), carried and not run",
+            value
+                .get("type")
+                .and_then(|t| t.as_str())
+                .unwrap_or("no type")
         ),
     }
 }
@@ -538,9 +648,21 @@ mod tests {
         assert_eq!(
             behavior_type_name(&BehaviorDef::Spin {
                 axis: [0.0, 1.0, 0.0],
-                speed: 90.0
+                speed: 90.0,
+                phase: 0.0,
+                pivot: [0.0; 3],
             }),
             "spin"
+        );
+        assert_eq!(
+            behavior_type_name(&BehaviorDef::Swing {
+                axis: [0.0, 0.0, 1.0],
+                amplitude: 30.0,
+                frequency: 0.5,
+                phase: 0.0,
+                pivot: [0.0, 0.6, 0.0],
+            }),
+            "swing"
         );
         assert_eq!(
             behavior_type_name(&BehaviorDef::Bob {
@@ -603,8 +725,11 @@ mod tests {
                 min_scale: 0.9,
                 max_scale: 1.1,
                 frequency: 0.5,
+                phase: 0.0,
+                pivot: [0.0, -0.5, 0.0],
             },
             base_position: Vec3::ZERO,
+            base_rotation: Quat::IDENTITY,
             base_scale: Vec3::ONE,
         };
         let summary = behavior_to_summary(&instance);
@@ -612,6 +737,25 @@ mod tests {
         assert_eq!(summary.behavior_type, "pulse");
         assert!(summary.description.contains("0.90"));
         assert!(summary.description.contains("1.10"));
+        assert!(summary.description.contains("about [0.00,-0.50,0.00]"));
+    }
+
+    /// An instance at an authored transform, as a load or an add captures it.
+    fn instance(def: BehaviorDef, at: Transform) -> BehaviorInstance {
+        BehaviorInstance {
+            id: "b".to_string(),
+            def,
+            base_position: at.translation,
+            base_rotation: at.rotation,
+            base_scale: at.scale,
+        }
+    }
+
+    fn near(actual: Vec3, expected: Vec3) {
+        assert!(
+            actual.distance(expected) < 1e-4,
+            "{actual} is not {expected}"
+        );
     }
 
     #[test]
@@ -619,20 +763,128 @@ mod tests {
         let def = BehaviorDef::Spin {
             axis: [0.0, 1.0, 0.0],
             speed: 90.0,
-        };
-        let instance = BehaviorInstance {
-            id: "s1".to_string(),
-            def: def.clone(),
-            base_position: Vec3::ZERO,
-            base_scale: Vec3::ONE,
+            phase: 0.0,
+            pivot: [0.0; 3],
         };
         let centers = HashMap::new();
         let mut transform = Transform::IDENTITY;
 
         // After 1 second at 90 deg/s, rotation should be ~90 degrees around Y
-        apply_behavior(&def, &instance, 1.0, &centers, &mut transform);
+        apply_behavior(&def, 1.0, &centers, &mut transform);
         let (_, angle) = transform.rotation.to_axis_angle();
         assert!((angle - std::f32::consts::FRAC_PI_2).abs() < 0.01);
+        near(transform.translation, Vec3::ZERO);
+    }
+
+    #[test]
+    fn a_spin_composes_onto_the_authored_rotation_and_phase_is_time_already_spent() {
+        let centers = HashMap::new();
+        let tilted = Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2));
+        let spin = |phase| BehaviorDef::Spin {
+            axis: [0.0, 1.0, 0.0],
+            speed: 90.0,
+            phase,
+            pivot: [0.0; 3],
+        };
+        // About its own Y, wherever the authored rotation laid that.
+        let mut at_one = tilted;
+        apply_behavior(&spin(0.0), 1.0, &centers, &mut at_one);
+        let expected = tilted.rotation * Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
+        assert!(
+            at_one.rotation.dot(expected).abs() > 0.9999,
+            "{:?}",
+            at_one.rotation
+        );
+        // Ninety degrees of phase at time zero is the same pose.
+        let mut ahead = tilted;
+        apply_behavior(&spin(90.0), 0.0, &centers, &mut ahead);
+        assert!(ahead.rotation.dot(at_one.rotation).abs() > 0.9999);
+    }
+
+    #[test]
+    fn a_spin_about_its_base_keeps_the_base_on_the_hub_and_sweeps_the_tip() {
+        // A blade 2 m tall standing on a hub at y = 0.5 (conformance/behaviors.json).
+        let def = BehaviorDef::Spin {
+            axis: [0.0, 0.0, 1.0],
+            speed: 90.0,
+            phase: 0.0,
+            pivot: [0.0, -1.0, 0.0],
+        };
+        let centers = HashMap::new();
+        let authored = Transform::from_xyz(9.0, 1.5, 0.0);
+        for t in [0.0, 0.5, 1.0, 2.3, 7.25] {
+            let mut transform = authored;
+            apply_behavior(&def, t, &centers, &mut transform);
+            near(
+                transform.transform_point(Vec3::new(0.0, -1.0, 0.0)),
+                Vec3::new(9.0, 0.5, 0.0),
+            );
+        }
+        // A quarter turn about +Z takes the tip from above the hub to its left.
+        let mut transform = authored;
+        apply_behavior(&def, 1.0, &centers, &mut transform);
+        near(
+            transform.transform_point(Vec3::new(0.0, 1.0, 0.0)),
+            Vec3::new(7.0, 0.5, 0.0),
+        );
+    }
+
+    #[test]
+    fn a_swing_hangs_from_its_top_and_rocks_to_its_amplitude() {
+        // A sign 1.2 m tall hung from a hook at y = 2 (conformance/behaviors.json).
+        let def = BehaviorDef::Swing {
+            axis: [0.0, 0.0, 1.0],
+            amplitude: 30.0,
+            frequency: 0.5,
+            phase: 0.0,
+            pivot: [0.0, 0.6, 0.0],
+        };
+        let centers = HashMap::new();
+        let authored = Transform::from_xyz(0.0, 1.4, 0.0);
+        for t in [0.0, 0.5, 1.0, 1.5, 3.3] {
+            let mut transform = authored;
+            apply_behavior(&def, t, &centers, &mut transform);
+            near(
+                transform.transform_point(Vec3::new(0.0, 0.6, 0.0)),
+                Vec3::new(0.0, 2.0, 0.0),
+            );
+        }
+        // A quarter period in, the full amplitude; at the half, back through plumb.
+        let mut transform = authored;
+        apply_behavior(&def, 0.5, &centers, &mut transform);
+        let (axis, angle) = transform.rotation.to_axis_angle();
+        assert!(
+            (angle - 30f32.to_radians()).abs() < 1e-4 && axis.z > 0.99,
+            "{axis} {angle}"
+        );
+        let mut transform = authored;
+        apply_behavior(&def, 1.0, &centers, &mut transform);
+        assert!(transform.rotation.to_axis_angle().1.abs() < 1e-3);
+    }
+
+    #[test]
+    fn a_pulse_about_its_base_breathes_on_the_ground() {
+        let def = BehaviorDef::Pulse {
+            min_scale: 0.7,
+            max_scale: 1.3,
+            frequency: 0.8,
+            phase: 90.0,
+            pivot: [0.0, -0.5, 0.0],
+        };
+        let centers = HashMap::new();
+        let authored = Transform::from_xyz(3.0, 0.5, 0.0);
+        for t in [0.0, 0.3, 0.625, 1.0, 4.1] {
+            let mut transform = authored;
+            apply_behavior(&def, t, &centers, &mut transform);
+            near(
+                transform.transform_point(Vec3::new(0.0, -0.5, 0.0)),
+                Vec3::new(3.0, 0.0, 0.0),
+            );
+        }
+        // Ninety degrees of phase: full at time zero.
+        let mut transform = authored;
+        apply_behavior(&def, 0.0, &centers, &mut transform);
+        near(transform.scale, Vec3::splat(1.3));
     }
 
     #[test]
@@ -643,18 +895,77 @@ mod tests {
             frequency: 1.0,
             phase: 0.0,
         };
-        let instance = BehaviorInstance {
-            id: "bob1".to_string(),
-            def: def.clone(),
-            base_position: Vec3::new(0.0, 5.0, 0.0),
-            base_scale: Vec3::ONE,
-        };
         let centers = HashMap::new();
         let mut transform = Transform::from_translation(Vec3::new(0.0, 5.0, 0.0));
 
         // At t=0.25 (quarter period at 1Hz), sin(2π * 1.0 * 0.25) = sin(π/2) = 1.0
-        apply_behavior(&def, &instance, 0.25, &centers, &mut transform);
+        apply_behavior(&def, 0.25, &centers, &mut transform);
         assert!((transform.translation.y - 6.0).abs() < 0.01); // base 5.0 + amplitude 1.0
+    }
+
+    #[test]
+    fn pose_starts_from_the_authored_transform_and_applies_in_array_order() {
+        // A wheel that bobs on its axle: the quarter turn about the base moves
+        // the centre a metre left, the bob's crest lifts it half a metre from
+        // there — and a second frame at the same time lands on the same pose.
+        let authored = Transform::from_xyz(9.0, 1.5, 0.0);
+        let behaviors = [
+            instance(
+                BehaviorDef::Spin {
+                    axis: [0.0, 0.0, 1.0],
+                    speed: 90.0,
+                    phase: 0.0,
+                    pivot: [0.0, -1.0, 0.0],
+                },
+                authored,
+            ),
+            instance(
+                BehaviorDef::Bob {
+                    axis: [0.0, 1.0, 0.0],
+                    amplitude: 0.5,
+                    frequency: 0.25,
+                    phase: 0.0,
+                },
+                authored,
+            ),
+        ];
+        let centers = HashMap::new();
+        let mut transform = Transform::from_xyz(-4.0, -4.0, -4.0);
+        pose(&behaviors, 1.0, &centers, &mut transform);
+        near(transform.translation, Vec3::new(8.0, 1.0, 0.0));
+        pose(&behaviors, 1.0, &centers, &mut transform);
+        near(transform.translation, Vec3::new(8.0, 1.0, 0.0));
+        pose(&behaviors, 0.0, &centers, &mut transform);
+        near(transform.translation, authored.translation);
+        assert_eq!(transform.rotation, authored.rotation);
+        // Without a behavior the transform is left alone.
+        pose(&[], 1.0, &centers, &mut transform);
+        near(transform.translation, authored.translation);
+    }
+
+    #[test]
+    fn a_kind_this_version_does_not_know_is_carried_and_never_run() {
+        let value = serde_json::json!({"type": "wobble", "how": 3});
+        let def: BehaviorDef = serde_json::from_value(value.clone()).unwrap();
+        assert!(matches!(def, BehaviorDef::Other(_)));
+        assert_eq!(behavior_type_name(&def), "unknown");
+        assert!(behavior_description(&def).contains("wobble"));
+        assert_eq!(serde_json::to_value(&def).unwrap(), value);
+        let centers = HashMap::new();
+        let mut transform = Transform::from_xyz(1.0, 2.0, 3.0);
+        apply_behavior(&def, 5.0, &centers, &mut transform);
+        assert_eq!(transform, Transform::from_xyz(1.0, 2.0, 3.0));
+    }
+
+    #[test]
+    fn a_spin_without_the_new_fields_reads_their_defaults_and_writes_none() {
+        let def: BehaviorDef =
+            serde_json::from_str(r#"{"type":"spin","axis":[0,1,0],"speed":45}"#).unwrap();
+        assert!(
+            matches!(def, BehaviorDef::Spin { phase, pivot, .. } if phase == 0.0 && pivot == [0.0; 3])
+        );
+        let json = serde_json::to_string(&def).unwrap();
+        assert!(!json.contains("phase") && !json.contains("pivot"), "{json}");
     }
 
     #[test]
@@ -665,17 +976,11 @@ mod tests {
             damping: 0.5,
             surface_y: 0.0,
         };
-        let instance = BehaviorInstance {
-            id: "bounce1".to_string(),
-            def: def.clone(),
-            base_position: Vec3::ZERO,
-            base_scale: Vec3::ONE,
-        };
         let centers = HashMap::new();
         let mut transform = Transform::IDENTITY;
 
         // After a very long time, should be settled at surface_y
-        apply_behavior(&def, &instance, 100.0, &centers, &mut transform);
+        apply_behavior(&def, 100.0, &centers, &mut transform);
         assert_eq!(transform.translation.y, 0.0);
     }
 }

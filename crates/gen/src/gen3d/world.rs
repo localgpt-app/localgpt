@@ -1568,6 +1568,8 @@ mod tests {
                 min_scale: 0.9,
                 max_scale: 1.1,
                 frequency: 0.5,
+                phase: 0.0,
+                pivot: [0.0; 3],
             })
             .with_audio(wt::AudioDef {
                 kind: wt::AudioKind::Sfx,

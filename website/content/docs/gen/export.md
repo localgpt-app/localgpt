@@ -94,7 +94,7 @@ Save the world first, then export — ask your agent, or call the tools:
 - **Geometry** — all shapes rendered as Three.js meshes
 - **Materials** — PBR via `MeshStandardMaterial` (color, metallic, roughness, emissive, alpha)
 - **Lighting** — point, spot, directional lights with color and intensity
-- **Behaviors** — full animation system (orbit, spin, bob, pulse, bounce, path_follow, look_at) running in a JS animation loop
+- **Behaviors** — full animation system (orbit, spin, bob, pulse, swing, bounce, path_follow, look_at, with pivots and phases) running in a JS animation loop
 - **Audio** — procedural ambience and spatial emitters via Web Audio API (wind, rain, forest, ocean, fire, water, hum)
 - **Camera** — OrbitControls with the saved camera position and look-at target
 - **Environment** — background color, fog, ambient light

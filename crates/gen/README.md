@@ -116,7 +116,7 @@ localgpt-gen mcp-server --mcp-http 8080
 
 - **Bevy 0.20** — real-time 3D rendering with PBR materials, dynamic lighting, and an interactive viewport
 - **Procedural Audio** — algorithmic soundscapes (wind, rain, forest, ocean, cave) and spatial emitters via FunDSP
-- **Entity Behaviors** — composable animations (orbit, spin, bob, bounce, path_follow) with no scripting required
+- **Entity Behaviors** — composable animations (orbit, spin, bob, pulse, swing, bounce, path_follow, look_at; spins, pulses and swings about a pivot) with no scripting required
 - **NPCs** — characters with patrol and wander behavior and branching dialogue trees
 - **Physics** — rigid bodies, colliders, joints, and force fields via Avian3D
 - **Interaction** — triggers, teleporters, collectibles, doors, and entity event wiring

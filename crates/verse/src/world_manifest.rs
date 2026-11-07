@@ -282,6 +282,8 @@ fn rule_props(
             e.behaviors.push(wt::BehaviorDef::Spin {
                 axis: [0.0, 1.0, 0.0],
                 speed: f32::to_degrees(spin),
+                phase: 0.0,
+                pivot: [0.0; 3],
             });
         }
         manifest.entities.push(e);

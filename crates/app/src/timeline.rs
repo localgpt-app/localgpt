@@ -505,6 +505,7 @@ fn cycle(behavior: &wt::BehaviorDef) -> Option<(&'static str, f32)> {
         wt::BehaviorDef::Spin { speed, .. } => per(*speed, 360.0).map(|p| ("spin", p)),
         wt::BehaviorDef::Bob { frequency, .. } => per(*frequency, 1.0).map(|p| ("bob", p)),
         wt::BehaviorDef::Pulse { frequency, .. } => per(*frequency, 1.0).map(|p| ("pulse", p)),
+        wt::BehaviorDef::Swing { frequency, .. } => per(*frequency, 1.0).map(|p| ("swing", p)),
         wt::BehaviorDef::PathFollow {
             waypoints,
             speed,
@@ -532,7 +533,8 @@ fn cycle(behavior: &wt::BehaviorDef) -> Option<(&'static str, f32)> {
             height, gravity, ..
         } => (*height > 0.0 && *gravity > 0.0)
             .then(|| ("bounce", 2.0 * (2.0 * height / gravity).sqrt())),
-        wt::BehaviorDef::LookAt { .. } => None,
+        // A kind this build does not know is carried, never run: no track.
+        wt::BehaviorDef::LookAt { .. } | wt::BehaviorDef::Other(_) => None,
     }
 }
 
@@ -1614,6 +1616,8 @@ mod tests {
         lantern.behaviors = vec![wt::BehaviorDef::Spin {
             axis: [0.0, 1.0, 0.0],
             speed: 60.0,
+            phase: 0.0,
+            pivot: [0.0; 3],
         }];
         let mut buoy = lantern.clone();
         buoy.id = wt::EntityId(8);
@@ -1965,6 +1969,8 @@ mod tests {
         lantern.behaviors = vec![wt::BehaviorDef::Spin {
             axis: [0.0, 1.0, 0.0],
             speed: 60.0,
+            phase: 0.0,
+            pivot: [0.0; 3],
         }];
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
@@ -1989,6 +1995,7 @@ mod tests {
                         id: "b1".into(),
                         def: (&lantern.behaviors[0]).into(),
                         base_position: Vec3::new(0.0, 2.0, 0.0),
+                        base_rotation: Quat::from_rotation_y(1.0),
                         base_scale: Vec3::ONE,
                     }],
                 },

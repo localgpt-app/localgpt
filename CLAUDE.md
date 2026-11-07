@@ -348,9 +348,12 @@ panning come from positions rather than per-frame math. Ambient
 "waterfall"). Tools: `gen_set_ambience`, `gen_audio_emitter`,
 `gen_modify_audio`, `gen_audio_info`. See `docs/gen/gen-audio.md`.
 
-**Behavior System:** Declarative, data-driven animations (all 7 types in
-`world-types`): `orbit`, `spin`, `bob`, `look_at`, `pulse`, `path_follow`
-(loop/ping-pong/once), `bounce`. Composable (stack on one entity). Tools:
+**Behavior System:** Declarative, data-driven animations (all 8 types in
+`world-types`): `orbit`, `spin`, `bob`, `look_at`, `pulse`, `swing`,
+`path_follow` (loop/ping-pong/once), `bounce`; `spin`, `pulse` and `swing`
+act about a `pivot` and take a `phase`. Composable (stack on one entity;
+each frame starts from the authored transform and applies them in order, as
+the format says; a kind the build does not know is carried, never run). Tools:
 `gen_add_behavior`, `gen_remove_behavior`, `gen_list_behaviors`,
 `gen_pause_behaviors`.
 

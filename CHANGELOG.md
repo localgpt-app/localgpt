@@ -6,6 +6,7 @@ All notable changes to LocalGPT are documented in this file.
 
 ### Added
 
+- **The swing, and pivots.** `swing` is a behavior: a pendulum, `amplitude × sin(2π × frequency × t + phase)` degrees about its axis through its pivot — a hanging sign, a bell, a seat. `spin` and `pulse` gain a `phase` (time already spent, in degrees) and a `pivot`: a point in the entity's local frame, metres before its scale, that stays where the authored transform put it while the rest turns or scales about it — `[0, -h/2, 0]` makes a wheel of a spin and keeps a breathing thing on the ground, `[0, h/2, 0]` hangs a swing from its top. Gen runs them, `gen_add_behavior` takes them, the timeline draws a swing's track, and a behavior kind this build does not know is carried through a world and saved back, never run (the format's rule for behaviors, since its crate's 0.5.0).
 - **Every panel of the desktop app moves, hides and folds.** The world, the terminals and the timeline have tabs like the others, so any panel can be dragged beside another, over it as a tab, or off on its own. A tab's × hides its panel, and **Panels** in the top bar shows it again or puts every panel back where it began. The – at the right of a tab bar, or a double click on a tab, folds its panels to the bar, or in a row to a strip of their names; a click there, or dragging the folded panel's edge, unfolds them. The panels come back as they were left at the next launch (`<state>/app-layout.json`).
 - **`cargo xtask rule`**: the all-Rust rule, checked. Nothing new in another language and no new crate on `wry`: the tracked files in other languages and the crates on `wry` are held against `xtask/rule.txt`, a list of what is not Rust yet that may only shrink (`--write` drops what has gone). CI's `rule` job and `cargo xtask verify --rust` run it.
 - **`cargo xtask bundle`**: `LocalGPT.app` and its `.dmg`, signed and notarized when the secrets are there, in Rust (it was `apps/app-desktop/macos/build-app.sh`; `bin/lg build bundle` and the desktop release workflow run it).
@@ -14,6 +15,7 @@ All notable changes to LocalGPT are documented in this file.
 
 ### Changed
 
+- **A behavior runs from the authored transform, in array order.** Every frame Gen puts an entity back where it was placed and applies its behaviors in the order they were added, each from what the ones before it left, as the format states: a spin now turns about the entity's own axis as the authored rotation laid it (it used to replace that rotation), a bob rides a wheel, and a seek lands on the same pose twice. The workspace is on the format's crate 0.5.0.
 - **The desktop app's interface is drawn by the app, in Rust.** eframe owns the window and egui draws the panels — the terminals, the history as a graph with its playback, the timeline with its edits, the outliner and the inspector, the document with ⌘F's find, Open… and the top bar with the phone remote — as tiles to drag and resize, and Bevy draws the world into a texture one of them shows, on the same GPU device. The panels are one more client of the protocol the page spoke, so a paired phone, which keeps the page, sees what the window does. They are the same on macOS, Windows and Linux, where the page had no host. `LOCALGPT_APP_SCREENSHOT` now takes the shell's window. `docs/rfcs/authoring/all-rust.md` has the decision and the order.
 - **The workspace is on Bevy 0.20** (wgpu 30), with avian3d 0.8 and bevy-tnua 0.33.
 
@@ -23,6 +25,7 @@ All notable changes to LocalGPT are documented in this file.
 
 ### Fixed
 
+- **A translucent colour with no alpha mode drew opaque.** The Bevy renderer now blends a material whose colour alpha is below 1 and that names no `alpha_mode`, as the format's conventions say and the web viewer did; `opaque` set still wins.
 - **A first launch of `LocalGPT.app` opened nothing.** The bundle now carries the four CC0 starter tracks, in `Resources/starter` (in `Resources/assets` they would hide the shared pack's models from every song's world), and the release workflow fetches them from the asset repository.
 - **A terminal in an app opened from Finder started in `/`.** The starter song's terminals open in its world's folder, as any song's do; with nothing open, the folder the app was started in, but never the root, where Finder starts an app: the home folder then.
 - **A document opened in place of another** sent the page the new outline over the old document's text, until the file was reloaded: each document's text now has a revision of its own.

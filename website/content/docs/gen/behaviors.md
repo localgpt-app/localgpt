@@ -6,6 +6,8 @@ title: "Behaviors"
 
 Behaviors are data-driven animations that stack on entities — no scripting required. Multiple behaviors can be combined on a single entity for complex motion.
 
+Each is a function of time from the entity's authored transform, as the Open World Format states it: every frame starts from where the entity was placed, then the behaviors apply in the order they were added, each from what the ones before it left. A `spin`, `pulse` or `swing` acts about a **pivot** — a point in the entity's local frame, in metres before its scale, the origin by default — that stays where the authored transform put it while the rest turns or scales around it: `[0, -h/2, 0]` makes a wheel of a spin or keeps a breathing thing on the ground, `[0, h/2, 0]` hangs a swing from its top. A `phase` is time already spent, in degrees.
+
 ## Behavior Types
 
 ### `orbit`
@@ -33,7 +35,9 @@ Continuous rotation around local axes.
 {
   "type": "spin",
   "axis": [0, 1, 0],
-  "speed": 90.0              // Degrees per second
+  "speed": 90.0,             // Degrees per second
+  "phase": 0.0,              // Degrees already turned at time zero
+  "pivot": [0, 0, 0]         // The local point it turns about; [0, -h/2, 0] makes a wheel
 }
 ```
 
@@ -71,7 +75,24 @@ Scale breathing effect.
   "type": "pulse",
   "min_scale": 0.9,
   "max_scale": 1.1,
-  "frequency": 2.0           // Hz
+  "frequency": 2.0,          // Hz
+  "phase": 0.0,              // Starting phase in degrees
+  "pivot": [0, 0, 0]         // The local point it scales about; [0, -h/2, 0] keeps it on the ground
+}
+```
+
+### `swing`
+
+A pendulum: rocks about a hinge through its pivot.
+
+```json
+{
+  "type": "swing",
+  "axis": [1, 0, 0],         // The hinge (default: X)
+  "amplitude": 30.0,         // Degrees each way
+  "frequency": 0.5,          // Rocks per second
+  "phase": 0.0,              // Starting phase in degrees
+  "pivot": [0, 0.6, 0]       // The point it hangs from; [0, h/2, 0] is its top
 }
 ```
 
@@ -105,7 +126,7 @@ Gravity-based bouncing with damping.
 
 ## Composing Behaviors
 
-Multiple behaviors can be added to a single entity. They execute in sequence each frame:
+Multiple behaviors can be added to a single entity. They execute in sequence each frame, from the authored transform, each from what the ones before it left — so a wheel (a spin about its base) can bob on its axle:
 
 ```json
 // Add orbit around a point

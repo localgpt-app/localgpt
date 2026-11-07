@@ -794,6 +794,14 @@ pub enum BehaviorDef {
         /// Rotation speed in degrees per second.
         #[serde(default = "default_spin_speed")]
         speed: f32,
+        /// Degrees already turned at time zero.
+        #[serde(default, skip_serializing_if = "is_zero")]
+        phase: f32,
+        /// The local point the entity turns about: metres in the shape's own
+        /// frame, before the scale, the origin by default. `[0, -h/2, 0]`
+        /// makes a wheel of a spin — the base stays, the rest turns about it.
+        #[serde(default, skip_serializing_if = "is_origin")]
+        pivot: [f32; 3],
     },
     /// Bob up and down (sinusoidal oscillation along an axis).
     Bob {
@@ -826,6 +834,33 @@ pub enum BehaviorDef {
         /// Pulse frequency in Hz.
         #[serde(default = "default_bob_frequency")]
         frequency: f32,
+        /// Phase offset in degrees.
+        #[serde(default, skip_serializing_if = "is_zero")]
+        phase: f32,
+        /// The local point the entity scales about, as a spin's: `[0, -h/2, 0]`
+        /// keeps a breathing thing on the ground.
+        #[serde(default, skip_serializing_if = "is_origin")]
+        pivot: [f32; 3],
+    },
+    /// A pendulum: `amplitude × sin(2π × frequency × t + phase)` degrees about
+    /// `axis`, through `pivot` — a hanging sign, a bell, a seat.
+    Swing {
+        /// The hinge, a local axis. Default: X.
+        #[serde(default = "default_x_axis")]
+        axis: [f32; 3],
+        /// How far it rocks each way, in degrees.
+        #[serde(default = "default_swing_amplitude")]
+        amplitude: f32,
+        /// Rocks per second.
+        #[serde(default = "default_bob_frequency")]
+        frequency: f32,
+        /// Phase offset in degrees.
+        #[serde(default, skip_serializing_if = "is_zero")]
+        phase: f32,
+        /// The point it hangs from, in the shape's own frame before the scale;
+        /// `[0, h/2, 0]` hangs it from its top.
+        #[serde(default, skip_serializing_if = "is_origin")]
+        pivot: [f32; 3],
     },
     /// Follow a path of waypoints in sequence.
     PathFollow {
@@ -856,8 +891,25 @@ pub enum BehaviorDef {
         #[serde(default)]
         surface_y: f32,
     },
+    /// A behavior kind this version does not know, carried as it came and
+    /// never run — the format's must-ignore rule applied to behaviors, so a
+    /// world from a newer producer still loads and saves back what it held.
+    #[serde(untagged)]
+    Other(serde_json::Value),
 }
 
+fn is_zero(v: &f32) -> bool {
+    *v == 0.0
+}
+fn is_origin(p: &[f32; 3]) -> bool {
+    *p == [0.0; 3]
+}
+fn default_x_axis() -> [f32; 3] {
+    [1.0, 0.0, 0.0]
+}
+fn default_swing_amplitude() -> f32 {
+    30.0
+}
 fn default_orbit_radius() -> f32 {
     5.0
 }

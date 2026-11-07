@@ -572,7 +572,7 @@
     },
     "BehaviorDef": {
       "description": "Declarative behavior definition — data, not code.\nEach variant fully describes a continuous animation that the tick system evaluates.",
-      "oneOf": [
+      "anyOf": [
         {
           "description": "Orbit around a center entity or point.",
           "type": "object",
@@ -653,7 +653,7 @@
           ]
         },
         {
-          "description": "Spin (rotate) around a local axis.",
+          "description": "Spin (rotate) around a local axis: the angle at time `t` is\n`speed × t + phase`, about `axis` through `pivot`.",
           "type": "object",
           "properties": {
             "Spin": {
@@ -667,6 +667,21 @@
                     1.0,
                     0.0
                   ],
+                  "items": {
+                    "type": "number",
+                    "format": "float"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3
+                },
+                "phase": {
+                  "description": "Degrees added to the angle at time zero.",
+                  "type": "number",
+                  "format": "float"
+                },
+                "pivot": {
+                  "description": "The point the entity turns about, in its local frame — the frame\nits shape is defined in, metres, before the transform's scale:\nthe origin by default, `[0, -height/2, 0]` for a shape's base.\nThe pivot stays where the authored transform put it.",
+                  "type": "array",
                   "items": {
                     "type": "number",
                     "format": "float"
@@ -760,7 +775,7 @@
           ]
         },
         {
-          "description": "Scale pulsation (breathing effect).",
+          "description": "Scale pulsation (breathing effect): the scale at time `t` is\n`min + (max − min) × (sin(2π × frequency × t + phase) + 1) / 2`,\nabout `pivot`.",
           "type": "object",
           "properties": {
             "Pulse": {
@@ -783,6 +798,21 @@
                   "type": "number",
                   "format": "float",
                   "default": 0.8999999761581421
+                },
+                "phase": {
+                  "description": "Degrees added to the wave's argument at time zero.",
+                  "type": "number",
+                  "format": "float"
+                },
+                "pivot": {
+                  "description": "The point the entity scales about, in its local frame — the frame\nits shape is defined in, metres, before the transform's scale:\nthe origin by default, `[0, -height/2, 0]` to keep a shape's base\non the ground. The pivot stays where the authored transform put it.",
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "format": "float"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3
                 }
               }
             }
@@ -876,6 +906,63 @@
           "additionalProperties": false,
           "required": [
             "Bounce"
+          ]
+        },
+        {
+          "description": "Swing (a pendulum): a rotation about a local axis through a pivot\nthat oscillates — the angle at time `t` is\n`amplitude × sin(2π × frequency × t + phase)` — a hanging sign, a\nbell, a seat on its ropes.",
+          "type": "object",
+          "properties": {
+            "Swing": {
+              "type": "object",
+              "properties": {
+                "amplitude": {
+                  "description": "How far it swings each way, in degrees.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 30.0
+                },
+                "axis": {
+                  "description": "Local axis to swing about. Default: X, a hinge across the entity.",
+                  "type": "array",
+                  "default": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ],
+                  "items": {
+                    "type": "number",
+                    "format": "float"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3
+                },
+                "frequency": {
+                  "description": "Swings per second, in Hz.",
+                  "type": "number",
+                  "format": "float",
+                  "default": 0.5
+                },
+                "phase": {
+                  "description": "Degrees added to the wave's argument at time zero.",
+                  "type": "number",
+                  "format": "float"
+                },
+                "pivot": {
+                  "description": "The point the entity swings about, in its local frame — the frame\nits shape is defined in, metres, before the transform's scale:\nthe origin by default, `[0, height/2, 0]` for a shape's top.",
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "format": "float"
+                  },
+                  "maxItems": 3,
+                  "minItems": 3
+                }
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Swing"
           ]
         }
       ]
@@ -1380,7 +1467,7 @@
       "type": "object",
       "properties": {
         "alpha_mode": {
-          "description": "Alpha blending mode.",
+          "description": "Alpha blending mode. Absent, the colour's alpha decides: below 1 the\nmaterial is drawn blended, as `blend` would; at 1 it is opaque\n(spec/world.md \"Conventions\").",
           "anyOf": [
             {
               "$ref": "#/$defs/AlphaModeDef"
@@ -1974,7 +2061,7 @@
           ]
         },
         {
-          "description": "A right prism on a regular polygon, `sides` long (experimental: spec/world.md \"The prism\"). Origin at the centroid, axis along local +Y, flat caps at y = ±height/2. `radius` is the circumradius: cap vertex i sits at (radius·cos θ, ±height/2, −radius·sin θ) with θ = 2π·i/sides, so the first vertex is on +X and the ring runs counter-clockwise seen from above. Faces wind outward; no segment parameter beyond `sides`.",
+          "description": "A right prism on a regular polygon, `sides` long (spec/world.md \"The geometry of the shapes\"). Origin at the centroid, axis along local +Y, flat caps at y = ±height/2. `radius` is the circumradius: cap vertex i sits at (radius·cos θ, ±height/2, −radius·sin θ) with θ = 2π·i/sides, so the first vertex is on +X and the ring runs counter-clockwise seen from above. Faces wind outward; no segment parameter beyond `sides`.",
           "type": "object",
           "properties": {
             "Prism": {

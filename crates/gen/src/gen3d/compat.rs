@@ -280,9 +280,16 @@ impl From<&BehaviorDef> for wt::BehaviorDef {
                 phase: *phase,
                 tilt: *tilt,
             },
-            BehaviorDef::Spin { axis, speed } => wt::BehaviorDef::Spin {
+            BehaviorDef::Spin {
+                axis,
+                speed,
+                phase,
+                pivot,
+            } => wt::BehaviorDef::Spin {
                 axis: *axis,
                 speed: *speed,
+                phase: *phase,
+                pivot: *pivot,
             },
             BehaviorDef::Bob {
                 axis,
@@ -302,10 +309,27 @@ impl From<&BehaviorDef> for wt::BehaviorDef {
                 min_scale,
                 max_scale,
                 frequency,
+                phase,
+                pivot,
             } => wt::BehaviorDef::Pulse {
                 min_scale: *min_scale,
                 max_scale: *max_scale,
                 frequency: *frequency,
+                phase: *phase,
+                pivot: *pivot,
+            },
+            BehaviorDef::Swing {
+                axis,
+                amplitude,
+                frequency,
+                phase,
+                pivot,
+            } => wt::BehaviorDef::Swing {
+                axis: *axis,
+                amplitude: *amplitude,
+                frequency: *frequency,
+                phase: *phase,
+                pivot: *pivot,
             },
             BehaviorDef::PathFollow {
                 waypoints,
@@ -329,6 +353,7 @@ impl From<&BehaviorDef> for wt::BehaviorDef {
                 damping: *damping,
                 surface_y: *surface_y,
             },
+            BehaviorDef::Other(value) => wt::BehaviorDef::Other(value.clone()),
         }
     }
 }
@@ -353,9 +378,16 @@ impl From<&wt::BehaviorDef> for BehaviorDef {
                 phase: *phase,
                 tilt: *tilt,
             },
-            wt::BehaviorDef::Spin { axis, speed } => BehaviorDef::Spin {
+            wt::BehaviorDef::Spin {
+                axis,
+                speed,
+                phase,
+                pivot,
+            } => BehaviorDef::Spin {
                 axis: *axis,
                 speed: *speed,
+                phase: *phase,
+                pivot: *pivot,
             },
             wt::BehaviorDef::Bob {
                 axis,
@@ -375,10 +407,27 @@ impl From<&wt::BehaviorDef> for BehaviorDef {
                 min_scale,
                 max_scale,
                 frequency,
+                phase,
+                pivot,
             } => BehaviorDef::Pulse {
                 min_scale: *min_scale,
                 max_scale: *max_scale,
                 frequency: *frequency,
+                phase: *phase,
+                pivot: *pivot,
+            },
+            wt::BehaviorDef::Swing {
+                axis,
+                amplitude,
+                frequency,
+                phase,
+                pivot,
+            } => BehaviorDef::Swing {
+                axis: *axis,
+                amplitude: *amplitude,
+                frequency: *frequency,
+                phase: *phase,
+                pivot: *pivot,
             },
             wt::BehaviorDef::PathFollow {
                 waypoints,
@@ -402,6 +451,9 @@ impl From<&wt::BehaviorDef> for BehaviorDef {
                 damping: *damping,
                 surface_y: *surface_y,
             },
+            // A kind this version does not know: carried, never run (the
+            // format's must-ignore rule applied to behaviors).
+            wt::BehaviorDef::Other(value) => BehaviorDef::Other(value.clone()),
         }
     }
 }
@@ -887,10 +939,43 @@ mod tests {
         let cmd_def = BehaviorDef::Spin {
             axis: [0.0, 1.0, 0.0],
             speed: 90.0,
+            phase: 45.0,
+            pivot: [0.0, -1.0, 0.0],
         };
         let wt_def: wt::BehaviorDef = (&cmd_def).into();
         let back: BehaviorDef = (&wt_def).into();
-        assert!(matches!(back, BehaviorDef::Spin { speed, .. } if speed == 90.0));
+        assert!(matches!(
+            back,
+            BehaviorDef::Spin { speed, phase, pivot, .. }
+                if speed == 90.0 && phase == 45.0 && pivot == [0.0, -1.0, 0.0]
+        ));
+    }
+
+    #[test]
+    fn behavior_swing_and_unknown_kind_roundtrip() {
+        let swing = BehaviorDef::Swing {
+            axis: [0.0, 0.0, 1.0],
+            amplitude: 30.0,
+            frequency: 0.25,
+            phase: 90.0,
+            pivot: [0.0, 0.6, 0.0],
+        };
+        let wt_def: wt::BehaviorDef = (&swing).into();
+        assert!(matches!(wt_def, wt::BehaviorDef::Swing { amplitude, .. } if amplitude == 30.0));
+        let back: BehaviorDef = (&wt_def).into();
+        assert!(matches!(
+            back,
+            BehaviorDef::Swing { frequency, phase, pivot, .. }
+                if frequency == 0.25 && phase == 90.0 && pivot == [0.0, 0.6, 0.0]
+        ));
+
+        // A kind neither side knows crosses untouched, both ways.
+        let value = serde_json::json!({"Wobble": {"how": 3}});
+        let unknown: wt::BehaviorDef = serde_json::from_value(value.clone()).unwrap();
+        let cmd: BehaviorDef = (&unknown).into();
+        assert!(matches!(&cmd, BehaviorDef::Other(v) if *v == value));
+        let again: wt::BehaviorDef = (&cmd).into();
+        assert_eq!(serde_json::to_value(&again).unwrap(), value);
     }
 
     #[test]

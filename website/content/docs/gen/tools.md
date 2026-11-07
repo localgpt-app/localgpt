@@ -72,7 +72,7 @@ Data-driven animations that stack on entities — no scripting required. See [Be
 
 | Tool | Description |
 |------|-------------|
-| `gen_add_behavior` | Add a behavior (orbit, spin, bob, look_at, pulse, path_follow, bounce) |
+| `gen_add_behavior` | Add a behavior (orbit, spin, bob, look_at, pulse, swing, path_follow, bounce); spin, pulse and swing take a pivot and a phase |
 | `gen_remove_behavior` | Remove a behavior from an entity |
 | `gen_list_behaviors` | List all behaviors on an entity |
 | `gen_pause_behaviors` | Pause or resume all behaviors globally |

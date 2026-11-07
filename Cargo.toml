@@ -43,7 +43,7 @@ rate-limit.new-packages = 10
 # renderer), `Author.source` (hand/library/ai), the ext-h3 geo frame
 # extension, and the geometry table every shape now follows — breaking
 # for exhaustive `Shape` matches and spelled-out `Author` literals.
-openworldformat = "0.4.0"
+openworldformat = "0.5.0"
 
 # Async runtime
 tokio = { version = "1.50", features = ["full"] }
