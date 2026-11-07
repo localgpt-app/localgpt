@@ -13,10 +13,8 @@ are simulated (`src/playback.rs`) so the HUD is already wired to react.
 LocalGPT Verse is a **member of the `localgpt` workspace** (`crates/verse`), so it
 shares one lockfile, one CI pipeline and the world-format crates with Gen and MD.
 
-**Website:** the landing page for [verse.localgpt.app](https://verse.localgpt.app/)
-lives in [`website-verse/`](../../website-verse/) — static HTML/CSS/JS, no build step
-(`python3 -m http.server -d website`). The docs are at
-[localgpt.app/docs/verse](https://localgpt.app/docs/verse).
+**Docs:** [localgpt.app/docs/verse](https://localgpt.app/docs/verse). Verse has no
+landing page of its own.
 
 ## Run
 

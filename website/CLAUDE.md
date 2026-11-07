@@ -34,5 +34,5 @@ Zola static site for [LocalGPT](https://localgpt.app), deployed as a Cloudflare 
 
 - The primary color is `#25c2a0` (teal green), with dark background `#121214`.
 - This site is the family hub and the only docs site: the app's, the CLI's and the format's docs plus `/docs/app`, `/docs/gen`, `/docs/verse`, and `/docs/md`. Nothing on it may promise a model, a key or an agent by name: LocalGPT runs none.
-- The footer "Family" strip is shared across all LocalGPT sites. MD's entry points at `/docs/md/` here, because `md.localgpt.app` redirects to the previs page at localgpt.md.
+- The footer "Family" strip is shared across all LocalGPT sites. The Gen, Verse and MD entries point at `/docs/gen/`, `/docs/verse/` and `/docs/md/` here: none of the three has a page of its own (`md.localgpt.app` redirects to the previs page at localgpt.md).
 - Verify feature claims against the crates before changing copy; the landing page and `intro.md` must not promise what the apps don't do.

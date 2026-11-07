@@ -32,7 +32,7 @@ The HUD follows the design spec's "one system, three states":
 - **Minimized** to a hairline after four seconds idle.
 - **Hidden** entirely when you stay away — or instantly, with <kbd>H</kbd>.
 
-Any input wakes it. The one variable across the whole chrome is the accent, sampled from the current world's palette — the same rule [verse.localgpt.app](https://verse.localgpt.app/) follows.
+Any input wakes it. The one variable across the whole chrome is the accent, sampled from the current world's palette.
 
 ## Overlays & panels {#overlays}
 
@@ -51,7 +51,6 @@ Comfort is a cross-cutting gate, checked at the effect sites rather than in the 
 - **Gentler world motion** — damps the sway.
 
 > [!NOTE]
-> [verse.localgpt.app](https://verse.localgpt.app/) follows the same rule: palette cycling and reveal animations switch off entirely under your system's `prefers-reduced-motion` setting.
 
 ## Photo mode {#photo}
 

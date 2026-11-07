@@ -12,7 +12,7 @@ cargo xtask build app gen               # cargo build, by name: cli app gen prev
 cargo xtask bundle --dmg                # LocalGPT.app for macOS
 cargo xtask verify                      # the CI checks on this machine (--rust --bevy --features --web --deps)
 cargo xtask rule                        # the all-Rust rule: nothing new in another language, nothing new on wry
-cargo xtask deploy world --dry-run      # the family's sites: app gen verse md world, or all
+cargo xtask deploy world --dry-run      # the family's sites: app md world, or all
 cargo xtask fetch-assets                # the shared asset pack
 ```
 
@@ -172,9 +172,7 @@ xtask/            # The repo's tooling in Rust: cargo xtask rule, verify, fetch-
 
 website*/         # One Cloudflare Worker each, all deployed by hand
 ├── website/      # localgpt.app — Zola, the family hub and only docs site (cargo xtask deploy app)
-├── website-gen/  # gen.localgpt.app — static landing
 ├── website-md/   # localgpt.md — drop a screenplay (PDF, Final Draft, Fountain or Markdown), get a previs board in the tab (WASM draft)
-├── website-verse/# verse.localgpt.app — static landing
 └── website-world/# localgpt.world — the gallery and the one web viewer
 ```
 
@@ -439,10 +437,10 @@ A profile (`LOCALGPT_PROFILE=x`) moves both roots to `localgpt-x`. Worlds a
   archive or roadmap trees. `AGENTS.md` is the MCP and tool catalog.
 - **Websites:** `website/` is the Zola site for localgpt.app, the
   family hub and its only docs site: the app's, the CLI's and the format's
-  docs plus `website/content/docs/gen`, `docs/verse` and `docs/md` (Verse and MD keep only
-  landing pages in their own repos; update their docs here when those apps
-  change). `website-gen/` is the static landing page for gen.localgpt.app (no
-  build step; `cargo xtask deploy gen` deploys it) and links to the Gen docs.
+  docs plus `website/content/docs/gen`, `docs/verse` and `docs/md` (update
+  them here when those modes change: Gen, Verse and MD have no pages of
+  their own — the Gen and Verse landing pages went on 2026-11-07, as MD's
+  had, and the family strip points at these docs).
   `website-md/` is localgpt.md, the previs page (`docs/world-strategy.md`):
   drop a screenplay — a PDF, a Final Draft `.fdx`, Fountain, or
   Markdown script pages — and get the
@@ -450,8 +448,7 @@ A profile (`LOCALGPT_PROFILE=x`) moves both roots to `localgpt-x`. Worlds a
   `crates/previs-web` (wasm-pack over `crates/previs`, which touches no
   model, renderer or network) and its page check (drop the four samples through
   the real input, require the rendered board and the downloads) runs in the
-  same `viewer` CI job. MD has no page of its own; its docs are on
-  localgpt.app.
+  same `viewer` CI job.
   `website-world/` is localgpt.world: the gallery and the format's only web
   renderer. It is **assembled** — `npm run assemble` copies
   `crates/world-export/js/world-viewer.js` and the `crates/world-types`
@@ -464,4 +461,5 @@ A profile (`LOCALGPT_PROFILE=x`) moves both roots to `localgpt-x`. Worlds a
   music are LFS objects in `localgpt-world-assets` under `web/`, not tracked
   here.
   Every family site carries the same family strip, in this order: LocalGPT,
-  Gen, Verse, MD, localgpt.world, localgpt.rs.
+  Gen, Verse, MD (those three point at their docs here), localgpt.md,
+  localgpt.world, localgpt.rs; a site leaves itself out.

@@ -26,7 +26,6 @@ crates/verse/             # a member of the localgpt workspace
 │   └── recipe.rs         the authored WorldRecipe, applied from the sidecar
 ├── assets/               fonts, models (synced), ml/
 
-website-verse/            verse.localgpt.app, the landing page (at the workspace root)
 xtask/                    cargo xtask fetch-assets — the asset pack every app shares
 ```
 

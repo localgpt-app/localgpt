@@ -40,7 +40,6 @@ crates/world-export/js/world-viewer.js
 scripts/remote-smoke.mjs
 spikes/egui-terminal/probe.py
 website-md/scripts/check.mjs
-website-verse/assets/js/main.js
 website-world/scripts/check-worlds.mjs
 website-world/scripts/posters.mjs
 website-world/vendor/three/build/three.module.min.js

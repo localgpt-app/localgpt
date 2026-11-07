@@ -20,7 +20,7 @@
 | **Previs** | `crates/previs` · `cargo install localgpt-previs` · [localgpt.md](https://localgpt.md) | A screenplay in — PDF, Final Draft, Fountain or Markdown — and per scene a `.world` with the set, the cast and the coverage, plus a printable board and a shot list. Deterministic, no model; the same code runs in the browser tab. |
 | **`localgpt`**, the world's command line | `crates/cli` · `cargo install localgpt` | `localgpt world`: commit, undo, log, tips, verify, screenshot — and `localgpt world mcp`, the shim that serves an open world's tools to any MCP agent. No model, key or configuration file. |
 | **The world crates** | `crates/world-*` | `world-types`, `world-bevy`, `world-audio`, `world-export`, `world-sync`, `world-editor`, `world-agent`: one format for every app, over the [Open World Format](https://openworldformat.org) reference crate. |
-| **The sites** | `website*/` | [localgpt.app](https://localgpt.app) (hub and the only docs site) · [gen.localgpt.app](https://gen.localgpt.app) · [verse.localgpt.app](https://verse.localgpt.app) · [localgpt.md](https://localgpt.md) (previs) · [localgpt.world](https://localgpt.world) (gallery and web viewer) · [localgpt.rs](https://localgpt.rs) (devlog) |
+| **The sites** | `website*/` | [localgpt.app](https://localgpt.app) (hub and the only docs site) · [localgpt.md](https://localgpt.md) (previs) · [localgpt.world](https://localgpt.world) (gallery and web viewer) · [localgpt.rs](https://localgpt.rs) (devlog) |
 
 ## Install
 

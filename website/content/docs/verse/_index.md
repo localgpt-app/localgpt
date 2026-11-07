@@ -5,7 +5,7 @@ title: "LocalGPT Verse"
 
 # LocalGPT Verse
 
-**LocalGPT Verse** is a desktop app that imagines a 3D world for every song — built with [Bevy](https://bevyengine.org/), driven by on-device music analysis, and free inside and out. See [verse.localgpt.app](https://verse.localgpt.app/) for the overview.
+**LocalGPT Verse** is a desktop app that imagines a 3D world for every song — built with [Bevy](https://bevyengine.org/), driven by on-device music analysis, and free inside and out.
 
 *From a fresh clone to your first world in about a minute.*
 

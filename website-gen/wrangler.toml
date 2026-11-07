@@ -1,7 +1,0 @@
-# Cloudflare Worker for gen.localgpt.app: static assets only, no Worker
-# script, nothing to build. Deploy with `cargo xtask deploy gen`.
-name = "localgpt-gen"
-compatibility_date = "2026-09-22"
-
-[assets]
-directory = "."

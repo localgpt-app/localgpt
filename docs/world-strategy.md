@@ -41,9 +41,7 @@ Each public surface has one job:
 | Surface | Job |
 |---|---|
 | `localgpt.app` | The family hub and the only user-documentation site. |
-| `gen.localgpt.app` | Gen's landing page; its details link to the hub. |
 | `localgpt.md` | The no-install screenplay-to-previs page. |
-| `verse.localgpt.app` | Verse's landing page. |
 | `localgpt.world` | The world gallery and browser viewer. |
 | `localgpt.rs` | The development log. |
 

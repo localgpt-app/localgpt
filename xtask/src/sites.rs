@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub const DEPLOY_USAGE: &str = "  deploy <site…|all> [--dry-run]
-                   the family's sites to their Workers: app gen verse md world
+                   the family's sites to their Workers: app md world
                    (--dry-run assembles and resolves each config, publishes nothing)";
 pub const ASSEMBLE_USAGE: &str = "  assemble md | world [--all]
                    put a site together from the crates (world --all: and the
@@ -21,14 +21,12 @@ pub const ADD_WORLD_USAGE: &str = "  add-world <world.json|dir.world> <name> --f
                    assets content-addressed and its models shrunk (--keep: as they are)";
 
 /// A site's name, its folder and where it serves, in the family strip's
-/// order (what `all` deploys in).
-/// A site's name, its folder, and where it serves.
+/// order (what `all` deploys in). Gen, Verse and MD have no site of their
+/// own: they are modes of the app, with their docs on localgpt.app.
 type Site = (&'static str, &'static str, &'static str);
 
-const SITES: [Site; 5] = [
+const SITES: [Site; 3] = [
     ("app", "website", "https://localgpt.app"),
-    ("gen", "website-gen", "https://gen.localgpt.app"),
-    ("verse", "website-verse", "https://verse.localgpt.app"),
     ("md", "website-md", "https://localgpt.md"),
     ("world", "website-world", "https://localgpt.world"),
 ];
@@ -50,9 +48,7 @@ fn deploy_args(args: &[String]) -> Result<(Vec<&'static Site>, bool), String> {
                 let site = SITES
                     .iter()
                     .find(|(site, _, _)| *site == name)
-                    .ok_or_else(|| {
-                        format!("unknown site {name:?} (app gen verse md world, or all)")
-                    })?;
+                    .ok_or_else(|| format!("unknown site {name:?} (app md world, or all)"))?;
                 if !sites.contains(&site) {
                     sites.push(site);
                 }
@@ -777,7 +773,7 @@ mod tests {
     fn sites_by_name_in_the_strips_order() {
         let (sites, dry) = deploy_args(&args(&["all", "--dry-run"])).unwrap();
         let names: Vec<&str> = sites.iter().map(|(name, _, _)| *name).collect();
-        assert_eq!(names, ["app", "gen", "verse", "md", "world"]);
+        assert_eq!(names, ["app", "md", "world"]);
         assert!(dry);
         let (sites, dry) = deploy_args(&args(&["world", "md", "world"])).unwrap();
         assert_eq!(sites.len(), 2, "each site once");

@@ -28,12 +28,12 @@ blurb = "The desktop app for worlds, with your agents beside them."
 
 [[extra.family]]
 name = "LocalGPT Gen"
-url = "https://gen.localgpt.app"
+url = "https://localgpt.app/docs/gen/"
 blurb = "Worlds from words."
 
 [[extra.family]]
 name = "LocalGPT Verse"
-url = "https://verse.localgpt.app"
+url = "https://localgpt.app/docs/verse/"
 blurb = "A 3D world for every song."
 
 [[extra.family]]
