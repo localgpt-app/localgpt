@@ -41,7 +41,7 @@ cargo run -p localgpt-app -- --world scene-1.world    # a package, opened as a l
 apps/app-desktop/macos/build-app.sh                   # LocalGPT.app for macOS
 
 # The shared download, once per machine, read by every app
-scripts/fetch-assets.sh    # the 522 MB CC0 asset pack (Poly Haven models)
+cargo xtask fetch-assets   # the 522 MB CC0 asset pack (Poly Haven models)
 ```
 
 Rust stable (edition 2024, so 1.85 or newer). On Linux the desktop crates need Bevy's system packages: `libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev libfontconfig1-dev libdbus-1-dev pkg-config`. Full options, feature flags and headless builds: [Installation](https://localgpt.app/docs/installation/).

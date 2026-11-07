@@ -28,7 +28,7 @@ crates/verse/             # a member of the localgpt workspace
 └── scripts/              fetch-clap.sh, fetch-demucs.sh, bundle.sh
 
 website-verse/            verse.localgpt.app, the landing page (at the workspace root)
-scripts/                  fetch-assets.sh — the asset pack every app shares
+xtask/                    cargo xtask fetch-assets — the asset pack every app shares
 ```
 
 Threading is channels-and-atomics only across boundaries (the single shared-state exception is a microsecond `Mutex` around the audio manager). No `unsafe`, no GPL dependencies.
@@ -69,7 +69,7 @@ Runs uncapped so the numbers show true frame cost. On the dev machine (2026-07):
 crates/verse/scripts/bundle.sh   # assembles dist/: release binary + fonts + models from localgpt-world-assets
 ```
 
-The 171-model CC0 pack lives in the separate `localgpt-world-assets` repository (formerly `localgpt-verse-assets`); its `fetch_polyhaven.py` downloads it and writes the manifest (with a semantic `kind` per asset — 19 kinds), `normalize.py` packs each model to a single uncompressed `.glb` (bevy_gltf supports neither quantized nor meshopt-compressed geometry), and the workspace's `scripts/fetch-assets.sh` copies the manifest-referenced set into the folder every LocalGPT app reads. The macOS `LocalGPT.app` bundle does not carry the pack; that script fetches it once per machine.
+The 171-model CC0 pack lives in the separate `localgpt-world-assets` repository (formerly `localgpt-verse-assets`); its `fetch_polyhaven.py` downloads it and writes the manifest (with a semantic `kind` per asset — 19 kinds), `normalize.py` packs each model to a single uncompressed `.glb` (bevy_gltf supports neither quantized nor meshopt-compressed geometry), and the workspace's `cargo xtask fetch-assets` copies the manifest-referenced set into the folder every LocalGPT app reads. The macOS `LocalGPT.app` bundle does not carry the pack; that script fetches it once per machine.
 
 ## Architecture at a glance {#architecture}
 

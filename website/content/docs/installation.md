@@ -65,7 +65,7 @@ cargo run -- world log scene-1.world
 Every app reads the same folder under `~/.local/share/localgpt/models/`, so the download happens once per machine:
 
 ```bash
-scripts/fetch-assets.sh    # the 522 MB CC0 asset pack (Poly Haven models) → models/pack
+cargo xtask fetch-assets   # the 522 MB CC0 asset pack (Poly Haven models) → models/pack
 ```
 
 The pack is what document and song worlds are furnished with; without it the worlds still build, with primitives only. `$LOCALGPT_WORLD_ASSETS` moves the folder. There is no model to download: nothing in LocalGPT runs one.

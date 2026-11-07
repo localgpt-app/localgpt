@@ -46,7 +46,6 @@ crates/world-export/js/vendor/three/addons/utils/BufferGeometryUtils.js
 crates/world-export/js/vendor/three/three.module.js
 crates/world-export/js/world-viewer.js
 packaging/homebrew/cask.sh
-scripts/fetch-assets.sh
 scripts/live-smoke.py
 scripts/release-plan.py
 scripts/remote-smoke.mjs

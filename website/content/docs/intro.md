@@ -42,7 +42,7 @@ LocalGPT follows the [XDG Base Directory Specification](https://specifications.f
 │   ├── documents/<key>/         # the app's world for each document
 │   └── sessions/<name>/         # collaborative sessions (a package each)
 └── models/
-    └── pack/                    # the shared CC0 asset pack (scripts/fetch-assets.sh)
+    └── pack/                    # the shared CC0 asset pack (cargo xtask fetch-assets)
 
 ~/.local/state/localgpt/
 ├── gen-settings.json            # what the app opened last

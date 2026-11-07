@@ -4,11 +4,11 @@
 > standalone `localgpt-verse` repository; see
 > `docs/world-strategy.md` §13.6). Run everything from the
 > workspace root with `-p localgpt-verse`. The shared asset pack is
-> fetched once by `scripts/fetch-assets.sh` and resolved by
+> fetched once by `cargo xtask fetch-assets` and resolved by
 > `localgpt-world-agent`'s `paths` module.
 >
 > Bevy takes one asset base, so `crates/verse/assets/models` is a **symlink**
-> to the shared pack that `scripts/fetch-assets.sh` creates — run it once, or
+> to the shared pack that `cargo xtask fetch-assets` creates — run it once, or
 > the app starts with no asset pack and builds procedural worlds only.
 
 Guidance for Claude Code when working in this repository.

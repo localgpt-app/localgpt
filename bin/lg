@@ -92,7 +92,7 @@ case "$cmd" in
   fetch)
     [ $# -gt 0 ] || { lg_domain_help fetch; exit 2; }
     case "$1" in
-      assets) shift; lg_exec "$LG_HOME/../scripts/fetch-assets.sh" "$@" ;;
+      assets) shift; cd "$LG_HOME/.." && exec cargo xtask fetch-assets "$@" ;;
       *) lg_domain_help fetch >&2; exit 2 ;;
     esac ;;
 

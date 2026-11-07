@@ -63,7 +63,7 @@ APPLE_NOTARY_PROFILE=localgpt-notary \
   apps/app-desktop/macos/build-app.sh
 ```
 
-The CC0 asset pack is not in the bundle; `scripts/fetch-assets.sh` fetches it
+The CC0 asset pack is not in the bundle; `cargo xtask fetch-assets` fetches it
 once per machine for every LocalGPT app. The four CC0 starter tracks are, in
 `Resources/starter`, so a first launch opens a song: the script takes them
 from the asset root `LOCALGPT_STARTER_MUSIC` names, a `localgpt-world-assets`

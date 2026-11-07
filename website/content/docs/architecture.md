@@ -34,7 +34,7 @@ apps/
 └── app-desktop/  # the LocalGPT.app bundler (Developer ID + notarization when given)
 
 website*/         # one Cloudflare Worker each: localgpt.app (this site), gen., verse., localgpt.md, localgpt.world
-scripts/          # fetch-assets.sh — the one download every app shares
+xtask/            # cargo xtask fetch-assets — the one download every app shares
 ```
 
 ## Dependency Graph

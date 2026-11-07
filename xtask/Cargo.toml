@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-description = "The repository's own tooling: `cargo xtask rule` checks the all-Rust rule"
+description = "The repository's own tooling, in Rust: `cargo xtask <command>`"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,3 +8,6 @@ publish = false
 
 [dependencies]
 serde_json = { workspace = true }
+# Where the shared pack lands: the same base localgpt-world-agent's paths
+# resolve (`<data dir>/localgpt`), not a copy of the XDG rule.
+etcetera = "0.11"

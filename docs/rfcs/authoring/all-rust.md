@@ -667,8 +667,9 @@ renderer) keep their places after these.
       back. They found what the scripted hand had not: the tab's "●" and
       the timeline's "▶" are in none of egui's own fonts (the app reaches
       the system's for them). `cargo xtask verify` is the first script in
-      Rust (was `bin/ops/verify.sh`; `bin/lg verify` routes to it). Left:
-      the other scripts (`build-app.sh`, `fetch-assets.sh`, the sites'
+      Rust (was `bin/ops/verify.sh`; `bin/lg verify` routes to it), then
+      `cargo xtask fetch-assets` (was `scripts/fetch-assets.sh`). Left:
+      the other scripts (`build-app.sh`, the sites'
       deploys, `release-plan.py` and `trust-release-workflow.py`,
       `live-smoke.py`), and `remote-smoke.mjs`, which goes with the page
 - [ ] The last mile of C, with 0.5.0

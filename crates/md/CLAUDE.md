@@ -4,11 +4,11 @@
 > standalone `localgpt-md` repository; see
 > `docs/world-strategy.md` §13.6). Run everything from the
 > workspace root with `-p localgpt-md`. The shared asset pack is fetched
-> once by `scripts/fetch-assets.sh` and resolved by
+> once by `cargo xtask fetch-assets` and resolved by
 > `localgpt-world-agent`'s `paths` module.
 >
 > Bevy takes one asset base, so `crates/md/assets/models` is a **symlink**
-> to the shared pack that `scripts/fetch-assets.sh` creates — run it once, or
+> to the shared pack that `cargo xtask fetch-assets` creates — run it once, or
 > the app starts with no asset pack and builds procedural worlds only.
 
 Guidance for Claude Code when working in this repository.
@@ -36,7 +36,7 @@ cargo run -p localgpt-md -- path/to/doc.md                      # open any Markd
 cargo run -p localgpt-md -- doc.md --print-ron                  # compiled world as RON, no window
 cargo run -p localgpt-md -- doc.md --export out.json            # or out.ron / out.html (web viewer page), no window
 LOCALGPT_MD_SCREENSHOT=/tmp/shot.png cargo run -p localgpt-md   # render the first stop offscreen to a PNG, then exit
-./scripts/fetch-assets.sh                        # copy the CC0 asset pack (optional; sibling repo works too)
+cargo xtask fetch-assets                         # copy the CC0 asset pack (optional; sibling repo works too)
 cargo test -p localgpt-md
 cargo clippy -p localgpt-md --all-targets -- -D warnings
 cargo fmt
@@ -83,7 +83,7 @@ and builds) and `assets.rs` (where the pack is).
   they stay for the tests that prove the cache contract and for tooling.
 - **The asset pack**: `assets.rs` resolves the pack root from
   `$LOCALGPT_MD_ASSETS` → `assets/` → the dev tree → the shared download
-  (`localgpt_world_agent::world_pack_dir`); `scripts/fetch-assets.sh` copies
+  (`localgpt_world_agent::world_pack_dir`); `cargo xtask fetch-assets` copies
   it locally. Placements land as `MeshAssetRef { path: "models/<file>" }`
   with span normalization baked into the transform; `scene.rs` loads them
   via `GltfAssetLabel::Scene(0)` + `WorldAssetRoot`, and `--export *.html`

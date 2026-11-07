@@ -144,7 +144,7 @@ pub(crate) fn document_key(md: &Path) -> String {
 /// Authored scenery references pack models as `models/<file>`; Gen resolves a
 /// world's assets under `<world>/assets/`. So the world's `assets` is the
 /// shared pack — a symlink on Unix, one copy on disk however many documents
-/// use it, the trick `scripts/fetch-assets.sh` plays for MD and Verse. A
+/// use it, the trick `cargo xtask fetch-assets` plays for MD and Verse. A
 /// draft with no meshes needs nothing, and a missing pack only costs the
 /// placeholder boxes Gen already shows for a missing model.
 fn link_asset_pack(world: &wt::WorldManifest, dir: &Path) {
@@ -153,7 +153,7 @@ fn link_asset_pack(world: &wt::WorldManifest, dir: &Path) {
     }
     let pack = localgpt_md::assets::assets_dir();
     if !pack.join("models/manifest.json").is_file() {
-        warn!("document uses pack models but no pack is installed — run scripts/fetch-assets.sh");
+        warn!("document uses pack models but no pack is installed — run cargo xtask fetch-assets");
         return;
     }
     let link = dir.join("assets");

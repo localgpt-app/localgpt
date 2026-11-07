@@ -86,7 +86,7 @@ cargo run -p localgpt-verse
 cargo run -p localgpt-verse --features ml          # CLAP moods and Demucs stems (ONNX)
 
 # The shared download (once per machine, not per app)
-scripts/fetch-assets.sh                            # 522 MB CC0 pack, once;
+cargo xtask fetch-assets                           # 522 MB CC0 pack, once;
                                                    # symlinks it into md's and
                                                    # verse's asset roots
 ```
@@ -175,8 +175,8 @@ crates/
 apps/
 └── app-desktop/  # LocalGPT.app bundler for the one app (Developer ID + notarization when given; replaced gen-desktop)
 
-scripts/          # The shared download, fetched once for every app
-└── fetch-assets.sh  # the 522 MB CC0 pack -> ~/.local/share/localgpt/models/pack
+xtask/            # The repo's tooling in Rust: cargo xtask rule, verify, fetch-assets
+                  # (the 522 MB CC0 pack -> ~/.local/share/localgpt/models/pack)
 
 website*/         # One Cloudflare Worker each, all deployed by hand
 ├── website/      # localgpt.app — Zola, the family hub and only docs site (deployed by website/deploy.sh)
@@ -400,7 +400,7 @@ configuration (its login, its model, its MCP servers) is the agent's.
 ~/.local/share/localgpt/                 # XDG_DATA_HOME (Dirs::data)
 ├── gen-workspace/                       # Gen's worlds (skills/), sessions/, exports/
 └── models/                              # the shared download; ignores LOCALGPT_PROFILE
-    └── pack/                            # the CC0 asset pack (scripts/fetch-assets.sh)
+    └── pack/                            # the CC0 asset pack (cargo xtask fetch-assets)
 ~/.local/state/localgpt/                 # XDG_STATE_HOME (Dirs::state)
 ├── gen-settings.json                    # what was opened last
 ├── app-remote.json                      # The phone remote's paired devices (key hashes, 0600)
