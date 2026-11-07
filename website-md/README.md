@@ -30,7 +30,7 @@ workflow.
 
 ## Assembled, not stored
 
-`npm run assemble` (or `scripts/assemble.sh`) builds the page tree; only the
+`npm run assemble` (`cargo xtask assemble md`) builds the page tree; only the
 page, its icon and the scripts are tracked.
 
 | Copied in | From |
@@ -78,7 +78,7 @@ the `viewer` job.
 
 ## Deploy
 
-`./deploy.sh` assembles and runs `wrangler deploy` (the `localgpt-md` Worker,
+`cargo xtask deploy md` assembles and runs `wrangler deploy` (the `localgpt-md` Worker,
 static assets). Routing is in the Cloudflare dashboard: localgpt.md is the
 canonical host and md.localgpt.app 301s to it. The old `localgpt-previs`
 Worker is idle and can be deleted there.

@@ -1,6 +1,5 @@
 README.md
 wrangler.toml
-deploy.sh
 .assetsignore
 .wrangler
 .wrangler/

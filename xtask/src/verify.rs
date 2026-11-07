@@ -1,7 +1,6 @@
 //! `cargo xtask verify`: the CI checks on this machine, in the order
 //! `.github/workflows/ci.yml` runs them, stopping at the first that fails.
-//! Run it before a release or a deploy. It was `bin/ops/verify.sh`;
-//! `bin/lg verify` runs it still.
+//! Run it before a release or a deploy. It was `bin/ops/verify.sh`.
 //!
 //! It needs what CI installs: the Rust toolchain, cargo-deny, node 22,
 //! wasm-pack with the wasm32-unknown-unknown target, and Chromium for
@@ -172,12 +171,9 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
             npm,
             &["run", "design:build"],
         )?;
-        stage(
-            root,
-            "viewer is the published openworldformat renderer",
-            "bash",
-            &["scripts/sync-viewer.sh", "--check"],
-        )?;
+        println!("\n──────── viewer is the published openworldformat renderer ────────");
+        crate::viewer::run(root, &["--check".to_string()])
+            .map_err(|e| format!("{e}\n\n'the viewer check' FAILED — nothing after it was run."))?;
         let world = root.join("website-world");
         modules(&world, npm)?;
         stage(

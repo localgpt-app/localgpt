@@ -1,7 +1,7 @@
 //! CLAP zero-shot mood + per-track audio embeddings — PLAN.md M5 (`ml` feature).
 //!
 //! The model is LAION CLAP (`larger_clap_music_and_speech`, Xenova's quantized
-//! ONNX export), fetched by `scripts/fetch-clap.sh` into `assets/ml/`. Only the
+//! ONNX export), fetched by `cargo xtask fetch-clap` into `assets/ml/`. Only the
 //! **audio** branch runs at runtime: the four mood text embeddings are
 //! precomputed offline (same model's text branch) and bundled in the binary,
 //! so a track's mood = argmax cosine( audio_embed, mood_text_embed ). The
@@ -280,7 +280,7 @@ impl ClapModel {
         let path = crate::world_assets::asset_root().join("ml/audio_model_quantized.onnx");
         if !path.exists() {
             warn!(
-                "ml: {} not found — rule-based moods (run scripts/fetch-clap.sh)",
+                "ml: {} not found — rule-based moods (run cargo xtask fetch-clap)",
                 path.display()
             );
             return None;
@@ -354,7 +354,7 @@ impl ClapModel {
 /// ranks "obsidian shard" above "limestone boulder" without a keyword in
 /// common.
 ///
-/// `fetch-clap.sh` already pulls `text_model_quantized.onnx` + `tokenizer.json`
+/// `cargo xtask fetch-clap` already pulls `text_model_quantized.onnx` + `tokenizer.json`
 /// (they were fetched for the offline mood-embedding precompute); this is the
 /// first runtime use. Same graceful-degradation contract as [`ClapModel`]:
 /// absent files or a tokenizer failure → `None`, and every caller keeps the
@@ -372,7 +372,7 @@ impl TextEmbedder {
         let tok_path = dir.join("tokenizer.json");
         if !model_path.exists() || !tok_path.exists() {
             warn!(
-                "ml: text tower not found under {} — keyword asset matching (run scripts/fetch-clap.sh)",
+                "ml: text tower not found under {} — keyword asset matching (run cargo xtask fetch-clap)",
                 dir.display()
             );
             return None;
@@ -542,14 +542,14 @@ mod tests {
     }
 
     /// Manual probe for the text tower (the model files sit under assets/ml
-    /// after fetch-clap.sh): verifies the ONNX I/O names and that semantically
+    /// after cargo xtask fetch-clap): verifies the ONNX I/O names and that semantically
     /// close phrases rank closer than far ones in the shared space.
     /// `cargo test --features ml -- --ignored --nocapture text_embedding_probe`
     #[test]
     #[ignore = "loads the CLAP text model; run explicitly"]
     fn text_embedding_probe() {
         let Some(mut embedder) = TextEmbedder::try_load() else {
-            panic!("no text model — run scripts/fetch-clap.sh");
+            panic!("no text model — run cargo xtask fetch-clap");
         };
         let ocean = embedder
             .embed("ocean waves, coral reef, tidal pools")
@@ -580,7 +580,7 @@ mod tests {
         let Ok(path) = std::env::var("VERSE_TEST_TRACK") else {
             return;
         };
-        let mut model = ClapModel::try_load().expect("model file (scripts/fetch-clap.sh)");
+        let mut model = ClapModel::try_load().expect("model file (cargo xtask fetch-clap)");
         let (emb, mood) = model
             .analyze_track(Path::new(&path))
             .expect("analysis failed");

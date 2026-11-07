@@ -19,14 +19,14 @@ here; everything else is copied in, and `.gitignore` keeps the copies out.
 
 | Copied in | From | When |
 |---|---|---|
-| `viewer/world-viewer.js`, `viewer/cinematography.js` | `crates/world-export/js/` (themselves vendored from the `openworldformat` npm package by `scripts/sync-viewer.sh`; the viewer imports the second as `./cinematography.js`) | always |
+| `viewer/world-viewer.js`, `viewer/cinematography.js` | `crates/world-export/js/` (themselves vendored from the `openworldformat` npm package by `cargo xtask sync-viewer`; the viewer imports the second as `./cinematography.js`) | always |
 | `worlds/{shapes,materials,lights,behaviors,hierarchy_tours,soundtrack,textures}.json` | `crates/world-types/conformance/` | always |
 | `worlds/assets/textures/` | `crates/world-types/conformance/assets/` | always |
 | `worlds/assets/models/`, `worlds/assets/music/` | the assets checkout's `web/` | `--all` |
 | `worlds/posters/*.png` | the assets checkout's `web/` | `--all` |
 
 The GLBs and music are **web-optimized derivatives**, not the pack itself:
-`add-world.mjs` shrinks each model with `@gltf-transform` (512 px textures,
+`cargo xtask add-world` shrinks each model with `@gltf-transform` (512 px textures,
 weld, simplify, prune). They live in `localgpt-world-assets` as LFS objects
 rather than here, because 30 MB of glTF in a code repository's history grows
 with every published world and never shrinks. `$LOCALGPT_WORLD_ASSETS` points at
@@ -43,7 +43,7 @@ that checkout; a sibling `localgpt-world-assets` (or its former name
 | `world.html` | The viewer page: `world.html?src=worlds/shapes.json` opens any world in the format |
 | `worlds/{gen,md,verse}-*.json` | The curated gallery worlds |
 | `vendor/three/` | three.js (MIT), self-hosted so the site makes no third-party requests |
-| `scripts/` | `assemble.mjs`; `check-worlds.mjs` (the render check, which also captures posters); `posters.mjs`; `add-world.mjs` |
+| `scripts/` | `check-worlds.mjs` (the render check, which also captures posters); `posters.mjs` — both drive Chromium, so they stay JavaScript until the web renderer is Rust. Assembling and adding a world are `cargo xtask assemble world` and `cargo xtask add-world` |
 
 ## Checks
 
@@ -68,7 +68,7 @@ A world is a `WorldManifest` JSON (schema:
 window).
 
 ```bash
-node scripts/add-world.mjs <world.json> <name> --from <asset dir>
+cargo xtask add-world <world.json> <name> --from <asset dir>
 ```
 
 That writes `worlds/<name>.json` and shrinks every mesh and audio file it
@@ -79,11 +79,11 @@ references into `worlds/assets/`. Those outputs belong in the assets checkout's
 
 ```bash
 npm run assemble:all && python3 -m http.server 8000     # from this directory
-./deploy.sh                                             # assembles, then wrangler
+cargo xtask deploy world                                # assembles, then wrangler
 ```
 
 The viewer needs a server (it fetches JSON and ES modules); the landing page
-also opens from disk. `deploy.sh` always assembles the full set, so a deploy
+also opens from disk. `cargo xtask deploy world` always assembles the full set, so a deploy
 needs the assets checkout with its LFS objects pulled. It publishes as the
 `localgpt-world` Worker; `.assetsignore` keeps the build tooling and config out
 of the published site.

@@ -49,7 +49,7 @@ Analysis results are cached as JSON sidecars, keyed by a blake3 content hash and
 The default mood mapper is pure, deterministic DSP. For a research-grade upgrade, build with the `ml` feature and fetch the CLAP audio model once:
 
 ```bash
-crates/verse/scripts/fetch-clap.sh   # ~78 MB CLAP model (LAION / Xenova ONNX)
+cargo xtask fetch-clap               # ~78 MB CLAP model (LAION / Xenova ONNX)
 cargo run -p localgpt-verse --features ml
 ```
 

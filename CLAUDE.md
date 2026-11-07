@@ -4,18 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Development Commands
 
-`bin/lg` is the one entry point for building and releasing — it only routes
-to scripts in `bin/{web,build,ops}/`, `apps/` and `scripts/`, each of which
-also runs directly:
+`cargo xtask` is the one entry point for building and releasing, in Rust
+(`xtask/`); run alone, it lists every command:
 
 ```bash
-bin/lg build app gen                    # cargo build, by name: cli app gen previs md verse all
-bin/lg build bundle --dmg               # LocalGPT.app for macOS
-cargo xtask verify                      # the CI checks on this machine (--rust --bevy --features --web --deps);
-                                        # bin/lg verify runs it too
+cargo xtask build app gen               # cargo build, by name: cli app gen previs md verse all
+cargo xtask bundle --dmg                # LocalGPT.app for macOS
+cargo xtask verify                      # the CI checks on this machine (--rust --bevy --features --web --deps)
 cargo xtask rule                        # the all-Rust rule: nothing new in another language, nothing new on wry
-bin/lg web deploy world --dry-run       # the family's sites: app gen verse md world, or all
-bin/lg fetch assets                     # the shared asset pack
+cargo xtask deploy world --dry-run      # the family's sites: app gen verse md world, or all
+cargo xtask fetch-assets                # the shared asset pack
 ```
 
 ```bash
@@ -110,7 +108,7 @@ git push origin main vX.Y.Z                         # .github/workflows/release.
 
 The tag push runs `.github/workflows/release.yml`: it checks the tag
 against the version, asks crates.io which crates are already up
-(`scripts/release-plan.py`, so a rerun finishes a partial publish), builds
+(`cargo xtask release-plan`, so a rerun finishes a partial publish), builds
 the rest from their packages and uploads them in dependency order, through
 Trusted Publishing. A crate published for the first time needs the
 `CARGO_REGISTRY_TOKEN` secret, since crates.io can only trust a workflow
@@ -173,7 +171,7 @@ xtask/            # The repo's tooling in Rust: cargo xtask rule, verify, fetch-
                   # (the 522 MB CC0 pack -> ~/.local/share/localgpt/models/pack)
 
 website*/         # One Cloudflare Worker each, all deployed by hand
-├── website/      # localgpt.app — Zola, the family hub and only docs site (deployed by website/deploy.sh)
+├── website/      # localgpt.app — Zola, the family hub and only docs site (cargo xtask deploy app)
 ├── website-gen/  # gen.localgpt.app — static landing
 ├── website-md/   # localgpt.md — drop a screenplay (PDF, Final Draft, Fountain or Markdown), get a previs board in the tab (WASM draft)
 ├── website-verse/# verse.localgpt.app — static landing
@@ -200,7 +198,7 @@ source format (serde-only; `schema` feature writes `world.schema.json`);
 or `EnvironmentDef` becomes Bevy components — Gen, MD and Verse all call it;
 `localgpt-world-export` holds the only web renderer
 (`js/world-viewer.js` and the `js/cinematography.js` it imports, vendored
-snapshots of the `openworldformat` npm package — `scripts/sync-viewer.sh`)
+snapshots of the `openworldformat` npm package — `cargo xtask sync-viewer`)
 and `generate_html`. Reference scenes live in
 `crates/world-types/conformance/`; render them before and after changing a
 mapping. Add fields to world-types, never a parallel format.
@@ -444,7 +442,7 @@ A profile (`LOCALGPT_PROFILE=x`) moves both roots to `localgpt-x`. Worlds a
   docs plus `website/content/docs/gen`, `docs/verse` and `docs/md` (Verse and MD keep only
   landing pages in their own repos; update their docs here when those apps
   change). `website-gen/` is the static landing page for gen.localgpt.app (no
-  build step; `website-gen/deploy.sh` deploys it) and links to the Gen docs.
+  build step; `cargo xtask deploy gen` deploys it) and links to the Gen docs.
   `website-md/` is localgpt.md, the previs page (`docs/world-strategy.md`):
   drop a screenplay — a PDF, a Final Draft `.fdx`, Fountain, or
   Markdown script pages — and get the
@@ -459,7 +457,7 @@ A profile (`LOCALGPT_PROFILE=x`) moves both roots to `localgpt-x`. Worlds a
   `crates/world-export/js/world-viewer.js` and the `crates/world-types`
   conformance scenes in, and those copies are gitignored, so edit them in the
   crate and re-assemble (the crate file itself is vendored from the
-  `openworldformat` npm package via `scripts/sync-viewer.sh` — the renderer's
+  `openworldformat` npm package via `cargo xtask sync-viewer` — the renderer's
   upstream is that repository). Its `npm run check` (CI job `viewer`) is the only
   automated check on that renderer; it lived in a separate repository until the
   copy there drifted 185 lines behind. The curated worlds' shrunk GLBs and

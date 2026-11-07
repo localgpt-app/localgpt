@@ -1,5 +1,5 @@
 # Cloudflare Worker for verse.localgpt.app: static assets only, no Worker
-# script, nothing to build. Deploy with ./deploy.sh from this directory.
+# script, nothing to build. Deploy with `cargo xtask deploy verse`.
 name = "localgpt-verse"
 compatibility_date = "2026-09-21"
 

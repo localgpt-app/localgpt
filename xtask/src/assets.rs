@@ -51,6 +51,18 @@ pub fn run(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// The manifest, its models and the starter tracks from `source` into
+/// `into` (`models/`, `music/`), the layout the shared pack has and a
+/// portable bundle's `assets/` too; the starter files copied, when the
+/// source has music.
+pub(crate) fn fetch_into(source: &Path, into: &Path) -> Result<Option<usize>, String> {
+    let report = fetch(source, into)?;
+    for missing in &report.missing {
+        println!("    missing {missing} (run 'git lfs pull' in the assets repo)");
+    }
+    Ok(report.music)
+}
+
 /// What a fetch did.
 #[derive(Debug, Default, PartialEq)]
 struct Report {

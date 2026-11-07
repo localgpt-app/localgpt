@@ -5,7 +5,6 @@ node_modules/
 scripts/
 package.json
 package-lock.json
-deploy.sh
 wrangler.toml
 README.md
 .assetsignore

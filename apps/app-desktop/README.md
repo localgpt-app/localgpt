@@ -77,7 +77,7 @@ bundle made on a Mac are the same build. A `desktop-v<version>` tag — the
 workspace's version, as `Cargo.toml` has it — makes a draft release holding
 `LocalGPT-<version>-arm64.dmg`, `LocalGPT-<version>-x86_64.dmg` and
 `localgpt.rb`, the Homebrew cask rendered with their checksums
-(`packaging/homebrew/cask.sh`). A tag with a hyphen after the version
+(`cargo xtask cask`). A tag with a hyphen after the version
 (`desktop-v0.5.0-beta.1`) is a pre-release. Run by hand, the workflow keeps
 the files as artifacts and makes no release.
 

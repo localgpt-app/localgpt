@@ -1,5 +1,5 @@
 # Cloudflare Worker for localgpt.md, the previs page: static assets only,
-# no Worker script, nothing to build. Deploy with ./deploy.sh from this
+# no Worker script, nothing to build. Deploy with `cargo xtask deploy md` from
 # directory. localgpt.md is the canonical host; the 301 from
 # md.localgpt.app is a redirect rule on the localgpt.app zone, not this
 # Worker's.

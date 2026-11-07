@@ -4,7 +4,7 @@
   "description": "The localgpt.md page — drop a screenplay, get a previs board. `assemble` copies the samples in and builds the WASM draft; `check` loads the page headlessly, drops the Fountain and the Markdown sample, and requires a rendered board and the package downloads.",
   "type": "module",
   "scripts": {
-    "assemble": "./scripts/assemble.sh",
+    "assemble": "cargo xtask assemble md",
     "check": "node scripts/check.mjs"
   },
   "devDependencies": {

@@ -190,13 +190,14 @@ jobs:
         with:
           path: dmg
           merge-multiple: true
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: The cask, rendered with this release's checksums
         env:
           TAG: ${{ github.ref_name }}
         run: |
           version="${TAG#desktop-v}"
-          packaging/homebrew/cask.sh "$version" \
+          cargo xtask cask "$version" \
             "dmg/LocalGPT-$version-arm64.dmg" "dmg/LocalGPT-$version-x86_64.dmg" > dmg/localgpt.rb
           cat dmg/localgpt.rb
 

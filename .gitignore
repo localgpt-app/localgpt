@@ -30,7 +30,7 @@ target
 # `cargo xtask`'s alias (the all-Rust rule's tooling).
 !.cargo/
 # Each website-*/ deploys as a Cloudflare Worker whose static-assets directory
-# is ".", so its .assetsignore is what keeps deploy.sh and wrangler.toml from
+# is ".", so its .assetsignore is what keeps wrangler.toml and the build files from
 # being published as site content. The blanket `.*` above had left the MD,
 # Verse and World ones untracked, which a fresh clone would have deployed
 # without.
@@ -52,7 +52,7 @@ opencode.json
 # website-verse each deploy as their own static-assets Worker).
 website-*/.wrangler/
 
-# website-world/ is assembled, not stored. `scripts/assemble.mjs` copies the
+# website-world/ is assembled, not stored. `cargo xtask assemble world` copies the
 # viewer and the conformance scenes in from crates/ (so they cannot drift from
 # the apps the way the old cross-repo sync did), and the curated worlds' shrunk
 # GLBs, music and posters in from the assets checkout, where they are LFS

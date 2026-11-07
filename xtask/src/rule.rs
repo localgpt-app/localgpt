@@ -71,7 +71,7 @@ impl Baseline {
 }
 
 /// A file the rule counts: one of [`EXTENSIONS`], or an extensionless
-/// script (its first two bytes are `#!`, as `bin/lg` is).
+/// script (its first two bytes are `#!`, as `bin/lg`'s were).
 pub fn counts(path: &str, head: impl FnOnce() -> Option<[u8; 2]>) -> bool {
     let name = path.rsplit('/').next().unwrap_or(path);
     match name.rsplit_once('.') {

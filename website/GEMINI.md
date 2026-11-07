@@ -8,6 +8,7 @@ This directory contains [localgpt.app](https://localgpt.app), the LocalGPT landi
 zola serve
 zola check --skip-external-links
 zola build
+cargo xtask deploy app # Build and deploy to Cloudflare Workers
 ```
 
 ## Layout

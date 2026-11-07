@@ -167,7 +167,7 @@ attribution already wired through the manifest → Credits screen.
 >   Real worlds use ~70–90 props, so the app sits at the 60 fps cap; dense
 >   packs want the instancing path first.
 > - **M5 done (opt-in `ml` feature):** CLAP (LAION music+speech, Xenova
->   quantized ONNX, 78 MB audio branch via `scripts/fetch-clap.sh`) embeds 3
+>   quantized ONNX, 78 MB audio branch via `cargo xtask fetch-clap`) embeds 3
 >   windows/track (rubato → 48 kHz, Slaney log-mel frontend matching HF's
 >   ClapFeatureExtractor, ort) → zero-shot mood vs 4 precomputed text
 >   embeddings; 512-d embedding stored in the sidecar (asset-selection hook).

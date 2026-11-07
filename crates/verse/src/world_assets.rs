@@ -531,7 +531,7 @@ pub fn rise_props(
 ///
 /// Resolved once, in this order:
 /// 1. `VERSE_ASSET_ROOT` — explicit override.
-/// 2. `<exe dir>/assets` — the shipped layout (`scripts/bundle.sh`, the
+/// 2. `<exe dir>/assets` — the shipped layout (`cargo xtask verse-bundle`, the
 ///    Windows zip, the Linux tarball).
 /// 3. `<exe dir>/../Resources/assets` — inside a macOS `.app`, where the
 ///    binary sits in `Contents/MacOS/` and its data in `Contents/Resources/`.

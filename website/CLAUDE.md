@@ -8,7 +8,7 @@ This file provides guidance when working with the LocalGPT website and documenta
 zola serve             # Local dev server with live reload (http://127.0.0.1:1111)
 zola build             # Production build into public/
 zola check             # Verify internal and external links
-./deploy.sh            # Build with Zola and deploy to Cloudflare Workers
+cargo xtask deploy app # Build with Zola and deploy to Cloudflare Workers
 ```
 
 No Node.js or npm dependencies required. Single fast Rust static site generator.
@@ -28,7 +28,7 @@ Zola static site for [LocalGPT](https://localgpt.app), deployed as a Cloudflare 
 - `static/` — Static assets (CSS, logos, icons, redirect files).
 - `config.toml` — Zola site configuration.
 - `wrangler.toml` — Cloudflare Worker configuration (serves `./public`).
-- `deploy.sh` — Deployment script (`zola build` + `npx wrangler deploy`).
+- Deployed by `cargo xtask deploy app` from the repository (`zola build` + `npx wrangler deploy`).
 
 ## Conventions
 

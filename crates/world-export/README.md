@@ -7,7 +7,7 @@ The distribution side of the LocalGPT world format, with no Bevy dependency:
   imports as `./cinematography.js` for its shot view. localgpt.world serves
   them as modules; Gen and MD embed them (an exported page maps the relative
   import to an inline `data:` URL). Verbatim snapshots of the
-  `openworldformat` npm package — `scripts/sync-viewer.sh` vendors both (CI
+  `openworldformat` npm package — `cargo xtask sync-viewer` vendors both (CI
   checks them); edit the renderer upstream, never here.
 - `generate_html(&manifest)` — a self-contained page: viewer + manifest JSON.
 - `to_json` / `to_json_pretty` — the manifest as the JSON the viewer reads

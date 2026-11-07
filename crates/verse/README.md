@@ -42,7 +42,7 @@ Without an import (or an audio device) the app falls back to the silent
 simulated transport. Dev shortcut: `VERSE_IMPORT=<dir>` imports at startup.
 
 **ML moods (PLAN.md M5, optional):** build with `--features ml` and run
-`scripts/fetch-clap.sh` once (78 MB CLAP audio model, LAION/Xenova ONNX) —
+`cargo xtask fetch-clap` once (78 MB CLAP audio model, LAION/Xenova ONNX) —
 tracks then get a 512-d CLAP embedding (3 windows averaged) and a zero-shot
 mood from it, upgrading the rule mapper; the embedding is stored in the
 sidecar for future asset selection. Without the feature or the model file the

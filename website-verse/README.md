@@ -21,7 +21,7 @@ Published to Cloudflare Workers as the `localgpt-verse` Worker (see `wrangler.to
 static assets only, no Worker script):
 
 ```bash
-website/deploy.sh
+cargo xtask deploy verse
 ```
 
 First run needs `npx wrangler login` (or `CLOUDFLARE_API_TOKEN` in CI). The files in

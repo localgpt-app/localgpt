@@ -9,10 +9,6 @@
 # None: the page's web view host went in step E, 2026-11-06.
 
 [files]
-bin/build/target.sh
-bin/lg
-bin/lib/common.sh
-bin/web/deploy.sh
 crates/app/ui/design/fixtures.ts
 crates/app/ui/design/phone.tsx
 crates/app/ui/design/Sheet.tsx
@@ -34,9 +30,6 @@ crates/app/ui/src/timeline/model.ts
 crates/app/ui/vite.config.ts
 crates/app/ui/vite.design.config.ts
 crates/previs/samples/pdf/print-chromium.mjs
-crates/verse/scripts/bundle.sh
-crates/verse/scripts/fetch-clap.sh
-crates/verse/scripts/fetch-demucs.sh
 crates/world-export/js/cinematography.js
 crates/world-export/js/session-client.js
 crates/world-export/js/vendor/three/addons/controls/OrbitControls.js
@@ -44,22 +37,11 @@ crates/world-export/js/vendor/three/addons/loaders/GLTFLoader.js
 crates/world-export/js/vendor/three/addons/utils/BufferGeometryUtils.js
 crates/world-export/js/vendor/three/three.module.js
 crates/world-export/js/world-viewer.js
-packaging/homebrew/cask.sh
 scripts/live-smoke.py
-scripts/release-plan.py
 scripts/remote-smoke.mjs
-scripts/sync-viewer.sh
-scripts/trust-release-workflow.py
 spikes/egui-terminal/probe.py
-website-gen/deploy.sh
-website-md/deploy.sh
-website-md/scripts/assemble.sh
 website-md/scripts/check.mjs
 website-verse/assets/js/main.js
-website-verse/deploy.sh
-website-world/deploy.sh
-website-world/scripts/add-world.mjs
-website-world/scripts/assemble.mjs
 website-world/scripts/check-worlds.mjs
 website-world/scripts/posters.mjs
 website-world/vendor/three/build/three.module.min.js
@@ -67,4 +49,3 @@ website-world/vendor/three/examples/jsm/controls/OrbitControls.js
 website-world/vendor/three/examples/jsm/loaders/GLTFLoader.js
 website-world/vendor/three/examples/jsm/utils/BufferGeometryUtils.js
 website-world/worlds.js
-website/deploy.sh

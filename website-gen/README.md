@@ -9,7 +9,7 @@ and this page links to them rather than copying them.
 
 ```bash
 python3 -m http.server 8000 -d website-gen   # http://127.0.0.1:8000
-website-gen/deploy.sh                        # the "localgpt-gen" Cloudflare Worker
+cargo xtask deploy gen                       # the "localgpt-gen" Cloudflare Worker
 ```
 
 The first deploy needs `npx wrangler login`. After that, attach

@@ -1,7 +1,7 @@
 name: Website
 
 # localgpt.app is a Zola site deployed as a Cloudflare Worker by
-# `website/deploy.sh` (wrangler, from a logged-in machine). This only
+# `cargo xtask deploy app` (wrangler, from a logged-in machine). This only
 # builds it, so a template, config or content change that breaks the
 # build — or an internal link — fails here instead of at deploy time.
 # The GitHub Pages deploy that used to live here went with Docusaurus.

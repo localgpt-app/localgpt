@@ -62,7 +62,7 @@ ron = "0.12"      # `.world.ron`, Gen's save format, next to the JSON export
 
 
 # PLAN.md M5 — CLAP zero-shot mood + audio embeddings. Opt-in: the model is a
-# ~78 MB download (scripts/fetch-clap.sh) and ort pulls ONNX Runtime binaries;
+# ~78 MB download (cargo xtask fetch-clap) and ort pulls ONNX Runtime binaries;
 # without the feature (or the model file) the app uses the rule mapper (M4).
 #
 # LICENSE NOTE (commercial shipping): CLAP weights (LAION) are CC-BY-NC-4.0 —

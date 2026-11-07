@@ -25,7 +25,6 @@ crates/verse/             # a member of the localgpt workspace
 │   ├── demucs.rs         stem separation + curves          (feature: ml)
 │   └── recipe.rs         the authored WorldRecipe, applied from the sidecar
 ├── assets/               fonts, models (synced), ml/
-└── scripts/              fetch-clap.sh, fetch-demucs.sh, bundle.sh
 
 website-verse/            verse.localgpt.app, the landing page (at the workspace root)
 xtask/                    cargo xtask fetch-assets — the asset pack every app shares
@@ -38,7 +37,7 @@ Threading is channels-and-atomics only across boundaries (the single shared-stat
 | Flag | What it adds | Fetch first |
 |---|---|---|
 | `(default)` | Playback, DSP analysis, rule-mapped worlds | — |
-| `ml` | CLAP zero-shot moods, embedding-ranked placement, Demucs stems | `crates/verse/scripts/fetch-clap.sh` (~78 MB) |
+| `ml` | CLAP zero-shot moods, embedding-ranked placement, Demucs stems | `cargo xtask fetch-clap` (~78 MB) |
 
 CI compiles the optional tier so it can't rot, and it falls back to the rule-derived world when its model is absent. There is no language-model tier: a recipe comes from the sidecar, written by an agent.
 
@@ -66,7 +65,7 @@ Runs uncapped so the numbers show true frame cost. On the dev machine (2026-07):
 ## Packaging {#bundle}
 
 ```bash
-crates/verse/scripts/bundle.sh   # assembles dist/: release binary + fonts + models from localgpt-world-assets
+cargo xtask verse-bundle         # assembles crates/verse/dist/: release binary + fonts + models from localgpt-world-assets
 ```
 
 The 171-model CC0 pack lives in the separate `localgpt-world-assets` repository (formerly `localgpt-verse-assets`); its `fetch_polyhaven.py` downloads it and writes the manifest (with a semantic `kind` per asset — 19 kinds), `normalize.py` packs each model to a single uncompressed `.glb` (bevy_gltf supports neither quantized nor meshopt-compressed geometry), and the workspace's `cargo xtask fetch-assets` copies the manifest-referenced set into the folder every LocalGPT app reads. The macOS `LocalGPT.app` bundle does not carry the pack; that script fetches it once per machine.

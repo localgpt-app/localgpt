@@ -1,5 +1,5 @@
 # Cloudflare Worker for localgpt.world: static assets only, no Worker
-# script, nothing to build. Deploy with ./deploy.sh from this directory.
+# script, nothing to build. Deploy with `cargo xtask deploy world`.
 name = "localgpt-world"
 compatibility_date = "2026-09-23"
 

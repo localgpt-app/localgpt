@@ -4,7 +4,7 @@
 # copied in for dev and at packaging time. Fonts README stays tracked.
 /assets/models
 /dist
-# CLAP models (M5) are a download (scripts/fetch-clap.sh), never committed —
+# CLAP models (M5) are a download (cargo xtask fetch-clap), never committed —
 # only the small precomputed mood_text_embeddings.json is tracked.
 /assets/ml/*.onnx
 /assets/ml/tokenizer.json
