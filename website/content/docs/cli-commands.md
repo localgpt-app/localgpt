@@ -4,7 +4,7 @@ title: "CLI Commands"
 
 # CLI Commands
 
-Two binaries have a command line: `localgpt`, a `.world` package's, and `localgpt-gen`, the world builder's. Neither takes a model, a key or an agent's settings.
+Two binaries have a command line: `localgpt`, a `.world` package's, and `localgpt-gen`, the world builder's. Neither takes a model, a key or an agent's settings. The `.world` package is the [Open World Format](https://openworldformat.org)'s: the folder's layout, the log and the fold that `verify` checks are the format's rules, so a package made here opens in any viewer of the format.
 
 ## `localgpt`
 

@@ -9,7 +9,7 @@
 
 **A desktop app where a document, a song, a screenplay or a prompt becomes a `.world` you can walk through, with your own coding agents in the terminals beside it.** A world is a package with a history: people edit it in the window, agents edit it from outside, and every change is logged, attributed, undoable and branchable. LocalGPT runs no model, calls no service and holds no key; the agents bring their own. Open source, Apache 2.0, runs on your machine.
 
-[![LocalGPT Gen Demo](https://img.youtube.com/vi/R__tg7YY0T8/maxresdefault.jpg)](https://www.youtube.com/watch?v=R__tg7YY0T8)
+[![LocalGPT desktop app demo](https://img.youtube.com/vi/7Q0KCXS_1OI/maxresdefault.jpg)](https://www.youtube.com/watch?v=7Q0KCXS_1OI)
 
 ## What is in this repository
 

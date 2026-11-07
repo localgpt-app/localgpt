@@ -78,8 +78,14 @@
   .how { color: var(--muted); max-width: 70ch; }
   .how li { margin: 6px 0 6px 20px; }
   .how code { font-family: ui-monospace, monospace; font-size: 14px; background: var(--surface); padding: 1px 5px; border-radius: 4px; }
-  footer { margin-top: 56px; color: var(--muted); font-size: 13px; }
+  footer { margin-top: 28px; color: var(--muted); font-size: 13px; }
   footer a { color: var(--accent); }
+  .family { display: grid; gap: 12px; margin-top: 56px; }
+  @media (min-width: 640px) { .family { grid-template-columns: repeat(3, 1fr); } }
+  .family a { display: block; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; color: var(--ink); text-decoration: none; }
+  .family a:hover { border-color: var(--accent); }
+  .family b { display: block; margin-bottom: 3px; font-size: 15px; }
+  .family span { color: var(--muted); font-size: 13px; }
 </style>
 </head>
 <body>
@@ -171,12 +177,21 @@
       <code>&gt; CUT TO:</code>.</li>
   </ul>
 
+  <nav class="family" aria-label="The LocalGPT family">
+    <a href="https://localgpt.app"><b>LocalGPT</b><span>The desktop app for worlds, with your agents beside them.</span></a>
+    <a href="https://gen.localgpt.app"><b>LocalGPT Gen</b><span>Worlds from words.</span></a>
+    <a href="https://verse.localgpt.app"><b>LocalGPT Verse</b><span>A 3D world for every song.</span></a>
+    <a href="https://localgpt.app/docs/md/"><b>LocalGPT MD</b><span>Walk through your notes as a world.</span></a>
+    <a href="https://localgpt.world"><b>localgpt.world</b><span>Worlds from every app, in your browser.</span></a>
+    <a href="https://localgpt.rs"><b>localgpt.rs</b><span>The devlog: building it all in Rust.</span></a>
+  </nav>
   <footer>
     Part of <a href="https://localgpt.app">LocalGPT</a>; worlds from every LocalGPT app open at
     <a href="https://localgpt.world">localgpt.world</a>. The packages are
     <a href="https://openworldformat.org">Open World Format</a> worlds: open them in any viewer that reads the
     format, or in LocalGPT's live canvas to revise the coverage —
-    <a href="https://localgpt.app/docs/gen/previs/">how</a>.
+    <a href="https://localgpt.app/docs/gen/previs/">how</a>. Walking an ordinary Markdown document is
+    <a href="https://localgpt.app/docs/md/">LocalGPT MD</a>, a mode of the desktop app, not this page.
   </footer>
 </main>
 

@@ -1,5 +1,5 @@
 ---
-description: "Open a Markdown file and walk through it as a 3D world: run LocalGPT MD, the world and deck genres, navigation keys, exporting to the LocalGPT world format, and screenshot mode."
+description: "Open a Markdown file and walk through it as a 3D world: run LocalGPT MD, the world and deck genres, navigation keys, exporting to the Open World Format, and screenshot mode."
 title: "LocalGPT MD"
 ---
 
@@ -25,7 +25,7 @@ cargo run -p localgpt-md -- path/to/notes.md
 cargo run -p localgpt-md -- notes.md --print-ron
 # Write a self-contained page with the web viewer
 cargo run -p localgpt-md -- notes.md --export notes.html
-# Write the LocalGPT world format, for localgpt.world
+# Write the world as Open World Format JSON, for localgpt.world
 cargo run -p localgpt-md -- notes.md --export notes.json
 
 # The same document in the desktop app, with the editor pane
@@ -44,7 +44,7 @@ Two genres: the default `world` makes every `##` section a place on a winding pa
 
 ## Export {#export}
 
-`--export` writes the compiled world in LocalGPT's shared world format: `.json` (what the web viewer on [localgpt.world](https://localgpt.world) opens), `.ron` (Gen's `world.ron`, loadable with `gen_load_world`) or `.html` (a single page with the same viewer Gen's `gen_export_html` embeds). Only the document title, the first line of the intro and the section headings are in the manifest — body text stays in the `.md`.
+`--export` writes the compiled world in the [Open World Format](https://openworldformat.org), the one format every LocalGPT app reads and writes: `.json` (what the web viewer on [localgpt.world](https://localgpt.world) opens), `.ron` (Gen's `world.ron`, loadable with `gen_load_world`) or `.html` (a single page with the same viewer Gen's `gen_export_html` embeds). Only the document title, the first line of the intro and the section headings are in the manifest — body text stays in the `.md`.
 
 ## Screenshot mode {#screenshot}
 

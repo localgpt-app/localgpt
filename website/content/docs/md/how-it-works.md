@@ -1,5 +1,5 @@
 ---
-description: "How LocalGPT MD compiles a Markdown file into a world: the modules, the per-section hashes, the shared world format, and how to develop it."
+description: "How LocalGPT MD compiles a Markdown file into a world: the modules, the per-section hashes, the shared Open World Format, and how to develop it."
 title: "How it works"
 ---
 
@@ -21,7 +21,7 @@ watch.rs: poll the file, recompile on save     tour.rs: camera + caption
 - **`scene.rs`**: spawns the manifest in Bevy using the same mapping as LocalGPT Gen, and loads placed GLBs.
 - **`tour.rs`** and **`watch.rs`**: navigation and hot reload.
 
-Worlds use [`localgpt-world-types`](https://crates.io/crates/localgpt-world-types), the format LocalGPT Gen saves as `world.ron`, and pass Gen's own validation. `--print-ron` prints exactly that file.
+Worlds use [`localgpt-world-types`](https://crates.io/crates/localgpt-world-types), the [Open World Format](https://openworldformat.org)'s types with LocalGPT's surface on top, which LocalGPT Gen saves as `world.ron`, and pass Gen's own validation. `--print-ron` prints exactly that file.
 
 ## Develop {#develop}
 
