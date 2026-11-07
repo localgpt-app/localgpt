@@ -138,6 +138,19 @@ fn source(root: &Path) -> Result<PathBuf, String> {
             Err(format!("{}: no models/manifest.json", named.display()))
         };
     }
+    checkouts(root)
+        .into_iter()
+        .find(|dir| dir.join("models/manifest.json").is_file())
+        .ok_or_else(|| {
+            "no pack found: clone localgpt-world-assets next to this repository and \
+             run 'git lfs pull' there first (or point LOCALGPT_WORLD_ASSETS_SRC at it)"
+                .to_string()
+        })
+}
+
+/// Where an assets checkout may be, in order: beside this repository, then,
+/// from a worktree, beside the main checkout; under each name it has had.
+pub(crate) fn checkouts(root: &Path) -> Vec<PathBuf> {
     let mut parents: Vec<PathBuf> = root.parent().map(Path::to_path_buf).into_iter().collect();
     if let Some(main) = main_checkout(root)
         .and_then(|main| main.parent().map(Path::to_path_buf))
@@ -148,12 +161,7 @@ fn source(root: &Path) -> Result<PathBuf, String> {
     parents
         .iter()
         .flat_map(|parent| SOURCES.iter().map(move |name| parent.join(name)))
-        .find(|dir| dir.join("models/manifest.json").is_file())
-        .ok_or_else(|| {
-            "no pack found: clone localgpt-world-assets next to this repository and \
-             run 'git lfs pull' there first (or point LOCALGPT_WORLD_ASSETS_SRC at it)"
-                .to_string()
-        })
+        .collect()
 }
 
 /// The main checkout's folder when `root` is a worktree of it.
@@ -169,7 +177,7 @@ fn main_checkout(root: &Path) -> Option<PathBuf> {
 
 /// Where the pack lands: `LOCALGPT_WORLD_ASSETS`, else `<data dir>/localgpt/
 /// models/pack`, the base `localgpt-world-agent`'s `paths` resolves.
-fn pack_root() -> Result<PathBuf, String> {
+pub(crate) fn pack_root() -> Result<PathBuf, String> {
     if let Some(over) = std::env::var_os("LOCALGPT_WORLD_ASSETS") {
         return Ok(PathBuf::from(over));
     }

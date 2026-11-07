@@ -24,7 +24,7 @@ usage: bin/lg <domain> <command> [args…]   |   bin/lg <command> [args…]
 
   lg web deploy <site…|all> [--dry-run]   app gen verse md world -> their Cloudflare Workers
   lg build <target…> [--release]          cli app gen previs md verse all (cargo args after --)
-  lg build bundle [--debug] [--dmg]       LocalGPT.app (apps/app-desktop/macos/build-app.sh)
+  lg build bundle [--debug] [--dmg]       LocalGPT.app (cargo xtask bundle)
   lg verify [--rust|--bevy|…]             the CI checks locally; run before a release or a deploy
   lg fetch assets                         the 522 MB CC0 pack
   lg help [domain]                        this menu, or one domain's commands
@@ -85,7 +85,7 @@ case "$cmd" in
   build)
     [ $# -gt 0 ] || { lg_domain_help build; exit 2; }
     case "$1" in
-      bundle) shift; lg_exec "$LG_HOME/../apps/app-desktop/macos/build-app.sh" "$@" ;;
+      bundle) shift; cd "$LG_HOME/.." && exec cargo xtask bundle "$@" ;;
       *) lg_exec "$LG_HOME/build/target.sh" "$@" ;;
     esac ;;
 

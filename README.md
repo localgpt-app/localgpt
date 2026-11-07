@@ -38,7 +38,7 @@ cargo run -p localgpt-app                             # reopens what was opened 
 cargo run -p localgpt-app -- --md notes.md            # a document as a world
 cargo run -p localgpt-app -- --song track.mp3         # a song as a world that performs it
 cargo run -p localgpt-app -- --world scene-1.world    # a package, opened as a live canvas
-apps/app-desktop/macos/build-app.sh                   # LocalGPT.app for macOS
+cargo xtask bundle                                    # LocalGPT.app for macOS
 
 # The shared download, once per machine, read by every app
 cargo xtask fetch-assets   # the 522 MB CC0 asset pack (Poly Haven models)

@@ -7,8 +7,8 @@ name: desktop
 # version must be the workspace's (Cargo.toml). Run by hand, the workflow
 # builds and keeps the files as artifacts, and makes no release.
 #
-# The build is apps/app-desktop/macos/build-app.sh --dmg, so a release and a
-# bundle made on a Mac are the same build. Signing and notarization run when
+# The build is `cargo xtask bundle --dmg` (xtask/src/bundle.rs), so a release
+# and a bundle made on a Mac are the same build. Signing and notarization run when
 # their secrets are set (Settings > Secrets and variables > Actions):
 #   APPLE_CERTIFICATE           the Developer ID Application certificate, a base64 .p12
 #   APPLE_CERTIFICATE_PASSWORD  its password
@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       features:
-        description: "APP_FEATURES for build-app.sh: 'default' keeps the script's choice (no features); anything else, including empty, replaces it"
+        description: "APP_FEATURES for cargo xtask bundle: 'default' keeps its choice (no features); anything else, including empty, replaces it"
         required: false
         default: default
         type: string
@@ -162,7 +162,7 @@ jobs:
       - name: LocalGPT.app and the .dmg
         env:
           LOCALGPT_STARTER_MUSIC: ${{ github.workspace }}/starter-assets
-        run: apps/app-desktop/macos/build-app.sh --dmg
+        run: cargo xtask bundle --dmg
 
       - name: Name the .dmg by architecture
         env:

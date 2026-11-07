@@ -9,7 +9,6 @@
 # None: the page's web view host went in step E, 2026-11-06.
 
 [files]
-apps/app-desktop/macos/build-app.sh
 bin/build/target.sh
 bin/lg
 bin/lib/common.sh

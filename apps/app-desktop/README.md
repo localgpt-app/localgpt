@@ -38,9 +38,9 @@ the viewport and WASD moves you again.
 ## Build the macOS app
 
 ```bash
-apps/app-desktop/macos/build-app.sh            # release build → dist/LocalGPT.app
-apps/app-desktop/macos/build-app.sh --dmg      # also dist/LocalGPT-<version>.dmg
-apps/app-desktop/macos/build-app.sh --debug    # quick bundle of the debug build
+cargo xtask bundle             # release build → dist/LocalGPT.app
+cargo xtask bundle --dmg       # also dist/LocalGPT-<version>.dmg
+cargo xtask bundle --debug     # quick bundle of the debug build
 open apps/app-desktop/dist/LocalGPT.app
 ```
 
@@ -60,7 +60,7 @@ xcrun notarytool store-credentials localgpt-notary \
 
 APPLE_SIGNING_IDENTITY="Developer ID Application: <name> (<team id>)" \
 APPLE_NOTARY_PROFILE=localgpt-notary \
-  apps/app-desktop/macos/build-app.sh
+  cargo xtask bundle
 ```
 
 The CC0 asset pack is not in the bundle; `cargo xtask fetch-assets` fetches it

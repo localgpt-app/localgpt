@@ -112,9 +112,9 @@ Launched from a terminal the app logs to stderr (`RUST_LOG` sets the level, `war
 ## Build LocalGPT.app {#build}
 
 ```bash
-apps/app-desktop/macos/build-app.sh            # release build → apps/app-desktop/dist/LocalGPT.app
-apps/app-desktop/macos/build-app.sh --dmg      # also dist/LocalGPT-<version>.dmg
-apps/app-desktop/macos/build-app.sh --debug    # a quick bundle of the debug build
+cargo xtask bundle             # release build → apps/app-desktop/dist/LocalGPT.app
+cargo xtask bundle --dmg       # also dist/LocalGPT-<version>.dmg
+cargo xtask bundle --debug     # a quick bundle of the debug build
 ```
 
 The script builds a phone's page first (`crates/app/ui`, which needs node 22) and the release binary carries it inside. Without credentials the bundle is ad-hoc signed and runs on the Mac that built it. Given `APPLE_SIGNING_IDENTITY` and `APPLE_NOTARY_PROFILE`, the script signs with a Developer ID, enables the hardened runtime and notarizes. The asset pack is not in the bundle: `cargo xtask fetch-assets` fetches it once per machine. The four CC0 starter tracks are, so a first launch opens a song; the script takes them from a `localgpt-world-assets` checkout beside the repository, the pack, or the asset root `LOCALGPT_STARTER_MUSIC` names. There is no model to fetch; the app runs none.

@@ -7,9 +7,11 @@
 //! cargo xtask rule --write    # drop the listed paths that are gone
 //! cargo xtask verify          # the CI checks on this machine (--rust --bevy …)
 //! cargo xtask fetch-assets    # the shared CC0 pack and the starter tracks
+//! cargo xtask bundle          # LocalGPT.app (--debug, --dmg)
 //! ```
 
 mod assets;
+mod bundle;
 mod rule;
 mod verify;
 
@@ -23,6 +25,7 @@ fn main() -> ExitCode {
         Some("rule") => rule::run(&root, args.iter().skip(1).any(|a| a == "--write")),
         Some("verify") => verify::run(&root, &args[1..]),
         Some("fetch-assets") => assets::run(&root),
+        Some("bundle") => bundle::run(&root, &args[1..]),
         Some(other) => Err(format!("unknown command {other:?}\n\n{USAGE}")),
         None => Err(USAGE.to_string()),
     };
@@ -45,7 +48,9 @@ const USAGE: &str = concat!(
     "  verify [--rust] [--bevy] [--features] [--web] [--deps]
                    the CI checks on this machine, in CI's order (default: all)
   fetch-assets     the CC0 asset pack and the starter tracks, from a
-                   localgpt-world-assets checkout into the shared pack"
+                   localgpt-world-assets checkout into the shared pack
+  bundle [--debug] [--dmg]
+                   LocalGPT.app for macOS, and a .dmg (`cargo xtask bundle --help`)"
 );
 
 /// The workspace root: the xtask crate's parent folder. `cargo run` names

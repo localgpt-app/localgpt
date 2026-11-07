@@ -61,7 +61,7 @@ localgpt-gen --verbose --mcp-relay
 
 `--world` imports a world file or URL into `skills/<name>/` in your workspace, with the meshes and audio it references, then opens it; from there it saves like any world you made. Running the same command again opens that copy rather than importing over your edits; delete the folder to import afresh.
 
-Gen keeps one file of settings, `~/.local/state/localgpt/gen-settings.json` (what the app opened last), and reads no config file. The windowed app with terminals for your agents beside the world is the [LocalGPT desktop app](/docs/app/); build its macOS bundle with `apps/app-desktop/macos/build-app.sh` from the repository.
+Gen keeps one file of settings, `~/.local/state/localgpt/gen-settings.json` (what the app opened last), and reads no config file. The windowed app with terminals for your agents beside the world is the [LocalGPT desktop app](/docs/app/); build its macOS bundle with `cargo xtask bundle` from the repository.
 
 ## The window is driven from outside
 

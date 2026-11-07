@@ -124,7 +124,7 @@ published its last version, 0.4.2, and is no longer in the tree.
 
 The desktop app releases on its own tag: `desktop-vX.Y.Z` (the same
 version) runs `.github/workflows/desktop.yml`, which builds `LocalGPT.app`
-for Apple silicon and Intel with `apps/app-desktop/macos/build-app.sh`
+for Apple silicon and Intel with `cargo xtask bundle --dmg`
 and drafts a GitHub release with the two `.dmg` files and the Homebrew
 cask; `apps/app-desktop/README.md` has the secrets and the steps after
 the draft.

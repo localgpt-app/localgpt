@@ -668,8 +668,9 @@ renderer) keep their places after these.
       the timeline's "▶" are in none of egui's own fonts (the app reaches
       the system's for them). `cargo xtask verify` is the first script in
       Rust (was `bin/ops/verify.sh`; `bin/lg verify` routes to it), then
-      `cargo xtask fetch-assets` (was `scripts/fetch-assets.sh`). Left:
-      the other scripts (`build-app.sh`, the sites'
+      `cargo xtask fetch-assets` (was `scripts/fetch-assets.sh`), then
+      `cargo xtask bundle` (was `build-app.sh`), the same bundle byte for
+      byte in its plist and icon. Left: the other scripts (the sites'
       deploys, `release-plan.py` and `trust-release-workflow.py`,
       `live-smoke.py`), and `remote-smoke.mjs`, which goes with the page
 - [ ] The last mile of C, with 0.5.0

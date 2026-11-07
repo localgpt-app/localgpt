@@ -73,8 +73,8 @@ The pack is what document and song worlds are furnished with; without it the wor
 ### The macOS app bundle
 
 ```bash
-apps/app-desktop/macos/build-app.sh            # release build → apps/app-desktop/dist/LocalGPT.app
-apps/app-desktop/macos/build-app.sh --dmg      # also a .dmg
+cargo xtask bundle             # release build → apps/app-desktop/dist/LocalGPT.app
+cargo xtask bundle --dmg       # also a .dmg
 open apps/app-desktop/dist/LocalGPT.app
 ```
 
