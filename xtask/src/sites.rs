@@ -15,9 +15,10 @@ pub const DEPLOY_USAGE: &str = "  deploy <site…|all> [--dry-run]
                    (--dry-run assembles and resolves each config, publishes nothing)";
 pub const ASSEMBLE_USAGE: &str = "  assemble md | world [--all]
                    put a site together from the crates (world --all: and the
-                   curated worlds' binaries from the assets checkout)";
-pub const ADD_WORLD_USAGE: &str = "  add-world <world.json> <name> --from <dir>…
-                   a world into localgpt.world's gallery, its models shrunk for the web";
+                   gallery packages' assets from the assets checkout)";
+pub const ADD_WORLD_USAGE: &str = "  add-world <world.json|dir.world> <name> --from <dir>… [--keep]
+                   a world into localgpt.world's gallery as a .world package, its
+                   assets content-addressed and its models shrunk (--keep: as they are)";
 
 /// A site's name, its folder and where it serves, in the family strip's
 /// order (what `all` deploys in).
@@ -182,12 +183,16 @@ fn assemble_md(root: &Path) -> Result<(), String> {
 
 /// localgpt.world: the one web renderer (and the ext-cinematography module
 /// it imports as `./cinematography.js`) and the conformance scenes, from
-/// the crates that own them in this same commit, so they cannot drift; with
-/// `all`, the curated worlds' shrunk GLBs, music and posters from the assets
-/// checkout (`LOCALGPT_WORLD_ASSETS`, else a sibling), derivatives that
-/// gltf-transform made and that are stored there rather than rebuilt here.
-/// Without them the conformance worlds still render; the curated ones 404
-/// their meshes.
+/// the crates that own them in this same commit, so they cannot drift. The
+/// gallery's worlds are `.world` packages tracked beside them
+/// (`worlds/<name>.world/`: the manifest and its `package.json`); with
+/// `all`, each package's content-addressed assets and the posters come from
+/// the assets checkout (`LOCALGPT_WORLD_ASSETS`, else a sibling),
+/// derivatives gltf-transform made that are stored there rather than rebuilt
+/// here. Every package whose assets are all present is then zipped — the
+/// format's transport form, what the page offers to download. Without the
+/// checkout the conformance scenes and the primitives-only packages still
+/// render and zip; the others wait for their assets.
 fn assemble_world(root: &Path, all: bool) -> Result<(), String> {
     let site = root.join("website-world");
     let viewer = site.join("viewer");
@@ -216,18 +221,15 @@ fn assemble_world(root: &Path, all: bool) -> Result<(), String> {
     if copy_dir(&conformance.join("assets"), &worlds.join("assets"))? {
         println!("  worlds/assets/ <- conformance assets");
     }
+    let packages = gallery_packages(&worlds)?;
     if all {
-        let mut roots: Vec<PathBuf> = std::env::var_os("LOCALGPT_WORLD_ASSETS")
-            .map(PathBuf::from)
-            .into_iter()
-            .collect();
-        roots.extend(crate::assets::checkouts(root));
-        let assets = roots
-            .into_iter()
-            .find(|dir| dir.join("web/worlds").is_dir())
-            .ok_or("no assets checkout with web/worlds/: set LOCALGPT_WORLD_ASSETS")?;
-        if copy_dir(&assets.join("web/worlds/assets"), &worlds.join("assets"))? {
-            println!("  worlds/assets/ <- web derivatives");
+        let assets = assets_checkout(root)?;
+        for package in &packages {
+            let name = package_name(package);
+            let from = assets.join(format!("web/worlds/{name}.world/assets"));
+            if copy_dir(&from, &package.join("assets"))? {
+                println!("  worlds/{name}.world/assets/ <- the assets checkout");
+            }
         }
         if copy_dir(&assets.join("web/worlds/posters"), &worlds.join("posters"))? {
             println!("  worlds/posters/");
@@ -235,20 +237,43 @@ fn assemble_world(root: &Path, all: bool) -> Result<(), String> {
         // An un-pulled LFS object is a small text pointer, which the
         // viewer's loader reports as a corrupt model rather than a missing
         // one: say so plainly.
-        let models = worlds.join("assets/models");
-        for entry in std::fs::read_dir(&models).into_iter().flatten().flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            let glb = entry.path().join(format!("{name}.glb"));
-            if let Ok(meta) = std::fs::metadata(&glb)
-                && meta.len() < 1024
-            {
-                return Err(format!(
-                    "{name}.glb is {} bytes: an LFS pointer. Run `git lfs pull` in the assets checkout and assemble again.",
-                    meta.len()
-                ));
+        for package in &packages {
+            let assets = package.join("assets");
+            for entry in std::fs::read_dir(&assets).into_iter().flatten().flatten() {
+                let path = entry.path();
+                let media = path
+                    .extension()
+                    .is_some_and(|ext| ext == "glb" || ext == "mp3" || ext == "ogg");
+                if media
+                    && let Ok(meta) = std::fs::metadata(&path)
+                    && meta.len() < 1024
+                {
+                    return Err(format!(
+                        "{} is {} bytes: an LFS pointer. Run `git lfs pull` in the assets checkout and assemble again.",
+                        path.strip_prefix(&site).unwrap_or(&path).display(),
+                        meta.len()
+                    ));
+                }
             }
         }
     }
+    let (mut zipped, mut waiting) = (0, Vec::new());
+    for package in &packages {
+        if package_zip(package)? {
+            zipped += 1;
+        } else {
+            waiting.push(package_name(package));
+        }
+    }
+    println!(
+        "  {zipped} of {} packages zipped{}",
+        packages.len(),
+        if waiting.is_empty() {
+            String::new()
+        } else {
+            format!(" (waiting for assets: {})", waiting.join(", "))
+        }
+    );
     println!(
         "{}",
         if all {
@@ -258,6 +283,125 @@ fn assemble_world(root: &Path, all: bool) -> Result<(), String> {
         }
     );
     Ok(())
+}
+
+/// The assets checkout holding the gallery's derivatives:
+/// `LOCALGPT_WORLD_ASSETS`, else a sibling under any name it has had.
+fn assets_checkout(root: &Path) -> Result<PathBuf, String> {
+    let mut roots: Vec<PathBuf> = std::env::var_os("LOCALGPT_WORLD_ASSETS")
+        .map(PathBuf::from)
+        .into_iter()
+        .collect();
+    roots.extend(crate::assets::checkouts(root));
+    roots
+        .into_iter()
+        .find(|dir| dir.join("web/worlds").is_dir())
+        .ok_or_else(|| "no assets checkout with web/worlds/: set LOCALGPT_WORLD_ASSETS".into())
+}
+
+/// The gallery's packages: every `worlds/<name>.world/` holding a
+/// manifest, sorted by name.
+fn gallery_packages(worlds: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut packages: Vec<PathBuf> = std::fs::read_dir(worlds)
+        .map_err(|e| format!("{}: {e}", worlds.display()))?
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.is_dir()
+                && path.extension().is_some_and(|ext| ext == "world")
+                && path.join(MANIFEST).is_file()
+        })
+        .collect();
+    packages.sort();
+    Ok(packages)
+}
+
+/// `worlds/<name>.world` → `<name>`.
+fn package_name(package: &Path) -> String {
+    package
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+/// The package's transport form, `worlds/<name>.world.zip`, once every
+/// asset its manifest references is in the package: `<name>.world/` at the
+/// archive's root, its files sorted and stored (the assets are compressed
+/// media already) with one fixed timestamp, so the same package zips to the
+/// same bytes. A package still waiting for its assets gets no zip, and a
+/// stale one goes. True when the zip was written.
+fn package_zip(package: &Path) -> Result<bool, String> {
+    use std::fs::File;
+    use zip::CompressionMethod;
+    use zip::ZipWriter;
+    use zip::write::SimpleFileOptions;
+
+    let manifest = read_manifest(&package.join(MANIFEST))?;
+    let zip_path = package.with_extension("world.zip");
+    let assets = package.join("assets");
+    if referenced(&manifest)
+        .iter()
+        .any(|asset| !assets.join(asset).is_file())
+    {
+        let _ = std::fs::remove_file(&zip_path);
+        return Ok(false);
+    }
+    let mut files = Vec::new();
+    collect_files(package, &mut files)?;
+    files.sort();
+    let dir = package
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let zip_error = |e: zip::result::ZipError| format!("{}: {e}", zip_path.display());
+    let file = File::create(&zip_path).map_err(|e| format!("{}: {e}", zip_path.display()))?;
+    let mut zip = ZipWriter::new(file);
+    let options = SimpleFileOptions::default()
+        .compression_method(CompressionMethod::Stored)
+        .last_modified_time(zip::DateTime::default());
+    for path in &files {
+        let rel = path
+            .strip_prefix(package)
+            .map_err(|e| format!("{}: {e}", path.display()))?
+            .to_string_lossy()
+            .replace('\\', "/");
+        zip.start_file(format!("{dir}/{rel}"), options)
+            .map_err(zip_error)?;
+        let mut source = File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        std::io::copy(&mut source, &mut zip).map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    zip.finish().map_err(zip_error)?;
+    Ok(true)
+}
+
+/// Every file under `dir`, recursively; hidden entries (an app's `.live/`,
+/// a Finder's `.DS_Store`) are not part of a package.
+fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+    for entry in std::fs::read_dir(dir)
+        .map_err(|e| format!("{}: {e}", dir.display()))?
+        .flatten()
+    {
+        let path = entry.path();
+        if entry.file_name().to_string_lossy().starts_with('.') {
+            continue;
+        }
+        if path.is_dir() {
+            collect_files(&path, out)?;
+        } else {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
+fn read_manifest(path: &Path) -> Result<serde_json::Value, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let manifest: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+    if !manifest["entities"].is_array() {
+        return Err(format!("{}: not a world manifest", path.display()));
+    }
+    Ok(manifest)
 }
 
 /// `from` copied into `to`, file by file, over what is there; false when
@@ -283,27 +427,54 @@ fn copy_dir(from: &Path, to: &Path) -> Result<bool, String> {
 
 const GLTF_TRANSFORM: &str = "@gltf-transform/cli@4.5.0";
 
-/// `cargo xtask add-world <world.json> <name> --from <dir>…`: the world's
-/// manifest to `worlds/<name>.json` and every asset it references into
-/// `worlds/assets/`, glTF models shrunk for the web on the way (textures
-/// to 512 px, then weld, simplify and prune), kept core glTF so the viewer
-/// and `localgpt-gen --world` load them without decoders. An asset path is
-/// relative to the format's `assets/` folder and looked up under the
-/// `--from` roots in order; one already on the site is kept, so worlds
-/// share models.
+/// The world now, the one file a viewer reads.
+const MANIFEST: &str = openworldformat::package::MANIFEST;
+/// The package's metadata and integrity record (spec/package.md).
+const PACKAGE_JSON: &str = "package.json";
+/// A material's texture slots, as the manifest spells them.
+const TEXTURE_FIELDS: [&str; 4] = [
+    "base_color_texture",
+    "metallic_roughness_texture",
+    "normal_map_texture",
+    "emissive_texture",
+];
+
+/// Where a referenced asset went: its content-addressed name under the
+/// package's `assets/`, and the hash that name promises.
+#[derive(Debug, Clone, PartialEq)]
+struct Stored {
+    name: String,
+    sha256: String,
+}
+
+/// `cargo xtask add-world <world.json|dir.world> <name> --from <dir>… [--keep]`:
+/// the world into the gallery as the package `worlds/<name>.world/` — its
+/// manifest in the format's canonical text, a `package.json` naming those
+/// bytes, and every asset it references stored under `assets/` by content
+/// hash (`<sha256>.<ext>`: the format's baseline for a published world, and
+/// what `localgpt world verify` checks), the references rewritten to the
+/// copies, a mesh reference carrying its hash. A glTF model is shrunk for
+/// the web on the way (textures to 512 px, then weld, simplify and prune),
+/// kept core glTF so the viewer and `localgpt-gen --world` load it without
+/// decoders; `--keep` stores every file as it is, for sources that are
+/// web-sized already. A reference is relative to the format's `assets/`
+/// and looked up under the `--from` roots in order — for a `.world` source,
+/// its own `assets/` first. The copies belong in the assets checkout under
+/// `web/worlds/<name>.world/assets/`; the manifest and `package.json` are
+/// tracked here.
 pub fn add_world(root: &Path, args: &[String]) -> Result<(), String> {
-    let (mut roots, mut positional) = (Vec::new(), Vec::new());
+    let (mut roots, mut positional, mut keep) = (Vec::new(), Vec::new(), false);
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
-        if arg == "--from" {
-            roots.push(PathBuf::from(iter.next().ok_or("--from needs a folder")?));
-        } else {
-            positional.push(arg.as_str());
+        match arg.as_str() {
+            "--from" => roots.push(PathBuf::from(iter.next().ok_or("--from needs a folder")?)),
+            "--keep" => keep = true,
+            other => positional.push(other),
         }
     }
     let [source, name] = positional[..] else {
         return Err(format!(
-            "usage: cargo xtask add-world <world.json> <name> --from <dir>…\n{ADD_WORLD_USAGE}"
+            "usage: cargo xtask add-world <world.json|dir.world> <name> --from <dir>… [--keep]\n{ADD_WORLD_USAGE}"
         ));
     };
     if roots.is_empty()
@@ -314,18 +485,23 @@ pub fn add_world(root: &Path, args: &[String]) -> Result<(), String> {
     {
         return Err("a name of a-z, 0-9 and -, and at least one --from".into());
     }
-    let text = std::fs::read_to_string(source).map_err(|e| format!("{source}: {e}"))?;
-    let manifest: serde_json::Value =
-        serde_json::from_str(&text).map_err(|e| format!("{source}: {e}"))?;
-    let entities = manifest["entities"]
-        .as_array()
-        .ok_or_else(|| format!("{source}: not a world manifest"))?;
-    let assets = referenced(&manifest);
-    let worlds = root.join("website-world/worlds");
-    let (mut before, mut after) = (0u64, 0u64);
+    let source = Path::new(source);
+    let manifest_path = if source.is_dir() {
+        roots.insert(0, source.join("assets"));
+        source.join(MANIFEST)
+    } else {
+        source.to_path_buf()
+    };
+    let mut manifest = read_manifest(&manifest_path)?;
+    let entities = manifest["entities"].as_array().map_or(0, Vec::len);
+    let package = root.join(format!("website-world/worlds/{name}.world"));
+    let assets_dir = package.join("assets");
+    std::fs::create_dir_all(&assets_dir).map_err(|e| format!("{}: {e}", assets_dir.display()))?;
+    let (mut before, mut after, mut added) = (0u64, 0u64, 0usize);
     let mb = |bytes: u64| format!("{:.1} MB", bytes as f64 / 1e6);
-    for asset in &assets {
-        let rel = Path::new(asset);
+    let mut stored = std::collections::BTreeMap::new();
+    for asset in referenced(&manifest) {
+        let rel = Path::new(&asset);
         if rel.is_absolute()
             || rel
                 .components()
@@ -333,69 +509,27 @@ pub fn add_world(root: &Path, args: &[String]) -> Result<(), String> {
         {
             return Err(format!("unsafe asset path: {asset}"));
         }
-        let dest = worlds.join("assets").join(rel);
-        if dest.exists() {
-            println!("kept    {asset}");
-            continue;
-        }
         let from = roots
             .iter()
             .map(|root| root.join(rel))
-            .find(|path| path.exists())
+            .find(|path| path.is_file())
             .ok_or_else(|| format!("{asset}: not found under the --from folders"))?;
-        if let Some(dir) = dest.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-        }
         let size = std::fs::metadata(&from).map(|m| m.len()).unwrap_or(0);
-        before += size;
         let model = rel
             .extension()
             .is_some_and(|ext| ext.eq_ignore_ascii_case("glb") || ext.eq_ignore_ascii_case("gltf"));
+        // Shrink or copy into a staging file first: the name is the hash of
+        // what comes out, and that is known only afterwards.
+        let incoming = assets_dir.join(".incoming");
         let copy = || {
-            std::fs::copy(&from, &dest)
+            std::fs::copy(&from, &incoming)
                 .map(|_| ())
                 .map_err(|e| format!("{asset}: {e}"))
         };
-        if model {
-            let (from_s, dest_s) = (from.to_string_lossy(), dest.to_string_lossy());
-            run_quiet(
-                npx(),
-                &[
-                    "-y",
-                    GLTF_TRANSFORM,
-                    "resize",
-                    &from_s,
-                    &dest_s,
-                    "--width",
-                    "512",
-                    "--height",
-                    "512",
-                ],
-            )?;
-            run_quiet(
-                npx(),
-                &[
-                    "-y",
-                    GLTF_TRANSFORM,
-                    "optimize",
-                    &dest_s,
-                    &dest_s,
-                    "--compress",
-                    "false",
-                    "--texture-compress",
-                    "false",
-                    "--instance",
-                    "false",
-                    "--palette",
-                    "false",
-                    "--simplify-ratio",
-                    "0.1",
-                    "--simplify-error",
-                    "0.004",
-                ],
-            )?;
+        if model && !keep {
+            shrink_model(&from, &incoming)?;
             // A small model can come out larger than it went in: keep it.
-            if std::fs::metadata(&dest)
+            if std::fs::metadata(&incoming)
                 .map(|m| m.len())
                 .unwrap_or(u64::MAX)
                 >= size
@@ -405,18 +539,54 @@ pub fn add_world(root: &Path, args: &[String]) -> Result<(), String> {
         } else {
             copy()?;
         }
-        let now = std::fs::metadata(&dest).map(|m| m.len()).unwrap_or(0);
-        after += now;
-        println!("added   {asset} ({} -> {})", mb(size), mb(now));
+        let bytes = std::fs::read(&incoming).map_err(|e| format!("{asset}: {e}"))?;
+        let sha256 = openworldformat::sha256_hex(&bytes);
+        let copy_name = stored_name(&asset, &sha256);
+        let dest = assets_dir.join(&copy_name);
+        if dest.is_file() {
+            std::fs::remove_file(&incoming).map_err(|e| format!("{asset}: {e}"))?;
+            println!("kept    {asset} = {copy_name}");
+        } else {
+            std::fs::rename(&incoming, &dest).map_err(|e| format!("{asset}: {e}"))?;
+            added += 1;
+            before += size;
+            after += bytes.len() as u64;
+            println!(
+                "added   {asset} -> {copy_name} ({} -> {})",
+                mb(size),
+                mb(bytes.len() as u64)
+            );
+        }
+        stored.insert(
+            asset,
+            Stored {
+                name: copy_name,
+                sha256,
+            },
+        );
     }
-    std::fs::write(worlds.join(format!("{name}.json")), &text)
-        .map_err(|e| format!("{name}.json: {e}"))?;
+    rewrite_refs(&mut manifest, &stored);
+    let text = openworldformat::manifest_text(&manifest);
+    std::fs::write(package.join(MANIFEST), &text)
+        .map_err(|e| format!("{}: {e}", package.join(MANIFEST).display()))?;
+    // package.json names the manifest's bytes; the record is rewritten only
+    // when the world changed, so a rerun that changes nothing changes nothing.
+    let sha256 = openworldformat::sha256_hex(text.as_bytes());
+    let record = package.join(PACKAGE_JSON);
+    let current: Option<openworldformat::session::SessionMeta> = std::fs::read(&record)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+    if current.and_then(|meta| meta.world_sha256) != Some(sha256.clone()) {
+        let meta = package_meta(name, &manifest, sha256);
+        let json = serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?;
+        std::fs::write(&record, format!("{json}\n"))
+            .map_err(|e| format!("{}: {e}", record.display()))?;
+    }
     println!(
-        "worlds/{name}.json: {} entities, {} assets{}",
-        entities.len(),
-        assets.len(),
+        "worlds/{name}.world: {entities} entities, {} assets ({added} added){}",
+        stored.len(),
         if before > 0 {
-            format!(", new assets {} -> {}", mb(before), mb(after))
+            format!(", {} -> {}", mb(before), mb(after))
         } else {
             String::new()
         }
@@ -424,8 +594,127 @@ pub fn add_world(root: &Path, args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// The assets a world references: its entities' meshes and sounds, and its
-/// soundtrack; sorted, each once.
+/// A glTF model shrunk for the web: textures to 512 px, then weld, simplify
+/// and prune, staying core glTF.
+fn shrink_model(from: &Path, to: &Path) -> Result<(), String> {
+    let (from_s, to_s) = (from.to_string_lossy(), to.to_string_lossy());
+    run_quiet(
+        npx(),
+        &[
+            "-y",
+            GLTF_TRANSFORM,
+            "resize",
+            &from_s,
+            &to_s,
+            "--width",
+            "512",
+            "--height",
+            "512",
+        ],
+    )?;
+    run_quiet(
+        npx(),
+        &[
+            "-y",
+            GLTF_TRANSFORM,
+            "optimize",
+            &to_s,
+            &to_s,
+            "--compress",
+            "false",
+            "--texture-compress",
+            "false",
+            "--instance",
+            "false",
+            "--palette",
+            "false",
+            "--simplify-ratio",
+            "0.1",
+            "--simplify-error",
+            "0.004",
+        ],
+    )
+}
+
+/// The content-addressed name of a stored copy: the hash, with the
+/// source's extension in lowercase (`<sha256>.glb`); the hash alone when
+/// the source had none.
+fn stored_name(path: &str, sha256: &str) -> String {
+    match Path::new(path).extension() {
+        Some(ext) => format!("{sha256}.{}", ext.to_string_lossy().to_ascii_lowercase()),
+        None => sha256.to_string(),
+    }
+}
+
+/// Every reference in the manifest moved to its stored copy: a mesh
+/// reference's path and its `sha256`, an audio emitter's file, a material's
+/// textures, the soundtrack. A reference to nothing stored stays as it is.
+fn rewrite_refs(
+    manifest: &mut serde_json::Value,
+    stored: &std::collections::BTreeMap<String, Stored>,
+) {
+    use serde_json::Value;
+    let relocate = |slot: &mut Value| {
+        if let Some(copy) = slot.as_str().and_then(|path| stored.get(path)) {
+            *slot = Value::String(copy.name.clone());
+        }
+    };
+    for entity in manifest["entities"].as_array_mut().into_iter().flatten() {
+        if let Some(mesh) = entity.get_mut("mesh_asset").and_then(Value::as_object_mut)
+            && let Some(copy) = mesh
+                .get("path")
+                .and_then(Value::as_str)
+                .and_then(|path| stored.get(path))
+        {
+            let (name, sha256) = (copy.name.clone(), copy.sha256.clone());
+            mesh.insert("path".into(), Value::String(name));
+            mesh.insert("sha256".into(), Value::String(sha256));
+        }
+        if let Some(slot) = entity.pointer_mut("/audio/source/File/path") {
+            relocate(slot);
+        }
+        for field in TEXTURE_FIELDS {
+            if let Some(slot) = entity.pointer_mut(&format!("/material/{field}")) {
+                relocate(slot);
+            }
+        }
+    }
+    if let Some(slot) = manifest.pointer_mut("/soundtrack/path") {
+        relocate(slot);
+    }
+}
+
+/// The package's `package.json`: the format's session metadata for a
+/// package with no history yet — revision 0, the manifest's bytes named,
+/// the app the gallery name says made it.
+fn package_meta(
+    name: &str,
+    manifest: &serde_json::Value,
+    world_sha256: String,
+) -> openworldformat::session::SessionMeta {
+    let title = manifest["meta"]["name"]
+        .as_str()
+        .filter(|title| !title.trim().is_empty())
+        .unwrap_or(name);
+    let mut meta = openworldformat::session::SessionMeta::new(title);
+    meta.app = app_of(name);
+    meta.world_sha256 = Some(world_sha256);
+    meta.updated_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    meta
+}
+
+/// Which app made a gallery world, read off its name's prefix
+/// (`gen-…`, `md-…`, `verse-…`); none for any other name.
+fn app_of(name: &str) -> Option<String> {
+    let prefix = name.split('-').next()?;
+    matches!(prefix, "gen" | "md" | "verse").then(|| format!("localgpt-{prefix}"))
+}
+
+/// The assets a world references, relative to its `assets/`: its entities'
+/// meshes, sounds and textures, and its soundtrack; sorted, each once.
 fn referenced(manifest: &serde_json::Value) -> Vec<String> {
     let mut assets = std::collections::BTreeSet::new();
     for entity in manifest["entities"].as_array().into_iter().flatten() {
@@ -434,6 +723,11 @@ fn referenced(manifest: &serde_json::Value) -> Vec<String> {
         }
         if let Some(path) = entity["audio"]["source"]["File"]["path"].as_str() {
             assets.insert(path.to_string());
+        }
+        for field in TEXTURE_FIELDS {
+            if let Some(path) = entity["material"][field].as_str() {
+                assets.insert(path.to_string());
+            }
         }
     }
     if let Some(path) = manifest["soundtrack"]["path"].as_str() {
@@ -493,12 +787,13 @@ mod tests {
     }
 
     #[test]
-    fn a_worlds_assets_are_its_meshes_sounds_and_soundtrack() {
+    fn a_worlds_assets_are_its_meshes_sounds_textures_and_soundtrack() {
         let manifest = serde_json::json!({
             "entities": [
                 {"mesh_asset": {"path": "models/rock/rock.glb"}},
                 {"audio": {"source": {"File": {"path": "sounds/wind.ogg"}}}},
                 {"mesh_asset": {"path": "models/rock/rock.glb"}},
+                {"material": {"base_color_texture": "textures/checker_albedo.png", "normal_map_texture": "textures/checker_normal.png"}},
                 {"name": "bare"}
             ],
             "soundtrack": {"path": "music/amber-drift.mp3"}
@@ -508,8 +803,155 @@ mod tests {
             [
                 "models/rock/rock.glb",
                 "music/amber-drift.mp3",
-                "sounds/wind.ogg"
+                "sounds/wind.ogg",
+                "textures/checker_albedo.png",
+                "textures/checker_normal.png",
             ]
         );
+    }
+
+    #[test]
+    fn a_stored_copy_is_named_by_its_hash_and_the_sources_extension() {
+        let sha = "ab".repeat(32);
+        assert_eq!(
+            stored_name("models/rock/rock.GLB", &sha),
+            format!("{sha}.glb")
+        );
+        assert_eq!(
+            stored_name("music/amber-drift.mp3", &sha),
+            format!("{sha}.mp3")
+        );
+        assert_eq!(stored_name("README", &sha), sha);
+    }
+
+    #[test]
+    fn references_move_to_their_stored_copies() {
+        let mut manifest = serde_json::json!({
+            "entities": [
+                {"mesh_asset": {"path": "models/rock/rock.glb", "node": "trunk"}},
+                {"audio": {"source": {"File": {"path": "sounds/wind.ogg", "looping": true}}}},
+                {"material": {"base_color_texture": "textures/checker_albedo.png", "roughness": 0.5}},
+                {"mesh_asset": {"path": "models/elsewhere.glb"}}
+            ],
+            "soundtrack": {"path": "music/amber-drift.mp3", "bpm": 92}
+        });
+        let copy = |name: &str, sha: &str| Stored {
+            name: name.to_string(),
+            sha256: sha.to_string(),
+        };
+        let stored = std::collections::BTreeMap::from([
+            ("models/rock/rock.glb".to_string(), copy("1111.glb", "1111")),
+            ("sounds/wind.ogg".to_string(), copy("2222.ogg", "2222")),
+            (
+                "textures/checker_albedo.png".to_string(),
+                copy("3333.png", "3333"),
+            ),
+            (
+                "music/amber-drift.mp3".to_string(),
+                copy("4444.mp3", "4444"),
+            ),
+        ]);
+        rewrite_refs(&mut manifest, &stored);
+        assert_eq!(
+            manifest["entities"][0]["mesh_asset"],
+            serde_json::json!({"path": "1111.glb", "node": "trunk", "sha256": "1111"})
+        );
+        assert_eq!(
+            manifest["entities"][1]["audio"]["source"]["File"]["path"],
+            "2222.ogg"
+        );
+        assert_eq!(
+            manifest["entities"][1]["audio"]["source"]["File"]["looping"],
+            true
+        );
+        assert_eq!(
+            manifest["entities"][2]["material"]["base_color_texture"],
+            "3333.png"
+        );
+        assert_eq!(manifest["entities"][2]["material"]["roughness"], 0.5);
+        assert_eq!(
+            manifest["entities"][3]["mesh_asset"]["path"],
+            "models/elsewhere.glb"
+        );
+        assert!(
+            manifest["entities"][3]["mesh_asset"]
+                .get("sha256")
+                .is_none()
+        );
+        assert_eq!(manifest["soundtrack"]["path"], "4444.mp3");
+        assert_eq!(manifest["soundtrack"]["bpm"], 92);
+    }
+
+    #[test]
+    fn the_app_is_read_off_the_gallery_name() {
+        assert_eq!(
+            app_of("gen-basalt-lighthouse").as_deref(),
+            Some("localgpt-gen")
+        );
+        assert_eq!(app_of("md-hello").as_deref(), Some("localgpt-md"));
+        assert_eq!(
+            app_of("verse-nightglass").as_deref(),
+            Some("localgpt-verse")
+        );
+        assert_eq!(app_of("castle"), None);
+        let meta = package_meta(
+            "gen-basalt-lighthouse",
+            &serde_json::json!({"meta": {"name": "Basalt Lighthouse"}, "entities": []}),
+            "f".repeat(64),
+        );
+        assert_eq!(meta.name, "Basalt Lighthouse");
+        assert_eq!(meta.app.as_deref(), Some("localgpt-gen"));
+        assert_eq!((meta.base_revision, meta.head_revision), (0, 0));
+        assert_eq!(meta.world_sha256.as_deref(), Some("f".repeat(64).as_str()));
+    }
+
+    fn temp(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("xtask-sites-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn a_package_zips_to_the_same_bytes_once_its_assets_are_there() {
+        let worlds = temp("zip");
+        let package = worlds.join("gen-lamp.world");
+        std::fs::create_dir_all(package.join("assets")).unwrap();
+        let sha = "ab".repeat(32);
+        std::fs::write(
+            package.join(MANIFEST),
+            format!(r#"{{"entities": [{{"id": 1, "mesh_asset": {{"path": "{sha}.glb", "sha256": "{sha}"}}}}]}}"#),
+        )
+        .unwrap();
+        std::fs::write(package.join(PACKAGE_JSON), "{}\n").unwrap();
+        // Waiting for its model: no zip, and a stale one goes.
+        let zip = worlds.join("gen-lamp.world.zip");
+        std::fs::write(&zip, b"stale").unwrap();
+        assert!(!package_zip(&package).unwrap());
+        assert!(!zip.exists(), "a stale zip is removed");
+        // The model arrives: the zip is written, and written the same twice.
+        std::fs::write(
+            package.join("assets").join(format!("{sha}.glb")),
+            b"glb bytes",
+        )
+        .unwrap();
+        std::fs::write(package.join(".DS_Store"), b"not a package file").unwrap();
+        assert!(package_zip(&package).unwrap());
+        let first = std::fs::read(&zip).unwrap();
+        assert!(package_zip(&package).unwrap());
+        assert_eq!(first, std::fs::read(&zip).unwrap(), "deterministic bytes");
+        let text = String::from_utf8_lossy(&first).into_owned();
+        assert!(
+            text.contains("gen-lamp.world/manifest.json"),
+            "entries under the package's folder"
+        );
+        assert!(text.contains(&format!("gen-lamp.world/assets/{sha}.glb")));
+        assert!(
+            !text.contains(".DS_Store"),
+            "hidden files are not part of a package"
+        );
+        assert_eq!(gallery_packages(&worlds).unwrap(), [package.clone()]);
+        assert_eq!(package_name(&package), "gen-lamp");
+        std::fs::remove_dir_all(&worlds).ok();
     }
 }

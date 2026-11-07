@@ -1,0 +1,9 @@
+{
+  "format_version": 2,
+  "name": "Basalt Lighthouse",
+  "app": "localgpt-gen",
+  "base_revision": 0,
+  "head_revision": 0,
+  "world_sha256": "e3e8739a35af7bb1ee49e6865b3e8763b123975032d42236a5735a1bcbe088d2",
+  "updated_ms": 1794029788664
+}

@@ -20,10 +20,15 @@ the plan for the site.
   never edit them here. The whole
   reason this folded in is that the same copies used to cross a repository
   boundary and drifted 185 lines without failing anything.
-- **The curated worlds' GLBs, music and posters are not tracked here.** They are
-  web-optimized derivatives (`cargo xtask add-world` shrinks them with
-  `@gltf-transform`), and they live in `localgpt-world-assets` under `web/` as
-  LFS objects. `npm run assemble:all` brings them in.
+- **The gallery's worlds are `.world` packages**, `worlds/<name>.world/`: the
+  manifest (canonical text) and `package.json` are tracked, the assets are
+  not — they are web-optimized derivatives stored by content hash
+  (`cargo xtask add-world` shrinks them with `@gltf-transform` and names them),
+  and they live in `localgpt-world-assets` under `web/worlds/<name>.world/assets/`
+  as LFS objects, with the posters beside them. `npm run assemble:all` brings
+  them in, and the assemble step zips every complete package — the format's
+  transport form, what the per-world page offers to download. The conformance
+  scenes stay lone manifests, as the spec ships them.
 - Everything in this directory is deployed **except** the files listed in
   `.assetsignore` — which must keep covering `scripts/`, `package.json`,
   `wrangler.toml`, or build tooling ships as site content.

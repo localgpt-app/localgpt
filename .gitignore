@@ -59,6 +59,8 @@ website-*/.wrangler/
 # objects. Only the site's own source is tracked here.
 website-world/viewer/
 website-world/worlds/assets/
+website-world/worlds/*.world/assets/
+website-world/worlds/*.world.zip
 website-world/worlds/posters/
 website-world/worlds/behaviors.json
 website-world/worlds/hierarchy_tours.json

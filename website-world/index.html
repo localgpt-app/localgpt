@@ -898,7 +898,7 @@
 
     const grid = document.getElementById('world-cards');
     for (const w of WORLDS) {
-      const name = w.file.replace(/\.json$/, '');
+      const name = w.package.replace(/\.world$/, '');
       const slug = name;
       const card = document.createElement('a');
       card.className = 'eco-card world-card';

@@ -139,7 +139,7 @@ localgpt-gen --mcp-relay                            # the window, with a relay b
 localgpt-gen mcp-server --connect                   # the agent's process: its tool calls reach that window
 localgpt-gen mcp-server                             # a window of its own, as the agent's process: Claude Desktop, Codex, Gemini CLI, VS Code, Zed, Cursor
 localgpt-gen mcp-server --headless --mcp-http 8765  # no window: CI, batch generation, an HTTP transport
-localgpt-gen --world https://localgpt.world/worlds/md-deck.json   # open a world folder, a saved name, a manifest or a URL
+localgpt-gen --world https://localgpt.world/worlds/gen-basalt-lighthouse.world/manifest.json   # open a world folder, a saved name, a manifest or a URL
 localgpt-gen --live demo.world                      # the live canvas (above)
 localgpt-gen --host --web                           # host a session; friends join from a browser with the invite link
 localgpt-gen --join 192.168.1.5 --pin 482913        # or from their own Gen window

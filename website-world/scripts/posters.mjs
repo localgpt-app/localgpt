@@ -1,6 +1,6 @@
 // A world's poster: one frame of the viewer's canvas. Run by
 // check-worlds.mjs per world; also usable directly:
-//   node scripts/posters.mjs [world.json...]
+//   node scripts/posters.mjs [world.json | name.world ...]
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
@@ -47,7 +47,7 @@ export async function posters(root, worlds) {
   });
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   for (const world of worlds) {
-    const name = basename(world, '.json');
+    const name = basename(world).replace(/\.(json|world)$/, '');
     await page.goto(`${base}/world.html?src=worlds/${world}`);
     await page.waitForFunction(
       () => window.localgptViewer && window.localgptViewer.sceneInfo().entityCount > 0,
@@ -67,14 +67,14 @@ export async function posters(root, worlds) {
   close();
 }
 
-// Run directly: node scripts/posters.mjs [world.json...] (default: all).
+// Run directly: node scripts/posters.mjs [world.json | name.world ...] (default: all).
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
   const { readdir } = await import('node:fs/promises');
   const { fileURLToPath } = await import('node:url');
   const root = fileURLToPath(new URL('../', import.meta.url));
   const given = process.argv.slice(2);
   const worlds = given.length
-    ? given.map((f) => f.replace(/^.*worlds\//, '').replace(/\.json$/, '') + '.json')
-    : (await readdir(join(root, 'worlds'))).filter((f) => f.endsWith('.json')).sort();
+    ? given.map((f) => f.replace(/^.*worlds\//, '').replace(/\/manifest\.json$/, '').replace(/\/$/, ''))
+    : (await readdir(join(root, 'worlds'))).filter((f) => f.endsWith('.json') || f.endsWith('.world')).sort();
   await posters(root, worlds);
 }

@@ -13,3 +13,9 @@ serde_json = { workspace = true }
 etcetera = "0.11"
 # The live smoke writes a swatch and reads a screenshot back.
 png = "0.18"
+# The gallery's packages: the canonical manifest text, package.json's record
+# and the content hash come from the format's reference crate, not a copy of
+# its rules.
+openworldformat = { workspace = true }
+# A package's transport form, stored the way world-agent writes it.
+zip = { version = "9", default-features = false }

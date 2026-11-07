@@ -79,6 +79,12 @@
     .world-meta { color: var(--ink-muted); margin: 8px 0 4px; font-size: 0.98rem; line-height: 1.5; }
     .world-note { color: var(--ink-muted); margin: 0 0 18px; font-size: 0.98rem; line-height: 1.5; max-width: 70ch; }
     .world-credit { color: var(--ink-faint); font-size: 0.86rem; margin-bottom: 20px; }
+    .download {
+      display: inline-block; margin: 0 0 18px; padding: 9px 16px; border-radius: var(--radius-full);
+      border: 1px solid var(--line-bright); background: var(--surface); color: var(--ink);
+      text-decoration: none; font-weight: 600; font-size: 0.92rem;
+    }
+    .download:hover { background: var(--surface-hover); border-color: var(--accent); }
 
     .remix-box {
       background: var(--code-bg); border: 1px solid var(--line); border-radius: var(--radius-md);
@@ -150,11 +156,13 @@
       <h1 id="name" style="margin-top: 12px;">…</h1>
       <p class="world-meta" id="description"></p>
       <p class="world-note" id="note"></p>
+      <p class="world-meta" id="facts"></p>
       <p class="world-credit" id="credit"></p>
+      <a class="download" id="download" href="#" download>Download the .world package</a>
 
       <div class="remix-box">
         <div class="remix-head">
-          <span>Keep building on it in Gen</span>
+          <span>Open it on your machine</span>
           <button class="remix-copy" id="copy-btn" type="button">Copy</button>
         </div>
         <pre class="remix-code" id="remix-code"></pre>
@@ -177,21 +185,25 @@
   <script type="module">
     import WORLDS from '../worlds.js';
 
+    // A gallery world is a `.world` package, `worlds/<name>.world/`: its
+    // manifest is the world now, its assets sit beside it, and its zip is
+    // the format's transport form — what the download hands over.
     const params = new URLSearchParams(location.search);
-    const slug = params.get('world') || '';
-    const file = params.get('src') || (slug !== 'w' && slug ? `${slug}.json` : 'gen-basalt-lighthouse.json');
-    const entry = WORLDS.find((w) => w.file === file) || { file, credit: '', note: '' };
+    const requested = (params.get('world') || '').replace(/\.world$/, '');
+    const slug = /^[a-z0-9-]+$/.test(requested) && requested !== 'w' ? requested : 'gen-basalt-lighthouse';
+    const pkg = `${slug}.world`;
+    const entry = WORLDS.find((w) => w.package === pkg) || { package: pkg, credit: '', note: '' };
 
     const $ = (id) => document.getElementById(id);
     const origin = location.origin;
 
     let manifest = null;
     try {
-      const res = await fetch(`../worlds/${file}`, { credentials: 'omit' });
+      const res = await fetch(`../worlds/${pkg}/manifest.json`, { credentials: 'omit' });
       if (res.ok) manifest = await res.json();
     } catch { /* the panel below shows what we have */ }
 
-    const name = manifest?.meta?.name || file.replace(/\.json$/, '').replace(/-/g, ' ');
+    const name = manifest?.meta?.name || slug.replace(/-/g, ' ');
     const description = manifest?.meta?.description || '';
     document.title = `${name} — LocalGPT World`;
     $('crumb-name').textContent = name;
@@ -200,10 +212,10 @@
     $('note').textContent = entry.note || '';
     $('credit').textContent = entry.credit ? `Made with ${entry.credit}.` : '';
     const posterImg = $('poster');
-    if (posterImg) { posterImg.src = `../worlds/posters/${file.replace(/\.json$/, '.png')}`; posterImg.alt = name; }
+    if (posterImg) { posterImg.src = `../worlds/posters/${slug}.png`; posterImg.alt = name; }
 
     // og tags (link previews) point at the poster and this page.
-    const posterUrl = `${origin}/worlds/posters/${file.replace(/\.json$/, '.png')}`;
+    const posterUrl = `${origin}/worlds/posters/${slug}.png`;
     for (const [attr, key, val] of [
       ['property', 'og:title', `${name} — LocalGPT World`],
       ['property', 'og:image', posterUrl],
@@ -218,17 +230,30 @@
       document.head.appendChild(tag);
     }
 
+    // What the package holds: its entities, and the assets they reference
+    // (meshes, emitters' files, the soundtrack), stored by content hash.
+    const assets = new Set(
+      (manifest?.entities || [])
+        .flatMap((e) => [e.mesh_asset?.path, e.audio?.source?.File?.path])
+        .concat([manifest?.soundtrack?.path])
+        .filter(Boolean),
+    );
+    $('facts').textContent = manifest
+      ? `An Open World Format package: ${manifest.entities.length} entities, ${assets.size} asset${assets.size === 1 ? '' : 's'}, no history yet — the log starts with you.`
+      : '';
+    $('download').href = `../worlds/${pkg}.zip`;
     $('remix-code').textContent =
-      `# ${name}\n` +
-      `localgpt-gen --world ${origin}/worlds/${file}\n\n` +
-      `# or download it first\n` +
-      `# curl -o ${file} ${origin}/worlds/${file}`;
+      `# ${name} — the package, the format's transport form\n` +
+      `curl -O ${origin}/worlds/${pkg}.zip && unzip ${pkg}.zip\n` +
+      `localgpt-app --world ${pkg}    # a live canvas: you edit in the window, agents through its API\n\n` +
+      `# or straight into Gen, assets and all\n` +
+      `localgpt-gen --world ${origin}/worlds/${pkg}/manifest.json`;
 
     const related = $('related');
     for (const w of WORLDS) {
-      if (w.file === file) continue;
+      if (w.package === pkg) continue;
       const a = document.createElement('a');
-      a.href = `index.html?world=${w.file.replace(/\.json$/, '')}`;
+      a.href = `index.html?world=${w.package.replace(/\.world$/, '')}`;
       a.textContent = w.note.split('—')[0].split('.')[0].trim();
       related.appendChild(a);
     }
@@ -237,7 +262,7 @@
     const loader = $('viewer-load');
     const open = () => {
       const frame = $('viewer');
-      if (!frame.src) frame.src = `../world.html?src=worlds/${file}`;
+      if (!frame.src) frame.src = `../world.html?src=worlds/${pkg}`;
       loader.classList.add('hidden');
     };
     loader.addEventListener('click', open);

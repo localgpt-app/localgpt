@@ -1,0 +1,3325 @@
+{
+  "camera": {
+    "fov_degrees": 50,
+    "look_at": [5.1336327, 2.7969613, 0.9122915],
+    "position": [10, 4.4, 9.5]
+  },
+  "entities": [
+    {
+      "id": 866,
+      "material": {
+        "color": [0.3, 0.38, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "forest_floor",
+      "shape": {
+        "Plane": {
+          "x": 120,
+          "z": 120
+        }
+      },
+      "transform": {
+        "position": [0, 0, 0],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 867,
+      "material": {
+        "color": [0.32, 0.36, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "pool_bed",
+      "shape": {
+        "Cylinder": {
+          "height": 0.5,
+          "radius": 7.6
+        }
+      },
+      "transform": {
+        "position": [0, -0.45, -3],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 868,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [0.28, 0.45, 0.43, 0.55],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0.1,
+        "roughness": 0.15
+      },
+      "name": "temple_pool",
+      "shape": {
+        "Cylinder": {
+          "height": 0.12,
+          "radius": 7.4
+        }
+      },
+      "transform": {
+        "position": [0, 0.06, -3],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 869,
+      "material": {
+        "color": [0.5, 0.5, 0.46, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.9
+      },
+      "name": "pool_rim_outer",
+      "shape": {
+        "Torus": {
+          "major_radius": 7.6,
+          "minor_radius": 0.3
+        }
+      },
+      "transform": {
+        "position": [0, 0.1, -3],
+        "rotation_degrees": [89.99999, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 870,
+      "material": {
+        "color": [0.55, 0.55, 0.5, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.9
+      },
+      "name": "pool_rim_inner",
+      "shape": {
+        "Torus": {
+          "major_radius": 7.3,
+          "minor_radius": 0.26
+        }
+      },
+      "transform": {
+        "position": [0, 0.14, -3],
+        "rotation_degrees": [89.99999, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 871,
+      "material": {
+        "color": [0.3, 0.45, 0.26, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.8
+      },
+      "name": "lily_pad_1",
+      "shape": {
+        "Cylinder": {
+          "height": 0.04,
+          "radius": 0.4987984
+        }
+      },
+      "transform": {
+        "position": [-3.86, 0.14, -6.76],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 872,
+      "material": {
+        "color": [0.3, 0.45, 0.26, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.8
+      },
+      "name": "lily_pad_2",
+      "shape": {
+        "Cylinder": {
+          "height": 0.04,
+          "radius": 0.53058124
+        }
+      },
+      "transform": {
+        "position": [5.04, 0.14, -4.91],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 873,
+      "material": {
+        "color": [0.3, 0.45, 0.26, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.8
+      },
+      "name": "lily_pad_3",
+      "shape": {
+        "Cylinder": {
+          "height": 0.04,
+          "radius": 0.5358392
+        }
+      },
+      "transform": {
+        "position": [4.24, 0.14, -2.22],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 874,
+      "material": {
+        "color": [0.3, 0.45, 0.26, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.8
+      },
+      "name": "lily_pad_4",
+      "shape": {
+        "Cylinder": {
+          "height": 0.04,
+          "radius": 0.3283015
+        }
+      },
+      "transform": {
+        "position": [-3.57, 0.14, -7.84],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 875,
+      "material": {
+        "color": [0.3, 0.45, 0.26, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.8
+      },
+      "name": "lily_pad_5",
+      "shape": {
+        "Cylinder": {
+          "height": 0.04,
+          "radius": 0.4359402
+        }
+      },
+      "transform": {
+        "position": [-3.4, 0.14, -2.33],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 876,
+      "material": {
+        "color": [0.3, 0.45, 0.26, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.8
+      },
+      "name": "lily_pad_6",
+      "shape": {
+        "Cylinder": {
+          "height": 0.04,
+          "radius": 0.35418245
+        }
+      },
+      "transform": {
+        "position": [-2.28, 0.14, -4.14],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 877,
+      "material": {
+        "color": [0.3, 0.45, 0.26, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.8
+      },
+      "name": "lily_pad_7",
+      "shape": {
+        "Cylinder": {
+          "height": 0.04,
+          "radius": 0.49143136
+        }
+      },
+      "transform": {
+        "position": [-1.12, 0.14, 2.97],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 878,
+      "material": {
+        "color": [0.3, 0.45, 0.26, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.8
+      },
+      "name": "lily_pad_8",
+      "shape": {
+        "Cylinder": {
+          "height": 0.04,
+          "radius": 0.33469185
+        }
+      },
+      "transform": {
+        "position": [3.02, 0.14, 1.73],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 879,
+      "material": {
+        "color": [0.5, 0.11, 0.09, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.8
+      },
+      "name": "shrine_deck",
+      "shape": {
+        "Cuboid": {
+          "x": 9,
+          "y": 1,
+          "z": 7
+        }
+      },
+      "transform": {
+        "position": [0, 1.5, -13.5],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 880,
+      "material": {
+        "color": [0.87, 0.82, 0.72, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.85
+      },
+      "name": "shrine_walls",
+      "shape": {
+        "Cuboid": {
+          "x": 7,
+          "y": 3.4,
+          "z": 5
+        }
+      },
+      "transform": {
+        "position": [0, 3.7, -13.5],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 881,
+      "material": {
+        "color": [0.35, 0.2, 0.14, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.8
+      },
+      "name": "shrine_door",
+      "shape": {
+        "Cuboid": {
+          "x": 1.6,
+          "y": 2.4,
+          "z": 0.12
+        }
+      },
+      "transform": {
+        "position": [0, 3.2, -10.98],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 882,
+      "material": {
+        "color": [0.5, 0.11, 0.09, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.75
+      },
+      "name": "shrine_eave_low",
+      "shape": {
+        "Cuboid": {
+          "x": 9.8,
+          "y": 0.16,
+          "z": 7.8
+        }
+      },
+      "transform": {
+        "position": [0, 5.5, -13.5],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 883,
+      "material": {
+        "color": [0.72, 0.16, 0.12, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.7
+      },
+      "name": "shrine_pillar_1",
+      "shape": {
+        "Cylinder": {
+          "height": 5,
+          "radius": 0.28
+        }
+      },
+      "transform": {
+        "position": [-3.6, 3.5, -16.1],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 884,
+      "material": {
+        "color": [0.72, 0.16, 0.12, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.7
+      },
+      "name": "shrine_pillar_2",
+      "shape": {
+        "Cylinder": {
+          "height": 5,
+          "radius": 0.28
+        }
+      },
+      "transform": {
+        "position": [-3.6, 3.5, -10.9],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 885,
+      "material": {
+        "color": [0.72, 0.16, 0.12, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.7
+      },
+      "name": "shrine_pillar_3",
+      "shape": {
+        "Cylinder": {
+          "height": 5,
+          "radius": 0.28
+        }
+      },
+      "transform": {
+        "position": [3.6, 3.5, -16.1],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 886,
+      "material": {
+        "color": [0.72, 0.16, 0.12, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.7
+      },
+      "name": "shrine_pillar_4",
+      "shape": {
+        "Cylinder": {
+          "height": 5,
+          "radius": 0.28
+        }
+      },
+      "transform": {
+        "position": [3.6, 3.5, -10.9],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 887,
+      "material": {
+        "color": [0.35, 0.38, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.8
+      },
+      "name": "shrine_roof_1",
+      "shape": {
+        "Pyramid": {
+          "base_x": 9.6,
+          "base_z": 7.6,
+          "height": 2.2
+        }
+      },
+      "transform": {
+        "position": [0, 6.7, -13.5],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 888,
+      "material": {
+        "color": [0.35, 0.38, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.8
+      },
+      "name": "shrine_roof_2",
+      "shape": {
+        "Pyramid": {
+          "base_x": 7,
+          "base_z": 5.4,
+          "height": 1.8
+        }
+      },
+      "transform": {
+        "position": [0, 8.3, -13.5],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 889,
+      "material": {
+        "color": [0.35, 0.38, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.8
+      },
+      "name": "shrine_roof_3",
+      "shape": {
+        "Pyramid": {
+          "base_x": 4.2,
+          "base_z": 3.4,
+          "height": 1.4
+        }
+      },
+      "transform": {
+        "position": [0, 9.7, -13.5],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 890,
+      "material": {
+        "color": [0.8, 0.7, 0.4, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0.7,
+        "roughness": 0.35
+      },
+      "name": "shrine_finial",
+      "shape": {
+        "Sphere": {
+          "radius": 0.25
+        }
+      },
+      "transform": {
+        "position": [0, 9.9, -13.5],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 891,
+      "material": {
+        "color": [0.58, 0.4, 0.26, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.85
+      },
+      "name": "bridge_plank_1",
+      "shape": {
+        "Cuboid": {
+          "x": 2.2,
+          "y": 0.09,
+          "z": 1
+        }
+      },
+      "transform": {
+        "position": [-7.5, 1.1, -5.5],
+        "rotation_degrees": [-30.000002, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 892,
+      "material": {
+        "color": [0.58, 0.4, 0.26, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.85
+      },
+      "name": "bridge_plank_2",
+      "shape": {
+        "Cuboid": {
+          "x": 2.2,
+          "y": 0.09,
+          "z": 1
+        }
+      },
+      "transform": {
+        "position": [-7.5, 1.3474873, -4.45],
+        "rotation_degrees": [-18.000004, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 893,
+      "material": {
+        "color": [0.58, 0.4, 0.26, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.85
+      },
+      "name": "bridge_plank_3",
+      "shape": {
+        "Cuboid": {
+          "x": 2.2,
+          "y": 0.09,
+          "z": 1
+        }
+      },
+      "transform": {
+        "position": [-7.5, 1.45, -3.4],
+        "rotation_degrees": [-6, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 894,
+      "material": {
+        "color": [0.58, 0.4, 0.26, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.85
+      },
+      "name": "bridge_plank_4",
+      "shape": {
+        "Cuboid": {
+          "x": 2.2,
+          "y": 0.09,
+          "z": 1
+        }
+      },
+      "transform": {
+        "position": [-7.5, 1.3474873, -2.35],
+        "rotation_degrees": [6, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 895,
+      "material": {
+        "color": [0.58, 0.4, 0.26, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.85
+      },
+      "name": "bridge_plank_5",
+      "shape": {
+        "Cuboid": {
+          "x": 2.2,
+          "y": 0.09,
+          "z": 1
+        }
+      },
+      "transform": {
+        "position": [-7.5, 1.1, -1.3],
+        "rotation_degrees": [18.000004, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 896,
+      "material": {
+        "color": [0.5, 0.34, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.85
+      },
+      "name": "bridge_rail_1",
+      "shape": {
+        "Cuboid": {
+          "x": 0.07,
+          "y": 0.07,
+          "z": 5
+        }
+      },
+      "transform": {
+        "position": [-8.5, 1.85, -3.5],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 897,
+      "material": {
+        "color": [0.5, 0.34, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.85
+      },
+      "name": "bridge_rail_2",
+      "shape": {
+        "Cuboid": {
+          "x": 0.07,
+          "y": 0.07,
+          "z": 5
+        }
+      },
+      "transform": {
+        "position": [-6.5, 1.85, -3.5],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 898,
+      "material": {
+        "color": [0.45, 0.46, 0.42, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "lantern_boulder",
+      "shape": {
+        "Sphere": {
+          "radius": 1.3
+        }
+      },
+      "transform": {
+        "position": [4.6, 0.1, -4.2],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1.2, 0.75, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 899,
+      "material": {
+        "color": [0.6, 0.59, 0.55, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "stone_lantern_base",
+      "shape": {
+        "Cylinder": {
+          "height": 0.35,
+          "radius": 0.42
+        }
+      },
+      "transform": {
+        "position": [4.6, 1.1, -4.2],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 900,
+      "material": {
+        "color": [0.6, 0.59, 0.55, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "stone_lantern_shaft",
+      "shape": {
+        "Cylinder": {
+          "height": 1.1,
+          "radius": 0.16
+        }
+      },
+      "transform": {
+        "position": [4.6, 1.8, -4.2],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 901,
+      "material": {
+        "color": [0.6, 0.59, 0.55, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.9
+      },
+      "name": "stone_lantern_box",
+      "shape": {
+        "Cuboid": {
+          "x": 0.72,
+          "y": 0.66,
+          "z": 0.72
+        }
+      },
+      "transform": {
+        "position": [4.6, 2.65, -4.2],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 902,
+      "material": {
+        "color": [1, 0.85, 0.55, 1],
+        "emissive": [3, 2, 0.8, 1],
+        "metallic": 0,
+        "roughness": 0.5
+      },
+      "name": "stone_lantern_window",
+      "shape": {
+        "Cuboid": {
+          "x": 0.74,
+          "y": 0.4,
+          "z": 0.5
+        }
+      },
+      "transform": {
+        "position": [4.6, 2.65, -4.2],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 903,
+      "material": {
+        "color": [0.6, 0.59, 0.55, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "stone_lantern_roof",
+      "shape": {
+        "Pyramid": {
+          "base_x": 1.1,
+          "base_z": 1.1,
+          "height": 0.5
+        }
+      },
+      "transform": {
+        "position": [4.6, 3.23, -4.2],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 904,
+      "material": {
+        "color": [0.6, 0.59, 0.55, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "stone_lantern_jewel",
+      "shape": {
+        "Sphere": {
+          "radius": 0.12
+        }
+      },
+      "transform": {
+        "position": [4.6, 3.62, -4.2],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 905,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_patch_1",
+      "shape": {
+        "Sphere": {
+          "radius": 0.31583956
+        }
+      },
+      "transform": {
+        "position": [4.2266994, 0.8012424, -3.8285952],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.4, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 906,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_patch_2",
+      "shape": {
+        "Sphere": {
+          "radius": 0.2260804
+        }
+      },
+      "transform": {
+        "position": [4.315481, 1.4876947, -3.8275921],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.4, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 907,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_patch_3",
+      "shape": {
+        "Sphere": {
+          "radius": 0.24364714
+        }
+      },
+      "transform": {
+        "position": [5.061478, 1.1774564, -4.0221696],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.4, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 908,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_patch_4",
+      "shape": {
+        "Sphere": {
+          "radius": 0.22505149
+        }
+      },
+      "transform": {
+        "position": [5.040976, 1.2834494, -3.7334356],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.4, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 909,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_patch_5",
+      "shape": {
+        "Sphere": {
+          "radius": 0.37662318
+        }
+      },
+      "transform": {
+        "position": [4.398789, 1.052833, -4.534044],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.4, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 910,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_patch_6",
+      "shape": {
+        "Sphere": {
+          "radius": 0.21205442
+        }
+      },
+      "transform": {
+        "position": [4.1651397, 1.0109514, -4.09689],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.4, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 911,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_patch_7",
+      "shape": {
+        "Sphere": {
+          "radius": 0.18074429
+        }
+      },
+      "transform": {
+        "position": [4.777934, 1.0365278, -4.3900423],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.4, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 912,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_patch_8",
+      "shape": {
+        "Sphere": {
+          "radius": 0.36007398
+        }
+      },
+      "transform": {
+        "position": [4.580745, 1.0210552, -4.2187815],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.4, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 913,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_patch_9",
+      "shape": {
+        "Sphere": {
+          "radius": 0.33502722
+        }
+      },
+      "transform": {
+        "position": [4.157001, 1.4825697, -4.6771345],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.4, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 914,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_patch_10",
+      "shape": {
+        "Sphere": {
+          "radius": 0.3449549
+        }
+      },
+      "transform": {
+        "position": [4.944881, 0.8126473, -3.9122617],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.4, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 915,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_patch_11",
+      "shape": {
+        "Sphere": {
+          "radius": 0.26056057
+        }
+      },
+      "transform": {
+        "position": [4.678519, 0.8063549, -4.653273],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.4, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 916,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_patch_12",
+      "shape": {
+        "Sphere": {
+          "radius": 0.21980229
+        }
+      },
+      "transform": {
+        "position": [5.05518, 0.93756515, -3.9442637],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.4, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 917,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_wall_1",
+      "shape": {
+        "Sphere": {
+          "radius": 0.48241383
+        }
+      },
+      "transform": {
+        "position": [3.005898, 2.0132582, -10.98],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 0.3],
+        "visible": true
+      }
+    },
+    {
+      "id": 918,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_wall_2",
+      "shape": {
+        "Sphere": {
+          "radius": 0.3386983
+        }
+      },
+      "transform": {
+        "position": [0.16797239, 2.5307236, -10.98],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 0.3],
+        "visible": true
+      }
+    },
+    {
+      "id": 919,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_wall_3",
+      "shape": {
+        "Sphere": {
+          "radius": 0.2770132
+        }
+      },
+      "transform": {
+        "position": [1.6891068, 2.556672, -10.98],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 0.3],
+        "visible": true
+      }
+    },
+    {
+      "id": 920,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_wall_4",
+      "shape": {
+        "Sphere": {
+          "radius": 0.4649236
+        }
+      },
+      "transform": {
+        "position": [-3.1509054, 2.7349603, -10.98],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 0.3],
+        "visible": true
+      }
+    },
+    {
+      "id": 921,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_wall_5",
+      "shape": {
+        "Sphere": {
+          "radius": 0.27279496
+        }
+      },
+      "transform": {
+        "position": [-1.0829643, 2.332993, -10.98],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 0.3],
+        "visible": true
+      }
+    },
+    {
+      "id": 922,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_wall_6",
+      "shape": {
+        "Sphere": {
+          "radius": 0.4795218
+        }
+      },
+      "transform": {
+        "position": [-1.0882752, 2.709037, -10.98],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 0.3],
+        "visible": true
+      }
+    },
+    {
+      "id": 923,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_wall_7",
+      "shape": {
+        "Sphere": {
+          "radius": 0.38628602
+        }
+      },
+      "transform": {
+        "position": [-1.2753375, 1.98016, -10.98],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 0.3],
+        "visible": true
+      }
+    },
+    {
+      "id": 924,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_wall_8",
+      "shape": {
+        "Sphere": {
+          "radius": 0.29436943
+        }
+      },
+      "transform": {
+        "position": [-2.8682656, 1.7786417, -10.98],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 0.3],
+        "visible": true
+      }
+    },
+    {
+      "id": 925,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_wall_9",
+      "shape": {
+        "Sphere": {
+          "radius": 0.42229363
+        }
+      },
+      "transform": {
+        "position": [3.3777423, 1.7938354, -10.98],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 0.3],
+        "visible": true
+      }
+    },
+    {
+      "id": 926,
+      "material": {
+        "color": [0.42, 0.5, 0.28, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "moss_wall_10",
+      "shape": {
+        "Sphere": {
+          "radius": 0.26213804
+        }
+      },
+      "transform": {
+        "position": [3.3095539, 2.240237, -10.98],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 0.3],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.05,
+            "axis": [1, 0, 0],
+            "frequency": 0.22,
+            "phase": 177.6831
+          }
+        }
+      ],
+      "id": 927,
+      "material": {
+        "color": [0.3, 0.42, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "vine_1",
+      "shape": {
+        "Cuboid": {
+          "x": 0.06,
+          "y": 1.7682432,
+          "z": 0.06
+        }
+      },
+      "transform": {
+        "position": [-4.4452224, 5.4, -9.6],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.05,
+            "axis": [1, 0, 0],
+            "frequency": 0.22,
+            "phase": 301.83453
+          }
+        }
+      ],
+      "id": 928,
+      "material": {
+        "color": [0.3, 0.42, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "vine_2",
+      "shape": {
+        "Cuboid": {
+          "x": 0.06,
+          "y": 1.5322713,
+          "z": 0.06
+        }
+      },
+      "transform": {
+        "position": [-3.2569616, 5.4, -9.6],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.05,
+            "axis": [1, 0, 0],
+            "frequency": 0.22,
+            "phase": 47.00586
+          }
+        }
+      ],
+      "id": 929,
+      "material": {
+        "color": [0.3, 0.42, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "vine_3",
+      "shape": {
+        "Cuboid": {
+          "x": 0.06,
+          "y": 2.0315442,
+          "z": 0.06
+        }
+      },
+      "transform": {
+        "position": [-2.1867008, 5.4, -9.6],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.05,
+            "axis": [1, 0, 0],
+            "frequency": 0.22,
+            "phase": 263.3992
+          }
+        }
+      ],
+      "id": 930,
+      "material": {
+        "color": [0.3, 0.42, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "vine_4",
+      "shape": {
+        "Cuboid": {
+          "x": 0.06,
+          "y": 2.3568137,
+          "z": 0.06
+        }
+      },
+      "transform": {
+        "position": [-1.0821079, 5.4, -9.6],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.05,
+            "axis": [1, 0, 0],
+            "frequency": 0.22,
+            "phase": 341.9275
+          }
+        }
+      ],
+      "id": 931,
+      "material": {
+        "color": [0.3, 0.42, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "vine_5",
+      "shape": {
+        "Cuboid": {
+          "x": 0.06,
+          "y": 1.8379312,
+          "z": 0.06
+        }
+      },
+      "transform": {
+        "position": [0.04931485, 5.4, -9.6],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.05,
+            "axis": [1, 0, 0],
+            "frequency": 0.22,
+            "phase": 226.94374
+          }
+        }
+      ],
+      "id": 932,
+      "material": {
+        "color": [0.3, 0.42, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "vine_6",
+      "shape": {
+        "Cuboid": {
+          "x": 0.06,
+          "y": 1.7904602,
+          "z": 0.06
+        }
+      },
+      "transform": {
+        "position": [1.0866485, 5.4, -9.6],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.05,
+            "axis": [1, 0, 0],
+            "frequency": 0.22,
+            "phase": 283.68344
+          }
+        }
+      ],
+      "id": 933,
+      "material": {
+        "color": [0.3, 0.42, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "vine_7",
+      "shape": {
+        "Cuboid": {
+          "x": 0.06,
+          "y": 1.2779901,
+          "z": 0.06
+        }
+      },
+      "transform": {
+        "position": [2.2329686, 5.4, -9.6],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.05,
+            "axis": [1, 0, 0],
+            "frequency": 0.22,
+            "phase": 38.38702
+          }
+        }
+      ],
+      "id": 934,
+      "material": {
+        "color": [0.3, 0.42, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "vine_8",
+      "shape": {
+        "Cuboid": {
+          "x": 0.06,
+          "y": 2.482497,
+          "z": 0.06
+        }
+      },
+      "transform": {
+        "position": [3.320372, 5.4, -9.6],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.05,
+            "axis": [1, 0, 0],
+            "frequency": 0.22,
+            "phase": 156.43987
+          }
+        }
+      ],
+      "id": 935,
+      "material": {
+        "color": [0.3, 0.42, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "vine_9",
+      "shape": {
+        "Cuboid": {
+          "x": 0.06,
+          "y": 1.2458097,
+          "z": 0.06
+        }
+      },
+      "transform": {
+        "position": [4.3501225, 5.4, -9.6],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Orbit": {
+            "axis": [0, 1, 0],
+            "center_point": [4.6, -0.05, -4.2],
+            "phase": 0,
+            "radius": 1.8,
+            "speed": 10,
+            "tilt": 3
+          }
+        },
+        {
+          "Bob": {
+            "amplitude": 0.05,
+            "axis": [0, 1, 0],
+            "frequency": 0.5,
+            "phase": 0
+          }
+        }
+      ],
+      "id": 936,
+      "material": {
+        "color": [0.92, 0.9, 0.86, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.5
+      },
+      "name": "koi_1",
+      "shape": {
+        "Capsule": {
+          "half_length": 0.3,
+          "radius": 0.13
+        }
+      },
+      "transform": {
+        "position": [6.3375397, -0.09994036, -4.7522144],
+        "rotation_degrees": [89.99999, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 937,
+      "material": {
+        "color": [0.9, 0.45, 0.15, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.5
+      },
+      "name": "koi_1_tail",
+      "parent": 936,
+      "shape": {
+        "Cone": {
+          "height": 0.3,
+          "radius": 0.14
+        }
+      },
+      "transform": {
+        "position": [0, -0.4500146, -7.450581e-9],
+        "rotation_degrees": [-180, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 938,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [1, 1, 1, 0.25],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.5
+      },
+      "name": "koi_1_wake",
+      "parent": 936,
+      "shape": {
+        "Torus": {
+          "major_radius": 0.5,
+          "minor_radius": 0.02
+        }
+      },
+      "transform": {
+        "position": [0, -0.13999987, -5.2154064e-8],
+        "rotation_degrees": [90, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Orbit": {
+            "axis": [0, 1, 0],
+            "center_point": [4.6, -0.05, -4.2],
+            "phase": 130,
+            "radius": 2.4,
+            "speed": 14,
+            "tilt": 3
+          }
+        },
+        {
+          "Bob": {
+            "amplitude": 0.05,
+            "axis": [0, 1, 0],
+            "frequency": 0.5,
+            "phase": 90
+          }
+        }
+      ],
+      "id": 939,
+      "material": {
+        "color": [0.9, 0.45, 0.15, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.5
+      },
+      "name": "koi_2",
+      "shape": {
+        "Capsule": {
+          "half_length": 0.3,
+          "radius": 0.13
+        }
+      },
+      "transform": {
+        "position": [2.508219, -0.052441403, -5.261884],
+        "rotation_degrees": [89.99999, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 940,
+      "material": {
+        "color": [0.92, 0.9, 0.86, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.5
+      },
+      "name": "koi_2_tail",
+      "parent": 939,
+      "shape": {
+        "Cone": {
+          "height": 0.3,
+          "radius": 0.14
+        }
+      },
+      "transform": {
+        "position": [0, -0.4499998, 1.4901161e-8],
+        "rotation_degrees": [-180, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 941,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [1, 1, 1, 0.25],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.5
+      },
+      "name": "koi_2_wake",
+      "parent": 939,
+      "shape": {
+        "Torus": {
+          "major_radius": 0.5,
+          "minor_radius": 0.02
+        }
+      },
+      "transform": {
+        "position": [0, -0.13999987, -1.1175871e-7],
+        "rotation_degrees": [90, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Orbit": {
+            "axis": [0, 1, 0],
+            "center_point": [4.6, -0.05, -4.2],
+            "phase": 260,
+            "radius": 3,
+            "speed": 18,
+            "tilt": 3
+          }
+        },
+        {
+          "Bob": {
+            "amplitude": 0.05,
+            "axis": [0, 1, 0],
+            "frequency": 0.5,
+            "phase": 180
+          }
+        }
+      ],
+      "id": 942,
+      "material": {
+        "color": [0.9, 0.88, 0.84, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.5
+      },
+      "name": "koi_3",
+      "shape": {
+        "Capsule": {
+          "half_length": 0.3,
+          "radius": 0.13
+        }
+      },
+      "transform": {
+        "position": [5.4619074, -0.000059641898, -1.3720057],
+        "rotation_degrees": [89.99999, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 943,
+      "material": {
+        "color": [0.15, 0.15, 0.16, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.5
+      },
+      "name": "koi_3_tail",
+      "parent": 942,
+      "shape": {
+        "Cone": {
+          "height": 0.3,
+          "radius": 0.14
+        }
+      },
+      "transform": {
+        "position": [0, -0.44999993, -2.0401785e-8],
+        "rotation_degrees": [-180, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 944,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [1, 1, 1, 0.25],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.5
+      },
+      "name": "koi_3_wake",
+      "parent": 942,
+      "shape": {
+        "Torus": {
+          "major_radius": 0.5,
+          "minor_radius": 0.02
+        }
+      },
+      "transform": {
+        "position": [0, -0.14000142, -6.8714144e-8],
+        "rotation_degrees": [90, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Orbit": {
+            "axis": [0, 1, 0],
+            "center_point": [0, 0.7, -3],
+            "phase": 0,
+            "radius": 4,
+            "speed": 1.5,
+            "tilt": 2
+          }
+        }
+      ],
+      "id": 945,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [0.85, 0.92, 0.9, 0.16],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "mist_1",
+      "shape": {
+        "Sphere": {
+          "radius": 1.0358503
+        }
+      },
+      "transform": {
+        "position": [3.994545, 0.7, -3.2949047],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [2.2, 0.45, 1.2],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Orbit": {
+            "axis": [0, 1, 0],
+            "center_point": [0, 0.7, -3],
+            "phase": 36,
+            "radius": 4.5,
+            "speed": 2.5,
+            "tilt": 2
+          }
+        }
+      ],
+      "id": 946,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [0.85, 0.92, 0.9, 0.16],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "mist_2",
+      "shape": {
+        "Sphere": {
+          "radius": 1.580806
+        }
+      },
+      "transform": {
+        "position": [3.459631, 0.7, -5.99594],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [2.2, 0.45, 1.2],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Orbit": {
+            "axis": [0, 1, 0],
+            "center_point": [0, 0.7, -3],
+            "phase": 72,
+            "radius": 5,
+            "speed": 3.5,
+            "tilt": 2
+          }
+        }
+      ],
+      "id": 947,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [0.85, 0.92, 0.9, 0.16],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "mist_3",
+      "shape": {
+        "Sphere": {
+          "radius": 1.183234
+        }
+      },
+      "transform": {
+        "position": [1.1074438, 0.7, -7.914334],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [2.2, 0.45, 1.2],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Orbit": {
+            "axis": [0, 1, 0],
+            "center_point": [0, 0.7, -3],
+            "phase": 108,
+            "radius": 5.5,
+            "speed": 1.5,
+            "tilt": 2
+          }
+        }
+      ],
+      "id": 948,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [0.85, 0.92, 0.9, 0.16],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "mist_4",
+      "shape": {
+        "Sphere": {
+          "radius": 1.1016006
+        }
+      },
+      "transform": {
+        "position": [-1.900385, 0.7, -8.094463],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [2.2, 0.45, 1.2],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Orbit": {
+            "axis": [0, 1, 0],
+            "center_point": [0, 0.7, -3],
+            "phase": 144,
+            "radius": 6,
+            "speed": 2.5,
+            "tilt": 2
+          }
+        }
+      ],
+      "id": 949,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [0.85, 0.92, 0.9, 0.16],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "mist_5",
+      "shape": {
+        "Sphere": {
+          "radius": 1.199458
+        }
+      },
+      "transform": {
+        "position": [-5.0691032, 0.7, -6.0281134],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [2.2, 0.45, 1.2],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Orbit": {
+            "axis": [0, 1, 0],
+            "center_point": [0, 0.7, -3],
+            "phase": 180,
+            "radius": 6.5,
+            "speed": 3.5,
+            "tilt": 2
+          }
+        }
+      ],
+      "id": 950,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [0.85, 0.92, 0.9, 0.16],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "mist_6",
+      "shape": {
+        "Sphere": {
+          "radius": 1.4256152
+        }
+      },
+      "transform": {
+        "position": [-6.469351, 0.7, -2.185473],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [2.2, 0.45, 1.2],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Orbit": {
+            "axis": [0, 1, 0],
+            "center_point": [0, 0.7, -3],
+            "phase": 216,
+            "radius": 7,
+            "speed": 1.5,
+            "tilt": 2
+          }
+        }
+      ],
+      "id": 951,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [0.85, 0.92, 0.9, 0.16],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "mist_7",
+      "shape": {
+        "Sphere": {
+          "radius": 1.4199184
+        }
+      },
+      "transform": {
+        "position": [-5.495631, 0.7, 1.5233326],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [2.2, 0.45, 1.2],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Orbit": {
+            "axis": [0, 1, 0],
+            "center_point": [0, 0.7, -3],
+            "phase": 252,
+            "radius": 7.5,
+            "speed": 2.5,
+            "tilt": 2
+          }
+        }
+      ],
+      "id": 952,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [0.85, 0.92, 0.9, 0.16],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "mist_8",
+      "shape": {
+        "Sphere": {
+          "radius": 1.0907454
+        }
+      },
+      "transform": {
+        "position": [-1.8499559, 0.7, 4.3325787],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [2.2, 0.45, 1.2],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Orbit": {
+            "axis": [0, 1, 0],
+            "center_point": [0, 0.7, -3],
+            "phase": 288,
+            "radius": 8,
+            "speed": 3.5,
+            "tilt": 2
+          }
+        }
+      ],
+      "id": 953,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [0.85, 0.92, 0.9, 0.16],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "mist_9",
+      "shape": {
+        "Sphere": {
+          "radius": 1.415798
+        }
+      },
+      "transform": {
+        "position": [3.1490507, 0.7, 4.2433577],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [2.2, 0.45, 1.2],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Orbit": {
+            "axis": [0, 1, 0],
+            "center_point": [0, 0.7, -3],
+            "phase": 324,
+            "radius": 8.5,
+            "speed": 1.5,
+            "tilt": 2
+          }
+        }
+      ],
+      "id": 954,
+      "material": {
+        "alpha_mode": "blend",
+        "color": [0.85, 0.92, 0.9, 0.16],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "mist_10",
+      "shape": {
+        "Sphere": {
+          "radius": 1.3197538
+        }
+      },
+      "transform": {
+        "position": [7.061266, 0.7, 1.4786367],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [2.2, 0.45, 1.2],
+        "visible": true
+      }
+    },
+    {
+      "id": 955,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_1_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 7.2534614,
+          "radius": 0.4343286
+        }
+      },
+      "transform": {
+        "position": [23.4, 3.6267307, -3.45],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 956,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_1_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 2.662939
+        }
+      },
+      "transform": {
+        "position": [23.4, 7.7534614, -3.45],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.08,
+            "axis": [1, 0, 0],
+            "frequency": 0.15,
+            "phase": 0
+          }
+        }
+      ],
+      "id": 957,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_1_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 2.0533438
+        }
+      },
+      "transform": {
+        "position": [23.478823, 9.453462, -3.45],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 958,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_2_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 7.7394223,
+          "radius": 0.42881262
+        }
+      },
+      "transform": {
+        "position": [23.93, 3.8697112, 12.86],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 959,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_2_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 2.9378273
+        }
+      },
+      "transform": {
+        "position": [23.93, 8.239423, 12.86],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 960,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_2_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 2.062551
+        }
+      },
+      "transform": {
+        "position": [23.93, 9.939423, 12.86],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 961,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_3_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 10.349556,
+          "radius": 0.4376674
+        }
+      },
+      "transform": {
+        "position": [18.29, 5.174778, 20.93],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 962,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_3_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 3.1761222
+        }
+      },
+      "transform": {
+        "position": [18.29, 10.849556, 20.93],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.08,
+            "axis": [1, 0, 0],
+            "frequency": 0.15,
+            "phase": 80
+          }
+        }
+      ],
+      "id": 963,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_3_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 2.165213
+        }
+      },
+      "transform": {
+        "position": [18.317152, 12.549557, 20.93],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 964,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_4_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 6.830863,
+          "radius": 0.46732405
+        }
+      },
+      "transform": {
+        "position": [5.09, 3.4154315, 22.85],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 965,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_4_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 3.1373818
+        }
+      },
+      "transform": {
+        "position": [5.09, 7.330863, 22.85],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 966,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_4_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 1.7817911
+        }
+      },
+      "transform": {
+        "position": [5.09, 9.030863, 22.85],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 967,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_5_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 9.651767,
+          "radius": 0.33436534
+        }
+      },
+      "transform": {
+        "position": [-7.25, 4.8258834, 25.05],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 968,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_5_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 2.9803717
+        }
+      },
+      "transform": {
+        "position": [-7.25, 10.151767, 25.05],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.08,
+            "axis": [1, 0, 0],
+            "frequency": 0.15,
+            "phase": 160
+          }
+        }
+      ],
+      "id": 969,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_5_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 1.8646762
+        }
+      },
+      "transform": {
+        "position": [-7.3193936, 11.851768, 25.05],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 970,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_6_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 9.118686,
+          "radius": 0.45494094
+        }
+      },
+      "transform": {
+        "position": [-14.48, 4.559343, 16.42],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 971,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_6_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 2.8368666
+        }
+      },
+      "transform": {
+        "position": [-14.48, 9.618686, 16.42],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 972,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_6_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 1.9763316
+        }
+      },
+      "transform": {
+        "position": [-14.48, 11.318686, 16.42],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 973,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_7_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 8.205342,
+          "radius": 0.4300234
+        }
+      },
+      "transform": {
+        "position": [-15.15, 4.102671, 10.16],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 974,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_7_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 2.419038
+        }
+      },
+      "transform": {
+        "position": [-15.15, 8.705342, 10.16],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.08,
+            "axis": [1, 0, 0],
+            "frequency": 0.15,
+            "phase": 240
+          }
+        }
+      ],
+      "id": 975,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_7_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 1.9487658
+        }
+      },
+      "transform": {
+        "position": [-15.201251, 10.405342, 10.16],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 976,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_8_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 8.357927,
+          "radius": 0.34524852
+        }
+      },
+      "transform": {
+        "position": [-16.57, 4.1789637, -0.65],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 977,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_8_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 2.254143
+        }
+      },
+      "transform": {
+        "position": [-16.57, 8.857927, -0.65],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 978,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_8_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 1.5068215
+        }
+      },
+      "transform": {
+        "position": [-16.57, 10.557927, -0.65],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 979,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_9_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 6.9668007,
+          "radius": 0.3071315
+        }
+      },
+      "transform": {
+        "position": [-17.12, 3.4834003, -7.12],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 980,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_9_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 2.6653302
+        }
+      },
+      "transform": {
+        "position": [-17.12, 7.4668007, -7.12],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.08,
+            "axis": [1, 0, 0],
+            "frequency": 0.15,
+            "phase": 320
+          }
+        }
+      ],
+      "id": 981,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_9_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 1.7042391
+        }
+      },
+      "transform": {
+        "position": [-17.068407, 9.1668005, -7.12],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 982,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_10_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 7.189232,
+          "radius": 0.48063648
+        }
+      },
+      "transform": {
+        "position": [-14.48, 3.594616, -19.47],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 983,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_10_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 2.2006607
+        }
+      },
+      "transform": {
+        "position": [-14.48, 7.689232, -19.47],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 984,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_10_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 1.7243006
+        }
+      },
+      "transform": {
+        "position": [-14.48, 9.389232, -19.47],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 985,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_11_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 6.575372,
+          "radius": 0.46627402
+        }
+      },
+      "transform": {
+        "position": [-6.23, 3.287686, -20.83],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 986,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_11_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 2.5738797
+        }
+      },
+      "transform": {
+        "position": [-6.23, 7.075372, -20.83],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.08,
+            "axis": [1, 0, 0],
+            "frequency": 0.15,
+            "phase": 400
+          }
+        }
+      ],
+      "id": 987,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_11_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 1.4288497
+        }
+      },
+      "transform": {
+        "position": [-6.16083, 8.7753725, -20.83],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 988,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_12_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 8.726105,
+          "radius": 0.36787465
+        }
+      },
+      "transform": {
+        "position": [4.43, 4.3630524, -16.75],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 989,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_12_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 2.7808962
+        }
+      },
+      "transform": {
+        "position": [4.43, 9.226105, -16.75],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 990,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_12_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 2.1666405
+        }
+      },
+      "transform": {
+        "position": [4.43, 10.926105, -16.75],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 991,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_13_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 10.064949,
+          "radius": 0.42845932
+        }
+      },
+      "transform": {
+        "position": [15.2, 5.0324745, -15.72],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 992,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_13_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 2.5694427
+        }
+      },
+      "transform": {
+        "position": [15.2, 10.564949, -15.72],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "behaviors": [
+        {
+          "Bob": {
+            "amplitude": 0.08,
+            "axis": [1, 0, 0],
+            "frequency": 0.15,
+            "phase": 480
+          }
+        }
+      ],
+      "id": 993,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_13_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 1.51369
+        }
+      },
+      "transform": {
+        "position": [15.172428, 12.264949, -15.72],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 994,
+      "material": {
+        "color": [0.4, 0.3, 0.22, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 0.95
+      },
+      "name": "tree_14_trunk",
+      "shape": {
+        "Cylinder": {
+          "height": 10.786063,
+          "radius": 0.49359939
+        }
+      },
+      "transform": {
+        "position": [21.82, 5.3930316, -9.74],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 995,
+      "material": {
+        "color": [0.24, 0.34, 0.2, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_14_canopy_low",
+      "shape": {
+        "Sphere": {
+          "radius": 2.80861
+        }
+      },
+      "transform": {
+        "position": [21.82, 11.286063, -9.74],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.6, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 996,
+      "material": {
+        "color": [0.3, 0.4, 0.24, 1],
+        "emissive": [0, 0, 0, 0],
+        "metallic": 0,
+        "roughness": 1
+      },
+      "name": "tree_14_canopy_high",
+      "shape": {
+        "Sphere": {
+          "radius": 1.6808928
+        }
+      },
+      "transform": {
+        "position": [21.82, 12.986063, -9.74],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 0.55, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 997,
+      "light": {
+        "color": [1, 0.9, 0.72, 1],
+        "direction": [-0.898922, -0.31961644, -0.29964063],
+        "intensity": 9000,
+        "light_type": "directional",
+        "shadows": true
+      },
+      "name": "dawn_sun",
+      "transform": {
+        "position": [0, 10, 0],
+        "rotation_degrees": [-46.847588, 64.01673, 43.796535],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 998,
+      "light": {
+        "color": [0.7, 0.8, 0.95, 1],
+        "direction": [0.66742396, -0.47673136, 0.57207763],
+        "intensity": 1600,
+        "light_type": "directional",
+        "shadows": false
+      },
+      "name": "mist_fill",
+      "transform": {
+        "position": [0, 10, 0],
+        "rotation_degrees": [-140.19444, -41.868538, -150.91779],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "id": 999,
+      "light": {
+        "color": [1, 0.8, 0.5, 1],
+        "intensity": 45000,
+        "light_type": "point",
+        "range": 9,
+        "shadows": false
+      },
+      "name": "lantern_lamp",
+      "transform": {
+        "position": [4.6, 2.7, -4.2],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "audio": {
+        "kind": "ambient",
+        "rolloff": "inverse_square",
+        "source": {
+          "Forest": {
+            "bird_density": 0.7,
+            "wind": 0.2
+          }
+        },
+        "volume": 0.55
+      },
+      "id": 1000,
+      "name": "ambience_forest",
+      "transform": {
+        "position": [0, 0, 0],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    },
+    {
+      "audio": {
+        "kind": "ambient",
+        "rolloff": "inverse_square",
+        "source": {
+          "Stream": {
+            "flow_rate": 0.4
+          }
+        },
+        "volume": 0.35
+      },
+      "id": 1001,
+      "name": "ambience_stream",
+      "transform": {
+        "position": [0, 0, 0],
+        "rotation_degrees": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "visible": true
+      }
+    }
+  ],
+  "environment": {
+    "ambient_color": [0.85, 0.92, 0.95, 1],
+    "ambient_intensity": 190,
+    "background_color": [0.72, 0.78, 0.8, 1]
+  },
+  "meta": {
+    "compliance": {
+      "eu_ai_act_risk_level": "minimal",
+      "generation_method": "code-generation",
+      "generation_tool": "LocalGPT Gen v0.3.6",
+      "human_modifiable": true,
+      "no_gen_ai_compatible": true,
+      "steam_code_tool_exempt": true
+    },
+    "description": "An overgrown shrine at first light, mist rising from a temple pool while koi circle its stone lantern.",
+    "name": "Misty Temple Pool"
+  },
+  "next_entity_id": 1002,
+  "version": 3
+}

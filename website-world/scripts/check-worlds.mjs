@@ -1,4 +1,5 @@
-// Headless render check for every world in worlds/: serve this directory,
+// Headless render check for every world in worlds/ — the conformance scenes
+// (lone manifests) and the gallery's `.world` packages: serve this directory,
 // open world.html?src=<world> in Chromium with software WebGL, and fail on
 // any page or console error, a missing canvas, or a viewer that reports no
 // entities. Worlds with tours also get tour 0 started. After the check passes,
@@ -37,24 +38,36 @@ const server = createServer(async (req, res) => {
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
 
-const all = (await readdir(join(root, 'worlds'))).filter((f) => f.endsWith('.json')).sort();
+// A world is a lone manifest (`worlds/<scene>.json`) or a package
+// (`worlds/<name>.world/`), which the viewer opens by its folder.
+const all = (await readdir(join(root, 'worlds')))
+  .filter((f) => f.endsWith('.json') || (f.endsWith('.world') && existsSync(join(root, 'worlds', f, 'manifest.json'))))
+  .sort();
 
 // A world whose meshes or audio are not on disk is skipped, not failed: the
-// curated Verse worlds reference the shrunk GLBs and music that live in the
-// assets checkout, so `assemble.mjs` without `--all` leaves them absent. Every
-// other world — the conformance scenes and the primitives-only gen/md ones —
-// needs nothing external, which is what lets CI run this with no checkout.
-// A referenced file that IS present but broken still renders and still fails.
+// Verse packages reference the shrunk GLBs and music that live in the assets
+// checkout, so `cargo xtask assemble world` without `--all` leaves them absent.
+// Every other world — the conformance scenes and the primitives-only Gen
+// packages — needs nothing external, which is what lets CI run this with no
+// checkout. A referenced file that IS present but broken still renders and
+// still fails; a package whose assets are present must have its zip, the
+// transport form the assemble step writes for it.
 const skipped = [];
 const worlds = [];
 const manifests = {};
+let failed = 0;
 for (const world of all) {
-  const manifest = await readFile(join(root, 'worlds', world), 'utf8');
+  const isPackage = world.endsWith('.world');
+  const manifest = await readFile(join(root, 'worlds', isPackage ? `${world}/manifest.json` : world), 'utf8');
   manifests[world] = manifest;
   const refs = [...manifest.matchAll(/"([^"]*\.(?:glb|gltf|mp3|ogg|wav|flac))"/g)].map((m) => m[1]);
-  const missing = refs.filter((ref) => !existsSync(join(root, 'worlds/assets', ref)));
+  const assets = isPackage ? join(root, 'worlds', world, 'assets') : join(root, 'worlds/assets');
+  const missing = refs.filter((ref) => !existsSync(join(assets, ref)));
   if (missing.length) skipped.push(`${world} (${missing.length} asset(s) absent)`);
-  else worlds.push(world);
+  else if (isPackage && !existsSync(join(root, 'worlds', `${world}.zip`))) {
+    console.log(`FAIL ${world}: no ${world}.zip — assemble writes the transport form`);
+    failed += 1;
+  } else worlds.push(world);
 }
 for (const world of skipped) console.log(`skip ${world}`);
 const browser = await chromium.launch({
@@ -65,7 +78,6 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
 
-let failed = 0;
 for (const world of worlds) {
   errors.length = 0;
   await page.goto(`${base}/world.html?src=worlds/${world}`, { waitUntil: 'load' });

@@ -7336,6 +7336,7 @@ dependencies = [
 name = "openworldformat"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce4434dc7f6c4fb6e68a623c8f52644b1dd0f0763026b68c119720639e4e9fa6"
 dependencies = [
  "schemars",
  "serde",
@@ -12010,8 +12011,10 @@ name = "xtask"
 version = "0.5.0"
 dependencies = [
  "etcetera",
+ "openworldformat",
  "png",
  "serde_json",
+ "zip",
 ]
 
 [[package]]
