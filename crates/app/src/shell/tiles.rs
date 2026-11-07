@@ -1285,6 +1285,44 @@ mod tests {
         assert!((height(&layout, timeline) - resized).abs() < 0.5);
     }
 
+    /// The top bar's Panels menu, by a hand (egui_kittest, no window): a
+    /// panel unticked hides, ticked shows, and Put them back resets all.
+    #[test]
+    fn the_panels_menu_hides_shows_and_puts_them_back() {
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(360.0, 420.0))
+            .build_ui_state(
+                |ui, (layout, state): &mut (Layout, State)| layout.menu(ui, state),
+                (Layout::new(false), State::default()),
+            );
+        harness.run_steps(2);
+        harness.get_by_label("Panels").click();
+        harness.run_steps(2);
+        harness.get_by_label("Terminals").click();
+        harness.run_steps(2);
+        assert!(harness.state().0.hidden[4], "unticked, the terminals hide");
+        // The menu stays open while panels are ticked.
+        harness.get_by_label("Terminals").click();
+        harness.run_steps(2);
+        assert!(!harness.state().0.hidden[4], "ticked, they show");
+        harness.get_by_label("World").click();
+        harness.run_steps(2);
+        assert!(harness.state().0.hidden[3]);
+        harness.get_by_label("Put them back").click();
+        harness.run_steps(2);
+        assert_eq!(harness.state().0.hidden, [false; 6]);
+        // A panel with nothing to show (no document is open) is listed but
+        // cannot be unticked.
+        harness.get_by_label("Panels").click();
+        harness.run_steps(2);
+        harness.get_by_label("Document").click();
+        harness.run_steps(2);
+        assert!(!harness.state().0.hidden[0]);
+    }
+
     #[test]
     fn the_panels_come_back_as_a_hand_left_them() {
         let dir = std::env::temp_dir().join(format!("localgpt-app-layout-{}", std::process::id()));
