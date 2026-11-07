@@ -162,6 +162,11 @@ pub fn standard_material(def: &wt::MaterialDef) -> StandardMaterial {
     };
     if let Some(alpha) = def.alpha_mode {
         material.alpha_mode = alpha_mode(alpha);
+    } else if def.color[3] < 1.0 {
+        // The format's rule (spec/world.md "Conventions"): a colour with
+        // alpha below 1 and no mode draws blended, as `blend` would. The
+        // web renderer always did; a pane of glass is glass here too.
+        material.alpha_mode = AlphaMode::Blend;
     }
     if let Some(unlit) = def.unlit {
         material.unlit = unlit;
@@ -539,6 +544,28 @@ mod tests {
                 height: 1.5,
             },
         ]
+    }
+
+    /// The format's rule for a colour with alpha below 1 and no mode
+    /// (spec/world.md "Conventions"): drawn blended, as `blend` would be;
+    /// a mode set wins; an opaque colour stays opaque.
+    #[test]
+    fn a_translucent_colour_without_a_mode_blends() {
+        let glass = wt::MaterialDef {
+            color: [0.9, 0.5, 0.2, 0.5],
+            ..Default::default()
+        };
+        assert_eq!(standard_material(&glass).alpha_mode, AlphaMode::Blend);
+        let said_opaque = wt::MaterialDef {
+            alpha_mode: Some(wt::AlphaModeDef::Opaque),
+            ..glass.clone()
+        };
+        assert_eq!(
+            standard_material(&said_opaque).alpha_mode,
+            AlphaMode::Opaque
+        );
+        let solid = wt::MaterialDef::default();
+        assert_eq!(standard_material(&solid).alpha_mode, AlphaMode::Opaque);
     }
 
     /// Every mesh is centered and fits the bounds the format declares, and
