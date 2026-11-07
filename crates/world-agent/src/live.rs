@@ -200,6 +200,7 @@ impl LiveWorld {
         // the folder its asset files go in.
         furnish(dir)?;
         let meta: SessionMeta = read_json(dir, PACKAGE)?;
+        adopt_base(dir)?;
         let base_manifest: WorldManifest = read_json(dir, BASE)?;
         let base = WorldDoc::from_manifest(&base_manifest)
             .map_err(|e| LiveError(format!("{BASE} doesn't load: {e}")))?;
@@ -2120,6 +2121,29 @@ fn furnish(dir: &Path) -> Result<(), LiveError> {
     Ok(())
 }
 
+/// The base a package left out. spec/package.md lets a package whose log
+/// holds no edits omit `snapshots/base.json` — its base is then
+/// `manifest.json` — which is how a published world arrives: `package.json`
+/// naming the manifest's bytes and no history yet. The snapshot is written
+/// from the manifest, so the package has the form an authority keeps. With
+/// edits in the log and no base to fold them over, the package is broken,
+/// and says so rather than folding the head onto itself.
+fn adopt_base(dir: &Path) -> Result<(), LiveError> {
+    if dir.join(BASE).is_file() {
+        return Ok(());
+    }
+    if read_log(dir).iter().any(|entry| !entry.is_history_only()) {
+        return Err(LiveError(format!(
+            "{BASE} is missing, and {LOG} holds edits to fold over it"
+        )));
+    }
+    let bytes = std::fs::read(dir.join(MANIFEST))
+        .map_err(|e| LiveError(format!("{}: {e}", dir.join(MANIFEST).display())))?;
+    std::fs::create_dir_all(dir.join("snapshots"))?;
+    write_atomic(&dir.join(BASE), &bytes)?;
+    Ok(())
+}
+
 /// Make `dir` a live package around the manifest it holds.
 fn init(dir: &Path) -> Result<(), LiveError> {
     let bytes = std::fs::read(dir.join(MANIFEST))
@@ -2562,6 +2586,31 @@ mod tests {
             !is_package(dir.join(MANIFEST).as_path()),
             "a file is not a package"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_published_package_without_a_base_opens_on_its_manifest() {
+        // A publisher's package: manifest.json and package.json, no history
+        // — spec/package.md lets the base out when the log holds no edits.
+        let (dir, _) = world();
+        std::fs::remove_dir_all(dir.join("snapshots")).unwrap();
+        std::fs::remove_file(dir.join(LOG)).unwrap();
+        let mut live = LiveWorld::open(&dir).expect("the manifest is the base");
+        assert_eq!(live.base().entities().count(), 2);
+        assert_eq!(live.revision(), 0);
+        assert!(dir.join(BASE).is_file(), "the snapshot is written");
+        assert!(live.verify().is_empty(), "{:?}", live.verify());
+        // With edits in the log and no base to fold them over, it is broken.
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "post"}}}]),
+            "person",
+            None,
+        )
+        .unwrap();
+        std::fs::remove_dir_all(dir.join("snapshots")).unwrap();
+        let err = LiveWorld::open(&dir).err().expect("no base under edits");
+        assert!(err.0.contains("snapshots/base.json is missing"), "{err}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
