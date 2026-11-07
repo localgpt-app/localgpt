@@ -5,7 +5,7 @@
 
 ## Project
 
-**LocalGPT** is the desktop app where a document, a song, a screenplay or a prompt becomes a walkable `.world`, written in Rust: Gen, the world builder (Bevy, procedural audio, collaborative sessions), with its tools served over MCP to the coding agents you already use; the `localgpt` command line for `.world` packages; and the format crates. LocalGPT runs no model and holds no key — the agents come from their makers, and this file is what they find.
+**LocalGPT** is the desktop app where a document, a song, a screenplay or a prompt becomes a walkable `.world`, written in Rust: Gen, the world builder (Bevy, procedural audio, collaborative sessions), with its tools served over MCP to the coding agents you already use; the `localgpt` command line for `.world` packages; and the format crates. LocalGPT runs no language model and holds no key — the agents come from their makers, and this file is what they find.
 
 - License: Apache 2.0
 - Repository: `localgpt/`
@@ -114,7 +114,7 @@ Every tool below is Gen's; the names are what `localgpt-gen mcp-server` lists. T
 
 | Tool | Description | Required Params | Optional Params |
 |------|-------------|-----------------|-----------------|
-| `gen_add_behavior` | Add a continuous behavior (orbit, spin, bob, look_at, pulse, path_follow, bounce) | `entity`, `behavior` | `behavior_id` |
+| `gen_add_behavior` | Add a continuous behavior (orbit, spin, bob, look_at, pulse, swing, path_follow, bounce) | `entity`, `behavior` | `behavior_id` |
 | `gen_remove_behavior` | Remove behaviors from an entity | `entity` | `behavior_id` (omit to remove all) |
 | `gen_list_behaviors` | List all active behaviors | -- | `entity` (filter) |
 | `gen_pause_behaviors` | Pause or resume all behaviors | `paused` | -- |
@@ -230,7 +230,7 @@ Every tool below is Gen's; the names are what `localgpt-gen mcp-server` lists. T
 
 ## Authentication & Security
 
-- **Local-only.** LocalGPT runs no model, calls no service and holds no key. The only connections are the ones a person starts: `--world <URL>` fetches a world, and `--host --relay`/`--join` reach a session's relay or host.
+- **Local-only.** LocalGPT runs no language model, calls no generation service and holds no key. The only connections are the ones a person starts: `--world <URL>` fetches a world, and `--host --relay`/`--join` reach a session's relay or host.
 - **No authentication for stdio MCP.** The MCP server inherits the user's OS-level permissions. The HTTP transport binds to localhost.
 - **Scene tools only.** The MCP server exposes Gen's tools and nothing that reads or writes files outside the world, runs a shell or reaches the web: the agent provides those itself, under its own permissions.
 - **A live world's API is local.** `localgpt-gen --live` and the desktop app serve a package's ops API on localhost, with a token in the folder's `.live/endpoint.json`.
@@ -250,4 +250,5 @@ The server advertises the `tools` capability. Resources and prompts are not curr
 - `CLAUDE.md` -- Build commands, architecture, feature flags, key patterns
 - `docs/gen/gen-audio.md` -- Audio system architecture and usage
 - `website/content/docs/gen/mcp-server.md` -- The MCP server, the relay and the HTTP transport
-- `docs/rfcs/authoring/the-harness-goes.md` -- Why there is no assistant, no provider, no model and no key in this tree
+- `docs/README.md` -- The small set of current internal references and active designs
+- `docs/rfcs/authoring/all-rust.md` -- The native desktop architecture and its remaining work

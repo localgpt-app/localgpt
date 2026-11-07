@@ -31,13 +31,13 @@ three are reads over one history, so the format should be one history.
 
 **A world session is a base world plus an append-only log; state at any
 revision is a pure fold.** Not a state file with history bolted on — an
-event-sourced document. Replay, resume, undo, auditing the model, and
+event-sourced document. Replay, resume, undo, auditing changes, and
 forking all become the same mechanism: read the log.
 
 The package is the *artifact* every app emits and consumes. It is not the
-*source* any app is authored in — Gen's source is the world itself, MD's is
-the `.md`, Verse's is the song and its analysis sidecar
-(`docs/world-strategy.md` §5's rule, unchanged).
+*source* every app is authored in — Gen's source is the world itself, MD's is
+the `.md`, Verse's is the song and its analysis sidecar, as
+`docs/world-strategy.md` summarizes.
 
 ## The package
 
@@ -225,8 +225,6 @@ Neither app changes its source; both can emit and consume the package:
 
 - `docs/rfcs/multiplayer/collaborative-world-engine-architecture.md` — the
   authority, revisions, and the op log this builds on.
-- `docs/rfcs/worldgen/world-package-format.md` — the survey whose
-  "deterministic tool call log" this replaces with the real thing.
-- `docs/world-strategy.md` §5 — source format versus distribution export;
-  the package is a third thing, the artifact, and changes nothing there.
+- `docs/world-strategy.md` — the shared format and the apps' different
+  authoring sources; the package is their common artifact.
 - `docs/gen/multiplayer.md` — the user-facing session documentation.

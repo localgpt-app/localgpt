@@ -4,8 +4,8 @@
 //! playback, the document and its outline, the timeline of the world's clock
 //! across the window, Open…, and terminals, each a login shell started in the
 //! folder of what is open, where the person runs whatever agent they have.
-//! The app runs no agent and no model, and holds no agent's or model's
-//! configuration (`docs/rfcs/authoring/the-harness-goes.md`).
+//! The app runs no agent and no language model, and holds no agent's or
+//! model's configuration.
 //!
 //! The interface is the shell (`docs/rfcs/authoring/all-rust.md`): eframe
 //! owns the window, egui draws the panels, and Bevy draws the world into a
@@ -267,7 +267,7 @@ fn open_launch(args: &Args) -> anyhow::Result<Opened> {
             }
             _ => {
                 // A true cold start: nothing asked for, nothing remembered.
-                // Lead with a song (`docs/world-strategy.md` §13.3). Of the
+                // Lead with a song (`docs/world-strategy.md`). Of the
                 // inputs this app takes it is the only one whose model-free
                 // world is a *finished* world rather than a draft, so it is
                 // what someone with no key, no model and no download sees in

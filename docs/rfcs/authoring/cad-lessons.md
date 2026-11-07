@@ -64,13 +64,13 @@ own forks of egui and winit.
   itself. 3D is 2% of its roadmap. About 12K lines for the canvas, the
   display list and the raster.
 
-**For LocalGPT:** this is the shape [all-rust.md](all-rust.md) proposes:
+**For LocalGPT:** this is the shape [all-rust.md](all-rust.md) implements:
 eframe owns the window, the world is a texture in a paint callback, and the
-headless picture goes through the same pipelines. The costs
-[egui-or-not.md](egui-or-not.md) listed (input absorbed, hover, scheduling)
-were `bevy_egui`'s, egui inside Bevy's window; with eframe owning the window
-they do not arise, and CADCraft's canvas, which hides the cursor and takes
-every key while it has focus, is the shape of a viewport widget.
+headless picture goes through the same pipelines. Input absorption, hover and
+scheduling were problems of `bevy_egui`, egui inside Bevy's window; with
+eframe owning the window they do not arise, and CADCraft's canvas, which
+hides the cursor and takes every key while it has focus, is the shape of a
+viewport widget.
 SolidCraft's glue between egui and its pipelines (`crates/ui-egui/src/gpu.rs`)
 is MIT OR Apache-2.0 and may be adapted with its notice.
 
@@ -86,13 +86,12 @@ opens a dialog. SolidCraft's `planned!` names a command that is not built
 yet, so the catalog states its own gaps.
 
 **For LocalGPT:** one world has four vocabularies today: the live API's
-routes (`crates/gen/src/gen3d/live.rs:1717–1953`), the shim's eight tools,
-`localgpt world`'s subcommands and Gen's ~100 `gen_*` tools. *Adopt* one
-catalog for 0.6.0's re-fronting ([the-harness-goes.md](the-harness-goes.md)),
-every entry saying whether it can run now and, if not, why: the page greys
-it, and the agent reads the reason instead of meeting a refusal. *Adopt*
-`planned!`-style entries, so `AGENTS.md` can name what is coming without an
-agent calling it.
+routes, the shim's tools, `localgpt world`'s subcommands and Gen's 88
+`gen_*` tools. Keep working them toward one catalog, with every entry saying
+whether it can run now and, if not, why: the native shell greys it, and the
+agent reads the reason instead of meeting a refusal. *Adopt* `planned!`-style
+entries only where `AGENTS.md` must name work that is genuinely scheduled;
+they are not a way to advertise speculative tools.
 
 ## 3. Contracts an agent can read
 
@@ -184,15 +183,12 @@ installed when its configuration folder exists; no client program is run
 (`solidcraft-commands`, `solidcraft-checking`, …) and reach agents through a
 `skill_reference` tool.
 
-**For LocalGPT:** *adopt* `agent_setup.rs`'s rules as `localgpt setup`'s
-(the-harness-goes.md): in place, `.bak` first, never a changed entry,
-detected by folder, nothing run. *Adopt* the port file as the answer to that
-RFC's question of one registration or one per world: one, `localgpt world
-mcp` with no folder, finding the world the app opened last through a file
-the app writes in the user's state directory; a folder argument stays for
-headless use. *Adapt* `skill_reference`: the world's `AGENTS.md` and the op
-recipes served as MCP resources, so an agent started outside the folder has
-them too.
+**For LocalGPT:** the lesson is safe configuration editing, not a built-in
+setup or agent launcher. The user docs currently show the MCP entry to add.
+If registration is automated later, edit only LocalGPT's entry, back up the
+file first, preserve a changed entry and never run the client. The world's
+`AGENTS.md` and op recipes are the equivalent of its skill reference: keep
+them readable where the agent already works.
 
 ## 7. The agent in the window
 
@@ -229,32 +225,21 @@ marked pointer that acts out each command an agent sends: it glides to the
 command's toolbar button and clicks it, then to each pick in the parameters,
 and only then does the command run. The reply waits for the animation.
 
-**For LocalGPT:** the page chose the other door, the agents' own TUIs in
-xterm.js over a PTY, so they come whole, with their `/commands`, approvals and
-sign-ins ([the-page.md](the-page.md)). Read against that:
+**For LocalGPT:** the native terminal takes the other door: the agent keeps
+its own interface, `/commands`, approvals and sign-in. Do not add the API
+backend or an agent-specific chat panel. The useful lessons are narrower:
 
-- *Avoid* the API backend. It composes the prompt and runs the loop: the
-  harness 0.5.0 removes, and what the *line to hold* of
-  [agents-outside-the-window.md](agents-outside-the-window.md) forbids.
-- *Adopt* the chat as the reference if that RFC's tier 1 is ever built. It
-  is tier 1, working and licence-clean, and it has met what the RFC only
-  predicted: the adapters' login methods, an agent that needs a server of its
-  own.
-- *Adopt* its process rule for the page's terminals now (`process.rs`). An
-  agent starts helpers (an adapter starts the CLI it wraps, the CLI starts
-  its MCP servers), so each agent gets a process group of its own, and
-  stopping it closes its stdin, then sends the group TERM, then KILL; the
-  tests use a fake agent that leaves helpers behind. Check `Terms::close`
-  (`crates/app/src/webui/term.rs`) against it.
-- *Adapt* the agent cursor without the wait: when a batch commits, mark what
-  it touched in the world, with the agent's name, so the person watching sees
-  where the change landed. The authority does not slow an agent down for the
-  show.
-- Note what the protocol has that a terminal lacks: the end of every turn
-  (the prompt's reply carries its `stopReason`). The page's terminals have no
-  such mark: `TurnEnded` (`crates/gen/src/gen3d/live.rs:529`) had no
-  sender once herdr's pane went. Since 2026-10-31 the page's terminals send
-  it, from the marks agents put in their titles (mobile-remote.md).
+- **Process cleanup.** An agent can leave helpers behind, so closing a
+  terminal must close its input and terminate the whole process group, with
+  escalation when needed. Keep `Terms::close`
+  (`crates/app/src/webui/term.rs`) covered by a test whose child leaves a
+  helper behind.
+- **Visible attribution without animation.** When a batch commits, the
+  outliner and inspector already mark what changed and name its author. Do
+  not delay the authority to perform an agent cursor.
+- **No inferred turn protocol.** A structured agent protocol knows when a
+  turn ends; a plain terminal does not. Do not reconstruct that state from
+  one agent's glyphs or title.
 
 ## 8. The control channel
 
@@ -267,17 +252,14 @@ timeout says whether the app had started the request: `not-run` or
 likewise made fresh for each launch and readable only by the user
 (`docs/mcp.md:36–45`).
 
-**For LocalGPT:** the live API's token is the first 32 hex digits of a
-SHA-256 of the process id, the time and the folder
-(`crates/gen/src/gen3d/live.rs:603–612`), written to `.live/endpoint.json`
-by `std::fs::write`, so with the umask's permissions (`:622`). The API also
-takes it in the query string, so a panel can open the board in a browser
-(`:94–96`). *Adopt*: the token from the operating system's random source;
-`.live/` created 0700 and the file 0600; the query form accepted on the
-board's pages only. (Done 2026-10-31, ahead of the phone's listener:
-`write_endpoint` and `authorized` in `live.rs`.) *Adopt* `not-run` and `may-have-run` for the shim, whose
-call can time out after the app took the batch; the authority commits whole
-or not at all, so `may-have-run` is settled by reading the log's head.
+**For LocalGPT:** the live API now takes the token from the operating
+system's random source, creates `.live/` for the owner alone and writes
+`endpoint.json` as owner-only. The query form is accepted only on the board's
+pages, where a browser needs it; API calls use the bearer header. Keep those
+properties covered by tests. A shim call can still time out after the app
+took its batch, so its result should distinguish `not-run` from
+`may-have-run`; because the authority commits whole or not at all, the agent
+can settle the latter by reading the log's head.
 
 ## 9. Rules that name their enforcer
 
@@ -287,13 +269,12 @@ lint, a test, or an xtask such as `cargo xtask layers`, which both apps use
 to hold their crate layering, `xtask/src/layers.rs`), and `cargo xtask ci`
 runs them all.
 
-**For LocalGPT:** `CLAUDE.md`'s critical rule, that `localgpt-core` compiles
-for iOS and Android, has no check in CI, and it goes with `mobile-ffi`.
-*Adopt* the form for the rules that outlive it. The format crates
-(`world-types`, `world-agent`, `world-sync`, `world-editor`, `world-export`)
-depend on neither `core` nor Bevy today, and nothing checks it; a `cargo
-tree` check in CI would. Every hard rule in `CLAUDE.md` and `AGENTS.md` then
-names its check, or says it has none.
+**For LocalGPT:** every hard rule should name the check that enforces it, or
+say plainly that it has none. `cargo xtask rule` already enforces the
+language and `wry` rules; format conformance and the web renderer have their
+own checks. The remaining layering constraint worth making executable is
+that the format-facing crates do not acquire a Bevy or application-crate
+dependency by accident.
 
 ## 10. An outside oracle
 
@@ -330,39 +311,27 @@ check the JavaScript reference too.
 
 ## 12. What does not transfer
 
-- **egui, and a Rust-only interface.** The app's interface is a web page
-  (the-page.md) — unless [all-rust.md](all-rust.md) is adopted, in which
-  case §1's "How they draw" is the model.
+- **An embedded ACP chat or model API backend.** The native terminal keeps
+  the agent's own interface; LocalGPT does not compose prompts or hold keys.
 - **B-rep kernels and constraint solvers.** A `.world` has no solids.
 - **Parity with an incumbent as the measure of progress.** CADCraft counts
   AutoCAD's menu items; a `.world` editor has no incumbent to count against.
-- **CADCraft's prompt machine as the agents' way in** (`command_line` types
-  at the prompt as a person would). Agents here send typed ops, and a prompt
-  language would be a second vocabulary.
-- **SolidCraft's API backend** (§7).
+- **CADCraft's prompt machine as the agents' way in.** Agents here send
+  typed ops; a prompt language would be a second vocabulary.
+- **An agent cursor that delays commands for animation.** Attribution and
+  change highlighting must not slow the authority.
 
-## Top ten, ranked
+## The useful checks from here
 
-1. **Shim: the op schema in `world_submit`, and the nearest field in strict
-   ingest's refusal** (§3). Hours to a day.
-2. **Live system: `catch_unwind` around the trial apply, and a panic hunt
-   over `EditOp` through `LiveWorld::submit`** (§4). One to two days.
-3. **Shim: start without an app, route each call, say which answered** (§5).
-   One to two days.
-4. **Live API token: the operating system's randomness, `.live/` 0700 and
-   the file 0600, the query form on the board's pages only** (§8). Hours.
-   Done 2026-10-31.
-5. **`localgpt setup` on `agent_setup.rs`'s rules, with one registration
-   that finds the open world** (§6). Part of 0.5.0; two to three days.
-6. **The page's terminals: an agent's process group stopped as one**, so
-   closing a tab or quitting ends its helpers too (§7). Hours, with a test
-   like SolidCraft's.
-7. **Lints: the engine crates' deny list on `world-agent`, `world-sync` and
-   `world-editor`; warnings elsewhere** (§4). A day, then the fixes.
-8. **Rules that name their check, and a CI check that the format crates
-   depend on neither `core` nor Bevy** (§9). Hours.
-9. **One command catalog under the live API, the shim, the CLI and the page,
-   with a reason when a command can't run** (§2). 0.6.0; weeks, already
-   scheduled.
-10. **openworldformat: damaged packages every reference refuses, and a few
-    hand-worked folds** (§4, §10). Days, in that repository.
+This is not a second roadmap. When touching the corresponding subsystem,
+retain the habits that transfer:
+
+1. strict, machine-readable op schemas and useful strict-ingest refusals;
+2. panic containment and property tests around `LiveWorld::submit`;
+3. explicit answers about which authority accepted a command;
+4. owner-only live credentials, with query credentials limited to board pages;
+5. process-group cleanup when a terminal closes;
+6. executable checks for layering and other hard repository rules;
+7. one command vocabulary across the native shell, live API, shim and CLI;
+8. damaged-package and hand-worked-fold cases in the Open World Format's
+   conformance corpus.

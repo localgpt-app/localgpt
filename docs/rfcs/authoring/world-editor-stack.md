@@ -1,15 +1,11 @@
 # The stack for a non-linear `.world` editor
 
-**Status:** proposal, partly built — the headless core is
-`crates/world-editor` (see [Built, and what it found](#built-and-what-it-found));
-the reconciler is not. Its chrome section is superseded (2026-10-30) by
-[the-page.md](the-page.md): the chrome is a web page over the viewport, not
-Bevy's own widgets; the rule that the ECS is a projection of a fold stands.
-Greenfield: it assumes no existing
-choice in `crates/gen` is load-bearing. Companion to
-[agents-outside-the-window.md](agents-outside-the-window.md), which answers
-where the person types; this answers what the editor is built out of when
-**history is the product**: fork at any entry, scrub as a tree, fold any tip.
+**Status:** partly implemented. The headless core is `crates/world-editor`
+(see [Built, and what it found](#built-and-what-it-found)); the reconciler is
+not. The desktop chrome is the native eframe/egui shell described in
+[all-rust.md](all-rust.md). The rule that the ECS is a projection of a fold
+stands: this document is about what the editor is built out of when **history
+is the product** — fork at any entry, scrub as a tree, fold any tip.
 
 ## What is already decided, and must not be re-litigated
 
@@ -109,98 +105,25 @@ from — additionally let two branches that reach the same state confirm
 convergence without replaying, which is git's tree-equality trick and the
 thing that makes a branch rail honest about convergence.
 
-## Chrome: Bevy's own widgets, not egui
+## Chrome: the native all-Rust shell
 
-(Superseded 2026-10-30 by [`the-page.md`](the-page.md): neither — the chrome is a web page over the viewport. Evaluated on 2026-10-16 against the inventory then: [`egui-or-not.md`](egui-or-not.md).)
+The desktop interface is eframe and egui, implemented in
+`crates/app/src/shell`; Bevy renders the world into a texture in that shell.
+[all-rust.md](all-rust.md) records the current stack and its remaining work.
+The editor-specific lessons that still apply are in
+[blender-lessons.md](blender-lessons.md): operators, modal keymaps,
+region-scoped input, the outliner's drop zones, and the separation between
+authored and evaluated state.
 
-(A reading of Blender's source for what its editor does that ours should — operators, modal keymaps, region-scoped input, the outliner's drop zones, the depsgraph's authored-versus-evaluated split: [`blender-lessons.md`](blender-lessons.md), 2026-10-17.)
+The terminal is a plain PTY whose bytes feed an `alacritty_terminal` emulator
+and an egui grid widget. It is not an agent-specific protocol or prompt loop.
+Focus is explicit: typing in a panel or terminal does not move the world, and
+world input does not leak into a panel.
 
-This is where "fully utilize Bevy" has recently become the right answer rather
-than the loyal one. Bevy 0.19 ships an editor-widget toolkit.
-
-**It is one feature flag away, not already present.** `bevy_feathers` and
-`bevy_ui_widgets` are pinned in `Cargo.lock`, so adopting them resolves
-nothing new — but they are **not** default Bevy features and nothing in the
-workspace depends on them today (`cargo tree -i bevy_feathers` finds
-nothing). Using them means adding the `bevy_feathers` feature to the `bevy`
-dependency, which also pulls `bevy_ui_widgets`. Cheap, but a step, and this
-RFC previously implied they were available as-is:
-
-- **`bevy_ui_widgets` 0.19** — headless widget behaviour: `button`,
-  `checkbox`, `list`, `menu`, `popover`, `radio`, `scrollarea`, `scrollbar`,
-  `slider`, **`text_input`**.
-- **`bevy_feathers` 0.19** — the styled layer over it, described in its own
-  docs as "a collection of styled and themed widgets for building editors and
-  inspectors… designed with a future Bevy Editor in mind," with
-  `theme.rs`/`tokens.rs`/`palette.rs`/`dark_theme.rs`, `controls/`,
-  `containers/`, `display/`, `focus.rs` and `cursor.rs`.
-- **`bevy_input_focus`** — focus and tab navigation as a first-class Bevy
-  concern, which is the structural fix for the problem egui creates here:
-  `inspector/mod.rs:121` must keep `enable_absorb_bevy_input_system` off
-  because it clears `ButtonInput<KeyCode>` and kills WASD, with four
-  hand-rolled focus guards elsewhere. Feathers routes focus through
-  `bevy_input_focus::tab_navigation` instead of fighting the same input
-  resource.
-- **`bevy_picking`** and **`bevy_gizmos`** for selection and direct
-  manipulation, with `bevy_clipboard` for copy/paste.
-
-The honest caveats, in the crate's own words: *"this crate is still
-experimental and unfinished! It will change in breaking ways, and there will
-be both bugs and limitations."* And it is deliberately not a complete editor
-kit — there is **no docking, no tree view** (`list.rs` is flat) and no graph
-view, so the outliner's hierarchy and the branch rail are hand-rolled either
-way.
-
-That is tolerable, because of what this editor's chrome actually is. It is
-not Blender's hundreds of panels. It is six surfaces: viewport, outliner,
-inspector, **timeline/branch rail**, asset shelf, log. Five of the six are
-within `feathers` plus a tree widget.
-
-**And the sixth is the argument.** The branch rail is the product, not a
-footnote: thumbnails per keyframe, a scrub that re-folds at interactive
-rates, fork and merge, "diff this tip against that tip". It wants render-target
-thumbnails, which is Bevy; a smooth 60 fps scrub driven by the reconciler,
-which is Bevy; and the same frame budget as the viewport, which an
-immediate-mode overlay re-tessellating every frame does not help with.
-`Screenshot` is already used in `gen3d/live.rs`, so per-keyframe thumbnails
-are a render target away. Putting the timeline in Bevy and the rest of the
-chrome in egui would make the primary surface the odd one out; putting all of
-it in Bevy makes the timeline first-class and costs a tree widget.
-
-## The terminal, in this stack
-
-With chrome on `bevy_ui` and focus owned by `bevy_input_focus`, an in-window
-PTY pane gets substantially more defensible than it was as an egui widget:
-
-- `alacritty_terminal` (Apache-2.0) is the emulator; `portable-pty` (MIT) is
-  the process. Neither is a licence problem and neither is ours to write —
-  and the process half is already written here: `core/src/pty.rs` is a
-  portable `PtyHost` trait with scrollback and reattach, and
-  `cli-tools/src/pty.rs` is 742 lines of `portable-pty` behind it, already
-  served over the bridge IPC protocol.
-- The grid is the easiest thing a 3D engine draws: one texture of (glyph
-  index, foreground, background) per cell, one quad, a glyph atlas sampled in
-  WGSL. An immediate-mode UI would tessellate per glyph instead.
-- Focus is the part that used to be fatal and now is not. A terminal wants
-  Tab, Escape, arrows and `Ctrl-C`, and so does the player controller;
-  `bevy_input_focus` is where that arbitration belongs.
-- What remains ours regardless: the key-to-escape-sequence table (Zed's is
-  442 lines), mouse reporting, alt-screen, selection, scrollback. Weeks of
-  work, not days — and alacritty's own tables are Apache-2.0 if it comes to
-  that.
-
-**The Bevy payoff worth naming:** once the terminal is a texture, it can be a
-surface *in* the world — an agent's pane docked beside the thing it is
-editing, or standing in the scene at the coordinates it is changing. That is a
-genuinely new editor idea rather than a reimplementation of a pane, and it is
-only available because the engine owns the chrome.
-
-**But still do the cheap things first.** Launch the user's own terminal in the
-world folder; ship the MCP shim so an outside agent has tools; speak ACP at
-protocol version 1 so turns, tool calls and plans arrive as data the timeline
-can attribute to revisions. A terminal pane is a nicety on top of those three,
-and the ordering in
-[agents-outside-the-window.md](agents-outside-the-window.md) does not change.
+The history graph and timeline are native panels over the same folds and
+deltas described here. They are not a second history implementation. A
+remaining terminal or panel feature must preserve that rule and use the live
+authority for edits, rather than writing beside it.
 
 ## Built, and what it found
 

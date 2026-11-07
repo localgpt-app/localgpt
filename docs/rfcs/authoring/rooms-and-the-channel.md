@@ -1,13 +1,12 @@
 # Rooms: other people in an open world, and the channel they come through
 
 **Status:** proposal, 2026-10-31; step 0 done 2026-11-03, nothing else built
-against it. Moves rooms up,
-revising [world-strategy.md](../../world-strategy.md) §13.1 ("Multiplayer in
-v1: Out") and §15.3 ("Moved down"). Puts rooms in the desktop app, over the
-`.world` it has open, under the one authority of
-[world-editor-stack.md](world-editor-stack.md) and
-[the-cli-and-the-world.md](the-cli-and-the-world.md). Keeps the wire protocol
-of [collaborative-world-engine-architecture.md](../multiplayer/collaborative-world-engine-architecture.md),
+against it. [world-strategy.md](../../world-strategy.md) keeps rooms behind
+clear identity and transport security. This design puts them in the desktop
+app, over the `.world` it has open, under the one authority of
+[world-editor-stack.md](world-editor-stack.md) and `localgpt world`. It keeps
+the wire protocol of
+[collaborative-world-engine-architecture.md](../multiplayer/collaborative-world-engine-architecture.md),
 and designs the end-to-end layer that [mobile-remote.md](mobile-remote.md)'s
 step 2 asks for, so that the phone and rooms share it.
 
@@ -136,8 +135,8 @@ From then on **the key is the person**:
 - The people list shows who is in and who is attached. Forgetting someone
   closes their connections.
 - A batch's author is the name the host gave the key, never a string in the
-  batch. That is agents-outside-the-window.md's "who sent this batch" as "a
-  property of the connection rather than a claim in the body", for people.
+  batch. Who sent the batch is a property of the connection, not a claim in
+  its body.
 - People are a list of their own, apart from the phone's devices. A guest's
   key never opens the remote, whose devices drive the terminals.
 
@@ -180,9 +179,9 @@ Whoever serves a browser guest's JavaScript can read its keys. So the page
 must come neither from the relay nor over plain HTTP, and a plain-HTTP page
 has no WebCrypto besides.
 
-- **Browser guests** open a fixed page at `localgpt.world/r/<code>`, where
-  world-strategy.md §13.5 already put rooms, with the host's key and the
-  one-time code in the fragment. The relay serves no page.
+- **Browser guests** open a fixed page at `localgpt.world/r/<code>`, the
+  canonical room-link location in `world-strategy.md`, with the host's key
+  and the one-time code in the fragment. The relay serves no page.
 - **They reach the host through the relay,** even from the next room: an
   HTTPS page can't open `ws://` to a LAN address (mixed content).
 - **The host's own plain-HTTP page** stays for a network the person trusts,
@@ -192,9 +191,10 @@ has no WebCrypto besides.
 
 The page is a static build of the repository's own client: `crates/world-export`'s
 session client and viewer, versioned and served from localgpt.world.
-Trusting it is trusting the project's site, as downloading the app is. If
-[the-world-in-the-page.md](the-world-in-the-page.md) moves the window's world
-into the page, the guest's page and the app's converge.
+Trusting it is trusting the project's site, as downloading the app is. If the
+shared panels described in [all-rust.md](all-rust.md) later run in the
+browser, the guest page can converge with that work instead of growing a
+separate interface.
 
 ## What each step protects
 

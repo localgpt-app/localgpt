@@ -9,34 +9,16 @@
         <img src="{{ get_url(path='logo/localgpt-gear.gif') }}" alt="LocalGPT Gear" class="hero-gear" width="320">
       </div>
 
-      <div class="install-wrap">
-        <div class="install-row">
-          <span class="install-label">Worlds</span>
-          <span class="install-code">cargo install localgpt-gen</span>
-          <button class="copy-btn" onclick="copyCmd(this, 'cargo install localgpt-gen')">Copy</button>
-        </div>
-        <div class="install-row">
-          <span class="install-label">Previs</span>
-          <span class="install-code">cargo install localgpt-previs</span>
-          <button class="copy-btn" onclick="copyCmd(this, 'cargo install localgpt-previs')">Copy</button>
-        </div>
-        <div class="install-row">
-          <span class="install-label">The CLI</span>
-          <span class="install-code">cargo install localgpt</span>
-          <button class="copy-btn" onclick="copyCmd(this, 'cargo install localgpt')">Copy</button>
-        </div>
-      </div>
-
       <p class="hero-subtitle">
-        A desktop app where a document, a song, a screenplay or a prompt becomes a <code>.world</code> you can walk through — a package with a history that people and agents edit together — with your own coding agents in the terminals beside it.
+        Open a document, a song or a screenplay as a 3D world. Edit it in a native desktop window while your own coding agent works beside you, and keep every change in the world's history.
         <br>
-        Open source, runs locally, runs no model.
+        Open source, local-first, with no built-in agent or API key.
       </p>
 
       <div class="hero-buttons" style="flex-wrap: wrap;">
-        <a href="/docs/app/" class="btn btn-primary">The desktop app</a>
+        <a href="/docs/installation/" class="btn btn-primary">Get the app</a>
         <a href="https://localgpt.md/" class="btn btn-secondary">Try previs ↗</a>
-        <a href="/docs/intro/" class="btn btn-secondary">Documentation</a>
+        <a href="/docs/quick-start/" class="btn btn-secondary">Quick start</a>
       </div>
     </div>
 
@@ -53,94 +35,35 @@
   </div>
 </section>
 
-<!-- Features Grid -->
 <section class="section-features">
   <div class="container">
-    <h2 class="section-title">Worlds with a history, built where your data lives</h2>
-    <p class="section-subtitle">Everything runs on your machine — no cloud dependency, no telemetry, nothing uploaded.</p>
+    <h2 class="section-title">A world you can open, change and rewind</h2>
+    <p class="section-subtitle">One desktop app, one open format, and the agents you already use.</p>
     <div class="features-grid">
       <div class="feature-card">
-        <h3>A world is a package</h3>
-        <p>A <code>.world</code> is a folder: the world now, the log of every change ever made to it, and its assets by content hash. The state at any revision is a fold of the log, so undo, branches, replay and sharing are reads over one history — the <a href="https://openworldformat.org" target="_blank" rel="noopener">Open World Format</a>, which any viewer of the format opens.</p>
+        <h3>One native app</h3>
+        <p>A Markdown document, a song or a <code>.world</code> package opens in the same Rust window. Write beside the world, play its soundtrack, adjust its shots and inspect its contents. <a href="/docs/app/">The desktop app &rarr;</a></p>
       </div>
       <div class="feature-card">
-        <h3>Agents edit from outside</h3>
-        <p>Open a package as a live canvas and no agent runs in the window. Claude Code, Codex, a script or <code>localgpt</code> itself sends a batch of ops to the folder's local API; it commits whole or is refused with a reason per op. Review each batch before it lands, if you like. <a href="/docs/gen/live-canvas/">Learn more &rarr;</a></p>
+        <h3>Your agent, beside it</h3>
+        <p>Run your coding agent in a terminal next to the world, or connect it over MCP. It edits through the world's local API; LocalGPT supplies the tools, not a model, a login or another agent. <a href="/docs/gen/mcp-server/">Connect an agent &rarr;</a></p>
       </div>
       <div class="feature-card">
-        <h3>One desktop app</h3>
-        <p>A Markdown document, a song or a package — each opens as a world in the same window, and your agent builds in it from a terminal beside it. A document rebuilds in place as you type, with the places an agent authored into the sidecar beside it; a song's analysis picks and performs its world with no model at all. <a href="/docs/app/">Learn more &rarr;</a></p>
+        <h3>History is the format</h3>
+        <p>A <code>.world</code> holds the current scene, its assets and the log of every change. Undo, replay, compare branches and share the result through the <a href="https://openworldformat.org" target="_blank" rel="noopener">Open World Format</a>. <a href="/docs/gen/live-canvas/">Open a live canvas &rarr;</a></p>
       </div>
       <div class="feature-card">
-        <h3>Script to board</h3>
-        <p>Drop a screenplay — PDF, Final Draft, Fountain or Markdown — on <a href="https://localgpt.md/">localgpt.md</a> and get a previs board in the tab: a set, stand-ins and coverage per scene with real lenses and measured cameras. Then revise the shots by asking, and compare treatments as branches. <a href="/docs/gen/previs/">Learn more &rarr;</a></p>
+        <h3>Previs without the setup</h3>
+        <p>Drop a screenplay on <a href="https://localgpt.md/">localgpt.md</a> for a board, a shot list and one world per scene. Nothing is uploaded. Open a scene in the app to revise its coverage and compare treatments. <a href="/docs/gen/previs/">Previs workflow &rarr;</a></p>
       </div>
       <div class="feature-card">
         <h3>Build together</h3>
-        <p>Host a world; friends join from their own window or a browser with the invite link, walk the same world live and chat, and your agent builds where they ask. A relay reaches guests beyond the LAN. Every session is a package with per-user undo and replay. <a href="/docs/gen/multiplayer/">Learn more &rarr;</a></p>
+        <p>Host a Gen session on your network. Friends can walk the same world from their own window or a browser, while your agent makes the changes. <a href="/docs/gen/multiplayer/">Collaborative sessions &rarr;</a></p>
       </div>
       <div class="feature-card">
-        <h3>Behaviors and procedural audio</h3>
-        <p>Animate without scripting — orbit, spin, bob, look-at, pulse, path-follow, bounce — and add ambient soundscapes and spatial emitters synthesized in real time. Song worlds bind entity parameters to the music's energy, beat and stems.</p>
+        <h3>Share outside the app</h3>
+        <p>Open worlds in the browser at <a href="https://localgpt.world/">localgpt.world</a>, export a self-contained HTML page, or take glTF into another 3D tool. <a href="/docs/gen/export/">Export options &rarr;</a></p>
       </div>
-      <div class="feature-card">
-        <h3>Your agents, outside the window</h3>
-        <p>The desktop app opens terminals in the folder of the world that is open; run Claude Code, Codex, Gemini CLI or anything else in them. A world's folder carries <code>AGENTS.md</code> and its live API's address, so an agent started there finds everything it needs by reading files it already reads. <a href="/docs/gen/live-canvas/">Learn more &rarr;</a></p>
-      </div>
-      <div class="feature-card">
-        <h3>MCP, for any client</h3>
-        <p><code>localgpt-gen mcp-server</code> lets Claude Desktop, Claude Code, Codex, Gemini CLI and editors drive the 3D window; <code>localgpt-gen --mcp-relay</code> lets one drive the window you are looking at; and <code>localgpt world mcp</code> serves an open canvas's tools to any agent. <a href="/docs/gen/mcp-server/">Learn more &rarr;</a></p>
-      </div>
-      <div class="feature-card">
-        <h3>Local &amp; private</h3>
-        <p>Single Rust binaries that hold no model and no key: your agents bring their own, and everything stays on your machine. A world is a folder you can read, diff and put in git. <a href="/docs/app/">Learn more &rarr;</a></p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- Family Apps -->
-<section class="section-apps">
-  <div class="container">
-    <h2 class="section-title">The LocalGPT Family</h2>
-    <p class="section-subtitle">One desktop app with several doors, the binary other tools drive, a previs page that installs nothing, and a gallery that opens every world in the browser — all open source, all running locally.</p>
-    <div class="apps-grid">
-      <a href="/docs/app/" class="app-card">
-        <span class="app-tagline">One window, every mode</span>
-        <h3 class="app-name">LocalGPT</h3>
-        <p class="app-desc">The desktop app. A document, a song or a <code>.world</code> package opens as a place you can walk through; your agents edit it from a terminal beside it while you watch, and every change is in the history.</p>
-        <span class="app-cta">The desktop app &rarr;</span>
-      </a>
-      <a href="/docs/gen/" class="app-card">
-        <span class="app-tagline">Worlds from words</span>
-        <h3 class="app-name">LocalGPT Gen</h3>
-        <p class="app-desc">Describe a place to your agent and walk into it — geometry, materials, lighting, behaviors, sound. The world behind the desktop app's window, an MCP server with 88 tools, a headless generator, and the host of collaborative sessions.</p>
-        <span class="app-cta">Start building &rarr;</span>
-      </a>
-      <a href="https://localgpt.md/" class="app-card" target="_blank" rel="noopener">
-        <span class="app-tagline">A previs board from a screenplay</span>
-        <h3 class="app-name">localgpt.md</h3>
-        <p class="app-desc">Drop a PDF, a Final Draft file, Fountain or Markdown pages and get a set, stand-ins and coverage per scene — real lenses, measured cameras — drafted in the tab, nothing uploaded. Then revise the shots in the live canvas.</p>
-        <span class="app-cta">localgpt.md ↗</span>
-      </a>
-      <a href="/docs/verse/" class="app-card">
-        <span class="app-tagline">A world for every song</span>
-        <h3 class="app-name">LocalGPT Verse</h3>
-        <p class="app-desc">Listens to your music and imagines a living 3D world for each track — analyzed, staged and performed entirely on your machine. A mode of the desktop app, and a window of its own.</p>
-        <span class="app-cta">Verse docs &rarr;</span>
-      </a>
-      <a href="/docs/md/" class="app-card">
-        <span class="app-tagline">Walk through your notes</span>
-        <h3 class="app-name">LocalGPT MD</h3>
-        <p class="app-desc">Open a Markdown file as a 3D world. Every section becomes a place, saving rebuilds the world while you watch, and in the desktop app an agent working on the file authors each place into a sidecar beside it.</p>
-        <span class="app-cta">MD docs &rarr;</span>
-      </a>
-      <a href="https://localgpt.world/" class="app-card" target="_blank" rel="noopener">
-        <span class="app-tagline">Worlds in your browser</span>
-        <h3 class="app-name">localgpt.world</h3>
-        <p class="app-desc">The gallery, and the one web viewer: worlds from every app, playable in the browser with their behaviors, audio, tours and soundtracks — the same renderer the exported HTML pages carry.</p>
-        <span class="app-cta">localgpt.world ↗</span>
-      </a>
     </div>
   </div>
 </section>

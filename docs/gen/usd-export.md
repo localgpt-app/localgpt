@@ -15,9 +15,9 @@ LocalGPT Gen currently exports worlds as **glTF/GLB** (3D interchange), **HTML**
 | **Unity, Unreal Engine** | USD import for asset pipelines |
 
 For LocalGPT Gen specifically:
-- The iOS app could preview worlds directly in AR via USDZ Quick Look
-- Interop with Meta's WorldGen pipeline (same format, comparable architectures)
-- Unlocks Apple Vision Pro as a world viewer
+- External Apple viewers could preview exported USDZ files in AR Quick Look
+- Film and VFX tools could receive richer scene structure than glTF carries
+- USDZ remains an export question, not a reason to build a separate native viewer
 
 ## Current Export Formats
 

@@ -2,7 +2,7 @@
 
 > **This crate lives in the `localgpt` workspace** (folded in from the
 > standalone `localgpt-md` repository; see
-> `docs/world-strategy.md` §13.6). Run everything from the
+> `docs/world-strategy.md`). Run everything from the
 > workspace root with `-p localgpt-md`. The shared asset pack is fetched
 > once by `cargo xtask fetch-assets` and resolved by
 > `localgpt-world-agent`'s `paths` module.

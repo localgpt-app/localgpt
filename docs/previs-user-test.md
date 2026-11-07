@@ -1,6 +1,6 @@
 # Previs user test — the observation sheet
 
-**Status:** the protocol for `world-strategy.md` §15.4, written 2026-10-14.
+**Status:** the active protocol for the previs-first validation in [`world-strategy.md`](world-strategy.md).
 Five to ten sessions; this sheet is what makes them comparable. Nothing is
 measured by the page or the app — the page uploads nothing, and the app's
 history records edits, not people — so the measurements are taken by

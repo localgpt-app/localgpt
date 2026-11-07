@@ -1,16 +1,16 @@
-# Gen Mode Audio System
+# Gen audio system
 
 ## Overview
 
-LocalGPT Gen mode includes a procedural environmental audio system built on FunDSP synthesis inside a kira mixer (via `localgpt-world-audio`, the one mapping from the world format's audio types to sound). The system synthesizes natural-sounding ambient soundscapes and spatial sound emitters that respond to camera position in real-time.
+LocalGPT Gen includes a procedural environmental audio system built on FunDSP synthesis inside a kira mixer (via `localgpt-world-audio`, the one mapping from the world format's audio types to sound). The system synthesizes ambient soundscapes and spatial sound emitters that respond to camera position in real time. An external agent authors them through Gen's MCP tools; no model runs inside Gen.
 
 ### Architecture
 
 ```
 ┌──────────────────────────────────────┐
-│ Agent Thread (tokio)                 │
+│ External agent / MCP client          │
 │                                      │
-│ LLM calls gen_set_ambience /         │
+│ gen_set_ambience /                   │
 │ gen_audio_emitter → GenCommand       │
 └──────────────┬───────────────────────┘
                │ mpsc channel
@@ -82,7 +82,7 @@ Emitters support **spatial rendering**:
 - **Stereo panning:** Left/right based on camera relative direction
 - **Updates per-frame:** Lock-free via Shared params (no graph rebuild needed)
 
-## LLM Tools
+## Agent Tools
 
 ### `gen_set_ambience`
 
@@ -185,7 +185,7 @@ The system automatically detects entity names and assigns audio. This runs every
 
 **Example:**
 ```python
-# LLM spawns entity
+# Agent spawns entity
 gen_spawn_primitive(name="campfire", shape="sphere", ...)
 
 # auto_infer_audio detects "campfire" in name
@@ -328,53 +328,38 @@ Parameter updates (volume, pan) do NOT rebuild — they just update `Shared` val
   - `infer_emitter_from_name()` for auto-detection
   - Keyword-based inference rules
 
-- **Modified files:**
-  - `crates/gen/Cargo.toml` — Added `fundsp`, `cpal`
-  - `crates/gen/src/gen3d/commands.rs` — Audio command/response types
-  - `crates/gen/src/gen3d/tools.rs` — 4 new LLM tools
+- **Related files:**
+  - `crates/gen/src/gen3d/commands.rs` — audio command/response types
+  - `crates/gen/src/gen3d/tools.rs` — the four audio tools
   - `crates/gen/src/gen3d/plugin.rs` — Bevy system registration
   - `crates/gen/src/gen3d/registry.rs` — `AudioEmitter` entity type
-  - `crates/gen/src/gen3d/mod.rs` — Module exports
 
-## Future Extensions
+## Possible extensions
 
-### Phase 4: Polish
-- Crossfades when switching ambience (1–2 second smooth transition)
-- Environmental reverb changes (outdoor dry → cave wet)
-- Smooth parameter interpolation (no sudden jumps)
+These are ideas, not scheduled features:
 
-### Musical Background Tracks
-- **Glicol** — Graph-oriented live coding language for real-time music synthesis
-  - LLM generates Glicol code strings
-  - `Engine::update_with_code()` hot-swaps patterns seamlessly
-  - Excellent for generative music backgrounds
+- crossfades when switching ambience and smooth parameter interpolation;
+- environmental reverb changes;
+- musical source formats such as Glicol or ABC, authored by an external agent
+  and synthesized through the shared audio engine.
 
-### ABC Notation
-- **ABC notation** for melodic music generation
-  - LLMs generate valid ABC reliably (ChatMusician, NotaGen research)
-  - Parse with `abc-parser` or subprocess → MIDI events
-  - Synthesize via FunDSP or external MIDI engine
+A musical extension needs its own design and must not add a prompt loop or a
+model call to Gen.
 
-Both musical extensions are complementary to the ambient system — not replacements.
-
-## Testing
+## Manual check
 
 ```bash
-# Build
-cargo build -p localgpt-gen
-
-# Run interactive (prompt LLM to use audio tools)
-cargo run -p localgpt-gen
-
-# Run with initial scene description
-cargo run -p localgpt-gen -- "Create a forest clearing with a stream and campfire"
-
-# Verify
-# 1. You should hear ambient forest sounds
-# 2. You should hear water sounds near the stream (distance-responsive)
-# 3. You should hear fire sounds near the campfire
-# 4. Flying camera toward/away from emitters: volume changes, panning occurs
+cargo run -p localgpt-gen -- mcp-server
 ```
+
+Connect an MCP client and ask its agent to create a forest clearing with a
+stream and a campfire, with forest ambience and spatial water and fire
+emitters. Then verify:
+
+1. forest ambience plays;
+2. the stream and fire are audible at their positions;
+3. moving the camera changes their volume and stereo position;
+4. `gen_audio_info` reports the layers and emitters the agent created.
 
 ## Performance Notes
 

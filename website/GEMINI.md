@@ -1,34 +1,20 @@
-# LocalGPT Website (Zola) - GEMINI.md
+# LocalGPT Website (Zola)
 
-This directory contains the source code for the [LocalGPT](https://localgpt.app) documentation website and templates showcase, built with **Zola** and deployed to Cloudflare Workers.
+This directory contains [localgpt.app](https://localgpt.app), the LocalGPT landing page and user documentation, built with Zola and deployed manually to Cloudflare Workers.
 
-## Project Overview
-
-- **Core Technology:** Zola (Rust-based static site generator).
-- **Deployment:** Cloudflare Workers (static assets).
-- **Purpose:** Central documentation hub for LocalGPT, a local-first, privacy-focused AI assistant built in Rust.
-- **Key Features:**
-  - Fast, single-binary compilation with zero Node.js / npm dependencies.
-  - Complete documentation for LocalGPT CLI, Gen, Verse, and MD.
-  - Interactive World Templates catalog.
-  - Dark-mode only design system matching the `#25c2a0` brand.
-  - Client-side full-text search with Elasticlunr.
-
-## Building and Running
+## Commands
 
 ```bash
-zola serve             # Local development server at http://127.0.0.1:1111
-zola build             # Production build into public/
-zola check             # Verify internal and external links
-./deploy.sh            # Build and deploy to Cloudflare Workers
+zola serve
+zola check --skip-external-links
+zola build
 ```
 
-## Project Structure
+## Layout
 
-- `content/docs/`: Markdown files and sub-sections (`gen/`, `verse/`, `md/`).
-- `content/templates/`: 3D World Templates.
-- `templates/`: Tera templates (`base.html`, `index.html`, `docs_page.html`, `template_single.html`, `templates_index.html`).
-- `static/`: Static assets (CSS, logos, icons, updater manifests).
-- `config.toml`: Central Zola configuration.
-- `wrangler.toml`: Cloudflare Workers configuration (serves `./public`).
-- `deploy.sh`: Deployment script.
+- `content/docs/`: current user documentation (`app.md`, `gen/`, `verse/`, `md/`, installation, CLI and architecture).
+- `templates/`: Tera templates (`base.html`, `index.html`, `docs_page.html`).
+- `static/`: CSS, logos and updater manifests.
+- `config.toml`: site metadata and the shared family links.
+
+The desktop interface is native egui/eframe; the web page in `crates/app/ui` belongs to paired phones and tablets, not the desktop window. Verify product claims against the crates before editing copy.

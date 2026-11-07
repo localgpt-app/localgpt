@@ -1,6 +1,6 @@
 base_url = "https://localgpt.app"
 title = "LocalGPT"
-description = "The desktop app where a document, a song, a screenplay or a prompt becomes a 3D world that people and agents edit together, with your own coding agents in the terminals beside it. No model inside, no key."
+description = "Open a document, song or screenplay as an editable 3D world. LocalGPT is a native desktop app with local world tools and your own coding agents beside it."
 compile_sass = false
 build_search_index = true
 generate_feeds = false

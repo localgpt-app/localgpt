@@ -1,71 +1,44 @@
 ---
 slug: "/intro"
 title: "Introduction"
-description: "What LocalGPT is: a desktop app where prompts, documents, songs and screenplays become .world packages that people and agents edit together, the world's command line and MCP shim, and the format they all share."
+description: "LocalGPT is a native desktop app and a set of local tools for building, editing and sharing Open World Format packages with your own coding agents."
 ---
 
 # Introduction
 
-LocalGPT is a desktop app, a few binaries and a file format, all open source (Apache 2.0) and all running on your machine.
+LocalGPT turns a Markdown document, a song or a screenplay into a 3D world you can walk through and edit. A world is an [Open World Format](https://openworldformat.org) package: the scene, its assets and the history of every change.
 
-**A desktop app where things you already have become places.** A Markdown document, a song, a screenplay or a prompt opens as a 3D world in one window. A world is a `.world` package — the [Open World Format](https://openworldformat.org): the world now, the log of every change made to it, and its assets. People edit it in the window; agents edit it from outside through a small local API; every change is logged, attributed, undoable and branchable.
+The desktop app is native Rust: eframe and egui draw the panels, and Bevy renders the world. Your own coding agent can work in a terminal beside it or connect over MCP. LocalGPT provides the world, editing tools and local API; the agent provides its own model and login.
 
-**No agent inside, no model inside.** LocalGPT runs no model and holds no key. The desktop app opens terminals in the folder of the world that is open, and you run your own coding agent in them — Claude Code, Codex, Gemini CLI, whichever you have. The folder carries `AGENTS.md`, which says how to change the world, and the address of the world's live API, so an agent started there finds everything it needs by reading files it already reads. The app knows nothing about what runs in a tab.
+## Choose a starting point
 
-The two halves meet at a simple point: an agent that can edit files is one command away from an agent that edits worlds, and the worlds are a format no engine owns.
+| I want to… | Start here |
+|---|---|
+| Open a document, song or world | [The desktop app](/docs/app/) |
+| Turn a screenplay into a previs board | [localgpt.md](https://localgpt.md), then [the previs workflow](/docs/gen/previs/) |
+| Build a world with my coding agent | [Quick start](/docs/quick-start/) and [MCP server](/docs/gen/mcp-server/) |
+| Edit a `.world` from a script or CI | [`localgpt world`](/docs/cli-commands/) |
+| Host a world for other people | [Collaborative sessions](/docs/gen/multiplayer/) |
+| Open a world in a browser | [localgpt.world](https://localgpt.world) |
 
 ## The pieces
 
-| | What it is | Get it |
-|---|---|---|
-| [**LocalGPT**, the desktop app](/docs/app/) | One window, every mode: a world from a document (MD), from a song (Verse), or any `.world` opened as a live canvas that your own agent builds in (Gen), with terminals for your agents beside it | `cargo run -p localgpt-app` from a checkout; `LocalGPT.app` from `apps/app-desktop/` |
-| [**LocalGPT Gen**](/docs/gen/) | The world builder as a binary: its 88 tools over MCP, the live canvas, collaborative sessions, headless | `cargo install localgpt-gen` |
-| [**Previs**](/docs/gen/previs/) | A screenplay in; per scene a `.world` with set, cast and coverage, plus a board and a shot list. Deterministic, no model | [localgpt.md](https://localgpt.md) in the browser, or `cargo install localgpt-previs` |
-| [**`localgpt`**, the world's command line](/docs/cli-commands/) | `localgpt world`: commit, undo, log, tips, verify, screenshot, and `localgpt world mcp`, the shim that serves an open world's tools to any MCP agent | `cargo install localgpt` |
-| [**localgpt.world**](https://localgpt.world) | The gallery, and the one web viewer every exported page carries | a browser |
+- **[LocalGPT app](/docs/app/)** — documents, songs and live `.world` packages in one native window, with history, a timeline, an inspector and terminals.
+- **[Gen](/docs/gen/)** — the world builder and its 88 MCP tools, also available as a standalone binary for headless work and collaborative sessions.
+- **[Previs](/docs/gen/previs/)** — deterministic screenplay-to-board drafting in the browser or on the command line.
+- **[`localgpt world`](/docs/cli-commands/)** — a package's command line and MCP shim: commit, undo, inspect history, verify and drive an open canvas.
+- **[localgpt.world](https://localgpt.world)** — the gallery and browser viewer for the same packages.
 
-## Where to start
-
-- **Walk into something.** [The desktop app](/docs/app/): open a document, a song or a world, and keep the window open while an agent changes it from a terminal beside it — the [live canvas](/docs/gen/live-canvas/).
-- **Previs a scene.** Drop script pages on [localgpt.md](https://localgpt.md); nothing is installed or uploaded. Then open one scene live and revise the shots by asking — [Previs](/docs/gen/previs/).
-- **Drive the 3D window from your own agent.** `localgpt-gen mcp-server` for Claude Desktop, Claude Code, Codex, Gemini CLI and editors — [MCP Server](/docs/gen/mcp-server/); or `localgpt-gen --mcp-relay`, and the agent drives the window you are looking at — [MCP Relay](/docs/gen/cli-mode/).
-- **Install.** [Installation](/docs/installation/) and the [Quick Start](/docs/quick-start/).
-
-## What is on disk
-
-LocalGPT follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/) on Linux and macOS; `LOCALGPT_DATA_DIR` and `LOCALGPT_STATE_DIR` move a directory, and `LOCALGPT_PROFILE=<name>` moves them all to `localgpt-<name>`.
+## What a world contains
 
 ```text
-~/.local/share/localgpt/
-├── gen-workspace/
-│   ├── skills/<name>/           # saved worlds (world.ron, assets/)
-│   ├── documents/<key>/         # the app's world for each document
-│   └── sessions/<name>/         # collaborative sessions (a package each)
-└── models/
-    └── pack/                    # the shared CC0 asset pack (cargo xtask fetch-assets)
-
-~/.local/state/localgpt/
-├── gen-settings.json            # what the app opened last
-├── app-remote.json              # the paired phones' key hashes (0600)
-├── app-layout.json              # the panels as you left them
-└── logs/localgpt-app.log        # the app's log, when it has no terminal
+scene.world/
+├── manifest.json       # the world at its current head
+├── ops.jsonl           # every committed change
+├── assets/             # meshes, textures and sounds by content hash
+└── AGENTS.md           # how an external agent can edit this world
 ```
 
-There is no config file: nothing in LocalGPT takes a model, a key or an agent's settings. A `.world` you open stays where it is, and the app writes its live API's address into the package's `.live/` folder while it is open.
+One authority writes at a time. While an app has the package open, edits from the window, the CLI and agents all go through its local API. With no app open, `localgpt world` commits directly to the folder. Both paths produce the same attributed, undoable and branchable history.
 
-## How it works
-
-1. **A world is a folder.** `manifest.json` is the world now, `ops.jsonl` every change made to it, `assets/` what it references, `AGENTS.md` how to change it.
-2. **One authority at a time.** While an app has a world open, every change goes through its API — from the window, from `localgpt world`, from an agent over MCP — and lands as one entry in the log, attributed, undoable and branchable. With nothing open, `localgpt world` is the authority itself.
-3. **Agents stay outside.** A terminal in the app, a shell anywhere, an MCP client: the agent brings its own model and login, and LocalGPT knows it only by what it commits.
-4. **One format, many renderers.** The window draws the world with Bevy; the web viewer draws the same package; the format's conformance worlds keep them agreeing.
-
-## Next Steps
-
-- [Installation](/docs/installation) — install the binaries, or build the desktop app from source
-- [The desktop app](/docs/app) — one window, every mode
-- [Quick Start](/docs/quick-start) — a world and an agent in minutes
-- [Live canvas](/docs/gen/live-canvas) — a `.world` that agents edit while you watch
-- [Previs](/docs/gen/previs) — from a screenplay to a board to a canvas
-- [Architecture](/docs/architecture) — the crates and how they depend on each other
-- [CLI Commands](/docs/cli-commands) — `localgpt world`, the shim, and Gen's own flags
+[Install LocalGPT](/docs/installation/) or follow the [Quick start](/docs/quick-start/).

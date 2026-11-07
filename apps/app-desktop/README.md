@@ -6,15 +6,15 @@ in Rust (`crates/app/src/shell`) — where documents, songs and worlds open as
 places and the person's own coding agents run in terminals beside them. A
 paired phone gets a web page of its own (`crates/app/ui`), which the release
 binary carries.
-`docs/world-strategy.md` §13.1 records why it is one app. It replaces the
+`docs/world-strategy.md` records why it is one app. It replaces the
 `LocalGPT Gen.app` bundle; `localgpt-gen` itself stays a binary (the MCP
 server and relay, headless generation, `--host`/`--join`).
 
 - **Open…** at the top of the window takes a Markdown document, a song or a
   world. A document opens with an editor pane beside the world: it saves and
-  the world rebuilds as you type, and scenery a model authored comes from
-  MD's sidecar beside the file, written by `localgpt-md --generate` or by an
-  agent. A song opens as the world Verse builds for it, playing, with the
+  the world rebuilds as you type, and scenery beyond the rule-based draft
+  comes from MD's sidecar beside the file, written by an agent working on the
+  document. A song opens as the world Verse builds for it, playing, with the
   world performing it. A `.world` package opens as a live canvas: the window
   holds its authority, agents edit it through its API, and the history panel
   draws the branches. The same from the command line: `--md notes.md`,

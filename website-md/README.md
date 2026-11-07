@@ -4,14 +4,14 @@ Drop a screenplay — a PDF, a Final Draft file, Fountain, or script pages in
 Markdown — and get a previs board, in the tab. No install, no account, **no upload**: the draft is
 WASM in the page, so the script never leaves the browser.
 
-This is the no-install first contact `docs/world-strategy.md` §15 needs: a
-director with script pages gets a set, stand-ins and a first pass of coverage
-per scene — real lenses, measured camera positions, the actor tracked by
-entity — plus the shot list and the printable board, without `cargo` or the
-desktop app. Revising shots by asking (and treatments as branches) is the
-app's half, linked from the page: unzip the packages, open one scene live
-(`localgpt-gen --live scene-1.world`, or `localgpt-app --world …`), put an
-agent on the folder (`localgpt world mcp`) — the walk is
+This is the no-install first contact described in `docs/world-strategy.md`:
+a director with script pages gets a set, stand-ins and a first pass of
+coverage per scene — real lenses, measured camera positions, the actor
+tracked by entity — plus the shot list and printable board, without `cargo`
+or the desktop app. Revising shots by asking, and comparing treatments as
+branches, is the app's half: unzip the packages, open one scene live
+(`localgpt-gen --live scene-1.world`, or `localgpt-app --world …`), and put
+an agent on the folder (`localgpt world mcp`). The walk is
 `website/content/docs/gen/previs.md`.
 
 The page shows the board the draft produced (the self-contained `board.html`,
@@ -21,15 +21,12 @@ the format opens.
 
 ## Why this domain
 
-Until 2026-10-12 `localgpt.md` was the drop-a-Markdown-file-walk-it page of
-`docs/world-strategy.md` §13.4. §15 made previs the first audience and that
-page's reasons for the domain — nothing to install, no model, no inference
-bill, the domain is the pitch, the demo and the funnel are one artifact —
-carry over to script pages whole. So the previs page took the domain, the
-document-walk page and its `crates/md-web` went (the capability stays in the
-desktop app, `localgpt-md`), and the page reads `.md` too — a Markdown
-screenplay convention, `crates/previs/src/markdown.rs` — so the domain stays
-literal: localgpt.md takes `.md`.
+The domain is the input and the pitch in one: localgpt.md accepts Markdown
+screenplay pages as well as PDF, Final Draft and Fountain. The draft runs
+locally in the browser, so the first demonstration needs no account, model or
+inference bill. Walking an ordinary Markdown document remains in the desktop
+app and `localgpt-md`; this page is specifically the screenplay-to-previs
+workflow.
 
 ## Assembled, not stored
 

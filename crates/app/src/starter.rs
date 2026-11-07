@@ -2,12 +2,12 @@
 //! was remembered.
 //!
 //! A consumer will not download five gigabytes before seeing anything
-//! (`docs/world-strategy.md` §13.3), so the first frame has to come from
+//! (`docs/world-strategy.md`), so the first frame has to come from
 //! nothing: no key, no model, no download. Of the three inputs this app
 //! takes, a **song** is the only one that qualifies — Verse derives the world
 //! from the music itself, so a song's model-free world is a *finished* world,
-//! while a document's rule-derived draft is a placeholder a model is meant to
-//! author over and a prompt needs a model at all.
+//! while a document's rule-derived draft is a starting point for an external
+//! agent and a prompt needs that agent's own model.
 //!
 //! So a cold start opens one of the four CC0 "Starter Worlds" tracks through
 //! the same [`crate::song`] path a user's own song takes. Nothing here is a

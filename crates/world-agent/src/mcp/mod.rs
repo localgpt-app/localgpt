@@ -4,10 +4,8 @@
 //! Behind the `mcp` feature. `localgpt world mcp` (the shim) and
 //! `localgpt-gen mcp-server` both serve a `Vec<Box<dyn Tool>>` over stdio
 //! with [`run_mcp_stdio_server`]; `mcp-http` adds the streamable HTTP
-//! transport ([`http`]). This is what moved out of `localgpt-core` when the
-//! harness went (`docs/rfcs/authoring/the-harness-goes.md`): a tool is a
-//! name, a JSON schema and an async call, and nothing here knows which agent
-//! is on the other end.
+//! transport ([`http`]). A tool is a name, a JSON schema and an async call;
+//! nothing here knows which agent is on the other end.
 
 #[cfg(feature = "mcp-http")]
 pub mod http;

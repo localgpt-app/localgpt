@@ -4,9 +4,9 @@
 //! first frame has to come from nothing at all. Of the inputs a world app
 //! takes, a song is the only one whose model-free output is a *finished*
 //! world rather than a draft — Verse derives the world from the music itself,
-//! while a document's rule-derived draft is a placeholder a model is meant to
-//! author over. So the desktop cold start is a song
-//! (`docs/world-strategy.md` §13.3), and these four tracks are it.
+//! while a document's rule-derived draft is a starting point an external
+//! agent can author over. So the desktop cold start is a song
+//! (`docs/world-strategy.md`), and these four tracks are it.
 //!
 //! "Starter Worlds" by Reverie: four original algorithmic compositions
 //! dedicated to the public domain under CC0-1.0, synthesized by the asset

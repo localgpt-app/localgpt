@@ -21,6 +21,7 @@ All notable changes to LocalGPT are documented in this file.
 
 ### Removed
 
+- **Harness-era documentation and the old app-site catalogs.** The archived assistant docs, completed roadmaps, superseded interface and MMO designs, old research and misleading case studies are out of the documentation tree; `docs/` now keeps 16 living references and active designs. localgpt.app leads with the native app and the current world workflow, without the duplicate ecosystem and competitor-comparison pages. Earlier documents remain in Git history.
 - **The web page over the desktop window**, with its host: `LOCALGPT_APP_SHELL`, `LOCALGPT_APP_UI_URL` and `LOCALGPT_APP_UI`, `wry` and the hit-test view, and the page's desktop layout and design sheets (CodeMirror with them). What stays of `crates/app/ui` is the page a paired phone or tablet gets, until the same panels are built for the browser. The world-in-the-page measuring harness went too; tag `desktop-the-page` keeps the page as it was at its fullest.
 
 ### Fixed

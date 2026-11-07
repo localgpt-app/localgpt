@@ -53,7 +53,7 @@ where
 /// opens when it has nothing else: a song is the one input whose model-free
 /// world is a *finished* world rather than a draft, so it is what a person
 /// with no key, no model and no download sees in the first frame
-/// (`docs/world-strategy.md` §13.3).
+/// (`docs/world-strategy.md`).
 ///
 /// Probed in the same order as [`world_pack_dir`], and separately from it:
 /// the tracks are two megabytes against the pack's 522, so a build may carry

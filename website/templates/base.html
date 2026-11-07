@@ -53,43 +53,30 @@
     <div class="container">
       <div class="footer-grid">
         <div class="footer-col">
-          <h4>Docs</h4>
+          <h4>Learn</h4>
           <ul>
-            <li><a href="/docs/intro/">Getting Started</a></li>
-            <li><a href="/docs/app/">The Desktop App</a></li>
-            <li><a href="/docs/gen/live-canvas/">Live Canvas</a></li>
+            <li><a href="/docs/quick-start/">Quick start</a></li>
+            <li><a href="/docs/app/">Desktop app</a></li>
+            <li><a href="/docs/gen/">Gen</a></li>
             <li><a href="/docs/gen/previs/">Previs</a></li>
-            <li><a href="/docs/cli-commands/">CLI Commands</a></li>
-            <li><a href="/docs/architecture/">Architecture</a></li>
+            <li><a href="/docs/cli-commands/">World CLI</a></li>
           </ul>
         </div>
         <div class="footer-col">
-          <h4>Features</h4>
+          <h4>Open</h4>
           <ul>
-            <li><a href="/docs/gen/multiplayer/">Collaborative Sessions</a></li>
-            <li><a href="/docs/gen/mcp-server/">MCP Server</a></li>
-            <li><a href="/docs/gen/cli-mode/">MCP Relay</a></li>
-            <li><a href="/docs/gen/worldgen/">WorldGen Pipeline</a></li>
+            <li><a href="https://localgpt.world/">World gallery</a></li>
+            <li><a href="https://openworldformat.org/">Open World Format</a></li>
+            <li><a href="{{ config.extra.github }}" target="_blank" rel="noopener">Source on GitHub</a></li>
+            <li><a href="https://localgpt.rs/">Devlog</a></li>
           </ul>
         </div>
         <div class="footer-col">
           <h4>Community</h4>
           <ul>
-            <li><a href="{{ config.extra.github }}" target="_blank" rel="noopener">GitHub</a></li>
             <li><a href="{{ config.extra.discord }}" target="_blank" rel="noopener">Discord</a></li>
             <li><a href="{{ config.extra.twitter }}" target="_blank" rel="noopener">X (Twitter)</a></li>
-            <li><a href="https://localgpt.rs/">Devlog</a></li>
-          </ul>
-        </div>
-        <div class="footer-col">
-          <h4>Showcase</h4>
-          <ul>
-            <li><a href="https://localgpt.world/" target="_blank" rel="noopener">localgpt.world</a></li>
-            <li><a href="https://openworldformat.org/" target="_blank" rel="noopener">Open World Format</a></li>
-            <li><a href="/docs/gen/world-skills/">World Skills</a></li>
-            <li><a href="https://proofof.video/" target="_blank" rel="noopener">Proof of Video</a></li>
-            <li><a href="{{ config.extra.youtube_gen }}" target="_blank" rel="noopener">Gen Gallery</a></li>
-            <li><a href="{{ config.extra.youtube }}" target="_blank" rel="noopener">LocalGPT YouTube</a></li>
+            <li><a href="{{ config.extra.youtube }}" target="_blank" rel="noopener">YouTube</a></li>
           </ul>
         </div>
       </div>
@@ -111,14 +98,6 @@
   <script src="{{ get_url(path='elasticlunr.min.js') }}" defer></script>
   <script src="{{ get_url(path='search_index.en.js') }}" defer></script>
   <script>
-    function copyCmd(btn, text) {
-      navigator.clipboard.writeText(text).then(() => {
-        const orig = btn.innerText;
-        btn.innerText = 'Copied!';
-        setTimeout(() => { btn.innerText = orig; }, 2000);
-      });
-    }
-
     document.addEventListener('DOMContentLoaded', () => {
       const searchInput = document.getElementById('search-input');
       const searchResults = document.getElementById('search-results');

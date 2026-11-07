@@ -13,7 +13,7 @@ How external agent runtimes discover and call LocalGPT Gen's MCP tools.
 
 ## Overview
 
-LocalGPT Gen exposes 70+ tools for 3D world generation, audio, physics, terrain, and more through the Model Context Protocol (MCP). Any MCP-capable agent runtime can connect to it and drive the Bevy scene as a composable component -- no forking, no SDK integration, no shared process space.
+LocalGPT Gen exposes 88 tools for 3D world generation, audio, physics, terrain, and more through the Model Context Protocol (MCP). Any MCP-capable agent runtime can connect to it and drive the Bevy scene as a composable component -- no forking, no SDK integration, no shared process space.
 
 The mental model: **your agent is the brain; LocalGPT Gen is the hands.** Your agent decides what to build. LocalGPT Gen spawns primitives, places terrain, configures lighting, saves worlds, and captures screenshots. The MCP wire protocol is the only coupling.
 
@@ -275,7 +275,7 @@ After connecting, call `tools/list` to get the full catalog:
 {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
 ```
 
-The response contains an array of tool definitions, each with `name`, `description`, and `inputSchema` (JSON Schema for the arguments). A typical response includes 70+ tools across these categories:
+The response contains an array of tool definitions, each with `name`, `description`, and `inputSchema` (JSON Schema for the arguments). A typical response includes 88 tools across these categories:
 
 | Category | Prefix | Examples |
 |----------|--------|----------|
@@ -464,7 +464,7 @@ gen_server = MCPServerHTTP(
 )
 ```
 
-The SDK handles `initialize` and `tools/list` automatically. All 70+ gen tools become available as callable tools in the agent's tool list.
+The SDK handles `initialize` and `tools/list` automatically. All 88 gen tools become available as callable tools in the agent's tool list.
 
 ### Other MCP-capable runtimes
 
@@ -536,8 +536,8 @@ Tool results are returned as complete JSON-RPC responses. There is no streaming 
 The first `localgpt-gen mcp-server` launch takes 1-2 seconds for Bevy initialization (GPU, window, asset loading). Use the `--connect` flag to attach to an already-running gen process if startup latency matters:
 
 ```bash
-# Terminal 1: start gen with the window
-localgpt-gen
+# Terminal 1: start gen with the window and its relay
+localgpt-gen --mcp-relay
 
 # Terminal 2: connect MCP to the running instance
 localgpt-gen mcp-server --connect
@@ -550,4 +550,4 @@ localgpt-gen mcp-server --connect
 - [AGENTS.md](../../AGENTS.md) -- Full tool catalog with parameters and descriptions
 - [CLAUDE.md](../../CLAUDE.md) -- Build commands, workspace architecture, feature flags
 - [gen/gen-audio.md](../gen/gen-audio.md) -- Audio system architecture
-- [rust-ecosystem-integration-spec.md](rust-ecosystem-integration-spec.md) -- Crate integration strategy
+- [MCP server user guide](../../website/content/docs/gen/mcp-server.md) -- Client configuration and transports

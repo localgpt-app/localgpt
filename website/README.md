@@ -1,25 +1,15 @@
 # LocalGPT Website (localgpt.app)
 
-The official documentation and landing site for [LocalGPT](https://localgpt.app), built with [Zola](https://www.getzola.org/).
+The landing page and user documentation for [LocalGPT](https://localgpt.app), built with [Zola](https://www.getzola.org/).
 
-## Features
-
-- **Zero Node.js dependencies**: Fast single-binary static site generator written in Rust.
-- **Full documentation**: the desktop app, Gen (with the live canvas and previs), Verse, MD, and `localgpt world`, a `.world` package's command line and MCP shim. Nothing on the site promises a model, a key or an agent by name: LocalGPT runs none.
-- **Client-side search**: Integrated Elasticlunr full-text search index.
+The site documents the native desktop app, Gen and its live canvas, previs, MD, Verse, and `localgpt world`. It describes only features in the current workspace.
 
 ## Development
 
 ```bash
-zola serve
+zola serve                        # http://127.0.0.1:1111
+zola check --skip-external-links # internal links
+zola build                       # production site in public/
 ```
 
-Opens at `http://127.0.0.1:1111` with live reload.
-
-## Production Build
-
-```bash
-zola build
-```
-
-Generates static assets into `public/`.
+No Node.js dependencies are required for this site. Deployment is a separate, manual step (`./deploy.sh`); do not deploy as part of a documentation check.

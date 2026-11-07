@@ -2,9 +2,9 @@
 //! where the camera should fly, and the WebSocket protocol remote
 //! inspectors speak (SwiftUI on iPad and macOS, Compose on Android).
 //!
-//! Gen draws no panels. The desktop app's interface is a web page over the
-//! viewport (`crates/app/ui`), and it reads and writes the same resources a
-//! click in the viewport or a remote inspector does: [`InspectorSelection`],
+//! Gen draws no panels. The desktop app's native shell
+//! (`crates/app/src/shell`) reads and writes the same resources a click in
+//! the viewport or a remote inspector does: [`InspectorSelection`],
 //! [`PanelIntents`], [`PendingFocusEntity`].
 
 pub mod protocol;

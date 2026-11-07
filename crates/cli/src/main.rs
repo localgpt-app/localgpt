@@ -1,11 +1,8 @@
 //! `localgpt` — a `.world` package's command line, and the shim that gives
 //! any MCP agent tools against the world an app has open.
 //!
-//! The assistant this binary was through 0.4.x — chat, tui, daemon, memory,
-//! heartbeat and cron, the sandbox, the APIs, the bridges — went in 0.5.0:
-//! the coding agents are the better harness, and a world is edited from
-//! outside the window (`docs/rfcs/authoring/the-harness-goes.md`).
-//! `cargo install localgpt --version 0.4.2` keeps it.
+//! There is no chat, daemon, model provider or key store in this binary.
+//! Coding agents stay outside and edit a world through its API or this shim.
 
 use anyhow::Result;
 use clap::Parser;

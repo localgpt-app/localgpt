@@ -78,7 +78,7 @@ cargo xtask bundle --dmg       # also a .dmg
 open apps/app-desktop/dist/LocalGPT.app
 ```
 
-Without a Developer ID the bundle is ad-hoc signed and runs on the Mac that built it; the script signs and notarizes when given `APPLE_SIGNING_IDENTITY` and `APPLE_NOTARY_PROFILE`. There is no Windows installer or Linux AppImage yet; `cargo install --path crates/app` puts `localgpt-app` on your `PATH` on any platform, and `apps/app-desktop/linux/localgpt.desktop` adds it to a Linux app menu. The page over the world is macOS's for now: elsewhere the window shows the world alone.
+Without a Developer ID the bundle is ad-hoc signed and runs on the Mac that built it; the script signs and notarizes when given `APPLE_SIGNING_IDENTITY` and `APPLE_NOTARY_PROFILE`. There is no Windows installer or Linux AppImage yet; `cargo install --path crates/app` puts `localgpt-app` on your `PATH` on any platform, and `apps/app-desktop/linux/localgpt.desktop` adds it to a Linux app menu. The native panels run on all three platforms; Windows and Linux are newer and less tried than macOS.
 
 ### Release builds and installing a source build
 

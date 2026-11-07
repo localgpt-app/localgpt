@@ -241,8 +241,7 @@ grammar-constrained generation hung on GGUF, so both tiers used plain
 instructed JSON with a lenient parse.
 
 Both tiers, the loader, the features and the GGUF download went on
-2026-11-01 with the rest of LocalGPT's model code (`docs/rfcs/authoring/
-the-harness-goes.md`): nothing in the tree runs a language model. What
+2026-11-01 with the rest of LocalGPT's language-model code. What
 remains is the data they filled — the `WorldRecipe` in the analysis sidecar,
 which the renderer still applies after `clamped()`, and which an agent
 working on a library can author. The guardrails were always on the Rust

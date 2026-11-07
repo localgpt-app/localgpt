@@ -1,8 +1,8 @@
 //! What a live world's folder tells any agent started in it.
 //!
 //! The world is a folder and an agent is a process that changes it from
-//! outside (`docs/rfcs/authoring/live-editing-poc.md`). **What connects the
-//! two is the working directory.** A live world's folder holds `AGENTS.md`,
+//! outside. **What connects the two is the working directory.** A live
+//! world's folder holds `AGENTS.md`,
 //! which says how to change the world, and `.live/endpoint.json`, which holds
 //! the API's URL and token — so an agent started *in* the folder discovers
 //! everything it needs by reading files it already reads. Nothing is

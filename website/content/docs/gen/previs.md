@@ -88,4 +88,4 @@ The desktop app's history panel draws every branch, and `POST /goto` moves the c
 
 ## Where this is going {#next}
 
-Posing, animatics and a generated look on top of the plan wait until people who previs today have used these two steps on their own pages — `docs/world-strategy.md` §15 in the repository says why, and `docs/previs-user-test.md` is the sheet those sessions run to.
+Posing, animatics and a generated look on top of the plan wait until people who previs today have used these two steps on their own pages — `docs/world-strategy.md` in the repository says why, and `docs/previs-user-test.md` is the sheet those sessions run to.

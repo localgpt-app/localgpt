@@ -33,7 +33,7 @@ A Markdown file opens with its panel: the file's outline, the selected section's
 
 The rule-based draft is the first frame. What a section's place looks like beyond that comes from MD's sidecar next to the document (`<doc>.world.json`), keyed by each section's content hash: a build or a recipe an agent authored for it. The app runs no model and never writes the sidecar; the agent in the terminal beside the world does, working on the file, and a section keeps what was authored for it until its text changes. A ```` ```world ```` fence in the file itself overrides both.
 
-The text and the world map onto each other: the outline labels each section with where its place came from (fence, build, recipe, draft); a click on a section, or the cursor moving into one (**Follow cursor**), flies the camera there; the place card shows the build's description and what the place is made of, and a click on a thing selects it in the world and flies to it; clicking a thing in the world selects its section and brings its heading into view. The app shows no model menu and manages no agent's or model's configuration.
+The text and the world map onto each other: the outline labels each section with where its place came from (fence, build, recipe, draft); a click on a section, or the cursor moving into one (**Follow cursor**), flies the camera there; the place card shows the build's description and what the place is made of, and a click on a thing selects it in the world and flies to it; clicking a thing in the world selects its section and brings its heading into view.
 
 ### A song {#song}
 

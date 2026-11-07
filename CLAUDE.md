@@ -135,24 +135,18 @@ LocalGPT is the desktop app where a prompt, a document, a song or a
 screenplay becomes a walkable `.world`, with the coding agents in its
 terminals; the `localgpt` CLI, a `.world` package's command line and the MCP
 shim; Gen, MD, Verse and Previs; and the format crates. **Nothing in the tree
-runs a model, holds a key, or knows an agent by name.** The assistant (chat,
-daemon, memory, heartbeat, the providers) had its last release in 0.4.2 and
-went whole on 2026-11-01, `localgpt-core` with it; what it provided that the
-world still needs — the `Tool` trait, the MCP servers — lives in
-`world-agent::mcp` (`docs/rfcs/authoring/the-harness-goes.md`). The agents
+runs a language model, holds a key, or knows an agent by name.** The agents
 come from their makers: they run in the app's terminals and reach the world
-over MCP or its ops API, with their own logins. The local GGUF tiers MD and
-Verse had, Gen's external services (ComfyUI, an asset model server, Ollama
-for NPC brains) and the SpacetimeDB module followed the same day: no crate
-loads a language model, and no tool calls a service. Verse's opt-in `ml`
-tier (CLAP moods, Demucs stems over ONNX Runtime) is audio analysis, not a
-language model, and stays.
+over MCP or its ops API, with their own logins. The `Tool` trait and MCP
+servers live in `world-agent::mcp`. No tool calls a generation service.
+Verse's opt-in `ml` tier (CLAP moods, Demucs stems over ONNX Runtime) is
+audio analysis, not a language model, and stays.
 
 ### Workspace
 
 `Cargo.toml` defines 15 members. **MD and Verse are members**, not separate
 repositories — they were folded in so the world format cannot drift between
-apps (see `docs/world-strategy.md` §13.6).
+apps (see `docs/world-strategy.md`).
 
 ```
 crates/
@@ -219,10 +213,9 @@ shells) and in MCP clients, under their own logins, and what a model should
 author (a document's places, a song's recipe) it authors into a sidecar
 through the world's files and API. Do not add a provider, a prompt loop, an
 in-process model, a tool that calls a service, an agent launcher or an
-agent-specific affordance (presets, turn detection from an agent's output) —
-`docs/rfcs/authoring/the-harness-goes.md` records why. Verse's `ml` tier is
-the one model that stays: audio analysis (CLAP moods, Demucs stems), not
-language.
+agent-specific affordance (presets, turn detection from an agent's output).
+Verse's `ml` tier is the one model tier that stays: audio analysis (CLAP
+moods, Demucs stems), not language.
 
 ### Feature Flags
 
@@ -443,17 +436,17 @@ A profile (`LOCALGPT_PROFILE=x`) moves both roots to `localgpt-x`. Worlds a
   calls a service, a model setting or an agent-specific affordance is wrong
   by construction, whatever it is for.
 - **Edition 2024**, workspace-shared version (`0.4.x`), `resolver = "3"`.
-- Related docs live under `docs/` (gen, rfcs, roadmap, case studies,
-  ecosystem; retired designs in `docs/archived/`). `AGENTS.md` is the
-  longer-form contributor guide.
+- Related living references and active designs live under `docs/`; see
+  `docs/README.md`. Historical designs stay in Git history, not parallel
+  archive or roadmap trees. `AGENTS.md` is the MCP and tool catalog.
 - **Websites:** `website/` is the Zola site for localgpt.app, the
   family hub and its only docs site: the app's, the CLI's and the format's
-  docs plus `website/docs/gen`, `docs/verse` and `docs/md` (Verse and MD keep only
+  docs plus `website/content/docs/gen`, `docs/verse` and `docs/md` (Verse and MD keep only
   landing pages in their own repos; update their docs here when those apps
   change). `website-gen/` is the static landing page for gen.localgpt.app (no
   build step; `website-gen/deploy.sh` deploys it) and links to the Gen docs.
-  `website-md/` is localgpt.md, the previs page (`docs/world-strategy.md`
-  §15): drop a screenplay — a PDF, a Final Draft `.fdx`, Fountain, or
+  `website-md/` is localgpt.md, the previs page (`docs/world-strategy.md`):
+  drop a screenplay — a PDF, a Final Draft `.fdx`, Fountain, or
   Markdown script pages — and get the
   board and the per-scene `.world` packages in the tab. Its draft is
   `crates/previs-web` (wasm-pack over `crates/previs`, which touches no

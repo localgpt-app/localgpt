@@ -278,26 +278,23 @@ world-types representations.
 | Peer avatars in the browser; joins/leaves/presence fan-out | Done | `session-client.js` |
 | Peer avatars in the host's own window | Done | `crates/gen/src/net/guest_avatars.rs` |
 | Op log persisted per session; `--resume` replays it | Done | `web.rs`, `world-sync/oplog.rs` |
-| Per-user undo (own edits + builds the AI made for you) | Done | `world-sync/undo.rs`, `authority::undo` |
+| Per-user undo (a guest's own edits) | Done | `world-sync/undo.rs`, `authority::undo` |
 | Ops applied doc→scene (undo/edits stick) | Done | `gen3d/ops_apply.rs` |
 | Time-lapse replay (`--replay ops.jsonl`) | Done | `gen3d/replay.rs` |
 | Fully offline join page (vendored three.js) | Done | `world-export/js/vendor/` |
 | Relay (`localgpt-relay` + `--relay`; invite links with room codes) | Done | `crates/relay`, `net/relay_client.rs` |
 | Native clients on ops (`--join` over the same WebSocket protocol; lightyear retired) | Done | `net/ops_client.rs` |
 | Guest editing UI (select/drag/rotate/scale/delete; `--web-edit`) | Done | `session-client.js` |
-| Cloud rooms: SpacetimeDB module as an authority (ops, undo, op log) | Built, never joined; removed 2026-11-01 | — |
 
-Phase 1 and the core of phase 3 are verified end to end: a browser joined a
-hosting Gen over the invite link, received the world (revision 1), watched a
-guest join/leave, exchanged presence and chat, was refused a direct edit, and
-prompted the room's AI — the build streamed back as ops (`ws-test-cube`)
-while the job states advanced `queued → running`.
+The end-to-end checks covered a browser joining over the invite link,
+receiving the world, watching guests join and leave, exchanging presence and
+chat, and being refused a direct edit without the editor role. The room now
+refuses prompt jobs: the host's own agent builds from outside over MCP, and
+its resulting ops reach every guest.
 
 
 ## Related documents
 
 - [docs/gen/multiplayer.md](../../gen/multiplayer.md) — how to host and join today
-- [SpacetimeDB Integration Design](../../archived/architecture/spacetimedb-integration-design.md) — the cloud-room authority that phase 8 built and 2026-11-01 removed (archived)
-- Research, not roadmap: [Massively Multiplayer Persistent World](massively-multiplayer-persistent-world.md),
-  [Massively Multiplayer Co-Creation](massively-multiplayer-co-creation.md),
-  [Multi-Scale 3D Universe](multi-scale-3d-universe.md)
+- [session-package-format.md](session-package-format.md) — the session artifact
+- [../authoring/rooms-and-the-channel.md](../authoring/rooms-and-the-channel.md) — the proposed identity and encrypted-channel layer

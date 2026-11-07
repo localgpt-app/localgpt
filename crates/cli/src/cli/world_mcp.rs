@@ -1,9 +1,8 @@
 //! `localgpt world mcp` — an MCP server for the world an app has open.
 //!
-//! The live-editing design puts the agent outside the window: a world is a
-//! folder, an app holds it open and serves a localhost API, and agents change
-//! the world by sending batches of ops to that API
-//! (`docs/rfcs/authoring/live-editing-poc.md`). Any agent that speaks MCP can
+//! The agent stays outside the window: a world is a folder, an app holds it
+//! open and serves a localhost API, and agents change the world by sending
+//! batches of ops to that API. Any agent that speaks MCP can
 //! do that through this shim, which is why it is the cheapest way to make
 //! Claude Code or Codex a first-class editor of a live world: no terminal
 //! emulator, no pane, no new protocol.
