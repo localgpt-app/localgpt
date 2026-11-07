@@ -212,6 +212,16 @@ impl Screen {
             response.request_focus();
             asks.focused = true;
             self.drives = true;
+        } else if response.has_focus()
+            && ui.input(|i| {
+                i.pointer.any_pressed()
+                    && i.pointer.interact_pos().is_some_and(|p| !rect.contains(p))
+            })
+        {
+            // A press anywhere else takes the keys with it, as the world's
+            // panel gives them up: Space after a click in the timeline
+            // plays it rather than typing into the shell.
+            response.surrender_focus();
         }
         let focused = response.has_focus();
         if focused {

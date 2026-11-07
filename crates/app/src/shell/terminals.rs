@@ -223,8 +223,10 @@ impl Terminals {
             self.tabs.retain(|t| t.id != id);
             if self.active.as_deref() == Some(id.as_str()) {
                 self.active = self.tabs.last().map(|t| t.id.clone());
-                self.focus = true;
             }
+            // The press on × took the keys from the grid: the tab in front
+            // has them back.
+            self.focus = true;
         }
         ui.separator();
 
@@ -362,6 +364,120 @@ mod tests {
         let tabs = opened(&asked);
         assert_eq!(tabs.len(), 2);
         assert_eq!(typed_into(&asked, "pwd"), Some(tabs[0].0.clone()));
+    }
+
+    /// A terminal over a timeline with a clock, as the window stacks them.
+    struct Both {
+        terminals: Option<Terminals>,
+        timeline: super::super::timeline::Timeline,
+        state: State,
+        end: ShellEnd,
+    }
+
+    /// A press at `from` dragged to `to`: not a click, so egui's own
+    /// "focus goes on a click elsewhere" does not apply.
+    fn drag(harness: &mut Harness<'_, Both>, from: egui::Pos2, to: egui::Pos2) {
+        let button = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        harness.event(egui::Event::PointerMoved(from));
+        harness.run_steps(1);
+        harness.event(button(from, true));
+        harness.run_steps(1);
+        harness.event(egui::Event::PointerMoved(to));
+        harness.run_steps(1);
+        harness.event(button(to, false));
+        harness.run_steps(2);
+    }
+
+    /// Space, as a hand types it: a key and its text.
+    fn space(harness: &mut Harness<'_, Both>) {
+        harness.event(egui::Event::Text(" ".into()));
+        harness.key_press(egui::Key::Space);
+        harness.run_steps(2);
+    }
+
+    #[test]
+    fn keys_go_where_the_last_press_went_terminal_or_timeline() {
+        use crate::timeline::{ClockView, TimelineView};
+        let (asks, asked) = channel();
+        let (_tell, events) = channel();
+        let state = State {
+            timeline: Some(Box::new(TimelineView {
+                clock: Some(ClockView {
+                    duration: 60.0,
+                    bpm: 120.0,
+                    beat_offset: 0.0,
+                    sections: vec![0.0],
+                }),
+                ..TimelineView::default()
+            })),
+            ..State::default()
+        };
+        let both = Both {
+            terminals: None,
+            timeline: super::super::timeline::Timeline::new(),
+            state,
+            end: ShellEnd { events, asks },
+        };
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(600.0, 600.0))
+            // The timeline's ▶ and ⏮ come from the system's fonts in the
+            // app; a test has egui's own.
+            .allow_missing_glyphs()
+            .build_ui_state(
+                |ui, both: &mut Both| {
+                    let width = ui.available_width();
+                    let terminals = both
+                        .terminals
+                        .get_or_insert_with(|| Terminals::new(ui.ctx(), false));
+                    ui.allocate_ui(egui::vec2(width, 300.0), |ui| {
+                        ui.set_min_size(egui::vec2(width, 300.0));
+                        terminals.ui(ui, &both.end)
+                    });
+                    ui.allocate_ui(egui::vec2(width, 250.0), |ui| {
+                        ui.set_min_size(egui::vec2(width, 250.0));
+                        both.timeline.ui(ui, &both.state, &both.end)
+                    });
+                },
+                both,
+            );
+        harness.run_steps(2);
+        // The terminals' "+", drawn before the timeline's zoom.
+        harness.get_all_by_label("+").next().unwrap().click();
+        harness.run_steps(3);
+        let _ = asked.try_iter().count();
+
+        // The terminal was opened last: Space types into it.
+        space(&mut harness);
+        let typed: Vec<FromPage> = asked.try_iter().collect();
+        assert!(typed_into(&typed, " ").is_some(), "{typed:?}");
+        assert!(
+            !typed
+                .iter()
+                .any(|a| matches!(a, FromPage::ClockPlay { .. }))
+        );
+
+        // A press in the timeline, low in it where nothing else is, and a
+        // drag: Space plays, and nothing is typed.
+        drag(
+            &mut harness,
+            egui::pos2(300.0, 540.0),
+            egui::pos2(360.0, 540.0),
+        );
+        let _ = asked.try_iter().count();
+        space(&mut harness);
+        let played: Vec<FromPage> = asked.try_iter().collect();
+        assert!(
+            played
+                .iter()
+                .any(|a| matches!(a, FromPage::ClockPlay { playing: true })),
+            "{played:?}"
+        );
+        assert!(typed_into(&played, " ").is_none(), "{played:?}");
     }
 
     #[test]
