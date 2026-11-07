@@ -13,6 +13,7 @@ mod bundle;
 mod release;
 mod rule;
 mod sites;
+mod smoke;
 mod verify;
 mod verse;
 mod viewer;
@@ -39,6 +40,7 @@ fn main() -> ExitCode {
         Some("cask") => release::cask(rest),
         Some("fetch-clap") => verse::fetch_clap(&root),
         Some("verse-bundle") => verse::bundle(&root),
+        Some("live-smoke") => smoke::run(&root, rest),
         Some("help" | "-h" | "--help") => {
             println!("{}", usage());
             Ok(())
@@ -76,6 +78,7 @@ fn usage() -> String {
         release::CASK_USAGE,
         verse::FETCH_CLAP_USAGE,
         verse::BUNDLE_USAGE,
+        smoke::USAGE,
     ]
     .join("\n")
 }

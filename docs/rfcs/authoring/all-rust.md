@@ -81,9 +81,9 @@ When this is complete, the paired-device page, its Node build and its desktop-in
 
 ### G: Rust tooling and headless UI checks
 
-`cargo xtask verify`, `fetch-assets` and `bundle` have replaced their shell/Python implementations. `egui_kittest` now drives shell behavior headlessly: terminal focus, panel layout, tab sizing and key routing between terminals and the timeline.
+`cargo xtask` now covers verification, builds, bundles, assets, deployment, releases, viewer synchronization and the live smoke; their shell and Python implementations and `bin/lg` are gone. `egui_kittest` now drives shell behavior headlessly: terminal focus, panel layout, tab sizing and key routing between terminals and the timeline.
 
-Continue moving release, smoke and deployment tooling into `xtask` as those paths are touched. The remote-page smoke test remains necessary while the paired-device page remains.
+The remote-page smoke test remains necessary while the paired-device page remains, and the sites' browser render checks remain until the WebAssembly renderer work. Broader `egui_kittest` coverage can grow with the shell.
 
 ### C dependencies and a future renderer
 
@@ -115,7 +115,8 @@ The application stays Apache 2.0. The terminal emulator and UI stack already pro
 - [x] eframe shell and shared-device Bevy world panel.
 - [x] Native terminals, history, timeline, outliner, inspector, document and top bar.
 - [x] Native shell as the default; desktop `wry` host and hit-test view removed.
+- [x] Script-to-`xtask` migration, including the live smoke, and initial `egui_kittest` coverage.
 - [ ] Browser/phone panel convergence and removal of the paired-device page.
-- [ ] Remaining script-to-`xtask` migration and broader `egui_kittest` coverage.
+- [ ] Broader `egui_kittest` coverage.
 - [ ] Native dependency audit and optional ONNX replacement decision.
 - [ ] Any WebAssembly renderer or media-editing engine, each with a separate design first.

@@ -37,7 +37,6 @@ crates/world-export/js/vendor/three/addons/loaders/GLTFLoader.js
 crates/world-export/js/vendor/three/addons/utils/BufferGeometryUtils.js
 crates/world-export/js/vendor/three/three.module.js
 crates/world-export/js/world-viewer.js
-scripts/live-smoke.py
 scripts/remote-smoke.mjs
 spikes/egui-terminal/probe.py
 website-md/scripts/check.mjs

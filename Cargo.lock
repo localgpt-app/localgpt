@@ -12010,6 +12010,7 @@ name = "xtask"
 version = "0.5.0"
 dependencies = [
  "etcetera",
+ "png",
  "serde_json",
 ]
 

@@ -11,3 +11,5 @@ serde_json = { workspace = true }
 # Where the shared pack lands: the same base localgpt-world-agent's paths
 # resolve (`<data dir>/localgpt`), not a copy of the XDG rule.
 etcetera = "0.11"
+# The live smoke writes a swatch and reads a screenshot back.
+png = "0.18"
