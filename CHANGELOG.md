@@ -4,6 +4,8 @@ All notable changes to LocalGPT are documented in this file.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-09
+
 ### Added
 
 - **localgpt.world's gallery is made of `.world` packages.** Each curated world is a package under `worlds/<name>.world/`: its manifest in the format's canonical text, a `package.json` naming the bytes, and its assets content-addressed (`assets/<sha256>.<ext>`), so `localgpt world verify` holds for it. The viewer opens a package by its folder (`world.html?src=worlds/<name>.world`), the per-world page offers the zip the assemble step writes — the format's transport form — and the commands that open it in the desktop app or Gen, and `cargo xtask add-world` takes a manifest or a package and writes one (`--keep` stores sources that are web-sized already). The conformance scenes stay lone manifests, as the spec ships them; the two Markdown worlds left the gallery.
@@ -500,7 +502,8 @@ Initial release of LocalGPT — a local-only AI assistant with persistent markdo
 - **Zero-config startup** defaulting to `claude-cli/opus`.
 - **Auto-migration** from OpenClaw config if present.
 
-[Unreleased]: https://github.com/localgpt-app/localgpt/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/localgpt-app/localgpt/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/localgpt-app/localgpt/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/localgpt-app/localgpt/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/localgpt-app/localgpt/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/localgpt-app/localgpt/compare/v0.4.0...v0.4.1
