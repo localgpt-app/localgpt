@@ -21,7 +21,7 @@ default-members = ["crates/cli"]
 resolver = "3"
 
 [workspace.package]
-version = "0.5.0"
+version = "0.6.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/localgpt-app/localgpt"
@@ -90,16 +90,16 @@ rand = "0.10"
 base64 = "0.22"
 
 # Internal crates
-localgpt-world-types = { version = "0.5.0", path = "crates/world-types" }
-localgpt-world-export = { version = "0.5.0", path = "crates/world-export" }
-localgpt-world-bevy = { version = "0.5.0", path = "crates/world-bevy" }
-localgpt-world-audio = { version = "0.5.0", path = "crates/world-audio" }
-localgpt-world-sync = { version = "0.5.0", path = "crates/world-sync" }
-localgpt-world-editor = { version = "0.5.0", path = "crates/world-editor" }
-localgpt-world-agent = { version = "0.5.0", path = "crates/world-agent" }
+localgpt-world-types = { version = "0.6.0", path = "crates/world-types" }
+localgpt-world-export = { version = "0.6.0", path = "crates/world-export" }
+localgpt-world-bevy = { version = "0.6.0", path = "crates/world-bevy" }
+localgpt-world-audio = { version = "0.6.0", path = "crates/world-audio" }
+localgpt-world-sync = { version = "0.6.0", path = "crates/world-sync" }
+localgpt-world-editor = { version = "0.6.0", path = "crates/world-editor" }
+localgpt-world-agent = { version = "0.6.0", path = "crates/world-agent" }
 # Without its `pdf` feature here: Gen stages and boards and needs no PDF
 # reader; the previs binary and previs-web turn it on themselves.
-localgpt-previs = { version = "0.5.0", path = "crates/previs", default-features = false }
+localgpt-previs = { version = "0.6.0", path = "crates/previs", default-features = false }
 
 [profile.release]
 lto = true
