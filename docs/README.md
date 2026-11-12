@@ -17,6 +17,7 @@ Historical RFCs, completed implementation trackers, assistant/harness documentat
 - [`gen/multiplayer.md`](gen/multiplayer.md) — how Gen's collaborative sessions work today.
 - [`gen/usd-export.md`](gen/usd-export.md) — the still-open USD export question.
 - [`ecosystem/composable-agent-guide.md`](ecosystem/composable-agent-guide.md) — connecting external MCP runtimes to Gen.
+- [`releasing.md`](releasing.md) — cutting a crates release and a desktop release.
 
 ### Designs and implementation records
 

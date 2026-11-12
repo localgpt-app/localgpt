@@ -12,4 +12,4 @@ zola check --skip-external-links # internal links
 zola build                       # production site in public/
 ```
 
-No Node.js dependencies are required for this site. Deployment is a separate, manual step (`./deploy.sh`); do not deploy as part of a documentation check.
+No Node.js dependencies are required for this site. Deployment is a separate, manual step (`cargo xtask deploy app`); do not deploy as part of a documentation check.

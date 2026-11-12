@@ -6,9 +6,10 @@ Guidance for Claude Code when working in this directory.
 
 The landing page and world viewer for localgpt.world: hand-written static
 HTML/CSS/JS, no build step, deployed as a Cloudflare Worker with static assets
-(`cargo xtask deploy world`, manual). It was its own repository until it folded into this
-workspace; `README.md` explains the layout, and `../docs/world-strategy.md` is
-the plan for the site.
+(`cargo xtask deploy world`, manual). `README.md` explains the layout, and
+`../docs/world-strategy.md` says what the site is for. The workspace's rules
+(commits, never naming a closed-source sibling project) are in the root
+`CLAUDE.md`.
 
 ## Rules
 
@@ -17,9 +18,7 @@ the plan for the site.
   `crates/world-types/conformance/`. Those copies are gitignored. Change them
   **upstream in the crate** (which vendors the renderer from the
   `openworldformat` npm package via `cargo xtask sync-viewer`) and re-assemble;
-  never edit them here. The whole
-  reason this folded in is that the same copies used to cross a repository
-  boundary and drifted 185 lines without failing anything.
+  never edit them here.
 - **The gallery's worlds are `.world` packages**, `worlds/<name>.world/`: the
   manifest (canonical text) and `package.json` are tracked, the assets are
   not — they are web-optimized derivatives stored by content hash
@@ -41,6 +40,3 @@ the plan for the site.
   canonical web renderer. It skips worlds whose assets are absent rather than
   failing them, so a world can go unchecked in CI — `cargo xtask deploy world` runs the full
   set, which is where the Verse worlds are verified.
-- Commits: conventional commits, no Co-Authored-By or Claude-Session trailers.
-- This site is public. Never name the closed-source sibling 3D platform; use
-  generic terms such as "connected 3D app".

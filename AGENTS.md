@@ -1,16 +1,17 @@
 # AGENTS.md
 
-> Agent and tool discovery document for LocalGPT.
-> Follows the [AAIF AGENTS.md convention](https://github.com/anthropics/agents/blob/main/AGENTS.md).
+> Agent and tool discovery document for LocalGPT, in the [AGENTS.md](https://agents.md/) format.
+>
+> **Changing this repository?** Read [CLAUDE.md](CLAUDE.md) first: the build commands, the architecture and the rules are there. This file is the catalog of the MCP servers and tools an agent finds when it drives LocalGPT.
 
 ## Project
 
 **LocalGPT** is the desktop app where a document, a song, a screenplay or a prompt becomes a walkable `.world`, written in Rust: Gen, the world builder (Bevy, procedural audio, collaborative sessions), with its tools served over MCP to the coding agents you already use; the `localgpt` command line for `.world` packages; and the format crates. LocalGPT runs no language model and holds no key — the agents come from their makers, and this file is what they find.
 
 - License: Apache 2.0
-- Repository: `localgpt/`
+- Repository: <https://github.com/localgpt-app/localgpt>
 - Language: Rust
-- Primary documentation: [CLAUDE.md](CLAUDE.md)
+- Contributor guidance: [CLAUDE.md](CLAUDE.md)
 
 ## MCP Servers
 

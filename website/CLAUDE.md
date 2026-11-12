@@ -24,7 +24,6 @@ Zola static site for [LocalGPT](https://localgpt.app), deployed as a Cloudflare 
   - `base.html` — Site header, navigation, search bar, and family footer.
   - `index.html` — Homepage with hero video, install commands, features, and app grid.
   - `docs_page.html` — Documentation layout with categories sidebar and page TOC.
-  The world-templates catalog (`content/templates/`, `templates_index.html`, `template_single.html`) went on 2026-11-04: its pages promised a console and features Gen never had.
 - `static/` — Static assets (CSS, logos, icons, redirect files).
 - `config.toml` — Zola site configuration.
 - `wrangler.toml` — Cloudflare Worker configuration (serves `./public`).
