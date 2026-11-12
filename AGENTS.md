@@ -15,7 +15,7 @@
 
 ## MCP Servers
 
-LocalGPT exposes two MCP servers, both JSON-RPC 2.0, both built on `localgpt-world-agent`'s `mcp` module.
+LocalGPT exposes three MCP servers, all JSON-RPC 2.0, all built on `localgpt-world-agent`'s `mcp` module.
 
 ### localgpt-gen mcp-server (Gen)
 
@@ -37,6 +37,20 @@ An open `.world` package's tools — submit a batch, undo, redo, the log, the ti
 ```bash
 localgpt world mcp [DIR]
 ```
+
+It also serves the tools of the [audio models](#audio-models-installed-only) installed on this machine, writing what they make into the world's `assets/`.
+
+### localgpt audio mcp (the audio models)
+
+The installed audio models' tools alone, for an agent that is not working on a world; they write into the directory the server was started in. It refuses to start when no model is installed.
+
+```bash
+localgpt audio list                 # what can be installed, and what is
+localgpt audio install stems notes  # or --all; the desktop app's Audio button does the same
+localgpt audio mcp
+```
+
+A server lists its tools when it starts: after installing a model, restart the agent's MCP server to get its tool.
 
 ### Transport
 
@@ -69,7 +83,7 @@ For the window you are looking at, run `localgpt-gen --mcp-relay` and give the c
 
 ## Tool Catalog
 
-Every tool below is Gen's; the names are what `localgpt-gen mcp-server` lists. There are no memory, web or file tools: the agent brings its own.
+Every tool below is Gen's, except the audio models' at the end; the names are what `localgpt-gen mcp-server` lists. There are no memory, web or file tools: the agent brings its own.
 
 ### Gen: Scene Query
 
@@ -229,11 +243,22 @@ Every tool below is Gen's; the names are what `localgpt-gen mcp-server` lists. T
 | `gen_reference_board` | Manage reference images (mood board) for the generation session | action params | -- |
 | `gen_panorama_to_world` | Generate explorable 3D world from a 360-degree panorama image | image params | -- |
 
+### Audio models (installed only)
+
+Served by `localgpt world mcp` and `localgpt audio mcp`, each only once its model is installed (`localgpt audio install <id>` or the desktop app's Audio button). They run on this machine's CPU, offline. A relative `file` is from the world's folder.
+
+| Tool | Model (id) | Description | Required Params | Optional Params |
+|------|------------|-------------|-----------------|-----------------|
+| `audio_stems` | Spleeter 4stems (`stems`) | Split a song into drums, bass, vocals and other WAVs, which sum back to the song, plus each stem's loudness per second (exactly a soundtrack's `stems` curves) | `file` | `out_dir` (default `stems/<name>/` in `assets/`) |
+| `audio_notes` | basic-pitch (`notes`) | The notes played: pitch, name, start, end, velocity. Best on one instrument; on a band mix, run it on a stem | `file` | `start`, `end`, `onset_threshold`, `frame_threshold`, `min_note_ms`, `max_notes` |
+| `audio_tags` | CED-tiny (`tags`) | What a sound or recording contains, from AudioSet's 527 labels, overall and per 10 s | `file` | `top`, `segments` |
+| `audio_match` | CLAP (`match`) | Score a recording against descriptions in plain English; relative among the descriptions given | `file`, `descriptions` | -- |
+
 ## Authentication & Security
 
-- **Local-only.** LocalGPT runs no language model, calls no generation service and holds no key. The only connections are the ones a person starts: `--world <URL>` fetches a world, and `--host --relay`/`--join` reach a session's relay or host.
+- **Local-only.** LocalGPT runs no language model, calls no generation service and holds no key. The only connections are the ones a person starts: `--world <URL>` fetches a world, `--host --relay`/`--join` reach a session's relay or host, and installing an audio model downloads its pinned files once.
 - **No authentication for stdio MCP.** The MCP server inherits the user's OS-level permissions. The HTTP transport binds to localhost.
-- **Scene tools only.** The MCP server exposes Gen's tools and nothing that reads or writes files outside the world, runs a shell or reaches the web: the agent provides those itself, under its own permissions.
+- **Scene tools only.** The MCP server exposes Gen's tools and nothing that reads or writes files outside the world, runs a shell or reaches the web: the agent provides those itself, under its own permissions. The audio tools read the recording they are given and write only what they make (stems), by default into the world's `assets/`.
 - **A live world's API is local.** `localgpt-gen --live` and the desktop app serve a package's ops API on localhost, with a token in the folder's `.live/endpoint.json`.
 
 ## Capabilities

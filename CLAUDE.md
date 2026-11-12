@@ -14,19 +14,25 @@ as worlds), the `localgpt` CLI (a `.world` package's command line, the MCP
 shim and `localgpt previs`), the crates around the Open World Format, and
 three websites.
 
-**No model, no service, no key, no agent by name.** Nothing in the workspace
-loads a language model, calls a model API or a generation service, reads a
-key or a model's configuration, or treats one coding agent differently from
-another. Agents come from their makers: they run in the app's terminals
-(plain login shells) and in MCP clients, under their own logins, and reach
-the world over MCP or its ops API. What a model should author (a document's
-places, a song's recipe) it writes into a sidecar through the world's files
-and API. A change that adds a provider, a prompt loop, an in-process model, a
-tool that calls a service, a model setting, an agent launcher or an
-agent-specific affordance (presets, turn detection from an agent's output) is
-wrong by construction, whatever it is for. The one model tier is Verse's
-opt-in `ml` feature (CLAP moods, Demucs stems over ONNX Runtime): audio
-analysis, not language.
+**No language model, no service, no key, no agent by name.** Nothing in the
+workspace loads a language model, calls a model API or a generation service,
+reads a key or a model's configuration, or treats one coding agent
+differently from another. Agents come from their makers: they run in the
+app's terminals (plain login shells) and in MCP clients, under their own
+logins, and reach the world over MCP or its ops API. What a model should
+author (a document's places, a song's recipe) it writes into a sidecar
+through the world's files and API. A change that adds a provider, a prompt
+loop, a language model, a tool that calls a service, a model setting, an
+agent launcher or an agent-specific affordance (presets, turn detection from
+an agent's output) is wrong by construction, whatever it is for.
+
+The models that do run analyse audio, on the CPU, and none is installed by
+default: the **audio models** a person installs from the app's bar or with
+`localgpt audio install` (`crates/audio-models`: stems, notes, tags and
+match), which an agent then gets as tools, and Verse's opt-in `ml` feature
+(CLAP moods over the same `match` model, Demucs stems). They turn sound into
+what an agent can read and place: files, notes, labels, scores. CLAP's text
+side embeds a description to compare with audio; nothing writes or chats.
 
 The assistant (chat, daemon, memory, providers, `config.toml`,
 `localgpt-core`) was removed on 2026-11-01; 0.4.2 is its last release. Text
@@ -60,6 +66,8 @@ cargo run -- world init demo.world  # also submit, undo, redo, log, tips, show, 
                                     # screenshot, selection, goto and proposals need an open app
 cargo run -- world mcp              # a stdio MCP server over an app's open canvas
 cargo run -- previs script.fdx --out previs/   # a screenplay → per-scene .world packages, shot list and board
+cargo run -- audio list             # the optional audio models; also install, remove, mcp,
+                                    # and stems, notes, tags and match on a file
 
 # Gen: the world builder. An agent outside the window drives it
 cargo run -p localgpt-gen -- --mcp-relay           # the window, with the relay an agent's
@@ -108,7 +116,7 @@ alone. A signed `vX.Y.Z` tag publishes the crates (`release.yml`); a
 
 ### Workspace
 
-Fifteen crates and `xtask`. MD and Verse are members, not separate
+Sixteen crates and `xtask`. MD and Verse are members, not separate
 repositories, so the world format cannot drift between apps.
 
 ```
@@ -127,6 +135,7 @@ crates/
 ├── world-sync/   # localgpt-world-sync — room authority: shared doc, EditOps, presence
 ├── world-editor/ # localgpt-world-editor — the non-linear editing model: tips, forks, folds, deltas (no engine, no I/O)
 ├── world-agent/  # localgpt-world-agent — the live authority, headless commands, packages, `mcp` (Tool trait + stdio/HTTP servers), `agent_env`, `paths`
+├── audio-models/ # localgpt-audio-models — the optional audio models: catalog, installer, stems/notes/tags/match over ONNX Runtime, their MCP tools
 └── relay/        # localgpt-relay — internet reach for collaborative rooms
 
 apps/app-desktop/ # the LocalGPT.app bundler (Developer ID + notarization when given)
@@ -137,10 +146,10 @@ website-world/    # localgpt.world — the gallery and the one web viewer
 ```
 
 ```
-localgpt (CLI)  → world-agent (features: mcp), world-editor, previs (features: pdf)
+localgpt (CLI)  → world-agent (features: mcp), world-editor, previs (features: pdf), audio-models (features: mcp)
 localgpt-gen    → world-agent (features: mcp-http), previs, world-*
-localgpt-app    → gen, md (lib only), verse, previs, world-agent, world-bevy, world-types
-md, verse       → world-agent (paths), world-*
+localgpt-app    → gen, md (lib only), verse, previs, world-agent, world-bevy, world-types, audio-models (installer only)
+md, verse       → world-agent (paths), world-*; verse (ml) → audio-models (features: run)
 previs, relay, world-*  → no app crate
 ```
 
@@ -168,8 +177,11 @@ a mapping.
 | `gen` | `multiplayer` | yes | `--host`/`--join`, the ops room, mDNS, the browser guest page |
 | `gen` | `character-controller` | no | The bevy-tnua player controller (needs `physics`); builds, not played since Bevy 0.18 |
 | `md` | `app` | yes | The Bevy bin; the lib builds without it, which is how `crates/app` takes it |
-| `verse` | `ml` | no | ONNX Runtime models for audio analysis (the only tier that links `ort`) |
+| `verse` | `ml` | no | CLAP moods over the shared `match` model, and Demucs stems (`stem-splitter-core`) |
 | `world-types` | `schema` | no | Writes `world.schema.json` |
+| `cli` | `audio` | yes | `localgpt audio`, and the installed models' tools in `world mcp`; links ONNX Runtime |
+| `audio-models` | `run` | no | The models themselves (`ort`, decoding, resampling); without it the crate is the catalog and installer the app takes |
+| `audio-models` | `mcp` | no | The models' tools (`audio_stems`, `audio_notes`, `audio_tags`, `audio_match`) |
 
 ### Key patterns
 
@@ -210,12 +222,27 @@ Gen, MD and Verse. Never re-implement the XDG rule in an app.
 strings: the world's in `world-agent::agent_env` (`LOCALGPT_WORLD_DIR`,
 `_API`, `_TOKEN`, `_AUTHOR`), the directories' in `world-agent::paths`,
 Gen's session PIN in `crates/gen/src/net/mod.rs`, the app's in
-`crates/app/src` (`LOCALGPT_APP_*`).
+`crates/app/src` (`LOCALGPT_APP_*`), the audio models' in
+`audio-models::install` (`LOCALGPT_AUDIO_MODELS`).
+
+**Audio models.** `localgpt-audio-models` is where a model runs. A model is
+a catalog entry (each file pinned by a URL at a fixed revision, its SHA-256
+and size; its licence, code and weights apart) and a module behind `run`;
+the installer keeps a file only when its hash matches. `tools::installed`
+offers a model's tool only once it is installed, and an MCP server lists its
+tools when it starts, so an agent restarts its server after an install. A
+new model is all of: the entry, the module, its arm in `tools::tool_for`, a
+`localgpt audio` command, and a test against the installed model
+(`#[ignore]`, with `LOCALGPT_AUDIO_MODELS` pointing somewhere disposable).
+Weights whose licence is non-commercial or unclear stay out: Demucs's are
+unclear, which is why the agent's stems are Spleeter's.
 
 ### The CLI (`crates/cli/src/cli/`)
 
-`world`, `previs` and `completion` are the whole binary: no chat, no config,
-no key. `world` is init, submit (`--at <id>` forks), undo, redo, log, tips,
+`world`, `previs`, `audio` and `completion` are the whole binary: no chat,
+no config, no key. `audio` lists, installs and removes the audio models,
+runs each on a file and serves the installed ones' tools (`audio mcp`;
+`world mcp` adds them too, writing into the world's `assets/`). `world` is init, submit (`--at <id>` forks), undo, redo, log, tips,
 show, get, verify and history, plus screenshot, selection, goto and proposals,
 which need an app, and `world mcp`, a stdio MCP server over an app's open
 canvas (`world.rs`, `world_mcp.rs`). `previs` stages a screenplay (`.fountain`,
@@ -302,8 +329,9 @@ MCP servers) is the agent's.
 ```
 ~/.local/share/localgpt/                 # XDG_DATA_HOME (Dirs::data); LOCALGPT_DATA_DIR moves it
 ├── gen-workspace/                       # Gen's worlds (skills/), sessions/, exports/
-└── models/pack/                         # the shared CC0 pack (cargo xtask fetch-assets);
-                                         # LOCALGPT_WORLD_ASSETS overrides, and it ignores the profile
+├── models/pack/                         # the shared CC0 pack (cargo xtask fetch-assets);
+│                                        # LOCALGPT_WORLD_ASSETS overrides, and it ignores the profile
+└── models/audio/<id>/                   # the installed audio models; LOCALGPT_AUDIO_MODELS moves them
 ~/.local/state/localgpt/                 # XDG_STATE_HOME (Dirs::state); LOCALGPT_STATE_DIR moves it
 ├── gen-settings.json                    # what was opened last
 ├── app-remote.json                      # the phone remote's paired devices (key hashes, 0600)

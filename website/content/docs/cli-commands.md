@@ -14,6 +14,7 @@ localgpt <COMMAND>
 Commands:
   world       Work on a .world package: commit batches, read the log, verify, serve its tools over MCP
   previs      Stage a screenplay (.fountain, .fdx, .pdf, or .md) as per-scene .world packages, shotlist.csv, and board.html
+  audio       The optional audio models: list, install and remove them, run them, serve them to an agent
   completion  Generate shell completion scripts
   help        Print help information
 
@@ -67,6 +68,24 @@ localgpt previs <script.fountain | script.fdx | script.pdf | pages.md> --out <di
 ```
 
 See [Previs](/docs/gen/previs/).
+
+## `localgpt audio` {#audio}
+
+The optional [audio models](/docs/audio-models/): nothing is installed until you install it, and an agent gets an installed model's tool in `localgpt world mcp`.
+
+```bash
+localgpt audio list                       # each model, its download and licence, installed or not
+localgpt audio install <id>... | --all    # stems, notes, tags, match; each file checked against its pin
+localgpt audio remove <id>...
+localgpt audio mcp                        # the installed models' tools alone, over stdio
+
+localgpt audio stems <file> [--out DIR]   # drums, bass, vocals and other WAVs
+localgpt audio notes <file> [--json]      # the notes played (--start, --end, thresholds)
+localgpt audio tags <file> [--json]       # AudioSet labels, overall and every 10 s
+localgpt audio match <file> <description>...
+```
+
+`--no-default-features` builds `localgpt` without it, and without ONNX Runtime.
 
 ## `localgpt completion`
 
