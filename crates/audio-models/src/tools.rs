@@ -69,7 +69,6 @@ fn tool_for(id: &str, context: &ToolContext) -> Option<Box<dyn Tool>> {
 }
 
 /// Run a model's blocking work off the async server.
-#[allow(dead_code)] // every model's tool calls it
 pub(crate) async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> anyhow::Result<T> + Send + 'static,
 ) -> anyhow::Result<T> {

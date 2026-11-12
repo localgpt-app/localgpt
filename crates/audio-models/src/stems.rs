@@ -525,7 +525,7 @@ mod tool {
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
 
-    use anyhow::{Context, Result, anyhow};
+    use anyhow::{Context, Result};
     use async_trait::async_trait;
     use localgpt_world_agent::mcp::{Tool, ToolSchema};
     use serde::Deserialize;
@@ -534,18 +534,21 @@ mod tool {
     use super::{Model, NAMES, Stems};
     use crate::tools::{ToolContext, blocking};
 
-    /// `audio_stems`: the model as an agent's tool. The networks load on the
-    /// first call and stay loaded.
+    /// `audio_stems`: the model as an agent's tool. The four networks hold
+    /// about a gigabyte while they run, so they load for each call and go
+    /// after it: loading takes about a second, a split takes seconds a
+    /// minute of audio, and an agent's MCP server can run for hours.
     pub struct StemsTool {
         context: ToolContext,
-        model: Arc<Mutex<Option<Model>>>,
+        /// One split at a time: two would hold two gigabytes.
+        running: Arc<Mutex<()>>,
     }
 
     impl StemsTool {
         pub fn new(context: ToolContext) -> Self {
             Self {
                 context,
-                model: Arc::default(),
+                running: Arc::default(),
             }
         }
     }
@@ -604,9 +607,7 @@ mod tool {
         }
 
         async fn execute(&self, arguments: &str) -> Result<String> {
-            // The server shows an error's outermost message; an agent
-            // corrects itself from the whole chain.
-            self.split(arguments).await.map_err(|e| anyhow!("{e:#}"))
+            self.split(arguments).await
         }
     }
 
@@ -626,15 +627,11 @@ mod tool {
                 }
             };
             let dir = self.context.models.join(crate::catalog::STEMS.id);
-            let model = self.model.clone();
+            let running = self.running.clone();
             let stems = blocking(move || {
-                // A panic mid-run leaves the sessions as they were.
-                let mut slot = model.lock().unwrap_or_else(|e| e.into_inner());
-                let model = match &mut *slot {
-                    Some(model) => model,
-                    None => slot.insert(Model::load(&dir)?),
-                };
-                model.separate(&input, &out_dir)
+                // A split that panicked holds nothing: the gate stays usable.
+                let _one = running.lock().unwrap_or_else(|e| e.into_inner());
+                Model::load(&dir)?.separate(&input, &out_dir)
             })
             .await?;
             Ok(answer(&self.context, &stems).to_string())
