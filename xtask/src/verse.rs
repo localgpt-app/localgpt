@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub const FETCH_CLAP_USAGE: &str =
-    "  fetch-clap       the CLAP models Verse's ml tier reads (~78 MB, LAION/Xenova
+    "  fetch-clap       the CLAP models Verse's ml tier reads (~207 MB, LAION/Xenova
                    ONNX, CC-BY-NC: check the licence before shipping)";
 pub const BUNDLE_USAGE: &str =
     "  verse-bundle     a portable Verse: the release binary with assets/ beside it,
