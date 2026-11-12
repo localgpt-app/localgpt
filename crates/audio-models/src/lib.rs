@@ -28,6 +28,9 @@ pub mod notes;
 #[cfg(feature = "run")]
 pub mod tags;
 
+#[cfg(feature = "run")]
+pub mod stems;
+
 #[cfg(feature = "mcp")]
 pub mod tools;
 

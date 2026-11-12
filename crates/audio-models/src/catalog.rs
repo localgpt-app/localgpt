@@ -55,7 +55,7 @@ pub static NOTES: Model = Model {
 };
 
 /// Every model that can be installed.
-pub static MODELS: &[&Model] = &[&NOTES, &TAGS];
+pub static MODELS: &[&Model] = &[&STEMS, &NOTES, &TAGS];
 
 /// Xiaomi's CED-tiny, its official ONNX export (int8 weights, its own mel
 /// front end inside the graph) and the AudioSet label names from the same
@@ -80,6 +80,44 @@ pub static TAGS: Model = Model {
             url: "https://huggingface.co/mispeech/ced-tiny/resolve/ace276d29dd0bb3f3517b0fa8cf300738c409019/config.json",
             sha256: "3a060c57c28b8138cf66bbab2c0dcab79f07c871b600f52a06f2652bf3cad2bd",
             bytes: 25_058,
+        },
+    ],
+};
+
+/// Deezer's Spleeter 4stems: one U-Net per stem, the fp32 ONNX conversion
+/// at a fixed revision (`crate::stems` has its interface and processing).
+pub static STEMS: Model = Model {
+    id: "stems",
+    name: "Spleeter 4stems (Deezer)",
+    does: "splits a song into drums, bass, vocals and other, with each stem's loudness per second",
+    licence: "Spleeter's code and weights: MIT (Deezer; JOSS doi:10.21105/joss.02154). \
+              This ONNX conversion (Best-Practice/spleeter-4stems-onnx, through sherpa-onnx's U-Net): \
+              Apache-2.0. Checked 2026-11-11.",
+    source: "https://github.com/deezer/spleeter",
+    files: &[
+        ModelFile {
+            name: "drums.onnx",
+            url: "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/486643021f18a4d057d282fff1d11b89a30e9887/drums.onnx",
+            sha256: "fe832ff1b9ea54b7d3fd8256fa464e21dbccb3cafa83d4f72d3ee2d5dc21f997",
+            bytes: 39_361_003,
+        },
+        ModelFile {
+            name: "bass.onnx",
+            url: "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/486643021f18a4d057d282fff1d11b89a30e9887/bass.onnx",
+            sha256: "be84af108ec6a5b538d35fd5643799393c4c0bbfa21f2ea1308ca1364a076d81",
+            bytes: 39_361_002,
+        },
+        ModelFile {
+            name: "vocals.onnx",
+            url: "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/486643021f18a4d057d282fff1d11b89a30e9887/vocals.onnx",
+            sha256: "341bd47da8a0ea590178e9d342cbd6ac168cf05f0bf8ce6a62d1ef18f8358701",
+            bytes: 39_361_004,
+        },
+        ModelFile {
+            name: "other.onnx",
+            url: "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/486643021f18a4d057d282fff1d11b89a30e9887/other.onnx",
+            sha256: "9fa7fc4ecbe8d75f0b3c9fea65a0c8b7a32518a7c0ed55339036ad342fb8bedd",
+            bytes: 39_361_003,
         },
     ],
 };

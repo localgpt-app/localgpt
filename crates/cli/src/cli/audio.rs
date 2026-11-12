@@ -8,7 +8,7 @@
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context as _, Result, anyhow, bail};
 use clap::Subcommand;
 use localgpt_audio_models::tools::ToolContext;
 use localgpt_audio_models::{self as models, MODELS, Model};
@@ -71,6 +71,15 @@ pub enum AudioCommands {
         #[arg(long, default_value_t = 127.7)]
         min_note_ms: f32,
     },
+
+    /// Split a song into drums, bass, vocals and other (the `stems` model)
+    Stems {
+        /// The recording: WAV, FLAC, Ogg Vorbis, MP3, AAC/M4A, ALAC or AIFF
+        file: PathBuf,
+        /// Where the four WAVs go [default: stems/<file name>/]
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
 }
 
 pub async fn run(command: AudioCommands) -> Result<()> {
@@ -130,6 +139,7 @@ pub async fn run(command: AudioCommands) -> Result<()> {
             };
             notes(&dir, &file, &options, json).await
         }
+        AudioCommands::Stems { file, out } => stems(&dir, file, out).await,
     }
 }
 
@@ -216,6 +226,34 @@ async fn notes(
         "{} notes{range}, heard {from:.3}–{to:.3} s (start and end in seconds, name, MIDI pitch, velocity)",
         heard.notes.len()
     );
+    Ok(())
+}
+
+/// Split `file` with the installed `stems` model and say where the stems went.
+async fn stems(dir: &Path, file: PathBuf, out: Option<PathBuf>) -> Result<()> {
+    let model = &models::catalog::STEMS;
+    if !models::installed(dir, model) {
+        bail!("the stems model is not installed: localgpt audio install stems");
+    }
+    let out = out.unwrap_or_else(|| {
+        let name = file.file_stem().unwrap_or("track".as_ref());
+        Path::new("stems").join(name)
+    });
+    let home = home(dir, model);
+    let started = std::time::Instant::now();
+    let stems = tokio::task::spawn_blocking(move || {
+        models::stems::separate(&home, &file, &out)
+            .with_context(|| format!("splitting {}", file.display()))
+    })
+    .await??;
+    println!(
+        "{:.1} s of audio split in {:.1} s:",
+        stems.seconds,
+        started.elapsed().as_secs_f32()
+    );
+    for (name, file) in models::stems::NAMES.iter().zip(&stems.files) {
+        println!("  {name:<7} {}", file.display());
+    }
     Ok(())
 }
 
