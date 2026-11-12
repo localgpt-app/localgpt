@@ -61,15 +61,15 @@ localgpt-world-audio = { workspace = true }
 ron = "0.12"      # `.world.ron`, Gen's save format, next to the JSON export
 
 
-# PLAN.md M5 — CLAP zero-shot mood + audio embeddings. Opt-in: the model is a
-# ~78 MB download (cargo xtask fetch-clap) and ort pulls ONNX Runtime binaries;
-# without the feature (or the model file) the app uses the rule mapper (M4).
+# PLAN.md M5 — CLAP zero-shot mood + audio embeddings. Opt-in: the models are
+# a ~207 MB download (cargo xtask fetch-clap) and ort pulls ONNX Runtime
+# binaries; without the feature (or the model file) the app uses the rule
+# mapper (M4), which is pure Rust DSP.
 #
-# LICENSE NOTE (commercial shipping): CLAP weights (LAION) are CC-BY-NC-4.0 —
-# NOT commercial-friendly. The **rule mapper** (analysis.rs::map_mood, pure
-# Rust DSP, Apache-2.0) is the commercial shipping mood tier; `ml`/CLAP is an
-# opt-in, non-commercial "research quality boost". The app runs fully without
-# the `ml` feature. MERT is also CC-BY-NC, so it is not a clean swap.
+# Licences: LAION's CLAP code is CC0-1.0 and its model card gives the weights
+# Apache-2.0; the Xenova ONNX export fetch-clap downloads states none of its
+# own, and no licence covers the training data (PLAN.md §4). MERT's weights
+# are CC-BY-NC, so it is not a swap.
 #
 # PLAN.md M7 — Demucs stem separation rides the `ml` feature via
 # `stem-splitter-core` (MIT OR Apache-2.0 — commercial-friendly), which wraps

@@ -1,10 +1,9 @@
 //! Demucs stem separation — PLAN.md M7 (`ml` feature, via `stem-splitter-core`).
 //!
 //! Splits a track into four stems — **drums / bass / vocals / other** — via
-//! HT-Demucs, wrapped by [`stem_splitter_core`] (MIT OR Apache-2.0, so
-//! commercial-friendly, unlike CLAP's CC-BY-NC). Each stem gets its own
-//! per-second RMS energy curve, so the renderer can drive four independent
-//! visual layers (drums=ground pulse, bass=deep core glow, vocals=floating
+//! HT-Demucs (MIT), wrapped by [`stem_splitter_core`] (MIT OR Apache-2.0).
+//! Each stem gets its own per-second RMS energy curve, so the renderer can
+//! drive four independent visual layers (drums=ground pulse, bass=deep core glow, vocals=floating
 //! motes, lead=hero landmarks) instead of one mixed envelope.
 //!
 //! Like [`crate::ml::ClapModel`], this degrades to `None` — no `ml` feature →

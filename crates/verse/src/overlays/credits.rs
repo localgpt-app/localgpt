@@ -236,7 +236,7 @@ const SOFTWARE_CREDITS: &[(&str, &str, &str, &str)] = &[
         "CLAP (LAION, Xenova ONNX)",
         "zero-shot music understanding (optional `ml` feature)",
         "LAION / Xenova",
-        "CC-BY-NC-4.0 weights",
+        "Apache-2.0 weights",
     ),
 ];
 

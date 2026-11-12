@@ -60,8 +60,10 @@ Verse reads a recipe; it never writes one. No language model runs in it (the in-
 |---|---|---|
 | LocalGPT Verse code | Apache-2.0 | Commercial-friendly |
 | Rule mood mapper | Apache-2.0 | The shipping mood tier |
-| stem-splitter-core (Demucs) | MIT / Apache-2.0 | Commercial-friendly |
-| CLAP weights (LAION) | CC-BY-NC-4.0 | **Not** cleared for commercial distribution |
+| stem-splitter-core | MIT / Apache-2.0 | Commercial-friendly |
+| Demucs (htdemucs) code and weights | MIT | The ONNX conversion downloaded states no licence of its own |
+| CLAP code (LAION) | CC0-1.0 | |
+| CLAP weights (LAION) | Apache-2.0 | Per LAION's model card; the Xenova ONNX export downloaded states no licence of its own |
 
 > [!WARNING]
-> **Weights ≠ code.** A model's code being Apache/MIT says nothing about its checkpoint. Verify each weight file's terms before shipping anything commercially — the CLAP weights in particular are research-only.
+> **Weights ≠ code.** A model's code being Apache/MIT says nothing about its checkpoint, and no licence covers the data a model was trained on. Verify each weight file's terms before shipping anything commercially, and prefer converting from the original weights over a third party's export.

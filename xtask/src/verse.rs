@@ -8,14 +8,15 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub const FETCH_CLAP_USAGE: &str =
-    "  fetch-clap       the CLAP models Verse's ml tier reads (~207 MB, LAION/Xenova
-                   ONNX, CC-BY-NC: check the licence before shipping)";
+    "  fetch-clap       the CLAP models Verse's ml tier reads (~207 MB, Xenova's ONNX
+                   export of LAION's Apache-2.0 weights)";
 pub const BUNDLE_USAGE: &str =
     "  verse-bundle     a portable Verse: the release binary with assets/ beside it,
                    in crates/verse/dist";
 
-/// LAION CLAP (larger_clap_music_and_speech), ONNX export by Xenova. The
-/// model card lists cc-by-nc-4.0 for the checkpoints (Verse's PLAN.md §4).
+/// LAION CLAP (larger_clap_music_and_speech), ONNX export by Xenova. LAION's
+/// model card gives the weights Apache-2.0; the export states no licence of
+/// its own (Verse's PLAN.md §4).
 const CLAP: &str = "https://huggingface.co/Xenova/larger_clap_music_and_speech/resolve/main";
 /// Remote path, and the file under `crates/verse/assets/ml/`: the audio
 /// model (moods, track embeddings), and the text model and tokenizer the

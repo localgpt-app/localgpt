@@ -100,6 +100,7 @@ The system map, the load-bearing decisions and the measured limits are in [ARCHI
 | LocalGPT Verse code | [Apache License 2.0](https://github.com/localgpt-app/localgpt/blob/main/LICENSE) |
 | Marcellus & Hanken Grotesk fonts | SIL Open Font License 1.1 |
 | 3D model pack & starter music (`localgpt-world-assets`) | CC0 1.0 (public domain) |
-| CLAP audio model weights | CC-BY-NC-4.0 — non-commercial only |
+| CLAP model weights (LAION) | Apache-2.0, per LAION's model card; the Xenova ONNX export states none of its own |
+| Demucs (htdemucs) | MIT; the ONNX conversion `stem-splitter-core` fetches states none of its own |
 
 The optional model downloads (`cargo xtask fetch-clap`, and the Demucs model `stem-splitter-core` fetches) carry their own licenses; the asset manifest records every model's source, author, and license, and the in-app **Credits & Licenses** screen renders it.
