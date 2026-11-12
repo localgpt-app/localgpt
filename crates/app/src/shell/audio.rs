@@ -80,7 +80,13 @@ impl Audio {
             ui.add_space(6.0);
         }
         ui.separator();
-        ui.label(RichText::new(format!("In {}", dir.display())).color(theme::FAINT));
+        // One line, cut short: a menu justifies wrapped text, and a path has
+        // no spaces to wrap at. The whole of it shows on hover.
+        let path = dir.display().to_string();
+        ui.add(
+            egui::Label::new(RichText::new(format!("In {path}")).color(theme::FAINT)).truncate(),
+        )
+        .on_hover_text(path);
     }
 
     fn row(&mut self, ui: &mut egui::Ui, dir: &Path, model: &'static Model, job: Option<&Job>) {
