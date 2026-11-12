@@ -47,6 +47,30 @@ pub enum AudioCommands {
         #[arg(long)]
         json: bool,
     },
+
+    /// The notes played in a recording (the `notes` model): pitch, start, end and velocity
+    Notes {
+        /// The recording (WAV, FLAC, MP3, Ogg, AAC/M4A, ALAC or AIFF)
+        file: PathBuf,
+        /// Print the notes as JSON
+        #[arg(long)]
+        json: bool,
+        /// Hear from here, in seconds
+        #[arg(long)]
+        start: Option<f32>,
+        /// Hear up to here, in seconds
+        #[arg(long)]
+        end: Option<f32>,
+        /// How sure the model must be that a note starts, 0 to 1 (lower finds more)
+        #[arg(long, default_value_t = 0.5)]
+        onset_threshold: f32,
+        /// How sure it must be that a note still sounds, 0 to 1 (lower makes longer notes)
+        #[arg(long, default_value_t = 0.3)]
+        frame_threshold: f32,
+        /// The shortest note kept, in milliseconds
+        #[arg(long, default_value_t = 127.7)]
+        min_note_ms: f32,
+    },
 }
 
 pub async fn run(command: AudioCommands) -> Result<()> {
@@ -87,6 +111,25 @@ pub async fn run(command: AudioCommands) -> Result<()> {
             run_mcp_stdio_server(tools, "localgpt-audio").await
         }
         AudioCommands::Tags { file, json } => tags(&dir, file, json).await,
+        AudioCommands::Notes {
+            file,
+            json,
+            start,
+            end,
+            onset_threshold,
+            frame_threshold,
+            min_note_ms,
+        } => {
+            let options = models::notes::NoteOptions {
+                onset_threshold,
+                frame_threshold,
+                min_note_ms,
+                start: start.unwrap_or(0.0),
+                end,
+                ..Default::default()
+            };
+            notes(&dir, &file, &options, json).await
+        }
     }
 }
 
@@ -132,6 +175,48 @@ async fn tags(dir: &Path, file: PathBuf, json: bool) -> Result<()> {
 fn clock(seconds: f32) -> String {
     let whole = seconds.round() as u64;
     format!("{}:{:02}", whole / 60, whole % 60)
+}
+
+/// Transcribe `file` and print its notes, a line each or as JSON.
+async fn notes(
+    dir: &Path,
+    file: &Path,
+    options: &models::notes::NoteOptions,
+    json: bool,
+) -> Result<()> {
+    use models::notes::{Transcriber, note_name, report};
+    let model = dir.join(models::catalog::NOTES.id);
+    let (file, options) = (file.to_path_buf(), options.clone());
+    let heard =
+        tokio::task::spawn_blocking(move || Transcriber::load(&model)?.transcribe(&file, &options))
+            .await??;
+    if json {
+        println!("{:#}", report(&heard, None));
+        return Ok(());
+    }
+    for note in &heard.notes {
+        println!(
+            "{:>8.3} {:>8.3}  {:<4} {:>3}  {:.2}",
+            note.start,
+            note.end,
+            note_name(note.pitch),
+            note.pitch,
+            note.velocity
+        );
+    }
+    let (from, to) = heard.heard;
+    let range = match (
+        heard.notes.iter().map(|n| n.pitch).min(),
+        heard.notes.iter().map(|n| n.pitch).max(),
+    ) {
+        (Some(low), Some(high)) => format!(", {} to {}", note_name(low), note_name(high)),
+        _ => String::new(),
+    };
+    eprintln!(
+        "{} notes{range}, heard {from:.3}–{to:.3} s (start and end in seconds, name, MIDI pitch, velocity)",
+        heard.notes.len()
+    );
+    Ok(())
 }
 
 /// The models `ids` name, or all of them.

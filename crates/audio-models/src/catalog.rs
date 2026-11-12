@@ -38,8 +38,24 @@ impl Model {
     }
 }
 
+/// basic-pitch: the notes played, from audio (`crate::notes`).
+pub static NOTES: Model = Model {
+    id: "notes",
+    name: "basic-pitch (Spotify)",
+    does: "the notes an instrument or a voice played: pitch, start, end and velocity",
+    licence: "Apache-2.0 (code and model), checked 2026-11-11",
+    source: "https://github.com/spotify/basic-pitch",
+    files: &[ModelFile {
+        name: "nmp.onnx",
+        // The commit that added the ONNX export; the file is in Git, not LFS.
+        url: "https://raw.githubusercontent.com/spotify/basic-pitch/dfb20ef559dff1792e11e022f3f0c7008c1dee6d/basic_pitch/saved_models/icassp_2022/nmp.onnx",
+        sha256: "2c3c1d144bfa61ad236e92e169c13535c880469a12a047d4e73451f2c059a0ec",
+        bytes: 230_444,
+    }],
+};
+
 /// Every model that can be installed.
-pub static MODELS: &[&Model] = &[&TAGS];
+pub static MODELS: &[&Model] = &[&NOTES, &TAGS];
 
 /// Xiaomi's CED-tiny, its official ONNX export (int8 weights, its own mel
 /// front end inside the graph) and the AudioSet label names from the same

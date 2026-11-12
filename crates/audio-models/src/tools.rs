@@ -58,6 +58,9 @@ pub fn installed(context: &ToolContext) -> Vec<Box<dyn Tool>> {
 /// The tool of the model with this id.
 fn tool_for(id: &str, context: &ToolContext) -> Option<Box<dyn Tool>> {
     match id {
+        "notes" => Some(Box::new(crate::notes::tool::NotesTool::new(
+            context.clone(),
+        ))),
         "tags" => Some(Box::new(crate::tags::TagsTool::new(context))),
         _ => None,
     }
