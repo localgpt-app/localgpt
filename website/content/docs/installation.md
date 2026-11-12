@@ -18,7 +18,7 @@ description: "Install LocalGPT: the binaries from crates.io, the desktop app fro
 - **Node 22**, to build the desktop app's page once (`crates/app/ui`); the release binary carries it.
 - **An agent of your own**, if you want one: Claude Code, Codex, Gemini CLI or any other. LocalGPT installs none, runs no model and holds no key; an agent runs in a terminal the app opens, or anywhere else, and brings its own login. Document, song and previs worlds need no model at all.
 
-## From crates.io (for users)
+## From crates.io, npm or Homebrew (for users)
 
 `cargo install` fetches a published crate, compiles it and drops the binary in `~/.cargo/bin/` (on your `PATH` if you installed Rust with rustup). No source checkout.
 
@@ -27,7 +27,19 @@ cargo install localgpt-gen       # the world builder: MCP server and relay, the 
 cargo install localgpt           # `localgpt world`, `localgpt world mcp` (the shim), and `localgpt previs`
 ```
 
-Upgrade later with `cargo install <crate> --force`. The desktop app, `localgpt-app`, is not on crates.io: it ships as a build (below).
+For the `localgpt` command line and MCP shim without a Rust toolchain, install the prebuilt binary from npm (or run it directly with `npx`):
+
+```bash
+npm install -g localgpt          # or: npx -y localgpt world mcp
+```
+
+On macOS, `LocalGPT.app` carries `localgpt` inside `Contents/MacOS/localgpt` (and puts it on `PATH` in the app's terminals); the Homebrew cask installs the app and links `localgpt` onto your `PATH`:
+
+```bash
+brew install --cask localgpt-app/tap/localgpt
+```
+
+Upgrade later with `cargo install <crate> --force`, `npm update -g localgpt`, or `brew upgrade --cask localgpt`. The desktop app, `localgpt-app`, is not on crates.io: it ships as a build.
 
 ## From source (for developers, and for the desktop app)
 

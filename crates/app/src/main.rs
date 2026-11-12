@@ -106,12 +106,23 @@ fn main() -> anyhow::Result<()> {
     init_logging();
 
     // Launched from Finder, the app has launchd's minimal PATH: take the
-    // login shell's, so what the app runs by name is found. (The agents'
-    // terminals start a login shell of their own.)
+    // login shell's, so what the app runs by name is found, and keep the
+    // bundle's own folder (`Contents/MacOS`, where `localgpt` sits beside
+    // `localgpt-app`) on it so the terminals find `localgpt` even when the
+    // app was dragged straight from a `.dmg`.
     #[cfg(unix)]
-    if let Some(login_path) = desktop::shell_env::login_shell_path() {
+    {
         let current = std::env::var("PATH").unwrap_or_default();
-        let merged = desktop::shell_env::merge_paths(&current, &login_path);
+        let with_exe = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(Path::to_path_buf))
+            .and_then(|dir| dir.to_str().map(str::to_owned))
+            .map(|dir| desktop::shell_env::merge_paths(&current, &dir))
+            .unwrap_or(current);
+        let merged = match desktop::shell_env::login_shell_path() {
+            Some(login_path) => desktop::shell_env::merge_paths(&with_exe, &login_path),
+            None => with_exe,
+        };
         // SAFETY: program start, before threads.
         unsafe { std::env::set_var("PATH", merged) };
     }

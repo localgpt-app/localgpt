@@ -245,6 +245,7 @@ impl Document {
                 };
                 let mut edit = egui::TextEdit::multiline(&mut self.text)
                     .id(editor)
+                    .hint_text("Markdown")
                     .font(egui::TextStyle::Monospace)
                     .code_editor()
                     .desired_width(f32::INFINITY)
@@ -449,5 +450,106 @@ mod tests {
         assert_eq!(line_start(text, 2), 9, "an empty line");
         assert_eq!(line_start(text, 3), 17);
         assert_eq!(line_start(text, 9), text.chars().count(), "past the end");
+    }
+
+    #[test]
+    fn document_panel_navigates_outline_picks_things_and_toggles_follow() {
+        use std::sync::mpsc::channel;
+
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+
+        use crate::document::{DocumentView, OutlineRow, PlaceCard, Thing};
+
+        struct Panel {
+            doc: Document,
+            state: State,
+            end: ShellEnd,
+        }
+
+        let (asks, asked) = channel();
+        let (_tell, events) = channel();
+        let view = DocumentView {
+            name: "harbour.md".into(),
+            path: "/tmp/harbour.md".into(),
+            status: "Saved · 2 sections".into(),
+            conflict: true,
+            follow_cursor: true,
+            outline: vec![
+                OutlineRow {
+                    level: 1,
+                    text: "Harbour".into(),
+                    section: None,
+                    line: None,
+                    tier: None,
+                },
+                OutlineRow {
+                    level: 2,
+                    text: "The Pier".into(),
+                    section: Some(0),
+                    line: Some(2),
+                    tier: Some("draft"),
+                },
+            ],
+            selected: Some(0),
+            card: Some(PlaceCard {
+                section: 0,
+                heading: Some("The Pier".into()),
+                tier: Some("draft"),
+                description: Some("A wooden jetty at dusk".into()),
+                entities: 3,
+                things: vec![Thing {
+                    label: "lantern".into(),
+                    first: "s00-lantern_1".into(),
+                    count: 2,
+                }],
+                more: 0,
+            }),
+        };
+        let panel = Panel {
+            doc: Document::new(),
+            state: State {
+                document: Some(Box::new(view)),
+                text: Some(("# Harbour\n\n## The Pier\nlanterns\n".into(), 1)),
+                ..State::default()
+            },
+            end: ShellEnd { events, asks },
+        };
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(420.0, 640.0))
+            .allow_missing_glyphs()
+            .build_ui_state(
+                |ui, panel: &mut Panel| {
+                    panel.doc.ui(ui, &panel.state, None, &panel.end);
+                },
+                panel,
+            );
+        harness.run_steps(2);
+
+        let _ = harness.get_by_label("The file changed on disk while it was edited here.");
+        harness.get_by_label("  The Pier").click();
+        harness.run_steps(2);
+        harness.get_by_label("lantern ×2").click();
+        harness.run_steps(2);
+        harness.get_by_label("Follow").click();
+        harness.run_steps(2);
+
+        let sent: Vec<FromPage> = asked
+            .try_iter()
+            .filter(|m| !matches!(m, FromPage::DocCaret { .. }))
+            .collect();
+        assert_eq!(
+            sent,
+            [
+                FromPage::DocGo {
+                    section: 0,
+                    line: Some(2)
+                },
+                FromPage::DocPick {
+                    name: "s00-lantern_1".into()
+                },
+                FromPage::DocFollow { on: false },
+            ]
+        );
     }
 }

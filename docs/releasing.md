@@ -25,7 +25,11 @@ The tag push runs `.github/workflows/release.yml`: it checks the tag
 against the version, asks crates.io which crates are already up
 (`cargo xtask release-plan`, so a rerun finishes a partial publish), builds
 the rest from their packages and uploads them in dependency order, through
-Trusted Publishing.
+Trusted Publishing. In parallel (`build-cli` → `publish-npm`), it builds the
+`localgpt` CLI across macOS (arm64, x64), Linux (x64, arm64) and Windows
+(x64), assembles the `@localgpt/cli-<os>-<arch>` and `localgpt` npm packages
+with `cargo xtask npm-package`, and publishes them to npm when `NPM_TOKEN` is
+set.
 
 - A crate published for the first time needs the `CARGO_REGISTRY_TOKEN`
   secret, since crates.io can only trust a workflow for a crate that
@@ -42,8 +46,10 @@ Trusted Publishing.
 ## The desktop app
 
 `desktop-vX.Y.Z` runs `.github/workflows/desktop.yml`, which builds
-`LocalGPT.app` for Apple silicon and Intel with `cargo xtask bundle --dmg`
-and drafts a GitHub release with the two `.dmg` files and the Homebrew cask.
+`LocalGPT.app` (including `Contents/MacOS/localgpt`) for Apple silicon and
+Intel with `cargo xtask bundle --dmg`
+and drafts a GitHub release with the two `.dmg` files and the Homebrew cask
+(which installs `LocalGPT.app` and links `localgpt` onto `PATH`).
 A hyphen after the version makes a pre-release; a manual run keeps the
 `.dmg` files as artifacts; signing and notarization run when their secrets
 are set. [`apps/app-desktop/README.md`](../apps/app-desktop/README.md) has

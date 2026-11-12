@@ -101,10 +101,11 @@ people list:
 | edit | submit batches that commit |
 
 **Presence.** Each person's camera and selection are drawn in the canvas and
-marked in the outliner. The shell's outliner marks nobody yet: the app sends
-who the person is and what a waiting proposal touches (`SceneView`,
-`crates/app/src/scene.rs`), and `crates/app/src/shell/scene.rs` draws
-neither.
+marked in the outliner. The shell's outliner (`crates/app/src/shell/scene.rs`)
+already marks waiting proposals (`SceneView.proposal`) and recent changes by
+other authors (`SceneView.person`, diffed across history entries); live
+per-guest camera and selection markers join when the room's presence messages
+land.
 
 **Prompts stay out.** A guest's text never reaches the host's agents. They
 run with a shell on the host's computer, and text from another person is a

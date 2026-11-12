@@ -6,16 +6,20 @@
 //! in the history, through the authority the agents use.
 
 use std::collections::{BTreeMap, HashSet};
+use std::time::{Duration, Instant};
 
 use eframe::egui::{self, RichText};
 use serde_json::{Value, json};
 
 use super::state::State;
 use super::theme;
-use crate::scene::SceneEdit;
+use crate::scene::{SceneEdit, SceneView};
 use crate::timeline::ShotTime;
 use crate::webui::FromPage;
 use crate::webui::link::ShellEnd;
+
+/// How long a change someone else made stays marked in the outliner.
+const MARKED: Duration = Duration::from_secs(120);
 
 /// What a field is missing reads as, as the page's inspector has it.
 fn default_of(path: &str) -> Option<Value> {
@@ -272,6 +276,12 @@ struct Held {
     edits: Vec<SceneEdit>,
 }
 
+/// An edit someone else (`author != view.person`) committed recently.
+struct OtherChange {
+    author: String,
+    at: Instant,
+}
+
 pub struct Scene {
     search: String,
     closed: HashSet<u64>,
@@ -284,6 +294,13 @@ pub struct Scene {
     /// A timeline lane asked to be shown (a modulation's "timeline" link),
     /// for the shell to pass on.
     reveal: Option<String>,
+    /// The history entry ids seen at the last `SceneView`, so a new entry
+    /// by another author is told from a seek.
+    seen_entries: Option<HashSet<String>>,
+    /// The entities as the last `SceneView` had them, by id.
+    last_entities: BTreeMap<u64, Value>,
+    /// Which things another author changed recently, by entity id.
+    others: BTreeMap<u64, OtherChange>,
 }
 
 impl Scene {
@@ -296,6 +313,9 @@ impl Scene {
             naming: None,
             timing: None,
             reveal: None,
+            seen_entries: None,
+            last_entities: BTreeMap::new(),
+            others: BTreeMap::new(),
         }
     }
 
@@ -304,11 +324,50 @@ impl Scene {
         self.reveal.take()
     }
 
+    fn note_others(&mut self, view: &SceneView, state: &State) {
+        self.others.retain(|_, change| change.at.elapsed() < MARKED);
+        let now_entities: BTreeMap<u64, Value> = view
+            .entities
+            .iter()
+            .filter_map(|e| Some((id_of(e)?, e.clone())))
+            .collect();
+        if now_entities != self.last_entities {
+            if !self.last_entities.is_empty()
+                && let Some(history) = &state.history
+                && let Some(newest) = history.rows.last()
+                && self
+                    .seen_entries
+                    .as_ref()
+                    .is_some_and(|seen| !seen.contains(&newest.id))
+                && history.current.as_deref() == Some(newest.id.as_str())
+                && view.person.as_deref() != Some(newest.author.as_str())
+            {
+                let at = Instant::now();
+                for (id, entity) in &now_entities {
+                    if self.last_entities.get(id) != Some(entity) {
+                        self.others.insert(
+                            *id,
+                            OtherChange {
+                                author: newest.author.clone(),
+                                at,
+                            },
+                        );
+                    }
+                }
+            }
+            self.last_entities = now_entities;
+        }
+        if let Some(history) = &state.history {
+            self.seen_entries = Some(history.rows.iter().map(|r| r.id.clone()).collect());
+        }
+    }
+
     pub fn ui(&mut self, ui: &mut egui::Ui, state: &State, end: &ShellEnd) {
         let Some(view) = state.scene.as_deref() else {
             ui.weak("No world open.");
             return;
         };
+        self.note_others(view, state);
         let entities: BTreeMap<u64, &Value> = view
             .entities
             .iter()
@@ -330,6 +389,16 @@ impl Scene {
                     .desired_width(f32::INFINITY),
             );
         });
+        if let Some(proposal) = &view.proposal
+            && !proposal.ids.is_empty()
+        {
+            let count = proposal.ids.len();
+            let noun = if count == 1 { "thing" } else { "things" };
+            ui.colored_label(
+                theme::HEAD,
+                format!("{} proposes changes to {count} {noun}", proposal.author),
+            );
+        }
         let needle = self.search.trim().to_lowercase();
         let height = (ui.available_height() * 0.5).max(120.0);
         egui::ScrollArea::vertical()
@@ -400,6 +469,21 @@ impl Scene {
     ) {
         let selected = state.selection.contains(&id);
         let (glyph, kind) = kind_of(entity);
+        let proposed_by = state
+            .scene
+            .as_deref()
+            .and_then(|v| v.proposal.as_ref())
+            .filter(|p| p.ids.contains(&id))
+            .map(|p| p.author.as_str());
+        let changed_by = self.others.get(&id).map(|c| {
+            let s = c.at.elapsed().as_secs().max(1);
+            let age = if s < 60 {
+                format!("{s} s")
+            } else {
+                format!("{} min", s / 60)
+            };
+            format!("{} · {age}", c.author)
+        });
         ui.horizontal(|ui| {
             ui.add_space(depth as f32 * 14.0);
             if has_children {
@@ -457,6 +541,13 @@ impl Scene {
                     end.ask(FromPage::EntityHide {
                         ids: self.hidden.iter().copied().collect(),
                     });
+                }
+                if let Some(author) = proposed_by {
+                    ui.label(RichText::new(author).small().color(theme::HEAD))
+                        .on_hover_text("Touched by a waiting proposal");
+                } else if let Some(changed) = changed_by {
+                    ui.label(RichText::new(changed).small().color(theme::HEAD))
+                        .on_hover_text("Changed recently by another author");
                 }
             });
         });
@@ -1428,5 +1519,144 @@ mod tests {
             describe("transform.position.1", "lamp, lantern", &json!(3.0), None),
             "move lamp, lantern"
         );
+    }
+
+    #[test]
+    fn outliner_selects_hides_and_marks_proposals_and_others_edits() {
+        use std::sync::mpsc::channel;
+
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+        use localgpt_gen::gen3d::live::HistoryRow;
+
+        use crate::scene::{ProposalLines, WorldLines};
+        use crate::shell::state::History;
+
+        struct Panel {
+            scene: Scene,
+            state: State,
+            end: ShellEnd,
+        }
+
+        let (asks, asked) = channel();
+        let (_tell, events) = channel();
+        let mut lamp_entity = lamp();
+        lamp_entity["name"] = json!("lamp");
+        let camera_entity = json!({
+            "id": 9,
+            "name": "1A",
+            "transform": { "position": [0.0, 1.6, 6.0] },
+            "ext-cinematography": {
+                "camera": { "focal_length_mm": 24.0, "aim": [0.0, 1.0, 0.0] },
+                "shot": { "in_s": 0.0, "out_s": 11.4, "size": "WS" }
+            }
+        });
+        let initial_view = SceneView {
+            entities: vec![lamp_entity.clone(), camera_entity.clone()],
+            editable: true,
+            world: WorldLines {
+                name: "harbour".into(),
+                sky: None,
+                song: None,
+                tours: 0,
+            },
+            person: Some("yi".into()),
+            proposal: Some(ProposalLines {
+                author: "claude".into(),
+                ids: vec![7],
+            }),
+            tracks: BTreeMap::new(),
+        };
+        let panel = Panel {
+            scene: Scene::new(),
+            state: State {
+                scene: Some(Box::new(initial_view)),
+                history: Some(History {
+                    rows: vec![HistoryRow {
+                        id: "e1".into(),
+                        parent: None,
+                        revision: 1,
+                        author: "yi".into(),
+                        summary: "initial".into(),
+                        message: None,
+                        timestamp_ms: 1000,
+                        tip: true,
+                        head: true,
+                    }],
+                    current: Some("e1".into()),
+                    status: None,
+                }),
+                ..State::default()
+            },
+            end: ShellEnd { events, asks },
+        };
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(380.0, 640.0))
+            .allow_missing_glyphs()
+            .build_ui_state(
+                |ui, panel: &mut Panel| {
+                    panel.scene.ui(ui, &panel.state, &panel.end);
+                },
+                panel,
+            );
+        harness.run_steps(2);
+
+        // Waiting proposal banner and per-row author badge are shown.
+        let _ = harness.get_by_label("claude proposes changes to 1 thing");
+        let _ = harness.get_by_label("claude");
+
+        // Clicking an outliner row asks the app to select it.
+        harness.get_by_label("🎥 1A").click();
+        harness.run_steps(2);
+        let sent: Vec<FromPage> = asked.try_iter().collect();
+        assert_eq!(sent, [FromPage::Select { ids: vec![9] }]);
+
+        // Selecting camera 1A shows the inspector's "Fly to" and "Look through" buttons.
+        harness.state_mut().state.selection = vec![9];
+        harness.run_steps(2);
+        harness.get_by_label("Fly to").click();
+        harness.run_steps(2);
+        harness.get_by_label("Look through").click();
+        harness.run_steps(2);
+        let sent: Vec<FromPage> = asked.try_iter().collect();
+        assert_eq!(
+            sent,
+            [
+                FromPage::Focus { id: 9 },
+                FromPage::ShotLook { id: Some(9) }
+            ]
+        );
+
+        // Clicking the eye button on the first row hides it in the window.
+        harness.get_all_by_label("◉").next().unwrap().click();
+        harness.run_steps(2);
+        let sent: Vec<FromPage> = asked.try_iter().collect();
+        assert_eq!(sent, [FromPage::EntityHide { ids: vec![7] }]);
+
+        // When another author ("codex" != "yi") commits a new entry that moves
+        // the lamp, the outliner marks the lamp row with that author.
+        let mut moved_lamp = lamp_entity;
+        moved_lamp["transform"]["position"] = json!([1.0, 4.0, 3.0]);
+        {
+            let state = &mut harness.state_mut().state;
+            let scene = state.scene.as_mut().unwrap();
+            scene.proposal = None;
+            scene.entities[0] = moved_lamp;
+            let history = state.history.as_mut().unwrap();
+            history.rows.push(HistoryRow {
+                id: "e2".into(),
+                parent: Some("e1".into()),
+                revision: 2,
+                author: "codex".into(),
+                summary: "lift lamp".into(),
+                message: None,
+                timestamp_ms: 2000,
+                tip: true,
+                head: true,
+            });
+            history.current = Some("e2".into());
+        }
+        harness.run_steps(2);
+        let _ = harness.get_by_label("codex · 1 s");
     }
 }

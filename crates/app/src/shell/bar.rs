@@ -285,3 +285,107 @@ fn since(ms: u64) -> String {
         _ => format!("{} d ago", s / 86400),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::mpsc::channel;
+
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable;
+
+    use super::*;
+    use crate::webui::{DeviceView, PairingView};
+
+    struct Panel {
+        bar: Bar,
+        state: State,
+        end: ShellEnd,
+        layout: tiles::Layout,
+    }
+
+    #[test]
+    fn bar_opens_files_shows_status_and_drives_phone_remote() {
+        let (asks, asked) = channel();
+        let (_tell, events) = channel();
+        let panel = Panel {
+            bar: Bar::default(),
+            state: State {
+                title: Some("Song · Dawn".into()),
+                opener_status: Some("Loaded Dawn".into()),
+                remote: Some(Box::new(RemoteView {
+                    on: false,
+                    url: None,
+                    pairing: None,
+                    devices: Vec::new(),
+                    error: None,
+                })),
+                ..State::default()
+            },
+            end: ShellEnd { events, asks },
+            layout: tiles::Layout::open(false, None),
+        };
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(960.0, 420.0))
+            .allow_missing_glyphs()
+            .build_ui_state(
+                |ui, panel: &mut Panel| {
+                    panel
+                        .bar
+                        .ui(ui, &panel.state, &panel.end, &mut panel.layout);
+                },
+                panel,
+            );
+        harness.run_steps(2);
+
+        let _ = harness.get_by_label("Song · Dawn");
+        let _ = harness.get_by_label("Loaded Dawn");
+        harness.get_by_label("Open…").click();
+        harness.run_steps(2);
+        let sent: Vec<FromPage> = asked.try_iter().collect();
+        assert_eq!(sent, [FromPage::OpenFile]);
+
+        // In live canvas mode (`mode_history`), `Open…` is hidden.
+        harness.state_mut().state.mode_history = true;
+        harness.run_steps(2);
+        assert!(harness.query_by_label("Open…").is_none());
+
+        // Phone popup: turning on, forgetting a device, turning off.
+        harness.get_by_label("Phone").click();
+        harness.run_steps(2);
+        harness.get_by_label("Turn on").click();
+        harness.run_steps(2);
+        let sent: Vec<FromPage> = asked.try_iter().collect();
+        assert_eq!(sent, [FromPage::RemoteOn { on: true }]);
+
+        harness.state_mut().state.remote = Some(Box::new(RemoteView {
+            on: true,
+            url: Some("http://192.168.1.10:9880".into()),
+            pairing: Some(PairingView {
+                url: "http://192.168.1.10:9880#pair=abc".into(),
+                qr: None,
+                left_s: 300,
+            }),
+            devices: vec![DeviceView {
+                id: "dev-1".into(),
+                name: "iPhone".into(),
+                paired_ms: 1000,
+                seen_ms: 1000,
+                attached: true,
+            }],
+            error: None,
+        }));
+        harness.run_steps(2);
+        harness.get_by_label("Forget").click();
+        harness.run_steps(2);
+        harness.get_by_label("Turn off").click();
+        harness.run_steps(2);
+        let sent: Vec<FromPage> = asked.try_iter().collect();
+        assert_eq!(
+            sent,
+            [
+                FromPage::RemoteForget { id: "dev-1".into() },
+                FromPage::RemoteOn { on: false }
+            ]
+        );
+    }
+}

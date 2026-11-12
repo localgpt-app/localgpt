@@ -25,6 +25,10 @@
 ## Install
 
 ```bash
+# Prebuilt (no Rust toolchain needed)
+brew install --cask localgpt-app/tap/localgpt   # macOS: LocalGPT.app + the `localgpt` CLI
+npm install -g localgpt                         # macOS, Linux, Windows: the `localgpt` CLI and MCP shim
+
 # From crates.io
 cargo install localgpt-gen       # the world builder: MCP server, the relay, headless, sessions
 cargo install localgpt           # `localgpt world`, the MCP shim (`world mcp`), and `localgpt previs`

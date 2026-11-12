@@ -111,3 +111,83 @@ jobs:
         run: |
           read -ra excludes <<< "$EXCLUDES"
           cargo publish --workspace --no-verify "${excludes[@]}"
+
+  build-cli:
+    name: CLI (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: aarch64-apple-darwin, os: macos-latest, bin: localgpt }
+          - { target: x86_64-apple-darwin, os: macos-15-intel, bin: localgpt }
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest, bin: localgpt }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, bin: localgpt }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest, bin: localgpt.exe }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: cli-${{ matrix.target }}
+
+      - name: Build localgpt
+        run: cargo build --release -p localgpt --target ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/${{ matrix.bin }}
+          if-no-files-found: error
+
+  publish-npm:
+    name: Publish to npm
+    needs: [build-cli]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance when NPM_TOKEN is configured
+    env:
+      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cli-*
+          path: dist/binaries
+
+      - name: Assemble npm packages
+        run: |
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
+          cargo xtask npm-package "$version" dist/binaries dist/npm
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: localgpt-npm
+          path: dist/npm
+          if-no-files-found: error
+
+      - name: Publish platform and root packages to npm
+        if: env.HAS_NPM_TOKEN == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for pkg in dist/npm/cli-* dist/npm/localgpt; do
+            name="$(node -p 'require("./" + process.argv[1] + "/package.json").name' "$pkg")"
+            version="$(node -p 'require("./" + process.argv[1] + "/package.json").version' "$pkg")"
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "up already  $name@$version"
+            else
+              echo "publishing  $name@$version"
+              npm publish "./$pkg" --access public --provenance
+            fi
+          done

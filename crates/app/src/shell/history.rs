@@ -98,10 +98,12 @@ impl History {
                 ui.label(RichText::new(format!("{at} / {n}")).color(theme::MUTED));
                 let mut position = at;
                 ui.spacing_mut().slider_width = (ui.available_width() - 8.0).max(40.0);
-                let slider = ui.add_enabled(
-                    n > 0,
-                    egui::Slider::new(&mut position, 0..=n.max(1)).show_value(false),
-                );
+                let slider = ui
+                    .add_enabled(
+                        n > 0,
+                        egui::Slider::new(&mut position, 0..=n.max(1)).show_value(false),
+                    )
+                    .on_hover_text("Scrub the history");
                 let due = self.scrubbed.is_none_or(|at| at.elapsed() >= SCRUB);
                 if slider.changed() && position != at && due {
                     self.scrubbed = Some(Instant::now());
@@ -378,5 +380,72 @@ mod tests {
         assert_eq!(short("entry-7"), "entry-7");
         assert_eq!(truncate("an agent", 9), "an agent");
         assert_eq!(truncate("a long author name", 9), "a long a…");
+    }
+
+    #[test]
+    fn transport_buttons_step_and_play_through_history() {
+        use std::sync::mpsc::channel;
+
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+
+        struct Panel {
+            history: History,
+            state: State,
+            end: ShellEnd,
+        }
+
+        let (asks, asked) = channel();
+        let (_tell, events) = channel();
+        let rows = vec![row("e1", None), row("e2", Some("e1"))];
+        let panel = Panel {
+            history: History::default(),
+            state: State {
+                history: Some(crate::shell::state::History {
+                    rows,
+                    current: Some("e2".into()),
+                    status: None,
+                }),
+                playing: false,
+                ..State::default()
+            },
+            end: ShellEnd { events, asks },
+        };
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(360.0, 320.0))
+            .allow_missing_glyphs()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui, panel: &mut Panel| {
+                    panel.history.ui(ui, &panel.state, &panel.end);
+                },
+                panel,
+            );
+        harness.run_steps(2);
+
+        let _ = harness.get_by_label("2 entries");
+        let _ = harness.get_by_label("2 / 2");
+        harness.get_by_label("⏮").click();
+        harness.run_steps(2);
+        harness.get_by_label("⏴").click();
+        harness.run_steps(2);
+        harness.get_by_label("▶").click();
+        harness.run_steps(2);
+        harness.get_by_label("⏵").click();
+        harness.run_steps(2);
+        harness.get_by_label("⏭").click();
+        harness.run_steps(2);
+
+        let sent: Vec<FromPage> = asked.try_iter().collect();
+        assert_eq!(
+            sent,
+            [
+                FromPage::Step { to: Step::First },
+                FromPage::Step { to: Step::Prev },
+                FromPage::Play { playing: true },
+                FromPage::Step { to: Step::Next },
+                FromPage::Step { to: Step::Last },
+            ]
+        );
     }
 }

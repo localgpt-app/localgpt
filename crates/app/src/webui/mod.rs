@@ -27,6 +27,8 @@ mod remote;
 mod term;
 
 pub use remote::RemoteView;
+#[cfg(test)]
+pub use remote::{DeviceView, PairingView};
 pub use term::Tab;
 
 use std::path::PathBuf;
@@ -210,7 +212,7 @@ struct Play {
 
 /// What a page asks: the window's web view and a device's as JSON, the
 /// shell's as these values (`link`).
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "t")]
 pub enum FromPage {
     #[serde(rename = "ready")]
@@ -319,7 +321,7 @@ pub enum FromPage {
     RemoteForget { id: String },
 }
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Step {
     First,

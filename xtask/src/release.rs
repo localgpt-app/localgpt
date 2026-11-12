@@ -274,16 +274,284 @@ cask "localgpt" do
     regex(/^desktop-v?(\d+(?:\.\d+)+)$/i)
   end
 
-  depends_on macos: ">= :big_sur"
+   depends_on macos: ">= :big_sur"
 
-  app "LocalGPT.app"
+   app "LocalGPT.app"
+   binary "#{{appdir}}/LocalGPT.app/Contents/MacOS/localgpt"
 
-  zap trash: [
-    "~/.local/state/localgpt",
-  ]
-end
-"##
+   zap trash: [
+     "~/.local/state/localgpt",
+   ]
+ end
+ "##
     )
+}
+
+pub const NPM_USAGE: &str = "  npm-package <version> <binaries-dir> <out-dir>
+                   the npm packages for `localgpt` (`@localgpt/cli-<os>-<arch>` + `localgpt`)";
+
+struct NpmTarget {
+    rust_target: &'static str,
+    dir_name: &'static str,
+    pkg_name: &'static str,
+    os: &'static str,
+    cpu: &'static str,
+    bin_name: &'static str,
+}
+
+const NPM_TARGETS: &[NpmTarget] = &[
+    NpmTarget {
+        rust_target: "aarch64-apple-darwin",
+        dir_name: "cli-darwin-arm64",
+        pkg_name: "@localgpt/cli-darwin-arm64",
+        os: "darwin",
+        cpu: "arm64",
+        bin_name: "localgpt",
+    },
+    NpmTarget {
+        rust_target: "x86_64-apple-darwin",
+        dir_name: "cli-darwin-x64",
+        pkg_name: "@localgpt/cli-darwin-x64",
+        os: "darwin",
+        cpu: "x64",
+        bin_name: "localgpt",
+    },
+    NpmTarget {
+        rust_target: "x86_64-unknown-linux-gnu",
+        dir_name: "cli-linux-x64",
+        pkg_name: "@localgpt/cli-linux-x64",
+        os: "linux",
+        cpu: "x64",
+        bin_name: "localgpt",
+    },
+    NpmTarget {
+        rust_target: "aarch64-unknown-linux-gnu",
+        dir_name: "cli-linux-arm64",
+        pkg_name: "@localgpt/cli-linux-arm64",
+        os: "linux",
+        cpu: "arm64",
+        bin_name: "localgpt",
+    },
+    NpmTarget {
+        rust_target: "x86_64-pc-windows-msvc",
+        dir_name: "cli-win32-x64",
+        pkg_name: "@localgpt/cli-win32-x64",
+        os: "win32",
+        cpu: "x64",
+        bin_name: "localgpt.exe",
+    },
+];
+
+/// `cargo xtask npm-package <version> <binaries-dir> <out-dir>`: writes the
+/// platform packages (`@localgpt/cli-<os>-<arch>`) for every target binary in
+/// `<binaries-dir>` and the root `localgpt` launcher package into `<out-dir>`.
+/// Generated at release time so no JS or package.json lives in git outside
+/// `xtask/rule.txt`.
+pub fn npm_package(root: &Path, args: &[String]) -> Result<(), String> {
+    let [version, binaries_dir, out_dir] = args else {
+        return Err(format!(
+            "usage: cargo xtask npm-package <version> <binaries-dir> <out-dir>\n{NPM_USAGE}"
+        ));
+    };
+    let binaries_dir = Path::new(binaries_dir);
+    let out_dir = Path::new(out_dir);
+    let mut packaged = Vec::new();
+    for target in NPM_TARGETS {
+        let Some(src) = find_npm_binary(binaries_dir, target) else {
+            continue;
+        };
+        let pkg_dir = out_dir.join(target.dir_name);
+        let bin_dir = pkg_dir.join("bin");
+        std::fs::create_dir_all(&bin_dir).map_err(|e| format!("{}: {e}", bin_dir.display()))?;
+        let dst = bin_dir.join(target.bin_name);
+        std::fs::copy(&src, &dst).map_err(|e| format!("{}: {e}", src.display()))?;
+        make_executable(&dst)?;
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            npm_platform_package_json(target, version),
+        )
+        .map_err(|e| format!("{}/package.json: {e}", pkg_dir.display()))?;
+        std::fs::write(
+            pkg_dir.join("README.md"),
+            format!(
+                "# `{}`\n\nPrebuilt `{}-{}` binary for [`localgpt`](https://www.npmjs.com/package/localgpt).\n",
+                target.pkg_name, target.os, target.cpu
+            ),
+        )
+        .map_err(|e| format!("{}/README.md: {e}", pkg_dir.display()))?;
+        let license = root.join("LICENSE");
+        if license.is_file() {
+            let _ = std::fs::copy(&license, pkg_dir.join("LICENSE"));
+        }
+        println!("packaged  {} ({version})", target.pkg_name);
+        packaged.push(target);
+    }
+    if packaged.is_empty() {
+        return Err(format!(
+            "no target binaries found under {}",
+            binaries_dir.display()
+        ));
+    }
+
+    let main_dir = out_dir.join("localgpt");
+    let main_bin = main_dir.join("bin");
+    std::fs::create_dir_all(&main_bin).map_err(|e| format!("{}: {e}", main_bin.display()))?;
+    let launcher = main_bin.join("localgpt.js");
+    std::fs::write(&launcher, npm_launcher_js())
+        .map_err(|e| format!("{}: {e}", launcher.display()))?;
+    make_executable(&launcher)?;
+    std::fs::write(
+        main_dir.join("package.json"),
+        npm_root_package_json(version, &packaged),
+    )
+    .map_err(|e| format!("{}/package.json: {e}", main_dir.display()))?;
+    for doc in ["README.md", "LICENSE"] {
+        let src = root.join(doc);
+        if src.is_file() {
+            let _ = std::fs::copy(&src, main_dir.join(doc));
+        }
+    }
+    println!("packaged  localgpt ({version})");
+    Ok(())
+}
+
+fn find_npm_binary(binaries_dir: &Path, target: &NpmTarget) -> Option<std::path::PathBuf> {
+    [
+        binaries_dir.join(target.rust_target).join(target.bin_name),
+        binaries_dir
+            .join(format!("cli-{}", target.rust_target))
+            .join(target.bin_name),
+        binaries_dir
+            .join(target.rust_target)
+            .join("release")
+            .join(target.bin_name),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_file())
+}
+
+#[cfg(unix)]
+fn make_executable(path: &Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    let mut perms = std::fs::metadata(path)
+        .map_err(|e| format!("{}: {e}", path.display()))?
+        .permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(path, perms).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+#[cfg(not(unix))]
+fn make_executable(_path: &Path) -> Result<(), String> {
+    Ok(())
+}
+
+fn npm_platform_package_json(target: &NpmTarget, version: &str) -> String {
+    let value = serde_json::json!({
+        "name": target.pkg_name,
+        "version": version,
+        "description": format!("Prebuilt {}-{} binary for localgpt", target.os, target.cpu),
+        "license": "Apache-2.0",
+        "repository": {
+            "type": "git",
+            "url": "git+https://github.com/localgpt-app/localgpt.git"
+        },
+        "homepage": "https://localgpt.app",
+        "os": [target.os],
+        "cpu": [target.cpu],
+        "files": ["bin"],
+        "preferUnplugged": true
+    });
+    let mut text = serde_json::to_string_pretty(&value).unwrap_or_default();
+    text.push('\n');
+    text
+}
+
+fn npm_root_package_json(version: &str, packaged: &[&NpmTarget]) -> String {
+    let mut optional = serde_json::Map::new();
+    for target in packaged {
+        optional.insert(target.pkg_name.into(), version.into());
+    }
+    let value = serde_json::json!({
+        "name": "localgpt",
+        "version": version,
+        "description": "LocalGPT's command line: a .world package's authority, the MCP shim that gives any agent tools against an open world, and deterministic screenplay-to-previs",
+        "license": "Apache-2.0",
+        "repository": {
+            "type": "git",
+            "url": "git+https://github.com/localgpt-app/localgpt.git"
+        },
+        "homepage": "https://localgpt.app",
+        "keywords": [
+            "localgpt",
+            "world",
+            "mcp",
+            "agents",
+            "3d",
+            "previs",
+            "openworldformat"
+        ],
+        "bin": {
+            "localgpt": "bin/localgpt.js"
+        },
+        "files": ["bin"],
+        "engines": {
+            "node": ">=16"
+        },
+        "optionalDependencies": optional
+    });
+    let mut text = serde_json::to_string_pretty(&value).unwrap_or_default();
+    text.push('\n');
+    text
+}
+
+fn npm_launcher_js() -> &'static str {
+    r#"#!/usr/bin/env node
+"use strict";
+
+const { spawnSync } = require("node:child_process");
+const path = require("node:path");
+
+const PLATFORMS = {
+  "darwin-arm64": "@localgpt/cli-darwin-arm64/bin/localgpt",
+  "darwin-x64": "@localgpt/cli-darwin-x64/bin/localgpt",
+  "linux-x64": "@localgpt/cli-linux-x64/bin/localgpt",
+  "linux-arm64": "@localgpt/cli-linux-arm64/bin/localgpt",
+  "win32-x64": "@localgpt/cli-win32-x64/bin/localgpt.exe",
+};
+
+const key = `${process.platform}-${process.arch}`;
+const target = PLATFORMS[key];
+if (!target) {
+  console.error(
+    `localgpt: unsupported platform ${key} (available: ${Object.keys(PLATFORMS).join(", ")})`
+  );
+  process.exit(1);
+}
+
+let bin;
+try {
+  bin = require.resolve(target);
+} catch {
+  const pkg = target.split("/").slice(0, 2).join("/");
+  console.error(
+    `localgpt: could not find ${pkg} for ${key}.\n` +
+      `Reinstall without --no-optional, or install with: cargo install localgpt`
+  );
+  process.exit(1);
+}
+
+const result = spawnSync(bin, process.argv.slice(2), {
+  stdio: "inherit",
+  windowsHide: true,
+});
+
+if (result.error) {
+  console.error(`localgpt: failed to start ${path.basename(bin)}: ${result.error.message}`);
+  process.exit(1);
+}
+
+process.exit(result.status ?? 1);
+"#
 }
 
 const API: &str = "https://crates.io/api/v1";
@@ -439,5 +707,71 @@ mod tests {
         let other = serde_json::json!({ "github_configs": [config] });
         assert!(!trusts(&other));
         assert!(!trusts(&serde_json::json!({})));
+    }
+
+    #[test]
+    fn the_cask_links_the_cli_from_the_app_bundle() {
+        let rendered = cask_text("0.5.0", "aaa", "bbb");
+        assert!(rendered.contains("app \"LocalGPT.app\""));
+        assert!(rendered.contains("binary \"#{appdir}/LocalGPT.app/Contents/MacOS/localgpt\""));
+    }
+
+    #[test]
+    fn npm_package_writes_platform_and_root_packages() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let scratch = std::env::temp_dir().join(format!("xtask-npm-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&scratch);
+        let bins = scratch.join("bins");
+        let out = scratch.join("out");
+        let arm_dir = bins.join("cli-aarch64-apple-darwin");
+        let win_dir = bins.join("x86_64-pc-windows-msvc");
+        std::fs::create_dir_all(&arm_dir).unwrap();
+        std::fs::create_dir_all(&win_dir).unwrap();
+        std::fs::write(arm_dir.join("localgpt"), b"arm64-bin").unwrap();
+        std::fs::write(win_dir.join("localgpt.exe"), b"win-bin").unwrap();
+
+        npm_package(
+            root,
+            &[
+                "0.5.0".to_string(),
+                bins.to_string_lossy().into_owned(),
+                out.to_string_lossy().into_owned(),
+            ],
+        )
+        .unwrap();
+
+        let arm_pkg: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(out.join("cli-darwin-arm64/package.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(arm_pkg["name"], "@localgpt/cli-darwin-arm64");
+        assert_eq!(arm_pkg["version"], "0.5.0");
+        assert_eq!(arm_pkg["os"], serde_json::json!(["darwin"]));
+        assert_eq!(arm_pkg["cpu"], serde_json::json!(["arm64"]));
+        assert!(out.join("cli-darwin-arm64/bin/localgpt").is_file());
+        assert!(out.join("cli-win32-x64/bin/localgpt.exe").is_file());
+
+        let root_pkg: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(out.join("localgpt/package.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(root_pkg["name"], "localgpt");
+        assert_eq!(root_pkg["bin"]["localgpt"], "bin/localgpt.js");
+        assert_eq!(
+            root_pkg["optionalDependencies"]["@localgpt/cli-darwin-arm64"],
+            "0.5.0"
+        );
+        assert_eq!(
+            root_pkg["optionalDependencies"]["@localgpt/cli-win32-x64"],
+            "0.5.0"
+        );
+        assert!(
+            root_pkg["optionalDependencies"]
+                .get("@localgpt/cli-linux-x64")
+                .is_none()
+        );
+        assert!(out.join("localgpt/bin/localgpt.js").is_file());
+
+        let _ = std::fs::remove_dir_all(&scratch);
     }
 }

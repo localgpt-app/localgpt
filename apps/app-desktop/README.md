@@ -25,8 +25,9 @@ server and relay, headless generation, `--host`/`--join`).
   the app runs no model, holds no key, knows no agent by name and reads no
   agent's configuration.
 - **The login shell's `PATH`.** Opened from Finder, the app reads your login
-  shell's `PATH`, so programs installed with Homebrew, npm or into
-  `~/.local/bin` are found.
+  shell's `PATH` and keeps `Contents/MacOS` (where `localgpt` ships beside
+  `localgpt-app`) on it, so programs installed with Homebrew, npm or into
+  `~/.local/bin` — and `localgpt` itself — are found in every terminal tab.
 - **Collaborative sessions** are hosted and joined from `localgpt-gen` with
   `--host` and `--join`; the app has no controls for them.
 - **Logs** go to `~/.local/state/localgpt/logs/localgpt-app.log` when there
@@ -45,8 +46,9 @@ open apps/app-desktop/dist/LocalGPT.app
 ```
 
 The release build uses the workspace's fat LTO profile, so the first one is
-slow. It builds the app with no optional features; `APP_FEATURES` passes a
-feature list to cargo. The script renders the icon from `website/static/logo/localgpt-icon.svg`
+slow. It builds `localgpt-app` and `localgpt` (`Contents/MacOS/localgpt`,
+signed before the app bundle) with no optional features; `APP_FEATURES`
+passes a feature list to `localgpt-app`. The script renders the icon from `website/static/logo/localgpt-icon.svg`
 and writes `Info.plist` (bundle id `app.localgpt.desktop`, with the
 local-network usage string and Bonjour service collaborative sessions need).
 
@@ -87,7 +89,8 @@ git tag -s desktop-v0.4.2 -m desktop-v0.4.2 && git push origin desktop-v0.4.2
 
 Then, by hand: check the draft and publish it, and put `localgpt.rb` in the
 tap (`localgpt-app/homebrew-tap`, as `Casks/localgpt.rb`), after which
-`brew install --cask localgpt-app/tap/localgpt` installs the app. The cask's
+`brew install --cask localgpt-app/tap/localgpt` installs both `LocalGPT.app`
+and the `localgpt` command line. The cask's
 URLs are the release's, so the release is published first.
 
 Signing and notarization run when the secrets are set in the repository

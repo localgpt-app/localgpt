@@ -94,6 +94,9 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
     }
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
     let mut build = vec!["build".to_string(), "-p".into(), "localgpt-app".into()];
+    if options.features.is_none() {
+        build.extend(["-p".into(), "localgpt".into()]);
+    }
     if options.release {
         build.push("--release".into());
     }
@@ -105,10 +108,16 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
         &cargo,
         &build.iter().map(String::as_str).collect::<Vec<_>>(),
     )?;
+    if options.features.is_some() {
+        let mut cli = vec!["build", "-p", "localgpt"];
+        if options.release {
+            cli.push("--release");
+        }
+        run_in(root, &cargo, &cli)?;
+    }
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join("target"));
-    let binary = target.join(profile).join("localgpt-app");
 
     println!("==> assembling {}", app.display());
     let _ = std::fs::remove_dir_all(&app);
@@ -116,8 +125,10 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
     for dir in [&macos, &resources] {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
-    std::fs::copy(&binary, macos.join("localgpt-app"))
-        .map_err(|e| format!("{}: {e}", binary.display()))?;
+    for bin in ["localgpt-app", "localgpt"] {
+        let from = target.join(profile).join(bin);
+        std::fs::copy(&from, macos.join(bin)).map_err(|e| format!("{}: {e}", from.display()))?;
+    }
 
     let icon = icon(root, &work.0, &resources);
     if !icon {
@@ -127,26 +138,37 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
         .map_err(|e| format!("Info.plist: {e}"))?;
     starter_music(root, &resources)?;
 
+    // Sign the nested CLI executable before the app bundle so codesign and
+    // Apple notarization seal the bundle with a signed Contents/MacOS/localgpt.
+    let cli_bin = macos.join("localgpt");
     match &options.identity {
         Some(identity) => {
             println!("==> signing with {identity} (hardened runtime)");
-            run_in(
-                root,
-                "codesign",
-                &[
-                    "--force",
-                    "--options",
-                    "runtime",
-                    "--timestamp",
-                    "--sign",
-                    identity,
-                    path(&app),
-                ],
-            )?;
+            for target_path in [&cli_bin, &app] {
+                run_in(
+                    root,
+                    "codesign",
+                    &[
+                        "--force",
+                        "--options",
+                        "runtime",
+                        "--timestamp",
+                        "--sign",
+                        identity,
+                        path(target_path),
+                    ],
+                )?;
+            }
         }
         None => {
             println!("==> ad-hoc signing (this Mac only; see APPLE_SIGNING_IDENTITY)");
-            run_in(root, "codesign", &["--force", "--sign", "-", path(&app)])?;
+            for target_path in [&cli_bin, &app] {
+                run_in(
+                    root,
+                    "codesign",
+                    &["--force", "--sign", "-", path(target_path)],
+                )?;
+            }
         }
     }
     run_in(root, "codesign", &["--verify", "--strict", path(&app)])?;
