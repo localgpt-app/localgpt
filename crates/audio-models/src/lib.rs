@@ -23,6 +23,8 @@ pub mod install;
 
 #[cfg(feature = "run")]
 pub mod decode;
+#[cfg(feature = "run")]
+pub mod tags;
 
 #[cfg(feature = "mcp")]
 pub mod tools;

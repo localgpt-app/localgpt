@@ -39,7 +39,34 @@ impl Model {
 }
 
 /// Every model that can be installed.
-pub static MODELS: &[&Model] = &[];
+pub static MODELS: &[&Model] = &[&TAGS];
+
+/// Xiaomi's CED-tiny, its official ONNX export (int8 weights, its own mel
+/// front end inside the graph) and the AudioSet label names from the same
+/// repository's `config.json`.
+pub static TAGS: Model = Model {
+    id: "tags",
+    name: "CED-tiny",
+    does: "what a sound or a recording contains, from AudioSet's 527 labels",
+    licence: "weights Apache-2.0 (model card, checked 2026-11-11); the CED training code \
+              is GPL-3.0 and none of it is used; label names from AudioSet's ontology \
+              (Google, CC BY-SA 4.0)",
+    source: "https://huggingface.co/mispeech/ced-tiny",
+    files: &[
+        ModelFile {
+            name: "model.onnx",
+            url: "https://huggingface.co/mispeech/ced-tiny/resolve/ace276d29dd0bb3f3517b0fa8cf300738c409019/model.onnx",
+            sha256: "3890f227660be71886ff48633d11a731993e0206db8a486781412c28a0873435",
+            bytes: 6_681_767,
+        },
+        ModelFile {
+            name: "config.json",
+            url: "https://huggingface.co/mispeech/ced-tiny/resolve/ace276d29dd0bb3f3517b0fa8cf300738c409019/config.json",
+            sha256: "3a060c57c28b8138cf66bbab2c0dcab79f07c871b600f52a06f2652bf3cad2bd",
+            bytes: 25_058,
+        },
+    ],
+};
 
 /// The model with this id.
 pub fn find(id: &str) -> Option<&'static Model> {

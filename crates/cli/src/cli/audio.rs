@@ -38,6 +38,15 @@ pub enum AudioCommands {
 
     /// Serve the installed models' tools over stdio MCP; what they make is written into the working directory
     Mcp,
+
+    /// What a sound or a recording contains, from AudioSet's 527 labels (the `tags` model)
+    Tags {
+        /// The recording (WAV, FLAC, Ogg, MP3, AAC/M4A, ALAC or AIFF)
+        file: PathBuf,
+        /// Print the answer as JSON, as the `audio_tags` tool gives it
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 pub async fn run(command: AudioCommands) -> Result<()> {
@@ -77,7 +86,52 @@ pub async fn run(command: AudioCommands) -> Result<()> {
             }
             run_mcp_stdio_server(tools, "localgpt-audio").await
         }
+        AudioCommands::Tags { file, json } => tags(&dir, file, json).await,
     }
+}
+
+async fn tags(dir: &Path, file: PathBuf, json: bool) -> Result<()> {
+    use models::tags::{self, TagOptions};
+
+    let model = &models::catalog::TAGS;
+    if !models::installed(dir, model) {
+        bail!("the tags model is not installed (localgpt audio install tags)");
+    }
+    let home = home(dir, model);
+    let shown = file.clone();
+    let tags = tokio::task::spawn_blocking(move || tags::tag(&home, &file, &TagOptions::default()))
+        .await??;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&tags.to_json())?);
+        return Ok(());
+    }
+    println!("{} ({:.1} s)", shown.display(), tags.seconds);
+    for label in &tags.overall {
+        println!("  {:<32} {:.3}", label.name, label.score);
+    }
+    if tags.segments.len() > 1 {
+        println!("\nEvery {} s:", tags::WINDOW_SECONDS);
+        for segment in &tags.segments {
+            let top: Vec<String> = segment
+                .top
+                .iter()
+                .map(|l| format!("{} {:.2}", l.name, l.score))
+                .collect();
+            println!(
+                "  {}–{}  {}",
+                clock(segment.start),
+                clock(segment.end),
+                top.join(" · ")
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Seconds as m:ss.
+fn clock(seconds: f32) -> String {
+    let whole = seconds.round() as u64;
+    format!("{}:{:02}", whole / 60, whole % 60)
 }
 
 /// The models `ids` name, or all of them.

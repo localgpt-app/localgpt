@@ -57,9 +57,10 @@ pub fn installed(context: &ToolContext) -> Vec<Box<dyn Tool>> {
 
 /// The tool of the model with this id.
 fn tool_for(id: &str, context: &ToolContext) -> Option<Box<dyn Tool>> {
-    // Each model's arm arrives with the model.
-    let _ = (id, context);
-    None
+    match id {
+        "tags" => Some(Box::new(crate::tags::TagsTool::new(context))),
+        _ => None,
+    }
 }
 
 /// Run a model's blocking work off the async server.
