@@ -26,7 +26,7 @@ Previs is the first focused workflow because greybox geometry is normal, revisio
 
 The workflow is:
 
-1. **Script to board.** A PDF, Final Draft file, Fountain or Markdown screenplay becomes a board, a shot list and one `.world` per scene, deterministically and without a language model. The browser page at `localgpt.md` and `localgpt-previs` use the same code.
+1. **Script to board.** A PDF, Final Draft file, Fountain or Markdown screenplay becomes a board, a shot list and one `.world` per scene, deterministically and without a language model. The browser page at `localgpt.md` and `localgpt previs` use the same code.
 2. **Board to canvas.** Open a scene in the desktop app or Gen, look through its cameras, move and trim shots on the timeline, and revise coverage through an external agent.
 3. **Compare treatments.** Branches hold alternative passes over the same scene; boards and history make the differences inspectable.
 

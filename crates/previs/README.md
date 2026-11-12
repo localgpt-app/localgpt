@@ -6,8 +6,8 @@ package with the set, the cast and the coverage, plus a printable
 `board.html` and a `shotlist.csv`.
 
 ```bash
-cargo install localgpt-previs
-localgpt-previs script.fountain --out board/
+cargo install localgpt
+localgpt previs script.fountain --out board/
 ```
 
 It is deterministic: no model, no network, no renderer, so the same script

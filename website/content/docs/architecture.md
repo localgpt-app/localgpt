@@ -14,12 +14,12 @@ Nothing in the workspace runs a model as an agent, or holds a key: the coding ag
 
 ```
 crates/
-├── cli/          # localgpt — `localgpt world`, a .world package's command line, and `localgpt world mcp`, the shim
+├── cli/          # localgpt — `localgpt world`, `localgpt world mcp` (the shim), and `localgpt previs`
 ├── gen/          # localgpt-gen — the world builder (Bevy): its tools over MCP, the relay, the live canvas, sessions, headless
 ├── app/          # localgpt-app — the one desktop app: Gen's viewport in native panels, terminals for the agents
 ├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
 ├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin)
-├── previs/       # localgpt-previs — screenplay → per-scene .world with set/cast/coverage, a board, a shot list
+├── previs/       # localgpt-previs — screenplay → per-scene .world with set/cast/coverage, a board, a shot list (lib)
 ├── previs-web/   # localgpt-previs-web — previs's draft as WASM, for the localgpt.md page
 ├── world-types/  # localgpt-world-types — the world data model (serde only; the format's types re-exported)
 ├── world-bevy/   # localgpt-world-bevy — the one Bevy mapping of the format (Gen, MD, Verse, the app)
@@ -63,12 +63,12 @@ xtask/            # cargo xtask fetch-assets — the one download every app shar
 
 | Crate | Type | Purpose |
 |-------|------|---------|
-| `localgpt` | bin | `localgpt world` and `localgpt world mcp` |
+| `localgpt` | bin | `localgpt world`, `localgpt world mcp`, and `localgpt previs` |
 | `localgpt-gen` | lib+bin | The world builder: Bevy viewport, 88 tools served over MCP (stdio, the relay, HTTP), headless, sessions, the live canvas |
 | `localgpt-app` | bin | The one desktop app, assembled from the gen library with MD and Verse as libraries; native panels around the viewport (egui on eframe, the world drawn by Bevy into one of them), with terminals in them (not published) |
 | `localgpt-md` | lib+bin | Markdown → sections → a world; the pure library is what the app compiles documents with |
 | `localgpt-verse` | lib+bin | Song analysis → mood → a furnished, performing world; `song_world` is what the app calls |
-| `localgpt-previs` | lib+bin | Screenplay → per-scene `.world`, board and shot list; deterministic, no model, no network |
+| `localgpt-previs` | lib | Screenplay → per-scene `.world`, board and shot list; deterministic, no model, no network |
 | `localgpt-previs-web` | lib | The same draft as WASM for localgpt.md (not published) |
 | `localgpt-world-types` | lib | The data model: the format's types re-exported, plus NPCs, behavior libraries, regions, sync drift. `schema` writes `world.schema.json` |
 | `localgpt-world-bevy` | lib | The only place a shape, material, light or environment becomes Bevy components |
@@ -106,6 +106,7 @@ The `Tool` trait and the MCP server they share live in `world-agent::mcp`. Every
 | Command | Purpose |
 |---------|---------|
 | `world` | a `.world` package's command line: `init`, `submit`, `undo`, `redo`, `log`, `tips`, `show`, `get`, `verify`, `screenshot`, `selection`, `goto`, `proposals`, `history`, and `mcp` — the open canvas's tools over stdio |
+| `previs` | script to board, deterministic: Fountain, Final Draft `.fdx`, PDF or Markdown pages in; per scene a `.world` with set, cast and coverage, plus `board.html` and `shotlist.csv`. The same `draft` function runs as WASM on [localgpt.md](https://localgpt.md). See [Previs](/docs/gen/previs/) |
 | `completion` | shell completion scripts |
 
 ### `localgpt-gen`
@@ -115,10 +116,6 @@ The world builder: a Bevy window and 88 `gen_*` tools; `mcp-server` (stdio, `--m
 ### `localgpt-app`
 
 [The desktop app](/docs/app/): Gen's viewport plus `--md`, `--song` and `--world`, in native panels with the history, the outliner and inspector, the document, the timeline and the terminals. Thin by design — everything heavy comes from the gen library, MD's pure library compiles documents, and Verse's library builds song worlds.
-
-### `localgpt-previs`
-
-Script to board, deterministic: Fountain, Final Draft `.fdx`, PDF or Markdown pages in; per scene a `.world` with set, cast and coverage, plus `board.html` and `shotlist.csv`. The same `draft` function runs as WASM on [localgpt.md](https://localgpt.md). See [Previs](/docs/gen/previs/).
 
 ### `localgpt-relay`
 

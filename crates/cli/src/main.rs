@@ -1,5 +1,6 @@
-//! `localgpt` — a `.world` package's command line, and the shim that gives
-//! any MCP agent tools against the world an app has open.
+//! `localgpt` — a `.world` package's command line, the shim that gives
+//! any MCP agent tools against the world an app has open, and deterministic
+//! screenplay-to-previs (`localgpt previs`).
 //!
 //! There is no chat, daemon, model provider or key store in this binary.
 //! Coding agents stay outside and edit a world through its API or this shim.
@@ -32,6 +33,7 @@ async fn async_main(cli: Cli) -> Result<()> {
 
     match cli.command {
         Commands::World { command } => crate::cli::world::run(command).await,
+        Commands::Previs(args) => crate::cli::previs::run(args),
         Commands::Completion(args) => crate::cli::completion::run(args),
     }
 }

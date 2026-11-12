@@ -20,10 +20,6 @@ pdf = ["dep:pdf-extract"]
 name = "localgpt_previs"
 path = "src/lib.rs"
 
-[[bin]]
-name = "localgpt-previs"
-path = "src/main.rs"
-
 # The Fountain a PDF reads as, for checking a generator's output by eye.
 [[example]]
 name = "pdf_fountain"

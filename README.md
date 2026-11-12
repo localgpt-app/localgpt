@@ -17,8 +17,8 @@
 |---|---|---|
 | **LocalGPT**, the desktop app | `crates/app` | One window, every mode: a world from a prompt (Gen), from a Markdown document (MD) or from a song (Verse), or any `.world` package opened as a live canvas. |
 | **LocalGPT Gen**, the binary | `crates/gen` · `cargo install localgpt-gen` | The world builder on its own: its 88 tools over MCP for Claude Desktop, Claude Code, Codex, Gemini CLI and editors, a relay so an agent drives the window you are looking at, the live canvas, headless, collaborative sessions on the LAN or through a relay. |
-| **Previs** | `crates/previs` · `cargo install localgpt-previs` · [localgpt.md](https://localgpt.md) | A screenplay in — PDF, Final Draft, Fountain or Markdown — and per scene a `.world` with the set, the cast and the coverage, plus a printable board and a shot list. Deterministic, no model; the same code runs in the browser tab. |
-| **`localgpt`**, the world's command line | `crates/cli` · `cargo install localgpt` | `localgpt world`: commit, undo, log, tips, verify, screenshot — and `localgpt world mcp`, the shim that serves an open world's tools to any MCP agent. No model, key or configuration file. |
+| **Previs** | `crates/previs` · `localgpt previs` · [localgpt.md](https://localgpt.md) | A screenplay in — PDF, Final Draft, Fountain or Markdown — and per scene a `.world` with the set, the cast and the coverage, plus a printable board and a shot list. Deterministic, no model; the same code runs in the browser tab. |
+| **`localgpt`**, the command line | `crates/cli` · `cargo install localgpt` | `localgpt world`: commit, undo, log, tips, verify, screenshot; `localgpt world mcp`, the shim that serves an open world's tools to any MCP agent; and `localgpt previs`, screenplay to board. No model, key or configuration file. |
 | **The world crates** | `crates/world-*` | `world-types`, `world-bevy`, `world-audio`, `world-export`, `world-sync`, `world-editor`, `world-agent`: one format for every app, over the [Open World Format](https://openworldformat.org) reference crate. |
 | **The sites** | `website*/` | [localgpt.app](https://localgpt.app) (hub and the only docs site) · [localgpt.md](https://localgpt.md) (previs) · [localgpt.world](https://localgpt.world) (gallery and web viewer) · [localgpt.rs](https://localgpt.rs) (devlog) |
 
@@ -27,8 +27,7 @@
 ```bash
 # From crates.io
 cargo install localgpt-gen       # the world builder: MCP server, the relay, headless, sessions
-cargo install localgpt-previs    # a screenplay to a previs board, on the command line
-cargo install localgpt           # `localgpt world`, a .world package's command line, and the MCP shim
+cargo install localgpt           # `localgpt world`, the MCP shim (`world mcp`), and `localgpt previs`
 
 # From source — the desktop app ships as a build, not a crate
 git clone https://github.com/localgpt-app/localgpt.git
@@ -114,7 +113,7 @@ The first audience is film previsualization: people who previs today by hand, or
 1. **Script → board.** Drop the script on [localgpt.md](https://localgpt.md) — the PDF, a Final Draft `.fdx`, `.fountain`, or Markdown script pages. The page draws the board in the tab and offers `board.html`, `shotlist.csv` (scene, shot, size, lens, sensor, aspect, camera height, distance, in and out) and a zip with one `.world` per scene: a set, a stand-in per speaking character, a master and a single on everyone, with real lenses and measured camera positions. Nothing is installed and nothing is uploaded. The same draft runs on the command line, with no ceiling on scenes:
 
    ```bash
-   localgpt-previs script.fdx --out previs/
+   localgpt previs script.fdx --out previs/
    # previs/scene-1.world/  previs/scene-2.world/  previs/shotlist.csv  previs/board.html
    ```
 
@@ -172,6 +171,7 @@ localgpt world log | undo | redo | tips  # the history, and every branch end
 localgpt world show | get | verify       # the world at an entry; a fold checked against the manifest
 localgpt world screenshot | goto | selection | proposals   # with an app showing the world
 localgpt world mcp                       # the shim: an open world's tools over stdio, for any MCP client
+localgpt previs script.fdx --out previs/ # screenplay → per-scene .world packages, shotlist.csv, board.html
 localgpt completion zsh                  # shell completions
 ```
 

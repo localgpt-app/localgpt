@@ -21,7 +21,7 @@ between *their* pages and a board they'd show someone.
 
 ## The two steps under test
 
-1. **Script → board** — localgpt.md in a browser tab, or `localgpt-previs`
+1. **Script → board** — localgpt.md in a browser tab, or `localgpt previs`
    on the command line.
 2. **Revising shots** — the zip unzipped and one scene opened live in the
    desktop app (`localgpt-app --world scene-N.world`; `localgpt-gen --live`

@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "LocalGPT's command line: a .world package's authority, and the MCP shim that gives any agent tools against an open world"
+description = "LocalGPT's command line: a .world package's authority, the MCP shim that gives any agent tools against an open world, and deterministic screenplay-to-previs"
 readme = "../../README.md"
 keywords = ["world", "mcp", "agents", "3d", "openworldformat"]
 categories = ["command-line-utilities"]
@@ -22,6 +22,9 @@ localgpt-world-agent = { workspace = true, features = ["mcp"] }
 # The view, for `localgpt world tips` and the ids in `world log`: the CLI
 # composes authority and view, because the authority must not know its viewers.
 localgpt-world-editor = { workspace = true }
+# Screenplay → per-scene .world packages, shot list and board, for
+# `localgpt previs` (Fountain, Final Draft .fdx, PDF and Markdown pages).
+localgpt-previs = { workspace = true, features = ["pdf"] }
 
 tokio = { workspace = true }
 serde_json = { workspace = true }

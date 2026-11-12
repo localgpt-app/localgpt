@@ -20,8 +20,7 @@ Drop the script's PDF, a `.fdx` (a Final Draft file, as saved), a `.fountain`, o
 The same draft runs on the command line, with no ceiling on scenes:
 
 ```bash
-# from a checkout of the repository
-cargo run -p localgpt-previs -- script.fdx --out previs/
+localgpt previs script.fdx --out previs/
 # previs/scene-1.world/  previs/scene-2.world/  previs/shotlist.csv  previs/board.html
 ```
 

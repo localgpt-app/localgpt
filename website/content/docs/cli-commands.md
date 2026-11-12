@@ -13,6 +13,7 @@ localgpt <COMMAND>
 
 Commands:
   world       Work on a .world package: commit batches, read the log, verify, serve its tools over MCP
+  previs      Stage a screenplay (.fountain, .fdx, .pdf, or .md) as per-scene .world packages, shotlist.csv, and board.html
   completion  Generate shell completion scripts
   help        Print help information
 
@@ -55,6 +56,17 @@ localgpt world submit -m "a lamp by the crate" <<'EOF'
 EOF
 claude mcp add world -- localgpt world mcp          # or: Claude Code edits the open world over MCP
 ```
+
+## `localgpt previs` {#previs}
+
+Stages a screenplay — Fountain (`.fountain`), Final Draft (`.fdx`), PDF (`.pdf`), or Markdown script pages (`.md`) — deterministically, with no model and no network, using the same function [localgpt.md](https://localgpt.md) runs in the browser:
+
+```bash
+localgpt previs <script.fountain | script.fdx | script.pdf | pages.md> --out <dir>
+# <dir>/scene-1.world/  <dir>/scene-2.world/  <dir>/shotlist.csv  <dir>/board.html
+```
+
+See [Previs](/docs/gen/previs/).
 
 ## `localgpt completion`
 

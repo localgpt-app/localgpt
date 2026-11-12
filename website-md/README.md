@@ -39,7 +39,7 @@ page, its icon and the scripts are tracked.
 | `wasm/` | `crates/previs-web` via `wasm-pack --target web` |
 
 The WASM is `localgpt_previs::draft::draft_bytes` — the same function the
-`localgpt-previs` command line writes to disk — so the page's board is the
+`localgpt previs` command line writes to disk — so the page's board is the
 CLI's, byte for byte. The bytes' head and the file's name pick the format
 (`%PDF-` is a PDF — `crates/previs/src/pdf.rs`, the text layer read by its
 columns; XML is Final Draft — `fdx.rs`, the typed paragraphs with their scene
@@ -56,7 +56,7 @@ The page refuses a file over 20 MB before reading it, a PDF with more than
 parsing it and before staging anything (a feature is a few hundred KB, 90–120
 pages and 100–200 scenes); binary dropped on it is refused as not a
 screenplay, XML that isn't Final Draft as not Final Draft, a scanned PDF as a
-picture of a script. The `localgpt-previs` command line has no ceiling.
+picture of a script. The `localgpt previs` command line has no ceiling.
 
 ## Check
 

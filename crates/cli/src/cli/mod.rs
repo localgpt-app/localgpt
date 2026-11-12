@@ -1,4 +1,5 @@
 pub mod completion;
+pub mod previs;
 pub mod world;
 pub mod world_api;
 pub mod world_mcp;
@@ -10,7 +11,7 @@ use clap::{Parser, Subcommand};
 #[command(
     author,
     version,
-    about = "A .world package's command line, and the shim that gives any agent tools against an open world"
+    about = "A .world package's command line, the MCP shim for an open world, and deterministic screenplay-to-previs"
 )]
 #[command(propagate_version = true)]
 pub struct Cli {
@@ -29,6 +30,9 @@ pub enum Commands {
         #[command(subcommand)]
         command: world::WorldCommands,
     },
+
+    /// Stage a screenplay (.fountain, .fdx, .pdf, or .md) as per-scene .world packages, shotlist.csv, and board.html
+    Previs(previs::PrevisArgs),
 
     /// Generate shell completion scripts
     Completion(completion::CompletionArgs),

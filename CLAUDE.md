@@ -10,8 +10,9 @@ LocalGPT is the desktop app where a prompt, a document, a song or a
 screenplay becomes a walkable `.world`, with the person's own coding agents
 in its terminals. The workspace holds the app, Gen (the Bevy world builder
 and its MCP tools), MD, Verse and Previs (a document, a song and a screenplay
-as worlds), the `localgpt` CLI (a `.world` package's command line and the MCP
-shim), the crates around the Open World Format, and three websites.
+as worlds), the `localgpt` CLI (a `.world` package's command line, the MCP
+shim and `localgpt previs`), the crates around the Open World Format, and
+three websites.
 
 **No model, no service, no key, no agent by name.** Nothing in the workspace
 loads a language model, calls a model API or a generation service, reads a
@@ -54,10 +55,11 @@ cargo fmt --check
 ```
 
 ```bash
-# The CLI: a .world package's command line, and the MCP shim
+# The CLI: a .world package's command line, the MCP shim, and previs
 cargo run -- world init demo.world  # also submit, undo, redo, log, tips, show, get, verify, history;
                                     # screenshot, selection, goto and proposals need an open app
 cargo run -- world mcp              # a stdio MCP server over an app's open canvas
+cargo run -- previs script.fdx --out previs/   # a screenplay → per-scene .world packages, shot list and board
 
 # Gen: the world builder. An agent outside the window drives it
 cargo run -p localgpt-gen -- --mcp-relay           # the window, with the relay an agent's
@@ -111,12 +113,12 @@ repositories, so the world format cannot drift between apps.
 
 ```
 crates/
-├── cli/          # localgpt — `world` (a .world package's command line), `world mcp` (the shim), `completion`
+├── cli/          # localgpt — `world` (a .world package's command line), `world mcp` (the shim), `previs` (screenplay → board and .world packages), `completion`
 ├── gen/          # localgpt-gen — the world builder: Bevy window, 88 tools over MCP (stdio, HTTP, the relay), live canvas, sessions
 ├── app/          # localgpt-app — the one desktop app: Gen's world, documents and songs as modes; its interface is the egui shell in src/shell, and the page in ui/ is a paired phone's
 ├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
 ├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin)
-├── previs/       # localgpt-previs — a screenplay (Fountain, Final Draft .fdx, PDF or Markdown pages) → per-scene .world packages and a board, deterministic
+├── previs/       # localgpt-previs — a screenplay (Fountain, Final Draft .fdx, PDF or Markdown pages) → per-scene .world packages and a board, deterministic (lib)
 ├── previs-web/   # localgpt-previs-web — previs's draft as WASM for the localgpt.md page
 ├── world-types/  # localgpt-world-types — serde-only world data model over the `openworldformat` crate (no Bevy)
 ├── world-bevy/   # localgpt-world-bevy — the one Bevy mapping of the format
@@ -135,7 +137,7 @@ website-world/    # localgpt.world — the gallery and the one web viewer
 ```
 
 ```
-localgpt (CLI)  → world-agent (features: mcp), world-editor
+localgpt (CLI)  → world-agent (features: mcp), world-editor, previs (features: pdf)
 localgpt-gen    → world-agent (features: mcp-http), previs, world-*
 localgpt-app    → gen, md (lib only), verse, previs, world-agent, world-bevy, world-types
 md, verse       → world-agent (paths), world-*
@@ -212,11 +214,13 @@ Gen's session PIN in `crates/gen/src/net/mod.rs`, the app's in
 
 ### The CLI (`crates/cli/src/cli/`)
 
-`world` and `completion` are the whole binary: no chat, no config, no key.
-`world` is init, submit (`--at <id>` forks), undo, redo, log, tips, show,
-get, verify and history, plus screenshot, selection, goto and proposals,
+`world`, `previs` and `completion` are the whole binary: no chat, no config,
+no key. `world` is init, submit (`--at <id>` forks), undo, redo, log, tips,
+show, get, verify and history, plus screenshot, selection, goto and proposals,
 which need an app, and `world mcp`, a stdio MCP server over an app's open
-canvas (`world.rs`, `world_mcp.rs`).
+canvas (`world.rs`, `world_mcp.rs`). `previs` stages a screenplay (`.fountain`,
+`.fdx`, `.pdf` or `.md`) into per-scene `.world` packages, `shotlist.csv` and
+`board.html` (`previs.rs`).
 
 One authority at a time. While an app answers at `.live/endpoint.json`,
 every command is a call to its API (`world_api.rs`, which the shim shares)

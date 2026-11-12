@@ -188,7 +188,7 @@ impl std::fmt::Display for DraftError {
             ),
             DraftError::TooManyPages { pages, limit } => write!(
                 f,
-                "{pages} pages — this page reads up to {limit}; split the script, or run localgpt-previs on the whole thing"
+                "{pages} pages — this page reads up to {limit}; split the script, or run localgpt previs on the whole thing"
             ),
             DraftError::NoPdfSupport => write!(
                 f,
@@ -202,7 +202,7 @@ impl std::fmt::Display for DraftError {
             }
             DraftError::TooManyScenes { scenes, limit } => write!(
                 f,
-                "{scenes} scenes — this page boards up to {limit}; split the script, or run localgpt-previs on the whole thing"
+                "{scenes} scenes — this page boards up to {limit}; split the script, or run localgpt previs on the whole thing"
             ),
         }
     }
@@ -817,7 +817,7 @@ mod tests {
                 limit: 2
             }
             .to_string(),
-            "3 scenes — this page boards up to 2; split the script, or run localgpt-previs on the whole thing"
+            "3 scenes — this page boards up to 2; split the script, or run localgpt previs on the whole thing"
         );
     }
 

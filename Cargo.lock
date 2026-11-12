@@ -5873,6 +5873,7 @@ dependencies = [
  "async-trait",
  "clap",
  "clap_complete",
+ "localgpt-previs",
  "localgpt-world-agent",
  "localgpt-world-editor",
  "reqwest 0.13.5",

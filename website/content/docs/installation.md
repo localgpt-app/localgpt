@@ -24,8 +24,7 @@ description: "Install LocalGPT: the binaries from crates.io, the desktop app fro
 
 ```bash
 cargo install localgpt-gen       # the world builder: MCP server and relay, the live canvas, sessions, headless
-cargo install localgpt-previs    # a screenplay → per-scene .world packages, a board, a shot list
-cargo install localgpt           # `localgpt world`, a .world package's command line, and `localgpt world mcp`, the shim
+cargo install localgpt           # `localgpt world`, `localgpt world mcp` (the shim), and `localgpt previs`
 ```
 
 Upgrade later with `cargo install <crate> --force`. The desktop app, `localgpt-app`, is not on crates.io: it ships as a build (below).
@@ -53,11 +52,9 @@ cargo run -p localgpt-gen -- --live scene-1.world     # the live canvas
 cargo run -p localgpt-md -- path/to/doc.md
 cargo run -p localgpt-verse
 
-# Previs on the command line
-cargo run -p localgpt-previs -- script.fdx --out previs/
-
-# The world's command line (the CLI is the workspace's default member)
+# The command line (the CLI is the workspace's default member)
 cargo run -- world log scene-1.world
+cargo run -- previs script.fdx --out previs/
 ```
 
 ### The shared download
@@ -85,7 +82,7 @@ Without a Developer ID the bundle is ad-hoc signed and runs on the Mac that buil
 ```bash
 cargo build --release                         # the CLI (LTO: slow)
 cargo build --release -p localgpt-gen
-cargo install --path crates/cli               # or crates/gen, crates/app, crates/previs
+cargo install --path crates/cli               # or crates/gen, crates/app
 ```
 
 ## Feature flags
