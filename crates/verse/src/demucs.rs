@@ -1,7 +1,8 @@
 //! Demucs stem separation — PLAN.md M7 (`ml` feature, via `stem-splitter-core`).
 //!
 //! Splits a track into four stems — **drums / bass / vocals / other** — via
-//! HT-Demucs (MIT), wrapped by [`stem_splitter_core`] (MIT OR Apache-2.0).
+//! HT-Demucs, wrapped by [`stem_splitter_core`] (MIT OR Apache-2.0). Demucs's
+//! code is MIT; its author calls the weights' licence unclear (PLAN.md §4).
 //! Each stem gets its own per-second RMS energy curve, so the renderer can
 //! drive four independent visual layers (drums=ground pulse, bass=deep core glow, vocals=floating
 //! motes, lead=hero landmarks) instead of one mixed envelope.
@@ -12,9 +13,9 @@
 //! mixed energy envelope from M3 and the world renders as it does today. The
 //! app is never broken by a missing stem tier.
 //!
-//! This is a lower rung than the LLM recipe: stems are an *input* feature the
-//! recipe LLM may consume (so it can, e.g., tell a sparse-vocal bridge from a
-//! full drop), independent of whether the recipe tier is present.
+//! Stems are also an input an agent writing a recipe can read from the
+//! sidecar (to tell a sparse-vocal bridge from a full drop), independent of
+//! whether the track has a recipe.
 //!
 //! # Pipeline
 //! `stem_splitter_core::split_file` writes 4 stem WAVs into a temp dir (and
@@ -48,9 +49,6 @@ mod gated {
         /// Where split_file writes the 4 stem WAVs. One per worker invocation,
         /// cleared between tracks so disk doesn't grow.
         out_dir: PathBuf,
-        /// htdemucs model name stem-splitter-core downloads + caches. The
-        /// canonical 4-stem v4 model.
-        model_name: String,
     }
 
     impl StemModel {
@@ -67,22 +65,19 @@ mod gated {
                 "demucs: stem-splitter-core ready (out_dir {})",
                 out_dir.display()
             );
-            Some(Self {
-                out_dir,
-                // stem-splitter-core's manifest ships model names; "htdemucs"
-                // is the standard 4-stem v4 model (drums/bass/vocals/other).
-                model_name: "htdemucs".to_string(),
-            })
+            Some(Self { out_dir })
         }
 
         /// Separate a track into four per-second RMS energy curves. `None`
         /// keeps the mixed envelope — separation or decode failed. Writes the
         /// 4 stem WAVs into `out_dir`, decodes each, then deletes them.
         pub fn analyze_track(&self, path: &Path) -> Option<super::StemEnergy> {
+            // The registry's default model, htdemucs_ort_v1 (the 4-stem v4
+            // model). A name the registry lacks makes `ensure_model` panic,
+            // which ends the analysis worker: "htdemucs" did.
             let opts = stem_splitter_core::SplitOptions {
                 output_dir: self.out_dir.to_string_lossy().into_owned(),
-                model_name: self.model_name.clone(),
-                manifest_url_override: None,
+                ..Default::default()
             };
             let result = match stem_splitter_core::split_file(&path.to_string_lossy(), opts) {
                 Ok(r) => r,
@@ -165,3 +160,12 @@ mod gated {
 
 #[cfg(feature = "ml")]
 pub use gated::StemModel;
+
+#[cfg(all(test, feature = "ml"))]
+mod tests {
+    #[test]
+    fn the_model_asked_for_is_in_the_registry() {
+        let name = stem_splitter_core::SplitOptions::default().model_name;
+        assert!(stem_splitter_core::model::registry::resolve_manifest_url(&name).is_ok());
+    }
+}

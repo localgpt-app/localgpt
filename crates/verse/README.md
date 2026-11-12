@@ -55,9 +55,10 @@ sidecar and weights which props a world places. The same feature separates
 each track into four stems with Demucs (`stem-splitter-core`, which
 downloads its model on first use), so the world reacts per stem. Without the
 feature or the model files the rule mapper and the live tap's bands run.
-LAION's model card gives the CLAP weights Apache-2.0, and Demucs is MIT; the
-ONNX conversions downloaded state no licence of their own, so see PLAN.md §4
-before distributing them.
+LAION's model card gives the CLAP weights Apache-2.0; Demucs's author calls
+the htdemucs weights' licence unclear (part of their training data was
+research-only), and the ONNX conversions downloaded state no licence of
+their own, so see PLAN.md §4 before distributing either.
 
 **Authored recipes (PLAN.md M7):** a track's analysis sidecar can carry a
 `WorldRecipe` (world name, biomes, landmarks, atmosphere, per-section
@@ -220,5 +221,6 @@ the separate `localgpt-world-assets` repository and are dedicated to the
 public domain under CC0 1.0. The optional `ml` models carry their own
 licenses: `cargo xtask fetch-clap` downloads Xenova's ONNX export of the CLAP
 models (LAION's weights are Apache-2.0), and `stem-splitter-core` downloads an
-ONNX conversion of htdemucs (Demucs is MIT) on first use. Neither conversion
-states a licence of its own; see PLAN.md §4.
+ONNX conversion of htdemucs on first use (Demucs's code is MIT; its author
+calls the weights' licence unclear). Neither conversion states a licence of
+its own; see PLAN.md §4.

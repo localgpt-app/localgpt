@@ -238,6 +238,13 @@ const SOFTWARE_CREDITS: &[(&str, &str, &str, &str)] = &[
         "LAION / Xenova",
         "Apache-2.0 weights",
     ),
+    #[cfg(feature = "ml")]
+    (
+        "Demucs (htdemucs, via stem-splitter-core)",
+        "stem separation (optional `ml` feature)",
+        "Alexandre Défossez / Meta",
+        "MIT code; weights' licence unclear",
+    ),
 ];
 
 /// An uppercase section header inside the credits list.

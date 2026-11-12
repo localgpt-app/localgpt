@@ -70,12 +70,13 @@ export; `localgpt-world-agent`'s `paths` finds the shared pack.
 ## 4. Risks still live
 
 - **Model licences.** LAION's CLAP code is CC0-1.0 and the
-  `laion/larger_clap_music_and_speech` card gives the weights Apache-2.0;
-  Demucs's code and weights are MIT (all checked 2026-11-11). The ONNX
-  conversions the tree downloads (Xenova's CLAP export, `gentij/htdemucs-ort`)
-  state no licence of their own, and no licence speaks to the training data.
-  Before shipping a model, convert it from the original weights and carry
-  its notice.
+  `laion/larger_clap_music_and_speech` card gives the weights Apache-2.0.
+  Demucs's code is MIT, but its author's README says the weights' licence
+  "is not clear": MUSDB, part of their training data, was research-only (all
+  checked 2026-11-11). The ONNX conversions the tree downloads (Xenova's CLAP
+  export, `gentij/htdemucs-ort`) state no licence of their own. The CLAP
+  weights can ship once converted from the originals with their notice; the
+  htdemucs weights should not ship.
 - **`ml` is checked, not run, in CI**; `ort` is pinned to the release
   candidate `stem-splitter-core` pins, which also downloads htdemucs at run
   time. A panic in a model pass ends the analysis worker (no `catch_unwind`).
