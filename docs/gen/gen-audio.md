@@ -49,13 +49,15 @@ LocalGPT Gen includes a procedural environmental audio system built on FunDSP sy
 
 ## Sound Types
 
-Seven ambient sounds (`wind`, `rain`, `forest`, `ocean`, `cave`, `stream`, `silence`) loop as global layers, and five emitter sounds (`water`, `fire`, `hum`, `wind`, `custom`) play from a position. Their parameters are in the tool schemas (`crates/gen/src/gen3d/tools.rs`) and the user docs (`website/content/docs/gen/audio.md`). What those leave out:
+Seven ambient sounds (`wind`, `rain`, `forest`, `ocean`, `cave`, `stream`, `silence`) loop as global layers, and five synthesized emitter sounds (`water`, `fire`, `hum`, `wind`, `custom`) and a `file` play from a position. Their parameters are in the tool schemas (`crates/gen/src/gen3d/tools.rs`) and the user docs (`website/content/docs/gen/audio.md`). What those leave out:
 
 - The tools take Gen's own `AmbientSound` and `EmitterSound` (`gen3d/commands.rs`), and `gen3d/compat.rs` converts them to the format's `wt::AudioSource`, the union of the two. The emitter `wind` is `AudioSource::WindEmitter`.
 - `silence` is the absence of a voice: the layer is listed and nothing plays.
 - `cave` takes `resonance`, and its graph does not use it.
 - `custom` has no pitch parameter: a `sine` runs at half of `filter_cutoff`, a `saw` or a `square` at a quarter.
-- The format's `File` and `Abc` sources have no graph, and Gen's own types cannot carry them. A world load skips audio with such a source; an applied op (undo, a room's or a live canvas's commit) plays it as a 220 Hz hum on an emitter and as silence in the ambience (`convert_audio_def_to_emitter_sound` and `convert_audio_source_to_ambient_sound` in `gen3d/plugin.rs`).
+- A `file` emitter (the format's `AudioSource::File`) streams its file on the emitter's spatial track. A relative path is in the open world's `assets/` (`AudioEngine::set_assets_dir`, set when a world loads and when a live canvas opens); the scene keeps the path as written, so a save writes it back unchanged. A looping file starts on a tick of the engine's clock, at that clock modulo its length, so files of one length play in phase whenever each was added: a song's stems placed as four emitters add up to the song. When no song plays, `sync_soundtrack_clock` puts that clock, modulo the soundtrack's `duration`, on the modulation clock, so what is bound to a stem follows the stem heard. A file as an ambience layer is not played.
+- `Abc` has no graph. A world load skips it; an applied op plays it as a 220 Hz hum on an emitter and as silence in the ambience (`convert_audio_def_to_emitter_sound` and `convert_audio_source_to_ambient_sound` in `gen3d/plugin.rs`).
+- An applied op (undo, a room's or a live canvas's commit) starts the sound of an entity it spawns and stops the sound of one it deletes, as loading a world and clearing the scene do (`OpsApplier` in `gen3d/ops_apply.rs`).
 
 ## Agent Tools
 

@@ -53,6 +53,9 @@ Spatial audio sources that respond to camera distance and direction:
 | `hum` | Sine + harmonics with detune (frequency, warmth) |
 | `wind` | Pink noise with LFO modulation (pitch) |
 | `custom` | Direct waveform → filter (waveform, filter_cutoff, filter_type) |
+| `file` | A sound file, streamed (path, relative to the world's `assets/`; looping, default true) |
+
+Looping files play in phase with each other, so a song's stems ([`audio_stems`](@/docs/audio-models.md)) placed as four emitters still add up to the song. The desktop app plays file emitters; the web viewer does not yet.
 
 Emitters support spatial rendering:
 - **Volume attenuation:** Quadratic falloff within radius

@@ -9,7 +9,8 @@
 //! Coverage: spawn, delete, and every `EntityPatch` field (transform, name,
 //! parent, shape, material, light, behaviors, audio, mesh asset,
 //! modulations), plus `SetEnvironment`, the ambience and the audio
-//! emitters. `SetCamera` alone is a no-op here: the host keeps its own
+//! emitters. An entity's own sound starts when it is spawned and stops when
+//! it is deleted. `SetCamera` alone is a no-op here: the host keeps its own
 //! camera, and the live canvas moves its camera itself for a committed
 //! camera op — the document tracks it for other clients.
 
@@ -44,6 +45,7 @@ pub struct OpsApplier<'w, 's> {
     gen_entities: Query<'w, 's, &'static GenEntity>,
     children: Query<'w, 's, &'static Children>,
     audio_engine: ResMut<'w, super::audio::AudioEngine>,
+    audio_emitters: Query<'w, 's, &'static super::audio::AudioEmitter>,
     pending_world: ResMut<'w, PendingWorldSetup>,
 }
 
@@ -74,6 +76,12 @@ impl OpsApplier<'_, '_> {
         self.spawn(entities, None);
     }
 
+    /// The world on disk whose `assets/` the scene's sound files are in.
+    pub fn set_world_dir(&mut self, world_dir: &std::path::Path) {
+        self.audio_engine
+            .set_assets_dir(Some(world_dir.join(localgpt_world_agent::live::ASSETS)));
+    }
+
     /// Spawn entities of a world on disk, resolving mesh assets and textures
     /// against `world_dir` as loading the world does — for callers that
     /// update a loaded world in place instead of reloading it.
@@ -82,6 +90,16 @@ impl OpsApplier<'_, '_> {
     }
 
     fn spawn(&mut self, entities: &[wt::WorldEntity], world_dir: Option<&std::path::Path>) {
+        // Those already in the scene are skipped, sound and all.
+        let fresh: Vec<&wt::WorldEntity> = entities
+            .iter()
+            .filter(|e| !self.registry.contains_name(e.name.as_str()))
+            .collect();
+        let sounding: Vec<wt::WorldEntity> = fresh
+            .into_iter()
+            .filter(|e| e.audio.is_some())
+            .cloned()
+            .collect();
         spawn_world_entities(
             entities,
             &mut self.commands,
@@ -93,6 +111,40 @@ impl OpsApplier<'_, '_> {
             &self.asset_server,
             &mut self.pending_gltf,
             world_dir,
+        );
+        for entity in &sounding {
+            self.sound(entity);
+        }
+    }
+
+    /// Start an entity's own sound, as loading a world does: an emitter
+    /// named after it and attached to it. An ambient sound with no radius is
+    /// a layer of the world's ambience, not an emitter.
+    fn sound(&mut self, entity: &wt::WorldEntity) {
+        let Some(audio) = &entity.audio else {
+            return;
+        };
+        if audio.kind == wt::AudioKind::Ambient && audio.radius.is_none() {
+            return;
+        }
+        let Some(sound) = super::compat::audio_source_to_emitter(&audio.source) else {
+            return;
+        };
+        let name = entity.name.as_str().to_string();
+        let cmd = super::commands::AudioEmitterCmd {
+            name: name.clone(),
+            entity: Some(name),
+            position: Some(entity.transform.position),
+            sound,
+            radius: audio.radius.unwrap_or(20.0),
+            volume: audio.volume,
+        };
+        super::audio::handle_spawn_audio_emitter(
+            cmd,
+            &mut self.audio_engine,
+            &mut self.commands,
+            &mut self.registry,
+            &mut self.next_entity_id,
         );
     }
 
@@ -114,6 +166,11 @@ impl OpsApplier<'_, '_> {
                 let Some(bevy_entity) = self.registry.get_entity_by_id(id) else {
                     return;
                 };
+                // Its sound goes with it.
+                if let Ok(emitter) = self.audio_emitters.get(bevy_entity) {
+                    let name = emitter.emitter_name.clone();
+                    super::audio::handle_remove_audio_emitter(&name, &mut self.audio_engine);
+                }
                 self.registry.remove_by_entity(bevy_entity);
                 self.commands.entity(bevy_entity).despawn();
             }

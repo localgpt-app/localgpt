@@ -121,7 +121,7 @@ Every tool below is Gen's, except the audio models' at the end; the names are wh
 | Tool | Description | Required Params | Optional Params |
 |------|-------------|-----------------|-----------------|
 | `gen_set_ambience` | Set global ambient soundscape (wind, rain, forest, ocean, cave, stream, silence) | `layers` (array) | `master_volume` |
-| `gen_audio_emitter` | Create a spatial audio emitter (water, fire, hum, wind, custom waveforms) | `name`, `sound` | `entity`, `position`, `radius`, `volume` |
+| `gen_audio_emitter` | Create a spatial audio emitter (water, fire, hum, wind, custom waveforms, or a sound file in the world's `assets/`) | `name`, `sound` | `entity`, `position`, `radius`, `volume` |
 | `gen_modify_audio` | Modify an existing audio emitter | `name` | `volume`, `radius`, `sound` |
 | `gen_audio_info` | Get current audio state (layers, emitters, volumes) | -- | -- |
 

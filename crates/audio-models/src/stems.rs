@@ -574,10 +574,13 @@ mod tool {
                     The four files add up to the song, so placing them as separate sounds keeps it \
                     whole: each can be an entity's audio source, {\"File\": {\"path\": <the path \
                     given here>, \"looping\": true}} — the paths are relative to the world's \
-                    assets/, as asset paths are. `stems` in the answer is exactly a soundtrack's \
-                    `stems` (StemCurves: one value in 0..1 per second for drums, bass, vocals and \
-                    other, aligned to the soundtrack's `energy` curve); set it on the soundtrack \
-                    and modulations bound to a stem follow that instrument. Supported inputs: WAV, \
+                    assets/, as asset paths are. Looping files play in phase, so the four add up \
+                    wherever they are placed; leave the soundtrack's `path` unset, or the song is \
+                    heard twice. The desktop app plays them; the web viewer does not yet. `stems` \
+                    in the answer is exactly a soundtrack's `stems` (StemCurves: one value in 0..1 \
+                    per second for drums, bass, vocals and other, aligned to the soundtrack's \
+                    `energy` curve); set it, with the song's `duration`, on the soundtrack and \
+                    modulations bound to a stem follow that instrument as it is heard. Supported inputs: WAV, \
                     FLAC, Ogg Vorbis, MP3, AAC/M4A, ALAC, AIFF, up to 20 minutes."
                     .to_string(),
                 parameters: json!({

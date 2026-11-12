@@ -1726,6 +1726,11 @@ fn process_gen_commands(
                                 ..Default::default()
                             };
                         }
+                        // Its sound files, like its song, are in its
+                        // `assets/` folder.
+                        params.audio_engine.set_assets_dir(Some(
+                            PathBuf::from(&world_load.world_path).join("assets"),
+                        ));
                         // A song that ships with the world plays from its
                         // `assets/` folder; one that doesn't still drives the
                         // modulations from its curves, on the world clock.
@@ -6870,6 +6875,10 @@ pub(crate) fn convert_audio_def_to_emitter_sound(
             filter_cutoff: *filter_cutoff,
             filter_type: convert_filter_type(*filter_type),
         },
+        wt::AudioSource::File { path, looping } => EmitterSound::File {
+            path: path.clone(),
+            looping: *looping,
+        },
         // For non-emitter sources, default to a hum
         wt::AudioSource::Wind { .. }
         | wt::AudioSource::Rain { .. }
@@ -6878,8 +6887,7 @@ pub(crate) fn convert_audio_def_to_emitter_sound(
         | wt::AudioSource::Cave { .. }
         | wt::AudioSource::Stream { .. }
         | wt::AudioSource::Silence
-        | wt::AudioSource::Abc { .. }
-        | wt::AudioSource::File { .. } => EmitterSound::Hum {
+        | wt::AudioSource::Abc { .. } => EmitterSound::Hum {
             frequency: 220.0,
             warmth: 0.5,
         },
@@ -8580,6 +8588,84 @@ mod tests {
         assert_eq!(stack.revision(), 3);
         stack.reset(wt::EditHistory::new());
         assert_eq!(stack.revision(), 4, "a reset never rewinds the revision");
+    }
+
+    /// An entity a committed op spawns starts its own sound, as a world load
+    /// does — a file in the world's `assets/`, the path kept as written — and
+    /// one it deletes takes its sound with it.
+    #[test]
+    fn applied_ops_start_and_stop_an_entitys_sound_file() {
+        #[derive(Resource, Default)]
+        struct Ops(Vec<wt::EditOp>);
+        fn apply(mut ops: ResMut<Ops>, mut applier: super::super::ops_apply::OpsApplier) {
+            let ops = std::mem::take(&mut ops.0);
+            if !ops.is_empty() {
+                applier.set_world_dir(Path::new("/w"));
+                applier.apply_ops(&ops);
+            }
+        }
+        let workspace = std::env::temp_dir().join(format!("gen-sound-{}", std::process::id()));
+        let (mut app, _link) = command_app(&workspace);
+        app.init_resource::<Ops>().add_systems(Update, apply);
+
+        let mut drums = wt::WorldEntity::new(5, "drums");
+        drums.audio = Some(wt::AudioDef {
+            kind: wt::AudioKind::Sfx,
+            source: wt::AudioSource::File {
+                path: "stems/song/drums.wav".into(),
+                looping: true,
+            },
+            volume: 1.0,
+            radius: Some(30.0),
+            rolloff: Default::default(),
+        });
+        let run = |app: &mut App, ops: Vec<wt::EditOp>| {
+            app.world_mut().resource_mut::<Ops>().0 = ops;
+            app.update();
+        };
+
+        run(
+            &mut app,
+            vec![wt::EditOp::SpawnEntity {
+                entity: drums.clone(),
+            }],
+        );
+        let engine = app.world().resource::<audio::AudioEngine>();
+        let sound = &engine
+            .emitter_meta
+            .get("drums")
+            .expect("its sound started")
+            .sound;
+        assert!(
+            matches!(sound, wt::AudioSource::File { path, looping: true } if path == "stems/song/drums.wav"),
+            "the scene keeps the path as written: {sound:?}"
+        );
+        assert!(
+            matches!(engine.playable(sound), wt::AudioSource::File { path, .. } if path == "/w/assets/stems/song/drums.wav"),
+            "the audio thread gets it in the world's assets/"
+        );
+
+        // Announced again (a resumed entity), it is not started twice.
+        run(&mut app, vec![wt::EditOp::SpawnEntity { entity: drums }]);
+        assert_eq!(
+            app.world()
+                .resource::<audio::AudioEngine>()
+                .emitter_meta
+                .len(),
+            1
+        );
+
+        run(
+            &mut app,
+            vec![wt::EditOp::DeleteEntity {
+                id: wt::EntityId(5),
+            }],
+        );
+        let engine = app.world().resource::<audio::AudioEngine>();
+        assert!(
+            !engine.emitter_names.contains("drums"),
+            "its sound went with it"
+        );
     }
 
     /// A child spawned in the same frame as its parent keeps its offset from

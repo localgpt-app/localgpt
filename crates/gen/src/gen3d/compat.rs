@@ -539,6 +539,10 @@ impl From<&EmitterSound> for wt::AudioSource {
                 filter_cutoff: *filter_cutoff,
                 filter_type: (*filter_type).into(),
             },
+            EmitterSound::File { path, looping } => wt::AudioSource::File {
+                path: path.clone(),
+                looping: *looping,
+            },
         }
     }
 }
@@ -600,6 +604,10 @@ pub fn audio_source_to_emitter(source: &wt::AudioSource) -> Option<EmitterSound>
             waveform: (*waveform).into(),
             filter_cutoff: *filter_cutoff,
             filter_type: (*filter_type).into(),
+        }),
+        wt::AudioSource::File { path, looping } => Some(EmitterSound::File {
+            path: path.clone(),
+            looping: *looping,
         }),
         _ => None,
     }

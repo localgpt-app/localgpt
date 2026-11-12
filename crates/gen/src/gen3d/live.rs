@@ -1773,6 +1773,7 @@ pub(super) fn live_world(
         // Start empty, as a replay does: the startup scene's defaults would
         // collide with the world's ids.
         applier.rebuild_scene(&[]);
+        applier.set_world_dir(live.world.dir());
         let manifest = live.world.head_manifest().clone();
         let entities: Vec<wt::WorldEntity> = manifest
             .entities

@@ -23,7 +23,7 @@
 //! emitter.
 
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc;
@@ -75,6 +75,11 @@ pub struct AudioEngine {
     /// The song's position in seconds as the audio thread last saw it, as
     /// `f32` bits; NaN while no song is audibly playing.
     soundtrack_position: Arc<AtomicU32>,
+    /// The clock looping file emitters keep phase with, in seconds, as `f32`
+    /// bits; NaN while no file emitter sounds.
+    file_clock: Arc<AtomicU32>,
+    /// The open world's `assets/`, where a file sound's relative path is.
+    assets: Option<PathBuf>,
 }
 
 pub struct EmitterMeta {
@@ -202,6 +207,35 @@ impl AudioEngine {
         let seconds = f32::from_bits(self.soundtrack_position.load(Ordering::Relaxed));
         (!seconds.is_nan()).then_some(seconds)
     }
+
+    /// The clock looping file emitters keep phase with, while one sounds.
+    pub fn file_clock(&self) -> Option<f32> {
+        let seconds = f32::from_bits(self.file_clock.load(Ordering::Relaxed));
+        (!seconds.is_nan()).then_some(seconds)
+    }
+
+    /// The folder a file sound's relative path is in: the open world's
+    /// `assets/`, as for its meshes and its song.
+    pub fn set_assets_dir(&mut self, dir: Option<PathBuf>) {
+        self.assets = dir;
+    }
+
+    /// `sound` as the audio thread plays it: a file's path in the world's
+    /// `assets/`. The scene keeps the path as written, so a save writes it
+    /// back unchanged.
+    pub(crate) fn playable(&self, sound: &AudioSource) -> AudioSource {
+        match (sound, &self.assets) {
+            (AudioSource::File { path, looping }, Some(assets))
+                if Path::new(path).is_relative() =>
+            {
+                AudioSource::File {
+                    path: assets.join(path).to_string_lossy().into_owned(),
+                    looping: *looping,
+                }
+            }
+            _ => sound.clone(),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -268,12 +302,13 @@ struct ThreadEmitter {
 pub fn start_audio_engine() -> Option<AudioEngine> {
     let (update_tx, update_rx) = mpsc::channel::<AudioUpdate>();
     let soundtrack_position = Arc::new(AtomicU32::new(f32::NAN.to_bits()));
-    let position = Arc::clone(&soundtrack_position);
+    let file_clock = Arc::new(AtomicU32::new(f32::NAN.to_bits()));
+    let clocks = (Arc::clone(&soundtrack_position), Arc::clone(&file_clock));
 
     let thread_result = std::thread::Builder::new()
         .name("gen-audio".into())
         .spawn(move || {
-            audio_thread_main(update_rx, &position);
+            audio_thread_main(update_rx, &clocks.0, &clocks.1);
         });
 
     match thread_result {
@@ -288,6 +323,8 @@ pub fn start_audio_engine() -> Option<AudioEngine> {
                 emitter_meta: HashMap::new(),
                 last_ambience: None,
                 soundtrack_position,
+                file_clock,
+                assets: None,
             })
         }
         Err(e) => {
@@ -301,7 +338,11 @@ pub fn start_audio_engine() -> Option<AudioEngine> {
 /// song is — about two frames.
 const SOUNDTRACK_POLL: Duration = Duration::from_millis(30);
 
-fn audio_thread_main(rx: mpsc::Receiver<AudioUpdate>, soundtrack_position: &AtomicU32) {
+fn audio_thread_main(
+    rx: mpsc::Receiver<AudioUpdate>,
+    soundtrack_position: &AtomicU32,
+    file_clock: &AtomicU32,
+) {
     // No output device is not an error — a headless runner or a machine with
     // no sound card gets a silent world, and the channel quietly drains.
     let Some(mut engine) = localgpt_world_audio::Engine::new() else {
@@ -324,6 +365,8 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioUpdate>, soundtrack_position: &Atom
         }
         let position = engine.soundtrack_position().unwrap_or(f32::NAN);
         soundtrack_position.store(position.to_bits(), Ordering::Relaxed);
+        let clock = engine.file_clock().unwrap_or(f32::NAN);
+        file_clock.store(clock.to_bits(), Ordering::Relaxed);
     }
     // The loop ends when every sender drops — the resource going away at
     // shutdown — which drops the engine and stops the stream.
@@ -442,21 +485,36 @@ pub fn init_audio_engine(mut commands: Commands) {
                 emitter_meta: HashMap::new(),
                 last_ambience: None,
                 soundtrack_position: Arc::new(AtomicU32::new(f32::NAN.to_bits())),
+                file_clock: Arc::new(AtomicU32::new(f32::NAN.to_bits())),
+                assets: None,
             });
         }
     }
 }
 
-/// Keep the modulation clock on the song while it plays: modulations follow
-/// what is heard, not a wall clock that drifts from it.
+/// Keep the modulation clock on what is heard: the song while it plays,
+/// else the looping files (a song's stems placed as emitters) modulo the
+/// song's length — not a wall clock that drifts from either.
 pub fn sync_soundtrack_clock(
     audio: Option<Res<AudioEngine>>,
     mut soundtrack: ResMut<localgpt_world_bevy::modulation::Soundtrack>,
 ) {
-    let position = audio.and_then(|audio| audio.soundtrack_position());
+    let length = soundtrack.def.as_ref().map(|def| def.duration);
+    let position =
+        audio.and_then(|audio| heard_at(audio.soundtrack_position(), audio.file_clock(), length));
     if soundtrack.position != position {
         soundtrack.position = position;
     }
+}
+
+/// Where in the song what is heard is: the song's own position while it
+/// plays, else the looping files' clock modulo the song's `length`; `None`
+/// when neither sounds, or the song has no length to wrap the clock at.
+fn heard_at(song: Option<f32>, files: Option<f32>, length: Option<f32>) -> Option<f32> {
+    song.or_else(|| {
+        let length = length.filter(|length| *length > 0.0)?;
+        Some(files?.rem_euclid(length))
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -524,7 +582,7 @@ pub fn handle_spawn_audio_emitter(
 
     let _ = engine.update_tx.send(AudioUpdate::AddEmitter {
         name: cmd.name.clone(),
-        sound,
+        sound: engine.playable(&sound),
         volume: cmd.volume,
         radius: cmd.radius,
         // A position-less emitter attached to an entity gets its position
@@ -609,7 +667,7 @@ pub fn handle_modify_audio_emitter(
             .unwrap_or((0.6, [0.0, 0.0, 0.0]));
         let _ = engine.update_tx.send(AudioUpdate::AddEmitter {
             name: cmd.name.clone(),
-            sound: new_source.clone(),
+            sound: engine.playable(&new_source),
             volume,
             radius: engine
                 .emitter_meta
@@ -780,6 +838,18 @@ fn emitter_sound_type_name(sound: &AudioSource) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_clock_follows_the_song_else_the_stems_heard() {
+        // The song, while it plays, whatever else sounds.
+        assert_eq!(heard_at(Some(12.0), Some(500.0), Some(180.0)), Some(12.0));
+        // No song file: the looping files' clock, wrapped at the song.
+        assert_eq!(heard_at(None, Some(190.0), Some(180.0)), Some(10.0));
+        // Nothing heard, or no length to wrap at: the world clock.
+        assert_eq!(heard_at(None, None, Some(180.0)), None);
+        assert_eq!(heard_at(None, Some(190.0), None), None);
+        assert_eq!(heard_at(None, Some(190.0), Some(0.0)), None);
+    }
 
     #[test]
     fn test_emitter_sound_type_name() {

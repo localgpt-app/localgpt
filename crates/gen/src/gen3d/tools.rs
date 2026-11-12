@@ -1891,9 +1891,9 @@ impl Tool for GenAudioEmitterTool {
                     },
                     "sound": {
                         "type": "object",
-                        "description": "Sound type. Types: water {turbulence: 0-1}, fire {intensity: 0-1, crackle: 0-1}, hum {frequency: Hz, warmth: 0-1}, wind {pitch: Hz}, custom {waveform: sine/saw/square/white_noise/pink_noise/brown_noise, filter_cutoff: Hz, filter_type: lowpass/highpass/bandpass}",
+                        "description": "Sound type. Types: water {turbulence: 0-1}, fire {intensity: 0-1, crackle: 0-1}, hum {frequency: Hz, warmth: 0-1}, wind {pitch: Hz}, custom {waveform: sine/saw/square/white_noise/pink_noise/brown_noise, filter_cutoff: Hz, filter_type: lowpass/highpass/bandpass}, file {path: a sound file relative to the open world's assets/ or absolute, looping: true (default)}. Looping files play in phase, so a song's stems placed as four emitters add up to the song.",
                         "properties": {
-                            "type": {"type": "string", "enum": ["water", "fire", "hum", "wind", "custom"]}
+                            "type": {"type": "string", "enum": ["water", "fire", "hum", "wind", "custom", "file"]}
                         }
                     },
                     "radius": {

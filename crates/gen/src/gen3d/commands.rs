@@ -709,6 +709,13 @@ pub enum EmitterSound {
         filter_cutoff: f32,
         filter_type: FilterType,
     },
+    /// A sound file, relative to the open world's `assets/` (or absolute).
+    /// Looping files play in phase, so a song's stems add up to the song.
+    File {
+        path: String,
+        #[serde(default = "default_true")]
+        looping: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
