@@ -54,9 +54,10 @@ impl Tool for NotesTool {
                  (0 to 1), and a summary — how many, the pitch range, the span heard. It hears \
                  pitched instruments and voice, chords included, best one at a time: on a band \
                  mix the parts blur together and drums add stray notes, so run it on a stem \
-                 (`audio_stems`, when installed). The notes can become a world's score — the \
-                 format's `Abc` audio source, written as ABC notation — or drive entities in \
-                 time with the music, a light or a motion per note. Reads WAV, FLAC, MP3, Ogg, \
+                 (`audio_stems`, when installed). Use them to read a melody — its key, range \
+                 and rhythm — or to tune what a world synthesizes to the song, a `Hum` \
+                 emitter's `frequency` on its root note, say. They are data, not sound: no \
+                 renderer plays the format's `Abc` source yet. Reads WAV, FLAC, MP3, Ogg, \
                  AAC/M4A, ALAC and AIFF; a long recording answers sooner as a span \
                  (`start`, `end`)."
                 .to_string(),

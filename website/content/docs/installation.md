@@ -16,7 +16,7 @@ description: "Install LocalGPT: the binaries from crates.io, the desktop app fro
   ```
 
 - **Node 22**, to build the desktop app's page once (`crates/app/ui`); the release binary carries it.
-- **An agent of your own**, if you want one: Claude Code, Codex, Gemini CLI or any other. LocalGPT installs none, runs no model and holds no key; an agent runs in a terminal the app opens, or anywhere else, and brings its own login. Document, song and previs worlds need no model at all.
+- **An agent of your own**, if you want one: Claude Code, Codex, Gemini CLI or any other. LocalGPT installs none, runs no language model and holds no key; an agent runs in a terminal the app opens, or anywhere else, and brings its own login. Document, song and previs worlds need no model at all.
 
 ## From crates.io, npm or Homebrew (for users)
 
@@ -24,7 +24,7 @@ description: "Install LocalGPT: the binaries from crates.io, the desktop app fro
 
 ```bash
 cargo install localgpt-gen       # the world builder: MCP server and relay, the live canvas, sessions, headless
-cargo install localgpt           # `localgpt world`, `localgpt world mcp` (the shim), and `localgpt previs`
+cargo install localgpt           # `localgpt world`, `localgpt world mcp` (the shim), `localgpt previs` and `localgpt audio`
 ```
 
 For the `localgpt` command line and MCP shim without a Rust toolchain, install the prebuilt binary from npm (or run it directly with `npx`):
@@ -77,7 +77,9 @@ Every app reads the same folder under `~/.local/share/localgpt/models/`, so the 
 cargo xtask fetch-assets   # the 522 MB CC0 asset pack (Poly Haven models) → models/pack
 ```
 
-The pack is what document and song worlds are furnished with; without it the worlds still build, with primitives only. `$LOCALGPT_WORLD_ASSETS` moves the folder. There is no model to download: nothing in LocalGPT runs one.
+The pack is what document and song worlds are furnished with; without it the worlds still build, with primitives only. `$LOCALGPT_WORLD_ASSETS` moves the folder.
+
+The [audio models](@/docs/audio-models.md) go beside it, in `models/audio/`, only when you install one: **Audio** in the app's bar, or `localgpt audio install`. They analyse sound for an agent; nothing in LocalGPT runs a language model.
 
 ### The macOS app bundle
 
@@ -102,7 +104,8 @@ cargo install --path crates/cli               # or crates/gen, crates/app
 | Crate | Flag | What it adds | Fetch first |
 |---|---|---|---|
 | `localgpt-gen` | `physics`, `multiplayer` (default) | avian3d physics; `--host`/`--join`/`--web` sessions | — |
-| `localgpt-verse` | `ml` | CLAP zero-shot moods and embedding-ranked placement (CC-BY-NC weights: personal and research use), Demucs stems — audio analysis, not a language model | `cargo xtask fetch-clap`, `fetch-demucs.sh` |
+| `localgpt` | `audio` (default) | `localgpt audio`: the optional [audio models](@/docs/audio-models.md), and their tools in `localgpt world mcp` once installed; links ONNX Runtime | `localgpt audio install <id>` |
+| `localgpt-verse` | `ml` | CLAP zero-shot moods and embedding-ranked placement (Apache-2.0 weights), Demucs stems (MIT code; its author calls the weights' licence unclear) — audio analysis, not a language model | `localgpt audio install match` (Demucs downloads itself) |
 
 ```bash
 cargo run -p localgpt-verse --features ml
