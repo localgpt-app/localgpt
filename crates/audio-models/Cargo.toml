@@ -1,0 +1,54 @@
+[package]
+name = "localgpt-audio-models"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Optional audio-analysis models for LocalGPT's agents: install them, then split stems, transcribe notes, tag sounds and match audio to descriptions, on the CPU"
+keywords = ["localgpt", "audio", "onnx", "agent"]
+categories = ["multimedia::audio"]
+
+[features]
+default = []
+# Running the models: ONNX Runtime (statically linked by `ort`), decoding,
+# resampling and the models' own pre- and post-processing. Without it the
+# crate is the catalog and the installer, which is all the desktop app needs.
+run = [
+    "dep:ort",
+    "dep:symphonia",
+    "dep:rubato",
+    "dep:realfft",
+    "dep:hound",
+    "dep:tokenizers",
+]
+# The models' MCP tools, for `localgpt world mcp` and `localgpt audio mcp`.
+mcp = ["run", "localgpt-world-agent/mcp", "dep:async-trait"]
+
+[dependencies]
+# `paths::Dirs`: the models live under the data directory every app shares.
+localgpt-world-agent = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+futures = { workspace = true }
+sha2 = "0.11"
+
+# `run`. `ort` is pinned to the release candidate Verse's `stem-splitter-core`
+# pins, so the workspace links one ONNX Runtime.
+ort = { version = "=2.0.0-rc.11", optional = true }
+symphonia = { version = "0.5", features = ["mp3", "aac", "alac", "isomp4", "aiff"], optional = true }
+rubato = { version = "0.16", optional = true }
+realfft = { version = "3", optional = true }
+hound = { version = "3.5", optional = true }
+# CLAP's text side reads a RoBERTa tokenizer (pure Rust).
+tokenizers = { version = "0.21", default-features = false, features = ["fancy-regex"], optional = true }
+
+# `mcp`
+async-trait = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile = "3.27"

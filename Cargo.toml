@@ -14,6 +14,7 @@ members = [
     "crates/world-sync",
     "crates/world-editor",
     "crates/world-agent",
+    "crates/audio-models",
     "crates/relay",
     "xtask",
 ]
@@ -97,6 +98,7 @@ localgpt-world-audio = { version = "0.6.0", path = "crates/world-audio" }
 localgpt-world-sync = { version = "0.6.0", path = "crates/world-sync" }
 localgpt-world-editor = { version = "0.6.0", path = "crates/world-editor" }
 localgpt-world-agent = { version = "0.6.0", path = "crates/world-agent" }
+localgpt-audio-models = { version = "0.6.0", path = "crates/audio-models" }
 # Without its `pdf` feature here: Gen stages and boards and needs no PDF
 # reader; the previs binary and previs-web turn it on themselves.
 localgpt-previs = { version = "0.6.0", path = "crates/previs", default-features = false }

@@ -5873,6 +5873,7 @@ dependencies = [
  "async-trait",
  "clap",
  "clap_complete",
+ "localgpt-audio-models",
  "localgpt-previs",
  "localgpt-world-agent",
  "localgpt-world-editor",
@@ -5919,6 +5920,29 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "vt100",
+]
+
+[[package]]
+name = "localgpt-audio-models"
+version = "0.6.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures",
+ "hound",
+ "localgpt-world-agent",
+ "ort",
+ "realfft",
+ "reqwest 0.13.5",
+ "rubato 0.16.2",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "symphonia 0.5.5",
+ "tempfile",
+ "tokenizers",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

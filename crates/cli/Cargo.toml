@@ -14,6 +14,13 @@ categories = ["command-line-utilities"]
 name = "localgpt"
 path = "src/main.rs"
 
+[features]
+default = ["audio"]
+# `localgpt audio`: install the optional audio-analysis models and run them,
+# and their tools in `world mcp` once installed. It links ONNX Runtime;
+# `--no-default-features` leaves it out.
+audio = ["dep:localgpt-audio-models"]
+
 [dependencies]
 # The world authority, for `localgpt world`, and the `Tool` trait and stdio
 # MCP server the shim serves its eight tools through. Bevy-free, so the CLI
@@ -25,6 +32,8 @@ localgpt-world-editor = { workspace = true }
 # Screenplay → per-scene .world packages, shot list and board, for
 # `localgpt previs` (Fountain, Final Draft .fdx, PDF and Markdown pages).
 localgpt-previs = { workspace = true, features = ["pdf"] }
+# `localgpt audio`, and the installed models' tools in `world mcp`.
+localgpt-audio-models = { workspace = true, features = ["mcp"], optional = true }
 
 tokio = { workspace = true }
 serde_json = { workspace = true }

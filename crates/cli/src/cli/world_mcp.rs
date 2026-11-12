@@ -44,8 +44,11 @@ pub async fn run(dir: Option<PathBuf>) -> Result<()> {
         )
     })?;
 
+    #[cfg(feature = "audio")]
+    let audio = audio_tools(&dir);
     let api = Api::new(endpoint, dir);
-    let tools: Vec<Box<dyn Tool>> = vec![
+    #[allow(unused_mut)] // without `audio`, nothing is added
+    let mut tools: Vec<Box<dyn Tool>> = vec![
         Box::new(SubmitTool(api.clone())),
         Box::new(UndoTool(api.clone())),
         Box::new(LogTool(api.clone())),
@@ -55,7 +58,24 @@ pub async fn run(dir: Option<PathBuf>) -> Result<()> {
         Box::new(ScreenshotTool(api.clone())),
         Box::new(SelectionTool(api)),
     ];
+    #[cfg(feature = "audio")]
+    tools.extend(audio);
     run_mcp_stdio_server(tools, "localgpt-world").await
+}
+
+/// The tools of the audio models installed on this machine (`localgpt audio
+/// install`, or the app). What they make goes into the world's `assets/`,
+/// where its ops can reference it.
+#[cfg(feature = "audio")]
+fn audio_tools(world: &Path) -> Vec<Box<dyn Tool>> {
+    let Some(models) = localgpt_audio_models::models_dir() else {
+        return Vec::new();
+    };
+    localgpt_audio_models::tools::installed(&localgpt_audio_models::tools::ToolContext {
+        models,
+        base: world.to_path_buf(),
+        out: world.join("assets"),
+    })
 }
 
 /// The guide an agent should read first, named in every tool's description so

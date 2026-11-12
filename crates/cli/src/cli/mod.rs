@@ -1,3 +1,5 @@
+#[cfg(feature = "audio")]
+pub mod audio;
 pub mod completion;
 pub mod previs;
 pub mod world;
@@ -33,6 +35,13 @@ pub enum Commands {
 
     /// Stage a screenplay (.fountain, .fdx, .pdf, or .md) as per-scene .world packages, shotlist.csv, and board.html
     Previs(previs::PrevisArgs),
+
+    /// The optional audio models: list, install and remove them, run them, serve them to an agent
+    #[cfg(feature = "audio")]
+    Audio {
+        #[command(subcommand)]
+        command: audio::AudioCommands,
+    },
 
     /// Generate shell completion scripts
     Completion(completion::CompletionArgs),
