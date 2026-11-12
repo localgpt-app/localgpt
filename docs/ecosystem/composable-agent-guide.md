@@ -197,7 +197,7 @@ If you need multiple scenes, run multiple `localgpt-gen mcp-server` processes (e
 
 A stdio or relay connection's calls run one at a time, in the order they arrive. Batch tools (`gen_spawn_batch`, `gen_modify_batch`, `gen_delete_batch`) exist specifically to reduce round-trip overhead when operating on many entities.
 
-Nothing orders calls across connections, or across concurrent HTTP requests. Every tool sends a command to Bevy and takes the next answer from one shared channel (`GenBridge::send`, `crates/gen/src/gen3d/mod.rs`), and an answer carries no id. If two calls overlap, and above all while a deferred answer such as a screenshot or a glTF load is pending, each can receive the other's. An orchestrator that puts several agents on one scene has to serialize their calls itself.
+Across connections and concurrent HTTP requests, the calls still reach Bevy one at a time: `GenBridge::send` (`crates/gen/src/gen3d/mod.rs`) holds the one answer channel from sending a command until its answer comes, so a call waits behind a slow one (a screenshot, a glTF load) rather than receiving its answer. Nothing orders the calls beyond that: an orchestrator that puts several agents on one scene decides whose edit lands first.
 
 ### No streaming tool output
 

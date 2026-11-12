@@ -44,21 +44,42 @@ use commands::{GenCommand, GenResponse};
 /// Tools send commands through this bridge and await responses.
 /// The Bevy GenPlugin polls the command channel each frame and
 /// sends responses back.
+///
+/// Responses carry no request id: Bevy answers each command once, and some
+/// answers wait frames (a screenshot) while later commands answer at once.
+/// So one call at a time owns the channel from sending its command to
+/// receiving its answer, and stdio, HTTP and the relay can call together
+/// without taking each other's answers.
 pub struct GenBridge {
     cmd_tx: mpsc::UnboundedSender<GenCommand>,
-    resp_rx: Mutex<mpsc::UnboundedReceiver<GenResponse>>,
+    replies: Mutex<Replies>,
+}
+
+struct Replies {
+    rx: mpsc::UnboundedReceiver<GenResponse>,
+    /// Answers still due to calls dropped while waiting (a client that hung
+    /// up). They are taken and discarded before the next command goes out.
+    owed: usize,
 }
 
 impl GenBridge {
     /// Send a command to Bevy and await the response.
     pub async fn send(&self, cmd: GenCommand) -> anyhow::Result<GenResponse> {
+        let closed = || anyhow::anyhow!("Gen bridge closed — no response from Bevy");
+        let mut replies = self.replies.lock().await;
+        while replies.owed > 0 {
+            replies.rx.recv().await.ok_or_else(closed)?;
+            replies.owed -= 1;
+        }
         self.cmd_tx
             .send(cmd)
             .map_err(|_| anyhow::anyhow!("Gen bridge closed — Bevy app may have exited"))?;
-        let mut rx = self.resp_rx.lock().await;
-        rx.recv()
-            .await
-            .ok_or_else(|| anyhow::anyhow!("Gen bridge closed — no response from Bevy"))
+        // Owed until it arrives: if this future is dropped while waiting,
+        // the next call discards the answer instead of receiving it.
+        replies.owed = 1;
+        let response = replies.rx.recv().await.ok_or_else(closed)?;
+        replies.owed = 0;
+        Ok(response)
     }
 }
 
@@ -77,7 +98,10 @@ pub fn create_gen_channels() -> (Arc<GenBridge>, GenChannels) {
 
     let bridge = Arc::new(GenBridge {
         cmd_tx: cmd_tx.clone(),
-        resp_rx: Mutex::new(resp_rx),
+        replies: Mutex::new(Replies {
+            rx: resp_rx,
+            owed: 0,
+        }),
     });
 
     let channels = GenChannels {
@@ -87,4 +111,80 @@ pub fn create_gen_channels() -> (Arc<GenBridge>, GenChannels) {
     };
 
     (bridge, channels)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The name an `EntityInfo` command asked about, echoed in an error.
+    fn echo(cmd: GenCommand) -> GenResponse {
+        match cmd {
+            GenCommand::EntityInfo { name } => GenResponse::Error { message: name },
+            _ => GenResponse::Error {
+                message: String::new(),
+            },
+        }
+    }
+
+    fn asked(name: &str) -> GenCommand {
+        GenCommand::EntityInfo { name: name.into() }
+    }
+
+    fn answer(response: GenResponse) -> String {
+        match response {
+            GenResponse::Error { message } => message,
+            _ => panic!("expected the echo"),
+        }
+    }
+
+    #[tokio::test]
+    async fn concurrent_calls_each_get_their_own_answer() {
+        let (bridge, mut channels) = create_gen_channels();
+        // Bevy's side: answer each command as it arrives.
+        tokio::spawn(async move {
+            while let Some(cmd) = channels.cmd_rx.recv().await {
+                tokio::task::yield_now().await;
+                let _ = channels.resp_tx.send(echo(cmd));
+            }
+        });
+        let mut calls = tokio::task::JoinSet::new();
+        for i in 0..32 {
+            let bridge = bridge.clone();
+            calls.spawn(async move {
+                let name = format!("e{i}");
+                (answer(bridge.send(asked(&name)).await.unwrap()), name)
+            });
+        }
+        while let Some(call) = calls.join_next().await {
+            let (got, want) = call.unwrap();
+            assert_eq!(got, want);
+        }
+    }
+
+    #[tokio::test]
+    async fn an_abandoned_call_does_not_answer_the_next() {
+        let (bridge, mut channels) = create_gen_channels();
+        let (release_tx, mut release_rx) = mpsc::unbounded_channel::<()>();
+        // Bevy's side: hold each answer until released.
+        tokio::spawn(async move {
+            while let Some(cmd) = channels.cmd_rx.recv().await {
+                release_rx.recv().await;
+                let _ = channels.resp_tx.send(echo(cmd));
+            }
+        });
+        // The first caller gives up before its answer comes.
+        let first = bridge.send(asked("first"));
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(20), first)
+                .await
+                .is_err()
+        );
+        release_tx.send(()).unwrap();
+        release_tx.send(()).unwrap();
+        assert_eq!(
+            answer(bridge.send(asked("second")).await.unwrap()),
+            "second"
+        );
+    }
 }
