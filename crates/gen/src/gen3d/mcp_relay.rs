@@ -292,7 +292,7 @@ async fn process_request(request: &serde_json::Value, relay: &RelayTools) -> ser
                     "jsonrpc": "2.0",
                     "id": id,
                     "result": {
-                        "content": [{ "type": "text", "text": format!("Error: {}", e) }],
+                        "content": [{ "type": "text", "text": format!("Error: {e:#}") }],
                         "isError": true
                     }
                 }),

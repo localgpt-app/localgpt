@@ -172,8 +172,11 @@ impl McpHandler for ToolHandler {
             Ok(output) => Ok(json!({
                 "content": [{ "type": "text", "text": output }]
             })),
+            // With its causes (`{:#}`): "opening x.wav: No such file or
+            // directory", not just "opening x.wav". The reason is what lets
+            // an agent correct itself.
             Err(e) => Ok(json!({
-                "content": [{ "type": "text", "text": format!("Error: {}", e) }],
+                "content": [{ "type": "text", "text": format!("Error: {e:#}") }],
                 "isError": true,
             })),
         }
