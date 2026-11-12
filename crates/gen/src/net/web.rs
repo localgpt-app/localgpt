@@ -209,20 +209,22 @@ impl WebRoom {
             session_pin,
             wrong_pins: 0,
         };
-        // History first: replay what a previous session left behind, then
-        // open the log so this session's ops keep appending to it.
+        // History first: replay what a previous session left behind.
         if let Some(resume) = resume {
             let path = resolve_op_log_path(workspace, resume);
             room.replay_log(&path);
         }
+        // The session is a package: a base world, metadata and snapshots
+        // next to the log (docs/rfcs/multiplayer/session-package-format.md).
+        // The package comes before the log, because opening the log creates
+        // it, and a log on disk tells `ensure_package` the directory already
+        // has history.
+        room.session_dir = Some(session_dir_path(workspace, session_name));
+        room.ensure_package();
         match OpLog::open(&session_op_log_path(workspace, session_name)) {
             Ok(log) => room.op_log = Some(log),
             Err(e) => eprintln!("web session: op log unavailable ({e}) — history won't persist"),
         }
-        // The session is a package: a base world, metadata and snapshots
-        // next to the log (docs/rfcs/multiplayer/session-package-format.md).
-        room.session_dir = Some(session_dir_path(workspace, session_name));
-        room.ensure_package();
         room
     }
 
@@ -1310,5 +1312,30 @@ mod tests {
         }
         assert_eq!(room.wrong_pins, 0);
         assert!(room.pin_taken());
+    }
+
+    #[test]
+    fn a_session_resumed_under_a_new_name_has_its_base_at_the_resumed_head() {
+        use localgpt_world_agent::session;
+        let dir = tempfile::tempdir().unwrap();
+        let old = session_dir_path(dir.path(), "old");
+        session::write_base(
+            &old,
+            &wt::WorldManifest::new("old".to_string()),
+            "gen",
+            None,
+            5,
+        )
+        .unwrap();
+        std::fs::write(old.join(session::LOG_FILE), "").unwrap();
+
+        let (bridge, rx) = WebBridge::new(Some("tok".into()), "new");
+        let room = WebRoom::new("new", bridge, rx, dir.path(), Some("old"), false, None);
+        assert_eq!(room.authority.revision(), 5);
+        let meta = session::read_meta(&session_dir_path(dir.path(), "new")).unwrap();
+        assert_eq!(
+            meta.base_revision, 5,
+            "the new log continues from revision 5, so the base must be there too"
+        );
     }
 }

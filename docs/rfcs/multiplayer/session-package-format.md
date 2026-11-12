@@ -142,12 +142,9 @@ they never drive the fold.
   bare `ops.jsonl`, a `.world` archive, or a directory with a log and no
   `session.json`, which folds from an empty base. The room then appends
   to the directory of the session it is hosting (`--session-name`, by
-  default `<user>'s world`), not the one it resumed. Resuming into another
-  directory writes a package that does not fold: `OpLog::open` creates
-  `ops.jsonl` before `ensure_package` looks for it, so a new directory
-  always gets an empty `world.ron` at revision 0, and its log holds only
-  the changes made after the resumed head. Until that is fixed, resume
-  with the session's own name.
+  default `<user>'s world`), not the one it resumed. A new directory gets
+  the resumed document as its `world.ron`, at the resumed head's
+  revision, so its log folds onto it.
 - **`--replay <session>`** plays the edits as a time-lapse,
   `--replay-speed` batches a second. It reads a package through
   `read_package`, so once a session has a snapshot it starts from the
