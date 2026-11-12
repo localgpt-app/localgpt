@@ -4,7 +4,7 @@
 //! mono, and computes: an onset-novelty curve (spectral flux via realfft), a
 //! tempo + beat grid (autocorrelation + phase fit), section boundaries
 //! (feature-distance peaks), a per-second energy curve, and a mood via the
-//! valence/arousal quadrant mapping from `idea.md`. Results are cached as one
+//! valence/arousal quadrant mapping (PLAN.md M4). Results are cached as one
 //! JSON sidecar per track, keyed by blake3 content hash (rename/move-proof),
 //! in the per-user data dir — the user's music folder is never written to.
 //!
@@ -174,7 +174,7 @@ pub(crate) fn cache_dir() -> Option<PathBuf> {
 }
 
 /// Content hash of the file (chunked blake3) — the sidecar filename and the
-/// track's stable identity (`Track.id`, ARCHITECTURE R5).
+/// track's stable identity (`Track.id`).
 pub(crate) fn cache_key(path: &Path) -> Option<String> {
     let mut file = std::fs::File::open(path).ok()?;
     let mut hasher = blake3::Hasher::new();
@@ -604,7 +604,8 @@ fn energy_curve(samples: &[f32], sr: u32) -> Vec<f32> {
 }
 
 /// The M4 quadrant mapping: arousal (tempo + loudness) × brightness
-/// (spectral centroid) → one of the four moods. Documented in PLAN.md.
+/// (spectral centroid) → one of the four base moods, split by energy into
+/// eight. Documented in PLAN.md.
 fn map_mood(bpm: f32, mean_energy: f32, mean_centroid_hz: f32) -> usize {
     let tempo_norm = ((bpm - 70.0) / 90.0).clamp(0.0, 1.0); // 70..160 BPM
     let arousal = 0.6 * tempo_norm + 0.4 * mean_energy;
@@ -694,7 +695,7 @@ pub struct MoodBlend {
 
 /// Analysis results by track id (blake3 content hash = sidecar key), plus the
 /// worker channels. Id-keying makes analyses rename/move-proof in memory the
-/// same way the sidecars are on disk (ARCHITECTURE R5).
+/// same way the sidecars are on disk.
 #[derive(Resource)]
 pub struct AnalysisStore {
     map: HashMap<String, TrackAnalysis>,

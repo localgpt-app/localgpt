@@ -70,7 +70,7 @@ struct AudioInner {
     /// Fade-in to apply to the next stream started (set when crossfading).
     fade_in_next: Option<f32>,
     /// Path the current handle was started for — path-keyed (not index) so a
-    /// queue reorder doesn't restart the playing track (ARCHITECTURE R5).
+    /// queue reorder doesn't restart the playing track.
     playing: Option<PathBuf>,
     /// A seek in flight: hold `elapsed` at the target until the stream's
     /// readback catches up (or the frame budget runs out), so the progress
@@ -481,7 +481,7 @@ pub fn poll_import(
 
     if !batch.is_empty() {
         // Dedupe by content id — the same song reachable through two paths
-        // (symlinked folders, stray copies) imports once (ARCHITECTURE R5).
+        // (symlinked folders, stray copies) imports once.
         let mut seen: std::collections::HashSet<String> =
             playback.queue.iter().filter_map(|t| t.id.clone()).collect();
         batch.retain(|t| match &t.id {

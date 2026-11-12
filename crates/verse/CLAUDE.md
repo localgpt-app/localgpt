@@ -1,28 +1,25 @@
 # CLAUDE.md
 
-> **This crate lives in the `localgpt` workspace** (folded in from the
-> standalone `localgpt-verse` repository; see
-> `docs/world-strategy.md`). Run everything from the
-> workspace root with `-p localgpt-verse`. The shared asset pack is
-> fetched once by `cargo xtask fetch-assets` and resolved by
-> `localgpt-world-agent`'s `paths` module.
->
-> Bevy takes one asset base, so `crates/verse/assets/models` is a **symlink**
-> to the shared pack that `cargo xtask fetch-assets` creates — run it once, or
-> the app starts with no asset pack and builds procedural worlds only.
+What is particular to `crates/verse`. The workspace's rules (no model, lint,
+commits, the all-Rust rule) are in the root `CLAUDE.md`; run everything from
+the workspace root with `-p localgpt-verse`.
 
-Guidance for Claude Code when working in this repository.
+Bevy takes one asset base, so `crates/verse/assets/models` is a **symlink**
+to the shared pack that `cargo xtask fetch-assets` creates — run it once, or
+the app starts with no asset pack and builds procedural worlds only.
 
 ## What this is
 
 LocalGPT Verse: a desktop app (Bevy 0.20) that imagines a 3D world for every
 song, driven by on-device music analysis. `README.md` covers running it and
-the optional `ml` tier; `ARCHITECTURE.md` is the system map and the
-load-bearing decisions; `PLAN.md` the milestones. No language model runs
-here (the in-process one went on 2026-11-01): a `WorldRecipe` in a track's
-sidecar, written by an agent, is applied after `clamped()`. A member of the
-`localgpt` workspace, Apache-2.0. Siblings in the same workspace:
+the optional `ml` tier; `ARCHITECTURE.md` is the system map, the
+load-bearing decisions and the measured limits; `PLAN.md` is the key to the
+milestone and section numbers the source cites. Siblings in the workspace:
 `crates/gen` (prompt → world) and `crates/md` (Markdown → world).
+
+No language model runs here and none may be added: a `WorldRecipe` in a
+track's sidecar, written by an agent, is applied after `clamped()`. The
+`ml` feature (CLAP moods, Demucs stems) is audio analysis.
 
 ## Commands
 
@@ -30,38 +27,19 @@ sidecar, written by an agent, is applied after `clamped()`. A member of the
 cargo run -p localgpt-verse                                   # open the app
 cargo test -p localgpt-verse
 cargo clippy -p localgpt-verse --tests -- -D warnings         # CI also checks --features ml
-cargo fmt
 VERSE_IMPORT=<dir> cargo run -p localgpt-verse                # import a music folder at startup
 VERSE_EXPORT_WORLD=<dir> cargo run -p localgpt-verse          # write each track's world in the LocalGPT world format
 VERSE_SMOKE=1 VERSE_SHOT=/tmp cargo run -p localgpt-verse     # offscreen screenshots, then exit
 ```
 
-Run `cargo check -p localgpt-verse` after every change and fix all errors before reporting
-completion. Run clippy and fmt before committing. CI
-(`.github/workflows/ci.yml`) runs fmt, clippy, the tests, the `ml` feature
-check and cargo-deny (`deny.toml`); advisories run on main and weekly, never
-on pull requests.
+## Notes
 
-## Architecture notes
-
-- `src/world_manifest.rs` exports a track's world as a `localgpt-world-types`
-  `WorldManifest` (the shared LocalGPT world format): mood palette, the
-  agent's scene build, a `SoundtrackDef` with the analysis curves, and
-  modulations. Never the audio file or the CLAP embedding. Add fields to
-  world-types upstream (`../world-types`) rather than a parallel
-  format; the crate is pinned to a localgpt commit until its next release.
-- `ARCHITECTURE.md` §10 records the LLM tiers that were built and then
-  removed; nothing in this crate loads a language model, and nothing may be
-  added that does.
-
-## Rules
-
-- License is Apache-2.0. Never copy code from Local Native or Fastxt (AGPL-3.0).
-- This repo is public. Never name the closed-source sibling 3D platform; use
-  generic terms such as "connected 3D app".
-- Commits: conventional commits (`feat:`, `fix:`, `docs:`, `chore:`,
-  `refactor:`), with no Co-Authored-By or Claude-Session trailers.
-- Never use `sed` to edit Rust files; use the Edit tool.
-- Verse has no page of its own (its landing page went on 2026-11-07). The docs live on localgpt.app, in the
-  `localgpt` repository's `website/docs/verse/`: update them there when
-  controls, worlds or the build change, and don't add docs pages here.
+- `src/world_manifest.rs` exports a track's world as a
+  `localgpt-world-types` `WorldManifest`: the mood palette, the rule-based
+  world every track gets, a `SoundtrackDef` with the analysis curves, and
+  the modulations that bind entities to it. Never the audio file or the
+  CLAP embedding. Add fields to world-types (`../world-types`) rather than
+  a parallel format.
+- Verse's docs are on localgpt.app, in `website/content/docs/verse/`:
+  update them when controls, worlds or the build change, and don't add docs
+  pages here.

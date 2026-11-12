@@ -1,10 +1,9 @@
-//! A placeholder 3D world for the HUD to overlay.
+//! The procedural backdrop every world has, under the HUD.
 //!
-//! This is intentionally abstract — the real pipeline assembles worlds from a
-//! catalog of glTF assets driven by music (see `idea.md`). For the UI-first
-//! milestone we just need a living, mood-tinted backdrop: a ground plane, a
-//! field of slowly drifting shapes, fog, and two camera feels (Explore / Drift)
-//! so the chrome always has "a live world to justify itself against".
+//! A living, mood-tinted base: a ground plane, a field of slowly drifting
+//! shapes, particles, fog, and two camera feels (Explore / Drift). The props
+//! placed from the asset pack are `world_assets.rs`; this module also holds
+//! the per-section feel (`SectionFeel`) and the palette wash.
 
 use bevy::camera::Hdr;
 use bevy::core_pipeline::tonemapping::Tonemapping;

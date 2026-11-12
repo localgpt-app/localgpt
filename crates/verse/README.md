@@ -1,14 +1,15 @@
 # LocalGPT Verse
 
 A desktop app that imagines a **3D world for every song** — built with
-[Bevy](https://bevyengine.org/). See [`idea.md`](idea.md) for the concept
-(a music-reactive world assembled from free 3D assets, driven by on-device
-music analysis).
+[Bevy](https://bevyengine.org/): a music-reactive world assembled from free
+3D assets, driven by on-device music analysis.
 
-This milestone is **UI-first**: the chrome from the LocalGPT Verse design spec is
-implemented on Bevy UI over a placeholder, mood-tinted 3D world. The music
-analysis + asset-assembly pipeline comes later; for now the transport and beat
-are simulated (`src/playback.rs`) so the HUD is already wired to react.
+Verse plays the music files on this computer, analyses each track (tempo,
+beat grid, sections, energy, mood) and builds its world from that: a
+procedural, mood-tinted backdrop with props from a CC0 model pack, under the
+chrome from the LocalGPT Verse design spec on Bevy UI. With no audio file or
+no audio device the transport and beat are simulated (`src/playback.rs`), so
+every screen still runs.
 
 LocalGPT Verse is a **member of the `localgpt` workspace** (`crates/verse`), so it
 shares one lockfile, one CI pipeline and the world-format crates with Gen and MD.
@@ -35,16 +36,27 @@ pulse and world glow from the real signal, and a **background analysis pass**
 (symphonia decode → realfft) recovers tempo, a beat grid, section boundaries
 (the progress notches), an energy curve, and a **mood** (which world) — cached
 as a JSON sidecar per track (blake3-keyed, in the app data dir; your music
-folder is never written to). *Keep this world* pins the mood into that sidecar.
-Without an import (or an audio device) the app falls back to the silent
-simulated transport. Dev shortcut: `VERSE_IMPORT=<dir>` imports at startup.
+folder is never written to). *Keep this world* pins the mood and the layout
+seed into that sidecar. With nothing imported (or no audio device) the app
+runs its built-in demo queue on the silent simulated transport; the last
+folder you chose is imported again at the next start. A bundle
+(`cargo xtask verse-bundle`) carries four CC0 starter tracks in
+`assets/music/` and imports them at startup. In a dev tree
+`cargo xtask fetch-assets` copies them to
+`~/.local/share/localgpt/models/pack/music`, which Verse does not open on
+its own: `VERSE_IMPORT=<dir>` imports any folder at startup.
 
-**ML moods (PLAN.md M5, optional):** build with `--features ml` and run
-`cargo xtask fetch-clap` once (78 MB CLAP audio model, LAION/Xenova ONNX) —
-tracks then get a 512-d CLAP embedding (3 windows averaged) and a zero-shot
-mood from it, upgrading the rule mapper; the embedding is stored in the
-sidecar for future asset selection. Without the feature or the model file the
-rule mapper runs. Note the CLAP weights are CC-BY-NC (see PLAN.md §4).
+**The `ml` tier (PLAN.md M5 and M7, optional):** build with `--features ml`
+and run `cargo xtask fetch-clap` once (the CLAP audio and text models and
+their tokenizer, LAION/Xenova ONNX, about 207 MB into `assets/ml/`). Tracks
+then get a 512-d CLAP embedding (three windows averaged) and a zero-shot
+mood from it in place of the rule mapper's; the embedding is stored in the
+sidecar and weights which props a world places. The same feature separates
+each track into four stems with Demucs (`stem-splitter-core`, which
+downloads its model on first use), so the world reacts per stem. Without the
+feature or the model files the rule mapper and the live tap's bands run. The
+tree labels the CLAP weights CC-BY-NC-4.0; see PLAN.md §4 before
+distributing them.
 
 **Authored recipes (PLAN.md M7):** a track's analysis sidecar can carry a
 `WorldRecipe` (world name, biomes, landmarks, atmosphere, per-section
@@ -59,20 +71,24 @@ in-process one went on 2026-11-01). An agent working on a library's
 sidecars can author recipes; without one the app keeps the rule-derived
 world verbatim.
 
-**Asset pack:** 171 CC0 Poly Haven models live in the separate `verse-assets`
-repo (`fetch_polyhaven.py` downloads + writes the manifest with a semantic
-`kind` per asset — 19 kinds, from `rock` ×29 variants to `lamp` ×17;
-`normalize.py` packs each model to a single uncompressed `.glb` — bevy_gltf
-supports neither quantized nor meshopt-compressed geometry — and syncs the
-manifest-referenced set into `assets/models/`). Placement holds a per-tier
-entity budget (15 heroes / 25 props / 27 cover seeds) and spends it across the
-mood's pool by weighted round-robin, so a bigger pack means more variety, not
-more entities; each model rescales to its tier's span (hero 7 m / prop 2.5 m /
-cover 1 m), culls by `VisibilityRange`, and arranges per mood: organic spiral
-(Ember/Tide), city grid (Velvet Circuit), crystal rings (Glass Expanse). The
-extended moods (Cinder Reach, Mirage Circuit, Abyss Terraces, Dawn Expanse)
-layer their own accents on top of their base quadrant's set. The Credits
-screen renders the manifest.
+**Asset pack:** 171 CC0 Poly Haven models live in the separate
+`localgpt-world-assets` repository, as one uncompressed `.glb` each (522 MB;
+bevy_gltf reads neither quantized nor meshopt-compressed geometry) beside a
+manifest that gives every model a tier, a mood and a semantic `kind` — 19
+kinds, from `rock` ×29 variants to `lamp` ×17. `cargo xtask fetch-assets`
+copies the files the manifest names from a checkout beside this repository
+into the pack every LocalGPT app shares and links `assets/models` to it;
+without the pack the worlds are procedural only. Placement holds a per-tier
+budget (15 heroes / 25 props / 27 ground-cover seeds) and spends it across
+the mood's pool by weighted round-robin, so a bigger pack means more variety,
+not more entities. Heroes and props rescale to their tier's span (7 m /
+2.5 m) and props cull by `VisibilityRange`; the ground cover is one merged
+field of procedural pebbles, four to a seed. Each base mood has its own
+arrangement: clusters (Ember Flats), a city grid (Velvet Circuit), terraces
+(Tide Gardens), rings (Glass Expanse). The extended moods (Cinder Reach,
+Mirage Circuit, Abyss Terraces, Dawn Expanse) arrange like their base and
+layer their own models on top of its set. The Credits screen renders the
+manifest.
 
 ### Controls
 
@@ -83,84 +99,104 @@ screen renders the manifest.
 | Scroll | Fly speed (Explore) |
 | `F` / click tabs | Toggle Explore / Drift camera (Drift frees the cursor) |
 | `E` | Send a pulse |
-| `N` | Next track |
+| `N` / `B` | Next track / previous (restarts the track when more than 3 s in) |
+| `←` / `→` | Scrub 5 s back / forward; while paused, move the world-intensity slider |
+| `-` / `=` | Volume down / up |
 | `Tab` | Open / close the queue |
-| `L` | Open / close the library (pick a world) |
+| `L` | Open / close the library (browse your music by world) |
 | `Esc` | Pause (world time-dilates) · resume · close the top overlay |
 | `H` | Hide the HUD now |
 | `P` | Photo mode — hide the chrome and save a shot to `verse-photos/` |
-| `←` / `→` | Adjust world intensity (while paused) |
+
+The media keys (next, previous, play/pause) work too; play/pause freezes the
+transport without opening the pause menu, like the HUD's button.
 
 The HUD follows the spec's "one system, three states": **Visible** while you're
 active, fading to a **Minimized** hairline after 4s idle, then **Hidden**
-entirely. Any input wakes it. The one variable is the accent, sampled from the
-current world's palette.
+entirely (after 12s in Explore, 8s in Drift). Any input wakes it. The one
+variable is the accent, sampled from the current world's palette.
 
 ## Export a world
 
 ```bash
 VERSE_EXPORT_WORLD=/tmp/verse-worlds cargo run -p localgpt-verse          # as each track becomes current
-VERSE_EXPORT_ONLY=1 VERSE_EXPORT_WORLD=/tmp/verse-worlds cargo run -p localgpt-verse   # the whole library, no window
+VERSE_EXPORT_ONLY=1 VERSE_IMPORT=~/Music VERSE_EXPORT_WORLD=/tmp/verse-worlds cargo run -p localgpt-verse   # a whole folder, no window
 ```
 
 writes each track's world in LocalGPT's shared world format
 (`localgpt-world-types`): `<track id>.world.json` for the web viewer on
 localgpt.world and `<track id>.world.ron` for LocalGPT Gen (the batch form
-uses the file stem). The manifest carries the mood palette, a ground and a
-sun, the rule-based world every track gets (the props, ground-cover field and
-waveform skyline `world_assets` places), the agent's scene build, and a
-`soundtrack` section with the track's analysis — tempo, beat grid, sections,
-the energy curve, stem envelopes — plus `modulations` that bind entities to
-it, so the world performs the song anywhere the format renders. What it never
-contains: the audio file (only a track its folder's `music.json` licenses,
-like the CC0 starter pack, ships it; personal libraries export with no `path`
-and the world performs silently from its curves) and the CLAP embedding. See
-`src/world_manifest.rs` for what is not exported yet (section scoping and
-particles).
+uses the file stem, and without `VERSE_IMPORT` reads `assets/music/`). The
+manifest carries the mood palette, a ground and a sun, the rule-based world
+every track gets (the props, ground-cover field and waveform skyline
+`world_assets` places), and a `soundtrack` section with the track's analysis
+— tempo, beat grid, sections, the energy curve, stem envelopes — plus
+`modulations` that bind entities to it, so the world performs the song
+anywhere the format renders. What it never contains: the CLAP embedding, or
+a path to the audio unless the track's folder has a `music.json` that
+licenses it (the CC0 starter pack does); a personal library exports with no
+`path` and the world performs silently from its curves. See
+`src/world_manifest.rs` for what is not exported yet (the materialize rise,
+particles and the palette's timbre wash).
 
 ## What's implemented
 
 - **Design system** (`src/theme.rs`) — veils, hairline, radii, type roles, and
-  four world "moods" (Dawn Chorus, Neon Surge, Night Bloom, Glass Runner), each
-  contributing the single sampled accent.
-- **HUD** (`src/hud.rs`) — now-playing cluster, beat-reactive progress with
-  section notches, control hints, Explore/Drift toggle, corner affordances, and
-  the three-depth fade behaviour.
-- **Overlays** (`src/overlays.rs`) — three-step **onboarding** (photosensitivity
+  eight world "moods" — Ember Flats, Velvet Circuit, Tide Gardens, Glass
+  Expanse and their restrained variants Cinder Reach, Mirage Circuit, Abyss
+  Terraces, Dawn Expanse — each contributing the single sampled accent.
+- **HUD** (`src/hud.rs`) — now-playing cluster, transport buttons, a
+  beat-reactive progress bar with section notches that scrubs on click or
+  drag, control hints, Explore/Drift toggle, corner affordances, and the
+  three-depth fade behaviour.
+- **Overlays** (`src/overlays/`) — three-step **onboarding** (photosensitivity
   → controls → import), pause (with world-intensity slider), slide-in queue,
   **Settings** (Comfort group with working toggles), **Credits & Licenses**, and
-  a **Library** that shows the world moods as selectable cards (`L`).
-- **Comfort** — *Reduce flashing* holds the world glow steady (no beat pulse) and
-  caps UI pulses; *Gentler world motion* damps the sway. Both apply instantly.
+  a **Library** (`L`): the worlds as filters beside a track table, where a
+  row plays that song and enters its world.
+- **Comfort** — *Reduce flashing* holds the world glow, beacons and particle
+  sparkle steady and stops the playhead's beat pulse; *Gentler world motion*
+  damps the sway, the props' bob and the ground waves. Both apply instantly.
 - **Photo mode** (`P` or the pause button) — clears the chrome and saves a clean
   screenshot of the world to `verse-photos/`.
 - **World props** (`src/world_assets.rs`) — the manifest-driven glTF pack:
-  per-mood placement in three tiers (hero/prop/ground cover), span-normalized
-  from each model's native size, with `VisibilityRange` LOD, per-mood
-  arrangements, and a rise-in materialize that settles on the first downbeat —
-  over the same procedural drifting backdrop (`src/world.rs`) with HDR + bloom,
+  per-mood placement in three tiers (hero/prop/ground cover), heroes and props
+  span-normalized from each model's native size, with `VisibilityRange`
+  culling, per-mood arrangements, a rise-in materialize timed from the first
+  downbeat and a skyline that draws the song's energy curve — over the same
+  procedural drifting backdrop (`src/world.rs`) with HDR + bloom,
   Explore/Drift cameras, and pause time-dilation.
-- **Queue panel** (`Tab`) — now-playing-first view with ↑/↓ reorder buttons;
-  tracks carry a content-hash id (blake3) so imports dedupe and reorder never
-  restarts the playing track.
+- **Queue panel** (`Tab`) — now-playing-first view with ↑/↓ reorder buttons and
+  shuffle/repeat pills; tracks carry a content-hash id (blake3) so imports
+  dedupe and reorder never restarts the playing track.
 
-Not yet built (follow-ups): the non-Comfort settings groups (display-only for
-now); Beat This! beat tracking and Demucs-driven stem reactivity (the M7
-remainders — see [PLAN.md](PLAN.md) for the status of each).
+Not yet built: the non-Comfort settings groups and three of the Comfort rows
+(display-only); anything that reads the world-intensity slider (its value is
+saved, nothing uses it); gamepad input (the onboarding lists it); the
+Library's search field, the queue's *Clear* and the pause menu's `R` and `Q`
+shortcuts (labels only); Beat This! beat tracking and WFC layouts (the M7
+remainders, see [PLAN.md](PLAN.md)).
 
 ## Fonts
 
-The design uses **Marcellus** + **Hanken Grotesk** (both OFL). They aren't
-committed yet — drop the `.ttf`s into `assets/fonts/` and LocalGPT Verse picks them up;
-until then it falls back to Bevy's embedded font. See
+The design uses **Marcellus** + **Hanken Grotesk** (both OFL). Both are
+committed in `assets/fonts/` with their license texts; if a file is missing
+LocalGPT Verse falls back to Bevy's embedded font, and glyphs the two do not
+cover (CJK track titles, for one) come from the system's fonts. See
 [`assets/fonts/README.md`](assets/fonts/README.md).
 
 ## Smoke test
 
 ```bash
 VERSE_SMOKE=1 cargo run -p localgpt-verse                    # boots through every screen, then exits
-VERSE_SMOKE=1 VERSE_SHOT=/tmp cargo run -p localgpt-verse  # also saves verse-hud.png / verse-overlays.png
+VERSE_SMOKE=1 VERSE_SHOT=/tmp cargo run -p localgpt-verse  # also saves a PNG per screen (verse-hud.png, verse-overlays.png, …)
+VERSE_SMOKE=1 VERSE_ONESHOT=1 VERSE_SHOT=/tmp cargo run -p localgpt-verse  # one settled frame: verse-world.png
 ```
+
+The shots read back the window's frame, which can come back black; see
+"Screenshots without a window" in [ARCHITECTURE.md](ARCHITECTURE.md). Other
+switches: `VERSE_ASSET_ROOT=<dir>` reads assets from another folder,
+`VERSE_PACK=1` mounts a demo world, `VERSE_SCOPES=1` logs what is mounted.
 
 ## Perf stress test
 
@@ -171,13 +207,16 @@ VERSE_STRESS=0 cargo run -p localgpt-verse --release         # control run: repo
 
 Runs uncapped (vsync off) so the numbers show true frame cost. On the dev
 machine (2026-07): baseline world ~60 fps, ~1k props ≈ 14 fps, 5k ≈ 9 fps —
-dense packs beyond that need real instancing (PLAN.md status).
+dense packs beyond that need real instancing (ARCHITECTURE.md, "Measured
+limits").
 
 ## License
 
 LocalGPT Verse's code is licensed under the [Apache License 2.0](LICENSE). The bundled
 fonts (Marcellus, Hanken Grotesk) are under the SIL Open Font License 1.1 — see
 [`assets/fonts/`](assets/fonts/). The 3D model pack and the starter music live in
-the separate `verse-assets` repository and are dedicated to the public domain
-under CC0 1.0. The optional model downloads (`scripts/fetch-*.sh`) carry their
-own licenses; the CLAP weights in particular are CC-BY-NC.
+the separate `localgpt-world-assets` repository and are dedicated to the
+public domain under CC0 1.0. The optional `ml` models carry their own
+licenses: `cargo xtask fetch-clap` downloads the CLAP models, which this tree
+labels CC-BY-NC-4.0 (see PLAN.md §4), and `stem-splitter-core` downloads the
+htdemucs model on first use.

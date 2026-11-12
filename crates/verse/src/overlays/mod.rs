@@ -4,7 +4,7 @@
 //! spawns on a state/flag change and despawns when it clears. The world keeps
 //! playing behind them, dimmed — "quieter, not hidden". Modal visibility
 //! lives in [`crate::OverlayStack`]; button presses are broadcast as
-//! [`UiAction`] messages consumed by focused handlers (ARCHITECTURE R3/R4).
+//! [`UiAction`] messages consumed by focused handlers.
 
 mod actions;
 mod credits;

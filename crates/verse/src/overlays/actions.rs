@@ -1,5 +1,5 @@
 //! Button actions: the dispatcher broadcasts presses as [`UiAction`]
-//! messages; focused handlers consume them (ARCHITECTURE R3).
+//! messages; focused handlers consume them.
 
 use std::sync::{Mutex, mpsc::Receiver};
 
@@ -68,8 +68,7 @@ pub struct UiButton {
 }
 
 /// A pressed button's action, broadcast to the focused handlers below —
-/// each takes only the state it touches (ARCHITECTURE R3; replaces the old
-/// 14-parameter `handle_buttons`).
+/// each takes only the state it touches.
 #[derive(Message)]
 pub struct UiAction(pub ButtonAction);
 
@@ -202,7 +201,7 @@ pub fn onboarding_actions(
     }
 }
 
-/// Overlay navigation: the modal stack + pause interplay (R4).
+/// Overlay navigation: the modal stack + pause interplay.
 pub fn overlay_actions(
     mut actions: MessageReader<UiAction>,
     mut stack: ResMut<OverlayStack>,
@@ -332,7 +331,7 @@ pub fn app_actions(mut actions: MessageReader<UiAction>, mut exit: MessageWriter
 
 /// Queue-panel actions (spec 1l): ↑/↓ reorder, the shuffle + repeat pills,
 /// and jump-to-track. Reorder never moves the now-playing track — audio
-/// continues uninterrupted (path-keyed, ARCHITECTURE R5).
+/// continues uninterrupted (path-keyed).
 pub fn queue_actions(mut actions: MessageReader<UiAction>, mut playback: ResMut<Playback>) {
     for UiAction(action) in actions.read() {
         match action {

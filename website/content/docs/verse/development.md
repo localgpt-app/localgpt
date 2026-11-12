@@ -12,7 +12,8 @@ title: "Development"
 ```text
 crates/verse/             # a member of the localgpt workspace
 ├── src/
-│   ├── main.rs           app wiring, schedules, states
+│   ├── lib.rs            the app (`run`): wiring, schedules, states; `song_world` for the desktop app
+│   ├── main.rs           calls `run`
 │   ├── theme.rs          design tokens + the world-mood registry
 │   ├── hud.rs            now-playing, progress, hints, three-state fade
 │   ├── overlays/         onboarding, pause, queue, settings, credits, library
@@ -90,7 +91,7 @@ The 171-model CC0 pack lives in the separate `localgpt-world-assets` repository 
                                                └───────────────────────────┘
 ```
 
-The full review — load-bearing decisions and findings — lives in [ARCHITECTURE.md](https://github.com/localgpt-app/localgpt/blob/main/crates/verse/ARCHITECTURE.md); milestone status in [PLAN.md](https://github.com/localgpt-app/localgpt/blob/main/crates/verse/PLAN.md). The audio engine is now the shared `localgpt-world-audio` crate (one kira mixer, FunDSP graphs as sources); Verse's own code keeps its analysis, moods, placement and performance.
+The system map, the load-bearing decisions and the measured limits are in [ARCHITECTURE.md](https://github.com/localgpt-app/localgpt/blob/main/crates/verse/ARCHITECTURE.md); [PLAN.md](https://github.com/localgpt-app/localgpt/blob/main/crates/verse/PLAN.md) is the key to the milestone numbers the source cites. Audio runs on the shared `localgpt-world-audio` crate (one kira mixer, FunDSP graphs as sources); Verse's own code keeps its analysis, moods, placement and performance.
 
 ## Licenses {#licenses}
 
@@ -101,4 +102,4 @@ The full review — load-bearing decisions and findings — lives in [ARCHITECTU
 | 3D model pack & starter music (`localgpt-world-assets`) | CC0 1.0 (public domain) |
 | CLAP audio model weights | CC-BY-NC-4.0 — non-commercial only |
 
-The optional model downloads (`scripts/fetch-*.sh`) carry their own licenses; the asset manifest records every model's source, author, and license, and the in-app **Credits & Licenses** screen renders it.
+The optional model downloads (`cargo xtask fetch-clap`, and the Demucs model `stem-splitter-core` fetches) carry their own licenses; the asset manifest records every model's source, author, and license, and the in-app **Credits & Licenses** screen renders it.

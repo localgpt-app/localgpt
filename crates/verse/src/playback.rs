@@ -1,9 +1,8 @@
 //! Playback + beat state.
 //!
-//! There is no audio engine yet — this module *simulates* the signals the real
-//! MIR pipeline (see `idea.md`) will eventually provide: a transport clock, a
-//! beat phase, and a slow energy envelope. The UI reads these resources so the
-//! HUD is already wired to react to music.
+//! The resources the UI reads: a transport clock, a beat phase and an energy
+//! envelope. With no real audio this module simulates them; with audio,
+//! `audio.rs` and the analysis grid take them over (see `advance_playback`).
 
 use std::path::PathBuf;
 
@@ -26,7 +25,7 @@ pub struct Track {
     /// silently on the simulated clock.
     pub path: Option<PathBuf>,
     /// Stable identity: the blake3 content hash (also the analysis sidecar
-    /// key — ARCHITECTURE R5). `None` for demo tracks. Survives renames,
+    /// key). `None` for demo tracks. Survives renames,
     /// moves, and queue reordering; used for import dedupe.
     pub id: Option<String>,
 }

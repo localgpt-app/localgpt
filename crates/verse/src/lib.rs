@@ -74,8 +74,8 @@ pub enum Overlay {
     Library,
 }
 
-/// The modal overlays as a stack — Esc closes the top one (ARCHITECTURE R4;
-/// replaces three independent bools with hand-ordered priority). The queue is
+/// The modal overlays as a stack — Esc closes the top one, so there is no
+/// hand-ordered priority between independent flags. The queue is
 /// a side panel (`QueueOpen`) and `Paused` is transport state; both separate.
 #[derive(Resource, Default)]
 pub struct OverlayStack(Vec<Overlay>);
@@ -116,7 +116,8 @@ impl OverlayStack {
 pub struct Photo {
     pub pending: Option<u8>,
     /// GPU readback occasionally returns an all-black frame on some machines
-    /// (ARCHITECTURE R8) — bounded re-requests paper over it.
+    /// (ARCHITECTURE.md, "Screenshots without a window") — bounded
+    /// re-requests paper over it.
     pub retries: u8,
     /// Output path for the in-flight request; retries overwrite it so a
     /// flaky readback never litters black files.
@@ -545,7 +546,8 @@ fn photo_capture(
     }
 }
 
-/// GPU readback sometimes hands back an all-black frame (ARCHITECTURE R8).
+/// GPU readback sometimes hands back an all-black frame (ARCHITECTURE.md,
+/// "Screenshots without a window").
 /// Sample the captured image; if it's black, re-request the photo (bounded).
 fn photo_black_check(event: On<ScreenshotCaptured>, mut photo: ResMut<Photo>) {
     let Some(data) = event.image.data.as_ref() else {

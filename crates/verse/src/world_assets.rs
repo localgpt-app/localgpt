@@ -60,7 +60,7 @@ impl Tier {
             Tier::Scatter => 1.0,
         }
     }
-    /// Distance culling (ARCHITECTURE R7): ground cover drops out well inside
+    /// Distance culling: ground cover drops out well inside
     /// the fog band (18–95), medium props just before the fog wall; hero
     /// landmarks stay visible — they define the skyline.
     pub(crate) fn visibility_range(self) -> Option<VisibilityRange> {
@@ -251,7 +251,7 @@ pub fn sync_asset_embeddings(
 
 /// The current world layout seed. Same (mood, seed) → same placement; "Build
 /// a different world" re-rolls it and "Keep this world" pins it per track
-/// (ARCHITECTURE R6).
+/// (PLAN.md §5.3).
 #[derive(Resource)]
 pub struct WorldLayout {
     pub seed: u64,
@@ -288,8 +288,8 @@ pub(crate) fn path_seed(path: &std::path::Path) -> u64 {
 }
 
 /// Place prop `i` under a world's arrangement ("structured layouts" as
-/// deterministic rules — the M7-lite stand-in for full WFC, ARCHITECTURE §3
-/// layer 4). Same (arrangement, seed) → same layout.
+/// deterministic rules — the stand-in for full WFC, PLAN.md M7). Same
+/// (arrangement, seed) → same layout.
 ///
 /// Which arrangement a world uses is [`crate::theme::WorldMood::arrangement`],
 /// not this function's business: keying it on the mood index meant inserting a
@@ -1414,9 +1414,8 @@ fn landmark_anchor(anchor: crate::recipe::Anchor, i: usize) -> Vec3 {
 // --- perf stress test (VERSE_STRESS) ---------------------------------------
 
 /// Dev perf validation: `VERSE_STRESS=5000 cargo run` spawns that many prop
-/// instances (cycling the current mood's manifest set) and logs frame rates —
-/// the idea.md Stage-1 budget is 60 fps @ ~5k instances on a mid GPU, which
-/// ARCHITECTURE §3 flags as an unvalidated claim until measured.
+/// instances (cycling the current mood's manifest set) and logs frame rates.
+/// What it measured is in ARCHITECTURE.md, "Measured limits".
 #[derive(Resource)]
 pub struct StressTest {
     pub target: usize,

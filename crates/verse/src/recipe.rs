@@ -20,7 +20,7 @@
 //! after [`WorldRecipe::clamped`]. The doc comments on each field describe
 //! them for whoever writes one.
 //!
-//! Design rule (idea.md / PLAN §0.3): the recipe **modulates within a mood** —
+//! Design rule (PLAN.md §0.3): the recipe **modulates within a mood** —
 //! it never replaces the base palette, which stays owned by [`crate::theme`].
 //! That keeps the Comfort gates (2 Hz flash cap, gentler-motion), the
 //! equal-power crossfade, and the pinned-world logic untouched.
@@ -469,7 +469,7 @@ mod tests {
     }
 
     /// A sidecar written *before* recipes existed (no recipe field) must still
-    /// deserialize — the recipe simply reads as `None` (PLAN §41 contract).
+    /// deserialize — the recipe simply reads as `None`.
     /// This test lives here to keep the contract visible at the schema.
     #[test]
     fn missing_recipe_field_is_none_at_caller() {
