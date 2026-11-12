@@ -70,10 +70,10 @@ and under `ml` the map the embedding thread fills. There is no `unsafe`.
 ## The performed world
 
 `analysis::sync_analysis` applies a sidecar when its track becomes current:
-sections, beat grid, mood, layout seed, timbre and the clamped recipe (its
-section moments come from the unclamped copy, so `energy_shift` arrives
-unbounded, as does `particles.drift`, which `clamped()` skips). Bass is the
-louder of the Demucs bass curve at the playhead and the live tap's band.
+sections, beat grid, mood, layout seed, timbre and the clamped recipe,
+whose section moments are resolved against the track's measured sections.
+Bass is the louder of the Demucs bass curve at the playhead and the live
+tap's band.
 
 - **Sections.** `world::sync_section_moment` eases `SectionFeel` (energy
   shift, motion, beacons, particles, scatter) toward the entered section's

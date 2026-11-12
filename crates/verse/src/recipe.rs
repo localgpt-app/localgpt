@@ -262,8 +262,9 @@ pub struct Particles {
     pub kind: ParticleKind,
     /// Emission rate 0..1 (0 = none). Clamped; high values are capped by perf.
     pub rate: f32,
-    /// Upward drift speed multiplier (embers rise; snow falls = negative feel
-    /// via the kind). 1.0 = default.
+    /// Drift speed multiplier, 0..2.5 (1.0 = default). The kind sets the
+    /// direction (embers rise, snow falls), so a negative value is clamped
+    /// to 0, never reversed.
     pub drift: f32,
 }
 
@@ -400,6 +401,7 @@ impl WorldRecipe {
             m.energy_shift = m.energy_shift.clamp(-1.0, 1.0);
         }
         self.particles.rate = self.particles.rate.clamp(0.0, 1.0);
+        self.particles.drift = self.particles.drift.clamp(0.0, 2.5);
         self
     }
 }
@@ -446,6 +448,34 @@ mod tests {
         .clamped();
         assert_eq!(r.biomes[0].mood, 1); // 9 % 4
         assert_eq!(r.biomes[0].tint, [0.0, 1.0, 0.3]);
+    }
+
+    #[test]
+    fn clamped_recipe_bounds_particles_and_moments() {
+        let r = WorldRecipe {
+            particles: Particles {
+                drift: 40.0,
+                ..Default::default()
+            },
+            section_choreography: vec![SectionMoment {
+                energy_shift: -7.0,
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .clamped();
+        assert_eq!(r.particles.drift, 2.5);
+        assert_eq!(r.section_choreography[0].energy_shift, -1.0);
+
+        let r = WorldRecipe {
+            particles: Particles {
+                drift: -3.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+        .clamped();
+        assert_eq!(r.particles.drift, 0.0);
     }
 
     #[test]

@@ -1068,8 +1068,10 @@ pub fn sync_analysis(
             // renderer reads. The choreography is resolved against this
             // analysis' measured sections/energy here — the renderer only
             // sees indices.
+            // Moments come from the clamped recipe, never the sidecar's raw
+            // values.
             active_recipe.recipe = world_recipe(a);
-            active_recipe.moments = a
+            active_recipe.moments = active_recipe
                 .recipe
                 .as_ref()
                 .map(|r| resolve_section_moments(a, &r.section_choreography))
@@ -1290,9 +1292,13 @@ mod tests {
             let base = extended % crate::theme::ASSET_BASE_MOODS;
             assert!(base < crate::theme::ASSET_BASE_MOODS);
             // Same bright/dark family: base^1 flips brightness, base^2 the
-            // drive — both stay inside the asset-tagged four.
-            assert!(base ^ 1 < 4);
-            assert!(base ^ 2 < 4);
+            // drive — both land on another of the asset-tagged four.
+            let flipped = [base ^ 1, base ^ 2];
+            assert!(
+                flipped
+                    .iter()
+                    .all(|&m| m != base && m < crate::theme::ASSET_BASE_MOODS)
+            );
         }
     }
 
