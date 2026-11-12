@@ -6,17 +6,23 @@
 //!   keepalive every 30 s; nothing is pushed yet).
 //! - `DELETE /mcp` — ends the session.
 //!
-//! Sessions are tracked by the `Mcp-Session-Id` header. CORS is open, for
-//! browser-based MCP clients. Behind the `mcp-http` feature.
+//! Sessions are tracked by the `Mcp-Session-Id` header. Only this machine is
+//! served: a request whose `Origin` or `Host` names another host is refused
+//! (a web page open in a browser here, or one that rebinds its name to
+//! 127.0.0.1), and CORS admits pages served from loopback, so a
+//! browser-based MCP client running locally still works. Behind the
+//! `mcp-http` feature.
 
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::http::{HeaderMap, HeaderValue, StatusCode};
+use axum::extract::Request;
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::middleware::{self, Next};
 use axum::response::sse::{Event, Sse};
-use axum::response::{IntoResponse, Json};
+use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{delete, get, post};
 use axum::{Router, extract::State};
 use futures::stream::Stream;
@@ -41,7 +47,9 @@ pub fn mcp_http_router(handler: Arc<dyn McpHandler>) -> Router {
     });
 
     let cors = CorsLayer::new()
-        .allow_origin(AllowOrigin::any())
+        .allow_origin(AllowOrigin::predicate(|origin, _| {
+            names_this_machine(origin)
+        }))
         .allow_methods(Any)
         .allow_headers(Any)
         .expose_headers(Any);
@@ -52,6 +60,52 @@ pub fn mcp_http_router(handler: Arc<dyn McpHandler>) -> Router {
         .route("/mcp", delete(handle_delete))
         .with_state(state)
         .layer(cors)
+        .layer(middleware::from_fn(local_only))
+}
+
+/// Refuse a request that comes from a web page of another host. The tools
+/// change the person's world, and a browser will send a page's request to a
+/// loopback port: CORS keeps a cross-site page from reading the answer, not
+/// from sending, and a page that rebinds its own name to 127.0.0.1 is
+/// same-origin. Its `Origin` or `Host` still names it, so both are checked;
+/// a native client sends no `Origin`.
+async fn local_only(request: Request, next: Next) -> Response {
+    if from_this_machine(request.headers()) {
+        next.run(request).await
+    } else {
+        warn!(
+            "MCP HTTP refused a request from origin {:?}, host {:?}",
+            request.headers().get(header::ORIGIN),
+            request.headers().get(header::HOST),
+        );
+        StatusCode::FORBIDDEN.into_response()
+    }
+}
+
+/// Whether the request's `Origin` and `Host`, where present, both name this
+/// machine.
+fn from_this_machine(headers: &HeaderMap) -> bool {
+    [header::ORIGIN, header::HOST]
+        .iter()
+        .all(|name| headers.get(name).is_none_or(names_this_machine))
+}
+
+/// Whether an `Origin` (`scheme://host[:port]`) or `Host` (`host[:port]`)
+/// value names localhost or a loopback address. `null` (a file or a
+/// sandboxed frame) does not.
+fn names_this_machine(value: &HeaderValue) -> bool {
+    let Ok(value) = value.to_str() else {
+        return false;
+    };
+    let authority = value.split_once("://").map_or(value, |(_, rest)| rest);
+    let host = match authority.strip_prefix('[') {
+        Some(v6) => v6.split(']').next().unwrap_or_default(),
+        None => authority.split([':', '/']).next().unwrap_or_default(),
+    };
+    host.eq_ignore_ascii_case("localhost")
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|ip| ip.is_loopback())
 }
 
 /// Bind `addr` and serve until the server stops.
@@ -222,6 +276,50 @@ mod tests {
         let session_id = session_of(&response);
         assert_ne!(session_id, "missing-session");
         assert!(state.sessions.read().await.contains_key(&session_id));
+    }
+
+    /// A request's headers: its `Host`, and its `Origin` when a page sent it.
+    fn request(host: &'static str, origin: Option<&'static str>) -> HeaderMap {
+        let mut map = HeaderMap::new();
+        map.insert(header::HOST, HeaderValue::from_static(host));
+        if let Some(origin) = origin {
+            map.insert(header::ORIGIN, HeaderValue::from_static(origin));
+        }
+        map
+    }
+
+    #[test]
+    fn requests_from_this_machine_are_served() {
+        assert!(from_this_machine(&HeaderMap::new()));
+        for (host, origin) in [
+            ("127.0.0.1:8765", None),
+            ("localhost:8765", None),
+            ("[::1]:8765", Some("http://localhost:6274")),
+            ("127.0.0.1:8765", Some("https://127.0.0.1")),
+        ] {
+            assert!(
+                from_this_machine(&request(host, origin)),
+                "{host} {origin:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn requests_from_other_hosts_pages_are_refused() {
+        for (host, origin) in [
+            // A site's page in a browser on this machine.
+            ("127.0.0.1:8765", Some("https://example.com")),
+            // A site that rebound its name to 127.0.0.1.
+            ("example.com:8765", Some("http://example.com:8765")),
+            ("localhost.example.com:8765", None),
+            // A file or a sandboxed frame.
+            ("127.0.0.1:8765", Some("null")),
+        ] {
+            assert!(
+                !from_this_machine(&request(host, origin)),
+                "{host} {origin:?}"
+            );
+        }
     }
 
     #[tokio::test]

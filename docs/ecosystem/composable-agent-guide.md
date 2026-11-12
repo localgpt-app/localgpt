@@ -171,7 +171,7 @@ The tools do touch the disk. By default they write under Gen's workspace, in the
 - Binds to `127.0.0.1` only (localhost). Not exposed to the network by default.
 - Session tracking via `Mcp-Session-Id` header (UUID, server-generated). It is not a credential.
 - No authentication token on the HTTP transport. If you need network exposure, put it behind a reverse proxy with auth.
-- CORS is permissive (any origin, method and header) to support browser-based MCP clients, and the `Origin` header is not checked. Nothing on the server stops a web page in a browser on the same machine from calling the tools while the port is open.
+- Only this machine is served. A request whose `Origin` or `Host` names another host gets 403, which stops a web page open in a browser here, and a site that rebinds its name to 127.0.0.1, from calling the tools. CORS admits pages served from `localhost` or a loopback address, so a browser-based MCP client running locally still works.
 
 ### Relay security
 
