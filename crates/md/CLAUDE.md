@@ -1,17 +1,12 @@
 # CLAUDE.md
 
-> **This crate lives in the `localgpt` workspace** (folded in from the
-> standalone `localgpt-md` repository; see
-> `docs/world-strategy.md`). Run everything from the
-> workspace root with `-p localgpt-md`. The shared asset pack is fetched
-> once by `cargo xtask fetch-assets` and resolved by
-> `localgpt-world-agent`'s `paths` module.
->
-> Bevy takes one asset base, so `crates/md/assets/models` is a **symlink**
-> to the shared pack that `cargo xtask fetch-assets` creates — run it once, or
-> the app starts with no asset pack and builds procedural worlds only.
+What is particular to `crates/md`. The workspace's rules (no model, lint,
+commits, the all-Rust rule) are in the root `CLAUDE.md`; run everything from
+the workspace root with `-p localgpt-md`.
 
-Guidance for Claude Code when working in this repository.
+Bevy takes one asset base, so `crates/md/assets/models` is a **symlink** to
+the shared pack that `cargo xtask fetch-assets` creates — run it once, or
+the app starts with no asset pack and builds procedural worlds only.
 
 ## What this is
 
@@ -22,10 +17,9 @@ rule-based draft comes from the **sidecar** beside the document
 (`<doc>.world.json`): a build (entities in place, real CC0 pack assets) or
 a one-JSON recipe per section, keyed by the section's hash, which an agent
 working on the file writes; a ```` ```world ```` fence in the file overrides
-both. MD applies the sidecar and never writes it — **no model runs in this
-crate** (the in-process one went on 2026-11-01). A member of the `localgpt`
-workspace, Apache-2.0. Siblings in the same workspace: `crates/verse`
-(song → world) and `crates/gen` (prompt → world).
+both. MD applies the sidecar and never writes it: **no model runs in this
+crate**. Siblings in the workspace: `crates/verse` (song → world) and
+`crates/gen` (prompt → world).
 
 ## Commands
 
@@ -36,22 +30,16 @@ cargo run -p localgpt-md -- path/to/doc.md                      # open any Markd
 cargo run -p localgpt-md -- doc.md --print-ron                  # compiled world as RON, no window
 cargo run -p localgpt-md -- doc.md --export out.json            # or out.ron / out.html (web viewer page), no window
 LOCALGPT_MD_SCREENSHOT=/tmp/shot.png cargo run -p localgpt-md   # render the first stop offscreen to a PNG, then exit
-cargo xtask fetch-assets                         # copy the CC0 asset pack (optional; sibling repo works too)
 cargo test -p localgpt-md
 cargo clippy -p localgpt-md --all-targets -- -D warnings
-cargo fmt
 ```
-
-Run `cargo check -p localgpt-md` after every change and fix all errors before reporting
-completion. Run clippy and fmt before committing. CI
-(`.github/workflows/ci.yml`) runs fmt, clippy, the tests and cargo-deny
-(`deny.toml`); advisories run on main and weekly, never on pull requests.
 
 To check rendering, use the screenshot mode and read the PNG. It renders to
 an offscreen image with no window, because reading back a window's frame
 returns solid black when the Mac is locked or headless (Verse hit the same
-thing; see its ARCHITECTURE.md R8). Without a window, the camera has to be
-marked `IsDefaultUiCamera`, or the UI isn't drawn.
+thing: `crates/verse/ARCHITECTURE.md`, "Screenshots without a window").
+Without a window, the camera has to be marked `IsDefaultUiCamera`, or the UI
+isn't drawn.
 
 ## Architecture
 
@@ -121,26 +109,13 @@ component (`bevy::camera::Hdr`); scene-wide ambient light is the
 buffered events are messages (`MessageWriter<AppExit>`); hierarchy is
 `ChildOf(parent)`, and `despawn()` is recursive.
 
-## Plan and reuse
+## Notes
 
-See PLAN.md: M0–M5 are done as built; M1's and M3's in-process model went
-on 2026-11-01, and the sidecar they filled is now the agent's to write.
-Verse and LocalGPT are Apache-2.0, so copying from them is fine; name the
-source in a comment.
-
-## Rules
-
-- License is Apache-2.0. Never copy code from Local Native or Fastxt (AGPL-3.0).
-- This repo is public. Never name the closed-source sibling 3D platform; use
-  generic terms such as "connected 3D app".
-- No model in this crate: nothing may load a language model, call a
-  provider or a service, or hold a key. An agent authors; MD applies.
-- Commits: conventional commits (`feat:`, `fix:`, `docs:`, `chore:`,
-  `refactor:`), with no Co-Authored-By or Claude-Session trailers.
-- Never use `sed` to edit Rust files; use the Edit tool.
-- `website-md/` (workspace root) is **localgpt.md, the previs page** — not
-  MD's: since 2026-10-12 it drops a screenplay (PDF, Final Draft, Fountain
-  or Markdown script pages) and boards it through `crates/previs-web`. The drop-a-Markdown-file
-  demo and `crates/md-web` are gone; walking a document lives in this crate's
-  Bevy app. The docs live on localgpt.app under `website/docs/md/`; update
-  them when commands, keys, export or the sidecar change.
+- `PLAN.md` is the key to the milestone numbers (M0–M5) the source cites.
+- Copying from Verse and the rest of the workspace is fine (all Apache-2.0);
+  name the source in a comment.
+- `website-md/` at the workspace root is **localgpt.md, the previs page**,
+  not MD's: it boards a screenplay through `crates/previs-web`. Walking a
+  document lives in this crate's Bevy app and in `localgpt-app --md`.
+- MD's docs are on localgpt.app, in `website/content/docs/md/`: update them
+  when commands, keys, export or the sidecar change.

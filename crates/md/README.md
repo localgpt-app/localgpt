@@ -47,7 +47,7 @@ the workspace root is [https://localgpt.md](https://localgpt.md/), the
 board — it reads PDFs, Final Draft files and Markdown script pages as well
 as Fountain, but it does not
 walk a document; that is this crate's Bevy app. The docs live on
-localgpt.app, in this repository's `website/docs/md/`.
+localgpt.app, in this repository's `website/content/docs/md/`.
 
 ## License
 
