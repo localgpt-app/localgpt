@@ -15,11 +15,11 @@ step 2 asks for, so that the phone and rooms share it.
 An open world has one person in it, with their agents. The person edits in
 the window, the agents edit through the live API or `localgpt world`, and
 every entry in the history names who made it. Nobody on another computer can
-join. What exists for that is Gen's, and it falls short in five ways:
+join. What exists for that is Gen's, and it falls short in four ways:
 
-- **The app has no rooms.** Its Collaborate section went with its half of the
-  harness. `localgpt-gen --host` is the only host, and it hosts Gen's scene,
-  kept as a session package, not the `.world` the app has open.
+- **The app has no rooms.** `localgpt-gen --host` is the only host, and it
+  hosts Gen's scene, kept as a session package, not the `.world` the app has
+  open.
 - **A room is a second authority.** world-sync's `Authority` keeps its own
   document, revision and per-author undo stacks
   (`crates/world-sync/src/authority.rs:101–113`), beside `LiveWorld`, which
@@ -31,7 +31,7 @@ join. What exists for that is Gen's, and it falls short in five ways:
   (`crates/world-sync/src/protocol.rs:141–147`). Everyone it lets in gets the
   same role (`crates/gen/src/net/web.rs:910–916`), and a guest may take any
   name not in use, an absent person's included. On a live canvas every entry
-  has an author, and `undo --own`, the outliner's marks and proposals depend
+  has an author, and `undo --own`, the history panel and proposals depend
   on it. With one shared secret, removing one person for good means a new
   secret for everyone.
 - **Nothing is encrypted.** The room's WebSocket is plain, on a LAN and
@@ -41,16 +41,9 @@ join. What exists for that is Gen's, and it falls short in five ways:
   (`crates/relay/src/main.rs:390`), so whoever runs a relay can read its
   rooms and could hand guests a page of its own. TLS in front of the relay
   protects the hops to it, not the room from it.
-- **A hole that didn't wait for this design.** Through the relay, the PIN
-  was reachable by anyone with a room's code, and nothing limited the
-  guesses: a relayed guest could present the PIN in place of the token, and
-  a failed hello closed a direct socket but not a relayed one, since the
-  relay client dropped the close and the relay acted on nothing from the
-  host but frames. Step 0 closed it on 2026-11-03: a relayed hello is let in
-  by the token alone (`web.rs:871–909`), a refused hello's close reaches the
-  relay (`crates/gen/src/net/relay_client.rs:214–232`,
-  `crates/relay/src/main.rs:281–288`), and five wrong PINs stop a session
-  taking the PIN (`web.rs:57`).
+
+A fifth, the PIN guessed through the relay, did not wait for this design:
+step 0 closed it.
 
 ## What others do
 
@@ -63,7 +56,7 @@ join. What exists for that is Gen's, and it falls short in five ways:
   reach each other, its DERP relays forward packets they cannot read.
 - **Orca** pairs a phone with a desktop by QR code. Away from the network, it
   splices end-to-end encrypted streams through relay cells keyed by the
-  host's X25519 key (mobile-remote.md, *What others do*).
+  host's X25519 key.
 - **Magic Wormhole** makes short typed codes safe with a PAKE (SPAKE2): a
   wrong guess costs one online try and fails where both sides see it.
 - **Figma and Google Docs** keep accounts and serve over TLS to servers that
@@ -79,7 +72,7 @@ wire protocol (hello, welcome, presence, chat, the ops fan-out) and its
 limits. It gives up its own document, revision and undo stacks.
 
 A guest's edit becomes a batch handed to `live_world`
-(`crates/gen/src/gen3d/live.rs:1761`). That is the one system that owns
+(`crates/gen/src/gen3d/live.rs:1754`). That is the one system that owns
 `LiveWorld`, and it already drains the live API's calls and takes the
 person's edits and review decisions. The batch's author is the guest's name.
 Both sides speak `wt::EditOp`, so nothing is translated.
@@ -95,8 +88,8 @@ So a guest's edit gets everything an agent's has:
 
 Every commit goes to the room as ops, whoever made it (the person, an agent
 or a guest). It leaves from where `live_world` publishes `LiveHistory`
-(`live.rs:1600`). A guest who arrives late gets the head's world first, then
-everything after it.
+(`publish`, `live.rs:1593`). A guest who arrives late gets the head's world
+first, then everything after it.
 
 **Roles.** Each person has one, given with the invite and changed in the
 people list:
@@ -108,15 +101,17 @@ people list:
 | edit | submit batches that commit |
 
 **Presence.** Each person's camera and selection are drawn in the canvas and
-marked in the outliner, as an agent's work is.
+marked in the outliner. The shell's outliner marks nobody yet: the app sends
+who the person is and what a waiting proposal touches (`SceneView`,
+`crates/app/src/scene.rs`), and `crates/app/src/shell/scene.rs` draws
+neither.
 
 **Prompts stay out.** A guest's text never reaches the host's agents. They
 run with a shell on the host's computer, and text from another person is a
 prompt injection with that shell behind it. A guest who wants an agent
 brings their own (step 4).
 
-Gen's `--host` stays until the app's room does what it does, then goes, as
-Gen's desktop mode went.
+Gen's `--host` stays until the app's room does what it does, then goes.
 
 ### Who is in the room: a key per person
 
@@ -128,7 +123,7 @@ and, from step 2, carries the host's public key.
 At the first join, the one-time code is traded for the guest's key and binds
 it to the invite's role and to the name the host sees. In step 1 that key is
 a bearer key the app makes and keeps the hash of, as the phone's pairing
-does (`remote.rs:641`). From step 2 it is a key pair the device makes, and
+does (`remote.rs:639`). From step 2 it is a key pair the device makes, and
 the host keeps only the public half, so nothing on its disk opens the room.
 From then on **the key is the person**:
 
@@ -169,7 +164,8 @@ The rest of the channel:
   device a key of its own. The remote's step 2 swaps that bearer key for a
   key pair and wraps the socket the same way, so the channel is built once
   for both. Where the phone's page comes from stays mobile-remote.md's
-  question (its wrapper app).
+  question (a wrapper holding the page's bundle, or another trusted HTTPS
+  origin).
 - **Why not TLS.** A browser won't trust a certificate for a LAN address,
   and through the relay TLS ends at the relay.
 
@@ -179,9 +175,10 @@ Whoever serves a browser guest's JavaScript can read its keys. So the page
 must come neither from the relay nor over plain HTTP, and a plain-HTTP page
 has no WebCrypto besides.
 
-- **Browser guests** open a fixed page at `localgpt.world/r/<code>`, the
-  canonical room-link location in `world-strategy.md`, with the host's key
-  and the one-time code in the fragment. The relay serves no page.
+- **Browser guests** open a fixed page at `localgpt.world/r/<code>`, with
+  the host's key and the one-time code in the fragment:
+  [world-strategy.md](../../world-strategy.md) puts shared links on
+  localgpt.world. The relay serves no page.
 - **They reach the host through the relay,** even from the next room: an
   HTTPS page can't open `ws://` to a LAN address (mixed content).
 - **The host's own plain-HTTP page** stays for a network the person trusts,
@@ -191,8 +188,11 @@ has no WebCrypto besides.
 
 The page is a static build of the repository's own client: `crates/world-export`'s
 session client and viewer, versioned and served from localgpt.world.
-Trusting it is trusting the project's site, as downloading the app is. If the
-shared panels described in [all-rust.md](all-rust.md) later run in the
+Trusting it is trusting the project's site, as downloading the app is. Both
+are JavaScript, and [all-rust.md](all-rust.md)'s rule, decided after this
+proposal, allows nothing new in another language: the browser's half of the
+channel is Rust compiled to WebAssembly, or an exception added to
+`xtask/rule.txt` by hand. If that document's shared panels later run in the
 browser, the guest page can converge with that work instead of growing a
 separate interface.
 
@@ -208,14 +208,16 @@ separate interface.
 
 ## Steps
 
-0. **Close the relay's PIN hole now**, before any of this. Done 2026-11-03:
-   - a relayed hello is let in by the token only;
+0. **The relay's PIN hole, closed 2026-11-03.** Three rules hold since, and
+   a change to `crates/gen/src/net` or `crates/relay` keeps them:
+   - a relayed hello is let in by the invite token alone, never the PIN,
+     which anyone with a room's code could otherwise guess at
+     (`web.rs:871–909`);
    - a refused hello ends a relayed connection as it ends a direct one: the
-     relay client sends the close on, and the relay acts on it;
-   - a session stops taking the PIN after five wrong ones; the invite token
-     still joins, and a new session gets a new PIN.
-
-   In `crates/gen/src/net` and `crates/relay`.
+     relay client sends the close on, and the relay acts on it
+     (`relay_client.rs:214–232`, `crates/relay/src/main.rs:281–288`);
+   - a session stops taking the PIN after five wrong ones (`web.rs:57`); the
+     invite token still joins, and a new session gets a new PIN.
 1. **The room in the app, on a network the person trusts.**
    - The app hosts a room for its open world on a listener of its own: 9879,
      Gen's session port, or any free port when that is taken. It is never
@@ -225,7 +227,8 @@ separate interface.
      whose hash the app keeps.
    - Presence shows in the canvas and the outliner.
    - The browser guest uses the host's own page.
-   - The invite and the people list are drawn on a design sheet first.
+   - The invite and the people list are drawn in the shell, as the phone's
+     pairing panel is (`crates/app/src/shell/bar.rs`).
    - The WebSocket is plain, labelled for a network the person trusts, as
      the phone's step 1 is.
 2. **The channel**, for rooms and the phone together:
@@ -243,20 +246,23 @@ separate interface.
    - A guest's own agent editing under the guest's name, through the
      guest's connection. The guest's app could give `localgpt world` an
      endpoint that forwards to the room.
-   - Cloud rooms (the SpacetimeDB module, the collaborative RFC's phase 8),
-     for a room that must outlive its host.
+   - A room that must outlive its host's window: the collaborative RFC's
+     persistent room, a host with no window, which is not built. A cloud
+     authority is out of scope
+     ([world-strategy.md](../../world-strategy.md)).
 
 ## Who it is for
 
 Anyone who wants a second person in a world they are making with agents.
 For previs, that is the crew: a director, a DP and an AD in one set from
 three places, with a guest's change to a shot waiting as a proposal. Whether
-previs crews want that is a question for the previs user test
-([previs-user-test.md](../../previs-user-test.md)).
+previs crews want that is a question for previs users; the observation sheet
+([previs-user-test.md](../../previs-user-test.md)) does not ask it yet.
 
 ## What this gives up
 
-- **A room without its host.** It lives in the host's app until cloud rooms.
+- **A room without its host.** It lives in the host's app; one that outlives
+  the window is step 4's.
 - **Anonymous drop-ins.** Every guest is invited and has a key. A reusable,
   anyone-with-the-link invite is *Not decided*.
 - **A direct LAN socket for an encrypted browser guest.** It goes through
@@ -282,9 +288,6 @@ previs crews want that is a question for the previs user test
 
 ## Status
 
-- [x] the relay's claims corrected in `docs/gen/multiplayer.md`, the
-      collaborative RFC, the website's multiplayer page and the code's
-      comments (2026-10-31)
 - [x] step 0: the relay's PIN hole (2026-11-03)
 - [ ] step 1: the room in the app, by the phone's pairing, on a network the
       person trusts

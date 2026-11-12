@@ -1,6 +1,6 @@
 # Mobile: a paired remote for the desktop app
 
-**Status:** step 1 implemented. The desktop app can pair a phone or tablet on the local network and serve it a remote page with terminals, the world and history. Tablet layouts landed 2026-11-04. Protocol tests and headless browser checks pass; real devices in a hand remain the acceptance test. There is no separate native mobile app and no model on the device.
+**Status:** step 1 implemented. The desktop app can pair a phone or tablet on the local network and serve it a remote page with terminals, the world and history, laid out for either. Protocol tests (`crates/app/src/webui`) and headless browser checks (`scripts/remote-smoke.mjs`; `--phone` drives the page at an iPhone's and an iPad's size) pass; real devices in a hand remain the acceptance test. There is no separate native mobile app and no model on the device.
 
 ## The product boundary
 
@@ -13,11 +13,9 @@ The world and the agents stay on the desktop. A phone or tablet is a remote for 
 
 This avoids pretending that a phone can reproduce a coding agent's desktop environment. iOS in particular cannot provide the unrestricted processes, shell, builds and child MCP servers those agents expect. It also avoids putting a second world authority on the device: the desktop remains the owner.
 
-A future standalone viewer is a different product question. It should read the Open World Format rather than reuse this remote-control protocol.
-
 ## Step 1: the local remote
 
-The remote is off until enabled from the desktop's **Phone** panel or with `LOCALGPT_APP_REMOTE=on`. When enabled, the app listens on port 9880 (`LOCALGPT_APP_REMOTE_PORT` overrides it), serves the device page over HTTP and accepts its WebSocket.
+The remote is off until enabled from the **Phone** button in the desktop's top bar or with `LOCALGPT_APP_REMOTE=on`, and the choice is remembered (`LOCALGPT_APP_REMOTE=off` keeps it off). When enabled, the app listens on every interface at port 9880 (`LOCALGPT_APP_REMOTE_PORT` overrides it; any free port when that one is taken), serves the device page over HTTP and accepts its WebSocket.
 
 The desktop and device exchange the app's own messages: terminal input and screens, history, the clock, proposals and world frames. A device that attaches late receives the latest snapshots before live updates.
 
@@ -43,7 +41,7 @@ A tablet shows the world and terminals together:
 
 - side by side on wide layouts;
 - world above terminals on narrower portrait layouts;
-- history and shots in tabs under the world.
+- history and shots in tabs under the world's frame, or beside it when the world is above the terminals.
 
 Layout follows page width, never height, because opening the keyboard changes height and must not rearrange the terminal under the person's fingers. Below 600 px, including an iPad in Split View, the phone layout is used.
 
@@ -73,6 +71,7 @@ The important boundaries are:
 - device keys are random and stored only as hashes on the desktop;
 - devices can be revoked individually;
 - the listener is off by default;
+- a page from another origin can neither pair nor connect (the listener checks `Origin` against `Host`);
 - remote keys and live-world API tokens are separate credentials.
 
 ## Step 2: away from the trusted network
@@ -104,12 +103,7 @@ If users need to open worlds with no desktop nearby, build that as a standalone 
 
 ## Status
 
-- [x] Local listener, device page and WebSocket protocol.
-- [x] One-time pairing, hashed device keys and revocation.
-- [x] Shared terminals, late-attachment snapshots and terminal sizing.
-- [x] World frames, shot selection, history and proposal controls.
-- [x] Phone and tablet layouts.
-- [x] Live API token hardening needed by the same app.
+- [x] Step 1: the listener, pairing and revocation, shared terminals, world frames, history and proposal controls, phone and tablet layouts.
 - [ ] Physical phone and tablet validation.
 - [ ] Previs mobile question tested with users.
 - [ ] End-to-end channel and push, if usage justifies step 2.

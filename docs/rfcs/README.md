@@ -18,16 +18,16 @@ Every design document opens with a `**Status:**` line that says what is true now
 | Document | What it informs |
 |---|---|
 | [authoring/blender-lessons.md](authoring/blender-lessons.md) | Editor commands, undo, selection, transforms, the outliner and the separation between authored and evaluated state. |
-| [authoring/cad-lessons.md](authoring/cad-lessons.md) | eframe/egui rendering, a command-driven agent surface, headless parity and Rust tooling. |
+| [authoring/cad-lessons.md](authoring/cad-lessons.md) | A command-driven agent surface, panic containment, headless parity and the control channel. |
 
 ## Collaborative sessions
 
 | Document | Current role |
 |---|---|
 | [multiplayer/collaborative-world-engine-architecture.md](multiplayer/collaborative-world-engine-architecture.md) | **Implemented in part.** The current op-based room authority, wire protocol, native and browser guests, persistence and relay. |
-| [multiplayer/session-package-format.md](multiplayer/session-package-format.md) | **Implemented.** One package for a session's base world, committed ops, snapshots and replay. |
+| [multiplayer/session-package-format.md](multiplayer/session-package-format.md) | **Implemented for Gen's hosted sessions.** The session directory: base world, the one op log, snapshots, resume and replay. |
 
-The old SpacetimeDB and planetary-scale designs are out of scope. A hosted room uses the same `world-sync` authority through a headless host or relay.
+The old SpacetimeDB and planetary-scale designs are out of scope. A room lives in its host's window, behind a relay when the host is behind NAT; a persistent room is not built.
 
 ## The format
 

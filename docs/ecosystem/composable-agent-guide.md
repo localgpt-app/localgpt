@@ -4,10 +4,9 @@ How external agent runtimes discover and call LocalGPT Gen's MCP tools.
 
 | Field | Value |
 |-------|-------|
-| Date | 2026-03-28 |
 | Status | Living Document |
 | MCP Protocol | 2024-11-05 |
-| Transports | stdio, Streamable HTTP |
+| Transports | stdio, Streamable HTTP, the relay |
 
 ---
 
@@ -15,47 +14,24 @@ How external agent runtimes discover and call LocalGPT Gen's MCP tools.
 
 LocalGPT Gen exposes 88 tools for 3D world generation, audio, physics, terrain, and more through the Model Context Protocol (MCP). Any MCP-capable agent runtime can connect to it and drive the Bevy scene as a composable component -- no forking, no SDK integration, no shared process space.
 
-The mental model: **your agent is the brain; LocalGPT Gen is the hands.** Your agent decides what to build. LocalGPT Gen spawns primitives, places terrain, configures lighting, saves worlds, and captures screenshots. The MCP wire protocol is the only coupling.
+The mental model: **your agent is the brain; LocalGPT Gen is the hands.** Your agent decides what to build. LocalGPT Gen spawns primitives, places terrain, configures lighting, saves worlds, and captures screenshots. The MCP wire protocol is the only coupling. Gen runs no model, calls no service and holds no key.
 
-Two MCP servers exist:
+This guide covers what the other documents leave out: how each transport behaves on the wire, what it does and does not protect, and the limits a runtime has to plan for. The rest is elsewhere:
 
-| Binary | Command | Tools | Use Case |
-|--------|---------|-------|----------|
-| `localgpt-gen` | `localgpt-gen mcp-server` | 88 `gen_*` tools | 3D world generation, audio, physics, terrain |
-| `localgpt` | `localgpt world mcp` | A live `.world` package's tools | Editing a world an app has open, from any MCP client |
-
-This guide focuses on `localgpt-gen mcp-server` since that is where the composable 3D generation lives. Neither server runs a model, calls a service or holds a key: the agent is the brain.
+- [AGENTS.md](../../AGENTS.md) -- the two MCP servers (`localgpt-gen mcp-server` and `localgpt world mcp`) and the tool catalog with parameters
+- [MCP server user guide](../../website/content/docs/gen/mcp-server.md) -- client configuration
+- [MCP relay](../../website/content/docs/gen/cli-mode.md) -- driving a window that is already open (`--mcp-relay`, `mcp-server --connect`)
 
 ---
 
 ## Quick Start
-
-### 1. Build the binary
 
 ```bash
 cd localgpt
 cargo build --release -p localgpt-gen
 ```
 
-The binary lands at `target/release/localgpt-gen`.
-
-### 2. Choose a transport
-
-**Stdio** (default) -- the MCP client launches the process and communicates over stdin/stdout:
-
-```bash
-localgpt-gen mcp-server
-```
-
-**Streamable HTTP** -- the MCP server listens on a port; any number of clients can POST to it:
-
-```bash
-localgpt-gen mcp-server --mcp-http 8080
-```
-
-This starts both the stdio server and an HTTP server at `http://127.0.0.1:8080/mcp`.
-
-### 3. Verify with a raw JSON-RPC call
+The binary lands at `target/release/localgpt-gen`. Verify it with a raw JSON-RPC call.
 
 Stdio (pipe a single request):
 
@@ -63,7 +39,7 @@ Stdio (pipe a single request):
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | localgpt-gen mcp-server --headless 2>/dev/null
 ```
 
-HTTP:
+HTTP, against a `localgpt-gen mcp-server --mcp-http 8080` left running:
 
 ```bash
 curl -s -X POST http://127.0.0.1:8080/mcp \
@@ -71,7 +47,7 @@ curl -s -X POST http://127.0.0.1:8080/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | jq .
 ```
 
-Expected response (abbreviated):
+Expected response:
 
 ```json
 {
@@ -80,7 +56,7 @@ Expected response (abbreviated):
   "result": {
     "protocolVersion": "2024-11-05",
     "capabilities": { "tools": {} },
-    "serverInfo": { "name": "localgpt-gen", "version": "0.1.0" }
+    "serverInfo": { "name": "localgpt-gen", "version": "<the workspace version>" }
   }
 }
 ```
@@ -89,134 +65,35 @@ Expected response (abbreviated):
 
 ## Stdio Transport
 
-The stdio transport is the standard MCP integration path. The MCP client (your agent runtime or editor) spawns `localgpt-gen mcp-server` as a child process and exchanges newline-delimited JSON-RPC 2.0 messages over stdin/stdout. Stderr carries log output and is ignored by the protocol.
+The stdio transport is the standard MCP integration path. The MCP client (your agent runtime or editor) spawns `localgpt-gen mcp-server` as a child process and exchanges newline-delimited JSON-RPC 2.0 messages over stdin/stdout. Stderr carries log output and is ignored by the protocol. A line that is not JSON is skipped. When stdin closes the process exits, and its window with it.
 
 ### CLI flags
 
 | Flag | Description |
 |------|-------------|
 | `--headless` | No Bevy window. Useful for CI, batch generation, or headless servers. |
-| `--connect [PORT]` | Connect to an already-running gen process via its TCP relay instead of starting Bevy. Port auto-discovered if omitted. |
+| `--connect [PORT]` | Be the stdio end of a window started with `localgpt-gen --mcp-relay`, instead of starting Bevy. Port auto-discovered if omitted. The other two flags do nothing with it. |
 | `--mcp-http PORT` | Also start an HTTP MCP server on this port (in addition to stdio). |
-
-### Client configuration
-
-Most MCP-capable tools read a JSON config that maps server names to launch commands.
-
-**Claude Desktop / Claude Code:**
-
-```json
-{
-  "mcpServers": {
-    "localgpt-gen": {
-      "command": "localgpt-gen",
-      "args": ["mcp-server"]
-    }
-  }
-}
-```
-
-**VS Code (Copilot MCP):**
-
-In `.vscode/settings.json` or the user settings:
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "localgpt-gen": {
-        "command": "localgpt-gen",
-        "args": ["mcp-server"]
-      }
-    }
-  }
-}
-```
-
-**Cursor:**
-
-In `.cursor/mcp.json` at the project root:
-
-```json
-{
-  "mcpServers": {
-    "localgpt-gen": {
-      "command": "localgpt-gen",
-      "args": ["mcp-server"]
-    }
-  }
-}
-```
-
-**Zed:**
-
-In Zed settings (`settings.json`):
-
-```json
-{
-  "context_servers": {
-    "localgpt-gen": {
-      "command": {
-        "path": "localgpt-gen",
-        "args": ["mcp-server"]
-      }
-    }
-  }
-}
-```
-
-If `localgpt-gen` is not on your PATH, use the full path to the binary (e.g., `/path/to/localgpt/target/release/localgpt-gen`).
 
 ---
 
 ## HTTP Transport
 
-The streamable HTTP transport serves MCP over standard HTTP, following the MCP streamable HTTP specification. This is useful when:
+`--mcp-http PORT` serves the same tools at `http://127.0.0.1:PORT/mcp`. It is for a runtime that cannot spawn a child process, and for more than one client on one scene (with the limit under [Tool calls are sequential](#tool-calls-are-sequential)).
 
-- The agent runtime does not support spawning child processes (e.g., browser-based agents)
-- Multiple agents need to share a single Bevy session
-- You want to keep the Bevy window running independently of client connections
+The stdio server runs beside it and still ends the process when stdin closes, so a server used only over HTTP needs its stdin held open. Add `--headless` if you do not need the window.
 
 ### Endpoints
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/mcp` | Send a JSON-RPC request, receive a JSON-RPC response |
-| GET | `/mcp` | Open an SSE stream for server-initiated notifications |
-| DELETE | `/mcp` | Terminate the session |
-
-### Starting the server
-
-```bash
-localgpt-gen mcp-server --mcp-http 8080
-```
-
-This opens a Bevy window and starts both:
-- Stdio MCP on stdin/stdout (for local clients)
-- HTTP MCP on `http://127.0.0.1:8080/mcp`
-
-Add `--headless` if you do not need the window:
-
-```bash
-localgpt-gen mcp-server --mcp-http 8080 --headless
-```
+| POST | `/mcp` | Send a JSON-RPC request, receive a JSON-RPC response. A notification gets `202` and no body |
+| GET | `/mcp` | An SSE stream: one `session` event, then a keepalive comment every 30 seconds. The server pushes nothing else |
+| DELETE | `/mcp` | End the session the `Mcp-Session-Id` header names |
 
 ### Session management
 
-The server assigns a session ID via the `Mcp-Session-Id` response header. Clients should include this header in subsequent requests to maintain session continuity.
-
-```bash
-# First request -- server returns Mcp-Session-Id in response headers
-curl -v -X POST http://127.0.0.1:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' 2>&1 | grep -i mcp-session-id
-
-# Subsequent requests -- include the session ID
-curl -X POST http://127.0.0.1:8080/mcp \
-  -H "Content-Type: application/json" \
-  -H "Mcp-Session-Id: <session-id-from-above>" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
-```
+Every POST and GET response carries an `Mcp-Session-Id` header, and a request without a known id is given a new one. A session holds no state: every client drives the same scene, and the header changes nothing a tool does.
 
 ### curl examples
 
@@ -243,27 +120,22 @@ curl -s -X POST http://127.0.0.1:8080/mcp \
         "name": "red_cube",
         "shape": "Cuboid",
         "position": [0, 1, 0],
-        "color": "#ff0000"
+        "color": [1.0, 0.0, 0.0, 1.0]
       }
     }
   }' | jq .
 ```
 
-**Take a screenshot:**
+---
 
-```bash
-curl -s -X POST http://127.0.0.1:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 3,
-    "method": "tools/call",
-    "params": {
-      "name": "gen_screenshot",
-      "arguments": { "camera_angle": "isometric" }
-    }
-  }' | jq .
-```
+## The Relay
+
+`localgpt-gen --mcp-relay` opens a localhost TCP port beside the window (9878, or a free one, written to the file `--connect` discovers it from) and serves the same tools as newline-delimited JSON-RPC. `mcp-server --connect` copies lines between its stdio and that port. The relay has its own dispatch (`crates/gen/src/gen3d/mcp_relay.rs`), which differs from the stdio and HTTP servers:
+
+- `serverInfo.name` is `localgpt-gen-relay`.
+- `tools/list` leaves `annotations` out.
+- An unknown tool is an `isError` result, and a line that is not JSON is answered with a `-32700` error.
+- A connection with no request for five minutes is closed, and the `--connect` process exits with it. A `ping` counts as a request.
 
 ---
 
@@ -275,207 +147,9 @@ After connecting, call `tools/list` to get the full catalog:
 {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
 ```
 
-The response contains an array of tool definitions, each with `name`, `description`, and `inputSchema` (JSON Schema for the arguments). A typical response includes 88 tools across these categories:
+The response holds the 88 tool definitions, each with `name`, `description`, `inputSchema` (JSON Schema for the arguments) and, over stdio and HTTP, `annotations` (`readOnlyHint`, `destructiveHint`, `idempotentHint`). The catalog with parameter details is [AGENTS.md](../../AGENTS.md); the sequences an agent runs are in the user docs ([WorldGen](../../website/content/docs/gen/worldgen.md), [World Skills](../../website/content/docs/gen/world-skills.md), [Export](../../website/content/docs/gen/export.md)).
 
-| Category | Prefix | Examples |
-|----------|--------|----------|
-| Scene query | `gen_scene_info`, `gen_entity_info`, `gen_screenshot` | Inspect entities, capture images |
-| Entity manipulation | `gen_spawn_*`, `gen_modify_*`, `gen_delete_*` | Create, update, remove 3D objects |
-| Camera/lighting | `gen_set_camera`, `gen_set_light`, `gen_set_environment` | Control the view |
-| Audio | `gen_set_ambience`, `gen_audio_emitter` | Procedural sound |
-| Behaviors | `gen_add_behavior`, `gen_remove_behavior` | Animation (orbit, bob, spin, etc.) |
-| World management | `gen_save_world`, `gen_load_world`, `gen_export_*` | Persistence and export |
-| Characters | `gen_spawn_player`, `gen_add_npc` | Player and NPC spawning |
-| Interactions | `gen_add_trigger`, `gen_add_door`, `gen_add_collectible` | Gameplay mechanics |
-| Terrain | `gen_add_terrain`, `gen_add_water`, `gen_add_foliage` | Landscape generation |
-| Physics | `gen_set_physics`, `gen_add_collider`, `gen_add_joint` | Rigid body simulation |
-| WorldGen pipeline | `gen_plan_layout`, `gen_apply_blockout`, `gen_populate_region` | High-level world creation |
-| Image input | `gen_image_to_layout`, `gen_panorama_to_world` | A layout from a picture (pure image analysis) |
-
-The full tool catalog with parameter details is documented in [AGENTS.md](../../AGENTS.md).
-
----
-
-## Common Workflows
-
-These are step-by-step tool call sequences that external agents typically execute. Each step is a separate `tools/call` request.
-
-### Workflow 1: Create a world from scratch
-
-```
-1. gen_plan_layout       -- describe what you want: "a medieval village with a market square"
-                            returns a BlockoutSpec (region definitions with sizes and roles)
-
-2. gen_apply_blockout    -- generates the 3D blockout geometry from the spec
-                            creates placeholder volumes for each region
-
-3. gen_populate_region   -- fill each region with detailed content
-                            call once per region (market, houses, walls, etc.)
-
-4. gen_set_ambience      -- add environmental audio: wind, birds, distant crowd
-
-5. gen_set_camera        -- position the camera for a good overview
-
-6. gen_screenshot        -- capture the result for evaluation
-
-7. gen_save_world        -- persist as a reusable world skill
-                            saves SKILL.md + world.ron to workspace/skills/
-```
-
-### Workflow 2: Modify an existing world
-
-```
-1. gen_load_world        -- load a previously saved world skill by path
-
-2. gen_scene_info        -- inspect the current scene hierarchy
-
-3. gen_modify_entity     -- adjust position, color, scale of existing objects
-
-4. gen_spawn_primitive   -- add new objects to the scene
-
-5. gen_add_behavior      -- animate entities (orbit, bob, spin)
-
-6. gen_save_world        -- save the updated world
-```
-
-### Workflow 3: Screenshot-driven evaluation loop
-
-```
-1. gen_screenshot        -- capture from the default camera angle
-   (args: { "camera_angle": "isometric", "include_annotations": true })
-
-2. [Agent evaluates the image and decides what to fix]
-
-3. gen_modify_entity     -- fix issues identified by the agent
-   or gen_delete_entity
-   or gen_spawn_primitive
-
-4. gen_screenshot        -- capture again to verify
-
-5. Repeat steps 2-4 until satisfied
-```
-
-This loop is how LocalGPT Gen's own built-in agent operates. External agents can replicate the same pattern: generate, screenshot, evaluate, refine.
-
-### Workflow 4: Batch world generation
-
-```
-1. gen_plan_layout       -- generate the layout spec
-
-2. gen_apply_blockout    -- create blockout geometry
-
-3. gen_spawn_batch       -- spawn many primitives in one call
-   (args: { "entities": [ ... ] })
-
-4. gen_modify_batch      -- adjust multiple entities at once
-
-5. gen_export_html       -- export as self-contained HTML with Three.js
-   or gen_export_gltf    -- export as glTF binary for external viewers
-```
-
----
-
-## Runtime-Specific Notes
-
-### ZeroClaw (Rust)
-
-ZeroClaw supports MCP tool servers via its `ToolServerConfig`. Point it at LocalGPT Gen's stdio transport:
-
-```toml
-# zeroclaw.toml
-[[tool_servers]]
-name = "localgpt-gen"
-command = "localgpt-gen"
-args = ["mcp-server"]
-transport = "stdio"
-```
-
-ZeroClaw's trait-driven architecture means it will automatically discover the tools via `tools/list` and make them available to its agent loop. Because both ZeroClaw and LocalGPT Gen are Rust binaries, startup is fast (<10ms for ZeroClaw, ~1-2s for Bevy initialization in LocalGPT Gen).
-
-If ZeroClaw is running on a constrained device (its typical deployment), consider running LocalGPT Gen on a separate host with the HTTP transport and pointing ZeroClaw at the HTTP endpoint instead.
-
-### ADK-Rust (Google Agent Development Kit)
-
-Google's ADK-Rust can integrate MCP servers as tool providers. Register LocalGPT Gen as an MCP tool source in your ADK agent definition:
-
-```rust
-use adk::tools::McpToolProvider;
-
-let gen_tools = McpToolProvider::stdio("localgpt-gen", &["mcp-server"]);
-let agent = Agent::builder()
-    .tools(gen_tools)
-    .build();
-```
-
-For the HTTP transport:
-
-```rust
-let gen_tools = McpToolProvider::http("http://127.0.0.1:8080/mcp");
-```
-
-ADK-Rust agents handle the MCP initialization handshake and tool discovery automatically. The gen tools appear alongside any other tools the agent has.
-
-### goose (AAIF / Agent Alliance)
-
-goose uses a YAML configuration for MCP servers. Add LocalGPT Gen to your goose profile:
-
-```yaml
-# ~/.config/goose/profiles.yaml
-default:
-  toolkits:
-    - name: localgpt-gen
-      type: mcp
-      command: localgpt-gen
-      args:
-        - mcp-server
-```
-
-goose will launch the process, run the MCP handshake, and expose the gen tools to the agent. Because goose follows the AAIF AGENTS.md convention, it can also read LocalGPT's `AGENTS.md` file directly for tool documentation.
-
-### OpenAI Agents SDK
-
-The OpenAI Agents SDK supports MCP servers as tool providers. Configure LocalGPT Gen as an MCP server in your agent setup:
-
-```python
-from agents import Agent
-from agents.mcp import MCPServerStdio
-
-gen_server = MCPServerStdio(
-    name="localgpt-gen",
-    command="localgpt-gen",
-    args=["mcp-server"],
-)
-
-agent = Agent(
-    name="world-builder",
-    instructions="You build 3D worlds using the gen tools.",
-    mcp_servers=[gen_server],
-)
-```
-
-For the HTTP transport:
-
-```python
-from agents.mcp import MCPServerHTTP
-
-gen_server = MCPServerHTTP(
-    name="localgpt-gen",
-    url="http://127.0.0.1:8080/mcp",
-)
-```
-
-The SDK handles `initialize` and `tools/list` automatically. All 88 gen tools become available as callable tools in the agent's tool list.
-
-### Other MCP-capable runtimes
-
-Any runtime that implements the MCP client protocol can connect. The general pattern is:
-
-1. Spawn `localgpt-gen mcp-server` as a subprocess (or POST to the HTTP endpoint)
-2. Send `initialize` and `notifications/initialized`
-3. Call `tools/list` to discover available tools
-4. Call `tools/call` with tool name and arguments as needed
-
-The protocol is JSON-RPC 2.0 over newline-delimited stdio or HTTP POST. No custom handshake, no proprietary framing.
+A `tools/call` result is one text block. A tool that fails answers with `isError: true` and its message as text, not with a JSON-RPC error; over stdio and HTTP only a missing `name` or an unknown tool is one (`-32602`). `gen_screenshot` answers with the path of the PNG it wrote, so a runtime that wants to look at the image has to read that file.
 
 ---
 
@@ -483,29 +157,25 @@ The protocol is JSON-RPC 2.0 over newline-delimited stdio or HTTP POST. No custo
 
 ### Tool safety split
 
-LocalGPT deliberately keeps the MCP server to scene tools:
+Only the `gen_*` tools are served: no shell, no general file tools, no memory or web tools, and nothing that calls a model or a service. The rationale: external agent runtimes (Claude Code, Codex, goose) already provide their own file, shell, memory and web tools with their own sandboxing, and their own model. LocalGPT should not duplicate that surface area or weaken the external runtime's security model.
 
-| Included | Excluded |
-|------------------|----------------------|
-| All `gen_*` tools | `bash` (shell execution) |
-| | `read_file`, `write_file`, `edit_file` (arbitrary file access) |
-| | memory, web fetch and search, document loading |
-| | anything that calls a model or a service |
-
-The rationale: external agent runtimes (Claude Code, Codex, goose) already provide their own file, shell, memory and web tools with their own sandboxing, and their own model. LocalGPT should not duplicate that surface area or weaken the external runtime's security model.
+The tools do touch the disk. By default they write under Gen's workspace, in the open world's folder, or (a screenshot with no world open) in the system temp directory. `gen_save_world`, `gen_export_gltf` and `gen_export_screenshot` write wherever their `path` argument says, and `gen_load_world` and `gen_load_gltf` read the path they are given. No tool makes a network call.
 
 ### Stdio transport security
 
 - No authentication. The MCP server inherits the OS user's permissions.
 - The client (your agent runtime) controls process lifetime -- closing stdin terminates the server.
-- No tool makes a network call; the only files written are under Gen's own data directory and the world being edited.
 
 ### HTTP transport security
 
 - Binds to `127.0.0.1` only (localhost). Not exposed to the network by default.
-- Session tracking via `Mcp-Session-Id` header (UUID, server-generated).
+- Session tracking via `Mcp-Session-Id` header (UUID, server-generated). It is not a credential.
 - No authentication token on the HTTP transport. If you need network exposure, put it behind a reverse proxy with auth.
-- CORS is permissive (any origin) to support browser-based MCP clients.
+- CORS is permissive (any origin, method and header) to support browser-based MCP clients, and the `Origin` header is not checked. Nothing on the server stops a web page in a browser on the same machine from calling the tools while the port is open.
+
+### Relay security
+
+The relay binds `127.0.0.1` only and has no authentication: any local process can connect to its port.
 
 ---
 
@@ -525,7 +195,9 @@ If you need multiple scenes, run multiple `localgpt-gen mcp-server` processes (e
 
 ### Tool calls are sequential
 
-The MCP server processes tool calls one at a time within a session. Batch tools (`gen_spawn_batch`, `gen_modify_batch`, `gen_delete_batch`) exist specifically to reduce round-trip overhead when operating on many entities.
+A stdio or relay connection's calls run one at a time, in the order they arrive. Batch tools (`gen_spawn_batch`, `gen_modify_batch`, `gen_delete_batch`) exist specifically to reduce round-trip overhead when operating on many entities.
+
+Nothing orders calls across connections, or across concurrent HTTP requests. Every tool sends a command to Bevy and takes the next answer from one shared channel (`GenBridge::send`, `crates/gen/src/gen3d/mod.rs`), and an answer carries no id. If two calls overlap, and above all while a deferred answer such as a screenshot or a glTF load is pending, each can receive the other's. An orchestrator that puts several agents on one scene has to serialize their calls itself.
 
 ### No streaming tool output
 
@@ -533,15 +205,7 @@ Tool results are returned as complete JSON-RPC responses. There is no streaming 
 
 ### Bevy startup time
 
-The first `localgpt-gen mcp-server` launch takes 1-2 seconds for Bevy initialization (GPU, window, asset loading). Use the `--connect` flag to attach to an already-running gen process if startup latency matters:
-
-```bash
-# Terminal 1: start gen with the window and its relay
-localgpt-gen --mcp-relay
-
-# Terminal 2: connect MCP to the running instance
-localgpt-gen mcp-server --connect
-```
+Each `localgpt-gen mcp-server` launch pays for Bevy initialization (GPU, window, asset loading). To avoid it, attach to a window that is already running: `localgpt-gen --mcp-relay` in one terminal, `localgpt-gen mcp-server --connect` as the client's command.
 
 ---
 

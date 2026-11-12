@@ -10,41 +10,29 @@ full design.
 ## Quick start
 
 ```bash
-# On the host machine:
-localgpt-gen --host                        # session named "<user>'s world"; prints a 6-digit PIN
-localgpt-gen --host --session-name "Castle Build" --port 9879
-localgpt-gen --host --open                 # no PIN — trusted networks only
-localgpt-gen --host --web                  # also print a browser invite link (token in the URL)
-localgpt-gen --host --web --web-edit       # browser guests may edit directly, not just watch and chat
-localgpt-gen --host --web --resume "Castle Build"   # restore a previous session from its op log
-localgpt-gen --host --mcp-relay            # and let your agent build in the hosted world over MCP
-
-# Join from another machine (you'll be asked for the PIN if it has one):
-localgpt-gen --join                        # browse mDNS, join the first session found
-localgpt-gen --join 192.168.1.5            # bare host, default port 9879
-localgpt-gen --join 192.168.1.5:9879 --pin 482913
-
-# Browser guests (nothing to install):
-#   send the invite link the host prints — http://<host>:<port>/#t=<token>
-
-# History:
-localgpt-gen --replay ~/.local/share/localgpt/gen-workspace/sessions/<name>/ops.jsonl
+localgpt-gen --host --web --mcp-relay      # a room, a browser invite link, and your agent building in it over MCP
+localgpt-gen --join 192.168.1.5 --pin 482913
 ```
+
+Every flag is in the user docs (`website/content/docs/gen/multiplayer.md`)
+and parsed in `crates/gen/src/main.rs`. What each side is:
 
 - **Host:** the normal interactive gen window plus a session HTTP server on
   the session port (join page + WebSocket ops endpoint) and an mDNS
   announcement (`_localgpt-world._udp.local.`). The console shows the PIN.
 - **Native client (`--join`):** the full gen scene — camera, behaviors,
   audio — driven by the room instead of tools. You see every guest as a
-  labeled capsule, and anything typed at the REPL is said to the room as
-  chat. `/stats` shows the room; `/quit` exits.
+  colored capsule, and anything typed at the terminal is said to the room
+  as chat. `/stats` shows the room; `/quit` exits.
 - **Browser guests:** the world-export three.js viewer, live over the same
   protocol — see [Browser guests](#browser-guests---web).
 - **Building:** no model runs for the room. The host's own agent builds —
-  outside the window, over MCP (`--mcp-relay` beside `--host`) or through a
-  live package's API — and its edits reach every guest as the host's ops.
-- **Not from the desktop app:** its Collaborate section went with the
-  prompt panel. Rooms in the app, over the `.world` it has open, are
+  outside the window, over MCP (`--mcp-relay` beside `--host`) — and its
+  edits reach every guest as the host's ops. A live canvas is not a way in:
+  `--live` and `--replay` are modes of their own, and given with `--host`
+  they run and no room is hosted.
+- **Not from the desktop app:** `localgpt-app` hosts no room. Rooms in the
+  app, over the `.world` it has open, are
   `docs/rfcs/authoring/rooms-and-the-channel.md`'s.
 
 ## Architecture
@@ -78,16 +66,18 @@ localgpt-gen --replay ~/.local/share/localgpt/gen-workspace/sessions/<name>/ops.
   it queued, as the protocol says) and failed at once with the reason: this
   room runs no AI. The prompt and job messages stay in the protocol for an
   agent of a guest's own, later.
-- **Presence** (positions, gaze, selections) rides a lossy channel at ~5 Hz
-  and is never stored.
+- **Presence** (position and gaze) is sent on the same socket at ~5 Hz,
+  fanned out to the other peers and never stored. The protocol has a
+  `selected` field that neither client sends.
 
 ## Browser guests (`--web`)
 
-The session HTTP server also serves a **join page** at `http://<host>:<port>/`
-and prints an invite link. Guests can watch, walk, chat, and — with
-`--web-edit` — edit directly: click to select, drag to move,
-`Q`/`E` rotate, `+`/`-` scale, `Delete` remove, `/undo` to step back through
-their own changes. Everything is served by the host (three.js is vendored):
+Every hosted session serves a **join page** at `http://<host>:<port>/`;
+what `--web` adds is the printed invite link, which carries the token unless
+the session is `--open`. Guests can watch, walk and chat, and with
+`--web-edit` they edit directly (the page's controls are in the user docs).
+`--web-edit` gives every joiner the editor role, but only the page has
+editing controls. Everything is served by the host (three.js is vendored):
 a guest needs no install and no internet.
 
 ## History, undo & replay
@@ -95,38 +85,34 @@ a guest needs no install and no internet.
 Every session is a package: a base world (`world.ron`), the one log
 (`ops.jsonl`), metadata (`session.json`) and keyframe snapshots
 (`snapshots/rev-<N>.ron`), under `<workspace>/sessions/<name>/`. The log
-holds every committed batch and the history around it — the tool calls
-the host's agent made, host state such as score changes — because only
-edits change the document; everything else folds to nothing. See
+holds every committed batch and some history beside it, which folds to
+nothing because only edits change the document: score changes as host
+state, and tool records from the generation log, which today records only
+`gen_sync` and `gen_check_drift` calls (author `llm`). See
 `docs/rfcs/multiplayer/session-package-format.md`.
 
-- **Undo:** `/undo` undoes your most recent batch — your own edits.
-  Undoing an undo redoes it.
-- **Resume:** `--host --web --resume <session>` replays a session's log
-  before guests join, restoring the world and its revision. `<session>`
-  is a session name, a package directory, or a bare `ops.jsonl`.
-- **Time-lapse:** `localgpt-gen --replay <session> [--replay-speed N]`
-  opens a no-agent window that rebuilds the world batch by batch; it takes
-  the same paths, and a package replays its base world first.
-- **Transport:** `localgpt-gen --export-session <name> [--out x.world]`
-  zips a session's package into the one-file form other software reads
-  (the [Open World Format](https://openworldformat.org)); `--resume` and
-  `--replay` accept those `.world` archives back.
+`--resume`, `--replay` and `--export-session` are in the user docs. What
+they leave out:
+
+- **Undo** is the browser page's `/undo`. The authority applies the inverse
+  of that peer's newest batch as a new commit, so undoing an undo redoes
+  it. It keeps a peer's last 64 batches and drops them when the peer
+  leaves. A native joiner's `/undo` goes out as chat.
+- **Resume** (`--resume`, which requires `--web`) only chooses what is
+  replayed before guests join. The room always appends to the log of its
+  own session name (`--session-name`, default `<user>'s world`), resumed or
+  not.
+- **`<name>`** in the path is the session name in lowercase, with every run
+  of other characters a single `-`, cut at 48 characters.
+- **Snapshots** are written every 500 revisions.
 
 ## Internet guests (`--relay`)
 
-The host runs behind NAT? Run a relay anywhere with a public address:
-
-```bash
-localgpt-relay 9911        # put it behind any TLS terminator for wss
-```
-
-and host with it:
-
-```bash
-localgpt-gen --host --relay https://relay.example.com
-# prints: Internet guests: https://relay.example.com/r/Q8QJVD/#t=<token>
-```
+A host behind NAT reaches guests through a `localgpt-relay` (`crates/relay`)
+run anywhere with a public address; the commands are in the user docs. The
+host connects out: it registers a room (`POST /rooms`), holds one WebSocket
+to it, and prints an invite link with the room's code,
+`<relay>/r/<code>/#t=<token>`.
 
 The relay forwards frames by room code and keeps no world state, but it
 encrypts nothing. The room's messages pass through it in the clear (a
@@ -159,9 +145,12 @@ the invite token. Local LAN guests and relay guests share the same room.
 
 ## Limitations
 
-- glTF mesh assets render as placeholders for guests (content-addressed
-  streaming returns in a later phase). Everything else in the world format
-  syncs.
+- glTF mesh assets do not travel. A browser guest sees a placeholder; a
+  native guest's entity stays empty unless the file is at the same path on
+  its machine.
+- The projection reads the registered entities, the background and the
+  ambient light. The host's ambience layers, fog and camera are not
+  projected, so they do not reach guests.
 - Guests sync the whole document (no per-chunk interest management yet) —
   fine at room scale.
 - Not in the world format (so neither saved nor synced): terrain, water,
@@ -177,4 +166,6 @@ the invite token. Local LAN guests and relay guests share the same room.
 ## Feature flag
 
 `multiplayer` (default on): `--host`/`--join`, the ops room, mDNS discovery,
-and the browser guest page. Build without it for a single-player binary.
+and the browser guest page. It is not an off switch today: `main.rs` and
+`gen3d/{replay,generation_log,live}.rs` use `localgpt-world-sync` and
+`net::web` outside the gate, and both come only with the feature.

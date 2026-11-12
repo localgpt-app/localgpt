@@ -1,10 +1,11 @@
 # SolidCraft and CADCraft: what two agent-built CAD apps teach LocalGPT
 
-**Status:** research, 2026-10-31. A reading of two CAD applications kept as
+**Status:** research. A reading on 2026-10-31 of two CAD applications kept as
 reference material, `external/3d/solidcraft` (v0.28.0) and
-`external/3d/cadcraft` (v0.14.0). Nothing is built against it; the ranked
-list at the end is what to act on. The companion reading of Blender is
-[blender-lessons.md](blender-lessons.md).
+`external/3d/cadcraft` (v0.14.0); what it says of LocalGPT was checked
+against the tree on 2026-11-11. Each section says what is applied and what
+is open, and the list at the end is the open part. The companion reading of
+Blender is [blender-lessons.md](blender-lessons.md).
 
 Both are `MIT OR Apache-2.0` (`LICENSE-MIT` and `LICENSE-APACHE` in each), so
 unlike Blender's or Zed's, their code may come into this repository with its
@@ -18,8 +19,6 @@ tree, checked by hand on 2026-10-31. Marks as in blender-lessons.md:
 | | SolidCraft | CADCraft |
 |---|---|---|
 | What | 3D parametric solids, Fusion and Onshape class: sketches, a constraint solver, a feature timeline that rebuilds B-rep bodies; STEP, IGES, 3MF, STL, OBJ, glTF | 2D drafting, AutoCAD class: a command line with prompts, snaps, layers, dimensions, hatch, blocks, layouts, plotting; DXF R12–2018 read and R2000 written, DWG through `acadrust` |
-| Started, commits, version | 2026-10-07, 3,354, v0.28.0 (released daily) | 2026-10-05, 955, v0.14.0 |
-| Own Rust lines, tests, commands | ~752K (plus 93K vendored), ~10,300, 544 | ~224K, ~2,770, 430 |
 | Its own verdict | "early but usable for simple parts"; 90 of 90 oracle cases pass (`docs/oracle.md`) | "pre-alpha": 245 of 491 menu items, about 38% ready for real work (`ROADMAP.md`) |
 | Interface | egui 0.36 on wgpu; the desktop app, and the same app as WebAssembly in a browser | egui; desktop and WebAssembly |
 | For agents | an MCP server that drives the app or runs headless, scripts, a browser command API, an in-app agent chat (§7) | an MCP server whose tools include the command line itself (`command_line`, `crates/mcp/src/tools.rs:11`), and the UI's elements and clicks when bridged |
@@ -33,46 +32,27 @@ machinery.
 
 ### How they draw
 
-**Both** (read 2026-11-01): eframe, egui's shell on winit, owns the window;
-the model view is the app's own wgpu pipelines in an `egui_wgpu` paint
-callback; and the same program runs in a browser as WebAssembly, on WebGPU
-where it is and WebGL2 otherwise. Neither uses a web view or an engine:
-neither lockfile has wry, tao, Bevy, iced or Tauri. Both keep forks: Solid-
-Craft vendors egui-wgpu and winit with fixes (`vendor/`), CADCraft pins its
-own forks of egui and winit.
+**Both:** eframe, egui's shell on winit, owns the window; the model view is
+the app's own wgpu pipelines in an `egui_wgpu` paint callback; and the same
+program runs in a browser as WebAssembly, on WebGPU where it is and WebGL2
+otherwise. Neither uses a web view or an engine. Both keep forks: SolidCraft
+vendors egui-wgpu and winit with fixes (`vendor/`), CADCraft pins its own
+forks of egui and winit.
 
-- **SolidCraft**: egui 0.36 on wgpu 30. The viewport (`crates/gpu/src/view.rs`
-  with `assets/shaders/viewport.wgsl`) draws shaded triangles and
-  screen-space wide lines with a depth buffer, a stencil for the section
-  cap, order-independent transparency and 4× MSAA, and blits a still view
-  from the last frame's texture; a compute shader (`tess.wgsl`) evaluates
-  the solid's surfaces straight into the vertex buffer. Pictures with no
-  window — CLI snapshots, MCP screenshots, thumbnails — go through the same
-  pipelines offscreen (`capture.rs`), with a CPU rasteriser as the last tier,
-  and every picture names the renderer that drew it. Product renders are a
-  path tracer in WGSL (`crates/gpu/src/path/`, 2,100 lines of shader) on
-  Metal or Vulkan; in the browser they render on the CPU. About 28K lines
-  for the viewport, capture and tracer with their tests.
-- **CADCraft**: egui 0.37. The drawing becomes a display list
-  (`crates/render`: polylines, filled triangles and points, with linetypes,
-  hatches, text and dimensions expanded), uploaded once per edit and drawn
-  by one shader with a 12-byte vertex that runs on WebGL2
-  (`crates/ui-egui/src/gpu.rs`); each frame only the view uniform changes.
-  The crosshair, grips, snap markers and ViewCube are egui shapes over it.
-  PNG goes through tiny-skia on the CPU, PDF through krilla; text is shaped
-  with harfrust and ordered with unicode-bidi, which egui does not do
-  itself. 3D is 2% of its roadmap. About 12K lines for the canvas, the
-  display list and the raster.
+**For LocalGPT:** applied. This is the shell of [all-rust.md](all-rust.md)
+(`crates/app/src/shell`): eframe owns the window, the world is a texture
+Bevy renders on the same device, and the world panel takes the keys while it
+has focus, as CADCraft's canvas does. Two things still inform open work:
 
-**For LocalGPT:** this is the shape [all-rust.md](all-rust.md) implements:
-eframe owns the window, the world is a texture in a paint callback, and the
-headless picture goes through the same pipelines. Input absorption, hover and
-scheduling were problems of `bevy_egui`, egui inside Bevy's window; with
-eframe owning the window they do not arise, and CADCraft's canvas, which
-hides the cursor and takes every key while it has focus, is the shape of a
-viewport widget.
-SolidCraft's glue between egui and its pipelines (`crates/ui-egui/src/gpu.rs`)
-is MIT OR Apache-2.0 and may be adapted with its notice.
+- **The browser** (all-rust.md, step F). Both run their egui interface in a
+  browser, and neither has a mobile app. CADCraft's canvas is a display list
+  uploaded once per edit and drawn by one shader with a 12-byte vertex that
+  runs on WebGL2 (`crates/ui-egui/src/gpu.rs`), and its text is shaped with
+  harfrust and ordered with unicode-bidi, which egui does not do itself.
+- **Pictures with no window** (§5). SolidCraft's CLI snapshots, MCP
+  screenshots and thumbnails go through the same pipelines offscreen
+  (`capture.rs`), with a CPU rasteriser as the last tier, and every picture
+  names the renderer that drew it.
 
 ## 2. Everything is a command
 
@@ -105,10 +85,10 @@ may only shrink.
 
 **For LocalGPT:** the format already refuses an unknown key. Strict ingest
 answers "… is not a field of the format (readers would drop it — a typo?)"
-(`crates/world-agent/src/live.rs:1048`). The agent's half is missing:
+(`crates/world-agent/src/live.rs:1078`). The agent's half is missing:
 
 - *Adopt* the schema in the tool. `world_submit` describes its ops as
-  `{"type": "object"}` (`crates/cli/src/cli/world_mcp.rs:208`), so an agent
+  `{"type": "object"}` (`crates/cli/src/cli/world_mcp.rs:151`), so an agent
   learns the vocabulary from `AGENTS.md`'s prose. The `openworldformat` crate
   already derives `JsonSchema` for `EditOp` behind its `schema` feature
   (`rust/src/history.rs:12`): put the generated schema in the tool's input
@@ -130,12 +110,14 @@ hides them from the result (`crates/engine/tests/panic_hunt.rs`). SolidCraft
 runs seeded fuzz sessions (`crates/engine/src/fuzz.rs`) and mutation testing
 with cargo-mutants (`docs/mutation-testing.md`).
 
-**For LocalGPT:** a panic in the live API's Bevy system ends the app, and
-the agents' terminals with it. The workspace has one `catch_unwind`
+**For LocalGPT:** a panic in the live system ends the world's thread (the
+whole app, in Gen's own window), and the agents' terminals with it: their
+PTYs are that thread's. The workspace has one `catch_unwind`
 (`crates/previs/src/pdf.rs:329`), no workspace lints, no property or fuzz
-tests here or in the `openworldformat` crate, and roughly 120 `unwrap()` and
-85 `expect(` outside test modules (a rough count, 2026-10-31). *Adopt*, in
-this order:
+tests here or in the `openworldformat` crate, and roughly 30 `unwrap()` and
+55 `expect(` outside test code, four of them in `world-agent`, `world-sync`
+and `world-editor` together (a rough count, 2026-11-11). *Adopt*, in this
+order:
 
 - `catch_unwind` around the trial apply in the live system.
   `LiveWorld::submit` applies a batch to a trial copy and commits whole or
@@ -162,84 +144,56 @@ token, `control/current.port` (`crates/engine/src/control_auth.rs:75`).
 SolidCraft's screenshots work headless too: on the GPU, falling back to the
 CPU, and saying which renderer drew.
 
-**For LocalGPT:** `localgpt world` already works headless and refuses a write
-only while an app answers at the folder's endpoint
-(`crates/world-agent/src/headless.rs:16`), but `localgpt world mcp` will not
-start without an open app. *Adopt* the CAD rule: the shim starts either way,
-sends each call to the app when one answers and to the headless authority
-when none does, and says in each reply which one it was. A headless
-screenshot (the web viewer in a headless browser, or Bevy off-screen) is the
-later half.
+**For LocalGPT:** `localgpt world` already runs either way: while an app
+answers at the folder's endpoint each command is a call to its API, and with
+none it commits through the headless authority
+(`crates/cli/src/cli/world.rs`; `world-agent::headless` itself refuses a
+write while an app answers, `headless.rs:16`). `localgpt world mcp` still
+will not start without an open app (`crates/cli/src/cli/world_mcp.rs:38`),
+and a commit's receipt does not say which authority made it. *Adopt* the CAD
+rule for the shim: it starts either way, sends each call to the app when one
+answers and to the headless authority when none does, and says in each reply
+which one it was. A screenshot with no app open is the later half (`localgpt
+world screenshot` needs one today): the web viewer in a headless browser, or
+Bevy off-screen.
 
 ## 6. Setup, discovery and skills
 
-**SolidCraft.** `solidcraft-cli mcp setup`, also Help → Connect AI
-assistants, adds a `solidcraft` entry to every AI client installed, ten of
-them, and edits each file in place: only its own entry changes and every
-other byte stays, the file is copied to `<name>.bak` first, a file it cannot
-read is left alone, and so is an entry the user changed. A client counts as
-installed when its configuration folder exists; no client program is run
+**SolidCraft.** `solidcraft-cli mcp setup` adds a `solidcraft` entry to every
+AI client installed, ten of them, editing each configuration file in place
 (`crates/engine/src/agent_setup.rs`). Skills ship in `skills/`
 (`solidcraft-commands`, `solidcraft-checking`, …) and reach agents through a
 `skill_reference` tool.
 
-**For LocalGPT:** the lesson is safe configuration editing, not a built-in
-setup or agent launcher. The user docs currently show the MCP entry to add.
-If registration is automated later, edit only LocalGPT's entry, back up the
-file first, preserve a changed entry and never run the client. The world's
-`AGENTS.md` and op recipes are the equivalent of its skill reference: keep
-them readable where the agent already works.
+**For LocalGPT:** the setup does not transfer (§12): writing an entry into
+each client's file means knowing agents by name. The user docs show the MCP
+entry to add. The skill reference is applied: a package's `AGENTS.md` is the
+guide an agent reads where it already works (`AGENTS_GUIDE`,
+`crates/world-agent/src/live.rs`), and the shim's `world_submit` description
+names it.
 
 ## 7. The agent in the window
 
-**SolidCraft** has an in-app agent chat (`crates/ui-egui/src/agent_chat/`,
-about 17,000 lines with its tests): an egui side panel, desktop only. **It is
-not a terminal.** It speaks the Agent Client Protocol: the agent is a child
-process, and the two exchange JSON-RPC over its stdin and stdout (`acp.rs`).
-Claude Code and Codex run through their ACP adapters (`claude-agent-acp`,
-`codex-acp`); Gemini CLI, OpenCode, Copilot CLI, Qwen Code, goose and Grok
-through ACP modes of their own; Antigravity through a separate ACP server
-(`discover.rs`). The panel draws what the agent sends as structured events
-(the reply as Markdown, its thinking, a card per tool call with its status,
-the plan) and asks permission questions as Allow and Deny buttons.
-
-- It tells the agent it offers no terminal and no file system
-  (`"terminal": false`, `acp.rs:150`), switches off Claude Code's own shell,
-  file and web tools for the session
-  (`_meta.claudeCode.options.disallowedTools`), and starts the agent in an
-  empty folder of its own (`mod.rs:888`). The agent's only way to the design
-  is SolidCraft's MCP server, bridged to the window.
-- Every tool call passes a gate (`gate.rs`): run, ask first (anything that
-  reads or writes files or replaces the design), or never. An optional limit
-  caps changes per turn, and each turn undoes as one step.
-- Sign-in stays outside: an agent that needs a terminal login gets its
-  command shown with a Copy button, to run in the user's own terminal. Slash
-  commands are ignored; diffs and resuming a conversation are on its open
-  list (`docs/design/in-app-agent-chat.md`).
-- A second backend, `api_client.rs` (2,894 lines), runs the tool loop itself
-  against an OpenAI- or Anthropic-compatible endpoint, with the key from the
-  system keychain.
-
-**The agent cursor** (`crates/ui-egui/src/agent_cursor.rs`) is a second,
-marked pointer that acts out each command an agent sends: it glides to the
-command's toolbar button and clicks it, then to each pick in the parameters,
-and only then does the command run. The reply waits for the animation.
-
-**For LocalGPT:** the native terminal takes the other door: the agent keeps
-its own interface, `/commands`, approvals and sign-in. Do not add the API
-backend or an agent-specific chat panel. The useful lessons are narrower:
+**SolidCraft** has an in-app agent chat over the Agent Client Protocol
+(`crates/ui-egui/src/agent_chat/`), with a gate on every tool call and a
+second backend that runs the tool loop itself against a model API, and an
+agent cursor that acts out each command an agent sends before it runs
+(`crates/ui-egui/src/agent_cursor.rs`). Neither transfers (§12): LocalGPT's
+agents keep their own interface in a plain terminal. What the terminal and
+the panels still owe:
 
 - **Process cleanup.** An agent can leave helpers behind, so closing a
-  terminal must close its input and terminate the whole process group, with
-  escalation when needed. Keep `Terms::close`
-  (`crates/app/src/webui/term.rs`) covered by a test whose child leaves a
-  helper behind.
-- **Visible attribution without animation.** When a batch commits, the
-  outliner and inspector already mark what changed and name its author. Do
-  not delay the authority to perform an agent cursor.
-- **No inferred turn protocol.** A structured agent protocol knows when a
-  turn ends; a plain terminal does not. Do not reconstruct that state from
-  one agent's glyphs or title.
+  terminal must close its input and end the whole process group, escalating
+  when needed. Not done: `Terms::close` (`crates/app/src/webui/term.rs`)
+  sends the shell one `SIGHUP` through `portable-pty`'s killer and drops the
+  PTY, and no test has a child that leaves a helper behind.
+- **Visible attribution without animation.** The history panel names each
+  entry's author. The outliner does not yet mark what another author just
+  changed or what a waiting proposal touches: the app sends who the person
+  is and the proposal's entities (`SceneView.person` and `.proposal`,
+  `crates/app/src/scene.rs`), and `crates/app/src/shell/scene.rs` draws
+  nothing from either. Do not delay the authority to perform an agent
+  cursor.
 
 ## 8. The control channel
 
@@ -252,14 +206,16 @@ timeout says whether the app had started the request: `not-run` or
 likewise made fresh for each launch and readable only by the user
 (`docs/mcp.md:36–45`).
 
-**For LocalGPT:** the live API now takes the token from the operating
-system's random source, creates `.live/` for the owner alone and writes
-`endpoint.json` as owner-only. The query form is accepted only on the board's
-pages, where a browser needs it; API calls use the bearer header. Keep those
-properties covered by tests. A shim call can still time out after the app
-took its batch, so its result should distinguish `not-run` from
-`may-have-run`; because the authority commits whole or not at all, the agent
-can settle the latter by reading the log's head.
+**For LocalGPT:** the credentials are applied, in
+`crates/gen/src/gen3d/live.rs`: the token is 128 random bits (`setup_live`),
+`.live/` is the owner's alone and `endpoint.json` is written owner-only
+(`write_endpoint`), and the token is taken from a query only on a board
+page, where a browser needs it (`authorized`); the last two have tests.
+Open: a shim call can still time out after the app took its batch (30
+seconds on each side: `CALL_TIMEOUT` in `crates/cli/src/cli/world_api.rs`,
+and the API thread's wait for the canvas), so its result should distinguish
+`not-run` from `may-have-run`; because the authority commits whole or not at
+all, the agent can settle the latter by reading the log's head.
 
 ## 9. Rules that name their enforcer
 
@@ -300,19 +256,17 @@ check the JavaScript reference too.
   for large batches, counts in place of the full receipt.
 - **A revision probe** (`document.revision`, `docs/mcp.md:330`) moves only
   when the design changes, so an agent can poll without reading the design.
-  *Adopt* a route that answers the head's revision and nothing else.
-- **Estimates in agent-hours** (CADCraft's `ROADMAP.md:32–42`). The roadmap
-  prices work in "Opus 5.5 agent wall-clock hours", calibrated on the
-  repository's own first build (about 11.5 agent-hours), with readiness
-  given per audience. RFCs here estimate in days; the calibration is the
-  part to copy if the estimates are to mean anything.
-- **Both run in a browser** as WebAssembly, and neither has a mobile app:
-  see [mobile-remote.md](mobile-remote.md).
+  Applied: `GET /tips` answers the head, the entry on screen and its
+  revision, and no document (`crates/gen/src/gen3d/live.rs`).
 
 ## 12. What does not transfer
 
 - **An embedded ACP chat or model API backend.** The native terminal keeps
-  the agent's own interface; LocalGPT does not compose prompts or hold keys.
+  the agent's own interface; LocalGPT does not compose prompts or hold keys,
+  and does not rebuild an agent's turns from its glyphs or its title.
+- **Registering with each AI client.** Writing an entry into each client's
+  configuration means knowing agents by name, which nothing in the tree
+  does.
 - **B-rep kernels and constraint solvers.** A `.world` has no solids.
 - **Parity with an incumbent as the measure of progress.** CADCraft counts
   AutoCAD's menu items; a `.world` editor has no incumbent to count against.
@@ -326,12 +280,19 @@ check the JavaScript reference too.
 This is not a second roadmap. When touching the corresponding subsystem,
 retain the habits that transfer:
 
-1. strict, machine-readable op schemas and useful strict-ingest refusals;
-2. panic containment and property tests around `LiveWorld::submit`;
-3. explicit answers about which authority accepted a command;
-4. owner-only live credentials, with query credentials limited to board pages;
-5. process-group cleanup when a terminal closes;
-6. executable checks for layering and other hard repository rules;
-7. one command vocabulary across the native shell, live API, shim and CLI;
-8. damaged-package and hand-worked-fold cases in the Open World Format's
-   conformance corpus.
+1. the op schema in `world_submit`'s input schema, and the nearest field in
+   a strict-ingest refusal (§3);
+2. `catch_unwind` around the trial apply, a panic hunt over `EditOp`, and
+   the deny list on `world-agent`, `world-sync` and `world-editor` (§4);
+3. the shim starting with or without an app, and every reply naming the
+   authority that answered (§5);
+4. `not-run` or `may-have-run` when a call times out (§8);
+5. process-group cleanup when a terminal closes, and the outliner's marks of
+   others' work (§7);
+6. an executable check that the format-facing crates take no Bevy or
+   application dependency (§9);
+7. one command vocabulary across the native shell, the live API, the shim
+   and the CLI (§2);
+8. counts in place of the full receipt for a large batch (§11);
+9. in the spec repository: damaged-package and hand-worked-fold cases in the
+   conformance corpus (§4, §10).

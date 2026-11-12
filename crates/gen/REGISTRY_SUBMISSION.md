@@ -1,117 +1,71 @@
-# MCP Registry Submission Guide — localgpt-gen
+# MCP Registry submission — localgpt-gen
 
-This document explains how to submit `localgpt-gen` to the
-[MCP Registry](https://registry.modelcontextprotocol.io) once ready.
-
-The `server.json` in this directory is the registry manifest.
-Review it, complete the TODOs below, then follow the steps.
-
----
+How to list `localgpt-gen` in the
+[MCP Registry](https://registry.modelcontextprotocol.io). Not done yet.
+`server.json` in this directory is the registry manifest; the tools it
+describes are catalogued in the repository's `AGENTS.md`, and client setup
+is at <https://localgpt.app/docs/gen/mcp-server>.
 
 ## Status
 
 | Item | Status |
 |---|---|
-| `server.json` manifest | ✅ Ready (see TODOs below) |
-| `mcp-publisher` CLI installed | ⬜ |
-| OCI image published to GHCR | ⬜ |
-| GitHub namespace verified | ⬜ (automatic via OAuth) |
+| `server.json` manifest | Written; its version needs refreshing (below) |
+| OCI image published to GHCR | Not done |
+| `mcp-publisher` CLI installed | Not done |
+| GitHub namespace verified | Automatic, via OAuth, at publish |
 
----
+## Before submitting
 
-## TODOs Before Submitting
+The registry takes `npm`, `pypi`, `nuget`, `oci` and `mcpb` packages, not
+crates.io, so a Rust binary goes up as an OCI image on GitHub Container
+Registry. `packages[0].identifier` in `server.json` is already
+`ghcr.io/localgpt-app/localgpt-gen`. (Native `cargo install` support would
+need a validator for a `cargo` registry type, upstream at
+<https://github.com/modelcontextprotocol/registry>.)
 
-### 1. Publish a Docker image to GHCR
+The packaging files were written at 0.3.5 and have not been built since.
+Bring them up to date first:
 
-The MCP Registry does not yet support `crates.io` as a package source
-(`npm`, `pypi`, `nuget`, `oci`, `mcpb` are the supported types).
-The most practical path for a Rust binary is an OCI image via
-GitHub Container Registry (GHCR).
+1. **`server.json`**: `version` and `packages[0].version` say `0.3.5`; set
+   both to the release being published.
+2. **`Dockerfile.gen`** (repository root): it copies a `bridges/` directory
+   that is no longer in the tree and creates the old `workspace` directory,
+   so it does not build as written. Its tags in the header comment say
+   `0.3.5` too. The namespace labels the registry verifies
+   (`org.opencontainers.image.source`, `io.modelcontextprotocol.name`) are
+   already in it.
+3. **`smithery.yaml`**: it passes `LOCALGPT_WORKSPACE`, which nothing reads;
+   Gen's directories come from `LOCALGPT_DATA_DIR`.
+4. **The icon**: `icons[0].src` is
+   `https://localgpt.app/img/localgpt-gen-icon.png`, which is not hosted.
+   Host it, or remove the optional `icons` array.
 
-Build and push:
+Then build and push the image, from the repository root:
 
 ```bash
-# From the repo root
-docker build -t ghcr.io/localgpt-app/localgpt-gen:0.3.5 \
+docker build -t ghcr.io/localgpt-app/localgpt-gen:<version> \
              -t ghcr.io/localgpt-app/localgpt-gen:latest \
-             -f Dockerfile .
+             -f Dockerfile.gen .
 
-# Authenticate
 echo $GITHUB_TOKEN | docker login ghcr.io -u localgpt-app --password-stdin
-
-# Push
-docker push ghcr.io/localgpt-app/localgpt-gen:0.3.5
+docker push ghcr.io/localgpt-app/localgpt-gen:<version>
 docker push ghcr.io/localgpt-app/localgpt-gen:latest
 ```
 
-The `packages[0].identifier` in `server.json` is already set to
-`ghcr.io/localgpt-app/localgpt-gen` — no change needed once the image is up.
-
-**Alternative:** If you want to request native `cargo install` support in the
-registry, open an issue at https://github.com/modelcontextprotocol/registry.
-It requires a PR adding a new validator for the `cargo` registryType.
-
-### 2. Add the package name to the Docker image label (namespace verification)
-
-For OCI images the registry verifies ownership via the container label.
-Add this to the Dockerfile (or to the `docker build` command with `--label`):
-
-```dockerfile
-LABEL org.opencontainers.image.source="https://github.com/localgpt-app/localgpt"
-LABEL io.modelcontextprotocol.name="io.github.localgpt-app/localgpt-gen"
-```
-
-### 3. Verify the icon URL
-
-Update `icons[0].src` in `server.json` if the URL differs:
-
-```json
-"icons": [
-  {
-    "src": "https://localgpt.app/img/localgpt-gen-icon.png",
-    "mimeType": "image/png",
-    "sizes": "512x512"
-  }
-]
-```
-
-If no icon is hosted yet, remove the `icons` array entirely for now
-(it is optional) and add it later.
-
----
-
-## Submission Steps
-
-### 1. Install `mcp-publisher`
+## Submitting
 
 ```bash
-# macOS/Linux via Homebrew
-brew install modelcontextprotocol/tap/mcp-publisher
+brew install modelcontextprotocol/tap/mcp-publisher   # or: curl -fsSL https://static.modelcontextprotocol.io/install.sh | sh
 
-# Or via the install script
-curl -fsSL https://static.modelcontextprotocol.io/install.sh | sh
+cd crates/gen
+mcp-publisher validate        # fix any schema errors first
+mcp-publisher login github    # as localgpt-app, or a member of that organization;
+                              # the io.github.localgpt-app/* namespace is then authorized
+mcp-publisher publish         # picks up server.json from the current directory
 ```
 
-### 2. Validate the manifest
-
-From this directory (`crates/gen/`):
-
-```bash
-mcp-publisher validate
-```
-
-Fix any schema errors before proceeding.
-
-### 3. Authenticate via GitHub OAuth
-
-```bash
-mcp-publisher login github
-```
-
-This opens a browser. Log in as `localgpt-app` (or a member of that org).
-The `io.github.localgpt-app/*` namespace is automatically authorized.
-
-For CI/CD (GitHub Actions), use OIDC instead:
+From GitHub Actions, use OIDC instead of the login:
 
 ```yaml
 - name: Publish to MCP Registry
@@ -120,86 +74,6 @@ For CI/CD (GitHub Actions), use OIDC instead:
     namespace: io.github.localgpt-app
 ```
 
-### 4. Publish
-
-```bash
-mcp-publisher publish
-```
-
-The `server.json` in the current directory is picked up automatically.
-
----
-
-## What the Registry Entry Will Show
-
-**Name:** `io.github.localgpt-app/localgpt-gen`
-**Title:** LocalGPT Gen
-**Description:** AI-driven 3D world builder: Bevy visuals, procedural audio, and entity behaviors.
-**Version:** 0.3.5
-**Transport:** stdio
-**Install:** `docker run --rm -i ghcr.io/localgpt-app/localgpt-gen:0.3.5 mcp-server`
-**Docs:** https://localgpt.app
-
----
-
-## What `localgpt-gen mcp-server` exposes
-
-When an MCP client connects, the server advertises **88 tools** across three capability pillars. None of them calls a model or a service: Gen runs no model and holds no key, and the agent that connects brings its own.
-
-### Visual — Bevy 3D Engine
-
-Real-time 3D scene rendering via Bevy 0.20 with an interactive viewport.
-
-| Category | Tools |
-|---|---|
-| Scene query | `gen_scene_info`, `gen_entity_info`, `gen_screenshot` |
-| Spawn | `gen_spawn_primitive`, `gen_spawn_batch`, `gen_spawn_mesh`, `gen_load_gltf` |
-| Modify | `gen_modify_entity`, `gen_modify_batch`, `gen_delete_entity`, `gen_delete_batch` |
-| Camera | `gen_set_camera`, `gen_set_camera_mode` |
-| Lighting | `gen_set_light`, `gen_set_environment`, `gen_set_sky` |
-| Export | `gen_export_screenshot`, `gen_export_gltf`, `gen_export_html` |
-| World skills | `gen_save_world`, `gen_load_world`, `gen_export_world`, `gen_clear_scene` |
-| History | `gen_undo`, `gen_redo`, `gen_undo_info` |
-| WorldGen pipeline | `gen_plan_layout`, `gen_apply_blockout`, `gen_populate_region`, `gen_evaluate_scene`, `gen_auto_refine`, `gen_build_navmesh`, `gen_validate_navigability`, `gen_edit_navmesh`, `gen_modify_blockout`, `gen_bulk_modify`, `gen_set_tier`, `gen_set_role`, `gen_regenerate`, `gen_render_depth` |
-| Multi-file worlds | `gen_write_world_plan`, `gen_write_region`, `gen_load_region`, `gen_unload_region`, `gen_persist_blockout`, `gen_write_behaviors`, `gen_write_audio`, `gen_check_drift`, `gen_sync` |
-| Image input | `gen_image_to_layout`, `gen_match_style`, `gen_reference_board`, `gen_panorama_to_world` |
-| Creations | `gen_define_creation`, `gen_spawn_instance` |
-| Terrain | `gen_add_terrain`, `gen_add_water`, `gen_add_path`, `gen_add_foliage`, `gen_query_terrain_height` |
-
-### Audio — FunDSP Procedural Synthesis
-
-Algorithmic soundscapes and spatial emitters synthesized in real time (no samples).
-
-| Category | Tools |
-|---|---|
-| Ambience | `gen_set_ambience` (wind, rain, forest, ocean, cave, stream, silence) |
-| Emitters | `gen_audio_emitter`, `gen_modify_audio` |
-| Status | `gen_audio_info` |
-
-### Behavior — Entity Logic & Interaction
-
-Data-driven animations, NPCs, physics, and interaction logic.
-
-| Category | Tools |
-|---|---|
-| Behaviors | `gen_add_behavior`, `gen_remove_behavior`, `gen_list_behaviors`, `gen_pause_behaviors` |
-| Characters | `gen_spawn_player`, `gen_set_spawn_point`, `gen_add_npc`, `gen_set_npc_dialogue` |
-| Interaction | `gen_add_trigger`, `gen_add_teleporter`, `gen_add_collectible`, `gen_add_door`, `gen_link_entities` |
-| Physics | `gen_set_physics`, `gen_add_collider`, `gen_add_joint`, `gen_add_force`, `gen_set_gravity` |
-| In-world UI | `gen_add_sign`, `gen_add_hud`, `gen_add_label`, `gen_add_tooltip`, `gen_add_notification` |
-
----
-
-## Supported AI Clients
-
-| Client | Config |
-|---|---|
-| Claude CLI | `claude mcp add localgpt-gen -- localgpt-gen mcp-server` |
-| Gemini CLI | `gemini mcp add --name localgpt-gen -- localgpt-gen mcp-server` |
-| Codex CLI | Add to `~/.codex/config.yaml` under `mcp.servers` |
-| VS Code | Add to `.vscode/mcp.json` |
-| Zed | Add to `~/.config/zed/settings.json` under `context_servers` |
-| Cursor | Add to `.cursor/mcp.json` |
-| Windsurf | Add to `~/.codeium/windsurf/mcp_config.json` |
-
-See https://localgpt.app/docs/gen/mcp-server for full configuration examples.
+The entry will read: `io.github.localgpt-app/localgpt-gen`, "LocalGPT Gen",
+stdio transport, installed with
+`docker run --rm -i ghcr.io/localgpt-app/localgpt-gen:<version> mcp-server`.

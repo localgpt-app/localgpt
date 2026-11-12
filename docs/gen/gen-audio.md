@@ -40,296 +40,89 @@ LocalGPT Gen includes a procedural environmental audio system built on FunDSP sy
 
 **Key design choices:**
 - **Bevy owns main thread** (macOS GPU/windowing requirement)
-- **kira owns the device and the mixer**; FunDSP is a synthesis DSL feeding it, not a rival engine — the graphs are Gen's, unchanged, and the transport is kira's
-- **Spatial tracks replace per-frame math**: an emitter is a sub-track with min/max distances, so moving the listener or the emitter attenuates and pans it; the old quadratic falloff is now kira's distance curve
+- **kira owns the device and the mixer**; FunDSP is a synthesis DSL feeding it, not a rival engine
+- **Emitters are spatial tracks**: an emitter is a sub-track with min/max distances (1.0 and its radius), so moving the listener or the emitter attenuates and pans it. The Bevy side sends positions each frame and computes no volume or pan
 - **Volume is amplitude** (the format's unit) and converts to decibels at the engine edge
 - **No output device is silence, not an error** — headless runners get a quiet world
 
-`localgpt-world-audio` is shared with MD and Verse, so one process can play a document world's ambience and a song world's soundtrack at once.
+`localgpt-world-audio` is shared with Verse, and Gen's engine streams a world's soundtrack on the same mixer (`AudioEngine::play_soundtrack`), so one process can play a document world's ambience and a song world's soundtrack at once. `sync_soundtrack_clock` puts the song's position on the modulation clock while it plays.
 
 ## Sound Types
 
-### Ambient Sounds
+Seven ambient sounds (`wind`, `rain`, `forest`, `ocean`, `cave`, `stream`, `silence`) loop as global layers, and five emitter sounds (`water`, `fire`, `hum`, `wind`, `custom`) play from a position. Their parameters are in the tool schemas (`crates/gen/src/gen3d/tools.rs`) and the user docs (`website/content/docs/gen/audio.md`). What those leave out:
 
-Global soundscapes that loop continuously with natural variation:
-
-| Sound | Parameters | Characteristics |
-|-------|-----------|-----------------|
-| Wind | `speed` (0-1), `gustiness` (0-1) | Pink noise with LFO-modulated lowpass |
-| Rain | `intensity` (0-1) | White noise bandpass with AM modulation |
-| Forest | `bird_density` (0-1), `wind` (0-1) | Pink noise layer + sine chirps (birds) |
-| Ocean | `wave_size` (0-1) | Brown noise with slow amplitude LFO + foam hiss |
-| Cave | `drip_rate` (0-1), `resonance` (0-1) | Sine chirps (drips) + quiet brown noise |
-| Stream | `flow_rate` (0-1) | Layered white/brown noise + bandpass |
-| Silence | (none) | DC output for silence |
-
-All ambient sounds use **LFO modulation** (0.05–0.3 Hz) to ensure natural variation — no two moments sound identical.
-
-### Emitter Sounds
-
-Spatial audio sources that respond to camera distance and direction:
-
-| Sound | Parameters | Characteristics |
-|-------|-----------|-----------------|
-| Water | `turbulence` (0-1) | White noise bandpass + brown undertone |
-| Fire | `intensity` (0-1), `crackle` (0-1) | Brown rumble + noise bursts via envelope |
-| Hum | `frequency` (Hz), `warmth` (0-1) | Sine + harmonics with detune for warmth |
-| Wind | `pitch` (Hz) | Pink noise with LFO modulation |
-| Custom | `waveform`, `filter_cutoff`, `filter_type` | Direct waveform → filter |
-
-Emitters support **spatial rendering**:
-- **Volume attenuation:** Quadratic falloff within radius (inverse square)
-- **Stereo panning:** Left/right based on camera relative direction
-- **Updates per-frame:** Lock-free via Shared params (no graph rebuild needed)
+- The tools take Gen's own `AmbientSound` and `EmitterSound` (`gen3d/commands.rs`), and `gen3d/compat.rs` converts them to the format's `wt::AudioSource`, the union of the two. The emitter `wind` is `AudioSource::WindEmitter`.
+- `silence` is the absence of a voice: the layer is listed and nothing plays.
+- `cave` takes `resonance`, and its graph does not use it.
+- `custom` has no pitch parameter: a `sine` runs at half of `filter_cutoff`, a `saw` or a `square` at a quarter.
+- The format's `File` and `Abc` sources have no graph, and Gen's own types cannot carry them. A world load skips audio with such a source; an applied op (undo, a room's or a live canvas's commit) plays it as a 220 Hz hum on an emitter and as silence in the ambience (`convert_audio_def_to_emitter_sound` and `convert_audio_source_to_ambient_sound` in `gen3d/plugin.rs`).
 
 ## Agent Tools
 
-### `gen_set_ambience`
+`gen_set_ambience`, `gen_audio_emitter`, `gen_modify_audio` and `gen_audio_info` (`crates/gen/src/gen3d/tools.rs`). Their arguments are in `AGENTS.md` and, with examples, in the user docs. What the handlers do beyond the schema:
 
-Set the global ambient soundscape. Replaces previous ambience.
-
-**Arguments:**
-```json
-{
-  "layers": [
-    {
-      "name": "background_wind",
-      "sound": { "type": "wind", "speed": 0.5, "gustiness": 0.3 },
-      "volume": 0.6
-    },
-    {
-      "name": "birds",
-      "sound": { "type": "forest", "bird_density": 0.4, "wind": 0.2 },
-      "volume": 0.4
-    }
-  ],
-  "master_volume": 0.8
-}
-```
-
-**Response:** `AmbienceSet`
-
-### `gen_audio_emitter`
-
-Create a spatial audio emitter. Can attach to an existing entity by name or spawn standalone.
-
-**Arguments:**
-```json
-{
-  "name": "campfire_sound",
-  "entity": "campfire",  // or omit + use position
-  "position": [5.0, 1.0, 3.0],  // optional
-  "sound": { "type": "fire", "intensity": 0.6, "crackle": 0.5 },
-  "radius": 15.0,
-  "volume": 0.8
-}
-```
-
-**Response:** `AudioEmitterSpawned { name }`
-
-### `gen_modify_audio`
-
-Modify an existing emitter's volume, radius, or sound.
-
-**Arguments:**
-```json
-{
-  "name": "campfire_sound",
-  "volume": 0.9,
-  "radius": 20.0,
-  "sound": { "type": "fire", "intensity": 0.8, "crackle": 0.6 }
-}
-```
-
-**Response:** `AudioEmitterModified { name }`
-
-### `gen_audio_info`
-
-Query current audio state (ambience layers, active emitters, volumes).
-
-**Arguments:** (none)
-
-**Response:**
-```json
-{
-  "active": true,
-  "ambience_layers": ["background_wind", "birds"],
-  "emitters": [
-    {
-      "name": "campfire_sound",
-      "sound_type": "fire",
-      "volume": 0.9,
-      "radius": 20.0,
-      "position": [5.0, 1.0, 3.0],
-      "attached_to": "campfire"
-    }
-  ],
-  "master_volume": 0.8
-}
-```
+- `gen_set_ambience` replaces every layer. A layer's `volume` defaults to 0.5. `master_volume` is clamped to 0–1 and keeps its last value (0.8 at start) when omitted.
+- `gen_audio_emitter` defaults `radius` to 10.0 and `volume` to 0.7. With `entity` the emitter follows that entity; with `position` alone it spawns a standalone entity of type `audio_emitter`. A name already in use replaces that emitter's voice.
+- `gen_modify_audio` sets `volume` on the live track; a `radius` or a `sound` rebuilds the voice. A `sound` that does not parse is ignored without an error.
+- `gen_audio_info` answers with `AudioInfoResponse` (`gen3d/commands.rs`): `active`, `ambience_layers`, `emitters`, `master_volume`.
+- No tool removes one emitter, and deleting the entity it follows does not stop it. `gen_undo` of the spawn does, and `gen_clear_scene` removes them all.
 
 ## Auto-Inference System
 
-The system automatically detects entity names and assigns audio. This runs every frame in `auto_infer_audio()`.
-
-**Rules** (case-insensitive substring match):
+`auto_infer_audio()` runs every frame over `Primitive` and `Mesh` entities that carry no emitter, and gives one to any whose name matches. The rules are `infer_emitter_from_name` in `crates/world-audio/src/graphs.rs`: a case-insensitive substring match, tried in this order.
 
 | Keywords | Sound | Radius |
 |----------|-------|--------|
-| waterfall, fountain | Water (turbulence: 0.8) | 15.0 |
-| river, water | Water (turbulence: 0.5) | 12.0 |
-| stream, creek, brook | Water (turbulence: 0.3) | 10.0 |
-| fire, campfire, torch, flame, bonfire | Fire (intensity: 0.5, crackle: 0.4) | 10.0 |
-| generator, machine, engine, motor | Hum (frequency: 120 Hz, warmth: 0.5) | 8.0 |
-| vent, fan, wind_turbine | Wind (pitch: 400 Hz) | 6.0 |
+| campfire, bonfire, fireplace, torch, brazier, fire | Fire (intensity: 0.6, crackle: 0.7) | 8.0 |
+| waterfall, fountain, river, creek, water | Water (turbulence: 0.6) | 12.0 |
+| generator, engine, machine, reactor, hum | Hum (frequency: 60 Hz, warmth: 0.5) | 10.0 |
 
-**Example:**
-```python
-# Agent spawns entity
-gen_spawn_primitive(name="campfire", shape="sphere", ...)
+A substring match is loose: `human` matches `hum`, `firefly` matches `fire`.
 
-# auto_infer_audio detects "campfire" in name
-# → Creates AudioEmitter with Fire sound automatically
-```
-
-To override: call `gen_audio_emitter` explicitly with different sound.
-
-## Usage Examples
-
-### Example 1: Forest Scene with Stream
-
-```python
-# Set ambient forest soundscape
-gen_set_ambience({
-  "layers": [
-    {
-      "name": "wind",
-      "sound": { "type": "wind", "speed": 0.3, "gustiness": 0.2 },
-      "volume": 0.5
-    },
-    {
-      "name": "birds",
-      "sound": { "type": "forest", "bird_density": 0.6, "wind": 0.1 },
-      "volume": 0.7
-    }
-  ],
-  "master_volume": 0.9
-})
-
-# Spawn visual stream
-gen_spawn_primitive(name="stream", shape="cuboid", ...)
-
-# Audio is auto-inferred: "stream" → Water emitter (turbulence: 0.3, radius: 10)
-# No explicit audio command needed
-
-# Walk camera toward stream → water rushes louder, pans stereo
-# Walk away → sound fades to ambient forest
-```
-
-### Example 2: Campfire with Custom Hum
-
-```python
-# Spawn visual campfire
-gen_spawn_primitive(name="campfire_center", shape="sphere", ...)
-
-# Auto-inference detects "campfire" → Fire emitter created
-
-# But also create a hum from a nearby generator
-gen_audio_emitter({
-  "name": "generator_hum",
-  "position": [10.0, 0.5, 0.0],
-  "sound": { "type": "hum", "frequency": 60.0, "warmth": 0.8 },
-  "radius": 20.0,
-  "volume": 0.6
-})
-
-# Scene now has: ambient silence, fire sounds from campfire, hum from generator
-# All respond to camera position
-```
-
-### Example 3: Modify Emitter at Runtime
-
-```python
-# Fire grows hotter → increase intensity
-gen_modify_audio({
-  "name": "campfire_sound",
-  "sound": { "type": "fire", "intensity": 0.8, "crackle": 0.7 }
-})
-
-# Fire grows closer → increase volume
-gen_modify_audio({
-  "name": "campfire_sound",
-  "volume": 1.0
-})
-```
+The emitter is named `<entity>_audio`, plays at volume 0.6 and follows the entity. To change it, call `gen_modify_audio` on that name. A `gen_audio_emitter` call under another name adds a second voice and leaves the inferred one playing.
 
 ## Implementation Details
 
 ### FunDSP Graph Patterns
 
-The graphs live in `localgpt-world-audio/src/graphs.rs`, keyed on
-`wt::AudioSource` — the format's union of what used to be Gen's
-`AmbientSound` and `EmitterSound`. Each sound compiles to a FunDSP `AudioUnit`. Complex sounds use `Net` (dynamic graph) with explicit node connections:
+The graphs live in `crates/world-audio/src/graphs.rs`, keyed on
+`wt::AudioSource`. `graphs::build` returns a mono `AudioUnit` for a source,
+or `None` for `File`, `Abc` and `Silence`. A single-chain sound (rain, the
+wind emitter) is one FunDSP expression. A layered one (ocean, fire, hum) is
+a `Net::new(0, 1)`: each layer is pushed as a node, and `pass() + pass()`
+nodes wired with `set_source` sum them into the output.
 
-**Ambient Wind (simple):**
-```rust
-pink() >> lowpass_hz(cutoff_with_lfo)
-```
+The graph ends at the mono sum. Volume, panning and distance belong to the
+kira track that plays it. The module needs no audio device, so a test in
+`source.rs` renders every source and checks that it is finite and not
+silent; it does not check what a sound sounds like.
 
-**Ambient Ocean (complex, uses Net):**
-```
-Net::new(0, 1)
-  .push(brown() with slow amplitude LFO)  → id1
-  .push(white() >> highpass)              → id2
-  .push((pass() + pass()))                → sum (id1 + id2)
-  .pipe_output(sum)
-```
+### Voice Rebuilds
 
-**Emitter Fire (uses Net for composition):**
-```
-Net::new(0, 1)
-  .push(brown() >> lowpass for rumble)           → id_rumble
-  .push(white() >> bandpass with LFO for crackle) → id_crackle
-  .push((pass() + pass()))                       → sum
-  .pipe_output(sum)
-  // Each multiplied by volume, then panned to stereo
-```
+A sound's parameters (`speed`, `intensity`, …) are constants inside its
+graph, and an emitter's distances are fixed when its spatial track is
+built. So:
 
-### Parameter Control
-
-All runtime parameters (`volume`, `pan`, `speed`, `intensity`) are `Shared<f32>` — atomic lock-free updates:
-
-```rust
-// Bevy thread (frame update):
-emitter_params[name].volume.set(0.8);  // No mutex, no allocation
-
-// Audio thread (immediate effect):
-let vol = volume_shared.value();        // Read via atomic load
-```
-
-### Graph Rebuild Trigger
-
-Graph rebuilds occur only on structural changes:
-- `SetAmbience` → clear all nodes, rebuild ambience layers
-- `AddEmitter` → push new emitter node, reconnect output sum
-- `RemoveEmitter` → remove emitter node, reconnect output sum
-
-Parameter updates (volume, pan) do NOT rebuild — they just update `Shared` values.
+- `SetAmbience` drops every layer and builds the new ones;
+- `AddEmitter` replaces any emitter of that name;
+- a new radius or a new `sound` on an emitter rebuilds its voice;
+- volume, an emitter's position and the listener are set on the live track.
 
 ## File Structure
 
-- **`crates/gen/src/gen3d/audio.rs`** (689 lines)
-  - `AudioEngine` resource
-  - Audio thread startup and management
-  - Bevy systems: `spatial_audio_update`, `auto_infer_audio`, command handlers
+- **`crates/gen/src/gen3d/audio.rs`** — the Bevy-side half
+  - `AudioEngine` resource: names, base volumes, radii, `last_ambience` for world saves
+  - The audio thread and the `AudioUpdate` messages it drains
+  - Bevy systems: `spatial_audio_update`, `auto_infer_audio`, `sync_soundtrack_clock`, and the command handlers
 
-- **`crates/gen/src/gen3d/audio_graphs.rs`** (358 lines)
-  - FunDSP graph builders for all 12 sound types
-  - `infer_emitter_from_name()` for auto-detection
-  - Keyword-based inference rules
+- **`crates/world-audio/src/`** — `localgpt-world-audio`
+  - `engine.rs` — `Engine`: the kira `AudioManager`, ambience layers, spatial emitters, the soundtrack
+  - `graphs.rs` — the FunDSP graph for each `AudioSource`, and `infer_emitter_from_name()`
+  - `source.rs` — `FundspSound`, a graph as a kira sound
 
 - **Related files:**
   - `crates/gen/src/gen3d/commands.rs` — audio command/response types
+  - `crates/gen/src/gen3d/compat.rs` — conversions between Gen's sound types and `wt::AudioSource`
   - `crates/gen/src/gen3d/tools.rs` — the four audio tools
   - `crates/gen/src/gen3d/plugin.rs` — Bevy system registration
   - `crates/gen/src/gen3d/registry.rs` — `AudioEmitter` entity type
@@ -339,47 +132,44 @@ Parameter updates (volume, pan) do NOT rebuild — they just update `Shared` val
 These are ideas, not scheduled features:
 
 - crossfades when switching ambience and smooth parameter interpolation;
-- environmental reverb changes;
+- environmental reverb (`AmbienceCmd::reverb` exists; nothing sets or plays
+  it);
 - musical source formats such as Glicol or ABC, authored by an external agent
-  and synthesized through the shared audio engine.
+  and synthesized through the shared audio engine (the format has
+  `AudioSource::Abc`, with no graph yet).
 
 A musical extension needs its own design and must not add a prompt loop or a
 model call to Gen.
 
 ## Manual check
 
+The engine's tests skip what needs an output device, so a change to the
+audible path is checked by ear:
+
 ```bash
-cargo run -p localgpt-gen -- mcp-server
+cargo run -p localgpt-gen -- --mcp-relay
 ```
 
-Connect an MCP client and ask its agent to create a forest clearing with a
-stream and a campfire, with forest ambience and spatial water and fire
-emitters. Then verify:
+Point an MCP client at the window (`localgpt-gen mcp-server --connect`) and
+ask its agent to create a forest clearing with a stream and a campfire, with
+forest ambience and spatial water and fire emitters. Then verify:
 
 1. forest ambience plays;
 2. the stream and fire are audible at their positions;
 3. moving the camera changes their volume and stereo position;
 4. `gen_audio_info` reports the layers and emitters the agent created.
 
-## Performance Notes
-
-- **Audio rendering:** Minimal overhead (FunDSP is highly optimized)
-- **Main thread impact:** Only Shared parameter writes (atomic, no locking)
-- **Graph rebuilds:** ~1-2ms for typical graphs (infrequent, not per-frame)
-- **Memory:** ~100 KB for typical ambience + 5-10 emitters
-- **CPU:** ~2-5% usage (on modern hardware) for full complex soundscape
-
 ## Debugging
 
-Enable Bevy tracing for audio events:
+Gen logs at `warn` unless `-v` or `RUST_LOG` says otherwise:
 
 ```bash
-RUST_LOG=localgpt_gen::gen3d::audio=debug cargo run -p localgpt-gen -- "your prompt"
+RUST_LOG=localgpt_gen::gen3d::audio=debug,localgpt_world_audio=debug cargo run -p localgpt-gen -- --mcp-relay
 ```
 
 Logging includes:
-- Audio engine startup
-- Graph rebuild events
-- Auto-inferred emitters
-- Spatial audio parameter updates
+- Audio engine startup (`info`)
+- A missing output device, a full mixer, a voice or a soundtrack that would not play (`warn`)
+- A layer or an emitter skipped because its source has no graph (`debug`)
 
+Emitter adds, voice rebuilds and position updates are not logged.

@@ -1,31 +1,13 @@
 # The session package: one artifact for a world, its edits and its play
 
-**Status:** implemented (see [Implementation status](#implementation-status)).
-Supersedes the tool-call-log half of
-`docs/rfcs/worldgen/world-package-format.md` (the landscape survey below its
-"Synthesis" stays useful); extends the op log of
-`docs/rfcs/multiplayer/collaborative-world-engine-architecture.md` (spec
-phase 5) from "the room's history" to "the world's file format".
-
-## The problem
-
-A Gen session leaves artifacts in three places that don't know about each
-other:
-
-- `world.ron` — the world at the moment of a save, with no memory of how it
-  got there.
-- `<workspace>/sessions/<name>/ops.jsonl` — the room's op log: every
-  committed batch with its author, so `--resume` and `--replay` work, but
-  only for web sessions, and it records nothing the room's document doesn't
-  hold.
-- the generation log (`world-types::GenLogEntry`) — every tool call the
-  model made, with arguments and a result hash, written to its own file and
-  never reconciled with the ops those calls caused.
-
-Three questions have no answer today. *What did the model do here, versus
-the people?* (audit). *Can I watch this session again, visitors and all?*
-(replay). *Can I fork from the moment before that edit?* (branching). All
-three are reads over one history, so the format should be one history.
+**Status:** implemented for Gen's hosted sessions. Every room
+`localgpt-gen --host` opens keeps this directory, and `--resume`,
+`--replay` and `--export-session` read it. Structural replay is what is
+built; `input` and `clock` recording, playthrough replay, compaction, and
+MD or Verse writing a session are not ([Not built](#not-built)). The
+log's entry and op kinds are the Open World Format's, defined in its
+specification. The directory around the log is Gen's own and is not the
+format's package layout ([Two layouts, one log](#two-layouts-one-log)).
 
 ## The decision
 
@@ -34,197 +16,193 @@ revision is a pure fold.** Not a state file with history bolted on — an
 event-sourced document. Replay, resume, undo, auditing changes, and
 forking all become the same mechanism: read the log.
 
-The package is the *artifact* every app emits and consumes. It is not the
-*source* every app is authored in — Gen's source is the world itself, MD's is
-the `.md`, Verse's is the song and its analysis sidecar, as
-`docs/world-strategy.md` summarizes.
+The reason is that a session otherwise leaves three artifacts that don't
+know about each other: a `world.ron` with no memory of how it got there, a
+room's op log that holds only what the document holds, and a generation
+log of tool calls never reconciled with the ops those calls caused. Who
+did what, watching a session again and forking from before an edit are
+all reads over one history, so there is one history.
 
-## The package
+## Two layouts, one log
+
+Two things in this workspace write an `ops.jsonl`. The line is the same
+type in both (`OpLogEntry`, a batch of `SessionOp`s, from the
+`openworldformat` crate); the directory around it is not.
+
+| | Gen's session directory (this document) | The format's package |
+|---|---|---|
+| Written by | the room (`crates/gen/src/net/web.rs`), through `world-agent`'s `session` module | `world-agent`'s `LiveWorld` (the desktop app, `localgpt world`) and `localgpt-previs` |
+| Base | `world.ron` | `snapshots/base.json` |
+| Head | folded on read | `manifest.json`, kept by the authority |
+| Metadata | `session.json` | `package.json` |
+| Keyframes | `snapshots/rev-<N>.ron` | git commits, when the package is a repository |
+| `id`, `parent`, `message` on an entry | no: a room's history is linear | yes: content-hash ids, so it can fork |
+| Assets | none | `assets/<sha256>.<ext>` |
+
+`session.json` is written with the crate's `SESSION_FORMAT_VERSION`, which
+is 2, the format's head-first package, although this directory is not
+head-first; nothing here reads the field. The session directory is one of
+the places `world.ron` still lives after the decision that the package is
+the only document (`docs/rfcs/authoring/world-editor-stack.md`).
+
+## The session directory
 
 ```
-<name>.world/                  a directory (canonical; the log appends)
+<workspace>/sessions/<slug>/   a directory (canonical; the log appends)
   world.ron                    base world at revision base_revision
-                                (WorldManifest, RON — the authoring form)
+                                (WorldManifest, RON)
   ops.jsonl                    the one log — one JSON line per entry
   session.json                 package metadata (see below)
   snapshots/rev-<N>.ron        derived keyframes, never authoritative
-  assets/<sha256>…             content-addressed leaves (already the
-                                pattern: MeshAssetRef::sha256)
-  transcript.jsonl             optional: prompts/completions sidecar
 ```
 
-A zipped `.world` is a transport form for publishing a finished session;
-the directory stays canonical because an append-only log cannot live inside
-a zip without rewriting it.
+`<workspace>` is Gen's (`~/.local/share/localgpt/gen-workspace/` by
+default); `<slug>` is the session name in lowercase, with every run of
+other characters a `-`.
 
-`session.json`:
+A zip of the directory with a `.world` extension is the transport form;
+the directory stays canonical because an append-only log cannot live
+inside a zip without rewriting it.
+
+`session.json`, as the room writes it:
 
 ```json
 {
-  "format_version": 1,
-  "name": "castle-build",
+  "format_version": 2,
+  "name": "Castle Build",
   "app": "gen",
   "base_revision": 0,
   "head_revision": 482,
-  "seed": 1730204311,
-  "world_sha256": "…",       // of world.ron at base_revision
-  "log_sha256": "…",         // of ops.jsonl as of head_revision
+  "world_sha256": "…",
+  "log_sha256": "…",
   "updated_ms": 1790000000123
 }
 ```
 
-The invariant, asserted by the reader and by tests:
+`world_sha256` is of `world.ron` and `log_sha256` of `ops.jsonl`. The room
+refreshes `head_revision` and `log_sha256` when it opens and at each
+snapshot, not on every append, so between snapshots they trail the log: a
+reader takes the head from the log, as `read_package` does. `seed` is
+reserved and not written. `forked_from` is written only by `fork_package`,
+which nothing calls yet.
+
+The invariant the reader implements and the tests pin:
 
 ```
 fold(base, entries with revision > base_revision) == state at head
 ```
 
-## The log line
+## The log
 
 One line per entry; an entry is a committed batch of ops by one author.
-The envelope is today's `OpLogEntry` (`world-sync/src/oplog.rs`) with `ops`
-generalized from `Vec<EditOp>` to `Vec<SessionOp>`:
+The entry, the op kinds, the fold and the compatibility rule (op kinds are
+recognized by shape, edits first, so a log of plain `EditOp`s still
+parses) are the format's: `spec/session.md` in
+https://github.com/openworldformat/openworldformat. Only edits change the
+document and bump the revision; every other kind carries the current
+revision and folds to nothing.
 
-```rust
-#[serde(untagged)]
-pub enum SessionOp {
-    Edit(EditOp),        // serializes exactly as the EditOp always did
-    Tool(ToolRecord),    // the model's call, next to its effects
-    Input(InputRecord),  // a visitor's sampled state
-    State(StateRecord),  // host game state (score, inventory, …)
-    Clock(ClockRecord),  // transport (Verse's song clock, tour clocks)
-}
-```
+What the room writes:
 
-`untagged` with `Edit` first is the compatibility rule: a log written
-before this change holds `EditOp` JSON and parses as `Edit`; a `SessionOp`
-written today serializes its `Edit` variant exactly as the old format did.
-Old readers see new logs' edit entries and skip what they don't know (the
-same tolerance the reader already has for unreadable lines).
+| Kind | Written for | Author |
+|---|---|---|
+| edit | every committed batch: the host's projection, a guest's `submit`, an `undo` | `host`, or the guest's name and peer id |
+| `tool` | the two commands that call `GenerationLog::log` today, `gen_check_drift` and `gen_sync` | `llm` |
+| `state` | a score change (`ScoreBoard`) | `host` |
+| `input`, `clock`, `merge`, extensions | nothing | |
 
 ```json
-{"revision": 42, "timestamp_ms": 1790000000123,
- "author": {"peer": 3, "name": "maya"},
- "ops": [{"ModifyEntity": {"id": 17, "patch": {"transform": …}}}]}
-{"revision": 42, "timestamp_ms": 1790000000131,
- "author": {"name": "llm"},
- "ops": [{"tool": "gen_spawn_primitive", "args": {…},
-          "result_hash": "sha256:…", "phase": "blockout"}]}
-{"revision": 42, "timestamp_ms": 1790000001400,
- "author": {"name": "visitor-7"},
- "ops": [{"input": {"actor": "visitor-7",
-                    "sample": {"position": [3.1, 1.8, -2.0], "click": 17}}}]}
-{"revision": 42, "timestamp_ms": 1790000001455,
- "ops": [{"state": {"score.chest": 10}}]}
-{"revision": 42, "timestamp_ms": 1790000002000,
- "ops": [{"clock": {"playing": true, "position_s": 41.5}}]}
+{"revision": 42, "author": {"peer": 3, "name": "maya"},
+ "ops": [{"ModifyEntity": {"id": 17, "patch": {"transform": …}}}],
+ "timestamp_ms": 1790000000123}
 ```
 
-Which op kinds change the document: **only `Edit`.** Everything else is
-history that folds to nothing — the document's revision is the authority's
-revision, and non-edit entries carry the current revision rather than
-bumping it. Readers must tolerate repeated and out-of-order-looking
-revisions between edits; the edit entries themselves stay totally ordered.
+The room's entries carry no `id`, `parent` or `message`: file order is the
+chain. A skill directory's `meta/generation-log.jsonl` is still written on
+save (`gen3d/world.rs`), so tool calls are in two places and nothing
+reconciles them; nothing links a `tool` record to the edits it caused
+beyond their timestamps.
 
-Why each kind is there:
+What stays out of the log: presence, physics scratch state, renderer
+state, and anything wall-clock-dependent — timestamps describe the past;
+they never drive the fold.
 
-| Kind | Who writes it | What it buys |
-|---|---|---|
-| `edit` | the authority, for anyone | resume, replay, per-user undo (inverses already exist), forking |
-| `tool` | the app, when a tool call runs | audit ("what did the model do"), genlog becomes a view over the log instead of a second file |
-| `input` | the app, sampled (~10 Hz) while recording | playthrough replay: triggers re-run offline over logged inputs |
-| `state` | the app, when host state changes | the game state that lives in no document (score, inventory) is now history |
-| `clock` | the app, on transport events | a Verse performance replays: modulations are deterministic given the clock |
+## Reading: resume, replay, export
 
-`tool` records intent; the `edit` entries the same call caused record
-effect. Linking them precisely (a `cause` field) is left until a reader
-needs it — both carry timestamps within milliseconds of each other.
+- **`read_package(dir, at)`** picks the newest snapshot at or below the
+  revision asked for, else `world.ron`, and folds the entries after it —
+  the keyframe seek every video player has. It is tolerant: an unreadable
+  line, a torn last line included, is skipped and counted, and the fold
+  stops with an error at the first entry that no longer applies.
+- **Snapshots.** The room writes `snapshots/rev-<N>.ron` every 500
+  committed revisions. A snapshot is the folded document: derived, never
+  authoritative, deleted freely.
+- **`--resume <session>`** (with `--host --web`) loads a session into the
+  authority before guests join: a session name, a package directory, a
+  bare `ops.jsonl`, a `.world` archive, or a directory with a log and no
+  `session.json`, which folds from an empty base. The room then appends
+  to the directory of the session it is hosting (`--session-name`, by
+  default `<user>'s world`), not the one it resumed. Resuming into another
+  directory writes a package that does not fold: `OpLog::open` creates
+  `ops.jsonl` before `ensure_package` looks for it, so a new directory
+  always gets an empty `world.ron` at revision 0, and its log holds only
+  the changes made after the resumed head. Until that is fixed, resume
+  with the session's own name.
+- **`--replay <session>`** plays the edits as a time-lapse,
+  `--replay-speed` batches a second. It reads a package through
+  `read_package`, so once a session has a snapshot it starts from the
+  newest one, not from `world.ron`.
+- **`--export-session <name> [--out x.world]`** zips the directory as it
+  is (entries stored, the walk sorted, so one package zips to one
+  archive); `--resume` and `--replay` extract such an archive to a
+  temporary directory. The archive holds this layout, not the format's: a
+  reader of Open World Format packages finds no `manifest.json` in it.
 
-## Replay, in tiers
+## Not built
 
-1. **Structural** — `fold(base, entries)` at any revision. `--resume` (seek
-   to head), `--replay` (time-lapse through edits), diffing two revisions,
-   forking at a revision (copy base + log prefix).
-2. **Playthrough** — offline trigger re-run over `input` and `state`
-   entries, rendered headless. Gen's trigger runtime is already driven by
-   visitor position and clicks; this tier feeds it the log instead of the
-   live player. The web viewer can do the same, which turns a session on
-   localgpt.world into something watchable.
-3. **Bit-exact cinematic** — needs a determinism contract: the `seed` in
-   `session.json`, behaviors and triggers keyed to log time rather than
-   wall clock, physics seeded or recorded as state. FunDSP graphs are
-   already pure functions of time, so audio holds. Not built; the fields
-   are reserved.
+- **`input` and `clock` recording.** The types and the fold's tolerance
+  are in the crate; nothing here writes them. Playthrough replay —
+  re-running triggers offline over logged `input` and `state` — waits on
+  them. Bit-exact replay is not part of the format (`spec/session.md`,
+  "Replay and determinism").
+- **Compaction.** Nothing folds a session to a new base.
+- **Assets.** The room stores no asset files in the directory; the
+  format's content-addressed `assets/` is `LiveWorld`'s.
+- **MD and Verse.** Neither writes a session, and neither would change
+  its source (the `.md`, the song). The design: MD compiles `.md` and
+  sidecar to a base world (`draft::compile`), and a rebuild is one `Batch`
+  of spawn, delete and modify ops, which `world-sync`'s `diff_scene`
+  already computes between a document and a new set of entities; Verse
+  exports its manifest as the base and writes `clock` entries on
+  transport, packaging only CC0 audio.
+- **The web viewer's scrub controls.**
 
-Tier 1 is exact by construction (it is the room's own document path).
-Tier 2 is approximate by default — input is sampled, not streamed — and
-that is the right trade: presence was never going to be bit-exact, and a
-10 Hz visitor curve replays a trigger's story faithfully.
+## Where it lives
 
-## Snapshots and compaction
-
-A snapshot is `doc.to_manifest()` written to `snapshots/rev-<N>.ron`:
-derived, never authoritative, deleted freely. Reading at a revision picks
-the nearest base-or-snapshot at or below it and folds forward — the
-keyframe seek every video player has. Compaction folds to a new `world.ron`
-base and keeps the old log for history (Kafka's log compaction, and
-localgpt-core's session compaction, are the same move). Neither changes
-the invariant; a test asserts it both ways.
-
-## What stays out of the log
-
-Presence at full rate (sample into `input` coarsely if ghost replay is ever
-wanted, never stream), physics scratch state, renderer state, and anything
-wall-clock-dependent — timestamps describe the past; they never drive the
-fold.
-
-## MD and Verse
-
-Neither app changes its source; both can emit and consume the package:
-
-- **MD** compiles `.md` + sidecar to a base world (`draft::compile`), and a
-  document rebuild is one `Batch` of spawn/delete/modify ops —
-  `world-sync::diff` already computes exactly that between two world
-  documents, so the file watcher can feed a live room without a new op.
-  Visitors walking a deck are `input` entries.
-- **Verse** exports its manifest (soundtrack curves, modulations) as the
-  base and writes `clock` entries on transport; a performance is then
-  base + clock + visitor input. The licensing gate stands: only CC0 audio
-  is packaged, exactly as on localgpt.world today.
-
-## Implementation status
-
-- `world-types`: nothing new needed; `GenLogEntry` remains for readers of
-  the old generation log.
-- `world-sync` (stays I/O-free): `SessionOp`, `ToolRecord`, `InputRecord`,
-  `StateRecord`, `ClockRecord`, `SessionMeta` in `session.rs`;
-  `OpLogEntry.ops` is `Vec<SessionOp>`; `OpLogEntry::edit_ops()` and
-  `fold_log` are the pure reader paths.
-- `world-agent` `session.rs`: the package on disk — `write_base`,
-  `append_entry`, `write_snapshot`, `update_meta`, `read_package` (with
-  revision seek and torn-line tolerance), `sha256` integrity helpers,
-  and `export_zip` for the transport form (a `.world` file: stored
-  entries, sorted walk, round-trip tested). Lives here because Gen, MD
-  and Verse all depend on this crate and none can depend on
-  `localgpt-core`.
-- The format is published as the Open World Format
-  (github.com/openworldformat/openworldformat, openworldformat.org): the
-  spec, the schema, this conformance suite and a JS reference fold.
-- Gen: web sessions are packages (base + `session.json` written when the
-  room opens, tool calls and score changes land in the log, snapshots
-  every 500 committed revisions); `--resume` and `--replay` accept a
-  session name, an `ops.jsonl` path, or a package directory.
-- Gen wraps the transport form: `--export-session <name> [--out x.world]`
-  zips a package, and `--resume`/`--replay` accept `.world` archives back
-  (extracted to a temp dir, read as a package).
-- Not yet wired: `input`/`clock` recording (types and fold tolerance are
-  in), MD publish, Verse transport logging, the web viewer's scrub
-  controls.
+- The `openworldformat` crate (`session.rs`, `oplog.rs`): `SessionOp` and
+  its records, `SessionMeta`, `OpLogEntry`, `OpLogEntry::edit_ops()` and
+  `fold_log`. `crates/world-sync` re-exports them and stays I/O-free.
+- `crates/world-agent/src/session.rs`: the directory on disk —
+  `write_base`, `write_meta`, `read_meta`, `refresh_meta`, `append_entry`,
+  `write_snapshot`, `read_package`, `fork_package`, `export_zip`,
+  `extract_zip`. It lives there because Gen, MD and Verse all depend on
+  that crate.
+- `crates/gen/src/net/web.rs`: the room's use of it — the base and
+  `session.json` when the room opens (`ensure_package`), the log appended
+  in `deliver`, tool and state records and snapshots in
+  `web_session_history`, `--resume` in `replay_log`. `--replay` is
+  `crates/gen/src/gen3d/replay.rs`.
+- `crates/world-types/src/genlog.rs`: `GenLogEntry`, the generation log
+  file's line.
 
 ## Related documents
 
 - `docs/rfcs/multiplayer/collaborative-world-engine-architecture.md` — the
-  authority, revisions, and the op log this builds on.
-- `docs/world-strategy.md` — the shared format and the apps' different
-  authoring sources; the package is their common artifact.
+  authority, revisions, and the room this is the history of.
+- `docs/rfcs/authoring/world-editor-stack.md` — the non-linear editor over
+  the format's package, and the decision that the package is the only
+  document.
 - `docs/gen/multiplayer.md` — the user-facing session documentation.
+- `spec/session.md` and `spec/package.md` in
+  https://github.com/openworldformat/openworldformat — the log, and the
+  package layout this directory is not.
