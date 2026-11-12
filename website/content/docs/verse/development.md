@@ -37,7 +37,7 @@ Threading is channels-and-atomics only across boundaries (the single shared-stat
 | Flag | What it adds | Fetch first |
 |---|---|---|
 | `(default)` | Playback, DSP analysis, rule-mapped worlds | — |
-| `ml` | CLAP zero-shot moods, embedding-ranked placement, Demucs stems | `cargo xtask fetch-clap` (~78 MB) |
+| `ml` | CLAP zero-shot moods, embedding-ranked placement, Demucs stems | `localgpt audio install match` (~207 MB) |
 
 CI compiles the optional tier so it can't rot, and it falls back to the rule-derived world when its model is absent. There is no language-model tier: a recipe comes from the sidecar, written by an agent.
 

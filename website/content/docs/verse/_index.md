@@ -46,10 +46,10 @@ Analysis results are cached as JSON sidecars, keyed by a blake3 content hash and
 
 ## Optional: ML moods {#ml}
 
-The default mood mapper is pure, deterministic DSP. For a research-grade upgrade, build with the `ml` feature and fetch the CLAP audio model once:
+The default mood mapper is pure, deterministic DSP. For a research-grade upgrade, build with the `ml` feature and install the CLAP model once (the same `match` model an agent's `audio_match` tool uses):
 
 ```bash
-cargo xtask fetch-clap               # ~78 MB CLAP model (LAION / Xenova ONNX)
+localgpt audio install match         # ~207 MB CLAP model (LAION / Xenova ONNX)
 cargo run -p localgpt-verse --features ml
 ```
 

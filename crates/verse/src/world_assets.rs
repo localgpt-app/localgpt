@@ -216,17 +216,17 @@ pub fn sync_asset_embeddings(
             .map(|a| (a.file.clone(), format!("{}, {}", a.name, a.tier_label())))
             .collect();
         std::thread::spawn(move || {
-            let Some(mut model) = crate::ml::TextEmbedder::try_load() else {
+            let Some(mut model) = crate::ml::text_model() else {
                 return; // keyword matching stands; nothing more to do
             };
             let mut done = 0usize;
             for (file, text) in texts {
-                match model.embed(&text) {
+                match model.embed_text(&text) {
                     Ok(emb) => {
                         shared.lock().unwrap().insert(file, emb);
                         done += 1;
                     }
-                    Err(e) => warn!("ml: asset embed failed for {file}: {e}"),
+                    Err(e) => warn!("ml: asset embed failed for {file}: {e:#}"),
                 }
             }
             info!("ml: embedded {done} assets for track-driven placement");

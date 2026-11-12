@@ -61,32 +61,30 @@ localgpt-world-audio = { workspace = true }
 ron = "0.12"      # `.world.ron`, Gen's save format, next to the JSON export
 
 
-# PLAN.md M5 — CLAP zero-shot mood + audio embeddings. Opt-in: the models are
-# a ~207 MB download (cargo xtask fetch-clap) and ort pulls ONNX Runtime
-# binaries; without the feature (or the model file) the app uses the rule
-# mapper (M4), which is pure Rust DSP.
+# PLAN.md M5 — CLAP zero-shot mood + audio embeddings. Opt-in: ort pulls
+# ONNX Runtime binaries, and the model is the shared `match` model (~207 MB,
+# `localgpt audio install match`, or cargo xtask fetch-clap into assets/ml/),
+# run by localgpt-audio-models, which owns the frontend and both towers.
+# Without the feature (or the model) the app uses the rule mapper (M4), which
+# is pure Rust DSP.
 #
 # Licences: LAION's CLAP code is CC0-1.0 and its model card gives the weights
-# Apache-2.0; the Xenova ONNX export fetch-clap downloads states none of its
-# own, and no licence covers the training data (PLAN.md §4). MERT's weights
-# are CC-BY-NC, so it is not a swap.
+# Apache-2.0; the Xenova ONNX export states none of its own, and no licence
+# covers the training data (PLAN.md §4). MERT's weights are CC-BY-NC, so it is
+# not a swap.
 #
 # PLAN.md M7 — Demucs stem separation rides the `ml` feature via
 # `stem-splitter-core` (MIT OR Apache-2.0 — commercial-friendly), which wraps
 # htdemucs ONNX and owns the decode→chunk→separate→merge pipeline. Added with
 # --no-default-features so the coreml/cuda/directml backends stay off (CPU-only,
-# matching the existing `ort` default).
+# matching the `ort` default). It pins ort =2.0.0-rc.11, as
+# localgpt-audio-models does, so the workspace links one ONNX Runtime.
 [features]
-ml = ["dep:ort", "dep:rubato", "dep:stem-splitter-core", "dep:tokenizers"]
+ml = ["dep:localgpt-audio-models", "dep:stem-splitter-core"]
 
-[dependencies.ort]
-# Pinned to rc.11 to match `stem-splitter-core` (which pins =2.0.0-rc.11). Since
-# core's fastembed left, this `ml` tier is the workspace's only ONNX Runtime.
-version = "=2.0.0-rc.11"
-optional = true
-
-[dependencies.rubato]
-version = "0.16"
+[dependencies.localgpt-audio-models]
+workspace = true
+features = ["run"]
 optional = true
 
 # htdemucs stem separation (PLAN.md M7). MIT OR Apache-2.0. --no-default-features
@@ -94,12 +92,4 @@ optional = true
 [dependencies.stem-splitter-core]
 version = "1.2"
 default-features = false
-optional = true
-
-# RoBERTa tokenizer for the CLAP *text* tower (asset-selection ranking,
-# M5→M6 hook). HF `tokenizers` (pure Rust); only compiled under `ml`.
-[dependencies.tokenizers]
-version = "0.21"
-default-features = false
-features = ["fancy-regex"]
 optional = true

@@ -63,6 +63,7 @@ fn tool_for(id: &str, context: &ToolContext) -> Option<Box<dyn Tool>> {
             context.clone(),
         ))),
         "tags" => Some(Box::new(crate::tags::TagsTool::new(context))),
+        "match" => Some(Box::new(crate::clap::MatchTool::new(context))),
         _ => None,
     }
 }

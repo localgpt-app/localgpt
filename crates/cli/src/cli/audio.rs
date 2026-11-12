@@ -80,6 +80,15 @@ pub enum AudioCommands {
         #[arg(long)]
         out: Option<PathBuf>,
     },
+
+    /// Score a recording against descriptions in plain English, best first (the `match` model)
+    Match {
+        /// The recording (WAV, FLAC, Ogg Vorbis, MP3, AAC/M4A, ALAC, AIFF)
+        file: PathBuf,
+        /// What it might be: give several, including contrasting ones
+        #[arg(required = true)]
+        descriptions: Vec<String>,
+    },
 }
 
 pub async fn run(command: AudioCommands) -> Result<()> {
@@ -140,6 +149,9 @@ pub async fn run(command: AudioCommands) -> Result<()> {
             notes(&dir, &file, &options, json).await
         }
         AudioCommands::Stems { file, out } => stems(&dir, file, out).await,
+        AudioCommands::Match { file, descriptions } => {
+            match_descriptions(&dir, file, descriptions).await
+        }
     }
 }
 
@@ -253,6 +265,27 @@ async fn stems(dir: &Path, file: PathBuf, out: Option<PathBuf>) -> Result<()> {
     );
     for (name, file) in models::stems::NAMES.iter().zip(&stems.files) {
         println!("  {name:<7} {}", file.display());
+    }
+    Ok(())
+}
+
+/// `localgpt audio match`: the ranking, best first.
+async fn match_descriptions(dir: &Path, file: PathBuf, descriptions: Vec<String>) -> Result<()> {
+    let model = &models::catalog::MATCH;
+    if !models::installed(dir, model) {
+        bail!("the match model is not installed (localgpt audio install match)");
+    }
+    let home = home(dir, model);
+    let scores = tokio::task::spawn_blocking(move || {
+        models::clap::match_descriptions(&home, &file, &descriptions)
+    })
+    .await??;
+    println!("probability  similarity  description");
+    for score in scores {
+        println!(
+            "{:>11.3}  {:>10.3}  {}",
+            score.probability, score.similarity, score.description
+        );
     }
     Ok(())
 }

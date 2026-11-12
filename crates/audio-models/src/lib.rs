@@ -31,6 +31,9 @@ pub mod tags;
 #[cfg(feature = "run")]
 pub mod stems;
 
+#[cfg(feature = "run")]
+pub mod clap;
+
 #[cfg(feature = "mcp")]
 pub mod tools;
 

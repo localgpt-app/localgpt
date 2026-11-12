@@ -55,7 +55,7 @@ pub static NOTES: Model = Model {
 };
 
 /// Every model that can be installed.
-pub static MODELS: &[&Model] = &[&STEMS, &NOTES, &TAGS];
+pub static MODELS: &[&Model] = &[&STEMS, &NOTES, &TAGS, &MATCH];
 
 /// Xiaomi's CED-tiny, its official ONNX export (int8 weights, its own mel
 /// front end inside the graph) and the AudioSet label names from the same
@@ -118,6 +118,37 @@ pub static STEMS: Model = Model {
             url: "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/486643021f18a4d057d282fff1d11b89a30e9887/other.onnx",
             sha256: "9fa7fc4ecbe8d75f0b3c9fea65a0c8b7a32518a7c0ed55339036ad342fb8bedd",
             bytes: 39_361_003,
+        },
+    ],
+};
+
+/// LAION's CLAP (`larger_clap_music_and_speech`), as Xenova's quantized
+/// ONNX export: an audio tower and a text tower into one 512-d space, so a
+/// recording scores against descriptions in plain English ([`crate::clap`]).
+pub static MATCH: Model = Model {
+    id: "match",
+    name: "CLAP (LAION larger_clap_music_and_speech)",
+    does: "scores a recording against descriptions in plain English",
+    licence: "LAION's CLAP weights Apache-2.0 (model card) and code CC0-1.0; Xenova's ONNX export states no licence of its own (checked 2026-11-11)",
+    source: "https://huggingface.co/laion/larger_clap_music_and_speech",
+    files: &[
+        ModelFile {
+            name: "audio_model_quantized.onnx",
+            url: "https://huggingface.co/Xenova/larger_clap_music_and_speech/resolve/e9fd5ac1dbf3280936a7fc3ec8a020453ff184db/onnx/audio_model_quantized.onnx",
+            sha256: "021dd4fb962b4ed20cc3a6730b09e0ccf9f9c49931047032118a3b64828513a6",
+            bytes: 78_155_433,
+        },
+        ModelFile {
+            name: "text_model_quantized.onnx",
+            url: "https://huggingface.co/Xenova/larger_clap_music_and_speech/resolve/e9fd5ac1dbf3280936a7fc3ec8a020453ff184db/onnx/text_model_quantized.onnx",
+            sha256: "8f9f29c5f6adee917553d4b3a70729c731c0d18b88efca0ae67c1a1fc278f3b6",
+            bytes: 126_603_262,
+        },
+        ModelFile {
+            name: "tokenizer.json",
+            url: "https://huggingface.co/Xenova/larger_clap_music_and_speech/resolve/e9fd5ac1dbf3280936a7fc3ec8a020453ff184db/tokenizer.json",
+            sha256: "dc239041d98de27ffc3975473a1a23e3db4c937b23c138c38bbc66588bd247e5",
+            bytes: 2_108_774,
         },
     ],
 };

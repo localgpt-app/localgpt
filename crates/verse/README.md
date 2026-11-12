@@ -47,8 +47,10 @@ folder you chose is imported again at the next start. A bundle
 its own: `VERSE_IMPORT=<dir>` imports any folder at startup.
 
 **The `ml` tier (PLAN.md M5 and M7, optional):** build with `--features ml`
-and run `cargo xtask fetch-clap` once (the CLAP audio and text models and
-their tokenizer, LAION/Xenova ONNX, about 207 MB into `assets/ml/`). Tracks
+and install the shared CLAP model once with `localgpt audio install match`
+(the CLAP audio and text models and their tokenizer, LAION/Xenova ONNX,
+about 207 MB, pinned by hash; `localgpt-audio-models` runs them). Verse
+falls back to `assets/ml/`, which `cargo xtask fetch-clap` fills. Tracks
 then get a 512-d CLAP embedding (three windows averaged) and a zero-shot
 mood from it in place of the rule mapper's; the embedding is stored in the
 sidecar and weights which props a world places. The same feature separates
@@ -219,8 +221,9 @@ fonts (Marcellus, Hanken Grotesk) are under the SIL Open Font License 1.1 — se
 [`assets/fonts/`](assets/fonts/). The 3D model pack and the starter music live in
 the separate `localgpt-world-assets` repository and are dedicated to the
 public domain under CC0 1.0. The optional `ml` models carry their own
-licenses: `cargo xtask fetch-clap` downloads Xenova's ONNX export of the CLAP
-models (LAION's weights are Apache-2.0), and `stem-splitter-core` downloads an
+licenses: `localgpt audio install match` (or `cargo xtask fetch-clap`)
+downloads Xenova's ONNX export of the CLAP models (LAION's weights are
+Apache-2.0), and `stem-splitter-core` downloads an
 ONNX conversion of htdemucs on first use (Demucs's code is MIT; its author
 calls the weights' licence unclear). Neither conversion states a licence of
 its own; see PLAN.md §4.

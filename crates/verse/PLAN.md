@@ -56,7 +56,8 @@ export; `localgpt-world-agent`'s `paths` finds the shared pack.
   (bright above 0.45). Driving+dark is Ember Flats, driving+bright Velvet
   Circuit, calm+dark Tide Gardens, calm+bright Glass Expanse; mean energy
   of 0.5 or less picks the restrained variant. Same file, same world.
-- **M5 — CLAP (`ml`).** `ml.rs`: a 512-d track embedding in the sidecar and
+- **M5 — CLAP (`ml`).** `ml.rs`, over the shared `match` model that
+  `localgpt-audio-models` runs: a 512-d track embedding in the sidecar and
   a zero-shot mood in place of the rule's. **M5→M6:** the text tower embeds
   the manifest and placement weights assets by cosine to the track.
 - **M6 — Asset pack.** `world_assets.rs`: manifest-driven glTF props in

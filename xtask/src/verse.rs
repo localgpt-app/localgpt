@@ -34,6 +34,9 @@ const CLAP_FILES: [(&str, &str); 3] = [
 ];
 
 /// `cargo xtask fetch-clap`. The app runs without them (rule-based moods).
+/// Verse reads the installed `match` model first (`localgpt audio install
+/// match`, the same files pinned by revision and hash in
+/// `localgpt-audio-models`) and these only when it is not installed.
 pub fn fetch_clap(root: &Path) -> Result<(), String> {
     let out = root.join("crates/verse/assets/ml");
     std::fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
