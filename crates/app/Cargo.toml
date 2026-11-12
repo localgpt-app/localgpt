@@ -30,6 +30,9 @@ image = { version = "0.25", default-features = false, features = ["jpeg"] }
 # The world-building protocol (tool specs, section prompt, Session) that the
 # app drives with its configured model, as MD drives it with a local GGUF.
 localgpt-world-agent = { workspace = true }
+# The bar's Audio panel installs and removes the optional audio models; the
+# catalog and the installer only, so the window links no model runtime.
+localgpt-audio-models = { workspace = true }
 # Section hashes are MD's cache keys.
 blake3 = "1"
 serde = { workspace = true }

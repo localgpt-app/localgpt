@@ -12,6 +12,7 @@
 //! there: a non-send resource (the terminals, the page) belongs to the thread
 //! that inserted it.
 
+mod audio;
 mod bar;
 mod document;
 mod drive;

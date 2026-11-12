@@ -21,6 +21,8 @@ pub struct Bar {
     /// The pairing code's modules, dark or not, row by row, and the address
     /// they encode.
     qr: Option<(String, usize, Vec<bool>)>,
+    /// The optional audio models, installed and removed from its panel.
+    audio: super::audio::Audio,
 }
 
 impl Bar {
@@ -52,6 +54,7 @@ impl Bar {
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 self.phone(ui, state, end);
+                self.audio.ui(ui);
                 layout.menu(ui, state);
                 let status = if state.mode_history {
                     state.history.as_ref().and_then(|h| h.status.as_deref())

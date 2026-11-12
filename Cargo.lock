@@ -5900,6 +5900,7 @@ dependencies = [
  "egui_tiles",
  "futures",
  "image",
+ "localgpt-audio-models",
  "localgpt-gen",
  "localgpt-md",
  "localgpt-previs",
