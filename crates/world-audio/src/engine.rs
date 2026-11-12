@@ -20,10 +20,17 @@
 //! performs — streams from its file on the same mixer, looping, and reports
 //! its position so the scene's modulations can follow the song rather than a
 //! wall clock ([`Engine::play_soundtrack`], [`Engine::soundtrack_position`]).
+//!
+//! An emitter whose source is a **file** streams it on its spatial track. A
+//! looping one starts at the engine's clock modulo its length, on a tick of
+//! that clock, so files of one length play in phase whenever each was added:
+//! a song's stems, placed as four emitters, still add up to the song
+//! ([`Engine::file_clock`]).
 
 use std::collections::HashMap;
 use std::path::Path;
 
+use kira::clock::{ClockHandle, ClockSpeed};
 use kira::listener::ListenerHandle;
 use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
 use kira::sound::{FromFileError, PlaybackState};
@@ -66,8 +73,23 @@ struct Layer {
 /// One playing spatial emitter.
 struct Emitter {
     track: SpatialTrackHandle,
-    _voice: FundspHandle,
+    voice: Voice,
 }
+
+/// What sounds on an emitter's track, held for as long as it should.
+enum Voice {
+    /// Held, never read: dropping it stops the graph.
+    Synth(#[allow(dead_code)] FundspHandle),
+    /// A file streaming; the track going stops it.
+    File(StreamingSoundHandle<FromFileError>),
+}
+
+/// The file clock's resolution: a tick a millisecond.
+const CLOCK_TICKS_PER_SECOND: f64 = 1000.0;
+
+/// How far ahead of the clock a file emitter is scheduled, so the mixer has
+/// it before the tick comes: a late start would put it out of phase.
+const FILE_LEAD_TICKS: u64 = 60;
 
 /// The audio device, the mixer and everything currently sounding.
 pub struct Engine {
@@ -76,6 +98,8 @@ pub struct Engine {
     ambience: Vec<Layer>,
     emitters: HashMap<String, Emitter>,
     soundtrack: Option<Song>,
+    /// The clock file emitters start on; `None` if the mixer had no room.
+    clock: Option<ClockHandle>,
 }
 
 /// The song streaming, and what restarting it needs: a seek while paused
@@ -125,12 +149,23 @@ impl Engine {
                 return None;
             }
         };
+        let clock = match manager.add_clock(ClockSpeed::TicksPerSecond(CLOCK_TICKS_PER_SECOND)) {
+            Ok(mut clock) => {
+                clock.start();
+                Some(clock)
+            }
+            Err(e) => {
+                warn!("audio: no clock ({e}) — file emitters start out of phase");
+                None
+            }
+        };
         Some(Self {
             manager,
             listener,
             ambience: Vec::new(),
             emitters: HashMap::new(),
             soundtrack: None,
+            clock,
         })
     }
 
@@ -218,6 +253,10 @@ impl Engine {
 
     /// Add a spatial emitter. `radius` is where it fades out; kira attenuates
     /// by listener distance from there, which Gen did per frame by hand.
+    ///
+    /// A [`wt::AudioSource::File`] streams the file at its `path` as given:
+    /// the caller resolves it against the world's `assets/`. A looping file
+    /// starts in phase with the engine's clock ([`Engine::file_clock`]).
     pub fn add_emitter(
         &mut self,
         name: &str,
@@ -226,9 +265,23 @@ impl Engine {
         position: [f32; 3],
         radius: f32,
     ) -> bool {
-        let Some(graph) = crate::graphs::build(source) else {
-            debug!("audio: emitter {name} is not synthesis — skipped");
-            return false;
+        let sound = match source {
+            wt::AudioSource::File { path, looping } => {
+                match self.file_sound(Path::new(path), *looping) {
+                    Ok(data) => Sound::File(Box::new(data)),
+                    Err(e) => {
+                        warn!("audio: emitter {name}: {e}");
+                        return false;
+                    }
+                }
+            }
+            _ => match crate::graphs::build(source) {
+                Some(graph) => Sound::Synth(graph),
+                None => {
+                    debug!("audio: emitter {name} is not synthesis — skipped");
+                    return false;
+                }
+            },
         };
         let builder = SpatialTrackBuilder::new()
             .volume(amplitude_to_db(volume))
@@ -248,15 +301,20 @@ impl Engine {
             warn!("audio: mixer is full — emitter {name} dropped");
             return false;
         };
-        match track.play(Fundsp::new(graph, GRAPH_RATE)) {
+        let voice = match sound {
+            Sound::Synth(graph) => track
+                .play(Fundsp::new(graph, GRAPH_RATE))
+                .map(Voice::Synth)
+                .map_err(|e| e.to_string()),
+            Sound::File(data) => track
+                .play(*data)
+                .map(Voice::File)
+                .map_err(|e| e.to_string()),
+        };
+        match voice {
             Ok(voice) => {
-                self.emitters.insert(
-                    name.to_string(),
-                    Emitter {
-                        track,
-                        _voice: voice,
-                    },
-                );
+                self.emitters
+                    .insert(name.to_string(), Emitter { track, voice });
                 true
             }
             Err(e) => {
@@ -264,6 +322,58 @@ impl Engine {
                 false
             }
         }
+    }
+
+    /// A file, ready to stream on an emitter's track. A looping one is
+    /// scheduled on the next tick but a few of the clock and starts where the
+    /// clock will be then, modulo its length; a one-shot plays from its start,
+    /// now.
+    fn file_sound(
+        &self,
+        path: &Path,
+        looping: bool,
+    ) -> Result<StreamingSoundData<FromFileError>, String> {
+        let data = StreamingSoundData::from_file(path)
+            .map_err(|e| format!("can't decode {}: {e}", path.display()))?;
+        if !looping {
+            return Ok(data);
+        }
+        let data = data.loop_region(..);
+        let length = data.duration().as_secs_f64();
+        let Some(clock) = &self.clock else {
+            return Ok(data);
+        };
+        let at = clock.time() + FILE_LEAD_TICKS;
+        let phase = loop_phase(at.ticks as f64 / CLOCK_TICKS_PER_SECOND, length);
+        debug!(
+            "audio: {} loops ({length:.1} s), from {phase:.2} s",
+            path.display()
+        );
+        Ok(data.start_time(at).start_position(phase))
+    }
+
+    /// Where a file emitter's stream is, in seconds; `None` for a synthesized
+    /// one or no such emitter.
+    pub fn emitter_file_position(&self, name: &str) -> Option<f64> {
+        match &self.emitters.get(name)?.voice {
+            Voice::File(handle) => Some(handle.position()),
+            Voice::Synth(_) => None,
+        }
+    }
+
+    /// The clock looping file emitters keep phase with, in seconds, while one
+    /// is sounding; `None` when none is. Lights and motion bound to a stem
+    /// follow the stems heard when the world's clock is this, modulo the
+    /// song's length.
+    pub fn file_clock(&self) -> Option<f32> {
+        let clock = self.clock.as_ref()?;
+        self.emitters
+            .values()
+            .any(|e| matches!(e.voice, Voice::File(_)))
+            .then(|| {
+                let time = clock.time();
+                ((time.ticks as f64 + time.fraction) / CLOCK_TICKS_PER_SECOND) as f32
+            })
     }
 
     /// Move an emitter. Returns false when there is no such emitter.
@@ -408,6 +518,22 @@ impl Engine {
     }
 }
 
+/// What an emitter will play, before it has a track.
+enum Sound {
+    Synth(Box<dyn fundsp::prelude::AudioUnit>),
+    File(Box<StreamingSoundData<FromFileError>>),
+}
+
+/// Where in a loop of `length` seconds a clock at `seconds` is: `0` for a
+/// file with no length.
+fn loop_phase(seconds: f64, length: f64) -> f64 {
+    if length > 0.0 {
+        seconds.rem_euclid(length)
+    } else {
+        0.0
+    }
+}
+
 /// The fade for starting, stopping, pausing and resuming a song: long enough
 /// not to click, short enough to feel immediate.
 fn fade() -> Tween {
@@ -483,6 +609,65 @@ mod tests {
                 .is_err()
         );
         std::fs::remove_file(&path).ok();
+    }
+
+    /// Needs an output device; skipped where there is none. Two looping
+    /// emitters of one file, added at different times, play in phase — what
+    /// keeps a song's stems adding up to the song.
+    #[test]
+    fn looping_file_emitters_keep_phase_whenever_they_start() {
+        let Some(mut engine) = Engine::new() else {
+            eprintln!("skipped: no audio output device");
+            return;
+        };
+        let path = std::env::temp_dir().join(format!(
+            "localgpt-world-audio-stem-{}.wav",
+            std::process::id()
+        ));
+        write_silent_wav(&path, 44_100, 3.0);
+        let file = wt::AudioSource::File {
+            path: path.to_string_lossy().into_owned(),
+            looping: true,
+        };
+        assert_eq!(engine.file_clock(), None, "no file emitter yet");
+        assert!(engine.add_emitter("drums", &file, 0.0, [0.0; 3], 10.0));
+        std::thread::sleep(std::time::Duration::from_millis(700));
+        assert!(engine.add_emitter("bass", &file, 0.0, [2.0, 0.0, 0.0], 10.0));
+        std::thread::sleep(std::time::Duration::from_millis(400));
+
+        let drums = engine.emitter_file_position("drums").unwrap();
+        let bass = engine.emitter_file_position("bass").unwrap();
+        // Positions are read between mixer chunks, a few ms apart at most.
+        assert!(
+            (drums - bass).abs() < 0.02,
+            "out of phase: drums at {drums:.3} s, bass at {bass:.3} s"
+        );
+        let clock = f64::from(engine.file_clock().expect("files are sounding"));
+        assert!(
+            (loop_phase(clock, 3.0) - drums).abs() < 0.05,
+            "the clock ({clock:.3} s) is where the files are ({drums:.3} s)"
+        );
+
+        // A missing file is no emitter, not a panic.
+        let missing = wt::AudioSource::File {
+            path: "/nonexistent/stem.wav".into(),
+            looping: true,
+        };
+        assert!(!engine.add_emitter("vocals", &missing, 0.0, [0.0; 3], 10.0));
+        assert!(engine.remove_emitter("drums") && engine.remove_emitter("bass"));
+        assert_eq!(engine.file_clock(), None, "no file sounds");
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn a_loop_starts_where_the_clock_is_modulo_its_length() {
+        assert_eq!(loop_phase(7.5, 3.0), 1.5);
+        assert_eq!(loop_phase(2.0, 3.0), 2.0);
+        assert_eq!(
+            loop_phase(9.0, 0.0),
+            0.0,
+            "a file with no length starts at 0"
+        );
     }
 
     #[test]
