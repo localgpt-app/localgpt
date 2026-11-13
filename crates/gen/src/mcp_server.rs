@@ -30,9 +30,12 @@ pub async fn run_mcp_http_server(bridge: Arc<GenBridge>, port: u16) -> Result<()
     localgpt_world_agent::mcp::http::run_mcp_http_server(handler, addr).await
 }
 
-/// Every gen tool, annotated for MCP: the scene basics, characters,
-/// interactions, terrain, UI, physics, the WorldGen pipeline, multi-file
+/// Every gen tool, annotated for MCP: the scene basics and physics,
+/// characters, interactions, terrain, UI, the WorldGen pipeline, multi-file
 /// worlds and image input.
+///
+/// Each name is registered once. A call runs the first tool of its name, so
+/// a second one would be listed and never run.
 pub fn create_mcp_tools(bridge: Arc<GenBridge>) -> Vec<Box<dyn Tool>> {
     let mut tools: Vec<Box<dyn Tool>> = crate::gen3d::tools::create_gen_tools(bridge.clone());
     tools.extend(crate::mcp::avatar_tools::create_character_tools(
@@ -45,9 +48,6 @@ pub fn create_mcp_tools(bridge: Arc<GenBridge>) -> Vec<Box<dyn Tool>> {
         bridge.clone(),
     ));
     tools.extend(crate::mcp::ui_tools::create_ui_tools(bridge.clone()));
-    tools.extend(crate::mcp::physics_tools::create_physics_tools(
-        bridge.clone(),
-    ));
     tools.extend(crate::mcp::worldgen_tools::create_worldgen_tools(
         bridge.clone(),
     ));
@@ -177,5 +177,58 @@ fn tool_annotations(name: &str) -> Value {
             "readOnlyHint": false,
             "destructiveHint": false,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::gen3d::create_gen_channels;
+
+    /// The number of tools `AGENTS.md` catalogs. When a tool is added or
+    /// removed, update the catalog and the count wherever it is quoted
+    /// (`git grep -nw 88`).
+    const CATALOGED: usize = 88;
+
+    fn tools() -> Vec<Box<dyn Tool>> {
+        let (bridge, _channels) = create_gen_channels();
+        create_mcp_tools(bridge)
+    }
+
+    /// A call runs the first tool of its name, so a name registered twice
+    /// lists a tool that never runs.
+    #[test]
+    fn a_tool_is_registered_once() {
+        let mut registered: BTreeMap<String, usize> = BTreeMap::new();
+        for tool in tools() {
+            *registered.entry(tool.name().to_string()).or_default() += 1;
+        }
+        let twice: Vec<&String> = registered
+            .iter()
+            .filter(|(_, times)| **times > 1)
+            .map(|(name, _)| name)
+            .collect();
+        assert!(twice.is_empty(), "registered more than once: {twice:?}");
+    }
+
+    /// `tools/list` shows the schema's name and `tools/call` matches the
+    /// tool's, so a tool listed under another name could not be called.
+    #[test]
+    fn a_tool_is_listed_under_the_name_it_answers_to() {
+        for tool in tools() {
+            assert_eq!(tool.schema().name, tool.name());
+        }
+    }
+
+    #[test]
+    fn the_catalog_counts_every_tool() {
+        assert_eq!(
+            tools().len(),
+            CATALOGED,
+            "AGENTS.md catalogs {CATALOGED} tools: update it, and the count \
+             wherever it is quoted (`git grep -nw 88`)"
+        );
     }
 }
