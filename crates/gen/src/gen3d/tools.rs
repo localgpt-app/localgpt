@@ -3385,6 +3385,8 @@ impl Tool for GenSetGravityTool {
                 "Gravity zone created: '{}' (id: {})",
                 name, entity_id
             )),
+            // With `entity_id` and no zone, the override goes on that entity.
+            GenResponse::Modified { name } => Ok(format!("Gravity override set on '{}'", name)),
             GenResponse::Error { message } => Err(anyhow::anyhow!("{}", message)),
             other => Err(anyhow::anyhow!("Unexpected response: {:?}", other)),
         }
@@ -3472,4 +3474,30 @@ fn parse_json_vec2(val: &Value) -> [f32; 2] {
         arr.first().and_then(|x| x.as_f64()).unwrap_or(0.0) as f32,
         arr.get(1).and_then(|x| x.as_f64()).unwrap_or(0.0) as f32,
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gen3d::create_gen_channels;
+
+    /// Bevy answers a gravity override on one entity with `Modified`. The
+    /// override is set, so the tool must say so and not report an error.
+    #[tokio::test]
+    async fn a_gravity_override_on_an_entity_is_a_success() {
+        let (bridge, mut channels) = create_gen_channels();
+        // Bevy's side: the answer `plugin.rs` gives when `entity_id` is set
+        // and no zone is asked for.
+        tokio::spawn(async move {
+            if let Some(GenCommand::SetGravity(asked)) = channels.cmd_rx.recv().await {
+                let name = asked.entity_id.expect("the entity the call named");
+                let _ = channels.resp_tx.send(GenResponse::Modified { name });
+            }
+        });
+        let said = GenSetGravityTool::new(bridge)
+            .execute(r#"{"entity_id": "crate", "strength": 1.62}"#)
+            .await
+            .expect("an override is a success");
+        assert!(said.contains("crate"), "{said}");
+    }
 }
