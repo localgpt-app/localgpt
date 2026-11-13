@@ -42,7 +42,7 @@ that checkout; a sibling `localgpt-world-assets` (or its former name
 | `index.html` | The landing page: a gallery of worlds you can enter |
 | `worlds.js` | The gallery's worlds, in order — title, one-liner, which app made it |
 | `w/index.html` | One page per world: poster, what the package holds, its download, the commands that open it on your machine, and the live viewer |
-| `world.html` | The viewer page: `world.html?src=worlds/shapes.json` opens a lone manifest, `?src=worlds/gen-basalt-lighthouse.world` a package |
+| `world.html` | The viewer page: `world.html?src=worlds/shapes.json` opens a lone manifest, `?src=worlds/gen-basalt-lighthouse.world` a package, and `world.html#world=z:<payload>` the world the link itself carries — the manifest as JSON, raw DEFLATE, base64url, what `localgpt world link` writes. A fragment never reaches a server; a linked world is drawn with no asset base, so it loads no file |
 | `worlds/<name>.world/` | The gallery's worlds, as Open World Format packages: `manifest.json` in the format's canonical text and `package.json` naming its bytes. The assets are assembled in |
 | `vendor/three/` | three.js (MIT), self-hosted so the site makes no third-party requests |
 | `scripts/` | `check-worlds.mjs` (the render check, which also captures posters); `posters.mjs` — both drive Chromium, so they stay JavaScript until the web renderer is Rust. Assembling and adding a world are `cargo xtask assemble world` and `cargo xtask add-world` |
@@ -60,7 +60,11 @@ rest, naming them: the two Verse packages need the derivatives, while the
 conformance scenes and the primitives-only Gen packages need nothing
 external. That is what lets CI run this with no assets checkout. A package
 whose assets are present must have its zip, which the assemble step writes.
-`check:all` renders all 15 and rewrites the posters.
+`check:all` renders all 15 and rewrites the posters. Either way the check
+also opens one world from a link (`world.html#world=z:…`, made from
+`shapes.json`): it must draw with nothing fetched from `worlds/`, offer the
+world as a download, and say so rather than throw when the fragment is not a
+world.
 
 ## Adding a world
 

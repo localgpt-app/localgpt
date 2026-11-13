@@ -73,10 +73,35 @@
 
     function show(text) { status.textContent = text; status.style.display = text ? 'block' : 'none'; }
 
-    async function open(src) {
-      show('Loading…');
+    // Draw a manifest. `assetBase` is where its files are, '' for none;
+    // `download` is what the link in the bar offers.
+    function draw(manifest, { assetBase, download }) {
       viewer?.dispose();
       viewer = null;
+      document.title = `${manifest.meta?.name || 'World'} — LocalGPT World`;
+      document.getElementById('title').textContent = manifest.meta?.name || '';
+      const parts = [`${manifest.entities.length} entities`];
+      if (manifest.tours?.length) parts.push('tour');
+      if (manifest.soundtrack) parts.push(manifest.soundtrack.path ? 'soundtrack' : 'silent soundtrack');
+      document.getElementById('meta').textContent = parts.join(' · ');
+      const link = document.getElementById('download');
+      link.href = download.href;
+      link.textContent = download.text;
+      link.download = download.name || '';
+      viewer = createWorldViewer(container, manifest, {
+        assetBase,
+        preserveDrawingBuffer: true,
+        audioButton: document.getElementById('audio-btn'),
+        tourButton: document.getElementById('tour-btn'),
+        tourCaption: document.getElementById('caption'),
+        embedApi: true,
+      });
+      window.localgptViewer = viewer;
+      show('');
+    }
+
+    async function open(src) {
+      show('Loading…');
       // A `.world` package is a folder: its manifest is the world now, its
       // assets sit beside it, and its zip is the transport form. A lone
       // manifest keeps its assets in an `assets/` folder beside the file.
@@ -93,26 +118,74 @@
         show(`Could not open ${src}: ${err.message}`);
         return;
       }
-      document.title = `${manifest.meta?.name || 'World'} — LocalGPT World`;
-      document.getElementById('title').textContent = manifest.meta?.name || '';
-      const parts = [`${manifest.entities.length} entities`];
-      if (manifest.tours?.length) parts.push('tour');
-      if (manifest.soundtrack) parts.push(manifest.soundtrack.path ? 'soundtrack' : 'silent soundtrack');
-      document.getElementById('meta').textContent = parts.join(' · ');
-      const download = document.getElementById('download');
-      download.href = isPackage ? `${src}.zip` : src;
-      download.textContent = isPackage ? 'Package (.zip)' : 'JSON';
-      viewer = createWorldViewer(container, manifest, {
+      draw(manifest, {
         assetBase: isPackage ? `${src}/assets/` : src.replace(/[^/]*$/, 'assets/'),
-        preserveDrawingBuffer: true,
-        audioButton: document.getElementById('audio-btn'),
-        tourButton: document.getElementById('tour-btn'),
-        tourCaption: document.getElementById('caption'),
-        embedApi: true,
+        download: isPackage ? { href: `${src}.zip`, text: 'Package (.zip)' } : { href: src, text: 'JSON' },
       });
-      window.localgptViewer = viewer;
-      show('');
       if (params.get('src') !== src) history.replaceState(null, '', `?src=${encodeURIComponent(src)}`);
+    }
+
+    // A world carried by the link itself: `#world=z:<payload>` is the whole
+    // manifest as JSON, raw DEFLATE, unpadded base64url — what `localgpt
+    // world link` writes. A browser never sends a fragment to a server, so
+    // nothing was uploaded for this page to read it. The world is data,
+    // never code: it is drawn with no asset base, so it loads no file, and
+    // a link or a world past the sizes one should have is refused before it
+    // is inflated whole.
+    const LINKED = /^#world=z:([A-Za-z0-9_-]+)$/;
+    const MAX_LINK = 256 * 1024;
+    const MAX_WORLD = 4 * 1024 * 1024;
+    let linkedJson = null;
+
+    async function worldInLink(hash) {
+      const payload = LINKED.exec(hash)?.[1];
+      if (!payload) throw new Error('the link holds no world');
+      if (payload.length > MAX_LINK) throw new Error('the link is longer than a world should be');
+      const text = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+      const bytes = Uint8Array.from(text, (c) => c.charCodeAt(0));
+      const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+      const chunks = [];
+      let size = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.length;
+        if (size > MAX_WORLD) {
+          await reader.cancel();
+          throw new Error('the link inflates to more than a world should be');
+        }
+        chunks.push(value);
+      }
+      const manifest = JSON.parse(await new Blob(chunks).text());
+      if (!manifest || !Array.isArray(manifest.entities)) throw new Error('not a world manifest');
+      return manifest;
+    }
+
+    async function openLinked() {
+      show('Opening the world in this link…');
+      let manifest;
+      try {
+        manifest = await worldInLink(location.hash);
+      } catch (err) {
+        show(`Could not open the world in this link: ${err.message}`);
+        return;
+      }
+      // The picker lists this site's worlds; the link's is its own entry.
+      let option = picker.querySelector('option[value=""]');
+      if (!option) {
+        option = document.createElement('option');
+        option.value = '';
+        picker.prepend(option);
+      }
+      option.textContent = `${manifest.meta?.name || 'World'} (from the link)`;
+      picker.value = '';
+      // The link's world has no file to download, so the page makes one.
+      if (linkedJson) URL.revokeObjectURL(linkedJson);
+      linkedJson = URL.createObjectURL(new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }));
+      draw(manifest, {
+        assetBase: '',
+        download: { href: linkedJson, text: 'JSON', name: `${manifest.meta?.name || 'world'}.json` },
+      });
     }
 
     // Accept only relative paths on this site — a lone manifest or a `.world`
@@ -120,8 +193,13 @@
     const requested = (params.get('src') || '').replace(/\/$/, '');
     const safe = /^(?!\/|[a-z]+:)[\w./-]+\.(json|world)$/i.test(requested) && !requested.includes('..') ? requested : picker.value;
     if ([...picker.options].some((o) => o.value === safe)) picker.value = safe;
-    picker.addEventListener('change', () => open(picker.value));
-    open(safe);
+    picker.addEventListener('change', () => {
+      if (picker.value) open(picker.value);
+      else openLinked();
+    });
+    addEventListener('hashchange', () => { if (LINKED.test(location.hash)) openLinked(); });
+    if (LINKED.test(location.hash)) openLinked();
+    else open(safe);
     console.info(`LocalGPT world viewer ${VIEWER_VERSION}`);
   </script>
 </body>

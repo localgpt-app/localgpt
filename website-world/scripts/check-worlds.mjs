@@ -12,6 +12,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { deflateRawSync } from 'node:zlib';
 import { chromium } from 'playwright';
 import { posters } from './posters.mjs';
 
@@ -55,6 +56,7 @@ const all = (await readdir(join(root, 'worlds')))
 const skipped = [];
 const worlds = [];
 const manifests = {};
+const counts = {};
 let failed = 0;
 for (const world of all) {
   const isPackage = world.endsWith('.world');
@@ -128,6 +130,60 @@ for (const world of worlds) {
     `${ok ? 'ok  ' : 'FAIL'} ${world}: entities=${info?.entityCount ?? 0}`
     + ` tours=${info?.tourCount ?? 0} canvas=${canvas} tour=${tourOk}`
     + ` triggers=${info?.triggerCount ?? 0}${triggerOk ? '' : '!'} errors=${errors.length}`,
+  );
+  for (const error of errors) console.log(`      ${error.slice(0, 300)}`);
+  counts[world] = info?.entityCount ?? 0;
+}
+
+// A world carried in the link itself, as `localgpt world link` writes it:
+// the manifest as JSON, raw DEFLATE, unpadded base64url, in the fragment.
+// The page must draw it without fetching the world from anywhere, offer it
+// as a download, and say so — not throw — when the fragment is not a world.
+const linkedFrom = 'shapes.json';
+if (worlds.includes(linkedFrom)) {
+  errors.length = 0;
+  const payload = deflateRawSync(Buffer.from(JSON.stringify(JSON.parse(manifests[linkedFrom]))))
+    .toString('base64url');
+  const fetched = [];
+  const onRequest = (request) => fetched.push(new URL(request.url()).pathname);
+  page.on('request', onRequest);
+  await page.goto(`${base}/world.html#world=z:${payload}`, { waitUntil: 'load' });
+  let info = null;
+  try {
+    await page.waitForFunction(
+      () => window.localgptViewer && window.localgptViewer.sceneInfo().entityCount > 0,
+      null, { timeout: 15000 },
+    );
+    info = await page.evaluate(() => window.localgptViewer.sceneInfo());
+  } catch {
+    // Reported through `info` below.
+  }
+  page.off('request', onRequest);
+  const shown = await page.evaluate(() => ({
+    picked: document.getElementById('picker').value,
+    option: document.getElementById('picker').selectedOptions[0]?.textContent || '',
+    download: document.getElementById('download').href,
+  }));
+  const noFetch = !fetched.some((path) => path.startsWith('/worlds/'));
+  const drawn = info?.entityCount === counts[linkedFrom] && shown.picked === ''
+    && shown.option.endsWith('(from the link)') && shown.download.startsWith('blob:');
+  // A fragment that is not a world: the same page, by `hashchange`.
+  await page.evaluate(() => { location.hash = '#world=z:AAAA'; });
+  let refused = false;
+  try {
+    await page.waitForFunction(
+      () => document.getElementById('status').textContent.startsWith('Could not open the world in this link'),
+      null, { timeout: 5000 },
+    );
+    refused = true;
+  } catch {
+    // Reported below.
+  }
+  const ok = drawn && noFetch && refused && errors.length === 0;
+  if (!ok) failed += 1;
+  console.log(
+    `${ok ? 'ok  ' : 'FAIL'} a world in a link (${linkedFrom}, ${payload.length} characters):`
+    + ` entities=${info?.entityCount ?? 0} drawn=${drawn} no-fetch=${noFetch} refuses-junk=${refused} errors=${errors.length}`,
   );
   for (const error of errors) console.log(`      ${error.slice(0, 300)}`);
 }
