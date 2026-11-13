@@ -17,7 +17,8 @@ pub const USAGE: &str = "  verify [--rust] [--bevy] [--features] [--web] [--deps
                                  minus the Bevy crates, the world.schema.json snapshot
                      --bevy      clippy and tests for app, gen, doc, verse,
                                  world-bevy, world-audio
-                     --features  cargo check for the opt-in tier (Verse's ml)
+                     --features  cargo check for the opt-in tier (Verse's ml) and for
+                                 the CLI without its audio models
                      --web       the phone's page, the vendored viewer against npm,
                                  localgpt.world's render check, localgpt.md's page
                      --deps      cargo-deny: licenses, bans, sources, advisories";
@@ -146,6 +147,13 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
             "cargo check -p localgpt-verse --features ml",
             &cargo,
             &["check", "-p", "localgpt-verse", "--features", "ml"],
+        )?;
+        // What an Intel Mac's `localgpt` is: ONNX Runtime has no build for it.
+        stage(
+            root,
+            "cargo check -p localgpt --no-default-features",
+            &cargo,
+            &["check", "-p", "localgpt", "--no-default-features"],
         )?;
     }
 

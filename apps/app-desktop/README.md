@@ -49,9 +49,12 @@ open apps/app-desktop/dist/LocalGPT.app
 ```
 
 The release build uses the workspace's fat LTO profile, so the first one is
-slow. It builds `localgpt-app` and `localgpt` (`Contents/MacOS/localgpt`,
-signed before the app bundle) with no optional features; `APP_FEATURES`
-passes a feature list to `localgpt-app`. The script renders the icon from `website/static/logo/localgpt-icon.svg`
+slow. It builds `localgpt-app` with no optional features (`APP_FEATURES`
+passes it a feature list), then `localgpt` (`Contents/MacOS/localgpt`,
+signed before the app bundle) in a build of its own, so the app is never
+compiled with the CLI's features and links no ONNX Runtime. The CLI has its
+`audio` feature except on an Intel Mac, which ONNX Runtime has no build for:
+`localgpt` there has no `audio` command. The script renders the icon from `website/static/logo/localgpt-icon.svg`
 and writes `Info.plist` (bundle id `app.localgpt.desktop`, with the
 local-network usage string and Bonjour service collaborative sessions need).
 

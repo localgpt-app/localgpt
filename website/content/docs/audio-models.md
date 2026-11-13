@@ -30,6 +30,10 @@ Every file is pinned to a fixed revision and kept only if its SHA-256 matches, s
 
 An MCP server lists its tools when it starts, so after an install, restart or reconnect your agent's `localgpt world mcp` to see the new tool.
 
+## Where they run {#platforms}
+
+The models run on ONNX Runtime, which `localgpt` links in. It has builds for an Apple-silicon Mac, for Windows, and for Linux with glibc 2.38 or newer (Ubuntu 24.04, Debian 13). It has none for an Intel Mac: `localgpt` there, the one inside `LocalGPT.app` included, has no `audio` command. Built from source on an Intel Mac or an older Linux, `localgpt` needs `cargo install localgpt --no-default-features`, which leaves the audio models out and everything else in.
+
 ## What an agent does with them {#agents}
 
 In a world's folder, `localgpt world mcp` serves the installed models' tools with the world's, and writes what they make into the world's `assets/`, where its ops can use it:

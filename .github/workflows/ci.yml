@@ -173,6 +173,10 @@ jobs:
         env:
           ORT_LIB_LOCATION: /opt/onnxruntime-1.23/lib
           ORT_PREFER_DYNAMIC_LINK: "1"
+      # The CLI without its audio models: what an Intel Mac gets, since ONNX
+      # Runtime has no build for one (`cargo xtask bundle` builds it so
+      # there). No other job compiles the CLI with the feature off.
+      - run: cargo check -p localgpt --no-default-features
 
   # The page a paired phone or tablet gets from the desktop app (crates/app/ui
   # — React, Tailwind, xterm.js), carried inside the release binary, and its

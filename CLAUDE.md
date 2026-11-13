@@ -385,8 +385,10 @@ verify` runs the same checks on this machine. Its jobs: `fmt`; `rule`
 (`cargo xtask rule`); `clippy` and `test` for the workspace minus the six
 crates that need audio and windowing headers (`app`, `gen`, `doc`, `verse`,
 `world-bevy`, `world-audio`), which the `bevy` job lints and tests;
-`features` (`cargo check -p localgpt-verse --features ml`, since nothing
-else compiles gated code); `interface` (typecheck and build of the phone's
+`features` (`cargo check -p localgpt-verse --features ml` and `cargo check
+-p localgpt --no-default-features`, since nothing else compiles Verse's
+gated code or the CLI without its audio models, which is what an Intel Mac
+gets); `interface` (typecheck and build of the phone's
 page and its design sheet); `viewer` (`cargo xtask sync-viewer --check`, the
 headless render check of `website-world`'s viewer and the localgpt.md page
 check — the only automated checks on the format's web renderer); `deps`

@@ -104,7 +104,7 @@ cargo install --path crates/cli               # or crates/gen, crates/app
 | Crate | Flag | What it adds | Fetch first |
 |---|---|---|---|
 | `localgpt-gen` | `physics`, `multiplayer` (default) | avian3d physics; `--host`/`--join`/`--web` sessions | — |
-| `localgpt` | `audio` (default) | `localgpt audio`: the optional [audio models](@/docs/audio-models.md), and their tools in `localgpt world mcp` once installed; links ONNX Runtime | `localgpt audio install <id>` |
+| `localgpt` | `audio` (default) | `localgpt audio`: the optional [audio models](@/docs/audio-models.md), and their tools in `localgpt world mcp` once installed; links ONNX Runtime, so turn it off (`--no-default-features`) on an Intel Mac or a Linux older than glibc 2.38, [where it has no build](@/docs/audio-models.md#platforms) | `localgpt audio install <id>` |
 | `localgpt-verse` | `ml` | CLAP zero-shot moods and embedding-ranked placement (Apache-2.0 weights), Demucs stems (MIT code; its author calls the weights' licence unclear) — audio analysis, not a language model | `localgpt audio install match` (Demucs downloads itself) |
 
 ```bash

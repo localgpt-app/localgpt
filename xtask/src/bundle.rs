@@ -93,28 +93,20 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
         None => println!("==> cargo build ({profile})"),
     }
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
-    let mut build = vec!["build".to_string(), "-p".into(), "localgpt-app".into()];
-    if options.features.is_none() {
-        build.extend(["-p".into(), "localgpt".into()]);
-    }
-    if options.release {
-        build.push("--release".into());
-    }
-    if let Some(features) = &options.features {
-        build.push(format!("--features={features}"));
-    }
+    // Two builds, never one: cargo unifies features across the packages of
+    // an invocation, so beside the CLI the app is compiled with the CLI's
+    // audio models and links ONNX Runtime, which the window is not to carry
+    // (crates/app/Cargo.toml).
+    let build = app_build(options.release, options.features.as_deref());
     run_in(
         root,
         &cargo,
         &build.iter().map(String::as_str).collect::<Vec<_>>(),
     )?;
-    if options.features.is_some() {
-        let mut cli = vec!["build", "-p", "localgpt"];
-        if options.release {
-            cli.push("--release");
-        }
-        run_in(root, &cargo, &cli)?;
+    if !CLI_AUDIO {
+        println!("    note: this Mac's localgpt has no audio models (no ONNX Runtime for Intel)");
     }
+    run_in(root, &cargo, &cli_build(options.release, CLI_AUDIO))?;
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join("target"));
@@ -248,6 +240,36 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
 }
 
 /// The workspace's one version (`[workspace.package]`).
+/// Whether the `localgpt` beside the app runs the audio models: wherever
+/// ONNX Runtime has a build, which leaves out an Intel Mac — `ort` ships none
+/// for x86_64-apple-darwin, and a build with the feature stops there.
+const CLI_AUDIO: bool = !cfg!(all(target_os = "macos", target_arch = "x86_64"));
+
+/// The app's own build, with `APP_FEATURES` when they are given.
+fn app_build(release: bool, features: Option<&str>) -> Vec<String> {
+    let mut build = vec!["build".to_string(), "-p".into(), "localgpt-app".into()];
+    if release {
+        build.push("--release".into());
+    }
+    if let Some(features) = features {
+        build.push(format!("--features={features}"));
+    }
+    build
+}
+
+/// The build of `Contents/MacOS/localgpt`. It names its features instead of
+/// taking the crate's defaults, so the bundle does not change when they do.
+fn cli_build(release: bool, audio: bool) -> Vec<&'static str> {
+    let mut build = vec!["build", "-p", "localgpt", "--no-default-features"];
+    if audio {
+        build.extend(["--features", "audio"]);
+    }
+    if release {
+        build.push("--release");
+    }
+    build
+}
+
 fn version(root: &Path) -> Result<String, String> {
     let manifest =
         std::fs::read_to_string(root.join("Cargo.toml")).map_err(|e| format!("Cargo.toml: {e}"))?;
@@ -453,6 +475,34 @@ impl Drop for Work {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_app_and_the_cli_are_two_builds() {
+        // One invocation would compile the app with the CLI's features.
+        let app = app_build(true, None);
+        assert_eq!(app, ["build", "-p", "localgpt-app", "--release"]);
+        assert_eq!(
+            app_build(false, Some("a,b")),
+            ["build", "-p", "localgpt-app", "--features=a,b"]
+        );
+        assert_eq!(
+            cli_build(true, true),
+            [
+                "build",
+                "-p",
+                "localgpt",
+                "--no-default-features",
+                "--features",
+                "audio",
+                "--release"
+            ]
+        );
+        // An Intel Mac's: ONNX Runtime has no build for it.
+        assert_eq!(
+            cli_build(false, false),
+            ["build", "-p", "localgpt", "--no-default-features"]
+        );
+    }
 
     #[test]
     fn the_version_is_the_workspaces() {
