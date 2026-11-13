@@ -85,7 +85,7 @@ For the window you are looking at, run `localgpt gen --mcp-relay` and give the c
 
 ## Tool Catalog
 
-Every tool below is Gen's, except the audio models' at the end; the names are what `localgpt gen mcp-server` (or `localgpt-gen mcp-server`) lists. There are no memory, web or file tools: the agent brings its own.
+Every tool below is Gen's, except the audio models' at the end; the names are what `localgpt gen mcp-server` (or `localgpt-gen mcp-server`) lists. Each row names every argument its tool takes, the ones a call must give and the ones it may, and a test holds Gen's rows to the tools' schemas. There are no memory, web or file tools: the agent brings its own.
 
 ### Gen: Scene Query
 
@@ -102,13 +102,13 @@ Every tool below is Gen's, except the audio models' at the end; the names are wh
 | `gen_spawn_primitive` | Spawn a 3D primitive shape (Cuboid, Sphere, Cylinder, Cone, Capsule, Torus, Plane, Pyramid, Tetrahedron, Icosahedron, Wedge) | `name`, `shape` | `dimensions`, `position`, `rotation_degrees`, `scale`, `color`, `metallic`, `roughness`, `emissive`, `alpha_mode`, `unlit`, `parent` |
 | `gen_modify_entity` | Modify properties of an existing entity (partial update) | `name` | `position`, `rotation_degrees`, `scale`, `color`, `metallic`, `roughness`, `emissive`, `alpha_mode`, `unlit`, `double_sided`, `reflectance`, `visible`, `parent` |
 | `gen_delete_entity` | Delete an entity and all its children | `name` | -- |
-| `gen_spawn_batch` | Spawn multiple primitives in a single call | `entities` (array) | -- |
-| `gen_modify_batch` | Modify multiple entities in a single call | `entities` (array) | -- |
-| `gen_delete_batch` | Delete multiple entities in a single call | `names` (array) | -- |
+| `gen_spawn_batch` | Spawn multiple primitives in a single call | `entities` (array) | `expected_revision` |
+| `gen_modify_batch` | Modify multiple entities in a single call | `entities` (array) | `expected_revision` |
+| `gen_delete_batch` | Delete multiple entities in a single call | `names` (array) | `expected_revision` |
 | `gen_spawn_mesh` | Create custom geometry from raw vertex data | `name`, `vertices`, `indices` | `normals`, `uvs`, `color`, `metallic`, `roughness`, `position`, `rotation_degrees`, `scale`, `parent`, `emissive`, `alpha_mode`, `unlit`, `double_sided`, `reflectance` |
-| `gen_load_gltf` | Load a glTF/GLB file into the scene | `path` | decompose options |
-| `gen_define_creation` | Make a reusable creation (a tree, a lamp post, a house) from entities you built | creation params | -- |
-| `gen_spawn_instance` | Place a copy of a creation made with `gen_define_creation` | creation, placement params | -- |
+| `gen_load_gltf` | Load a glTF/GLB file into the scene | `path` | `segment` (split into editable parts) |
+| `gen_define_creation` | Make a reusable creation (a tree, a lamp post, a house) from entities you built | `name`, `entities` | `category`, `replace`, `instance_name` |
+| `gen_spawn_instance` | Place a copy of a creation made with `gen_define_creation` | `creation`, `name` | `position`, `rotation_degrees`, `scale`, `overrides` |
 
 ### Gen: Camera, Lighting & Environment
 
@@ -167,31 +167,31 @@ Every tool below is Gen's, except the audio models' at the end; the names are wh
 | Tool | Description | Required Params | Optional Params |
 |------|-------------|-----------------|-----------------|
 | `gen_add_trigger` | Add trigger+action to an entity (proximity, click, area, collision, timer) | `entity_id`, `trigger_type`, `action` | `radius`, `cooldown`, `interval`, `max_distance`, `once`, `destination`, `text`, `amount`, `state_key`, `category`, `requires_item`, `duration`, `volume` |
-| `gen_add_teleporter` | Create a portal that teleports the player on contact | entity/position params | destination, visual effect params |
+| `gen_add_teleporter` | Create a portal that teleports the player on contact | `position`, `destination` | `size`, `effect`, `sound`, `label` |
 | `gen_add_collectible` | Make an entity collectible with score and pickup effects | `entity_id` | `value`, `category`, `pickup_sound`, `pickup_effect`, `respawn_time` |
-| `gen_add_door` | Add interactive door with open/close and optional key requirement | entity params | key, animation params |
-| `gen_link_entities` | Wire one entity's event to trigger another entity's action | entity pair params | -- |
+| `gen_add_door` | Add interactive door with open/close and optional key requirement | `entity_id` | `trigger`, `open_angle`, `open_duration`, `auto_close`, `auto_close_delay`, `requires_key` |
+| `gen_link_entities` | Wire one entity's event to trigger another entity's action | `source_id`, `source_event`, `target_id`, `target_action` | `condition` |
 
 ### Gen: Terrain & Landscape (P3)
 
 | Tool | Description | Required Params | Optional Params |
 |------|-------------|-----------------|-----------------|
-| `gen_add_terrain` | Generate procedural terrain from noise with collision mesh | -- | `size`, `resolution`, noise params |
-| `gen_add_water` | Create animated transparent water plane | -- | `height`, `size`, visual params |
-| `gen_add_path` | Create walkable path between waypoints | waypoints | `width`, terrain-conform params |
+| `gen_add_terrain` | Generate procedural terrain from noise with collision mesh | -- | `size`, `resolution`, `height_scale`, `noise_type`, `noise_octaves`, `noise_frequency`, `seed`, `material`, `position` |
+| `gen_add_water` | Create animated transparent water plane | -- | `height`, `size`, `color`, `opacity`, `wave_speed`, `wave_height`, `position` |
+| `gen_add_path` | Create walkable path between waypoints | `points` | `width`, `material`, `curved`, `raised`, `border` |
 | `gen_add_foliage` | Scatter vegetation via Poisson disk sampling (trees, bushes, grass, flowers, rocks) | `foliage_type` | `center`, `radius`, `density`, `scale_range`, `seed`, `avoid_paths`, `avoid_water`, `max_slope` |
-| `gen_set_sky` | Configure sky, sun direction, ambient light, and fog | -- | sky, sun, fog params |
-| `gen_query_terrain_height` | Query terrain Y height at (x, z) coordinates | coordinates | -- |
+| `gen_set_sky` | Configure sky, sun direction, ambient light, and fog | -- | `preset`, `sun_altitude`, `sun_azimuth`, `sun_intensity`, `ambient_color`, `ambient_intensity`, `fog_enabled`, `fog_color`, `fog_start`, `fog_end` |
+| `gen_query_terrain_height` | Query terrain Y height at (x, z) coordinates | -- | `x`, `z`, `points` (several at once) |
 
 ### Gen: In-World UI (P4)
 
 | Tool | Description | Required Params | Optional Params |
 |------|-------------|-----------------|-----------------|
-| `gen_add_sign` | Place readable text in the world as a sign or billboard | `position`, `text` | style, size params |
-| `gen_add_hud` | Add persistent screen-space HUD element (score, health, timer, text) | display params | position, style params |
-| `gen_add_label` | Attach a floating name label to an entity (billboards toward camera) | entity, text params | style params |
-| `gen_add_tooltip` | Add contextual tooltip shown on proximity or look-at | entity, text params | trigger params |
-| `gen_add_notification` | Show transient notification (toast, banner, achievement) | message params | animation, duration params |
+| `gen_add_sign` | Place readable text in the world as a sign or billboard | `position`, `text` | `font_size`, `color`, `background_color`, `billboard`, `max_width`, `rotation` |
+| `gen_add_hud` | Add persistent screen-space HUD element (score, health, timer, text) | `element_type` | `position`, `label`, `initial_value`, `font_size`, `color`, `id` |
+| `gen_add_label` | Attach a floating name label to an entity (billboards toward camera) | `entity_id`, `text` | `color`, `background_color`, `offset_y`, `font_size`, `visible_distance` |
+| `gen_add_tooltip` | Add contextual tooltip shown on proximity or look-at | `entity_id`, `text` | `trigger`, `range`, `style`, `color`, `duration` |
+| `gen_add_notification` | Show transient notification (toast, banner, achievement) | `text` | `style`, `position`, `duration`, `color`, `icon`, `sound` |
 
 ### Gen: Physics (P5)
 
@@ -207,43 +207,43 @@ Every tool below is Gen's, except the audio models' at the end; the names are wh
 
 | Tool | Description | Required Params | Optional Params |
 |------|-------------|-----------------|-----------------|
-| `gen_plan_layout` | Generate a world layout plan (BlockoutSpec) from text description | `prompt` | `size` |
-| `gen_apply_blockout` | Generate 3D blockout scene from a BlockoutSpec | spec params | -- |
-| `gen_populate_region` | Fill a blockout region with 3D content | region params | density params |
-| `gen_set_tier` | Set entity placement tier (hero, medium, decorative) | entity, tier params | -- |
-| `gen_set_role` | Set entity semantic role (ground, structure, prop, vegetation, etc.) | entity, role params | -- |
-| `gen_bulk_modify` | Modify all entities matching a role (scale, recolor, remove, hide, show) | role, action params | region filter |
-| `gen_modify_blockout` | Add, remove, resize, or move blockout regions | edit params | -- |
-| `gen_evaluate_scene` | Capture a screenshot and scene metadata for quality evaluation; the agent's own vision judges it | -- | camera params |
-| `gen_auto_refine` | Iteratively evaluate and refine the scene | -- | iteration params |
-| `gen_build_navmesh` | Generate navigation mesh from scene geometry | -- | resolution params |
-| `gen_validate_navigability` | Check scene traversability between points or overall | -- | point params |
-| `gen_edit_navmesh` | Manually mark walkable/blocked areas on navmesh | edit params | -- |
-| `gen_regenerate` | Regenerate content in modified blockout regions | -- | -- |
-| `gen_render_depth` | Render a depth map of the scene to a PNG, for an agent's own image tools | -- | camera, resolution params |
+| `gen_plan_layout` | Generate a world layout plan (BlockoutSpec) from text description | `prompt` | `size`, `seed` |
+| `gen_apply_blockout` | Generate 3D blockout scene from a BlockoutSpec | `spec` | `show_debug_volumes`, `generate_terrain`, `generate_paths` |
+| `gen_populate_region` | Fill a blockout region with 3D content | `region_id` | `style_hint`, `replace_existing` |
+| `gen_set_tier` | Set entity placement tier (hero, medium, decorative) | `entity`, `tier` | -- |
+| `gen_set_role` | Set entity semantic role (ground, structure, prop, vegetation, etc.) | `entity`, `role` | -- |
+| `gen_bulk_modify` | Modify all entities matching a role (scale, recolor, remove, hide, show) | `role`, `action` | `region_id` |
+| `gen_modify_blockout` | Add, remove, resize, or move blockout regions | `action` | `auto_regenerate` |
+| `gen_evaluate_scene` | Capture a screenshot and scene metadata for quality evaluation; the agent's own vision judges it | -- | `focus_entity`, `reference_prompt` |
+| `gen_auto_refine` | Iteratively evaluate and refine the scene | -- | `max_iterations`, `target_score`, `reference_prompt` |
+| `gen_build_navmesh` | Generate navigation mesh from scene geometry | -- | `agent_radius`, `agent_height`, `max_slope`, `step_height`, `cell_size` |
+| `gen_validate_navigability` | Check scene traversability between points or overall | -- | `from`, `to`, `check_all_regions` |
+| `gen_edit_navmesh` | Manually mark walkable/blocked areas on navmesh | `action`, `position` | `radius`, `connection_target`, `bidirectional` |
+| `gen_regenerate` | Regenerate content in modified blockout regions | -- | `region_ids`, `preview_only`, `preserve_manual` |
+| `gen_render_depth` | Render a depth map of the scene to a PNG, for an agent's own image tools | -- | `camera_angle`, `custom_position`, `custom_look_at`, `resolution`, `near_plane`, `far_plane`, `add_noise`, `output_path` |
 
 ### Gen: Multi-File WorldGen & Sync
 
 | Tool | Description | Required Params | Optional Params |
 |------|-------------|-----------------|-----------------|
 | `gen_write_world_plan` | Create SKILL.md, world.md, and root world.ron from a structured plan | `name` | `generation_strategy`, `description`, `regions`, `constraints`, `environment`, `camera` |
-| `gen_write_region` | Write a .md + .ron file pair for a region | region params | `flush` |
-| `gen_load_region` | Load a region .ron and spawn its entities into the scene | region params | -- |
-| `gen_unload_region` | Remove all entities belonging to a region from the scene | region params | -- |
+| `gen_write_region` | Write a .md + .ron file pair for a region | `region_id` | `flush`, `design_intent`, `entities`, `bounds` |
+| `gen_load_region` | Load a region .ron and spawn its entities into the scene | `region_id` | -- |
+| `gen_unload_region` | Remove all entities belonging to a region from the scene | `region_id` | -- |
 | `gen_persist_blockout` | Save BlockoutSpec to layout/blockout.md and layout/blockout.ron | -- | -- |
-| `gen_write_behaviors` | Write a behavior library .md + .ron file pair | behavior params | -- |
-| `gen_write_audio` | Write an audio spec .md + .ron file pair | audio params | -- |
-| `gen_check_drift` | Compare .md, .ron, and live scene for inconsistencies | -- | -- |
-| `gen_sync` | Reconcile drift between .md, .ron, and live scene | source-of-truth params | `preview` |
+| `gen_write_behaviors` | Write a behavior library .md + .ron file pair | `name` | `behaviors` |
+| `gen_write_audio` | Write an audio spec .md + .ron file pair | `name` | `ambience`, `emitters` |
+| `gen_check_drift` | Compare .md, .ron, and live scene for inconsistencies | -- | `domain`, `detail_level` |
+| `gen_sync` | Reconcile drift between .md, .ron, and live scene | `domain`, `source` | `preview`, `resolve_conflicts` |
 
 ### Gen: Multimodal Input (AI3)
 
 | Tool | Description | Required Params | Optional Params |
 |------|-------------|-----------------|-----------------|
-| `gen_image_to_layout` | Analyze reference image and generate matching blockout layout | `image` | `prompt`, `scale` |
-| `gen_match_style` | Adjust scene materials and lighting to match a reference image style | image params | -- |
-| `gen_reference_board` | Manage reference images (mood board) for the generation session | action params | -- |
-| `gen_panorama_to_world` | Generate explorable 3D world from a 360-degree panorama image | image params | -- |
+| `gen_image_to_layout` | Analyze reference image and generate matching blockout layout | `image` | `prompt`, `scale`, `style` |
+| `gen_match_style` | Adjust scene materials and lighting to match a reference image style | `image` | `scope`, `intensity`, `entities` |
+| `gen_reference_board` | Manage reference images (mood board) for the generation session | `action` | `image`, `label`, `weight`, `ref_id` |
+| `gen_panorama_to_world` | Generate explorable 3D world from a 360-degree panorama image | `image` | `prompt`, `generate_beyond` |
 
 ### Audio models (installed only)
 

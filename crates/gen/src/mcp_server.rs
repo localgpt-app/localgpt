@@ -182,10 +182,14 @@ fn tool_annotations(name: &str) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
 
     use super::*;
     use crate::gen3d::create_gen_channels;
+
+    /// `AGENTS.md`, where an agent reads what a tool takes before it has the
+    /// tool's schema.
+    const CATALOG: &str = include_str!("../../../AGENTS.md");
 
     /// The number of tools `AGENTS.md` catalogs. When a tool is added or
     /// removed, update the catalog and the count wherever it is quoted
@@ -229,6 +233,112 @@ mod tests {
             CATALOGED,
             "AGENTS.md catalogs {CATALOGED} tools: update it, and the count \
              wherever it is quoted (`git grep -nw 88`)"
+        );
+    }
+
+    /// A tool's row in the catalog, with the cell of the arguments it says
+    /// a call must give and the cell of the ones it says a call may.
+    struct Row {
+        tool: &'static str,
+        required: &'static str,
+        optional: &'static str,
+    }
+
+    /// The catalog's rows for Gen's tools. A row reads
+    /// `| tool | what it does | required | optional |`.
+    fn catalog() -> Vec<Row> {
+        CATALOG
+            .lines()
+            .filter(|line| line.starts_with("| `gen_"))
+            .map(|line| {
+                let cells: Vec<&str> = line.split('|').map(str::trim).collect();
+                let [_, tool, _, required, optional, _] = cells[..] else {
+                    panic!("AGENTS.md: a row has four cells, not this: {line}");
+                };
+                Row {
+                    tool: tool.trim_matches('`'),
+                    required,
+                    optional,
+                }
+            })
+            .collect()
+    }
+
+    /// The arguments a cell names: each is in backticks, and a note beside
+    /// one is free.
+    fn named(cell: &str) -> BTreeSet<&str> {
+        cell.split('`').skip(1).step_by(2).collect()
+    }
+
+    #[test]
+    fn the_catalog_has_a_row_for_each_tool() {
+        let tools = tools();
+        let served: BTreeSet<&str> = tools.iter().map(|tool| tool.name()).collect();
+        let rows = catalog();
+        let listed: BTreeSet<&str> = rows.iter().map(|row| row.tool).collect();
+        assert_eq!(
+            rows.len(),
+            listed.len(),
+            "AGENTS.md has two rows for a tool"
+        );
+        let missing: Vec<_> = served.difference(&listed).collect();
+        let stale: Vec<_> = listed.difference(&served).collect();
+        assert!(
+            missing.is_empty() && stale.is_empty(),
+            "AGENTS.md has no row for {missing:?}, and rows for {stale:?}, which are not tools"
+        );
+    }
+
+    /// An agent writes a call from a tool's row before it has the schema, so
+    /// a row names exactly the arguments the schema requires and exactly the
+    /// others it has, with `--` for none. When an argument is added, removed
+    /// or renamed, change the row.
+    #[test]
+    fn the_catalog_names_the_arguments_a_tool_takes() {
+        let tools = tools();
+        let mut wrong = Vec::new();
+        for row in catalog() {
+            let Some(tool) = tools.iter().find(|tool| tool.name() == row.tool) else {
+                continue; // `the_catalog_has_a_row_for_each_tool` names it
+            };
+            let schema = tool.schema().parameters;
+            let required: BTreeSet<&str> = schema["required"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .collect();
+            let optional: BTreeSet<&str> = schema["properties"]
+                .as_object()
+                .into_iter()
+                .flat_map(|properties| properties.keys())
+                .map(String::as_str)
+                .filter(|name| !required.contains(name))
+                .collect();
+            for (column, cell, takes) in [
+                ("required", row.required, &required),
+                ("optional", row.optional, &optional),
+            ] {
+                let names = named(cell);
+                let lacks: Vec<_> = takes.difference(&names).collect();
+                let adds: Vec<_> = names.difference(takes).collect();
+                if !lacks.is_empty() || !adds.is_empty() {
+                    wrong.push(format!(
+                        "{}, {column}: the row lacks {lacks:?} and adds {adds:?}",
+                        row.tool
+                    ));
+                } else if names.is_empty() && cell != "--" {
+                    wrong.push(format!(
+                        "{}, {column}: there are none, which is `--`, not {cell:?}",
+                        row.tool
+                    ));
+                }
+            }
+        }
+        assert!(
+            wrong.is_empty(),
+            "AGENTS.md and the tools' schemas disagree:\n{}",
+            wrong.join("\n")
         );
     }
 }
