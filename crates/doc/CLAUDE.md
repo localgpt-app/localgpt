@@ -70,7 +70,8 @@ and builds) and `assets.rs` (where the pack is).
   (`RecipeStore::insert`, `insert_build`, `save`) have no caller in Document;
   they stay for the tests that prove the cache contract and for tooling.
 - **The asset pack**: `assets.rs` resolves the pack root from
-  `$LOCALGPT_MD_ASSETS` → `assets/` → the dev tree → the shared download
+  `$LOCALGPT_DOC_ASSETS` (`$LOCALGPT_MD_ASSETS`, its old name, is still
+  read) → `assets/` → the dev tree → the shared download
   (`localgpt_world_agent::world_pack_dir`); `cargo xtask fetch-assets` copies
   it locally. Placements land as `MeshAssetRef { path: "models/<file>" }`
   with span normalization baked into the transform; `scene.rs` loads them

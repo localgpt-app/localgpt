@@ -55,6 +55,14 @@ Environment:
 
 const DEFAULT_DOC: &str = "samples/hello.md";
 
+/// Set to a `.png` path, the first stop renders there offscreen and the app
+/// exits ([`Smoke`]).
+const SCREENSHOT_ENV: &str = "LOCALGPT_DOC_SCREENSHOT";
+
+/// What [`SCREENSHOT_ENV`] was called while the crate was `localgpt-md`:
+/// still read, after it.
+const SCREENSHOT_ENV_OLD: &str = "LOCALGPT_MD_SCREENSHOT";
+
 /// The sample opened when no path is given. Relative to the working directory
 /// first, then to this crate — because since Document joined the localgpt workspace
 /// `cargo run -p localgpt-doc` runs from the workspace root, where
@@ -130,8 +138,8 @@ fn main() -> AppExit {
         return export_world(&world.manifest, &out);
     }
 
-    let smoke = std::env::var("LOCALGPT_DOC_SCREENSHOT")
-        .or_else(|_| std::env::var("LOCALGPT_MD_SCREENSHOT"))
+    let smoke = std::env::var(SCREENSHOT_ENV)
+        .or_else(|_| std::env::var(SCREENSHOT_ENV_OLD))
         .ok();
     let mut app = App::new();
     // Pin the asset server to the assets root the manifest's mesh paths are

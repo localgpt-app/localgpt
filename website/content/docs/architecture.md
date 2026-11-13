@@ -14,7 +14,7 @@ Nothing in the workspace runs a model as an agent, or holds a key: the coding ag
 
 ```
 crates/
-├── cli/          # localgpt — `localgpt world`, `localgpt world mcp` (the shim), and `localgpt previs`
+├── cli/          # localgpt — `localgpt world`, `localgpt world mcp` (the shim), `localgpt previs`, `localgpt audio`, and `localgpt gen` (hands off to the app)
 ├── gen/          # localgpt-gen — the world builder (Bevy): its tools over MCP, the relay, the live canvas, sessions, headless
 ├── app/          # localgpt-app — the one desktop app: Gen's viewport in native panels, terminals for the agents
 ├── doc/          # localgpt-doc — a Markdown file as a walkable world (pure lib + Bevy bin)

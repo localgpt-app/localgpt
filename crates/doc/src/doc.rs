@@ -347,7 +347,7 @@ localgpt world submit deck.world -m "a dusk shoreline"
 
 ## Thank you
 
-github.com/localgpt-app/localgpt-doc
+github.com/localgpt-app/localgpt
 "#;
 
     #[test]
@@ -389,7 +389,7 @@ github.com/localgpt-app/localgpt-doc
         );
         // Fenced code is not scenery.
         assert_eq!(doc.sections[2].body, "Puts a place in the sidecar:");
-        assert_eq!(doc.sections[3].body, "github.com/localgpt-app/localgpt-doc");
+        assert_eq!(doc.sections[3].body, "github.com/localgpt-app/localgpt");
     }
 
     #[test]

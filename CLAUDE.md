@@ -123,7 +123,7 @@ repositories, so the world format cannot drift between apps.
 
 ```
 crates/
-├── cli/          # localgpt — `world` (a .world package's command line), `world mcp` (the shim), `previs` (screenplay → board and .world packages), `completion`
+├── cli/          # localgpt — `world` (a .world package's command line), `world mcp` (the shim), `previs` (screenplay → board and .world packages), `audio` (the optional audio models), `gen` (hands its arguments to the app's Gen), `completion`
 ├── gen/          # localgpt-gen — the world builder: Bevy window, 88 tools over MCP (stdio, HTTP, the relay), live canvas, sessions
 ├── app/          # localgpt-app — the one desktop app: Gen's world, documents and songs as modes; its interface is the egui shell in src/shell, and the page in ui/ is a paired phone's
 ├── doc/          # localgpt-doc — a Markdown file as a walkable world (pure lib + Bevy bin)
@@ -241,15 +241,17 @@ unclear, which is why the agent's stems are Spleeter's.
 
 ### The CLI (`crates/cli/src/cli/`)
 
-`world`, `previs`, `audio` and `completion` are the whole binary: no chat,
-no config, no key. `audio` lists, installs and removes the audio models,
+`world`, `previs`, `audio`, `gen` and `completion` are the whole binary: no
+chat, no config, no key. `audio` lists, installs and removes the audio models,
 runs each on a file and serves the installed ones' tools (`audio mcp`;
 `world mcp` adds them too, writing into the world's `assets/`). `world` is init, submit (`--at <id>` forks), undo, redo, log, tips,
 show, get, verify and history, plus screenshot, selection, goto and proposals,
 which need an app, and `world mcp`, a stdio MCP server over an app's open
 canvas (`world.rs`, `world_mcp.rs`). `previs` stages a screenplay (`.fountain`,
 `.fdx`, `.pdf` or `.md`) into per-scene `.world` packages, `shotlist.csv` and
-`board.html` (`previs.rs`).
+`board.html` (`previs.rs`). `gen` builds nothing itself, so the CLI links no
+Bevy: it hands its arguments to `localgpt-app gen` (beside the binary, then
+on `PATH`, then in `/Applications`), else to `localgpt-gen` (`gen_cmd.rs`).
 
 One authority at a time. While an app answers at `.live/endpoint.json`,
 every command is a call to its API (`world_api.rs`, which the shim shares)
@@ -271,7 +273,9 @@ transport; `--live <folder>` opens a package as a live canvas with its ops
 API (`gen3d/live.rs`). Started with none of these, the window says so and
 shows what was opened last. `config::GenConfig { workspace, state_dir }`
 comes from `world-agent::paths::Dirs`, and `settings.rs` remembers only what
-was opened last.
+was opened last. Its command line is `cli.rs`: one parser and one dispatch
+(`cli::run_from`) that `localgpt-gen` and the app's `localgpt-app gen …`
+both run, which is where `localgpt gen …` lands.
 
 World data is `localgpt-world-types`, so the same types serialize to RON for
 local saves and travel as ops in a room.
@@ -371,7 +375,7 @@ assistant saved under `workspace/skills/` are copied into
   outdates it, and delete it, with its inbound links, when it has no job
   left. History stays in Git and `CHANGELOG.md`, not in archive trees or
   status caveats. User documentation is `website/content/docs/`, including
-  `gen/`, `verse/` and `md/`: update it when a mode's commands, keys or
+  `gen/`, `verse/` and `document/`: update it when a mode's commands, keys or
   output change.
 
 ### CI (`.github/workflows/`)
@@ -379,7 +383,7 @@ assistant saved under `workspace/skills/` are copied into
 `ci.yml` runs on push and pull request to main, on Linux; `cargo xtask
 verify` runs the same checks on this machine. Its jobs: `fmt`; `rule`
 (`cargo xtask rule`); `clippy` and `test` for the workspace minus the six
-crates that need audio and windowing headers (`app`, `gen`, `md`, `verse`,
+crates that need audio and windowing headers (`app`, `gen`, `doc`, `verse`,
 `world-bevy`, `world-audio`), which the `bevy` job lints and tests;
 `features` (`cargo check -p localgpt-verse --features ml`, since nothing
 else compiles gated code); `interface` (typecheck and build of the phone's

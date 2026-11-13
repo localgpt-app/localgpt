@@ -19,7 +19,7 @@ Zola static site for [LocalGPT](https://localgpt.app), deployed as a Cloudflare 
 
 ### Structure
 
-- `content/docs/` — Current user documentation only: `app.md` (the native desktop app), `gen/` (including `live-canvas.md` and `previs.md`), `verse/`, `md/`, and the shared pages (`intro.md`, `quick-start.md`, `installation.md`, `cli-commands.md`, `architecture.md`). Historical product pages and competitor catalogs do not belong here.
+- `content/docs/` — Current user documentation only: `app.md` (the native desktop app), `gen/` (including `live-canvas.md` and `previs.md`), `verse/`, `document/`, and the shared pages (`intro.md`, `quick-start.md`, `installation.md`, `cli-commands.md`, `architecture.md`). Historical product pages and competitor catalogs do not belong here.
 - `templates/` — Tera templates:
   - `base.html` — Site header, navigation, search bar, and family footer.
   - `index.html` — Homepage with hero video, install commands, features, and app grid.

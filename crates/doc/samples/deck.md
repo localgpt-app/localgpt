@@ -49,4 +49,4 @@ Edit one slide and only that slide regenerates.
 
 ## Thank you
 
-github.com/localgpt-app/localgpt-doc
+github.com/localgpt-app/localgpt

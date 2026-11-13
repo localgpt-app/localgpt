@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 description = "The LocalGPT desktop app — native panels for worlds from documents, songs and packages, with external coding agents beside them"
 # The desktop app ships as a build, not a crate: nothing published
-# depends on it, and its md and verse dependencies carry no version.
+# depends on it, and its doc and verse dependencies carry no version.
 publish = false
 repository.workspace = true
 keywords = ["localgpt", "desktop", "world", "bevy"]

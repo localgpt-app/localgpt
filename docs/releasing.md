@@ -39,7 +39,7 @@ set.
   a minute for an upload to reach the index before publishing what depends
   on it. When a publish fails that way, rerun the failed job: it picks up
   the rest.
-- Members with `publish = false` (app, md, verse, relay, previs-web) stay
+- Members with `publish = false` (app, doc, verse, relay, previs-web) stay
   off crates.io.
 - `cargo publish --workspace --dry-run` is the local check.
 

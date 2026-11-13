@@ -274,16 +274,16 @@ cask "localgpt" do
     regex(/^desktop-v?(\d+(?:\.\d+)+)$/i)
   end
 
-   depends_on macos: ">= :big_sur"
+  depends_on macos: ">= :big_sur"
 
-   app "LocalGPT.app"
-   binary "#{{appdir}}/LocalGPT.app/Contents/MacOS/localgpt"
+  app "LocalGPT.app"
+  binary "#{{appdir}}/LocalGPT.app/Contents/MacOS/localgpt"
 
-   zap trash: [
-     "~/.local/state/localgpt",
-   ]
- end
- "##
+  zap trash: [
+    "~/.local/state/localgpt",
+  ]
+end
+"##
     )
 }
 
@@ -714,6 +714,16 @@ mod tests {
         let rendered = cask_text("0.5.0", "aaa", "bbb");
         assert!(rendered.contains("app \"LocalGPT.app\""));
         assert!(rendered.contains("binary \"#{appdir}/LocalGPT.app/Contents/MacOS/localgpt\""));
+        // Ruby reads it either way; `brew style` reads the indentation: a
+        // stanza at two spaces, `end` at the margin, nothing trailing.
+        for stanza in ["version", "depends_on", "app", "binary", "zap"] {
+            assert!(
+                rendered.contains(&format!("\n  {stanza} ")),
+                "{stanza} is not a stanza at two spaces"
+            );
+        }
+        assert!(rendered.ends_with("\nend\n"));
+        assert!(rendered.lines().all(|line| line.trim_end() == line));
     }
 
     #[test]
