@@ -17,7 +17,7 @@
 // `WorldManifest` in the schema.
 //
 // This file is embedded verbatim by `localgpt-world-export::html::generate_html`
-// (Gen's `gen_export_html`, Document's `--export x.html`) and served as a module by
+// (Gen's `gen_export_html`, MD's `--export x.html`) and served as a module by
 // localgpt.world. Keep it dependency-free beyond `three` and its addons, and
 // never write the string "</" followed by "script" in it.
 //
