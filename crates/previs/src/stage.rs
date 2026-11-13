@@ -25,7 +25,12 @@
 //!   behind them and 0.6 m to the side, so their shoulder holds the
 //!   near edge — aimed and focused at the speaker's head *by entity*
 //!   (`aim_entity`, `focus_entity`), so a single follows its actor
-//!   when the blocking changes.
+//!   when the blocking changes. The side is the master's side of the
+//!   line between the two actors, so a shot and its reverse never
+//!   cross it: eyelines cut as the master set them. Where that spot is
+//!   another actor's, or leaves one on the line to the speaker (a
+//!   crowded arc), the camera steps out, sideways then back, to the
+//!   nearest clear one.
 //! - **Timing.** A page-time estimate: dialogue at 2.5 words a second,
 //!   action at 1 second a line, rounded to 0.1 s. The master covers
 //!   the whole scene; a single covers its speaker's first-to-last
@@ -56,6 +61,12 @@ pub const OVER_BACK_M: f64 = 0.8;
 /// centred, the partner's head is off the near edge, their shoulder
 /// inside it, nothing of them over the speaker.
 pub const OVER_SIDE_M: f64 = 0.6;
+/// A single's lens keeps this far from every actor's axis, m: clear of the
+/// stand-in's body (0.18 m) with room for the near plane.
+pub const LENS_CLEAR_M: f64 = 0.3;
+/// …and no actor but the speaker stands nearer than this to the line from
+/// the lens to the speaker, m: just outside a body.
+pub const SIGHT_CLEAR_M: f64 = 0.2;
 /// The show's frame aspect (the crop the whole coverage shares).
 pub const SHOW_ASPECT: f64 = 2.39;
 /// Dialogue pace for the page-time estimate, words a second.
@@ -310,6 +321,19 @@ fn partner_of(scene: &Scene, speaker: &str) -> Option<String> {
         .find(|n| **n != speaker)
         .or_else(|| events[first + 1..].iter().find(|n| **n != speaker))
         .map(|n| n.to_string())
+}
+
+/// How far the point `a` is from the segment `from → to`, on the ground.
+fn off_line(from: [f64; 3], to: [f64; 3], a: [f64; 3]) -> f64 {
+    let (dx, dz) = (to[0] - from[0], to[2] - from[2]);
+    let length_sq = dx * dx + dz * dz;
+    let t = if length_sq < 1e-12 {
+        0.0
+    } else {
+        (((a[0] - from[0]) * dx + (a[2] - from[2]) * dz) / length_sq).clamp(0.0, 1.0)
+    };
+    let (x, z) = (from[0] + dx * t - a[0], from[2] + dz * t - a[2]);
+    (x * x + z * z).sqrt()
 }
 
 /// The shot suffix: A, B, …, Z, AA, AB, …
@@ -675,14 +699,49 @@ pub fn stage(scene: &Scene) -> wt::WorldManifest {
                             [d[0] / l, 0.0, d[2] / l]
                         }
                     };
-                    // The camera's right, looking down `dir` with +Y up
-                    // — the partner lands on the left of frame.
-                    let side = [-dir[2], 0.0, dir[0]];
-                    [
-                        q[0] - dir[0] * OVER_BACK_M + side[0] * OVER_SIDE_M,
-                        EYE_HEIGHT,
-                        q[2] - dir[2] * OVER_BACK_M + side[2] * OVER_SIDE_M,
-                    ]
+                    // The camera's right, looking down `dir` with +Y up.
+                    let right = [-dir[2], 0.0, dir[0]];
+                    // The side the master stands on, of the line between
+                    // the two actors: every single stands there too. The
+                    // partner then lands at the near edge of frame — the
+                    // left of one single, the right of its reverse — and
+                    // each actor keeps looking the way the master showed
+                    // them. Both singles to their own right would cross
+                    // the line, and a cut between them would flip it.
+                    let master_side = (placed[0] - q[0]) * right[0] + (placed[2] - q[2]) * right[2];
+                    let side = if master_side < 0.0 { -1.0 } else { 1.0 };
+                    let over = |back: f64, out: f64| {
+                        [
+                            q[0] - dir[0] * back + side * right[0] * out,
+                            EYE_HEIGHT,
+                            q[2] - dir[2] * back + side * right[2] * out,
+                        ]
+                    };
+                    // In a crowded arc the over's own spot can be where
+                    // another actor stands, or leave one on the line to the
+                    // speaker. Then the camera steps out — sideways first,
+                    // then back, a quarter metre at a time, never across
+                    // the line — to the nearest spot that is clear. The
+                    // partner may leave the frame there: a clean single
+                    // beats a lens inside someone.
+                    let clear = |c: [f64; 3]| {
+                        cast.iter().all(|(_, a, _)| {
+                            let lens = ((c[0] - a[0]).powi(2) + (c[2] - a[2]).powi(2)).sqrt();
+                            let speaker = a[0] == p[0] && a[2] == p[2];
+                            lens >= LENS_CLEAR_M
+                                && (speaker || off_line(c, *p, *a) >= SIGHT_CLEAR_M)
+                        })
+                    };
+                    (0..=6_u32)
+                        .flat_map(|steps| (0..=steps).map(move |back| (back, steps - back)))
+                        .map(|(back, out)| {
+                            over(
+                                OVER_BACK_M + 0.25 * f64::from(back),
+                                OVER_SIDE_M + 0.25 * f64::from(out),
+                            )
+                        })
+                        .find(|c| clear(*c))
+                        .unwrap_or_else(|| over(OVER_BACK_M, OVER_SIDE_M))
                 }
                 None => [p[0] + 0.3, EYE_HEIGHT, p[2] + 2.2],
             };
@@ -872,8 +931,9 @@ Anywhere the radio can't reach.
                     p.x,
                     p.y
                 );
-                // ...and the partner's head is off the near edge: their
-                // shoulder in frame, nothing of them over the speaker.
+                // ...and the partner's head is off the near edge, left or
+                // right as the line asks: their shoulder in frame, nothing
+                // of them over the speaker.
                 let partner =
                     partner_of(scene, &speaker).expect("every speaker in the script has a partner");
                 let q = cinema::project(
@@ -883,7 +943,7 @@ Anywhere the radio can't reach.
                     cinema::world_origin(head_of(&partner), &manifest),
                 );
                 assert!(
-                    q.z > 0.0 && q.x <= -0.95,
+                    q.z > 0.0 && q.x.abs() >= 0.95,
                     "{}: {} puts {}'s partner {} at ({:.3}, {:.3}), inside the frame",
                     manifest.meta.name,
                     entity.name.as_str(),
@@ -894,6 +954,59 @@ Anywhere the radio can't reach.
                 );
             }
         }
+    }
+
+    /// The side of the line from `a` to `b` that `p` is on, seen from above.
+    fn side_of(a: [f32; 3], b: [f32; 3], p: [f32; 3]) -> f32 {
+        (b[2] - a[2]) * (p[0] - a[0]) - (b[0] - a[0]) * (p[2] - a[2])
+    }
+
+    #[test]
+    fn a_single_and_its_reverse_stay_on_the_masters_side_of_the_line() {
+        // Scene 1 is two actors facing each other: 1B is on MAYA over KAI's
+        // shoulder and 1C its reverse. Both cameras, and the master that
+        // set the eyelines, are on one side of the line between the two —
+        // so MAYA looks one way across the frame in hers and KAI the other
+        // in his, and a cut between them reads as a conversation.
+        let manifest = &staged_scenes()[0];
+        let at = |name: &str| {
+            manifest
+                .entities
+                .iter()
+                .find(|e| e.name.as_str() == name)
+                .unwrap_or_else(|| panic!("no entity {name}"))
+                .transform
+                .position
+        };
+        let (maya, kai) = (at("MAYA"), at("KAI"));
+        let sides = ["1A", "1B", "1C"].map(|shot| side_of(maya, kai, at(shot)));
+        assert!(
+            sides.iter().all(|s| *s > 0.1) || sides.iter().all(|s| *s < -0.1),
+            "the master and both singles on one side: {sides:?}"
+        );
+        // Over one right shoulder and one left: the partner at the right
+        // edge of her single, the left edge of his.
+        let partner_x = |shot: &str, partner: &str| {
+            let (entity, component) = camera(manifest, shot);
+            let view = cinema::view_in(&entity, &component, manifest);
+            let head = manifest
+                .entities
+                .iter()
+                .find(|e| e.name.as_str() == format!("{partner}.head"))
+                .unwrap();
+            cinema::project(
+                &view,
+                &cinema::frame_of(&component),
+                &component,
+                cinema::world_origin(head, manifest),
+            )
+            .x
+        };
+        let (in_hers, in_his) = (partner_x("1B", "KAI"), partner_x("1C", "MAYA"));
+        assert!(
+            in_hers * in_his < 0.0,
+            "opposite edges: {in_hers:.3} and {in_his:.3}"
+        );
     }
 
     #[test]
