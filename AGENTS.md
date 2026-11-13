@@ -34,7 +34,7 @@ localgpt gen mcp-server --mcp-http 8765     # also the streamable HTTP transport
 
 ### localgpt world mcp (the shim)
 
-An open `.world` package's tools — submit a batch, undo, redo, the log, the tips, a screenshot, the selection — over stdio, forwarded to the app that has the world open (`LOCALGPT_WORLD_DIR`, which the desktop app's terminals set, or the folder as the argument).
+An open `.world` package's tools — submit a batch, undo, the log, the tips, go to an entry, verify, a screenshot, the selection — over stdio, forwarded to the app that has the world open (`LOCALGPT_WORLD_DIR`, which the desktop app's terminals set, or the folder as the argument).
 
 ```bash
 localgpt world mcp [DIR]
@@ -144,7 +144,7 @@ Every tool below is Gen's, except the audio models' at the end; the names are wh
 | `gen_load_world` | Load a world skill, restoring scene, behaviors, audio, and camera | `path` | `clear` (default: true) |
 | `gen_export_world` | Export world to glTF for external viewers | -- | `format` (glb/gltf) |
 | `gen_export_html` | Export world as self-contained HTML with Three.js | -- | -- |
-| `gen_export_screenshot` | Render a high-resolution image to a file | -- | `path`, `width`, `height` |
+| `gen_export_screenshot` | Render a high-resolution image to a file | `path` | `width`, `height` |
 | `gen_export_gltf` | Export the current scene as a glTF binary (.glb) | -- | `path` |
 | `gen_fork_world` | Copy a world skill to a new name with attribution | `source`, `new_name` | -- |
 | `gen_clear_scene` | Remove all entities, stop audio, reset behaviors | -- | `keep_camera`, `keep_lights` |
@@ -166,9 +166,9 @@ Every tool below is Gen's, except the audio models' at the end; the names are wh
 
 | Tool | Description | Required Params | Optional Params |
 |------|-------------|-----------------|-----------------|
-| `gen_add_trigger` | Add trigger+action to an entity (proximity, click, area, collision, timer) | `entity_id`, `trigger_type` | action params vary by type |
+| `gen_add_trigger` | Add trigger+action to an entity (proximity, click, area, collision, timer) | `entity_id`, `trigger_type`, `action` | `radius`, `cooldown`, `interval`, `max_distance`, `once`, `destination`, `text`, `amount`, `state_key`, `category`, `requires_item`, `duration`, `volume` |
 | `gen_add_teleporter` | Create a portal that teleports the player on contact | entity/position params | destination, visual effect params |
-| `gen_add_collectible` | Make an entity collectible with score and pickup effects | entity params | `score`, respawn options |
+| `gen_add_collectible` | Make an entity collectible with score and pickup effects | `entity_id` | `value`, `category`, `pickup_sound`, `pickup_effect`, `respawn_time` |
 | `gen_add_door` | Add interactive door with open/close and optional key requirement | entity params | key, animation params |
 | `gen_link_entities` | Wire one entity's event to trigger another entity's action | entity pair params | -- |
 
@@ -179,7 +179,7 @@ Every tool below is Gen's, except the audio models' at the end; the names are wh
 | `gen_add_terrain` | Generate procedural terrain from noise with collision mesh | -- | `size`, `resolution`, noise params |
 | `gen_add_water` | Create animated transparent water plane | -- | `height`, `size`, visual params |
 | `gen_add_path` | Create walkable path between waypoints | waypoints | `width`, terrain-conform params |
-| `gen_add_foliage` | Scatter vegetation via Poisson disk sampling (trees, bushes, grass, flowers, rocks) | -- | density, distribution params |
+| `gen_add_foliage` | Scatter vegetation via Poisson disk sampling (trees, bushes, grass, flowers, rocks) | `foliage_type` | `center`, `radius`, `density`, `scale_range`, `seed`, `avoid_paths`, `avoid_water`, `max_slope` |
 | `gen_set_sky` | Configure sky, sun direction, ambient light, and fog | -- | sky, sun, fog params |
 | `gen_query_terrain_height` | Query terrain Y height at (x, z) coordinates | coordinates | -- |
 
@@ -197,11 +197,11 @@ Every tool below is Gen's, except the audio models' at the end; the names are wh
 
 | Tool | Description | Required Params | Optional Params |
 |------|-------------|-----------------|-----------------|
-| `gen_set_physics` | Enable physics on an entity (dynamic/static/kinematic) | `entity_id` | `body_type`, `mass`, `friction`, `bounciness`, `damping` |
-| `gen_add_collider` | Add collision shape (box, sphere, capsule, cylinder, mesh) | `entity_id` | `shape`, `sensor` (trigger-only) |
-| `gen_add_joint` | Create physical constraint between entities (fixed, revolute, spherical, prismatic, spring) | `entity_a`, `entity_b`, `joint_type` | joint-specific params |
-| `gen_add_force` | Create force field or impulse (directional, point_attract, point_repel, vortex, impulse) | `force_type` | direction, strength params |
-| `gen_set_gravity` | Set gravity globally or per zone (presets: earth, moon, mars, jupiter, zero) | -- | `preset`, `direction`, `strength` |
+| `gen_set_physics` | Enable physics on an entity (dynamic/static/kinematic) | `entity_id` | `body_type`, `mass`, `friction`, `restitution`, `gravity_scale`, `linear_damping`, `angular_damping`, `lock_rotation` |
+| `gen_add_collider` | Add collision shape (box, sphere, capsule, cylinder, mesh) | `entity_id` | `shape`, `size`, `offset`, `is_trigger` (overlap only, no collision) |
+| `gen_add_joint` | Create physical constraint between entities (fixed, revolute, spherical, prismatic, spring) | `entity_a`, `entity_b` | `joint_type`, `anchor_a`, `anchor_b`, `axis`, `limits`, `stiffness`, `damping` |
+| `gen_add_force` | Create force field or impulse (directional, point_attract, point_repel, vortex, impulse) | `position` | `force_type`, `strength`, `radius`, `direction`, `falloff`, `affects_player`, `continuous` |
+| `gen_set_gravity` | Set gravity for the scene, in a zone, or on one entity | -- | `direction`, `strength`, `entity_id`, `zone_position`, `zone_radius`, `transition_duration` |
 
 ### Gen: WorldGen Pipeline (WG)
 
@@ -226,7 +226,7 @@ Every tool below is Gen's, except the audio models' at the end; the names are wh
 
 | Tool | Description | Required Params | Optional Params |
 |------|-------------|-----------------|-----------------|
-| `gen_write_world_plan` | Create SKILL.md, world.md, and root world.ron from a structured plan | `name`, `description` | `generation_strategy` |
+| `gen_write_world_plan` | Create SKILL.md, world.md, and root world.ron from a structured plan | `name` | `generation_strategy`, `description`, `regions`, `constraints`, `environment`, `camera` |
 | `gen_write_region` | Write a .md + .ron file pair for a region | region params | `flush` |
 | `gen_load_region` | Load a region .ron and spawn its entities into the scene | region params | -- |
 | `gen_unload_region` | Remove all entities belonging to a region from the scene | region params | -- |

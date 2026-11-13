@@ -91,7 +91,7 @@ By area, for game-like world building:
 | `gen_add_collider` | Add collision shapes (box, sphere, capsule, cylinder, mesh) |
 | `gen_add_joint` | Create physical constraints between entities (fixed, revolute, spring, etc.) |
 | `gen_add_force` | Create force fields or apply impulses |
-| `gen_set_gravity` | Control gravity globally or per-zone (presets: earth, moon, mars, zero) |
+| `gen_set_gravity` | Control gravity for the scene, in a zone, or on one entity |
 
 #### WorldGen Pipeline (15 tools)
 

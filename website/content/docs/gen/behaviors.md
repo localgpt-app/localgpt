@@ -175,8 +175,8 @@ gen_remove_behavior({
 })
 
 // Pause all behaviors globally
-gen_pause_behaviors({ "pause": true })
+gen_pause_behaviors({ "paused": true })
 
 // Resume behaviors
-gen_pause_behaviors({ "pause": false })
+gen_pause_behaviors({ "paused": false })
 ```
