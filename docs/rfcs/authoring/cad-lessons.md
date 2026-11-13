@@ -155,7 +155,10 @@ rule for the shim: it starts either way, sends each call to the app when one
 answers and to the headless authority when none does, and says in each reply
 which one it was. A screenshot with no app open is the later half (`localgpt
 world screenshot` needs one today): the web viewer in a headless browser, or
-Bevy off-screen.
+Bevy off-screen — or a CPU rasteriser of the parametric shapes, weighed in
+[three-live-lessons.md](three-live-lessons.md) §3. What a picture was wanted
+for is often answered without one since: `localgpt world lint` says what
+each camera sees, in numbers, with no app.
 
 ## 6. Setup, discovery and skills
 

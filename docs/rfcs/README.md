@@ -20,6 +20,7 @@ Every design document opens with a `**Status:**` line that says what is true now
 |---|---|
 | [authoring/blender-lessons.md](authoring/blender-lessons.md) | Editor commands, undo, selection, transforms, the outliner and the separation between authored and evaluated state. |
 | [authoring/cad-lessons.md](authoring/cad-lessons.md) | A command-driven agent surface, panic containment, headless parity and the control channel. |
+| [authoring/three-live-lessons.md](authoring/three-live-lessons.md) | What an agent checks a world with: the lint and its codes, the corpus of what authors get wrong, a world in a link, pictures in a tool's answer, and resolving "the one on the left". Applied; its last section is what is open. |
 
 ## Collaborative sessions
 

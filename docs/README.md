@@ -24,7 +24,7 @@ The [RFC index](rfcs/README.md) lists only active designs and references that re
 
 - the native all-Rust application and the non-linear world editor;
 - the phone/tablet remote and the proposed rooms channel;
-- Blender and CAD implementation lessons that still inform the editor;
+- Blender and CAD implementation lessons that still inform the editor, and the Three-Live reading behind the lint and the checks an agent runs;
 - the current multiplayer authority and session package.
 
 The Open World Format has its own [specification and RFCs](https://github.com/openworldformat/openworldformat). Format changes belong there, not in a second LocalGPT design document.
