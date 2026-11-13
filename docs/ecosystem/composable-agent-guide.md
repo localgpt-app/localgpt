@@ -149,7 +149,7 @@ After connecting, call `tools/list` to get the full catalog:
 
 The response holds the 88 tool definitions, each with `name`, `description`, `inputSchema` (JSON Schema for the arguments) and, over stdio and HTTP, `annotations` (`readOnlyHint`, `destructiveHint`, `idempotentHint`). The catalog with parameter details is [AGENTS.md](../../AGENTS.md); the sequences an agent runs are in the user docs ([WorldGen](../../website/content/docs/gen/worldgen.md), [World Skills](../../website/content/docs/gen/world-skills.md), [Export](../../website/content/docs/gen/export.md)).
 
-A `tools/call` result is one text block. A tool that fails answers with `isError: true` and its message as text, not with a JSON-RPC error; over stdio and HTTP only a missing `name` or an unknown tool is one (`-32602`). `gen_screenshot` answers with the path of the PNG it wrote, so a runtime that wants to look at the image has to read that file.
+A `tools/call` result is one text block. A tool that fails answers with `isError: true` and its message as text, not with a JSON-RPC error; over stdio and HTTP only a missing `name` or an unknown tool is one (`-32602`). A call that carries an argument the tool's `inputSchema` does not name is answered the same way, over every transport: the tool is not run, and the message lists the arguments it takes. `gen_screenshot` answers with the path of the PNG it wrote, so a runtime that wants to look at the image has to read that file.
 
 ---
 

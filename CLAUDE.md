@@ -196,8 +196,11 @@ a mapping.
 protocol `2024-11-05`), `ToolHandler` over a tool list and
 `run_mcp_stdio_server` (JSON-RPC 2.0, one message per line on stdout; logs
 go to stderr); `mcp::http` is `run_mcp_http_server`, at `/mcp` on localhost.
-When a tool is added, removed or renamed, update `AGENTS.md` and the count
-wherever it is quoted (`git grep -nw 88`).
+Every server answers a call through `mcp::call_tool`, which refuses an
+argument the tool's schema does not name, so a schema declares every
+argument its tool reads. When a tool is added, removed or renamed, update
+`AGENTS.md` and the count wherever it is quoted (`git grep -nw 88`); when
+an argument is, update the tool's row, which a test holds to the schema.
 
 **Bevy main thread.** Bevy must own the main thread (macOS windowing/GPU).
 Gen spawns tokio on a background thread for the tool server. In the desktop

@@ -56,6 +56,7 @@ impl Tool for GenAddTriggerTool {
                     "cooldown": { "type": "number", "default": 1.0, "description": "Cooldown between triggers" },
                     "interval": { "type": "number", "description": "Timer interval (timer trigger only)" },
                     "max_distance": { "type": "number", "default": 5.0, "description": "Max click distance" },
+                    "prompt_text": { "type": "string", "description": "Prompt shown for a click trigger" },
                     "once": { "type": "boolean", "default": false, "description": "Fire only once" },
                     "destination": {
                         "type": "array",
@@ -451,8 +452,9 @@ impl Tool for GenAddDoorTool {
             open_duration: args["open_duration"].as_f64().unwrap_or(1.5) as f32,
             auto_close: args["auto_close"].as_bool().unwrap_or(true),
             auto_close_delay: args["auto_close_delay"].as_f64().unwrap_or(3.0) as f32,
-            sound_open: args["sound_open"].as_str().map(|s| s.to_string()),
-            sound_close: args["sound_close"].as_str().map(|s| s.to_string()),
+            // Nothing plays a door's sounds yet, so the tool takes none.
+            sound_open: None,
+            sound_close: None,
             requires_key: args["requires_key"].as_str().map(|s| s.to_string()),
         };
 

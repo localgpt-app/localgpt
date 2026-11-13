@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 
-use localgpt_world_agent::mcp::Tool;
+use localgpt_world_agent::mcp::{Tool, call_tool};
 
 use crate::gen3d::GenBridge;
 
@@ -73,13 +73,17 @@ impl RelayTools {
             .collect()
     }
 
-    async fn call_tool(&self, name: &str, arguments: &str) -> Result<String, String> {
+    async fn call_tool(&self, name: &str, arguments: &serde_json::Value) -> Result<String, String> {
         let tool = self
             .tools
             .iter()
             .find(|t| t.name() == name)
             .ok_or_else(|| format!("Unknown tool: {}", name))?;
-        tool.execute(arguments).await.map_err(|e| e.to_string())
+        // Through the shared `call_tool`, so the relay refuses what the
+        // stdio and HTTP servers refuse.
+        call_tool(tool.as_ref(), arguments)
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -278,9 +282,8 @@ async fn process_request(request: &serde_json::Value, relay: &RelayTools) -> ser
                 .get("arguments")
                 .cloned()
                 .unwrap_or(serde_json::json!({}));
-            let args_str = serde_json::to_string(&args).unwrap_or_default();
 
-            match relay.call_tool(name, &args_str).await {
+            match relay.call_tool(name, &args).await {
                 Ok(result) => serde_json::json!({
                     "jsonrpc": "2.0",
                     "id": id,
@@ -317,4 +320,43 @@ fn error_response(id: serde_json::Value, code: i32, message: &str) -> serde_json
         "id": id,
         "error": { "code": code, "message": message }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gen3d::create_gen_channels;
+
+    /// The relay has its own dispatch, so it has to refuse what the stdio
+    /// and HTTP servers refuse. Left to the tool, `preset` would be dropped
+    /// and the call would set the default gravity, Earth's.
+    #[tokio::test]
+    async fn the_relay_refuses_an_argument_a_tool_does_not_take() {
+        let (bridge, mut channels) = create_gen_channels();
+        let relay = RelayTools {
+            tools: crate::mcp_server::create_mcp_tools(bridge),
+        };
+        let request = serde_json::json!({
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": "gen_set_gravity", "arguments": {"preset": "mars"}}
+        });
+        // A call that reached the tool would wait here for the scene's
+        // answer, which this test never gives.
+        let answer = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            process_request(&request, &relay),
+        )
+        .await
+        .expect("a refusal does not wait for the scene");
+        assert_eq!(answer["result"]["isError"], true, "{answer}");
+        let said = answer["result"]["content"][0]["text"]
+            .as_str()
+            .expect("the refusal");
+        assert!(said.contains("`preset`"), "{said}");
+        assert!(said.contains("strength"), "{said}");
+        assert!(
+            channels.cmd_rx.try_recv().is_err(),
+            "nothing may reach the scene"
+        );
+    }
 }

@@ -251,6 +251,8 @@ The **MCP client is the orchestrator**. It manages the conversation, decides whi
 5. Tool calls are dispatched through the GenBridge channel to the Bevy main thread
 6. Results are sent back to the client, which continues building
 
+A call may carry only the arguments its tool takes. One that carries another is refused before it reaches the scene, and the answer lists the arguments the tool takes, so the agent can send the call again.
+
 ## Combining with Scene File
 
 You can load an existing scene while starting the MCP server:

@@ -5,7 +5,9 @@
 //! `localgpt-gen mcp-server` both serve a `Vec<Box<dyn Tool>>` over stdio
 //! with [`run_mcp_stdio_server`]; `mcp-http` adds the streamable HTTP
 //! transport ([`http`]). A tool is a name, a JSON schema and an async call;
-//! nothing here knows which agent is on the other end.
+//! nothing here knows which agent is on the other end. A server answers a
+//! call through [`call_tool`], which refuses an argument the schema does
+//! not name.
 
 #[cfg(feature = "mcp-http")]
 pub mod http;
@@ -41,6 +43,50 @@ pub trait Tool: Send + Sync {
     fn annotations(&self) -> Option<Value> {
         None
     }
+}
+
+/// Answer a client's call to `tool`: run it, unless the call carries an
+/// argument the tool's schema does not name.
+///
+/// A tool reads the arguments it knows and takes its defaults for the rest,
+/// so a misnamed argument would be dropped and the call would succeed
+/// without doing what it asked. The refusal lists the arguments the tool
+/// takes, which is what lets an agent correct the call. Every server
+/// answers `tools/call` through here.
+pub async fn call_tool(tool: &dyn Tool, arguments: &Value) -> Result<String> {
+    let schema = tool.schema();
+    let takes: Vec<&str> = schema
+        .parameters
+        .get("properties")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(|properties| properties.keys())
+        .map(String::as_str)
+        .collect();
+    let unknown: Vec<String> = arguments
+        .as_object()
+        .into_iter()
+        .flat_map(|given| given.keys())
+        .filter(|name| !takes.contains(&name.as_str()))
+        .map(|name| format!("`{name}`"))
+        .collect();
+    if let [rest @ .., last] = unknown.as_slice() {
+        let unknown = if rest.is_empty() {
+            last.clone()
+        } else {
+            format!("{} or {last}", rest.join(", "))
+        };
+        let takes = if takes.is_empty() {
+            "It takes no arguments.".to_string()
+        } else {
+            format!("Its arguments: {}.", takes.join(", "))
+        };
+        anyhow::bail!(
+            "{} was not run: it has no argument {unknown}. {takes}",
+            tool.name()
+        );
+    }
+    tool.execute(&serde_json::to_string(arguments)?).await
 }
 
 // ---------------------------------------------------------------------------
@@ -167,8 +213,7 @@ impl McpHandler for ToolHandler {
                     "message": format!("Unknown tool: {}", tool_name),
                 })
             })?;
-        let args_str = serde_json::to_string(&arguments).unwrap_or_default();
-        match tool.execute(&args_str).await {
+        match call_tool(tool.as_ref(), &arguments).await {
             Ok(output) => Ok(json!({
                 "content": [{ "type": "text", "text": output }]
             })),
@@ -311,6 +356,94 @@ mod tests {
                 .dispatch(&json!({"jsonrpc": "2.0", "method": "notifications/initialized"}))
                 .await
                 .is_none()
+        );
+    }
+
+    /// A tool that takes the arguments named, and says that it ran.
+    struct Takes(&'static [&'static str]);
+
+    #[async_trait]
+    impl Tool for Takes {
+        fn name(&self) -> &str {
+            "takes"
+        }
+
+        fn schema(&self) -> ToolSchema {
+            let properties: serde_json::Map<String, Value> = self
+                .0
+                .iter()
+                .map(|name| (name.to_string(), json!({"type": "string"})))
+                .collect();
+            ToolSchema {
+                name: "takes".into(),
+                description: "takes what it is told to".into(),
+                parameters: json!({"type": "object", "properties": properties}),
+            }
+        }
+
+        async fn execute(&self, _arguments: &str) -> Result<String> {
+            Ok("ran".into())
+        }
+    }
+
+    #[tokio::test]
+    async fn a_call_runs_with_the_arguments_its_tool_takes() {
+        let tool = Takes(&["text", "volume"]);
+        for arguments in [
+            json!({"text": "hi", "volume": "low"}),
+            json!({"text": "hi"}),
+            json!({}),
+            Value::Null,
+        ] {
+            let said = call_tool(&tool, &arguments).await.expect("a call it takes");
+            assert_eq!(said, "ran", "{arguments}");
+        }
+    }
+
+    /// A tool takes its defaults for what it is not given, so a misnamed
+    /// argument would be a success that did not do what was asked.
+    #[tokio::test]
+    async fn a_call_with_an_argument_its_tool_does_not_take_is_refused() {
+        let refused = |tool: Takes, arguments: Value| async move {
+            call_tool(&tool, &arguments)
+                .await
+                .expect_err("the tool must not run")
+                .to_string()
+        };
+        assert_eq!(
+            refused(
+                Takes(&["text", "volume"]),
+                json!({"text": "hi", "txt": "ho"})
+            )
+            .await,
+            "takes was not run: it has no argument `txt`. Its arguments: text, volume."
+        );
+        assert_eq!(
+            refused(Takes(&["text"]), json!({"a": 1, "b": 2, "c": 3})).await,
+            "takes was not run: it has no argument `a`, `b` or `c`. Its arguments: text."
+        );
+        assert_eq!(
+            refused(Takes(&[]), json!({"text": "hi"})).await,
+            "takes was not run: it has no argument `text`. It takes no arguments."
+        );
+    }
+
+    /// The refusal reaches the client as a tool's own failure does, so the
+    /// agent reads it and can send the call again.
+    #[tokio::test]
+    async fn the_handler_answers_a_refused_call_as_an_error_result() {
+        let handler = ToolHandler::new("test", vec![Box::new(Echo) as Box<dyn Tool>]);
+        let call = handler
+            .dispatch(&json!({
+                "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                "params": {"name": "echo", "arguments": {"txt": "hi"}}
+            }))
+            .await
+            .unwrap();
+        assert_eq!(call["result"]["isError"], true, "{call}");
+        assert_eq!(
+            call["result"]["content"][0]["text"],
+            "Error: echo was not run: it has no argument `txt`. Its arguments: text."
         );
     }
 }

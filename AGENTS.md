@@ -85,7 +85,7 @@ For the window you are looking at, run `localgpt gen --mcp-relay` and give the c
 
 ## Tool Catalog
 
-Every tool below is Gen's, except the audio models' at the end; the names are what `localgpt gen mcp-server` (or `localgpt-gen mcp-server`) lists. Each row names every argument its tool takes, the ones a call must give and the ones it may, and a test holds Gen's rows to the tools' schemas. There are no memory, web or file tools: the agent brings its own.
+Every tool below is Gen's, except the audio models' at the end; the names are what `localgpt gen mcp-server` (or `localgpt-gen mcp-server`) lists. Each row names every argument its tool takes, the ones a call must give and the ones it may, and a test holds Gen's rows to the tools' schemas. A call that carries any other argument is refused and the tool is not run: the answer lists the arguments the tool takes. There are no memory, web or file tools: the agent brings its own.
 
 ### Gen: Scene Query
 
@@ -166,7 +166,7 @@ Every tool below is Gen's, except the audio models' at the end; the names are wh
 
 | Tool | Description | Required Params | Optional Params |
 |------|-------------|-----------------|-----------------|
-| `gen_add_trigger` | Add trigger+action to an entity (proximity, click, area, collision, timer) | `entity_id`, `trigger_type`, `action` | `radius`, `cooldown`, `interval`, `max_distance`, `once`, `destination`, `text`, `amount`, `state_key`, `category`, `requires_item`, `duration`, `volume` |
+| `gen_add_trigger` | Add trigger+action to an entity (proximity, click, area, collision, timer) | `entity_id`, `trigger_type`, `action` | `radius`, `cooldown`, `interval`, `max_distance`, `prompt_text`, `once`, `destination`, `text`, `amount`, `state_key`, `category`, `requires_item`, `duration`, `volume` |
 | `gen_add_teleporter` | Create a portal that teleports the player on contact | `position`, `destination` | `size`, `effect`, `sound`, `label` |
 | `gen_add_collectible` | Make an entity collectible with score and pickup effects | `entity_id` | `value`, `category`, `pickup_sound`, `pickup_effect`, `respawn_time` |
 | `gen_add_door` | Add interactive door with open/close and optional key requirement | `entity_id` | `trigger`, `open_angle`, `open_duration`, `auto_close`, `auto_close_delay`, `requires_key` |
