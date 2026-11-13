@@ -1,0 +1,47 @@
+{
+  "what": "A new entity is named in the same batch that makes it: the name binds to the id it just got.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "SpawnEntity": {
+        "entity": {
+          "name": "bench",
+          "transform": {
+            "position": [
+              3.0,
+              0.25,
+              1.0
+            ]
+          },
+          "shape": {
+            "Cuboid": {
+              "x": 1.6,
+              "y": 0.5,
+              "z": 0.5
+            }
+          }
+        }
+      }
+    },
+    {
+      "ModifyEntity": {
+        "id": "bench",
+        "patch": {
+          "transform": {
+            "position": [
+              3.0,
+              0.25,
+              2.0
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "expect": {
+    "committed": {
+      "warnings": []
+    }
+  }
+}

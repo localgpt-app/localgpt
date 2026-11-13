@@ -1,0 +1,20 @@
+{
+  "what": "`null` in a patch removes the field.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "ModifyEntity": {
+        "id": "crate",
+        "patch": {
+          "material": null
+        }
+      }
+    }
+  ],
+  "expect": {
+    "committed": {
+      "warnings": []
+    }
+  }
+}

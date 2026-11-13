@@ -1,0 +1,15 @@
+{
+  "version": 3,
+  "meta": {"name": "yard", "description": "a yard: ground, a crate, a lamp that looks at the crate"},
+  "entities": [
+    {"id": 1, "name": "ground", "transform": {"position": [0.0, 0.0, 0.0]},
+     "shape": {"Plane": {"x": 20.0, "z": 20.0}}},
+    {"id": 2, "name": "crate", "transform": {"position": [0.0, 0.5, 0.0]},
+     "shape": {"Cuboid": {"x": 1.0, "y": 1.0, "z": 1.0}},
+     "material": {"color": [0.6, 0.4, 0.2, 1.0], "roughness": 0.8}},
+    {"id": 3, "name": "lamp", "transform": {"position": [2.0, 2.0, 0.0]},
+     "shape": {"Sphere": {"radius": 0.15}},
+     "behaviors": [{"LookAt": {"target": 2}}]}
+  ],
+  "next_entity_id": 4
+}

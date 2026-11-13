@@ -1,0 +1,27 @@
+{
+  "what": "A shape written as another tool spells it, `type` and `size`, not the format's `{\"Cuboid\": {...}}`: the refusal points at the shape and lists the ones there are.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "SpawnEntity": {
+        "entity": {
+          "name": "box",
+          "shape": {
+            "type": "box",
+            "size": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "expect": {
+    "rejected": [
+      "/SpawnEntity/entity/shape"
+    ]
+  }
+}

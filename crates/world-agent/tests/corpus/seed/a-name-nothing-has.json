@@ -1,0 +1,17 @@
+{
+  "what": "`create` for `crate`.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "DeleteEntity": {
+        "id": "create"
+      }
+    }
+  ],
+  "expect": {
+    "rejected": [
+      "no entity is named \"create\""
+    ]
+  }
+}

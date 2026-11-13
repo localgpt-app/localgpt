@@ -1,0 +1,19 @@
+{
+  "what": "The lamp looks at the crate; deleting the crate is allowed and the receipt says what it left behind.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "DeleteEntity": {
+        "id": "crate"
+      }
+    }
+  ],
+  "expect": {
+    "committed": {
+      "warnings": [
+        "look_at"
+      ]
+    }
+  }
+}

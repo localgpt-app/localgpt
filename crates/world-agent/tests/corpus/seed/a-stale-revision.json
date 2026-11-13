@@ -1,0 +1,20 @@
+{
+  "what": "A batch that says which revision it read, after the world moved: refused naming both.",
+  "source": "seed",
+  "world": "yard",
+  "batch": {
+    "ops": [
+      {
+        "DeleteEntity": {
+          "id": "lamp"
+        }
+      }
+    ],
+    "expected_revision": 7
+  },
+  "expect": {
+    "rejected": [
+      "the world is at revision 0, not 7"
+    ]
+  }
+}

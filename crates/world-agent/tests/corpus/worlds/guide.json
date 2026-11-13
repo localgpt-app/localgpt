@@ -1,0 +1,21 @@
+{
+  "version": 3,
+  "meta": {"name": "guide", "description": "what the package guide's examples name: a cuboid, a torus, a figure's head, a shot"},
+  "entities": [
+    {"id": 1, "name": "floor", "transform": {"position": [0.0, -0.05, 0.0]},
+     "shape": {"Cuboid": {"x": 8.0, "y": 0.1, "z": 6.0}}},
+    {"id": 2, "name": "cuboid", "transform": {"position": [-2.0, 0.5, -1.0]},
+     "shape": {"Cuboid": {"x": 1.0, "y": 1.0, "z": 1.0}}},
+    {"id": 3, "name": "torus", "transform": {"position": [2.0, 0.5, -1.0]},
+     "shape": {"Torus": {"major_radius": 0.5, "minor_radius": 0.15}}},
+    {"id": 4, "name": "MAYA", "transform": {"position": [0.7, 0.85, 0.0]},
+     "shape": {"Capsule": {"radius": 0.18, "half_length": 0.67}}},
+    {"id": 5, "name": "MAYA.head", "transform": {"position": [0.7, 1.6, 0.0]},
+     "shape": {"Sphere": {"radius": 0.12}}},
+    {"id": 6, "name": "1B", "transform": {"position": [-1.5, 1.6, 0.6]},
+     "ext-cinematography": {
+       "camera": {"focal_length_mm": 35, "aspect_ratio": 2.39, "aim": [0.7, 1.6, 0.0]},
+       "shot": {"scene": "1", "order": 2, "in_s": 0.5, "out_s": 1.5, "size": "MCU", "description": "her"}}}
+  ],
+  "next_entity_id": 7
+}

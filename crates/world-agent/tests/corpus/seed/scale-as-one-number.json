@@ -1,0 +1,22 @@
+{
+  "what": "`scale: 2`, where the format takes `[x, y, z]`: the refusal points at the field.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "ModifyEntity": {
+        "id": "crate",
+        "patch": {
+          "transform": {
+            "scale": 2.0
+          }
+        }
+      }
+    }
+  ],
+  "expect": {
+    "rejected": [
+      "/ModifyEntity/patch/transform/scale: invalid type"
+    ]
+  }
+}

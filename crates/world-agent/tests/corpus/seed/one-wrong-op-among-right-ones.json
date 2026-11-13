@@ -1,0 +1,51 @@
+{
+  "what": "Three ops, one wrong: the reason names the op, and nothing commits.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "SpawnEntity": {
+        "entity": {
+          "name": "post",
+          "transform": {
+            "position": [
+              1.0,
+              1.0,
+              3.0
+            ]
+          },
+          "shape": {
+            "Cylinder": {
+              "radius": 0.1,
+              "height": 2.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "ModifyEntity": {
+        "id": "crate",
+        "patch": {
+          "transform": {
+            "postion": [
+              0.0,
+              2.0,
+              0.0
+            ]
+          }
+        }
+      }
+    },
+    {
+      "DeleteEntity": {
+        "id": "lamp"
+      }
+    }
+  ],
+  "expect": {
+    "rejected": [
+      "op 1: "
+    ]
+  }
+}

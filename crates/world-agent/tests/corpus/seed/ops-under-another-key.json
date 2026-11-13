@@ -1,0 +1,19 @@
+{
+  "what": "The batch's ops under `operations`.",
+  "source": "seed",
+  "world": "yard",
+  "batch": {
+    "operations": [
+      {
+        "DeleteEntity": {
+          "id": "lamp"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "rejected": [
+      "send a JSON array of ops"
+    ]
+  }
+}

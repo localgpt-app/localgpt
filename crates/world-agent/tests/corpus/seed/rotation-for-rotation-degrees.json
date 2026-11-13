@@ -1,0 +1,26 @@
+{
+  "what": "`rotation` for `rotation_degrees`.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "ModifyEntity": {
+        "id": "crate",
+        "patch": {
+          "transform": {
+            "rotation": [
+              0.0,
+              90.0,
+              0.0
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "expect": {
+    "rejected": [
+      "rotation"
+    ]
+  }
+}

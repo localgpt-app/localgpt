@@ -1,0 +1,27 @@
+{
+  "what": "`materail` for `material`: the refusal points at the key.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "ModifyEntity": {
+        "id": "crate",
+        "patch": {
+          "materail": {
+            "color": [
+              1.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "expect": {
+    "rejected": [
+      "/ModifyEntity/patch/materail"
+    ]
+  }
+}

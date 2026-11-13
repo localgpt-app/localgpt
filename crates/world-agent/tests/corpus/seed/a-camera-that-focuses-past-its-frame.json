@@ -1,0 +1,38 @@
+{
+  "what": "A shot aimed at one thing and focused on another it cannot see. Structurally fine; the lint flags it.",
+  "source": "seed",
+  "world": "guide",
+  "batch": [
+    {
+      "ModifyEntity": {
+        "id": "1B",
+        "patch": {
+          "ext-cinematography": {
+            "camera": {
+              "focal_length_mm": 85,
+              "aspect_ratio": 2.39,
+              "aim_entity": "MAYA.head",
+              "focus_entity": "torus"
+            },
+            "shot": {
+              "scene": "1",
+              "order": 2,
+              "in_s": 0.5,
+              "out_s": 1.5,
+              "size": "CU",
+              "description": "her"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "expect": {
+    "committed": {
+      "warnings": [],
+      "lint": [
+        "focus-out-of-frame"
+      ]
+    }
+  }
+}

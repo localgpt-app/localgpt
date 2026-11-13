@@ -1,0 +1,32 @@
+{
+  "what": "A click trigger with a host action only another app has: kept, and the receipt says it will not run here.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "ModifyEntity": {
+        "id": "crate",
+        "patch": {
+          "triggers": [
+            {
+              "on": {
+                "event": "click"
+              },
+              "action": {
+                "action": "host",
+                "name": "open_gate"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "expect": {
+    "committed": {
+      "warnings": [
+        "carried-not-run"
+      ]
+    }
+  }
+}

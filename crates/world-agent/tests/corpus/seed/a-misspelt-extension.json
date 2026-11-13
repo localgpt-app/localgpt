@@ -1,0 +1,41 @@
+{
+  "what": "`ext-cinematograpy` for `ext-cinematography`: it commits, and the entity is not the camera it was meant to be. The receipt names the extension that was meant.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "SpawnEntity": {
+        "entity": {
+          "name": "1A",
+          "transform": {
+            "position": [
+              0.0,
+              1.6,
+              5.0
+            ]
+          },
+          "ext-cinematograpy": {
+            "camera": {
+              "aim": [
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            "shot": {
+              "scene": "1",
+              "order": 1
+            }
+          }
+        }
+      }
+    }
+  ],
+  "expect": {
+    "committed": {
+      "warnings": [
+        "did you mean `ext-cinematography`?"
+      ]
+    }
+  }
+}

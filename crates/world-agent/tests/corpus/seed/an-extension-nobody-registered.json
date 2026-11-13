@@ -1,0 +1,24 @@
+{
+  "what": "An `ext-*` key the registry does not name. An authority takes any `ext-*` key on an entity, so it commits; the receipt says nothing reads it.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "SpawnEntity": {
+        "entity": {
+          "name": "mood-lamp",
+          "ext-mood": {
+            "feeling": "warm"
+          }
+        }
+      }
+    }
+  ],
+  "expect": {
+    "committed": {
+      "warnings": [
+        "`ext-mood`, which is not a registered extension"
+      ]
+    }
+  }
+}

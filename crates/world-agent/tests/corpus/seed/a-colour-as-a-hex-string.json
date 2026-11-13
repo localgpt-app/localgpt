@@ -1,0 +1,22 @@
+{
+  "what": "A colour as `#ff0000`, where the format takes RGBA 0–1: the refusal points at the field.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "ModifyEntity": {
+        "id": "crate",
+        "patch": {
+          "material": {
+            "color": "#ff0000"
+          }
+        }
+      }
+    }
+  ],
+  "expect": {
+    "rejected": [
+      "/ModifyEntity/patch/material/color: invalid type: string"
+    ]
+  }
+}

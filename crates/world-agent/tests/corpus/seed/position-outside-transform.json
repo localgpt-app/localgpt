@@ -1,0 +1,24 @@
+{
+  "what": "`position` put on the entity instead of in its `transform`.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "SpawnEntity": {
+        "entity": {
+          "name": "post",
+          "position": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    }
+  ],
+  "expect": {
+    "rejected": [
+      "position"
+    ]
+  }
+}

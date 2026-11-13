@@ -1,0 +1,28 @@
+{
+  "what": "A stand-in spawned with no position: its centre is at the ground, so it stands waist-deep. The authority cannot know that is a mistake and commits; the lint notes it.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "SpawnEntity": {
+        "entity": {
+          "name": "MAYA",
+          "shape": {
+            "Capsule": {
+              "radius": 0.18,
+              "half_length": 0.67
+            }
+          }
+        }
+      }
+    }
+  ],
+  "expect": {
+    "committed": {
+      "warnings": [],
+      "lint": [
+        "sunk"
+      ]
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "what": "A parent named in the batch that spawns it.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "SpawnEntity": {
+        "entity": {
+          "name": "table",
+          "transform": {
+            "position": [
+              4.0,
+              0.4,
+              0.0
+            ]
+          },
+          "shape": {
+            "Cylinder": {
+              "radius": 0.5,
+              "height": 0.8
+            }
+          }
+        }
+      }
+    },
+    {
+      "SpawnEntity": {
+        "entity": {
+          "name": "cup",
+          "parent": "table",
+          "transform": {
+            "position": [
+              0.0,
+              0.45,
+              0.0
+            ]
+          },
+          "shape": {
+            "Cylinder": {
+              "radius": 0.04,
+              "height": 0.1
+            }
+          }
+        }
+      }
+    }
+  ],
+  "expect": {
+    "committed": {
+      "warnings": []
+    }
+  }
+}

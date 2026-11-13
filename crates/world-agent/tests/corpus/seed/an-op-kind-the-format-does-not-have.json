@@ -1,0 +1,22 @@
+{
+  "what": "`MoveEntity`: moving is a ModifyEntity patch.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "MoveEntity": {
+        "id": "crate",
+        "to": [
+          1.0,
+          0.5,
+          0.0
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "rejected": [
+      "isn't an op kind"
+    ]
+  }
+}

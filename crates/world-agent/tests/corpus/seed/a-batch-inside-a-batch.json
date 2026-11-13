@@ -1,0 +1,43 @@
+{
+  "what": "The Batch op groups ops; it commits as one entry like any other.",
+  "source": "seed",
+  "world": "yard",
+  "batch": [
+    {
+      "Batch": {
+        "ops": [
+          {
+            "SpawnEntity": {
+              "entity": {
+                "name": "post",
+                "transform": {
+                  "position": [
+                    1.0,
+                    1.0,
+                    3.0
+                  ]
+                },
+                "shape": {
+                  "Cylinder": {
+                    "radius": 0.1,
+                    "height": 2.0
+                  }
+                }
+              }
+            }
+          },
+          {
+            "DeleteEntity": {
+              "id": "lamp"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "committed": {
+      "warnings": []
+    }
+  }
+}
