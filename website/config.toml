@@ -37,8 +37,8 @@ url = "https://localgpt.app/docs/verse/"
 blurb = "A 3D world for every song."
 
 [[extra.family]]
-name = "LocalGPT MD"
-url = "https://localgpt.app/docs/md/"
+name = "LocalGPT Document"
+url = "https://localgpt.app/docs/document/"
 blurb = "Walk through your notes as a world."
 
 [[extra.family]]

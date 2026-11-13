@@ -1,4 +1,4 @@
-//! `cargo xtask fetch-assets`: the CC0 pack MD, Verse and Gen share, and
+//! `cargo xtask fetch-assets`: the CC0 pack Document, Verse and Gen share, and
 //! the four starter tracks, copied once per machine into the one directory
 //! every app reads (it was `scripts/fetch-assets.sh`).
 //!
@@ -35,7 +35,7 @@ pub fn run(root: &Path) -> Result<(), String> {
         report.referenced, report.copied
     );
     let models = pack.join("models");
-    for krate in ["crates/verse", "crates/md"] {
+    for krate in ["crates/verse", "crates/doc"] {
         link_models(&root.join(krate).join("assets"), &models);
     }
     match report.music {

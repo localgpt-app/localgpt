@@ -12,7 +12,7 @@ no audio device the transport and beat are simulated (`src/playback.rs`), so
 every screen still runs.
 
 LocalGPT Verse is a **member of the `localgpt` workspace** (`crates/verse`), so it
-shares one lockfile, one CI pipeline and the world-format crates with Gen and MD.
+shares one lockfile, one CI pipeline and the world-format crates with Gen and Document.
 
 **Docs:** [localgpt.app/docs/verse](https://localgpt.app/docs/verse). Verse has no
 landing page of its own.

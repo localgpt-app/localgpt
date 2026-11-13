@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "generator": "localgpt-md",
+  "generator": "localgpt-doc",
   "recipes": {},
   "builds": {
     "6bf84152df8792f7d307310877c83920fe338eb046186538ce7d5ec64fc57167": {

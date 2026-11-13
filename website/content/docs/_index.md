@@ -1,6 +1,6 @@
 +++
 title = "Documentation"
-description = "LocalGPT documentation: the desktop app, LocalGPT Gen with the live canvas and previs, Verse, MD, the world's command line, and reference."
+description = "LocalGPT documentation: the desktop app, LocalGPT Gen with the live canvas and previs, Verse, Document, the world's command line, and reference."
 template = "docs_page.html"
 page_template = "docs_page.html"
 +++

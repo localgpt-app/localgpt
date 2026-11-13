@@ -1,4 +1,4 @@
-//! LocalGPT MD — open a Markdown file and walk through it as a 3D world.
+//! LocalGPT Document — open a Markdown file and walk through it as a 3D world.
 //!
 //! Every `##` section becomes a place: a rule-based draft lays it out
 //! instantly (PLAN.md M0), and what an agent authored for a section — a
@@ -11,7 +11,7 @@
 //! [`sidecar`] entries) → [`scene`] (manifest → Bevy), with [`tour`] for
 //! navigation and [`watch`] for hot reload.
 
-use localgpt_md::{assets, doc, draft, sidecar};
+use localgpt_doc::{assets, doc, draft, sidecar};
 
 mod scene;
 mod tour;
@@ -34,7 +34,7 @@ use localgpt_world_types as wt;
 use crate::scene::{CurrentWorld, TourCamera};
 
 const USAGE: &str = "\
-Usage: localgpt-md [FILE.md] [--print-ron] [--export OUT]
+Usage: localgpt-doc [FILE.md] [--print-ron] [--export OUT]
 
 Opens FILE.md (default: samples/hello.md) as a walkable 3D world. Each ##
 section becomes a place, and the world rebuilds whenever the file is saved.
@@ -50,14 +50,14 @@ file) is applied; no model runs here.
                 self-contained page with the shared web viewer).
 
 Environment:
-  LOCALGPT_MD_SCREENSHOT=out.png   Render the first stop offscreen (no window),
+  LOCALGPT_DOC_SCREENSHOT=out.png  Render the first stop offscreen (no window),
                                    save it as a PNG, and exit.";
 
 const DEFAULT_DOC: &str = "samples/hello.md";
 
 /// The sample opened when no path is given. Relative to the working directory
-/// first, then to this crate — because since MD joined the localgpt workspace
-/// `cargo run -p localgpt-md` runs from the workspace root, where
+/// first, then to this crate — because since Document joined the localgpt workspace
+/// `cargo run -p localgpt-doc` runs from the workspace root, where
 /// `samples/hello.md` is not. Falls back to the bare relative path so the
 /// "file not found" message still names what the user would expect.
 fn default_doc() -> PathBuf {
@@ -83,7 +83,7 @@ fn main() -> AppExit {
             "--export" => match args.next() {
                 Some(out) => export = Some(PathBuf::from(out)),
                 None => {
-                    eprintln!("localgpt-md: --export needs a file name\n\n{USAGE}");
+                    eprintln!("localgpt-doc: --export needs a file name\n\n{USAGE}");
                     return AppExit::error();
                 }
             },
@@ -92,7 +92,7 @@ fn main() -> AppExit {
                 return AppExit::Success;
             }
             flag if flag.starts_with('-') => {
-                eprintln!("localgpt-md: unknown option {flag}\n\n{USAGE}");
+                eprintln!("localgpt-doc: unknown option {flag}\n\n{USAGE}");
                 return AppExit::error();
             }
             _ => path = Some(PathBuf::from(&arg)),
@@ -105,12 +105,12 @@ fn main() -> AppExit {
     let world = match load(&path, &store) {
         Ok(world) => world,
         Err(err) => {
-            eprintln!("localgpt-md: {}: {err}", path.display());
+            eprintln!("localgpt-doc: {}: {err}", path.display());
             return AppExit::error();
         }
     };
     for issue in draft::validate(&world.manifest) {
-        eprintln!("localgpt-md: {:?}: {}", issue.severity, issue.message);
+        eprintln!("localgpt-doc: {:?}: {}", issue.severity, issue.message);
     }
 
     if print_ron {
@@ -120,7 +120,7 @@ fn main() -> AppExit {
                 AppExit::Success
             }
             Err(err) => {
-                eprintln!("localgpt-md: {err}");
+                eprintln!("localgpt-doc: {err}");
                 AppExit::error()
             }
         };
@@ -130,7 +130,9 @@ fn main() -> AppExit {
         return export_world(&world.manifest, &out);
     }
 
-    let smoke = std::env::var("LOCALGPT_MD_SCREENSHOT").ok();
+    let smoke = std::env::var("LOCALGPT_DOC_SCREENSHOT")
+        .or_else(|_| std::env::var("LOCALGPT_MD_SCREENSHOT"))
+        .ok();
     let mut app = App::new();
     // Pin the asset server to the assets root the manifest's mesh paths are
     // relative to (`assets::assets_dir()` — the same root the export copier
@@ -155,7 +157,7 @@ fn main() -> AppExit {
         ));
     } else {
         let window = Window {
-            title: format!("{} — LocalGPT MD", world.doc.title),
+            title: format!("{} — LocalGPT Document", world.doc.title),
             resolution: (1280, 800).into(),
             ..default()
         };
@@ -197,21 +199,21 @@ fn export_world(manifest: &wt::WorldManifest, out: &Path) -> AppExit {
         Some("ron") => match to_ron(manifest) {
             Ok(text) => text,
             Err(err) => {
-                eprintln!("localgpt-md: {err}");
+                eprintln!("localgpt-doc: {err}");
                 return AppExit::error();
             }
         },
         Some("html") | Some("htm") => localgpt_world_export::generate_html(manifest),
         _ => {
             eprintln!(
-                "localgpt-md: --export {}: use a .json, .ron or .html file name",
+                "localgpt-doc: --export {}: use a .json, .ron or .html file name",
                 out.display()
             );
             return AppExit::error();
         }
     };
     if let Err(err) = std::fs::write(out, text) {
-        eprintln!("localgpt-md: {}: {err}", out.display());
+        eprintln!("localgpt-doc: {}: {err}", out.display());
         return AppExit::error();
     }
     if html {
@@ -246,7 +248,7 @@ fn copy_export_assets(manifest: &wt::WorldManifest, out: &Path) {
         let dst = dir.join("assets").join(path);
         if !src.is_file() {
             eprintln!(
-                "localgpt-md: export: asset {path} not in the pack — the viewer shows a placeholder"
+                "localgpt-doc: export: asset {path} not in the pack — the viewer shows a placeholder"
             );
             continue;
         }
@@ -282,7 +284,7 @@ fn load(path: &Path, recipes: &sidecar::RecipeStore) -> std::io::Result<CurrentW
     Ok(CurrentWorld { doc, manifest })
 }
 
-/// `LOCALGPT_MD_SCREENSHOT=out.png`: render the first stop offscreen once
+/// `LOCALGPT_DOC_SCREENSHOT=out.png`: render the first stop offscreen once
 /// shaders have warmed up, save it, and exit — a visual check that needs no
 /// human and no display.
 #[derive(Resource)]

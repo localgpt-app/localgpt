@@ -14,6 +14,9 @@ use cli::{Cli, Commands};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    if let Commands::Gen { args } = cli.command {
+        return crate::cli::gen_cmd::run(cli.verbose, args);
+    }
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?
@@ -33,6 +36,7 @@ async fn async_main(cli: Cli) -> Result<()> {
 
     match cli.command {
         Commands::World { command } => crate::cli::world::run(command).await,
+        Commands::Gen { args } => crate::cli::gen_cmd::run(cli.verbose, args),
         Commands::Previs(args) => crate::cli::previs::run(args),
         #[cfg(feature = "audio")]
         Commands::Audio { command } => crate::cli::audio::run(command).await,

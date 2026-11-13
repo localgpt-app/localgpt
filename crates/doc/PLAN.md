@@ -1,4 +1,4 @@
-# LocalGPT MD — milestones
+# LocalGPT Document — milestones
 
 The key to the milestone numbers the source cites (`PLAN.md M0` … `M5`):
 what each one built and where it lives. It is a map of what exists, not a
@@ -15,7 +15,7 @@ plan; how it got here is in Git.
 
 In M1 and M3 a model inside this process wrote the recipes and the builds.
 That went on 2026-11-01: an agent working on the file writes the sidecar,
-and MD only applies it.
+and Document only applies it.
 
 ## Open
 

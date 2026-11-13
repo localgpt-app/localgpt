@@ -111,10 +111,10 @@ tap's band.
 
 Verse has no windowless capture: `VERSE_SHOT` and Photo mode read back the
 primary window's frame, which can come back all black (now and then on
-some machines; always on a locked or headless Mac, as MD found). Photo mode
+some machines; always on a locked or headless Mac, as Document found). Photo mode
 samples the capture and asks again, up to three times, over the same file
 (`photo_black_check` in `lib.rs`). `VERSE_ONESHOT=1`, with `VERSE_SMOKE` and
 `VERSE_SHOT`, saves one settled frame instead of the eight-shot walk. A
 frame that is black on every run is a scene bug, not this. A check that has
-to run unattended should render to an image, as `LOCALGPT_MD_SCREENSHOT`
-does in `crates/md/src/main.rs`.
+to run unattended should render to an image, as `LOCALGPT_DOC_SCREENSHOT`
+does in `crates/doc/src/main.rs`.

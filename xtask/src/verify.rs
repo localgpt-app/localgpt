@@ -15,7 +15,7 @@ pub const USAGE: &str = "  verify [--rust] [--bevy] [--features] [--web] [--deps
                    the CI checks on this machine, in CI's order (default: all)
                      --rust      fmt, the rule, clippy and tests for the workspace
                                  minus the Bevy crates, the world.schema.json snapshot
-                     --bevy      clippy and tests for app, gen, md, verse,
+                     --bevy      clippy and tests for app, gen, doc, verse,
                                  world-bevy, world-audio
                      --features  cargo check for the opt-in tier (Verse's ml)
                      --web       the phone's page, the vendored viewer against npm,
@@ -27,7 +27,7 @@ pub const USAGE: &str = "  verify [--rust] [--bevy] [--features] [--web] [--deps
 const BEVY: [&str; 6] = [
     "localgpt-gen",
     "localgpt-world-bevy",
-    "localgpt-md",
+    "localgpt-doc",
     "localgpt-verse",
     "localgpt-world-audio",
     "localgpt-app",
@@ -126,7 +126,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
         clippy.extend(["--", "-D", "warnings"]);
         stage(
             root,
-            "cargo clippy (app, gen, md, verse, world-bevy, world-audio)",
+            "cargo clippy (app, gen, doc, verse, world-bevy, world-audio)",
             &cargo,
             &clippy,
         )?;
@@ -134,7 +134,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
         test.extend(bevy.iter().map(String::as_str));
         stage(
             root,
-            "cargo test (app, gen, md, verse, world-bevy, world-audio)",
+            "cargo test (app, gen, doc, verse, world-bevy, world-audio)",
             &cargo,
             &test,
         )?;

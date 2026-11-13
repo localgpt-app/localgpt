@@ -5,8 +5,8 @@
 //! is what it shows ([`Document::view`]) and what it asks ([`DocumentAsk`]),
 //! and it knows nothing of the page. Typing marks the document edited; once
 //! the text has settled for [`SETTLE`], the file is saved and the world
-//! rebuilt from it — MD's own pipeline, `Doc::parse` then
-//! `draft::compile_with` over MD's sidecar, so scenery a model authored is
+//! rebuilt from it — Document's own pipeline, `Doc::parse` then
+//! `draft::compile_with` over Document's sidecar, so scenery a model authored is
 //! kept for every section whose text did not change. The rebuild goes
 //! through Gen's `GenInitialWorld`, the same hook the app's Open… uses, with
 //! the camera stripped from the manifest so the view does not snap back on
@@ -18,7 +18,7 @@
 //! * **text → world**: clicking an outline item flies the camera to that
 //!   section's place (the draft's tour holds one stop per section, in order).
 //! * **world → text**: selecting an entity in the viewport highlights the
-//!   section it belongs to. MD names every entity `sNN-…` after its section,
+//!   section it belongs to. Document names every entity `sNN-…` after its section,
 //!   and names survive a world load where ids may not.
 //!
 //! The file stays the source of truth. It is polled for changes made in
@@ -27,9 +27,9 @@
 //! That also makes any editor a way to drive the world, which matters while
 //! the in-app one is young.
 //!
-//! **A place an agent built comes from MD's sidecar** beside the document
+//! **A place an agent built comes from Document's sidecar** beside the document
 //! (`<doc>.world.json`), written by an agent working on the file; neither
-//! the app nor MD runs a model. The draft is on screen the moment a section
+//! the app nor Document runs a model. The draft is on screen the moment a section
 //! settles, a build in the sidecar replaces it for every section whose text
 //! did not change, and the outline labels each section with where its place
 //! came from: the writer's own ```world fence, an authored build, a recipe,
@@ -39,12 +39,12 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
 use bevy::prelude::*;
+use localgpt_doc::doc::Doc;
 use localgpt_gen::gen3d::avatar::CameraMode;
 use localgpt_gen::gen3d::ops_apply::OpsApplier;
 use localgpt_gen::gen3d::plugin::{CurrentWorld, GenInitialWorld};
 use localgpt_gen::gen3d::registry::NameRegistry;
 use localgpt_gen::inspector::InspectorSelection;
-use localgpt_md::doc::Doc;
 
 use localgpt_world_types as wt;
 
@@ -64,18 +64,18 @@ const MAX_THINGS: usize = 18;
 // Compiling a document into a world
 // ---------------------------------------------------------------------------
 
-/// Parse and compile Markdown text with MD's pipeline. The sidecar beside the
+/// Parse and compile Markdown text with Document's pipeline. The sidecar beside the
 /// file (`doc.world.json`) supplies the places a model already authored — the
-/// app's worker, or MD's own `--generate`; they share the file.
+/// app's worker, or Document's own `--generate`; they share the file.
 pub fn compile(text: &str, md: &Path) -> (Doc, wt::WorldManifest) {
     let title = md
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "document".into());
     let doc = Doc::parse(text, &title);
-    let store = localgpt_md::RecipeStore::load(&md.with_extension("world.json"));
-    let world = localgpt_md::draft::compile_with(&doc, &store);
-    for issue in localgpt_md::draft::validate(&world) {
+    let store = localgpt_doc::RecipeStore::load(&md.with_extension("world.json"));
+    let world = localgpt_doc::draft::compile_with(&doc, &store);
+    for issue in localgpt_doc::draft::validate(&world) {
         warn!("document: {:?}: {}", issue.severity, issue.message);
     }
     (doc, world)
@@ -97,7 +97,7 @@ pub fn write_world(world: &wt::WorldManifest, dir: &Path) -> anyhow::Result<()> 
 /// source of truth. Routing it through `world_import` instead would reopen a
 /// stale world after an edit (same slug, "already imported") and would file
 /// it under `skills/`, where Gen's gallery lists *saved* worlds.
-/// Open `md` as a live document: compile it with MD's pipeline, write its
+/// Open `md` as a live document: compile it with Document's pipeline, write its
 /// first world (camera included — it places the view once) to its folder,
 /// and return the document with that folder.
 pub fn open(md: &Path, workspace: &Path) -> anyhow::Result<(Document, PathBuf)> {
@@ -144,14 +144,14 @@ pub(crate) fn document_key(md: &Path) -> String {
 /// Authored scenery references pack models as `models/<file>`; Gen resolves a
 /// world's assets under `<world>/assets/`. So the world's `assets` is the
 /// shared pack — a symlink on Unix, one copy on disk however many documents
-/// use it, the trick `cargo xtask fetch-assets` plays for MD and Verse. A
+/// use it, the trick `cargo xtask fetch-assets` plays for Document and Verse. A
 /// draft with no meshes needs nothing, and a missing pack only costs the
 /// placeholder boxes Gen already shows for a missing model.
 fn link_asset_pack(world: &wt::WorldManifest, dir: &Path) {
     if !world.all_entities().any(|e| e.mesh_asset.is_some()) {
         return;
     }
-    let pack = localgpt_md::assets::assets_dir();
+    let pack = localgpt_doc::assets::assets_dir();
     if !pack.join("models/manifest.json").is_file() {
         warn!("document uses pack models but no pack is installed — run cargo xtask fetch-assets");
         return;
@@ -217,7 +217,7 @@ pub struct OutlineItem {
 /// sections `Doc::parse` made places of, so the outline cannot disagree with
 /// the world — each followed by the sub-headings inside it.
 ///
-/// MD's parser is the ground truth for what a section *is* (its rules differ
+/// Document's parser is the ground truth for what a section *is* (its rules differ
 /// by genre: `##` in a world, `---` slides in a deck). Only the sub-headings
 /// come from a scan of the raw text, matched in order against the section
 /// headings; a heading the scan cannot match is shown as a sub-heading of the
@@ -327,8 +327,8 @@ fn normalize(heading: &str) -> String {
         .to_lowercase()
 }
 
-/// The section an entity belongs to, from MD's `sNN-…` naming: `s01` is the
-/// first section. `None` for the ground, the sun, and anything not MD's.
+/// The section an entity belongs to, from Document's `sNN-…` naming: `s01` is the
+/// first section. `None` for the ground, the sun, and anything not Document's.
 pub fn section_of(name: &str) -> Option<usize> {
     let rest = name.strip_prefix('s')?;
     let (digits, tail) = rest.split_at(rest.find(|c: char| !c.is_ascii_digit())?);
@@ -400,7 +400,7 @@ struct Stop {
     look_at: Vec3,
 }
 
-/// Where a section's place came from — MD's tier chain, as the outline
+/// Where a section's place came from — Document's tier chain, as the outline
 /// shows it. A fence outranks a model's build, the build the recipe, the
 /// recipe the draft.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -409,7 +409,7 @@ enum Tier {
     Fence,
     /// A build a model authored, from the sidecar.
     Model,
-    /// A recipe from MD's lighter model tier.
+    /// A recipe from Document's lighter model tier.
     Recipe,
     /// The rule-derived draft.
     Draft,
@@ -547,7 +547,7 @@ impl Document {
             .unwrap_or_default()
     }
 
-    /// MD's cache, beside the document: where a model's builds live.
+    /// Document's cache, beside the document: where a model's builds live.
     fn sidecar_path(&self) -> PathBuf {
         self.path.with_extension("world.json")
     }
@@ -557,7 +557,7 @@ impl Document {
     /// sidecar, else the draft; and keep each build's description for the
     /// place card.
     fn label_tiers(&mut self, doc: &Doc) {
-        let store = localgpt_md::RecipeStore::load(&self.sidecar_path());
+        let store = localgpt_doc::RecipeStore::load(&self.sidecar_path());
         self.descriptions = doc
             .sections
             .iter()

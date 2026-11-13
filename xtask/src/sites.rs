@@ -21,7 +21,7 @@ pub const ADD_WORLD_USAGE: &str = "  add-world <world.json|dir.world> <name> --f
                    assets content-addressed and its models shrunk (--keep: as they are)";
 
 /// A site's name, its folder and where it serves, in the family strip's
-/// order (what `all` deploys in). Gen, Verse and MD have no site of their
+/// order (what `all` deploys in). Gen, Verse and Document have no site of their
 /// own: they are modes of the app, with their docs on localgpt.app.
 type Site = (&'static str, &'static str, &'static str);
 
@@ -703,10 +703,16 @@ fn package_meta(
 }
 
 /// Which app made a gallery world, read off its name's prefix
-/// (`gen-…`, `md-…`, `verse-…`); none for any other name.
+/// (`gen-…`, `doc-…` or the older `md-…`, `verse-…`); none for any other
+/// name.
 fn app_of(name: &str) -> Option<String> {
-    let prefix = name.split('-').next()?;
-    matches!(prefix, "gen" | "md" | "verse").then(|| format!("localgpt-{prefix}"))
+    let app = match name.split('-').next()? {
+        "gen" => "gen",
+        "doc" | "md" => "doc",
+        "verse" => "verse",
+        _ => return None,
+    };
+    Some(format!("localgpt-{app}"))
 }
 
 /// The assets a world references, relative to its `assets/`: its entities'
@@ -884,7 +890,7 @@ mod tests {
             app_of("gen-basalt-lighthouse").as_deref(),
             Some("localgpt-gen")
         );
-        assert_eq!(app_of("md-hello").as_deref(), Some("localgpt-md"));
+        assert_eq!(app_of("md-hello").as_deref(), Some("localgpt-doc"));
         assert_eq!(
             app_of("verse-nightglass").as_deref(),
             Some("localgpt-verse")
@@ -946,7 +952,10 @@ mod tests {
             !text.contains(".DS_Store"),
             "hidden files are not part of a package"
         );
-        assert_eq!(gallery_packages(&worlds).unwrap(), [package.clone()]);
+        assert_eq!(
+            gallery_packages(&worlds).unwrap(),
+            std::slice::from_ref(&package)
+        );
         assert_eq!(package_name(&package), "gen-lamp");
         std::fs::remove_dir_all(&worlds).ok();
     }

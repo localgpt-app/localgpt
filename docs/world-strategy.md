@@ -4,7 +4,7 @@
 
 ## The product
 
-LocalGPT is a native desktop app where a document, a song, a screenplay or an existing package becomes a walkable, editable `.world`. The person works in the window; their own coding agents work beside it in terminals or over MCP. Gen, MD, Verse and Previs provide the world-building parts, and `localgpt world` provides the package command line and MCP shim.
+LocalGPT is a native desktop app where a document, a song, a screenplay or an existing package becomes a walkable, editable `.world`. The person works in the window; their own coding agents work beside it in terminals or over MCP. Gen, Document, Verse and Previs provide the world-building parts, and `localgpt world` provides the package command line and MCP shim.
 
 The product is not an assistant. LocalGPT ships no prompt loop, model provider, key store, persistent personal memory or background agent. An external agent brings its own model and login and edits through the same world authority as a person or a script. Verse's optional CLAP and Demucs support is on-device audio analysis, not a language-model tier.
 
@@ -45,7 +45,7 @@ Each public surface has one job:
 | `localgpt.world` | The world gallery and browser viewer. |
 | `localgpt.rs` | The development log. |
 
-The app, Gen, MD, Verse and Previs share the format rather than acquiring separate document sites or incompatible exports. Shared world links belong on `localgpt.world`, not on a temporary worker hostname or a LAN address. Relayed room links need the secure channel in [`rfcs/authoring/rooms-and-the-channel.md`](rfcs/authoring/rooms-and-the-channel.md) before they become a promoted sharing path.
+The app, Gen, Document, Verse and Previs share the format rather than acquiring separate document sites or incompatible exports. Shared world links belong on `localgpt.world`, not on a temporary worker hostname or a LAN address. Relayed room links need the secure channel in [`rfcs/authoring/rooms-and-the-channel.md`](rfcs/authoring/rooms-and-the-channel.md) before they become a promoted sharing path.
 
 ## Current priorities
 

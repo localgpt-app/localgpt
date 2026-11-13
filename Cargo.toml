@@ -3,7 +3,7 @@ members = [
     "crates/cli",
     "crates/gen",
     "crates/app",
-    "crates/md",
+    "crates/doc",
     "crates/previs",
     "crates/previs-web",
     "crates/verse",
@@ -108,7 +108,7 @@ lto = true
 codegen-units = 1
 strip = true
 
-# Bevy's recommended dev profile, carried in from the MD and Verse manifests
+# Bevy's recommended dev profile, carried in from the Document and Verse manifests
 # when they joined this workspace: our own crates stay quick to rebuild while
 # dependencies are optimised, which is what makes a Bevy app usable in a debug
 # build. Profiles only take effect at the workspace root, so this now applies

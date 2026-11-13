@@ -4,7 +4,7 @@ genre: deck
 
 # Markdown, as a place
 
-A talk you can walk through — LocalGPT MD in six slides.
+A talk you can walk through — LocalGPT Document in six slides.
 
 ---
 
@@ -49,4 +49,4 @@ Edit one slide and only that slide regenerates.
 
 ## Thank you
 
-github.com/localgpt-app/localgpt-md
+github.com/localgpt-app/localgpt-doc

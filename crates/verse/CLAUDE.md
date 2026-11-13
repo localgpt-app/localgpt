@@ -15,7 +15,7 @@ song, driven by on-device music analysis. `README.md` covers running it and
 the optional `ml` tier; `ARCHITECTURE.md` is the system map, the
 load-bearing decisions and the measured limits; `PLAN.md` is the key to the
 milestone and section numbers the source cites. Siblings in the workspace:
-`crates/gen` (prompt → world) and `crates/md` (Markdown → world).
+`crates/gen` (prompt → world) and `crates/doc` (Markdown → world).
 
 No language model runs here and none may be added: a `WorldRecipe` in a
 track's sidecar, written by an agent, is applied after `clamped()`. The

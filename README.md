@@ -15,7 +15,7 @@
 
 | | Where | What |
 |---|---|---|
-| **LocalGPT**, the desktop app | `crates/app` | One window, every mode: a world from a prompt (Gen), from a Markdown document (MD) or from a song (Verse), or any `.world` package opened as a live canvas. |
+| **LocalGPT**, the desktop app | `crates/app` | One window, every mode: a world from a prompt (Gen), from a Markdown document (Document) or from a song (Verse), or any `.world` package opened as a live canvas. |
 | **LocalGPT Gen**, the binary | `crates/gen` · `cargo install localgpt-gen` | The world builder on its own: its 88 tools over MCP for Claude Desktop, Claude Code, Codex, Gemini CLI and editors, a relay so an agent drives the window you are looking at, the live canvas, headless, collaborative sessions on the LAN or through a relay. |
 | **Previs** | `crates/previs` · `localgpt previs` · [localgpt.md](https://localgpt.md) | A screenplay in — PDF, Final Draft, Fountain or Markdown — and per scene a `.world` with the set, the cast and the coverage, plus a printable board and a shot list. Deterministic, no model; the same code runs in the browser tab. |
 | **`localgpt`**, the command line | `crates/cli` · `cargo install localgpt` | `localgpt world`: commit, undo, log, tips, verify, screenshot; `localgpt world mcp`, the shim that serves an open world's tools to any MCP agent; and `localgpt previs`, screenplay to board. No model, key or configuration file. |
@@ -38,7 +38,7 @@ git clone https://github.com/localgpt-app/localgpt.git
 cd localgpt
 (cd crates/app/ui && npm ci && npm run build)         # the paired phone/tablet page, once (node 22)
 cargo run -p localgpt-app                             # reopens what was opened last
-cargo run -p localgpt-app -- --md notes.md            # a document as a world
+cargo run -p localgpt-app -- --doc notes.md            # a document as a world
 cargo run -p localgpt-app -- --song track.mp3         # a song as a world that performs it
 cargo run -p localgpt-app -- --world scene-1.world    # a package, opened as a live canvas
 cargo xtask bundle                                    # LocalGPT.app for macOS
@@ -53,11 +53,11 @@ Rust stable (edition 2024, so 1.85 or newer). On Linux the desktop crates need B
 
 `localgpt-app` is Gen's world rendered by Bevy into native eframe/egui panels (`crates/app/src/shell`), with your own coding agents in terminals beside it. Each tab is a plain login shell started in the folder of what is open; you run whichever agent you like in it. The app runs no language model, holds no key, knows no agent by name and manages no agent's configuration. **Open…** at the top of the window takes a document, a song or a world; the launch flags above do the same.
 
-- **A document.** The outline, the selected section's place and the text in an editor beside the world. The file saves and the world rebuilds shortly after typing stops, in place, changing only the sections whose text changed. The cursor moving into a section flies the camera there, and clicking a thing in the world brings its section into view. Scenery beyond the draft comes from MD's sidecar beside the document, written by an agent working on the file; the outline labels each section with where its place came from.
+- **A document.** The outline, the selected section's place and the text in an editor beside the world. The file saves and the world rebuilds shortly after typing stops, in place, changing only the sections whose text changed. The cursor moving into a section flies the camera there, and clicking a thing in the world brings its section into view. Scenery beyond the draft comes from Document's sidecar beside the document, written by an agent working on the file; the outline labels each section with where its place came from.
 - **A song.** Verse's on-device analysis — tempo, a beat grid, sections, an energy curve, a mood — picks and furnishes the world; the soundtrack plays on the shared mixer, the world's modulations follow it, and a transport under the world pauses it. No model, no key, no upload.
 - **A package.** A `.world` folder opens as a live canvas: the window holds the authority and serves the folder's API, the history is drawn as a graph you step and play through, and agents edit from outside (next section) — from the tabs beside it, or anywhere else.
 
-The native panels run on macOS, Windows and Linux, though the last two are newer and less tried. A timeline across the window plays the world's clock — the song, the shots, the tour — and trims and moves a package's shots, each drag an entry in the history. Docs: [The desktop app](https://localgpt.app/docs/app/). `localgpt-gen` stays a binary of its own for the MCP server, headless generation and `--host`/`--join`; there is one desktop bundle, `LocalGPT.app`, built by `apps/app-desktop/`.
+The native panels run on macOS, Windows and Linux, though the last two are newer and less tried. A timeline across the window plays the world's clock — the song, the shots, the tour — and trims and moves a package's shots, each drag an entry in the history. Docs: [The desktop app](https://localgpt.app/docs/app/). `localgpt-app gen …` and `localgpt-app mcp-server` run Gen's CLI and MCP modes inside the desktop binary (`localgpt gen …` forwards to it when installed, or falls back to `localgpt-gen`); `localgpt-gen` remains a standalone binary for crates.io installs without `LocalGPT.app`. There is one desktop bundle, `LocalGPT.app`, built by `apps/app-desktop/`.
 
 ## A world is a package, and agents edit it from outside
 
@@ -208,7 +208,7 @@ cargo build --workspace                       # everything
 cargo test --workspace
 cargo clippy --workspace -- -D warnings       # required before commits
 cargo fmt --check
-cargo run -p localgpt-md -- notes.md          # MD and Verse still run on their own
+cargo run -p localgpt-doc -- notes.md          # Document and Verse still run on their own
 cargo run -p localgpt-verse
 ```
 

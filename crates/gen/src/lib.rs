@@ -9,6 +9,7 @@
 #![allow(clippy::items_after_test_module)]
 
 pub mod character;
+pub mod cli;
 pub mod config;
 pub mod desktop;
 pub mod gen3d;

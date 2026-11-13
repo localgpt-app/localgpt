@@ -5,7 +5,7 @@ The distribution side of the LocalGPT world format, with no Bevy dependency:
 - `js/world-viewer.js` — the one web renderer of a `WorldManifest` (three.js
   0.170), with `js/cinematography.js`, the `ext-cinematography` math it
   imports as `./cinematography.js` for its shot view. localgpt.world serves
-  them as modules; Gen and MD embed them (an exported page maps the relative
+  them as modules; Gen and Document embed them (an exported page maps the relative
   import to an inline `data:` URL). Verbatim snapshots of the
   `openworldformat` npm package — `cargo xtask sync-viewer` vendors both (CI
   checks them); edit the renderer upstream, never here.

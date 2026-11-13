@@ -70,7 +70,7 @@ repository): `manifest.json` is the world now, in the format's canonical
 text; `package.json` names its bytes; `assets/` holds every file the manifest
 references by content hash, `<sha256>.<ext>` — the format's baseline for a
 published world, and what `localgpt world verify` checks. Every LocalGPT app
-writes a manifest (Gen's `gen_save_world` / `gen_export_html`, MD's
+writes a manifest (Gen's `gen_save_world` / `gen_export_html`, Document's
 `--export doc.json`, Verse's `VERSE_EXPORT_WORLD=<dir>`), and the desktop
 app's live canvas writes whole packages.
 

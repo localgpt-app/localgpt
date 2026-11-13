@@ -1,7 +1,7 @@
 //! # localgpt-world-bevy
 //!
 //! The one Bevy mapping of the LocalGPT world format
-//! ([`localgpt_world_types`]). Gen, MD and Verse all build their scenes
+//! ([`localgpt_world_types`]). Gen, Document and Verse all build their scenes
 //! through these functions, so a manifest looks the same in every app, and
 //! the web viewer (`localgpt-world-export`) mirrors the same rules:
 //!

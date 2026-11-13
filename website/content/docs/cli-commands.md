@@ -13,6 +13,7 @@ localgpt <COMMAND>
 
 Commands:
   world       Work on a .world package: commit batches, read the log, verify, serve its tools over MCP
+  gen         Drive Gen's 3D world builder (`localgpt-app gen` / `localgpt-gen`): MCP server, live canvas, sessions
   previs      Stage a screenplay (.fountain, .fdx, .pdf, or .md) as per-scene .world packages, shotlist.csv, and board.html
   audio       The optional audio models: list, install and remove them, run them, serve them to an agent
   completion  Generate shell completion scripts
@@ -95,24 +96,26 @@ localgpt completion zsh > "${fpath[1]}/_localgpt"
 localgpt completion fish > ~/.config/fish/completions/localgpt.fish
 ```
 
-## `localgpt-gen`
+## `localgpt gen` / `localgpt-gen`
 
-The world builder's window, driven from outside. No prompt is typed into Gen itself.
+The world builder's window, driven from outside. `localgpt gen …` forwards to `localgpt-app gen …` when the desktop app is installed, or falls back to `localgpt-gen` (`localgpt-app mcp-server` also works directly). No prompt is typed into Gen itself.
 
 ```bash
-localgpt-gen                              # the window alone (nothing drives it: pass one of the flags below)
-localgpt-gen --mcp-relay                  # serve the MCP relay beside the window; an MCP client reaches it through `mcp-server --connect`
-localgpt-gen mcp-server                   # the window as an MCP client's own process, tools over stdio
-localgpt-gen mcp-server --mcp-http 8766   # and the streamable HTTP transport at http://127.0.0.1:8766/mcp
-localgpt-gen mcp-server --headless        # no window: CI and batch work over MCP
-localgpt-gen mcp-server --connect [PORT]  # the stdio end of a running window's relay (port auto-discovered)
-localgpt-gen --live scene-1.world [--review]   # a .world package as a live canvas; --review holds each batch for Enter or Esc
-localgpt-gen --world <PATH|URL> | --scene <glb> # open a world, or a glTF scene, at start
-localgpt-gen --replay <session|dir|ops.jsonl|.world> [--replay-speed 4]   # a time-lapse of a history
-localgpt-gen --export-session <name|dir> [--out x.world]                  # zip a session package
-localgpt-gen --host [--session-name n] [--port 9879] [--open] [--web] [--web-edit] [--relay URL] [--resume x]
-localgpt-gen --join [host[:port]] [--pin PIN]   # join a session as a viewer; lines typed are chat
+localgpt gen                               # the window alone (nothing drives it: pass one of the flags below)
+localgpt gen --mcp-relay                   # serve the MCP relay beside the window; an MCP client reaches it through `mcp-server --connect`
+localgpt gen mcp-server                    # the window as an MCP client's own process, tools over stdio
+localgpt gen mcp-server --mcp-http 8766    # and the streamable HTTP transport at http://127.0.0.1:8766/mcp
+localgpt gen mcp-server --headless         # no window: CI and batch work over MCP
+localgpt gen mcp-server --connect [PORT]   # the stdio end of a running window's relay (port auto-discovered)
+localgpt gen --live scene-1.world [--review]   # a .world package as a live canvas; --review holds each batch for Enter or Esc
+localgpt gen --world <PATH|URL> | --scene <glb> # open a world, or a glTF scene, at start
+localgpt gen --replay <session|dir|ops.jsonl|.world> [--replay-speed 4]   # a time-lapse of a history
+localgpt gen --export-session <name|dir> [--out x.world]                  # zip a session package
+localgpt gen --host [--session-name n] [--port 9879] [--open] [--web] [--web-edit] [--relay URL] [--resume x]
+localgpt gen --join [host[:port]] [--pin PIN]   # join a session as a viewer; lines typed are chat
 ```
+
+Invoking `localgpt-gen …` directly takes the exact same flags and subcommands.
 
 See [MCP Server](/docs/gen/mcp-server/), [MCP Relay](/docs/gen/cli-mode/), [Live canvas](/docs/gen/live-canvas/) and [Collaborative Sessions](/docs/gen/multiplayer/).
 

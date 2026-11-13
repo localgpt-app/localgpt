@@ -12,6 +12,7 @@ Every design document opens with a `**Status:**` line that says what is true now
 | [authoring/world-editor-stack.md](authoring/world-editor-stack.md) | **Partly implemented.** The rule that the scene is a projection of a fold, the `world-editor` core, and the remaining reconciliation work. Its native chrome is now the all-Rust shell. |
 | [authoring/mobile-remote.md](authoring/mobile-remote.md) | **Step 1 implemented.** A paired phone or tablet uses the desktop app's page to view the world and drive its terminals; no native mobile app or model runs on the device. |
 | [authoring/rooms-and-the-channel.md](authoring/rooms-and-the-channel.md) | **Proposal; step 0 implemented.** Rooms over an open `.world`, per-person keys and the encrypted channel that would let rooms and the phone remote use a relay safely. |
+| [authoring/one-app-and-cli.md](authoring/one-app-and-cli.md) | **Step 1 implemented.** Retiring the `MD` / `localgpt.md` collision (`localgpt-doc` / Document mode) and converging `localgpt-gen` into `localgpt-app` under `localgpt gen …`. |
 
 ## Technical lessons still in use
 

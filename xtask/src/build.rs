@@ -8,7 +8,7 @@ use std::path::Path;
 use std::process::Command;
 
 pub const USAGE: &str = "  build <target…> [--release] [-- cargo args…]
-                   by name: cli app gen previs md verse, or all";
+                   by name: cli app gen previs doc verse, or all";
 
 /// A target's name and its cargo package.
 const TARGETS: [(&str, &str); 6] = [
@@ -16,7 +16,7 @@ const TARGETS: [(&str, &str); 6] = [
     ("app", "localgpt-app"),
     ("gen", "localgpt-gen"),
     ("previs", "localgpt-previs"),
-    ("md", "localgpt-md"),
+    ("doc", "localgpt-doc"),
     ("verse", "localgpt-verse"),
 ];
 
@@ -41,7 +41,7 @@ fn cargo_args(args: &[String]) -> Result<(Vec<String>, bool), String> {
                     .iter()
                     .find(|(target, _)| *target == name)
                     .ok_or_else(|| {
-                        format!("unknown target {name:?} (cli app gen previs md verse all)")
+                        format!("unknown target {name:?} (cli app gen previs doc verse all)")
                     })?;
                 packages.extend(["-p".to_string(), package.to_string()]);
             }

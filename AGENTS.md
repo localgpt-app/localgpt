@@ -17,16 +17,18 @@
 
 LocalGPT exposes three MCP servers, all JSON-RPC 2.0, all built on `localgpt-world-agent`'s `mcp` module.
 
-### localgpt-gen mcp-server (Gen)
+### localgpt gen / localgpt-gen mcp-server (Gen)
 
-The world builder's tools, with a Bevy window or without one.
+The world builder's tools, with a Bevy window or without one. `localgpt gen …` forwards to `localgpt-app gen …` when the desktop app is installed (such as inside `LocalGPT.app`), or falls back to standalone `localgpt-gen`:
 
 ```bash
-localgpt-gen mcp-server                     # the agent's own process: a window plus the tools
-localgpt-gen mcp-server --headless          # no window: CI, batch generation
-localgpt-gen mcp-server --connect           # the tools of a running `localgpt-gen --mcp-relay` window
-localgpt-gen mcp-server --mcp-http 8765     # also the streamable HTTP transport, at http://127.0.0.1:8765/mcp
+localgpt gen mcp-server                     # the agent's own process: a window plus the tools
+localgpt gen mcp-server --headless          # no window: CI, batch generation
+localgpt gen mcp-server --connect           # the tools of a running `--mcp-relay` window
+localgpt gen mcp-server --mcp-http 8765     # also the streamable HTTP transport, at http://127.0.0.1:8765/mcp
 ```
+
+`localgpt-app mcp-server` and `localgpt-gen mcp-server` accept the exact same flags.
 
 **Exposed tools:** 88 `gen_*` tools for scene manipulation, audio, behaviors, world management, avatars and NPCs, physics, terrain, interactions, UI, the worldgen pipeline, multi-file worlds and image input — the same set over every transport. None calls a model or a service.
 
@@ -66,24 +68,24 @@ A server lists its tools when it starts: after installing a model, restart the a
 
 ### Client Configuration
 
-Add to your AI tool's MCP config (e.g., Claude Desktop, Claude Code, Codex, Gemini CLI, VS Code, Zed):
+Add to your MCP client config (using `localgpt` when `LocalGPT.app` is installed, or `"command": "localgpt-gen", "args": ["mcp-server"]` directly):
 
 ```json
 {
   "mcpServers": {
     "localgpt-gen": {
-      "command": "localgpt-gen",
-      "args": ["mcp-server"]
+      "command": "localgpt",
+      "args": ["gen", "mcp-server"]
     }
   }
 }
 ```
 
-For the window you are looking at, run `localgpt-gen --mcp-relay` and give the client `["mcp-server", "--connect"]` instead.
+For the window you are looking at, run `localgpt gen --mcp-relay` and give the client `["gen", "mcp-server", "--connect"]` instead.
 
 ## Tool Catalog
 
-Every tool below is Gen's, except the audio models' at the end; the names are what `localgpt-gen mcp-server` lists. There are no memory, web or file tools: the agent brings its own.
+Every tool below is Gen's, except the audio models' at the end; the names are what `localgpt gen mcp-server` (or `localgpt-gen mcp-server`) lists. There are no memory, web or file tools: the agent brings its own.
 
 ### Gen: Scene Query
 

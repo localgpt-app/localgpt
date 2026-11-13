@@ -5901,8 +5901,8 @@ dependencies = [
  "futures",
  "image",
  "localgpt-audio-models",
+ "localgpt-doc",
  "localgpt-gen",
- "localgpt-md",
  "localgpt-previs",
  "localgpt-verse",
  "localgpt-world-agent",
@@ -5943,6 +5943,23 @@ dependencies = [
  "tempfile",
  "tokenizers",
  "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "localgpt-doc"
+version = "0.6.0"
+dependencies = [
+ "bevy",
+ "blake3",
+ "localgpt-world-agent",
+ "localgpt-world-bevy",
+ "localgpt-world-export",
+ "localgpt-world-types",
+ "pulldown-cmark",
+ "ron",
+ "serde",
+ "serde_json",
  "tracing",
 ]
 
@@ -5988,23 +6005,6 @@ dependencies = [
  "tokio-tungstenite",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "localgpt-md"
-version = "0.6.0"
-dependencies = [
- "bevy",
- "blake3",
- "localgpt-world-agent",
- "localgpt-world-bevy",
- "localgpt-world-export",
- "localgpt-world-types",
- "pulldown-cmark",
- "ron",
- "serde",
- "serde_json",
- "tracing",
 ]
 
 [[package]]

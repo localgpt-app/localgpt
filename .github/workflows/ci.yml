@@ -71,7 +71,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: |
           cargo clippy --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
-            --exclude localgpt-md --exclude localgpt-verse \
+            --exclude localgpt-doc --exclude localgpt-verse \
             --exclude localgpt-world-audio --exclude localgpt-app -- -D warnings
 
   test:
@@ -84,7 +84,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: |
           cargo test --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
-            --exclude localgpt-md --exclude localgpt-verse \
+            --exclude localgpt-doc --exclude localgpt-verse \
             --exclude localgpt-world-audio --exclude localgpt-app
       # world.schema.json must match the types (tests/schema_snapshot.rs).
       - run: cargo test -p localgpt-world-types --features schema
@@ -94,7 +94,7 @@ jobs:
   # alsa-sys). Kept apart because Bevy, avian and lightyear dwarf the rest, and
   # because only this job installs $BEVY_APT_DEPS.
   bevy:
-    name: Native deps (app, Gen, MD, Verse, audio)
+    name: Native deps (app, Gen, Document, Verse, audio)
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
@@ -109,9 +109,9 @@ jobs:
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL && df -h /
       - name: Install Bevy build deps
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends $BEVY_APT_DEPS
-      - run: cargo clippy -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -p localgpt-world-audio -p localgpt-app -- -D warnings
+      - run: cargo clippy -p localgpt-gen -p localgpt-world-bevy -p localgpt-doc -p localgpt-verse -p localgpt-world-audio -p localgpt-app -- -D warnings
       - id: test
-        run: cargo test -p localgpt-gen -p localgpt-world-bevy -p localgpt-md -p localgpt-verse -p localgpt-world-audio -p localgpt-app
+        run: cargo test -p localgpt-gen -p localgpt-world-bevy -p localgpt-doc -p localgpt-verse -p localgpt-world-audio -p localgpt-app
       # Since the Ubuntu 26.04 images, Gen's tests abort with a stack overflow
       # on the thread that opens the audio device. A thread given 8 MiB
       # overflowed as readily as the 2 MiB one, so something recurses, and no

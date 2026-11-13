@@ -6,7 +6,7 @@
 //! Lockfile semantics: the key is the BLAKE3 hash of the section's heading +
 //! body (+ any ```` ```world ```` fence), so an unchanged section keeps its
 //! entry, editing one section invalidates only its own, and a shared `.md`
-//! plus its sidecar renders identically on any machine. MD *applies* the
+//! plus its sidecar renders identically on any machine. Document *applies* the
 //! sidecar; it never writes a build or a recipe into it — an agent working
 //! on the file does, and nothing here runs a model. Entries for sections no
 //! longer in the document are pruned on save.
@@ -49,7 +49,7 @@ pub struct BuildEntry {
 /// file. A Bevy [`Resource`] so the world and the watcher share one live
 /// copy; the module itself stays renderer-free.
 ///
-/// The writers (`insert`, `insert_build`, `save`) have no caller in MD since
+/// The writers (`insert`, `insert_build`, `save`) have no caller in Document since
 /// nothing in it authors a place any more; they stay for the tests that
 /// prove the cache contract, and for tooling that writes a sidecar.
 #[derive(Debug, Default)]
@@ -74,7 +74,7 @@ struct SidecarFile {
     builds: BTreeMap<String, BuildEntry>,
 }
 
-#[allow(dead_code)] // see the type docs: the writers have no caller in MD
+#[allow(dead_code)] // see the type docs: the writers have no caller in Document
 impl RecipeStore {
     /// An empty store with no file behind it.
     pub fn in_memory() -> Self {
@@ -168,7 +168,7 @@ impl RecipeStore {
         let live: HashSet<String> = doc.sections.iter().map(|s| key(&s.hash)).collect();
         let file = SidecarFile {
             version: VERSION,
-            generator: "localgpt-md".into(),
+            generator: "localgpt-doc".into(),
             recipes: pruned(&self.recipes, &live),
             builds: pruned(&self.builds, &live),
         };
@@ -198,7 +198,7 @@ mod tests {
 
     fn temp_path(tag: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
-            "localgpt-md-sidecar-{tag}-{}",
+            "localgpt-doc-sidecar-{tag}-{}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()

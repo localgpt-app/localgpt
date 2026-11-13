@@ -10,7 +10,7 @@ A world in the window, an agent in a terminal beside it, in a few minutes. To pr
 
 ```bash
 # from a checkout (see Installation for the macOS bundle)
-cargo run -p localgpt-app -- --md notes.md         # a Markdown document as a world
+cargo run -p localgpt-app -- --doc notes.md         # a Markdown document as a world
 cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
 cargo run -p localgpt-app -- --world harbour.world # a .world package, opened as a live canvas
 cargo run -p localgpt-app                          # reopens what was opened last; a starter song the first time

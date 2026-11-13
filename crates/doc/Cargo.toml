@@ -1,9 +1,9 @@
 [package]
-name = "localgpt-md"
+name = "localgpt-doc"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "LocalGPT MD — open a Markdown file and walk through it as a 3D world"
+description = "LocalGPT Document — open a Markdown file and walk through it as a 3D world"
 # Not on crates.io: publishing claims the name for good. Drop this line
 # to publish it, with its first release.
 publish = false
@@ -11,13 +11,13 @@ repository.workspace = true
 
 
 [lib]
-name = "localgpt_md"
+name = "localgpt_doc"
 path = "src/lib.rs"
 
 # The Bevy app that walks the world. Everything renderer-free lives in the
 # lib so `crates/app` (and any WASM build) can take it without Bevy.
 [[bin]]
-name = "localgpt-md"
+name = "localgpt-doc"
 path = "src/main.rs"
 required-features = ["app"]
 

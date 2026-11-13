@@ -6,7 +6,7 @@ description: "The LocalGPT workspace: the world apps, the world-format crates th
 
 # Architecture
 
-LocalGPT is one Cargo workspace: the world apps (the desktop app, Gen, MD, Verse, previs), the world-format crates they all share, and the CLI. MD and Verse used to be repositories of their own and were folded in so the format could not drift between apps; the format itself then moved out to the [Open World Format](https://openworldformat.org), whose Rust reference this workspace consumes as the `openworldformat` crate.
+LocalGPT is one Cargo workspace: the world apps (the desktop app, Gen, Document, Verse, previs), the world-format crates they all share, and the CLI. Document and Verse used to be repositories of their own and were folded in so the format could not drift between apps; the format itself then moved out to the [Open World Format](https://openworldformat.org), whose Rust reference this workspace consumes as the `openworldformat` crate.
 
 Nothing in the workspace runs a model as an agent, or holds a key: the coding agents that build worlds run outside, in terminals and MCP clients, and reach a world through its API.
 
@@ -17,12 +17,12 @@ crates/
 ├── cli/          # localgpt — `localgpt world`, `localgpt world mcp` (the shim), and `localgpt previs`
 ├── gen/          # localgpt-gen — the world builder (Bevy): its tools over MCP, the relay, the live canvas, sessions, headless
 ├── app/          # localgpt-app — the one desktop app: Gen's viewport in native panels, terminals for the agents
-├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
+├── doc/          # localgpt-doc — a Markdown file as a walkable world (pure lib + Bevy bin)
 ├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin)
 ├── previs/       # localgpt-previs — screenplay → per-scene .world with set/cast/coverage, a board, a shot list (lib)
 ├── previs-web/   # localgpt-previs-web — previs's draft as WASM, for the localgpt.md page
 ├── world-types/  # localgpt-world-types — the world data model (serde only; the format's types re-exported)
-├── world-bevy/   # localgpt-world-bevy — the one Bevy mapping of the format (Gen, MD, Verse, the app)
+├── world-bevy/   # localgpt-world-bevy — the one Bevy mapping of the format (Gen, Document, Verse, the app)
 ├── world-audio/  # localgpt-world-audio — the one mapping of the format's audio (kira + FunDSP)
 ├── world-export/ # localgpt-world-export — the three.js viewer and HTML export, no Bevy
 ├── world-sync/   # localgpt-world-sync — collaborative rooms: shared document, ops, wire protocol, authority
@@ -65,8 +65,8 @@ xtask/            # cargo xtask fetch-assets — the one download every app shar
 |-------|------|---------|
 | `localgpt` | bin | `localgpt world`, `localgpt world mcp`, and `localgpt previs` |
 | `localgpt-gen` | lib+bin | The world builder: Bevy viewport, 88 tools served over MCP (stdio, the relay, HTTP), headless, sessions, the live canvas |
-| `localgpt-app` | bin | The one desktop app, assembled from the gen library with MD and Verse as libraries; native panels around the viewport (egui on eframe, the world drawn by Bevy into one of them), with terminals in them (not published) |
-| `localgpt-md` | lib+bin | Markdown → sections → a world; the pure library is what the app compiles documents with |
+| `localgpt-app` | bin | The one desktop app, assembled from the gen library with Document and Verse as libraries; native panels around the viewport (egui on eframe, the world drawn by Bevy into one of them), with terminals in them (not published) |
+| `localgpt-doc` | lib+bin | Markdown → sections → a world; the pure library is what the app compiles documents with |
 | `localgpt-verse` | lib+bin | Song analysis → mood → a furnished, performing world; `song_world` is what the app calls |
 | `localgpt-previs` | lib | Screenplay → per-scene `.world`, board and shot list; deterministic, no model, no network |
 | `localgpt-previs-web` | lib | The same draft as WASM for localgpt.md (not published) |
@@ -81,7 +81,7 @@ xtask/            # cargo xtask fetch-assets — the one download every app shar
 
 ## The world format is shared
 
-Every app reads and writes one format. `localgpt-world-types` is the source: the [Open World Format](https://openworldformat.org)'s document, session and state types come from the `openworldformat` crate and are re-exported unchanged, and the crate adds LocalGPT's own surface on top. `localgpt-world-bevy` is the only place those types become Bevy components, so Gen, MD, Verse and the app render identically; `localgpt-world-audio` is the one mapping of the format's audio; `localgpt-world-export` holds the only web renderer, the same three.js viewer [localgpt.world](https://localgpt.world) serves and every exported HTML page embeds.
+Every app reads and writes one format. `localgpt-world-types` is the source: the [Open World Format](https://openworldformat.org)'s document, session and state types come from the `openworldformat` crate and are re-exported unchanged, and the crate adds LocalGPT's own surface on top. `localgpt-world-bevy` is the only place those types become Bevy components, so Gen, Document, Verse and the app render identically; `localgpt-world-audio` is the one mapping of the format's audio; `localgpt-world-export` holds the only web renderer, the same three.js viewer [localgpt.world](https://localgpt.world) serves and every exported HTML page embeds.
 
 Reference scenes live in `crates/world-types/conformance/` and are rendered by both renderers; the web viewer's headless render check runs in CI. The rule inside the workspace: **add fields to `world-types`, never a parallel format** — proposals that change what the format *means* belong in the format's own repository.
 
@@ -115,7 +115,7 @@ The world builder: a Bevy window and 88 `gen_*` tools; `mcp-server` (stdio, `--m
 
 ### `localgpt-app`
 
-[The desktop app](/docs/app/): Gen's viewport plus `--md`, `--song` and `--world`, in native panels with the history, the outliner and inspector, the document, the timeline and the terminals. Thin by design — everything heavy comes from the gen library, MD's pure library compiles documents, and Verse's library builds song worlds.
+[The desktop app](/docs/app/): Gen's viewport plus `--doc`, `--song` and `--world`, in native panels with the history, the outliner and inspector, the document, the timeline and the terminals. Thin by design — everything heavy comes from the gen library, Document's pure library compiles documents, and Verse's library builds song worlds.
 
 ### `localgpt-relay`
 

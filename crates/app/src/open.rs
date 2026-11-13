@@ -1,5 +1,5 @@
 //! Opening things from inside the window — a document, a song or a world —
-//! so the app is usable without a terminal. What `--md`, `--song` and
+//! so the app is usable without a terminal. What `--doc`, `--song` and
 //! `--world` do at launch, from the page's Open… button ([`OpenFile`]).
 //!
 //! The native picker runs the way Verse's folder picker does: the

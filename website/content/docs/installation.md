@@ -8,7 +8,7 @@ description: "Install LocalGPT: the binaries from crates.io, the desktop app fro
 ## Prerequisites
 
 - **Rust stable, 1.85 or newer** (the workspace is edition 2024) — install from [rustup.rs](https://rustup.rs)
-- **On Linux**, the system packages the desktop crates (the app, Gen, MD, Verse) build against:
+- **On Linux**, the system packages the desktop crates (the app, Gen, Document, Verse) build against:
 
   ```bash
   # Debian / Ubuntu
@@ -33,7 +33,7 @@ For the `localgpt` command line and MCP shim without a Rust toolchain, install t
 npm install -g localgpt          # or: npx -y localgpt world mcp
 ```
 
-On macOS, `LocalGPT.app` carries `localgpt` inside `Contents/MacOS/localgpt` (and puts it on `PATH` in the app's terminals); the Homebrew cask installs the app and links `localgpt` onto your `PATH`:
+On macOS, `LocalGPT.app` carries `localgpt` inside `Contents/MacOS/localgpt` (and puts it on `PATH` in the app's terminals), so `localgpt gen …` hands off directly to the desktop binary (`localgpt-app gen …`); the Homebrew cask installs the app and links `localgpt` onto your `PATH`:
 
 ```bash
 brew install --cask localgpt-app/tap/localgpt
@@ -54,14 +54,14 @@ cd localgpt
 ```bash
 # The desktop app — one window, every mode
 cargo run -p localgpt-app                             # reopens what was opened last
-cargo run -p localgpt-app -- --md notes.md            # a document as a world
+cargo run -p localgpt-app -- --doc notes.md            # a document as a world
 cargo run -p localgpt-app -- --song track.mp3         # a song as a world that performs it
 cargo run -p localgpt-app -- --world scene-1.world    # a .world package, opened as a live canvas
 
-# Gen, MD and Verse on their own
+# Gen, Document and Verse on their own
 cargo run -p localgpt-gen -- --mcp-relay              # the window; an MCP client drives it
 cargo run -p localgpt-gen -- --live scene-1.world     # the live canvas
-cargo run -p localgpt-md -- path/to/doc.md
+cargo run -p localgpt-doc -- path/to/doc.md
 cargo run -p localgpt-verse
 
 # The command line (the CLI is the workspace's default member)
@@ -113,7 +113,7 @@ cargo run -p localgpt-verse --features ml
 
 ## Headless
 
-Gen builds without a window as an MCP client's own process: `localgpt-gen mcp-server --headless`. The CLI needs no display at all, so `localgpt world` runs in CI and on servers. See [Headless](/docs/gen/headless/).
+Gen builds without a window as an MCP client's own process: `localgpt gen mcp-server --headless` (or `localgpt-app mcp-server --headless` / `localgpt-gen mcp-server --headless`). The CLI needs no display at all, so `localgpt world` runs in CI and on servers. See [Headless](/docs/gen/headless/).
 
 ## Initial setup
 

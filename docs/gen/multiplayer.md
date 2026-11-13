@@ -15,7 +15,7 @@ localgpt-gen --join 192.168.1.5 --pin 482913
 ```
 
 Every flag is in the user docs (`website/content/docs/gen/multiplayer.md`)
-and parsed in `crates/gen/src/main.rs`. What each side is:
+and parsed in `crates/gen/src/cli.rs`. What each side is:
 
 - **Host:** the normal interactive gen window plus a session HTTP server on
   the session port (join page + WebSocket ops endpoint) and an mDNS

@@ -47,7 +47,7 @@ ebur128 = "0.1"   # integrated loudness (LUFS) for volume normalization
 
 # The shared LocalGPT world format (src/world_manifest.rs): a track's world as
 # a `WorldManifest` with its soundtrack analysis and modulations, so it renders
-# and performs in Gen, MD and the web viewer. Workspace path dependencies
+# and performs in Gen, Document and the web viewer. Workspace path dependencies
 # since this crate joined the localgpt workspace, which is what makes the
 # two pins impossible to drift apart — they had, by one commit, before the
 # fold. world-agent owns the shared asset-pack directory.

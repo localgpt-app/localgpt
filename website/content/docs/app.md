@@ -6,15 +6,16 @@ description: "LocalGPT's one desktop app: a Markdown document, a song or a .worl
 
 # The desktop app
 
-There is one LocalGPT desktop app, `localgpt-app`, and its modes are the apps that used to be separate: a world from a **Markdown document** (MD), from a **song** (Verse), or any **`.world` package** opened as a live canvas, which agents change from outside. The world is Gen's Bevy viewport; around it is one interface — the document and its outline, the history and its playback, the timeline of the world's clock — and, in tabs, the coding agents you already use, each in a full terminal.
+There is one LocalGPT desktop app, `localgpt-app`, and its modes are the apps that used to be separate: a world from a **Markdown document** (Document), from a **song** (Verse), or any **`.world` package** opened as a live canvas, which agents change from outside. The world is Gen's Bevy viewport; around it is one interface — the document and its outline, the history and its playback, the timeline of the world's clock — and, in tabs, the coding agents you already use, each in a full terminal.
 
 ```bash
 # from a checkout of the repository
 (cd crates/app/ui && npm ci && npm run build)         # a phone's page, once (node 22)
 cargo run -p localgpt-app                             # reopens what was opened last
-cargo run -p localgpt-app -- --md notes.md            # a document as a world
+cargo run -p localgpt-app -- --doc notes.md            # a document as a world
 cargo run -p localgpt-app -- --song track.mp3         # a song as a world that performs it
 cargo run -p localgpt-app -- --world scene-1.world    # a package, opened live
+cargo run -p localgpt-app -- gen mcp-server --headless # Gen's MCP / CLI mode (`localgpt gen …` forwards here)
 ```
 
 **Open…** at the top of the window takes a document, a song or a world file. With nothing given and nothing remembered, the app opens a starter song from the CC0 pack. The app is not on crates.io; it ships as a build — see [Installation](/docs/installation/#the-macos-app-bundle) for `LocalGPT.app`.
@@ -31,7 +32,7 @@ What is open has its panel on the left — a document, or a package's history wi
 
 A Markdown file opens with its panel: the file's outline, the selected section's place, and the text in an editor. Every `##` section is a place along a path. The file saves and the world rebuilds shortly after typing stops, **in place**: only the sections whose text changed are replaced, so the place you are standing in does not move. The file stays the source of truth: an edit made in another editor reloads the panel when it has no unsaved typing of its own, and is flagged rather than overwritten when it has.
 
-The rule-based draft is the first frame. What a section's place looks like beyond that comes from MD's sidecar next to the document (`<doc>.world.json`), keyed by each section's content hash: a build or a recipe an agent authored for it. The app runs no model and never writes the sidecar; the agent in the terminal beside the world does, working on the file, and a section keeps what was authored for it until its text changes. A ```` ```world ```` fence in the file itself overrides both.
+The rule-based draft is the first frame. What a section's place looks like beyond that comes from Document's sidecar next to the document (`<doc>.world.json`), keyed by each section's content hash: a build or a recipe an agent authored for it. The app runs no model and never writes the sidecar; the agent in the terminal beside the world does, working on the file, and a section keeps what was authored for it until its text changes. A ```` ```world ```` fence in the file itself overrides both.
 
 The text and the world map onto each other: the outline labels each section with where its place came from (fence, build, recipe, draft); a click on a section, or the cursor moving into one (**Follow cursor**), flies the camera there; the place card shows the build's description and what the place is made of, and a click on a thing selects it in the world and flies to it; clicking a thing in the world selects its section and brings its heading into view.
 

@@ -7,7 +7,7 @@ title: "Headless"
 LocalGPT Gen builds worlds **without opening a window**: the same tools, served over MCP to an agent that runs without a display — CI, a server, a batch of variations overnight.
 
 ```bash
-localgpt-gen mcp-server --headless
+localgpt gen mcp-server --headless    # or: localgpt-app mcp-server --headless / localgpt-gen mcp-server --headless
 ```
 
 The process is the MCP client's own: the client spawns it, calls the gen tools over stdio, and the process exits when the client goes away. Everything a windowed Gen can do is in the tool set — spawn, modify, lights, environment, terrain, the WorldGen pipeline, `gen_save_world` — and screenshots render offscreen. See [MCP Server](/docs/gen/mcp-server/) for the client configuration.

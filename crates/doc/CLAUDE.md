@@ -1,37 +1,37 @@
 # CLAUDE.md
 
-What is particular to `crates/md`. The workspace's rules (no model, lint,
+What is particular to `crates/doc`. The workspace's rules (no model, lint,
 commits, the all-Rust rule) are in the root `CLAUDE.md`; run everything from
-the workspace root with `-p localgpt-md`.
+the workspace root with `-p localgpt-doc`.
 
-Bevy takes one asset base, so `crates/md/assets/models` is a **symlink** to
+Bevy takes one asset base, so `crates/doc/assets/models` is a **symlink** to
 the shared pack that `cargo xtask fetch-assets` creates — run it once, or
 the app starts with no asset pack and builds procedural worlds only.
 
 ## What this is
 
-LocalGPT MD opens a Markdown file and turns it into a walkable 3D world
+LocalGPT Document opens a Markdown file and turns it into a walkable 3D world
 (Bevy 0.20). Each `##` section becomes a place; the file is watched and the
 world rebuilds on save. What a section's place looks like beyond the
 rule-based draft comes from the **sidecar** beside the document
 (`<doc>.world.json`): a build (entities in place, real CC0 pack assets) or
 a one-JSON recipe per section, keyed by the section's hash, which an agent
 working on the file writes; a ```` ```world ```` fence in the file overrides
-both. MD applies the sidecar and never writes it: **no model runs in this
+both. Document applies the sidecar and never writes it: **no model runs in this
 crate**. Siblings in the workspace: `crates/verse` (song → world) and
 `crates/gen` (prompt → world).
 
 ## Commands
 
 ```bash
-cargo run -p localgpt-md                                        # open samples/hello.md (world genre)
-cargo run -p localgpt-md -- crates/md/samples/deck.md                     # present a Marp-style deck (deck genre)
-cargo run -p localgpt-md -- path/to/doc.md                      # open any Markdown file
-cargo run -p localgpt-md -- doc.md --print-ron                  # compiled world as RON, no window
-cargo run -p localgpt-md -- doc.md --export out.json            # or out.ron / out.html (web viewer page), no window
-LOCALGPT_MD_SCREENSHOT=/tmp/shot.png cargo run -p localgpt-md   # render the first stop offscreen to a PNG, then exit
-cargo test -p localgpt-md
-cargo clippy -p localgpt-md --all-targets -- -D warnings
+cargo run -p localgpt-doc                                        # open samples/hello.md (world genre)
+cargo run -p localgpt-doc -- crates/doc/samples/deck.md                     # present a Marp-style deck (deck genre)
+cargo run -p localgpt-doc -- path/to/doc.md                      # open any Markdown file
+cargo run -p localgpt-doc -- doc.md --print-ron                  # compiled world as RON, no window
+cargo run -p localgpt-doc -- doc.md --export out.json            # or out.ron / out.html (web viewer page), no window
+LOCALGPT_DOC_SCREENSHOT=/tmp/shot.png cargo run -p localgpt-doc   # render the first stop offscreen to a PNG, then exit
+cargo test -p localgpt-doc
+cargo clippy -p localgpt-doc --all-targets -- -D warnings
 ```
 
 To check rendering, use the screenshot mode and read the PNG. It renders to
@@ -67,7 +67,7 @@ and builds) and `assets.rs` (where the pack is).
   recipe, else the rules; every placed entity is clamped (`clamp_local`:
   radius ≤ 12, y 0–25) and every recipe `clamped()` on load, so a hand- or
   agent-written sidecar can at worst be ignored. The writers
-  (`RecipeStore::insert`, `insert_build`, `save`) have no caller in MD;
+  (`RecipeStore::insert`, `insert_build`, `save`) have no caller in Document;
   they stay for the tests that prove the cache contract and for tooling.
 - **The asset pack**: `assets.rs` resolves the pack root from
   `$LOCALGPT_MD_ASSETS` → `assets/` → the dev tree → the shared download
@@ -115,7 +115,7 @@ buffered events are messages (`MessageWriter<AppExit>`); hierarchy is
 - Copying from Verse and the rest of the workspace is fine (all Apache-2.0);
   name the source in a comment.
 - `website-md/` at the workspace root is **localgpt.md, the previs page**,
-  not MD's: it boards a screenplay through `crates/previs-web`. Walking a
-  document lives in this crate's Bevy app and in `localgpt-app --md`.
-- MD's docs are on localgpt.app, in `website/content/docs/md/`: update them
+  not Document's: it boards a screenplay through `crates/previs-web`. Walking a
+  document lives in this crate's Bevy app and in `localgpt-app --doc`.
+- Document's docs are on localgpt.app, in `website/content/docs/document/`: update them
   when commands, keys, export or the sidecar change.

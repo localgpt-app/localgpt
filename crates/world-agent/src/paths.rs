@@ -2,7 +2,7 @@
 //! app keeps its own files.
 //!
 //! The pack is large and identical for every LocalGPT app, and it was
-//! resolved by hand-copied twins before this module existed (MD's
+//! resolved by hand-copied twins before this module existed (Document's
 //! `assets.rs` and Verse's `world_assets.rs`, each carrying a "keep them in
 //! step" comment). This crate is the one every world app already depends
 //! on, so the rule lives here once.

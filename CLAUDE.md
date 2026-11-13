@@ -9,7 +9,7 @@ documents.
 LocalGPT is the desktop app where a prompt, a document, a song or a
 screenplay becomes a walkable `.world`, with the person's own coding agents
 in its terminals. The workspace holds the app, Gen (the Bevy world builder
-and its MCP tools), MD, Verse and Previs (a document, a song and a screenplay
+and its MCP tools), Document, Verse and Previs (a document, a song and a screenplay
 as worlds), the `localgpt` CLI (a `.world` package's command line, the MCP
 shim and `localgpt previs`), the crates around the Open World Format, and
 three websites.
@@ -45,11 +45,11 @@ alone, it lists every command.
 
 ```bash
 cargo xtask verify                  # the CI checks on this machine (--rust --bevy --features --web --deps)
-cargo xtask build app gen           # cargo build by name: cli app gen previs md verse all
+cargo xtask build app gen           # cargo build by name: cli app gen previs doc verse all
 cargo xtask rule                    # the all-Rust rule (Conventions)
 cargo xtask fetch-assets            # the 522 MB CC0 pack, once per machine, from a sibling
                                     # localgpt-world-assets checkout (or LOCALGPT_WORLD_ASSETS_SRC);
-                                    # symlinks it into md's and verse's asset roots
+                                    # symlinks it into doc's and verse's asset roots
 cargo xtask bundle --dmg            # LocalGPT.app for macOS
 cargo xtask deploy world --dry-run  # the sites: app md world, or all
 
@@ -85,10 +85,12 @@ cargo run -p localgpt-gen -- --replay castle       # a session as a time-lapse
 (cd crates/app/ui && npm ci && npm run build)      # a paired phone's page, once (node 22); the
                                                    # binary carries it, a debug build reads it from disk
 cargo run -p localgpt-app                          # reopens what was opened last
-cargo run -p localgpt-app -- --md notes.md         # a document; the world rebuilds as it is edited
+cargo run -p localgpt-app -- --doc notes.md         # a document; the world rebuilds as it is edited
 cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
 cargo run -p localgpt-app -- --world harbour.world # a package as a live canvas: agents edit through
                                                    # its API, the history panel draws the branches
+cargo run -p localgpt-app -- gen mcp-server        # Gen's CLI/MCP entry point inside the app binary
+                                                   # (`localgpt gen …` forwards here)
 LOCALGPT_APP_REMOTE=on cargo run -p localgpt-app   # also serve a phone on this network: prints a
                                                    # pairing link (port 9880, LOCALGPT_APP_REMOTE_PORT)
 LOCALGPT_APP_SHELL_DRIVE='4:click 0.5 0.5;6:shot /tmp/s.png;7:quit' \
@@ -97,8 +99,8 @@ LOCALGPT_APP_SHELL_DRIVE='4:click 0.5 0.5;6:shot /tmp/s.png;7:quit' \
                                                    # wheel, type, shot, quit)
 (cd crates/app/ui && npm run design)               # the phone page's design sheet
 
-# MD and Verse on their own
-cargo run -p localgpt-md -- path/to/doc.md         # default samples/hello.md; rebuilds on save and
+# Document and Verse on their own
+cargo run -p localgpt-doc -- path/to/doc.md         # default samples/hello.md; rebuilds on save and
                                                    # applies the sidecar an agent wrote beside it
 cargo run -p localgpt-verse                        # --features ml: CLAP moods and Demucs stems (ONNX)
 ```
@@ -116,7 +118,7 @@ alone. A signed `vX.Y.Z` tag publishes the crates (`release.yml`); a
 
 ### Workspace
 
-Sixteen crates and `xtask`. MD and Verse are members, not separate
+Sixteen crates and `xtask`. Document and Verse are members, not separate
 repositories, so the world format cannot drift between apps.
 
 ```
@@ -124,7 +126,7 @@ crates/
 ├── cli/          # localgpt — `world` (a .world package's command line), `world mcp` (the shim), `previs` (screenplay → board and .world packages), `completion`
 ├── gen/          # localgpt-gen — the world builder: Bevy window, 88 tools over MCP (stdio, HTTP, the relay), live canvas, sessions
 ├── app/          # localgpt-app — the one desktop app: Gen's world, documents and songs as modes; its interface is the egui shell in src/shell, and the page in ui/ is a paired phone's
-├── md/           # localgpt-md — a Markdown file as a walkable world (pure lib + Bevy bin)
+├── doc/          # localgpt-doc — a Markdown file as a walkable world (pure lib + Bevy bin)
 ├── verse/        # localgpt-verse — a 3D world for every song (lib + Bevy bin)
 ├── previs/       # localgpt-previs — a screenplay (Fountain, Final Draft .fdx, PDF or Markdown pages) → per-scene .world packages and a board, deterministic (lib)
 ├── previs-web/   # localgpt-previs-web — previs's draft as WASM for the localgpt.md page
@@ -148,8 +150,8 @@ website-world/    # localgpt.world — the gallery and the one web viewer
 ```
 localgpt (CLI)  → world-agent (features: mcp), world-editor, previs (features: pdf), audio-models (features: mcp)
 localgpt-gen    → world-agent (features: mcp-http), previs, world-*
-localgpt-app    → gen, md (lib only), verse, previs, world-agent, world-bevy, world-types, audio-models (installer only)
-md, verse       → world-agent (paths), world-*; verse (ml) → audio-models (features: run)
+localgpt-app    → gen, doc (lib only), verse, previs, world-agent, world-bevy, world-types, audio-models (installer only)
+doc, verse      → world-agent (paths), world-*; verse (ml) → audio-models (features: run)
 previs, relay, world-*  → no app crate
 ```
 
@@ -159,7 +161,7 @@ format (serde-only; the `schema` feature writes `world.schema.json`).
 or `EnvironmentDef` becomes Bevy components; `localgpt-world-audio` is the
 only place the format's audio becomes sound; `localgpt-world-export` holds
 the only web renderer (`js/world-viewer.js` and the `js/cinematography.js`
-it imports) and `generate_html`. Gen, MD and Verse all go through them. The
+it imports) and `generate_html`. Gen, Document and Verse all go through them. The
 renderer's two files are vendored snapshots of the `openworldformat` npm
 package: refresh them with `cargo xtask sync-viewer`, never edit them by
 hand. Add fields to world-types, never a parallel format; what the format
@@ -176,7 +178,7 @@ a mapping.
 | `gen` | `physics` | yes | avian3d rigid bodies, colliders, joints, forces, gravity |
 | `gen` | `multiplayer` | yes | `--host`/`--join`, the ops room, mDNS, the browser guest page |
 | `gen` | `character-controller` | no | The bevy-tnua player controller (needs `physics`); builds, not played since Bevy 0.18 |
-| `md` | `app` | yes | The Bevy bin; the lib builds without it, which is how `crates/app` takes it |
+| `doc` | `app` | yes | The Bevy bin; the lib builds without it, which is how `crates/app` takes it |
 | `verse` | `ml` | no | CLAP moods over the shared `match` model, and Demucs stems (`stem-splitter-core`) |
 | `world-types` | `schema` | no | Writes `world.schema.json` |
 | `cli` | `audio` | yes | `localgpt audio`, and the installed models' tools in `world mcp`; links ONNX Runtime |
@@ -216,7 +218,7 @@ layer. See `docs/gen/gen-audio.md`.
 **Directories and the shared pack.** `world-agent::paths` is where every
 directory comes from: `Dirs` (`data`, `state`, `logs()`) and
 `world_pack_dir()`, which resolves the CC0 asset pack so one download serves
-Gen, MD and Verse. Never re-implement the XDG rule in an app.
+Gen, Document and Verse. Never re-implement the XDG rule in an app.
 
 **Environment names** are constants in the crate that reads them, never bare
 strings: the world's in `world-agent::agent_env` (`LOCALGPT_WORLD_DIR`,
@@ -394,8 +396,8 @@ One Cloudflare Worker each, deployed by hand with `cargo xtask deploy
 <app|md|world>`.
 
 - **`website/`** — localgpt.app (Zola): the family hub and the only docs
-  site. Gen, Verse and MD have no pages of their own; their docs are
-  `website/content/docs/{gen,verse,md}`. See `website/CLAUDE.md`.
+  site. Gen, Verse and Document have no pages of their own; their docs are
+  `website/content/docs/{gen,verse,document}`. See `website/CLAUDE.md`.
 - **`website-md/`** — localgpt.md, the previs page: drop a screenplay, get
   the board and the per-scene `.world` packages in the tab. Its draft is
   `crates/previs-web` (wasm-pack over `crates/previs`), put together by
@@ -407,5 +409,5 @@ One Cloudflare Worker each, deployed by hand with `cargo xtask deploy
   `website-world/CLAUDE.md`.
 
 Every family site carries the same family strip, in this order: LocalGPT,
-Gen, Verse, MD (those three point at their docs on localgpt.app),
+Gen, Verse, Document (those three point at their docs on localgpt.app),
 localgpt.md, localgpt.world, localgpt.rs; a site leaves itself out.

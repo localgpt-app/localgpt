@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime};
 use bevy::prelude::*;
 
 use crate::scene::CurrentWorld;
-use localgpt_md::draft;
+use localgpt_doc::draft;
 
 pub struct WatchPlugin;
 
@@ -44,7 +44,7 @@ fn modified_time(path: &Path) -> Option<SystemTime> {
 fn poll(
     time: Res<Time>,
     mut source: ResMut<DocSource>,
-    store: Res<localgpt_md::sidecar::RecipeStore>,
+    store: Res<localgpt_doc::sidecar::RecipeStore>,
     mut world: ResMut<CurrentWorld>,
 ) {
     if !source.timer.tick(time.delta()).just_finished() {

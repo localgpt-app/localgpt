@@ -1,6 +1,7 @@
 ---
-description: "How LocalGPT MD compiles a Markdown file into a world: the modules, the per-section hashes, the shared Open World Format, and how to develop it."
+description: "How LocalGPT Document compiles a Markdown file into a world: the modules, the per-section hashes, the shared Open World Format, and how to develop it."
 title: "How it works"
+aliases: ["/docs/md/how-it-works/"]
 ---
 
 # How it works
@@ -17,7 +18,7 @@ watch.rs: poll the file, recompile on save     tour.rs: camera + caption
 - **`doc.rs`**: Markdown → title, front matter (`genre: …`), and one section per place — a `##` heading (`world`) or a `---`-separated slide (`deck`). Each section carries a hash of its text (plus any `world` fence).
 - **`draft.rs`**: sections → a `WorldManifest` with one region per section — a winding path (`world`) or a straight presentation path (`deck`) — and a tour with one stop per section. Deterministic, with entity ids that are stable per section, so editing one section leaves the other regions untouched. Per section the first of these wins: a `world` fence's exact entities, the sidecar's cached agent build, the cached recipe — else the rules.
 - **`assets.rs`**: the shared pack's manifest, kind and span math, so a build in the sidecar places the pack's real CC0 models by semantic kind.
-- **`recipe.rs` / `sidecar.rs`**: the clamped per-region recipe type with its lenient parse, and the hash-keyed `<doc>.world.json` v2 cache (builds + recipes). MD reads the sidecar and never writes it: no model runs in MD, and the agent working on the file authors it.
+- **`recipe.rs` / `sidecar.rs`**: the clamped per-region recipe type with its lenient parse, and the hash-keyed `<doc>.world.json` v2 cache (builds + recipes). Document reads the sidecar and never writes it: no model runs in Document, and the agent working on the file authors it.
 - **`scene.rs`**: spawns the manifest in Bevy using the same mapping as LocalGPT Gen, and loads placed GLBs.
 - **`tour.rs`** and **`watch.rs`**: navigation and hot reload.
 
@@ -26,9 +27,9 @@ Worlds use [`localgpt-world-types`](https://crates.io/crates/localgpt-world-type
 ## Develop {#develop}
 
 ```bash
-cargo test -p localgpt-md
-cargo clippy -p localgpt-md --all-targets -- -D warnings
+cargo test -p localgpt-doc
+cargo clippy -p localgpt-doc --all-targets -- -D warnings
 cargo fmt --check
 ```
 
-LocalGPT MD is open source under Apache-2.0; the code is `crates/md` in [github.com/localgpt-app/localgpt](https://github.com/localgpt-app/localgpt/tree/main/crates/md). The desktop app compiles documents with the same pure library (`--no-default-features`: no Bevy) and renders them in Gen's viewport.
+LocalGPT Document is open source under Apache-2.0; the code is `crates/doc` in [github.com/localgpt-app/localgpt](https://github.com/localgpt-app/localgpt/tree/main/crates/doc). The desktop app compiles documents with the same pure library (`--no-default-features`: no Bevy) and renders them in Gen's viewport.

@@ -14,12 +14,13 @@
 //!
 //! ```sh
 //! cargo run -p localgpt-app                          # reopens what was opened last
-//! cargo run -p localgpt-app -- --md notes.md         # a document as a world
+//! cargo run -p localgpt-app -- --doc notes.md         # a document as a world
 //! cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
 //! cargo run -p localgpt-app -- --world harbour.world # a package, live: agents edit it
+//! cargo run -p localgpt-app -- gen mcp-server        # Gen's MCP server / CLI mode
 //! ```
 //!
-//! A document (`--md`) compiles with MD's pure lib — the rule-derived draft
+//! A document (`--doc`) compiles with Document's pure lib — the rule-derived draft
 //! plus any ```world fences — and opens as a world that is rebuilt while it
 //! is edited. A song (`--song`) opens as the world Verse's library builds
 //! for it, which Gen's viewport plays. A `.world` package opens as a live
@@ -37,34 +38,88 @@ mod starter;
 mod timeline;
 mod webui;
 
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use bevy::prelude::*;
 use localgpt_gen::desktop;
 use localgpt_gen::gen3d;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 struct Args {
     md: Option<PathBuf>,
     song: Option<PathBuf>,
     world: Option<String>,
 }
 
-fn parse_args() -> Args {
+#[derive(Debug, PartialEq, Eq)]
+enum LaunchAction {
+    Window(Args),
+    Gen(Vec<OsString>),
+    Help,
+    Version,
+}
+
+const USAGE: &str = "\
+LocalGPT — one window, every mode
+
+Usage: localgpt-app [OPTIONS]
+       localgpt-app gen [GEN_ARGS...]
+       localgpt-app mcp-server [MCP_ARGS...]
+
+Options:
+      --doc <PATH>     Open a Markdown document as a world (alias: --md)
+      --song <PATH>    Open a song as a world that performs it
+      --world <PATH>   Open a .world package (folder, workspace name, or URL)
+  -h, --help           Print help
+  -V, --version        Print version";
+
+/// Parse launch arguments from `raw` (`argv[0]` included). `gen …` and
+/// `mcp-server …` hand off directly to [`localgpt_gen::cli::run_from`] before
+/// app logging or the egui shell starts.
+fn parse_action<I>(raw: I) -> Result<LaunchAction, String>
+where
+    I: IntoIterator<Item = OsString>,
+{
+    let mut iter = raw.into_iter();
+    let _exe = iter.next();
+    let rest: Vec<OsString> = iter.collect();
+    match rest.first().and_then(|s| s.to_str()) {
+        Some("gen") => {
+            let forwarded = std::iter::once(OsString::from("localgpt gen"))
+                .chain(rest.into_iter().skip(1))
+                .collect();
+            return Ok(LaunchAction::Gen(forwarded));
+        }
+        Some("mcp-server") => {
+            let forwarded = std::iter::once(OsString::from("localgpt-app"))
+                .chain(rest)
+                .collect();
+            return Ok(LaunchAction::Gen(forwarded));
+        }
+        _ => {}
+    }
+
     let mut args = Args::default();
-    let mut iter = std::env::args().skip(1);
+    let mut iter = rest.into_iter();
     while let Some(arg) = iter.next() {
-        match arg.as_str() {
-            "--md" => args.md = iter.next().map(PathBuf::from),
+        let Some(flag) = arg.to_str() else {
+            return Err(format!("unknown argument {arg:?} (--doc, --song, --world)"));
+        };
+        match flag {
+            "-h" | "--help" => return Ok(LaunchAction::Help),
+            "-V" | "--version" => return Ok(LaunchAction::Version),
+            "--doc" | "--md" => args.md = iter.next().map(PathBuf::from),
             "--song" => args.song = iter.next().map(PathBuf::from),
-            "--world" => args.world = iter.next(),
+            "--world" => args.world = iter.next().and_then(|s| s.into_string().ok()),
             other => {
-                eprintln!("localgpt-app: unknown argument {other:?} (--md, --song, --world)");
-                std::process::exit(2);
+                return Err(format!(
+                    "unknown argument {other:?} (--doc, --song, --world)"
+                ));
             }
         }
     }
-    args
+    Ok(LaunchAction::Window(args))
 }
 
 /// Logging, before Bevy starts: Bevy's own LogPlugin is disabled (as in Gen),
@@ -102,7 +157,22 @@ fn init_logging() {
 }
 
 fn main() -> anyhow::Result<()> {
-    let args = parse_args();
+    let args = match parse_action(std::env::args_os()) {
+        Ok(LaunchAction::Gen(forwarded)) => return localgpt_gen::cli::run_from(forwarded),
+        Ok(LaunchAction::Help) => {
+            println!("{USAGE}");
+            return Ok(());
+        }
+        Ok(LaunchAction::Version) => {
+            println!("localgpt-app {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        Ok(LaunchAction::Window(args)) => args,
+        Err(msg) => {
+            eprintln!("localgpt-app: {msg}");
+            std::process::exit(2);
+        }
+    };
     init_logging();
 
     // Launched from Finder, the app has launchd's minimal PATH: take the
@@ -141,7 +211,7 @@ struct Opened {
     workspace: PathBuf,
     showing: Option<String>,
     initial_world: Option<String>,
-    /// A document: MD's pipeline builds the first world (camera included —
+    /// A document: Document's pipeline builds the first world (camera included —
     /// it places the view once), and the live Document drives every rebuild
     /// after.
     live_document: Option<document::Document>,
@@ -162,7 +232,7 @@ fn open_launch(args: &Args) -> anyhow::Result<Opened> {
 
     // The initial world: an explicit --world arg, or a Markdown document
     // compiled in-process. Both land in the same place — GenInitialWorld —
-    // and `--md x --world y` prefers the document (the more specific ask).
+    // and `--doc x --world y` prefers the document (the more specific ask).
     // A failure to import falls back to the raw path so the reason shows up
     // in the window's log rather than killing the launch. With none of the
     // three given, the app reopens what it opened last.
@@ -441,5 +511,39 @@ mod tests {
             terminals_dir(None, None, home),
             PathBuf::from("/Users/someone")
         );
+    }
+
+    #[test]
+    fn parse_action_routes_gen_and_mcp_server_and_desktop_flags() {
+        let os = |items: &[&str]| items.iter().map(OsString::from).collect::<Vec<_>>();
+
+        assert_eq!(
+            parse_action(os(&["localgpt-app", "gen", "mcp-server", "--headless"])),
+            Ok(LaunchAction::Gen(os(&[
+                "localgpt gen",
+                "mcp-server",
+                "--headless"
+            ])))
+        );
+        assert_eq!(
+            parse_action(os(&["localgpt-app", "mcp-server", "--headless"])),
+            Ok(LaunchAction::Gen(os(&[
+                "localgpt-app",
+                "mcp-server",
+                "--headless"
+            ])))
+        );
+        assert_eq!(
+            parse_action(os(&["localgpt-app", "--doc", "notes.md"])),
+            Ok(LaunchAction::Window(Args {
+                md: Some(PathBuf::from("notes.md")),
+                ..Args::default()
+            }))
+        );
+        assert_eq!(
+            parse_action(os(&["localgpt-app", "--help"])),
+            Ok(LaunchAction::Help)
+        );
+        assert!(parse_action(os(&["localgpt-app", "--unknown"])).is_err());
     }
 }

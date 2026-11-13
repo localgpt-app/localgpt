@@ -13,7 +13,7 @@
 //! `#[serde(default)]` with an explicit [`Default`], and a load that returns
 //! defaults with a warning rather than failing startup — a settings file must
 //! never be the reason an app won't open. Writes are atomic (tmp + rename),
-//! the way MD's sidecar does it, so a crash mid-write can't truncate the file.
+//! the way Document's sidecar does it, so a crash mid-write can't truncate the file.
 
 use std::path::PathBuf;
 

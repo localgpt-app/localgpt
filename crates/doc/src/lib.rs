@@ -1,4 +1,4 @@
-//! `localgpt_md` — the pure half of LocalGPT MD: Markdown in, a
+//! `localgpt_doc` — the pure half of LocalGPT Document: Markdown in, a
 //! [`localgpt_world_types::WorldManifest`] out, no renderer and no model.
 //!
 //! The binary (`src/main.rs`) is the Bevy app that walks the world; this

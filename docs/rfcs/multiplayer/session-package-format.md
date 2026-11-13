@@ -4,7 +4,7 @@
 `localgpt-gen --host` opens keeps this directory, and `--resume`,
 `--replay` and `--export-session` read it. Structural replay is what is
 built; `input` and `clock` recording, playthrough replay, compaction, and
-MD or Verse writing a session are not ([Not built](#not-built)). The
+Document or Verse writing a session are not ([Not built](#not-built)). The
 log's entry and op kinds are the Open World Format's, defined in its
 specification. The directory around the log is Gen's own and is not the
 format's package layout ([Two layouts, one log](#two-layouts-one-log)).
@@ -165,8 +165,8 @@ they never drive the fold.
 - **Compaction.** Nothing folds a session to a new base.
 - **Assets.** The room stores no asset files in the directory; the
   format's content-addressed `assets/` is `LiveWorld`'s.
-- **MD and Verse.** Neither writes a session, and neither would change
-  its source (the `.md`, the song). The design: MD compiles `.md` and
+- **Document and Verse.** Neither writes a session, and neither would change
+  its source (the `.md`, the song). The design: Document compiles `.md` and
   sidecar to a base world (`draft::compile`), and a rebuild is one `Batch`
   of spawn, delete and modify ops, which `world-sync`'s `diff_scene`
   already computes between a document and a new set of entities; Verse
@@ -182,7 +182,7 @@ they never drive the fold.
 - `crates/world-agent/src/session.rs`: the directory on disk —
   `write_base`, `write_meta`, `read_meta`, `refresh_meta`, `append_entry`,
   `write_snapshot`, `read_package`, `fork_package`, `export_zip`,
-  `extract_zip`. It lives there because Gen, MD and Verse all depend on
+  `extract_zip`. It lives there because Gen, Document and Verse all depend on
   that crate.
 - `crates/gen/src/net/web.rs`: the room's use of it — the base and
   `session.json` when the room opens (`ensure_package`), the log appended

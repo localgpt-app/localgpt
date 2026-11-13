@@ -25,7 +25,7 @@ The domain is the input and the pitch in one: localgpt.md accepts Markdown
 screenplay pages as well as PDF, Final Draft and Fountain. The draft runs
 locally in the browser, so the first demonstration needs no account, model or
 inference bill. Walking an ordinary Markdown document remains in the desktop
-app and `localgpt-md`; this page is specifically the screenplay-to-previs
+app and `localgpt-doc`; this page is specifically the screenplay-to-previs
 workflow.
 
 ## Assembled, not stored

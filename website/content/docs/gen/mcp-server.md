@@ -10,13 +10,13 @@ LocalGPT Gen can run as an [MCP](https://modelcontextprotocol.io/) (Model Contex
 
 LocalGPT Gen runs no model of its own: the window and the tools that build in it are the whole binary, and whatever drives them runs in another process — Claude Desktop, Codex Desktop, a coding agent in a terminal, an editor's built-in AI.
 
-MCP is how they reach it. It's a standard protocol that these tools already support. By running `localgpt-gen mcp-server`, the Bevy window opens and all gen tools become available to any MCP client over stdio. The client is the orchestrator — it manages the conversation, calls tools, and drives the scene building — under its own login; Gen holds no key.
+MCP is how they reach it. It's a standard protocol that these tools already support. By running `localgpt gen mcp-server` (which forwards to `localgpt-app gen mcp-server` when the desktop app is installed, or to `localgpt-gen mcp-server`), the Bevy window opens and all gen tools become available to any MCP client over stdio. The client is the orchestrator — it manages the conversation, calls tools, and drives the scene building — under its own login; Gen holds no key.
 
 ## Quick Start
 
 ```bash
 # Start Gen as an MCP server (Bevy window opens, tools served over stdio)
-localgpt-gen mcp-server
+localgpt gen mcp-server        # or directly: localgpt-app mcp-server / localgpt-gen mcp-server
 ```
 
 Then configure your client to spawn it (see sections below).

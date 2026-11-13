@@ -3,7 +3,7 @@
 //! A Verse world is a performance: the mood palette and the analysis
 //! sidecar together describe a world that plays to a song. This module
 //! writes that description in LocalGPT's shared world format, so the same
-//! world renders in Gen, MD and the web viewer (localgpt.world) — and
+//! world renders in Gen, Document and the web viewer (localgpt.world) — and
 //! performs there too, because the manifest carries a `SoundtrackDef` (the
 //! analysis curves, never the audio file or the CLAP embedding) and
 //! `ModulationDef`s that bind entities to it: emissive entities pulse with

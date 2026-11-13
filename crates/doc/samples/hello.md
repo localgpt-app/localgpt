@@ -2,7 +2,7 @@
 genre: world
 ---
 
-# A Walk Through LocalGPT MD
+# A Walk Through LocalGPT Document
 
 Every `##` section of this file becomes a place. Press → to walk to the next
 one. Edit this file while the app is open and the world rebuilds.

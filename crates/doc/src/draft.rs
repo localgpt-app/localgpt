@@ -144,10 +144,10 @@ fn meta(doc: &Doc, authored: Option<&'static str>) -> wt::WorldMeta {
         name: doc.title.clone(),
         description: doc.intro.lines().next().map(str::to_string),
         time_of_day: None,
-        tags: Some(vec!["localgpt-md".into(), doc.genre().to_string()]),
+        tags: Some(vec!["localgpt-doc".into(), doc.genre().to_string()]),
         source: Some(match authored {
-            Some(kind) => format!("localgpt-md draft + {kind}"),
-            None => "localgpt-md draft".into(),
+            Some(kind) => format!("localgpt-doc draft + {kind}"),
+            None => "localgpt-doc draft".into(),
         }),
         variation_group: None,
         variation: None,

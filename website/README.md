@@ -2,7 +2,7 @@
 
 The landing page and user documentation for [LocalGPT](https://localgpt.app), built with [Zola](https://www.getzola.org/).
 
-The site documents the native desktop app, Gen and its live canvas, previs, MD, Verse, and `localgpt world`. It describes only features in the current workspace.
+The site documents the native desktop app, Gen and its live canvas, previs, Document, Verse, and `localgpt world`. It describes only features in the current workspace.
 
 ## Development
 

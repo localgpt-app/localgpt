@@ -103,7 +103,7 @@ impl RegionRecipe {
     }
 
     /// True when nothing is set — not worth keeping in a sidecar.
-    // Read by tests and by tooling that writes sidecars; nothing in MD
+    // Read by tests and by tooling that writes sidecars; nothing in Document
     // itself authors a recipe.
     #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
