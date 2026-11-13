@@ -27,7 +27,7 @@ crates/
 ├── world-export/ # localgpt-world-export — the three.js viewer and HTML export, no Bevy
 ├── world-sync/   # localgpt-world-sync — collaborative rooms: shared document, ops, wire protocol, authority
 ├── world-editor/ # localgpt-world-editor — the non-linear editing model: tips, forks, folds, deltas
-├── world-agent/  # localgpt-world-agent — the live authority, packages, the headless commands, the MCP servers, the shared paths
+├── world-agent/  # localgpt-world-agent — the live authority, packages, the headless commands, the lint and the phrase resolver, the MCP servers, the shared paths
 └── relay/        # localgpt-relay — internet reach for collaborative rooms
 
 apps/
@@ -94,7 +94,7 @@ An agent never runs inside a LocalGPT process. Three doors lead in, all to the s
 | Door | What it is | Who uses it |
 |---|---|---|
 | The folder | `AGENTS.md` and `.live/endpoint.json` in a live package; the app's terminals open there with `$LOCALGPT_WORLD_DIR` set | a coding agent in a terminal, with `localgpt world` |
-| The shim | `localgpt world mcp`: eight tools over stdio against the open world's API | any MCP client |
+| The shim | `localgpt world mcp`: eleven tools over stdio against the open world's API | any MCP client |
 | Gen's tools | `localgpt-gen mcp-server` (the agent's own window) or `--mcp-relay` with `mcp-server --connect` (the window you are looking at): the 88 `gen_*` tools | MCP clients and editors, until they move behind the shim |
 
 The `Tool` trait and the MCP server they share live in `world-agent::mcp`. Every change lands as one log entry, attributed to whoever sent it.

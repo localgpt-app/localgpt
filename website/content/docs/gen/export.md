@@ -152,7 +152,7 @@ Capture a high-resolution image of the current scene.
 | `width` | 1920 | Image width in pixels |
 | `height` | 1080 | Image height in pixels |
 
-An agent uses screenshots while it builds to see what it made and course-correct. `gen_screenshot` (the in-scene version) captures to a temp file and returns the image for the agent to look at.
+An agent uses screenshots while it builds to see what it made and course-correct. `gen_screenshot` (the in-scene version) captures to a file and answers with its path; with `inline: true` it also returns the picture itself, for an agent that cannot read the server's files.
 
 ## World Export (`gen_export_world`)
 

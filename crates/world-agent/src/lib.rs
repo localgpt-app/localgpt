@@ -5,6 +5,10 @@
 //!   agents change from outside through batches of ops.
 //! - [`headless`]: the same authority for scripts, CI and the terminal —
 //!   the logic behind `localgpt world`.
+//! - [`lint`]: what a world looks like to its cameras, in numbers, and what
+//!   in it is probably a mistake — arithmetic over the document, no renderer.
+//! - [`find`]: which entities a phrase like "the red chair on the left"
+//!   means, resolved by rule against a view.
 //! - [`session`]: `.world` packages on disk and in their transport form.
 //! - [`starter`]: the worlds a fresh install opens.
 //! - [`agent_env`]: the environment variables that tell an agent in a shell
@@ -22,7 +26,9 @@
 //! or its API.
 
 pub mod agent_env;
+pub mod find;
 pub mod headless;
+pub mod lint;
 pub mod live;
 #[cfg(feature = "mcp")]
 pub mod mcp;

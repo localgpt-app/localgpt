@@ -34,7 +34,20 @@ localgpt gen mcp-server --mcp-http 8765     # also the streamable HTTP transport
 
 ### localgpt world mcp (the shim)
 
-An open `.world` package's tools — submit a batch, undo, the log, the tips, go to an entry, verify, a screenshot, the selection — over stdio, forwarded to the app that has the world open (`LOCALGPT_WORLD_DIR`, which the desktop app's terminals set, or the folder as the argument).
+An open `.world` package's tools over stdio, forwarded to the app that has the world open (`LOCALGPT_WORLD_DIR`, which the desktop app's terminals set, or the folder as the argument):
+
+| Tool | What it does |
+|------|--------------|
+| `world_submit` | Commit a batch of edit ops, whole or not at all (`ops`; `message`, `author`, `at`) |
+| `world_undo` | Take back the newest edit by appending its inverse (`author`, `at`) |
+| `world_log`, `world_tips` | The history, and where it ends: every branch tip, the head, the entry on screen |
+| `world_goto` | Show an entry in the app's window; nothing is written (`tip`) |
+| `world_verify` | Whether the fold of the log still equals the head, and the assets their hashes |
+| `world_lint` | What each camera sees, in numbers, and what is probably a mistake, each finding with a stable `code` and a hint; nothing is rendered (`at`) |
+| `world_find` | Which entities a phrase means, as the person looking at the world means it — or the question to ask them (`phrase`; `camera`, `at`) |
+| `world_link` | The world as a link that opens in a browser with nothing uploaded (`at`) |
+| `world_screenshot` | The person's view now, as a PNG's path; with `inline`, the picture itself as image content |
+| `world_selection` | What the person has selected, and where they are looking from |
 
 ```bash
 localgpt world mcp [DIR]
@@ -85,6 +98,8 @@ For the window you are looking at, run `localgpt gen --mcp-relay` and give the c
 
 ## Tool Catalog
 
+A tool answers with one text block. The two that make a picture a client would look at, `gen_screenshot` and `world_screenshot`, answer with its path, and with `inline: true` the picture too, as an MCP `image` block: a path is only an answer to an agent that shares the server's files.
+
 Every tool below is Gen's, except the audio models' at the end; the names are what `localgpt gen mcp-server` (or `localgpt-gen mcp-server`) lists. Each row names every argument its tool takes, the ones a call must give and the ones it may, and a test holds Gen's rows to the tools' schemas. A call that carries any other argument is refused and the tool is not run: the answer lists the arguments the tool takes. There are no memory, web or file tools: the agent brings its own.
 
 ### Gen: Scene Query
@@ -93,7 +108,7 @@ Every tool below is Gen's, except the audio models' at the end; the names are wh
 |------|-------------|-----------------|-----------------|
 | `gen_scene_info` | Get complete scene hierarchy with all entities, transforms, and materials | -- | -- |
 | `gen_entity_info` | Get detailed information about a specific entity | `name` | -- |
-| `gen_screenshot` | Capture a screenshot with optional highlighting and annotations | -- | `width`, `height`, `highlight_entity`, `highlight_color`, `camera_angle` (current/top_down/isometric/front/entity_focus), `include_annotations`, `wait_frames` |
+| `gen_screenshot` | Capture a screenshot with optional highlighting and annotations | -- | `width`, `height`, `highlight_entity`, `highlight_color`, `camera_angle` (current/top_down/isometric/front/entity_focus), `include_annotations`, `wait_frames`, `inline` (also return the picture itself, as image content) |
 
 ### Gen: Entity Manipulation
 

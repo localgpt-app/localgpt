@@ -2347,6 +2347,12 @@ fn live_view(
                 "handles": handle_points(handles.as_deref(), &cameras),
                 // A selection box being drawn: [x0, y0, x1, y1] in window points.
                 "box": marquee.as_ref().and_then(|m| m.rect()),
+                // Where the person stands and which way they look: what
+                // "the one on the left" means to them (`localgpt world find`).
+                "view": cameras.single().ok().map(|(_, global)| json!({
+                    "position": global.translation().to_array(),
+                    "forward": global.forward().as_vec3().to_array(),
+                })),
                 // The primary as the scene draws it.
                 "scene": selection
                     .as_ref()

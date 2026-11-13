@@ -25,7 +25,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use localgpt_world_agent::agent_env::Endpoint;
 use localgpt_world_agent::mcp::Tool;
-use localgpt_world_agent::mcp::{ToolSchema, run_mcp_stdio_server};
+use localgpt_world_agent::mcp::{ToolOutput, ToolSchema, run_mcp_stdio_server};
 use serde_json::{Value, json};
 
 use super::world_api::Api;
@@ -55,8 +55,11 @@ pub async fn run(dir: Option<PathBuf>) -> Result<()> {
         Box::new(TipsTool(api.clone())),
         Box::new(GotoTool(api.clone())),
         Box::new(VerifyTool(api.clone())),
+        Box::new(LintTool(api.clone())),
         Box::new(ScreenshotTool(api.clone())),
-        Box::new(SelectionTool(api)),
+        Box::new(SelectionTool(api.clone())),
+        Box::new(FindTool(api.clone())),
+        Box::new(LinkTool(api)),
     ];
     #[cfg(feature = "audio")]
     tools.extend(audio);
@@ -129,19 +132,201 @@ simple_tool!(
     "/verify"
 );
 simple_tool!(
-    ScreenshotTool,
-    "world_screenshot",
-    "Take a screenshot of the open world and return the path to the PNG. Use it to see what an edit actually did.",
-    GET,
-    "/screenshot"
-);
-simple_tool!(
     SelectionTool,
     "world_selection",
     "What the person has selected in the app right now — the entities they are looking at.",
     GET,
     "/selection"
 );
+
+/// The arguments as an object, or the reason they are not one.
+fn arguments(arguments: &str) -> Result<Value> {
+    let args: Value = serde_json::from_str(arguments)
+        .map_err(|e| anyhow::anyhow!("the arguments aren't JSON: {e}"))?;
+    Ok(if args.is_null() { json!({}) } else { args })
+}
+
+/// The `at` every reading tool takes.
+const AT: &str = "The entry to read: an id (from world_tips or world_log), `current` for what the window shows, or `base`.";
+
+struct ScreenshotTool(Api);
+
+#[async_trait]
+impl Tool for ScreenshotTool {
+    fn name(&self) -> &str {
+        "world_screenshot"
+    }
+
+    fn schema(&self) -> ToolSchema {
+        ToolSchema {
+            name: "world_screenshot".to_string(),
+            description:
+                "Take a screenshot of the open world: the person's view, now. Returns the \
+                 PNG's path and which entry it shows; with `inline`, the picture itself as well. \
+                 Use it to see what an edit actually did — after world_lint, which says in numbers \
+                 what a picture leaves you to judge."
+                    .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "inline": {
+                        "type": "boolean",
+                        "description": "Also return the picture itself, as image content. For an agent that cannot read the path, or to save the second call."
+                    }
+                }
+            }),
+        }
+    }
+
+    async fn execute(&self, _arguments: &str) -> Result<String> {
+        self.0.call(reqwest::Method::GET, "/screenshot", None).await
+    }
+
+    async fn call(&self, arguments: &str) -> Result<ToolOutput> {
+        let inline = self::arguments(arguments)?["inline"] == true;
+        let reply = self.execute(arguments).await?;
+        let path = serde_json::from_str::<Value>(&reply)
+            .ok()
+            .and_then(|shot| shot["path"].as_str().map(PathBuf::from));
+        Ok(match path {
+            Some(path) if inline => ToolOutput::text(reply).with_png(&path),
+            _ => ToolOutput::text(reply),
+        })
+    }
+}
+
+struct LintTool(Api);
+
+#[async_trait]
+impl Tool for LintTool {
+    fn name(&self) -> &str {
+        "world_lint"
+    }
+
+    fn schema(&self) -> ToolSchema {
+        ToolSchema {
+            name: "world_lint".to_string(),
+            description: "What each camera in this world sees, in numbers, and what is probably a \
+                 mistake: a camera inside a wall, a subject hidden behind something, a shot and its \
+                 reverse on opposite sides of the line, a figure sunk into the floor, a trigger this \
+                 app keeps and never runs. `shots` lists what is in each camera's frame and the \
+                 share of the frame it covers; each of `diagnostics` has a stable `code`, the \
+                 `entities` it is about and a `hint`. Nothing is rendered, so it is cheap: run it \
+                 after a batch, before asking anyone to look."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "at": {"type": "string", "description": format!("{AT} Leave it out for the head.")}
+                }
+            }),
+        }
+    }
+
+    fn annotations(&self) -> Option<Value> {
+        Some(json!({"readOnlyHint": true}))
+    }
+
+    async fn execute(&self, arguments: &str) -> Result<String> {
+        let args = self::arguments(arguments)?;
+        let report = super::world::lint_report(self.0.dir(), args["at"].as_str()).await?;
+        Ok(report.to_json().to_string())
+    }
+}
+
+struct FindTool(Api);
+
+#[async_trait]
+impl Tool for FindTool {
+    fn name(&self) -> &str {
+        "world_find"
+    }
+
+    fn schema(&self) -> ToolSchema {
+        ToolSchema {
+            name: "world_find".to_string(),
+            description: "Which entities a phrase means — \"the red chair on the left\", \"both \
+                 lamps\", \"every wall except the back one\" — as the person looking at the world \
+                 would mean it: left, right, front and back are read from their view. Resolved by \
+                 rule (names, shape and colour words, sides, height, size, counts, ordinals, lists, \
+                 \"except\"), with no guess: `matches` holds the entities only when the phrase picks \
+                 them out; when it could mean several, `candidates` and a `question` to put to the \
+                 person; words outside the rules come back in `unknown` for you to settle. \
+                 world_selection is what they clicked; this is what they said."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "phrase": {"type": "string", "description": "The words the person used for the thing."},
+                    "camera": {"type": "string", "description": "Read sides and distance through this camera entity (a shot's name, or `#id`) instead of the person's view."},
+                    "at": {"type": "string", "description": format!("{AT} Leave it out for what the window shows.")}
+                },
+                "required": ["phrase"]
+            }),
+        }
+    }
+
+    fn annotations(&self) -> Option<Value> {
+        Some(json!({"readOnlyHint": true}))
+    }
+
+    async fn execute(&self, arguments: &str) -> Result<String> {
+        let args = self::arguments(arguments)?;
+        let phrase = args["phrase"]
+            .as_str()
+            .filter(|phrase| !phrase.trim().is_empty())
+            .ok_or_else(|| anyhow::anyhow!("`phrase` is the words to resolve"))?;
+        let found = super::world::found(
+            self.0.dir(),
+            phrase,
+            args["camera"].as_str(),
+            args["at"].as_str(),
+        )
+        .await?;
+        Ok(found.to_json().to_string())
+    }
+}
+
+struct LinkTool(Api);
+
+#[async_trait]
+impl Tool for LinkTool {
+    fn name(&self) -> &str {
+        "world_link"
+    }
+
+    fn schema(&self) -> ToolSchema {
+        ToolSchema {
+            name: "world_link".to_string(),
+            description: "This world as a link that opens in a browser. The whole manifest rides \
+                 in the link's fragment, which a browser never sends to a server: nothing is \
+                 uploaded or stored. A world that needs files (meshes, textures, a recording) is \
+                 refused, naming them."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "at": {"type": "string", "description": format!("{AT} Leave it out for the head.")}
+                }
+            }),
+        }
+    }
+
+    fn annotations(&self) -> Option<Value> {
+        Some(json!({"readOnlyHint": true}))
+    }
+
+    async fn execute(&self, arguments: &str) -> Result<String> {
+        let args = self::arguments(arguments)?;
+        let (link, world) = super::world::linked(self.0.dir(), args["at"].as_str(), None).await?;
+        Ok(json!({
+            "link": link,
+            "characters": link.len(),
+            "entities": world["entities"].as_array().map_or(0, Vec::len),
+        })
+        .to_string())
+    }
+}
 
 struct SubmitTool(Api);
 
@@ -317,15 +502,21 @@ mod tests {
             Box::new(TipsTool(api())),
             Box::new(GotoTool(api())),
             Box::new(VerifyTool(api())),
+            Box::new(LintTool(api())),
             Box::new(ScreenshotTool(api())),
             Box::new(SelectionTool(api())),
+            Box::new(FindTool(api())),
+            Box::new(LinkTool(api())),
         ];
         let mut names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
         names.sort_unstable();
         assert_eq!(
             names,
             [
+                "world_find",
                 "world_goto",
+                "world_link",
+                "world_lint",
                 "world_log",
                 "world_screenshot",
                 "world_selection",

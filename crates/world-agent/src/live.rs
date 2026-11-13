@@ -63,6 +63,14 @@ pub const AGENTS: &str = "AGENTS.md";
 pub const LIVE: &str = ".live";
 /// Under `.live/`: what was tried outside the API and why it did not take.
 pub const REFUSALS: &str = "refusals.jsonl";
+/// Under `.live/`: every batch the authority refused, as sent, with the
+/// reasons — what authors got wrong, which the log never shows.
+pub const REJECTED: &str = "rejected.jsonl";
+
+/// A refused batch larger than this is noted by its size, not kept.
+const MAX_REJECTED_BATCH_BYTES: usize = 64 << 10;
+/// Past this, `rejected.jsonl` drops its older half.
+const MAX_REJECTED_BYTES: u64 = 2 << 20;
 
 /// True when `dir` is a `.world` package — a folder holding its
 /// `manifest.json`, whether or not a log has grown yet.
@@ -297,7 +305,26 @@ impl LiveWorld {
     /// compaction renumbers lines), so a fork from an entry written before
     /// entries carried ids — or off a main whose tip is one — is refused
     /// rather than written wrong.
+    ///
+    /// A refused batch is kept, as sent and with its reasons, in
+    /// `.live/rejected.jsonl` ([`rejected`]): the log holds what authors got
+    /// right, and this holds what they got wrong, which is the half that
+    /// says whether the guide and the refusals are doing their job.
     pub fn submit_at(
+        &mut self,
+        at: Option<&str>,
+        input: &Value,
+        author: &str,
+        message: Option<&str>,
+    ) -> Result<Committed, Rejected> {
+        let result = self.take(at, input, author, message);
+        if let Err(refused) = &result {
+            self.note_rejected(at, input, author, &refused.errors);
+        }
+        result
+    }
+
+    fn take(
         &mut self,
         at: Option<&str>,
         input: &Value,
@@ -434,6 +461,11 @@ impl LiveWorld {
         if !errors.is_empty() {
             return Err(Rejected { errors });
         }
+        // And what the batch brought that this app keeps and does not run —
+        // a host action it does not have, an extension it has no code for.
+        // The world holds it for a reader that does; said here, or "nothing
+        // happened" reads as a bug.
+        warnings.extend(carried_by(&committed, &before, &ingest.trial));
 
         let revision = self.next_revision();
         let mut entry = entry(
@@ -822,6 +854,51 @@ impl LiveWorld {
         }
     }
 
+    /// Append a refused batch to `.live/rejected.jsonl`: the batch as it was
+    /// sent, who sent it, the entry it was read against and every reason it
+    /// was refused. Never the cause of a failure: a folder that cannot be
+    /// written to still refuses the batch, and says why.
+    fn note_rejected(&self, at: Option<&str>, input: &Value, author: &str, errors: &[String]) {
+        // An envelope's own author and `at` are the ones that counted.
+        let said = |key: &str| input.get(key).and_then(Value::as_str);
+        let sent = input.to_string();
+        let mut line = json!({
+            "at_ms": now_ms(),
+            "author": said("author").unwrap_or(author),
+            "revision": self.revision(),
+            // The entry the batch was read against: replaying it there
+            // (`localgpt world show --at <id> --json` is that world) gives
+            // these errors again.
+            "against": said("at").or(at).map(str::to_string).or_else(|| self.main_tip()),
+            "errors": errors,
+        });
+        if sent.len() <= MAX_REJECTED_BATCH_BYTES {
+            line["batch"] = input.clone();
+        } else {
+            line["batch_bytes"] = json!(sent.len());
+        }
+        let dir = self.dir.join(LIVE);
+        let path = dir.join(REJECTED);
+        let _ = std::fs::create_dir_all(&dir);
+        // The newest are the ones worth having: past the bound, the older
+        // half goes.
+        if std::fs::metadata(&path).is_ok_and(|m| m.len() > MAX_REJECTED_BYTES)
+            && let Ok(text) = std::fs::read_to_string(&path)
+        {
+            let lines: Vec<&str> = text.lines().collect();
+            let kept = lines[lines.len() / 2..].join("\n") + "\n";
+            let _ = write_atomic(&path, kept.as_bytes());
+        }
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
+            use std::io::Write;
+            let _ = writeln!(file, "{line}");
+        }
+    }
+
     /// The commit the package's git `HEAD` names now, when it is a
     /// repository.
     pub fn git_head(&self) -> Option<String> {
@@ -1067,7 +1144,26 @@ impl Ingest {
     /// Bind, read strictly, store assets, apply to the trial.
     fn op(&mut self, mut raw: Value) -> Result<EditOp, String> {
         self.bind(&mut raw)?;
-        let mut op: EditOp = serde_json::from_value(raw.clone()).map_err(|e| e.to_string())?;
+        // A value of the wrong type is refused with the pointer to it, as a
+        // field the format lacks is below: "invalid type: string, expected
+        // an array of length 4" says what, and in an entity of thirty
+        // fields the author still has to find where.
+        let mut op: EditOp = serde_path_to_error::deserialize(raw.clone()).map_err(|e| {
+            let pointer: String = e
+                .path()
+                .iter()
+                .filter_map(|segment| match segment {
+                    serde_path_to_error::Segment::Seq { index } => Some(format!("/{index}")),
+                    serde_path_to_error::Segment::Map { key } => Some(format!("/{key}")),
+                    serde_path_to_error::Segment::Enum { variant } => Some(format!("/{variant}")),
+                    serde_path_to_error::Segment::Unknown => None,
+                })
+                .collect();
+            match pointer.as_str() {
+                "" => e.inner().to_string(),
+                pointer => format!("{pointer}: {}", e.inner()),
+            }
+        })?;
         let mut unknown = Vec::new();
         dropped_keys(&raw, &to_value(&op), String::new(), &mut unknown);
         unknown_entity_keys(&op, &mut unknown);
@@ -2019,6 +2115,41 @@ fn touched(ops: &[EditOp]) -> HashSet<Touch> {
     set
 }
 
+/// What `ops` brought into the world that this app carries and does not run
+/// ([`crate::lint::carried_not_run`]): of every entity the batch spawned or
+/// changed, what it holds now and did not before, so moving a lamp does not
+/// repeat what was said when its trigger was written. Each line ends with
+/// the rule's code.
+fn carried_by(ops: &[EditOp], before: &WorldDoc, after: &WorldDoc) -> Vec<String> {
+    let mut ids: Vec<u64> = touched(ops)
+        .into_iter()
+        .filter_map(|touch| match touch {
+            Touch::Entity(id) => Some(id),
+            _ => None,
+        })
+        .collect();
+    ids.sort_unstable();
+    let mut said = Vec::new();
+    for id in ids {
+        let Some(now) = after.get(id) else {
+            continue;
+        };
+        let had: Vec<String> = before
+            .get(id)
+            .map(crate::lint::carried_not_run)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|d| d.message)
+            .collect();
+        for d in crate::lint::carried_not_run(now) {
+            if !had.contains(&d.message) {
+                said.push(format!("{} ({})", d.message, d.code));
+            }
+        }
+    }
+    said
+}
+
 /// Whether `entry`, folded strictly onto `before` the way every reader
 /// folds the log, gives `after` — the world the committer made in memory.
 /// Per entity, with the tolerance `verify` uses, plus the environment and
@@ -2061,6 +2192,21 @@ fn folds_back(before: &WorldDoc, entry: &OpLogEntry, after: &WorldDoc) -> Result
 /// tried outside the API and why it did not take.
 pub fn refusals(dir: &Path) -> Vec<Value> {
     std::fs::read_to_string(dir.join(LIVE).join(REFUSALS))
+        .map(|text| {
+            text.lines()
+                .filter_map(|line| serde_json::from_str(line).ok())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The batches the authority refused, oldest first, from
+/// `.live/rejected.jsonl`: each as it was sent (`batch`), by whom, the entry
+/// it was read against (`against`) and the reasons (`errors`). The raw
+/// material for a corpus of what authors get wrong
+/// (`crates/world-agent/tests/corpus/`).
+pub fn rejected(dir: &Path) -> Vec<Value> {
+    std::fs::read_to_string(dir.join(LIVE).join(REJECTED))
         .map(|text| {
             text.lines()
                 .filter_map(|line| serde_json::from_str(line).ok())
@@ -2297,7 +2443,11 @@ EOF
   revision reads `the world is at revision 1, not 0: read it again, then
   decide again`. `--json` prints the receipt whole: `result`, `revision`,
   `id`, `parent`, `head`, `branch`, `changes`, `spawned` (name → id), `stored`
-  (asset → its copy), `warnings` and `on_screen`.
+  (asset → its copy), `warnings` and `on_screen`. A warning that ends
+  `(carried-not-run)` says the world kept what you sent and this app will
+  not run it: a trigger's host action it does not have, an extension
+  nothing here reads — a misspelt `ext-…` key among them, which commits
+  like any other.
 - Add `--expected-revision N` — the revision you read from `localgpt world
   log` (or the entry's, when building on one) — when the batch must land on
   the world you read. If anyone moved it since, the batch is refused naming
@@ -2465,11 +2615,35 @@ builds on — the branch is the treatment.
   redo` takes the newest undo back the same way (`--own` too); a batch
   since the undo ends it.
 - `localgpt world verify` — whether the package agrees with its history.
+- `localgpt world lint` — what each camera sees and what is probably a
+  mistake, from the document alone, so it needs no window: a line per camera
+  with what is in its frame and the share of the frame each thing fills,
+  then a line per finding (`warning[camera-inside]: 1B is inside wall-back`)
+  with what would change it under it. Run it after a batch and before a
+  screenshot: it says in numbers what a picture leaves you to judge. The
+  warnings are `camera-inside`, `empty-frame`, `subject-hidden`,
+  `focus-out-of-frame`, `dangling-target`, `line-crossed`, `shot-timing`,
+  `duplicate` and `tiny-world`; the notes, which are often deliberate, are
+  `sunk`, `carried-not-run` and `nothing-to-draw`. `--at` as for `show`,
+  `--strict` to exit 1 on a warning, `--json` for every number.
+- `localgpt world find the red chair on the left` — which entities a phrase
+  means, as the person looking at the world means it: left, right, front and
+  back are theirs while the app is open (`--camera 1A` reads them through a
+  shot instead). It answers `#12 chair-a`, or asks (`Which one: chair-a or
+  chair-b?`, exit status 1) rather than guess; a word it has no rule for
+  comes back as `not understood`, for you to settle. `selection` is what
+  they clicked; this is what they said.
+- `localgpt world link` — the world as a link that opens in a browser with
+  nothing uploaded: the whole manifest rides in the link. For a world of
+  shapes; one that uses files (meshes, textures, a recording) is refused.
 - `.live/preview.png` refreshes by itself after every change.
 - Writing `manifest.json` or `ops.jsonl` yourself does nothing lasting: the
   committer puts them back and notes it in `.live/refusals.jsonl` (the file
   appears on the first refusal). If a change of yours vanished, that is why
   — send it as a batch.
+- `.live/rejected.jsonl` keeps every batch the world refused, as it was
+  sent, with the reasons: read your last one there and correct it, rather
+  than sending it again.
 
 ## History is a tree
 
@@ -2723,6 +2897,80 @@ mod tests {
         assert_eq!(std::fs::read(dir.join(MANIFEST)).unwrap(), before);
         assert!(read_log(&dir).is_empty());
         assert_eq!(live.revision(), 0);
+
+        // What was refused is kept as it was sent, with its reasons: the
+        // log holds what authors got right, and this what they got wrong.
+        let kept = rejected(&dir);
+        assert_eq!(kept.len(), 1, "{kept:?}");
+        assert_eq!(kept[0]["author"], "claude");
+        assert_eq!(kept[0]["revision"], 0);
+        assert_eq!(
+            kept[0]["against"],
+            Value::Null,
+            "the base: nothing is committed yet"
+        );
+        assert_eq!(kept[0]["batch"][2]["MoveEntity"]["id"], 2);
+        assert_eq!(kept[0]["errors"].as_array().unwrap().len(), 3);
+        assert_eq!(kept[0]["errors"][1], refused.errors[1]);
+        // An envelope's own author is the one that counted; a batch that
+        // commits leaves no line.
+        live.submit(&json!({"ops": [], "author": "maya"}), "cli", None)
+            .unwrap_err();
+        live.submit(
+            &json!([{"SpawnEntity": {"entity": {"name": "post"}}}]),
+            "cli",
+            None,
+        )
+        .unwrap();
+        let kept = rejected(&dir);
+        assert_eq!(kept.len(), 2, "{kept:?}");
+        assert_eq!(kept[1]["author"], "maya");
+        assert_eq!(kept[1]["errors"], json!(["the batch holds no ops"]));
+    }
+
+    #[test]
+    fn what_a_batch_brings_that_this_app_does_not_run_is_on_its_receipt_once() {
+        let (_dir, mut live) = world();
+        let done = live
+            .submit(
+                &json!([{"SpawnEntity": {"entity": {"name": "gate",
+                "transform": {"position": [3.0, 1.0, 0.0]},
+                "shape": {"Cuboid": {"x": 2.0, "y": 2.0, "z": 0.2}},
+                "ext-physics": {"body": "static"},
+                "triggers": [
+                    {"on": {"event": "click"}, "action": {"action": "host", "name": "open_gate"}},
+                    {"on": {"event": "click"}, "action": {"action": "host", "name": "add_score"}}
+                ]}}}]),
+                "cli",
+                None,
+            )
+            .unwrap();
+        assert_eq!(done.warnings.len(), 2, "{:?}", done.warnings);
+        assert!(
+            done.warnings[0].contains("host action \"open_gate\"")
+                && done.warnings[0].ends_with("(carried-not-run)"),
+            "{:?}",
+            done.warnings
+        );
+        assert!(
+            done.warnings[1].contains("`ext-physics`"),
+            "{:?}",
+            done.warnings
+        );
+        assert_eq!(
+            receipt(&done, live.main_tip())["warnings"][0],
+            done.warnings[0]
+        );
+
+        // Moving the gate is not writing its trigger again.
+        let moved = live
+            .submit(
+                &json!([{"ModifyEntity": {"id": "gate", "patch": {"transform": {"position": [4.0, 1.0, 0.0]}}}}]),
+                "cli",
+                None,
+            )
+            .unwrap();
+        assert_eq!(moved.warnings, Vec::<String>::new());
     }
 
     #[test]

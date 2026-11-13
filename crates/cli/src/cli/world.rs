@@ -35,10 +35,12 @@ use clap::{Args, Subcommand};
 use localgpt_world_agent::agent_env::{AUTHOR_ENV, WORLD_DIR_ENV};
 use localgpt_world_agent::headless::{self, Command as WorldCommand, HeadlessError};
 use localgpt_world_agent::live::{self, LiveWorld};
+use localgpt_world_agent::{find, lint};
 use localgpt_world_editor::{Editor, History};
 use serde_json::{Value, json};
 
 use super::world_api::{Answer, Api};
+use super::world_link;
 
 #[derive(Subcommand)]
 pub enum WorldCommands {
@@ -139,6 +141,66 @@ pub enum WorldCommands {
     Verify {
         /// The world folder; else $LOCALGPT_WORLD_DIR, else the one you're in
         dir: Option<PathBuf>,
+        #[command(flatten)]
+        out: Out,
+    },
+    /// What each camera sees, in numbers, and what is probably a mistake
+    ///
+    /// A line per camera — what is in its frame and how much of the frame
+    /// each thing fills — then a line per finding with a hint under it: a
+    /// camera inside a wall, a subject behind something, a shot and its
+    /// reverse across the line, a figure sunk into the floor, a trigger this
+    /// app keeps and never runs. Arithmetic over the document: no window, no
+    /// renderer, no app needed.
+    Lint {
+        /// The world folder; else $LOCALGPT_WORLD_DIR, else the one you're in
+        dir: Option<PathBuf>,
+        /// The entry: an id, `head` (the default), `current` (what the
+        /// window shows) or `base`
+        #[arg(long, value_name = "ENTRY")]
+        at: Option<String>,
+        /// Exit 1 when anything is a warning (notes never fail)
+        #[arg(long)]
+        strict: bool,
+        #[command(flatten)]
+        out: Out,
+    },
+    /// Which entities a phrase means: "the red chair on the left"
+    ///
+    /// Names, shape and colour words, sides and distance, height and size,
+    /// counts, ordinals, lists and "except" — resolved by rule. When the
+    /// phrase could mean several it asks which, and exits 1 without a
+    /// guess. Left and right are the person's, when the app has the world
+    /// open; else the world's opening view. The world folder may come first.
+    Find {
+        /// The phrase
+        #[arg(required = true, value_name = "PHRASE")]
+        phrase: Vec<String>,
+        /// Read left, right, front and back through this camera entity (a
+        /// shot's name) instead
+        #[arg(long, value_name = "ENTITY")]
+        camera: Option<String>,
+        /// The entry: an id, `current` (the default: what the window
+        /// shows), `head` or `base`
+        #[arg(long, value_name = "ENTRY")]
+        at: Option<String>,
+        #[command(flatten)]
+        out: Out,
+    },
+    /// The world as a link that opens in a browser, with nothing uploaded
+    ///
+    /// The whole manifest rides in the link's fragment, which a browser
+    /// never sends to a server. A world that needs files (meshes, textures,
+    /// a recording) is refused: publish its package instead.
+    Link {
+        /// The world folder; else $LOCALGPT_WORLD_DIR, else the one you're in
+        dir: Option<PathBuf>,
+        /// The entry: an id, `head` (the default), `current` or `base`
+        #[arg(long, value_name = "ENTRY")]
+        at: Option<String>,
+        /// The viewer page the link opens, when it is not localgpt.world's
+        #[arg(long, value_name = "URL")]
+        viewer: Option<String>,
         #[command(flatten)]
         out: Out,
     },
@@ -398,6 +460,71 @@ async fn say(command: WorldCommands) -> Result<Said> {
                 },
             }
         }
+        C::Lint {
+            dir,
+            at,
+            strict,
+            out,
+        } => {
+            let report = lint_report(&world_dir(dir)?, at.as_deref()).await?;
+            let failed = strict && report.warnings() > 0;
+            if out.json {
+                Said::json(&report.to_json(), failed)
+            } else {
+                Said {
+                    out: report.lines(),
+                    err: Vec::new(),
+                    failed,
+                }
+            }
+        }
+        C::Find {
+            phrase,
+            camera,
+            at,
+            out,
+        } => {
+            // The world folder first, when it's given, as for `get`.
+            let mut phrase = phrase;
+            let dir = (phrase.len() > 1 && live::is_package(Path::new(&phrase[0])))
+                .then(|| PathBuf::from(phrase.remove(0)));
+            let found = found(
+                &world_dir(dir)?,
+                &phrase.join(" "),
+                camera.as_deref(),
+                at.as_deref(),
+            )
+            .await?;
+            // A phrase that picked nothing out — nothing fits, or several
+            // do and it asks which — fails, so a script does not act on it.
+            let failed = found.matches.is_empty();
+            match (out.json, failed) {
+                (true, _) => Said::json(&found.to_json(), failed),
+                (false, false) => Said::out(found.lines()),
+                (false, true) => Said::failed(found.lines()),
+            }
+        }
+        C::Link {
+            dir,
+            at,
+            viewer,
+            out,
+        } => {
+            let (link, world) = linked(&world_dir(dir)?, at.as_deref(), viewer.as_deref()).await?;
+            if out.json {
+                Said::json(
+                    &json!({
+                        "link": link,
+                        "characters": link.len(),
+                        "entities": world["entities"].as_array().map_or(0, Vec::len),
+                    }),
+                    false,
+                )
+            } else {
+                // The link alone, so `$(localgpt world link)` is the link.
+                Said::out(vec![link])
+            }
+        }
         C::Screenshot { dir, out } => {
             let dir = world_dir(dir)?;
             match Api::holding(&dir) {
@@ -628,6 +755,72 @@ fn needs_app(what: &str, dir: &Path) -> Said {
         dir.display(),
         dir.display()
     )])
+}
+
+/// The lint's report on the world at an entry (the head when `None`): the
+/// commands' and the shim's, so both say the same of the same world.
+pub(crate) async fn lint_report(dir: &Path, at: Option<&str>) -> Result<lint::Report> {
+    let world = world_read(dir, at).await?;
+    lint::lint_json(&world).map_err(|e| anyhow!("{e}"))
+}
+
+/// The world at an entry, for a command that only reads it and must leave
+/// the folder as it found it. `world_at` opens the package when no app
+/// holds it, and an authority completes what it opens — a published
+/// package gets its base snapshot and its guide — which is right for a
+/// command about to write and wrong for a check run over someone's
+/// package. The head is `manifest.json` (the format's rule: it is the
+/// world now), so it is read as a file; only an earlier entry needs the
+/// fold, and so the authority.
+async fn world_read(dir: &Path, at: Option<&str>) -> Result<Value> {
+    let head = matches!(at, None | Some("head" | "current"));
+    if head && Api::holding(dir).is_none() {
+        let path = dir.join(live::MANIFEST);
+        let text = std::fs::read_to_string(&path)
+            .map_err(|e| anyhow!("no world at {}: {e}", dir.display()))?;
+        return serde_json::from_str(&text)
+            .map_err(|e| anyhow!("{} isn't a world manifest: {e}", path.display()));
+    }
+    Ok(world_at(dir, at).await?.0)
+}
+
+/// The entities `phrase` means in the world at an entry — what the window
+/// shows, when `None`. Sides are read through `camera` when one is named;
+/// else as the person sees the world, when an app that reports its view
+/// holds it; else from the world's opening view.
+pub(crate) async fn found(
+    dir: &Path,
+    phrase: &str,
+    camera: Option<&str>,
+    at: Option<&str>,
+) -> Result<find::Found> {
+    let world = world_read(dir, at.or(Some("current"))).await?;
+    let app_view = match (camera, Api::holding(dir)) {
+        (None, Some(api)) => api
+            .get("/selection", &[])
+            .await
+            .ok()
+            .filter(Answer::ok)
+            .and_then(|answer| answer.body.get("view").cloned()),
+        _ => None,
+    };
+    let viewpoint = match camera {
+        Some(camera) => find::Viewpoint::Camera(camera),
+        None => find::Viewpoint::App(app_view.as_ref()),
+    };
+    find::find_json(&world, phrase, viewpoint).map_err(|e| anyhow!("{e}"))
+}
+
+/// The link that opens the world at an entry (the head when `None`) in a
+/// browser, and the world it carries.
+pub(crate) async fn linked(
+    dir: &Path,
+    at: Option<&str>,
+    viewer: Option<&str>,
+) -> Result<(String, Value)> {
+    let world = world_read(dir, at).await?;
+    let link = world_link::link(&world, viewer.unwrap_or(world_link::VIEWER))?;
+    Ok((link, world))
 }
 
 /// The world at an entry and what to call that entry: from the app when it
@@ -1444,6 +1637,69 @@ mod tests {
     }
 
     #[test]
+    fn the_worlds_guide_names_every_code_the_lint_can_give() {
+        // An agent meets a code in `lint`'s output and looks for it in the
+        // guide; and a code the guide names that the lint lost is a
+        // promise it no longer keeps.
+        let guide = live::AGENTS_GUIDE;
+        let section = guide
+            .split_once("`localgpt world lint`")
+            .and_then(|(_, rest)| rest.split_once("\n- `localgpt world find"))
+            .map(|(section, _)| section)
+            .expect("the guide describes `localgpt world lint`");
+        for rule in lint::RULES {
+            assert!(
+                section.contains(&format!("`{}`", rule.code)),
+                "the guide does not name `{}`",
+                rule.code
+            );
+        }
+        // Nothing else in backticks but the example line, the three flags
+        // and `show`: a code the lint no longer has would be one more.
+        let named = section.matches('`').count() / 2;
+        assert_eq!(named, lint::RULES.len() + 5, "{section}");
+    }
+
+    /// The user documentation's table of codes is the lint's own list: the
+    /// same codes, in the same order, each a warning or a note as the lint
+    /// has it and meaning what the lint says it means.
+    #[test]
+    fn the_user_docs_table_of_codes_is_the_lints_rules() {
+        let page = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../website/content/docs/cli-commands.md");
+        let docs = std::fs::read_to_string(&page).expect("the CLI's page in the user docs");
+        let section = docs
+            .split_once("### `world lint`")
+            .and_then(|(_, rest)| rest.split_once("### `world find`"))
+            .map(|(section, _)| section)
+            .expect("the page describes `world lint`");
+        let rows: Vec<(String, String, String)> = section
+            .lines()
+            .filter(|line| line.starts_with("| `"))
+            .map(|line| {
+                let cells: Vec<String> = line
+                    .trim_matches('|')
+                    .split('|')
+                    .map(|cell| cell.trim().replace('`', ""))
+                    .collect();
+                assert_eq!(cells.len(), 3, "{line}");
+                (cells[0].clone(), cells[1].clone(), cells[2].clone())
+            })
+            .collect();
+        let rules: Vec<(String, String, String)> = lint::RULES
+            .iter()
+            .map(|rule| {
+                (
+                    rule.code.to_string(),
+                    rule.severity.as_str().to_string(),
+                    rule.what.to_string(),
+                )
+            })
+            .collect();
+        assert_eq!(rows, rules);
+    }
+
+    #[test]
     fn a_flag_fills_in_only_what_the_batch_does_not_say() {
         let body = envelope(
             json!({"ops": [], "author": "batch"}),
@@ -1729,5 +1985,297 @@ mod tests {
         assert!(said.failed);
         let sent = app.sent.lock().unwrap();
         assert_eq!(sent.last().unwrap().target, "/world?tip=current");
+    }
+
+    /// A room with two chairs, a figure, and a camera looking in from +Z.
+    fn furnish(dir: &Path) {
+        let chair = |name: &str, x: f32, colour: [f32; 4]| {
+            json!({"SpawnEntity": {"entity": {"name": name,
+                "transform": {"position": [x, 0.45, 0.0]},
+                "shape": {"Cuboid": {"x": 0.5, "y": 0.9, "z": 0.5}},
+                "material": {"color": colour}}}})
+        };
+        headless::run(
+            dir,
+            WorldCommand::Submit {
+                batch: json!({"ops": [
+                    {"SpawnEntity": {"entity": {"name": "floor",
+                        "transform": {"position": [0.0, -0.05, 0.0]},
+                        "shape": {"Cuboid": {"x": 8.0, "y": 0.1, "z": 6.0}}}}},
+                    {"SpawnEntity": {"entity": {"name": "wall-back",
+                        "transform": {"position": [0.0, 1.5, -3.05]},
+                        "shape": {"Cuboid": {"x": 8.0, "y": 3.0, "z": 0.1}}}}},
+                    chair("chair-a", -2.0, [0.8, 0.1, 0.1, 1.0]),
+                    chair("chair-b", 2.0, [0.1, 0.2, 0.8, 1.0]),
+                    {"SpawnEntity": {"entity": {"name": "1A",
+                        "transform": {"position": [0.0, 1.6, 5.0]},
+                        "ext-cinematography": {"camera": {"aim": [0.0, 1.0, 0.0]},
+                            "shot": {"scene": "1", "order": 1, "size": "WS"}}}}},
+                ]}),
+                author: "test".into(),
+                message: None,
+                at: None,
+            },
+        )
+        .expect("a room");
+    }
+
+    fn lint(dir: &Path, strict: bool, json: bool) -> WorldCommands {
+        WorldCommands::Lint {
+            dir: Some(dir.to_path_buf()),
+            at: None,
+            strict,
+            out: Out { json },
+        }
+    }
+
+    #[tokio::test]
+    async fn lint_says_what_a_camera_sees_and_what_is_wrong_with_no_app_open() {
+        let dir = package("lint");
+        furnish(&dir);
+        let said = lines(lint(&dir, true, false)).await;
+        assert!(said[0].starts_with("1A    WS"), "{said:?}");
+        assert!(
+            said[0].contains("chair-a") && said[0].contains("chair-b"),
+            "{said:?}"
+        );
+        assert_eq!(said.last().unwrap(), "ok: nothing to flag in 5 entities");
+
+        // A figure placed at its feet, and the camera pushed into the wall.
+        headless::run(
+            &dir,
+            WorldCommand::Submit {
+                batch: json!({"ops": [
+                    {"SpawnEntity": {"entity": {"name": "MAYA",
+                        "shape": {"Capsule": {"radius": 0.18, "half_length": 0.67}}}}},
+                    {"ModifyEntity": {"id": "1A", "patch": {"transform": {"position": [0.0, 1.6, -3.05]}}}},
+                ]}),
+                author: "test".into(),
+                message: None,
+                at: None,
+            },
+        )
+        .expect("two mistakes");
+        let said = lines(lint(&dir, false, false)).await;
+        let at = |needle: &str| {
+            said.iter()
+                .position(|line| line == needle)
+                .unwrap_or_else(|| panic!("no {needle:?} in {said:#?}"))
+        };
+        let inside = at("warning[camera-inside]: 1A is inside wall-back");
+        assert!(
+            said[inside + 1].starts_with("    move 1A out of wall-back"),
+            "{said:?}"
+        );
+        let sunk = at("note[sunk]: MAYA is 0.85 m into floor");
+        assert!(
+            said[sunk + 1].contains("y 0.85 stands it on floor"),
+            "{said:?}"
+        );
+        assert!(
+            said.last()
+                .unwrap()
+                .starts_with("2 warnings, 1 note in 6 entities")
+                || said
+                    .last()
+                    .unwrap()
+                    .starts_with("1 warning, 1 note in 6 entities"),
+            "{said:?}"
+        );
+
+        // Advice is not failure, unless it is asked to be.
+        let strict = say(lint(&dir, true, false)).await.unwrap();
+        assert!(strict.failed && strict.err.is_empty(), "{strict:?}");
+        assert_eq!(strict.out, said, "the same lines, on stdout");
+        let json = say(lint(&dir, false, true)).await.unwrap();
+        let report: Value = serde_json::from_str(&json.out[0]).unwrap();
+        assert_eq!(report["ok"], false);
+        assert_eq!(report["shots"][0]["name"], "1A");
+        assert!(
+            report["diagnostics"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|d| d["code"] == "sunk" && d["entities"] == json!(["MAYA", "floor"])),
+            "{report}"
+        );
+        assert!(!json.failed);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A check must leave what it checks as it found it. An authority that
+    /// opens a published package completes it — a base snapshot, the guide
+    /// — which is right before a commit and wrong for `lint` run over
+    /// someone's package: the head is `manifest.json`, read as a file.
+    #[tokio::test]
+    async fn the_reading_commands_write_nothing_into_a_published_package() {
+        let dir = std::env::temp_dir().join(format!(
+            "lg-world-cli-{}-published-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let manifest = json!({"version": 3, "meta": {"name": "published"}, "entities": [
+            {"id": 1, "name": "floor", "transform": {"position": [0.0, -0.05, 0.0]},
+             "shape": {"Cuboid": {"x": 8.0, "y": 0.1, "z": 6.0}}},
+            {"id": 2, "name": "crate", "transform": {"position": [0.0, 0.5, 0.0]},
+             "shape": {"Cuboid": {"x": 1.0, "y": 1.0, "z": 1.0}}},
+        ], "next_entity_id": 3});
+        std::fs::write(dir.join("manifest.json"), manifest.to_string()).unwrap();
+        let holds = |dir: &Path| {
+            let mut names: Vec<String> = std::fs::read_dir(dir)
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+                .collect();
+            names.sort();
+            names
+        };
+
+        assert_eq!(
+            lines(lint(&dir, true, false)).await,
+            ["ok: nothing to flag in 2 entities"]
+        );
+        assert_eq!(lines(find(&dir, "the crate", None)).await, ["#2 crate"]);
+        let link = lines(WorldCommands::Link {
+            dir: Some(dir.clone()),
+            at: None,
+            viewer: None,
+            out: Out::default(),
+        })
+        .await;
+        assert_eq!(world_link::world_of(&link[0]).unwrap(), manifest);
+        assert_eq!(holds(&dir), ["manifest.json"], "nothing was written");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    fn find(dir: &Path, phrase: &str, camera: Option<&str>) -> WorldCommands {
+        let mut words = vec![dir.to_string_lossy().into_owned()];
+        words.extend(phrase.split(' ').map(str::to_string));
+        WorldCommands::Find {
+            phrase: words,
+            camera: camera.map(str::to_string),
+            at: None,
+            out: Out::default(),
+        }
+    }
+
+    #[tokio::test]
+    async fn find_resolves_a_phrase_and_asks_rather_than_guesses() {
+        let dir = package("find");
+        furnish(&dir);
+        // No app, and the world has no opening view: a shot is the view.
+        assert_eq!(
+            lines(find(&dir, "the chair on the left", Some("1A"))).await,
+            ["#3 chair-a", "sides and distance as seen from shot 1A"]
+        );
+        assert_eq!(
+            lines(find(&dir, "the blue chair", None)).await,
+            ["#4 chair-b"]
+        );
+        assert_eq!(
+            lines(find(&dir, "everything except the chairs", None)).await,
+            ["#1 floor", "#2 wall-back"]
+        );
+
+        let asked = say(find(&dir, "the chair", None)).await.unwrap();
+        assert!(asked.failed && asked.out.is_empty(), "{asked:?}");
+        assert_eq!(asked.err, ["Which one: chair-a or chair-b?"]);
+        let no_view = say(find(&dir, "the left chair", None)).await.unwrap();
+        assert!(no_view.failed, "{no_view:?}");
+        assert!(no_view.err[0].contains("need a view"), "{no_view:?}");
+        let not_a_camera = say(find(&dir, "the left chair", Some("floor"))).await;
+        assert!(
+            not_a_camera
+                .unwrap_err()
+                .to_string()
+                .contains("floor is not a camera"),
+            "a camera that is not one is an error, not a guess"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn with_an_app_open_left_is_the_persons_left() {
+        let world = json!({"version": 3, "meta": {"name": "room"}, "entities": [
+            {"id": 1, "name": "chair-a", "transform": {"position": [-2, 0.45, 0]},
+             "shape": {"Cuboid": {"x": 0.5, "y": 0.9, "z": 0.5}}},
+            {"id": 2, "name": "chair-b", "transform": {"position": [2, 0.45, 0]},
+             "shape": {"Cuboid": {"x": 0.5, "y": 0.9, "z": 0.5}}},
+        ], "next_entity_id": 3});
+        // The person stands behind the room, looking back at +Z.
+        let app = fake_app(vec![
+            ("GET", "/world", 200, world),
+            (
+                "GET",
+                "/selection",
+                200,
+                json!({"selected": null, "others": [],
+                       "view": {"position": [0, 1.6, -6], "forward": [0, 0, 1]}}),
+            ),
+        ]);
+        let dir = app.dir.path().to_path_buf();
+        assert_eq!(
+            lines(find(&dir, "the chair on the left", None)).await,
+            [
+                "#2 chair-b",
+                "sides and distance as seen from the app's view"
+            ]
+        );
+        let sent = app.sent.lock().unwrap();
+        assert!(
+            sent.iter().any(|s| s.target == "/world?tip=current"),
+            "what the window shows, not the head"
+        );
+        assert!(sent.iter().all(|s| s.auth == "Bearer secret"));
+    }
+
+    #[tokio::test]
+    async fn link_is_the_world_itself_and_refuses_one_that_needs_files() {
+        let dir = package("link");
+        furnish(&dir);
+        let command = |json| WorldCommands::Link {
+            dir: Some(dir.clone()),
+            at: None,
+            viewer: None,
+            out: Out { json },
+        };
+        let said = lines(command(false)).await;
+        assert_eq!(said.len(), 1, "the link alone: {said:?}");
+        assert!(said[0].starts_with("https://localgpt.world/world.html#world=z:"));
+        let shown = lines(WorldCommands::Show {
+            dir: Some(dir.clone()),
+            at: None,
+            out: Out { json: true },
+        })
+        .await;
+        assert_eq!(
+            world_link::world_of(&said[0]).unwrap(),
+            serde_json::from_str::<Value>(&shown[0]).unwrap(),
+            "the link carries the head, whole"
+        );
+        let json: Value = serde_json::from_str(&lines(command(true)).await[0]).unwrap();
+        assert_eq!(json["entities"], 5);
+        assert_eq!(json["characters"], said[0].len());
+
+        std::fs::create_dir_all(dir.join("assets")).unwrap();
+        std::fs::write(dir.join("assets/brick.png"), b"not a png, but a file").unwrap();
+        headless::run(
+            &dir,
+            WorldCommand::Submit {
+                batch: json!({"ops": [{"ModifyEntity": {"id": "wall-back",
+                    "patch": {"material": {"base_color_texture": "brick.png"}}}}]}),
+                author: "test".into(),
+                message: None,
+                at: None,
+            },
+        )
+        .expect("a texture");
+        let refused = say(command(false)).await.unwrap_err().to_string();
+        assert!(
+            refused.contains("uses 1 file") && refused.contains("publish the package"),
+            "{refused}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

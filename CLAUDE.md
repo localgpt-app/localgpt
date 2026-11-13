@@ -62,8 +62,9 @@ cargo fmt --check
 
 ```bash
 # The CLI: a .world package's command line, the MCP shim, and previs
-cargo run -- world init demo.world  # also submit, undo, redo, log, tips, show, get, verify, history;
-                                    # screenshot, selection, goto and proposals need an open app
+cargo run -- world init demo.world  # also submit, undo, redo, log, tips, show, get, verify, history,
+                                    # lint, find, link; screenshot, selection, goto and proposals
+                                    # need an open app
 cargo run -- world mcp              # a stdio MCP server over an app's open canvas
 cargo run -- previs script.fdx --out previs/   # a screenplay → per-scene .world packages, shot list and board
 cargo run -- audio list             # the optional audio models; also install, remove, mcp,
@@ -136,7 +137,7 @@ crates/
 ├── world-export/ # localgpt-world-export — the web viewer (three.js) and HTML export, no Bevy
 ├── world-sync/   # localgpt-world-sync — room authority: shared doc, EditOps, presence
 ├── world-editor/ # localgpt-world-editor — the non-linear editing model: tips, forks, folds, deltas (no engine, no I/O)
-├── world-agent/  # localgpt-world-agent — the live authority, headless commands, packages, `mcp` (Tool trait + stdio/HTTP servers), `agent_env`, `paths`
+├── world-agent/  # localgpt-world-agent — the live authority, headless commands, packages, `lint` and `find` (what an agent checks a world with), `mcp` (Tool trait + stdio/HTTP servers), `agent_env`, `paths`
 ├── audio-models/ # localgpt-audio-models — the optional audio models: catalog, installer, stems/notes/tags/match over ONNX Runtime, their MCP tools
 └── relay/        # localgpt-relay — internet reach for collaborative rooms
 
@@ -196,11 +197,30 @@ a mapping.
 protocol `2024-11-05`), `ToolHandler` over a tool list and
 `run_mcp_stdio_server` (JSON-RPC 2.0, one message per line on stdout; logs
 go to stderr); `mcp::http` is `run_mcp_http_server`, at `/mcp` on localhost.
-Every server answers a call through `mcp::call_tool`, which refuses an
-argument the tool's schema does not name, so a schema declares every
-argument its tool reads. When a tool is added, removed or renamed, update
-`AGENTS.md` and the count wherever it is quoted (`git grep -nw 88`); when
-an argument is, update the tool's row, which a test holds to the schema.
+Every server answers a call through `mcp::tool_result` (the relay too), and
+that through `mcp::call_tool`, which refuses an argument the tool's schema
+does not name, so a schema declares every argument its tool reads. A tool
+answers with text; one that makes a picture overrides `Tool::call` and hands
+back a `ToolOutput` with the PNG beside the text when asked to (`inline`),
+because a path is only an answer to an agent that shares the server's files.
+When a tool is added, removed or renamed, update `AGENTS.md` and the count
+wherever it is quoted (`git grep -nw 88`); when an argument is, update the
+tool's row, which a test holds to the schema.
+
+**The checks an agent runs.** `world-agent::lint` is what a world looks like
+to its cameras, in numbers, and what in it is probably a mistake: arithmetic
+over the document (the shapes' boxes, the transforms, the cinematography
+extension's own projection), with no renderer. Each finding has a code from
+`lint::RULES`, which is never renamed; a rule is added there, in the package
+guide (`live::AGENTS_GUIDE`) and in the user docs' table, and tests hold the
+three together. A draft must pass it (`previs.rs`'s test in the CLI stages
+one to eight speakers). `world-agent::find` resolves a phrase ("the red chair
+on the left") to entities by rule and asks rather than guesses. Neither may
+call anything: they are what an agent reads, not an agent.
+`crates/world-agent/tests/corpus/` is the batches authors get wrong, each
+with the answer the authority must give; a refusal that stops helping fails
+there, and the authority keeps every batch it refuses
+(`.live/rejected.jsonl`) so a real one can be added.
 
 **Bevy main thread.** Bevy must own the main thread (macOS windowing/GPU).
 Gen spawns tokio on a background thread for the tool server. In the desktop
@@ -248,9 +268,12 @@ unclear, which is why the agent's stems are Spleeter's.
 chat, no config, no key. `audio` lists, installs and removes the audio models,
 runs each on a file and serves the installed ones' tools (`audio mcp`;
 `world mcp` adds them too, writing into the world's `assets/`). `world` is init, submit (`--at <id>` forks), undo, redo, log, tips,
-show, get, verify and history, plus screenshot, selection, goto and proposals,
-which need an app, and `world mcp`, a stdio MCP server over an app's open
-canvas (`world.rs`, `world_mcp.rs`). `previs` stages a screenplay (`.fountain`,
+show, get, verify, history, lint (what each camera sees and what is probably
+a mistake: `world-agent::lint`, arithmetic over the document), find (which
+entities a phrase means: `world-agent::find`) and link (the manifest in a
+URL's fragment, `world_link.rs`), plus screenshot, selection, goto and
+proposals, which need an app, and `world mcp`, a stdio MCP server over an
+app's open canvas (`world.rs`, `world_mcp.rs`). `previs` stages a screenplay (`.fountain`,
 `.fdx`, `.pdf` or `.md`) into per-scene `.world` packages, `shotlist.csv` and
 `board.html` (`previs.rs`). `gen` builds nothing itself, so the CLI links no
 Bevy: it hands its arguments to `localgpt-app gen` (beside the binary, then

@@ -30,6 +30,85 @@ pub struct ToolSchema {
     pub parameters: Value,
 }
 
+/// A picture a tool hands back beside its text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToolImage {
+    pub mime_type: String,
+    pub bytes: Vec<u8>,
+}
+
+/// The largest picture a tool puts in its answer. A client holds a whole
+/// result in memory and in its model's context; past this, the path is the
+/// answer.
+pub const MAX_INLINE_IMAGE_BYTES: usize = 3 << 20;
+
+/// What a tool answers: its text, and any pictures beside it.
+///
+/// A path is only an answer to an agent that shares the server's files — not
+/// to one outside the server's container, and it costs a second call
+/// everywhere else — so a tool that makes a picture can hand back the
+/// picture itself, as MCP's `image` content.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ToolOutput {
+    pub text: String,
+    pub images: Vec<ToolImage>,
+}
+
+impl ToolOutput {
+    pub fn text(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            images: Vec::new(),
+        }
+    }
+
+    /// The answer with the PNG at `path` beside its text. A picture over
+    /// [`MAX_INLINE_IMAGE_BYTES`], or one that cannot be read, is left where
+    /// it is and the text says why, so the call still answers.
+    pub fn with_png(mut self, path: &std::path::Path) -> Self {
+        // The size first: a picture too large to send is not read to find
+        // that out.
+        let read = std::fs::metadata(path).and_then(|file| {
+            if file.len() > MAX_INLINE_IMAGE_BYTES as u64 {
+                Ok(Err(file.len()))
+            } else {
+                std::fs::read(path).map(Ok)
+            }
+        });
+        match read {
+            Ok(Ok(bytes)) => self.images.push(ToolImage {
+                mime_type: "image/png".into(),
+                bytes,
+            }),
+            Ok(Err(size)) => {
+                self.text += &format!(
+                    "\nThe picture is {size} bytes, over the {MAX_INLINE_IMAGE_BYTES} a result carries: read it from its path, or ask for a smaller one."
+                );
+            }
+            Err(e) => {
+                self.text +=
+                    &format!("\nThe picture could not be read back ({e}): read it from its path.");
+            }
+        }
+        self
+    }
+
+    /// The answer as the `content` of an MCP `tools/call` result: the text,
+    /// then each picture as an `image` block.
+    pub fn content(&self) -> Vec<Value> {
+        use base64::Engine as _;
+        let mut content = vec![json!({ "type": "text", "text": self.text })];
+        content.extend(self.images.iter().map(|image| {
+            json!({
+                "type": "image",
+                "data": base64::engine::general_purpose::STANDARD.encode(&image.bytes),
+                "mimeType": image.mime_type,
+            })
+        }));
+        content
+    }
+}
+
 /// One tool: a name, its schema, and an async call taking the arguments as
 /// a JSON string.
 #[async_trait]
@@ -37,6 +116,12 @@ pub trait Tool: Send + Sync {
     fn name(&self) -> &str;
     fn schema(&self) -> ToolSchema;
     async fn execute(&self, arguments: &str) -> Result<String>;
+
+    /// The call's whole answer. The default is [`execute`](Self::execute)'s
+    /// text; a tool that can hand back a picture overrides this.
+    async fn call(&self, arguments: &str) -> Result<ToolOutput> {
+        Ok(ToolOutput::text(self.execute(arguments).await?))
+    }
 
     /// MCP tool annotations (`readOnlyHint`, `destructiveHint`, …), when the
     /// tool states them.
@@ -52,8 +137,8 @@ pub trait Tool: Send + Sync {
 /// so a misnamed argument would be dropped and the call would succeed
 /// without doing what it asked. The refusal lists the arguments the tool
 /// takes, which is what lets an agent correct the call. Every server
-/// answers `tools/call` through here.
-pub async fn call_tool(tool: &dyn Tool, arguments: &Value) -> Result<String> {
+/// answers `tools/call` through here ([`tool_result`]).
+pub async fn call_tool(tool: &dyn Tool, arguments: &Value) -> Result<ToolOutput> {
     let schema = tool.schema();
     let takes: Vec<&str> = schema
         .parameters
@@ -86,7 +171,30 @@ pub async fn call_tool(tool: &dyn Tool, arguments: &Value) -> Result<String> {
             tool.name()
         );
     }
-    tool.execute(&serde_json::to_string(arguments)?).await
+    tool.call(&serde_json::to_string(arguments)?).await
+}
+
+/// The `result` of a `tools/call` on `tool`: its answer as content, or its
+/// failure — a refused argument among them — as an error result the agent
+/// reads and corrects. The stdio and HTTP servers and Gen's relay all
+/// answer with this, so a picture reaches a client the same way through
+/// each.
+pub async fn tool_result(tool: &dyn Tool, arguments: &Value) -> Value {
+    match call_tool(tool, arguments).await {
+        Ok(output) => json!({ "content": output.content() }),
+        // With its causes (`{:#}`): "opening x.wav: No such file or
+        // directory", not just "opening x.wav". The reason is what lets
+        // an agent correct itself.
+        Err(e) => error_result(&format!("{e:#}")),
+    }
+}
+
+/// A failure as a `tools/call` result.
+pub fn error_result(reason: &str) -> Value {
+    json!({
+        "content": [{ "type": "text", "text": format!("Error: {reason}") }],
+        "isError": true,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -213,18 +321,7 @@ impl McpHandler for ToolHandler {
                     "message": format!("Unknown tool: {}", tool_name),
                 })
             })?;
-        match call_tool(tool.as_ref(), &arguments).await {
-            Ok(output) => Ok(json!({
-                "content": [{ "type": "text", "text": output }]
-            })),
-            // With its causes (`{:#}`): "opening x.wav: No such file or
-            // directory", not just "opening x.wav". The reason is what lets
-            // an agent correct itself.
-            Err(e) => Ok(json!({
-                "content": [{ "type": "text", "text": format!("Error: {e:#}") }],
-                "isError": true,
-            })),
-        }
+        Ok(tool_result(tool.as_ref(), &arguments).await)
     }
 }
 
@@ -396,8 +493,88 @@ mod tests {
             Value::Null,
         ] {
             let said = call_tool(&tool, &arguments).await.expect("a call it takes");
-            assert_eq!(said, "ran", "{arguments}");
+            assert_eq!(said, ToolOutput::text("ran"), "{arguments}");
         }
+    }
+
+    /// A tool that answers with a picture when asked to.
+    struct Shot(std::path::PathBuf);
+
+    #[async_trait]
+    impl Tool for Shot {
+        fn name(&self) -> &str {
+            "shot"
+        }
+
+        fn schema(&self) -> ToolSchema {
+            ToolSchema {
+                name: "shot".into(),
+                description: "takes a picture".into(),
+                parameters: json!({"type": "object", "properties": {"inline": {"type": "boolean"}}}),
+            }
+        }
+
+        async fn execute(&self, _arguments: &str) -> Result<String> {
+            Ok(self.0.display().to_string())
+        }
+
+        async fn call(&self, arguments: &str) -> Result<ToolOutput> {
+            let args: Value = serde_json::from_str(arguments)?;
+            let output = ToolOutput::text(self.execute(arguments).await?);
+            Ok(if args["inline"] == true {
+                output.with_png(&self.0)
+            } else {
+                output
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn a_picture_rides_beside_the_text_when_a_tool_hands_one_back() {
+        let dir = std::env::temp_dir().join(format!("localgpt-mcp-shot-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("shot.png");
+        std::fs::write(&path, b"\x89PNG not really").unwrap();
+        let tool = Shot(path.clone());
+
+        // Unasked, the answer is the text alone, as it always was.
+        let plain = tool_result(&tool, &json!({})).await;
+        assert_eq!(plain["content"].as_array().unwrap().len(), 1);
+        assert_eq!(plain["content"][0]["text"], path.display().to_string());
+
+        let with = tool_result(&tool, &json!({"inline": true})).await;
+        let content = with["content"].as_array().unwrap();
+        assert_eq!(content.len(), 2, "{with}");
+        assert_eq!(content[0]["type"], "text");
+        assert_eq!(content[1]["type"], "image");
+        assert_eq!(content[1]["mimeType"], "image/png");
+        assert_eq!(
+            content[1]["data"], "iVBORyBub3QgcmVhbGx5",
+            "base64, unwrapped"
+        );
+
+        // A picture too large for a result, or gone, still answers: the
+        // path, and why the picture is not beside it.
+        std::fs::write(&path, vec![0u8; MAX_INLINE_IMAGE_BYTES + 1]).unwrap();
+        let large = tool_result(&tool, &json!({"inline": true})).await;
+        assert_eq!(large["content"].as_array().unwrap().len(), 1);
+        assert!(
+            large["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("read it from its path"),
+            "{large}"
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+        let gone = tool_result(&tool, &json!({"inline": true})).await;
+        assert!(gone.get("isError").is_none(), "{gone}");
+        assert!(
+            gone["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("could not be read back"),
+            "{gone}"
+        );
     }
 
     /// A tool takes its defaults for what it is not given, so a misnamed

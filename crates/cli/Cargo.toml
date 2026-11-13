@@ -23,7 +23,7 @@ audio = ["dep:localgpt-audio-models"]
 
 [dependencies]
 # The world authority, for `localgpt world`, and the `Tool` trait and stdio
-# MCP server the shim serves its eight tools through. Bevy-free, so the CLI
+# MCP server the shim serves its tools through. Bevy-free, so the CLI
 # stays light.
 localgpt-world-agent = { workspace = true, features = ["mcp"] }
 # The view, for `localgpt world tips` and the ids in `world log`: the CLI
@@ -42,6 +42,9 @@ tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 reqwest = { workspace = true }
+# `world link`: the manifest, raw DEFLATE, base64url, in a URL's fragment.
+flate2 = "1"
+base64 = { workspace = true }
 
 clap = { version = "4.6", features = ["derive", "env"] }
 clap_complete = "4.6"

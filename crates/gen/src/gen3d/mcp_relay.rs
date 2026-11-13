@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 
-use localgpt_world_agent::mcp::{Tool, call_tool};
+use localgpt_world_agent::mcp::{Tool, error_result, tool_result};
 
 use crate::gen3d::GenBridge;
 
@@ -73,17 +73,14 @@ impl RelayTools {
             .collect()
     }
 
-    async fn call_tool(&self, name: &str, arguments: &serde_json::Value) -> Result<String, String> {
-        let tool = self
-            .tools
-            .iter()
-            .find(|t| t.name() == name)
-            .ok_or_else(|| format!("Unknown tool: {}", name))?;
-        // Through the shared `call_tool`, so the relay refuses what the
-        // stdio and HTTP servers refuse.
-        call_tool(tool.as_ref(), arguments)
-            .await
-            .map_err(|e| e.to_string())
+    /// The `result` of a `tools/call`. Through the shared `tool_result`, so
+    /// the relay refuses what the stdio and HTTP servers refuse and hands
+    /// back a picture the way they do.
+    async fn call_tool(&self, name: &str, arguments: &serde_json::Value) -> serde_json::Value {
+        match self.tools.iter().find(|t| t.name() == name) {
+            Some(tool) => tool_result(tool.as_ref(), arguments).await,
+            None => error_result(&format!("Unknown tool: {name}")),
+        }
     }
 }
 
@@ -283,23 +280,11 @@ async fn process_request(request: &serde_json::Value, relay: &RelayTools) -> ser
                 .cloned()
                 .unwrap_or(serde_json::json!({}));
 
-            match relay.call_tool(name, &args).await {
-                Ok(result) => serde_json::json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "result": {
-                        "content": [{ "type": "text", "text": result }]
-                    }
-                }),
-                Err(e) => serde_json::json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "result": {
-                        "content": [{ "type": "text", "text": format!("Error: {e:#}") }],
-                        "isError": true
-                    }
-                }),
-            }
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": relay.call_tool(name, &args).await,
+            })
         }
 
         "ping" => serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": {} }),

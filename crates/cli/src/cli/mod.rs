@@ -5,6 +5,7 @@ pub mod gen_cmd;
 pub mod previs;
 pub mod world;
 pub mod world_api;
+pub mod world_link;
 pub mod world_mcp;
 
 use std::ffi::OsString;

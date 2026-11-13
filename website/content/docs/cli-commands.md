@@ -42,12 +42,15 @@ localgpt world tips [<dir>]                   # every branch end, the head marke
 localgpt world show [<dir>] [--at <entry>]    # the world in a line per entity; --at current, <id> or base
 localgpt world get [<dir>] <entity>…          # entities by name or id, as JSON: what a patch changes
 localgpt world verify [<dir>]                 # the fold of the log still equals the head; assets match their hashes
+localgpt world lint [<dir>] [--at <entry>] [--strict]   # what each camera sees, in numbers, and what is probably a mistake
+localgpt world find [<dir>] <phrase…> [--camera <entity>]   # which entities "the red chair on the left" means
+localgpt world link [<dir>] [--at <entry>]    # the world as a link that opens in a browser, nothing uploaded
 localgpt world screenshot [<dir>]             # the open app's view now, as a PNG path
 localgpt world selection [<dir>]              # what the person has selected in the open app
 localgpt world goto [<dir>] <entry>           # show an entry in the open app's window; nothing is written
 localgpt world proposals [<dir>]              # with review on, the batches waiting for the person
 localgpt world history [<dir>] [<rev>]        # the git history, when the world is in git
-localgpt world mcp [<dir>]                    # serve the open canvas's tools over stdio (submit, undo, log, tips, goto, verify, screenshot, selection)
+localgpt world mcp [<dir>]                    # serve the open canvas's tools over stdio (submit, undo, log, tips, goto, verify, lint, find, link, screenshot, selection)
 ```
 
 The folder is the first argument when it's given; else `$LOCALGPT_WORLD_DIR`, which the desktop app sets in its terminals; else the folder you're in, or the nearest one above it that is a world. A batch is JSON: `[op, …]` or `{"ops": [op, …]}`, inline, a file, or stdin, with the op kinds `SpawnEntity`, `ModifyEntity`, `DeleteEntity`, `SetEnvironment`, `SetCamera`, `ModifyWorld` (the world's scene-wide fields: its song, tours, environment) and `Batch`. Names bind wherever the format marks a reference and commit as ids; a refusal names the op and the reason, on stderr with exit status 1. The folder's `AGENTS.md` describes the same rules for an agent.
@@ -58,6 +61,75 @@ localgpt world submit -m "a lamp by the crate" <<'EOF'
 EOF
 claude mcp add world -- localgpt world mcp          # or: Claude Code edits the open world over MCP
 ```
+
+A refusal says where: `op 0: /ModifyEntity/patch/material/color: invalid type: string "#ff0000", expected an array of length 4`, or `… /patch/materail is not a field of the format`. Every refused batch is also kept as it was sent, with its reasons, in the folder's `.live/rejected.jsonl`. A receipt's warnings are what did not stop the batch and is worth knowing; one that ends `(carried-not-run)` says the world kept something this app will not run — a trigger's host action it does not have, an extension nothing here reads, a misspelt `ext-…` key among them.
+
+### `world lint`: what the cameras see {#lint}
+
+`verify` asks whether a package agrees with itself. `lint` asks whether the world is the one its author meant. It is arithmetic over the document — the shapes' boxes, the transforms, the cinematography extension's own projection — so it needs no window, no renderer and no app, and it is quick enough to run after every batch:
+
+```bash
+$ localgpt world lint scene-1.world
+1A    WS      24 mm  sees KAI 5% · MAYA 5% · floor 24% · wall-left 6% (left) · +2 more
+1B    MCU     50 mm  on MAYA.head 14% (centre) · KAI 22% (right) · MAYA 30% · wall-left 100% (centre)
+1C    MCU     50 mm  on KAI.head 14% (centre) · MAYA 22% (left) · KAI 30% · wall-right 100% (centre)
+ok: nothing to flag in 14 entities
+```
+
+That is a drafted scene. Put 1B straight behind KAI and MAYA at the height of her feet, and it says so:
+
+```
+1B    MCU     50 mm  on MAYA.head 13% (centre) · KAI 100% (centre) · MAYA 13% (centre) · wall-left 100% (centre)
+warning[subject-hidden]: KAI is between 1B and MAYA.head, 0.64 m from the lens
+    move 1B or KAI until the line from the lens to MAYA.head is clear
+note[sunk]: MAYA is 0.85 m into floor
+    a position is the shape's centre: y 0.85 stands it on floor
+1 warning, 1 note in 14 entities
+```
+
+A line per camera says what the camera is on, when it aims at an entity, then what is in its frame from the nearest back, with the share of the frame each covers — an entity and its parts (`MAYA`, `MAYA.head`, `MAYA.face`) as one figure. `--json` has every entity with its share, its height in the frame, its rectangle and its distance. Then a line per finding, with what would change it under it. A share is the projected box's, not a silhouette's, and nothing is hidden behind anything: it is what stands in the frame's pyramid, which is why a wall behind everything reads 100%. A mesh asset, whose size the document does not state, is counted and not measured. `--strict` exits 1 when anything is a warning; notes never fail.
+
+| Code | | What it means |
+|---|---|---|
+| `camera-inside` | warning | a camera, or the view a visitor opens on, stands inside a solid shape |
+| `empty-frame` | warning | a camera, or the opening view, has no shape in its frame |
+| `subject-hidden` | warning | something solid stands between a camera and the entity it aims at or focuses on |
+| `focus-out-of-frame` | warning | a camera focuses on an entity that is outside its frame |
+| `dangling-target` | warning | a camera's `aim_entity` or `focus_entity` is not in the world, so the fallback applies |
+| `line-crossed` | warning | a shot and its reverse are on opposite sides of the line between their subjects |
+| `shot-timing` | warning | a shot ends at or before the second it starts |
+| `duplicate` | warning | two entities are the same shape in the same place |
+| `tiny-world` | warning | the whole world is smaller than 5 cm: probably not authored in metres |
+| `sunk` | note | a shape's centre is at the top of the ground under it, so half of it is below: a position is a shape's centre |
+| `carried-not-run` | note | content the format carries and this app does not run: it is kept, and nothing happens |
+| `nothing-to-draw` | note | no entity has a shape or a mesh |
+
+A code is never renamed. The cinematography rules read the same fields the [previs](/docs/gen/previs/) draft writes, and a draft passes them.
+
+### `world find`: which one {#find}
+
+A person looking at a world says "the actor on the left"; `find` resolves the phrase to entities by rule: a whole name or a word of one (singular or plural), shape and colour words (a stand-in capsule is an actor), left, right, front and back as a view has them, height and size, a count, an ordinal, lists and "except".
+
+```bash
+$ localgpt world find the actor on the left --camera 1A
+#6 MAYA
+sides and distance as seen from shot 1A
+$ localgpt world find the wall
+Which one: wall-back, wall-left or wall-right?
+$ localgpt world find the thing behind KAI
+not understood: behind — settle it yourself (`localgpt world show` has every entity's place)
+```
+
+Left and right are the person's while the app has the world open; with it closed, the world's opening view; `--camera 1A` reads them through a shot instead. When a phrase could mean several it asks which, and a phrase it only half understands — a relation like "behind", a pointer like "this", a word it has no rule for where the noun should be — picks nothing and says which word. Both exit 1: a guess would be an edit to the wrong thing. `selection` is what the person clicked; this is what they said.
+
+### `world link`: a world in a link {#link}
+
+```bash
+$ localgpt world link scene-1.world
+https://localgpt.world/world.html#world=z:1ZjvbuI4EMBfBfkziUggIfCt1zvtVXtdndSeTq…
+```
+
+The whole manifest rides in the link's fragment — compact JSON, raw DEFLATE, base64url — and a browser never sends a fragment to a server, so opening the link uploads nothing and stores nothing: the page reads the world out of its own address. A previs scene is about 1,600 characters. A world that needs files (meshes, textures, a recording) is refused, naming them: publish its package instead. `--viewer <url>` writes the link for another copy of the viewer page.
 
 ## `localgpt previs` {#previs}
 

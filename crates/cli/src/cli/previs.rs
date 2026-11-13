@@ -118,6 +118,48 @@ mod tests {
         assert!(out.join("board.html").is_file());
     }
 
+    /// The draft is what a person meets first, and the lint is what an agent
+    /// revising it is told to trust: the one must pass the other. One to
+    /// eight speakers, indoors and out — no camera in a wall, no subject
+    /// behind another actor, no single across the line from its reverse.
+    #[test]
+    fn a_draft_passes_the_lint_whatever_the_cast() {
+        const CAST: [&str; 8] = ["MAYA", "KAI", "JUNE", "OTTO", "IDA", "LEV", "NOOR", "SAM"];
+        let mut script = String::from("Title: Lint\n");
+        for heading in ["INT. KITCHEN - DAY", "EXT. CLIFF PATH - DUSK"] {
+            for cast in 1..=CAST.len() {
+                script += &format!("\n{heading}\n\nThey wait.\n");
+                // Twice round, so every speaker has someone to answer.
+                for line in 0..cast * 2 {
+                    script += &format!("\n{}\nLine {line}, said plainly.\n", CAST[line % cast]);
+                }
+            }
+        }
+        let drafted = draft::draft(&script, "Lint").unwrap();
+        assert_eq!(drafted.scenes.len(), 16);
+        for scene in &drafted.scenes {
+            let report = localgpt_world_agent::lint::lint(&scene.manifest);
+            assert_eq!(
+                report.diagnostics,
+                vec![],
+                "{} ({}, {} shots)",
+                scene.package_dir,
+                scene.heading,
+                scene.shots.len()
+            );
+            // And every single holds its subject where it aims.
+            for shot in &report.shots {
+                if let Some(subject) = &shot.aims_at {
+                    assert!(
+                        shot.sees.iter().any(|f| &f.name == subject),
+                        "{} does not see {subject}",
+                        shot.name
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn refuses_a_file_with_no_scenes_naming_the_file() {
         let tmp = tempfile::tempdir().unwrap();

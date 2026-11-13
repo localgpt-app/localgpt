@@ -4,6 +4,7 @@
 //! Following the **Trigger → State Change → Behavior Response** pattern.
 
 use bevy::prelude::*;
+use localgpt_world_agent::lint::host_action;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -392,7 +393,7 @@ pub fn trigger_def(p: &AddTriggerParams) -> localgpt_world_types::TriggerDef {
         TriggerAction::Destroy => (A::Remove, p.cooldown),
         TriggerAction::PlaySound => (
             host(
-                "play_sound",
+                host_action::PLAY_SOUND,
                 serde_json::json!({ "sound": p.text.clone().unwrap_or_else(|| "default".into()) }),
             ),
             p.cooldown,
@@ -404,18 +405,20 @@ pub fn trigger_def(p: &AddTriggerParams) -> localgpt_world_types::TriggerDef {
             if let Some(value) = &p.text {
                 args["value"] = serde_json::json!(value);
             }
-            (host("set_state", args), p.cooldown)
+            (host(host_action::SET_STATE, args), p.cooldown)
         }
+        // Written, and run by nothing yet: `run_host_actions` has no arm
+        // for it, and the lint says so of a world that carries one.
         TriggerAction::Spawn => (
             host(
-                "spawn",
+                host_action::SPAWN,
                 serde_json::json!({ "template": p.text.clone().unwrap_or_default() }),
             ),
             p.cooldown,
         ),
         TriggerAction::AddScore => (
             host(
-                "add_score",
+                host_action::ADD_SCORE,
                 serde_json::json!({
                     "amount": p.amount.unwrap_or(1),
                     "category": p.category.clone().unwrap_or_else(|| "points".into()),
@@ -1867,7 +1870,9 @@ pub fn show_trigger_text(mut texts: MessageReader<wbt::TriggerText>, mut command
     }
 }
 
-/// Gen's `host` actions: `add_score`, `play_sound`, `set_state`, `spawn`.
+/// Gen's `host` actions: `add_score`, `play_sound` and `set_state`, by the
+/// names in [`host_action`], which is also the list the lint reports
+/// against. `spawn` is written by `gen_add_trigger` and has no arm here.
 pub fn run_host_actions(
     mut actions: MessageReader<wbt::HostAction>,
     mut score_board: ResMut<ScoreBoard>,
@@ -1879,12 +1884,12 @@ pub fn run_host_actions(
     for a in actions.read() {
         let text = |key: &str| a.args.get(key).and_then(|v| v.as_str()).map(str::to_string);
         match a.name.as_str() {
-            "add_score" => {
+            host_action::ADD_SCORE => {
                 let amount = a.args.get("amount").and_then(|v| v.as_i64()).unwrap_or(1);
                 let category = text("category").unwrap_or_else(|| "points".into());
                 *score_board.scores.entry(category).or_insert(0) += amount as i32;
             }
-            "play_sound" => {
+            host_action::PLAY_SOUND => {
                 let (Some(engine), Some(sound)) = (audio_engine.as_deref_mut(), text("sound"))
                 else {
                     continue;
@@ -1895,7 +1900,7 @@ pub fn run_host_actions(
                     .unwrap_or_default();
                 engine.play_emitter_at(&sound, at);
             }
-            "set_state" => {
+            host_action::SET_STATE => {
                 let key = text("key").unwrap_or_else(|| "active".into());
                 let flip = |old: Option<&String>| match text("value") {
                     Some(value) => value,

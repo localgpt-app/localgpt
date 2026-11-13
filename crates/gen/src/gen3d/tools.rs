@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 
 use super::GenBridge;
 use super::commands::*;
-use localgpt_world_agent::mcp::{Tool, ToolSchema};
+use localgpt_world_agent::mcp::{Tool, ToolOutput, ToolSchema};
 
 /// Create all gen tools backed by the given bridge.
 pub fn create_gen_tools(bridge: Arc<GenBridge>) -> Vec<Box<dyn Tool>> {
@@ -172,10 +172,27 @@ impl Tool for GenScreenshotTool {
                         "type": "boolean",
                         "default": false,
                         "description": "Overlay entity names as labels in the screenshot"
+                    },
+                    "inline": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Also return the picture itself, as image content, beside its path: for an agent that cannot read this server's files, or to save the second call"
                     }
                 }
             }),
         }
+    }
+
+    /// The path, and with `inline` the picture too.
+    async fn call(&self, arguments: &str) -> Result<ToolOutput> {
+        let args: Value = serde_json::from_str(arguments).unwrap_or_default();
+        let said = self.execute(arguments).await?;
+        Ok(match said.strip_prefix(SCREENSHOT_SAVED) {
+            Some(path) if args["inline"] == true => {
+                ToolOutput::text(said.clone()).with_png(std::path::Path::new(path))
+            }
+            _ => ToolOutput::text(said),
+        })
     }
 
     async fn execute(&self, arguments: &str) -> Result<String> {
@@ -214,14 +231,15 @@ impl Tool for GenScreenshotTool {
             })
             .await?
         {
-            GenResponse::Screenshot { image_path } => {
-                Ok(format!("Screenshot saved to: {}", image_path))
-            }
+            GenResponse::Screenshot { image_path } => Ok(format!("{SCREENSHOT_SAVED}{image_path}")),
             GenResponse::Error { message } => Err(anyhow::anyhow!("{}", message)),
             other => Err(anyhow::anyhow!("Unexpected response: {:?}", other)),
         }
     }
 }
+
+/// What `gen_screenshot` says before the picture's path.
+const SCREENSHOT_SAVED: &str = "Screenshot saved to: ";
 
 // ===========================================================================
 // gen_entity_info
