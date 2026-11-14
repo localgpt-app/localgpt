@@ -13,7 +13,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::{Value, json};
 
-use localgpt_world_agent::mcp::{Tool, ToolHandler, ToolSchema, run_mcp_stdio_server};
+use localgpt_world_agent::mcp::{Tool, ToolHandler, ToolOutput, ToolSchema, run_mcp_stdio_server};
 
 use crate::gen3d::GenBridge;
 
@@ -87,6 +87,14 @@ impl Tool for AnnotatedTool {
 
     async fn execute(&self, arguments: &str) -> Result<String> {
         self.inner.execute(arguments).await
+    }
+
+    /// The inner tool's whole answer. Left to the trait's default, this
+    /// would be `execute`'s text alone, and a tool that hands back a
+    /// picture (`gen_screenshot` with `inline`) would lose it here, behind
+    /// every transport.
+    async fn call(&self, arguments: &str) -> Result<ToolOutput> {
+        self.inner.call(arguments).await
     }
 }
 
@@ -340,5 +348,59 @@ mod tests {
             "AGENTS.md and the tools' schemas disagree:\n{}",
             wrong.join("\n")
         );
+    }
+
+    /// A served tool is wrapped in its annotations, and a wrapper that
+    /// forwards `execute` alone answers with text whatever the tool inside
+    /// would have handed back. So this asks the tool as a client does:
+    /// through the list a server serves, with the window's side faked.
+    #[tokio::test]
+    async fn a_screenshot_asked_for_inline_comes_back_as_a_picture_through_the_served_tool() {
+        use crate::gen3d::commands::{GenCommand, GenResponse};
+
+        let dir = std::env::temp_dir().join(format!("localgpt-gen-inline-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("shot.png");
+        std::fs::write(&path, b"\x89PNG not really").unwrap();
+
+        let (bridge, mut channels) = create_gen_channels();
+        let saved = path.to_string_lossy().into_owned();
+        // Bevy's side: every screenshot is the file above.
+        tokio::spawn(async move {
+            while let Some(cmd) = channels.cmd_rx.recv().await {
+                let response = match cmd {
+                    GenCommand::Screenshot { .. } => GenResponse::Screenshot {
+                        image_path: saved.clone(),
+                    },
+                    _ => GenResponse::Error {
+                        message: "only screenshots here".into(),
+                    },
+                };
+                let _ = channels.resp_tx.send(response);
+            }
+        });
+        let tools = create_mcp_tools(bridge);
+        let screenshot = tools
+            .iter()
+            .find(|tool| tool.name() == "gen_screenshot")
+            .expect("gen_screenshot is served");
+        use localgpt_world_agent::mcp::tool_result;
+
+        let plain = tool_result(screenshot.as_ref(), &json!({})).await;
+        let content = plain["content"].as_array().unwrap();
+        assert_eq!(content.len(), 1, "unasked, the path alone: {plain}");
+        assert_eq!(
+            content[0]["text"],
+            format!("Screenshot saved to: {}", path.display())
+        );
+
+        let inline = tool_result(screenshot.as_ref(), &json!({"inline": true})).await;
+        let content = inline["content"].as_array().unwrap();
+        assert_eq!(content.len(), 2, "the path, then the picture: {inline}");
+        assert_eq!(content[0]["text"], plain["content"][0]["text"]);
+        assert_eq!(content[1]["type"], "image");
+        assert_eq!(content[1]["mimeType"], "image/png");
+        assert_eq!(content[1]["data"], "iVBORyBub3QgcmVhbGx5");
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
