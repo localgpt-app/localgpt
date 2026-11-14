@@ -28,11 +28,13 @@ cargo install localgpt           # `localgpt world`, `localgpt world mcp` (the s
 cargo install localgpt --features audio   # the same, with `localgpt audio`: the optional audio models
 ```
 
-For the `localgpt` command line and MCP shim without a Rust toolchain, install the prebuilt binary from npm (or run it directly with `npx`):
+For the `localgpt` command line and MCP shim without a Rust toolchain, install it prebuilt from npm, or run it straight from there with `npx`:
 
 ```bash
 npm install -g localgpt          # or: npx -y localgpt world mcp
 ```
+
+The npm package holds the binary for macOS (Apple silicon and Intel), Linux (x64 and arm64, with glibc 2.35 or newer: Ubuntu 22.04, Debian 12) and Windows (x64), and needs Node 18 or newer to start it. It is built without the [audio models](@/docs/audio-models.md#platforms).
 
 On macOS, `LocalGPT.app` carries `localgpt` inside `Contents/MacOS/localgpt` (and puts it on `PATH` in the app's terminals), so `localgpt gen …` hands off directly to the desktop binary (`localgpt-app gen …`); the Homebrew cask installs the app and links `localgpt` onto your `PATH`:
 

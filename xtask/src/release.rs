@@ -287,139 +287,144 @@ end
     )
 }
 
-pub const NPM_USAGE: &str = "  npm-package <version> <binaries-dir> <out-dir>
-                   the npm packages for `localgpt` (`@localgpt/cli-<os>-<arch>` + `localgpt`)";
+pub const NPM_USAGE: &str = "  npm-package <binaries-dir> <out-dir>
+                   the `localgpt` npm package, ready for `npm pack`: the launcher and
+                   every platform's `localgpt` in vendor/ (npm.yml runs it)";
 
+/// A platform the npm package carries a `localgpt` for.
 struct NpmTarget {
+    /// Rust's name for it: what the binary was built as.
     rust_target: &'static str,
-    dir_name: &'static str,
-    pkg_name: &'static str,
-    os: &'static str,
-    cpu: &'static str,
+    /// Node's, `process.platform`-`process.arch`: its folder in `vendor/`.
+    node: &'static str,
     bin_name: &'static str,
 }
 
-const NPM_TARGETS: &[NpmTarget] = &[
+const NPM_TARGETS: [NpmTarget; 5] = [
     NpmTarget {
         rust_target: "aarch64-apple-darwin",
-        dir_name: "cli-darwin-arm64",
-        pkg_name: "@localgpt/cli-darwin-arm64",
-        os: "darwin",
-        cpu: "arm64",
+        node: "darwin-arm64",
         bin_name: "localgpt",
     },
     NpmTarget {
         rust_target: "x86_64-apple-darwin",
-        dir_name: "cli-darwin-x64",
-        pkg_name: "@localgpt/cli-darwin-x64",
-        os: "darwin",
-        cpu: "x64",
-        bin_name: "localgpt",
-    },
-    NpmTarget {
-        rust_target: "x86_64-unknown-linux-gnu",
-        dir_name: "cli-linux-x64",
-        pkg_name: "@localgpt/cli-linux-x64",
-        os: "linux",
-        cpu: "x64",
+        node: "darwin-x64",
         bin_name: "localgpt",
     },
     NpmTarget {
         rust_target: "aarch64-unknown-linux-gnu",
-        dir_name: "cli-linux-arm64",
-        pkg_name: "@localgpt/cli-linux-arm64",
-        os: "linux",
-        cpu: "arm64",
+        node: "linux-arm64",
+        bin_name: "localgpt",
+    },
+    NpmTarget {
+        rust_target: "x86_64-unknown-linux-gnu",
+        node: "linux-x64",
         bin_name: "localgpt",
     },
     NpmTarget {
         rust_target: "x86_64-pc-windows-msvc",
-        dir_name: "cli-win32-x64",
-        pkg_name: "@localgpt/cli-win32-x64",
-        os: "win32",
-        cpu: "x64",
+        node: "win32-x64",
         bin_name: "localgpt.exe",
     },
 ];
 
-/// `cargo xtask npm-package <version> <binaries-dir> <out-dir>`: writes the
-/// platform packages (`@localgpt/cli-<os>-<arch>`) for every target binary in
-/// `<binaries-dir>` and the root `localgpt` launcher package into `<out-dir>`.
-/// Generated at release time so no JS or package.json lives in git outside
-/// `xtask/rule.txt`.
+/// `cargo xtask npm-package <binaries-dir> <out-dir>`: writes the `localgpt`
+/// npm package into `<out-dir>`, at the workspace's version — `package.json`,
+/// the launcher `bin/localgpt.js`, and each platform's binary from
+/// `<binaries-dir>` as `vendor/<platform>-<arch>/localgpt`. It is one
+/// package holding all five, so it needs one name on npm and nothing from
+/// the registry at install time but itself.
+///
+/// It is written at release time, so no JavaScript or `package.json` of it
+/// is tracked (`xtask/rule.txt`). A platform with no binary stops it: a
+/// package missing one would install everywhere and fail there.
 pub fn npm_package(root: &Path, args: &[String]) -> Result<(), String> {
-    let [version, binaries_dir, out_dir] = args else {
+    let [binaries_dir, out_dir] = args else {
         return Err(format!(
-            "usage: cargo xtask npm-package <version> <binaries-dir> <out-dir>\n{NPM_USAGE}"
+            "usage: cargo xtask npm-package <binaries-dir> <out-dir>\n{NPM_USAGE}"
         ));
     };
-    let binaries_dir = Path::new(binaries_dir);
-    let out_dir = Path::new(out_dir);
-    let mut packaged = Vec::new();
-    for target in NPM_TARGETS {
-        let Some(src) = find_npm_binary(binaries_dir, target) else {
-            continue;
-        };
-        let pkg_dir = out_dir.join(target.dir_name);
-        let bin_dir = pkg_dir.join("bin");
-        std::fs::create_dir_all(&bin_dir).map_err(|e| format!("{}: {e}", bin_dir.display()))?;
-        let dst = bin_dir.join(target.bin_name);
-        std::fs::copy(&src, &dst).map_err(|e| format!("{}: {e}", src.display()))?;
-        make_executable(&dst)?;
-        std::fs::write(
-            pkg_dir.join("package.json"),
-            npm_platform_package_json(target, version),
-        )
-        .map_err(|e| format!("{}/package.json: {e}", pkg_dir.display()))?;
-        std::fs::write(
-            pkg_dir.join("README.md"),
-            format!(
-                "# `{}`\n\nPrebuilt `{}-{}` binary for [`localgpt`](https://www.npmjs.com/package/localgpt).\n",
-                target.pkg_name, target.os, target.cpu
-            ),
-        )
-        .map_err(|e| format!("{}/README.md: {e}", pkg_dir.display()))?;
-        let license = root.join("LICENSE");
-        if license.is_file() {
-            let _ = std::fs::copy(&license, pkg_dir.join("LICENSE"));
-        }
-        println!("packaged  {} ({version})", target.pkg_name);
-        packaged.push(target);
+    let version = crate::bundle::version(root)?;
+    tag_names(
+        std::env::var("GITHUB_REF_TYPE").ok().as_deref(),
+        std::env::var("GITHUB_REF_NAME").ok().as_deref(),
+        &version,
+    )?;
+    npm_package_at(root, &version, Path::new(binaries_dir), Path::new(out_dir))
+}
+
+/// On a release tag's run, the tag is the version being packed: `v0.7.0`
+/// packs 0.7.0 or nothing. Any other run packs what the tree says.
+fn tag_names(ref_type: Option<&str>, ref_name: Option<&str>, version: &str) -> Result<(), String> {
+    match (ref_type, ref_name) {
+        (Some("tag"), Some(tag)) if tag.strip_prefix('v') != Some(version) => Err(format!(
+            "the tag is {tag}, and Cargo.toml says {version}: nothing packed"
+        )),
+        _ => Ok(()),
     }
-    if packaged.is_empty() {
+}
+
+fn npm_package_at(
+    root: &Path,
+    version: &str,
+    binaries_dir: &Path,
+    out_dir: &Path,
+) -> Result<(), String> {
+    let found: Vec<_> = NPM_TARGETS
+        .iter()
+        .map(|target| (target, find_npm_binary(binaries_dir, target)))
+        .collect();
+    let missing: Vec<&str> = found
+        .iter()
+        .filter(|(_, binary)| binary.is_none())
+        .map(|(target, _)| target.node)
+        .collect();
+    if !missing.is_empty() {
         return Err(format!(
-            "no target binaries found under {}",
+            "no localgpt for {} under {} (looked for <platform>/, localgpt-<platform>/ \
+             and <rust target>/release/)",
+            missing.join(", "),
             binaries_dir.display()
         ));
     }
 
-    let main_dir = out_dir.join("localgpt");
-    let main_bin = main_dir.join("bin");
-    std::fs::create_dir_all(&main_bin).map_err(|e| format!("{}: {e}", main_bin.display()))?;
-    let launcher = main_bin.join("localgpt.js");
-    std::fs::write(&launcher, npm_launcher_js())
-        .map_err(|e| format!("{}: {e}", launcher.display()))?;
-    make_executable(&launcher)?;
-    std::fs::write(
-        main_dir.join("package.json"),
-        npm_root_package_json(version, &packaged),
-    )
-    .map_err(|e| format!("{}/package.json: {e}", main_dir.display()))?;
-    for doc in ["README.md", "LICENSE"] {
-        let src = root.join(doc);
-        if src.is_file() {
-            let _ = std::fs::copy(&src, main_dir.join(doc));
-        }
+    let write = |path: &Path, text: &str| {
+        std::fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))
+    };
+    let folder =
+        |path: &Path| std::fs::create_dir_all(path).map_err(|e| format!("{}: {e}", path.display()));
+    for (target, binary) in &found {
+        let Some(binary) = binary else { continue };
+        let dir = out_dir.join("vendor").join(target.node);
+        folder(&dir)?;
+        let placed = dir.join(target.bin_name);
+        std::fs::copy(binary, &placed).map_err(|e| format!("{}: {e}", binary.display()))?;
+        // An artifact comes back from GitHub without its mode.
+        make_executable(&placed)?;
+        println!("vendor/{}/{}", target.node, target.bin_name);
     }
-    println!("packaged  localgpt ({version})");
+    let bin = out_dir.join("bin");
+    folder(&bin)?;
+    let launcher = bin.join("localgpt.js");
+    write(&launcher, &npm_launcher_js())?;
+    make_executable(&launcher)?;
+    write(&out_dir.join("package.json"), &npm_package_json(version))?;
+    for doc in ["README.md", "LICENSE"] {
+        std::fs::copy(root.join(doc), out_dir.join(doc)).map_err(|e| format!("{doc}: {e}"))?;
+    }
+    println!("localgpt {version} for npm, in {}", out_dir.display());
     Ok(())
 }
 
+/// Where a platform's binary is under `<binaries-dir>`: in a folder named
+/// for the platform as Node names it, in the artifact npm.yml's build
+/// uploads (`localgpt-<platform>`), or where `cargo build --target` left it,
+/// so a target directory serves as it is.
 fn find_npm_binary(binaries_dir: &Path, target: &NpmTarget) -> Option<std::path::PathBuf> {
     [
-        binaries_dir.join(target.rust_target).join(target.bin_name),
+        binaries_dir.join(target.node).join(target.bin_name),
         binaries_dir
-            .join(format!("cli-{}", target.rust_target))
+            .join(format!("localgpt-{}", target.node))
             .join(target.bin_name),
         binaries_dir
             .join(target.rust_target)
@@ -445,42 +450,25 @@ fn make_executable(_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn npm_platform_package_json(target: &NpmTarget, version: &str) -> String {
-    let value = serde_json::json!({
-        "name": target.pkg_name,
-        "version": version,
-        "description": format!("Prebuilt {}-{} binary for localgpt", target.os, target.cpu),
-        "license": "Apache-2.0",
-        "repository": {
-            "type": "git",
-            "url": "git+https://github.com/localgpt-app/localgpt.git"
-        },
-        "homepage": "https://localgpt.app",
-        "os": [target.os],
-        "cpu": [target.cpu],
-        "files": ["bin"],
-        "preferUnplugged": true
-    });
-    let mut text = serde_json::to_string_pretty(&value).unwrap_or_default();
-    text.push('\n');
-    text
-}
-
-fn npm_root_package_json(version: &str, packaged: &[&NpmTarget]) -> String {
-    let mut optional = serde_json::Map::new();
-    for target in packaged {
-        optional.insert(target.pkg_name.into(), version.into());
-    }
+/// The package's `package.json`. `repository` is this repository exactly:
+/// npm checks a provenance statement against it and refuses a publish whose
+/// package names another. No `os` or `cpu`: where there is no binary the
+/// launcher says so, which is kinder than an install that fails for a
+/// project that merely depends on this.
+fn npm_package_json(version: &str) -> String {
     let value = serde_json::json!({
         "name": "localgpt",
         "version": version,
-        "description": "LocalGPT's command line: a .world package's authority, the MCP shim that gives any agent tools against an open world, and deterministic screenplay-to-previs",
+        "description": "LocalGPT's command line, prebuilt: a .world package's authority, the MCP shim that gives any agent tools against an open world, and deterministic screenplay-to-previs",
         "license": "Apache-2.0",
+        "homepage": "https://localgpt.app",
         "repository": {
             "type": "git",
             "url": "git+https://github.com/localgpt-app/localgpt.git"
         },
-        "homepage": "https://localgpt.app",
+        "bugs": {
+            "url": "https://github.com/localgpt-app/localgpt/issues"
+        },
         "keywords": [
             "localgpt",
             "world",
@@ -493,66 +481,90 @@ fn npm_root_package_json(version: &str, packaged: &[&NpmTarget]) -> String {
         "bin": {
             "localgpt": "bin/localgpt.js"
         },
-        "files": ["bin"],
+        "files": ["bin", "vendor"],
         "engines": {
-            "node": ">=16"
-        },
-        "optionalDependencies": optional
+            "node": ">=18"
+        }
     });
     let mut text = serde_json::to_string_pretty(&value).unwrap_or_default();
     text.push('\n');
     text
 }
 
-fn npm_launcher_js() -> &'static str {
-    r#"#!/usr/bin/env node
+/// `bin/localgpt.js`: what npm puts on `PATH`. It starts the binary for
+/// this computer with the same arguments, streams and exit status, so
+/// `localgpt world mcp` through it is the stdio server it is without it.
+fn npm_launcher_js() -> String {
+    let platforms: Vec<&str> = NPM_TARGETS.iter().map(|target| target.node).collect();
+    NPM_LAUNCHER.replace(
+        "__PLATFORMS__",
+        &serde_json::to_string(&platforms).unwrap_or_default(),
+    )
+}
+
+const NPM_LAUNCHER: &str = r#"#!/usr/bin/env node
 "use strict";
 
+// Starts the localgpt built for this computer, from vendor/<platform>-<arch>/.
+// Written by `cargo xtask npm-package` in github.com/localgpt-app/localgpt.
+
 const { spawnSync } = require("node:child_process");
+const fs = require("node:fs");
 const path = require("node:path");
 
-const PLATFORMS = {
-  "darwin-arm64": "@localgpt/cli-darwin-arm64/bin/localgpt",
-  "darwin-x64": "@localgpt/cli-darwin-x64/bin/localgpt",
-  "linux-x64": "@localgpt/cli-linux-x64/bin/localgpt",
-  "linux-arm64": "@localgpt/cli-linux-arm64/bin/localgpt",
-  "win32-x64": "@localgpt/cli-win32-x64/bin/localgpt.exe",
-};
+const PLATFORMS = __PLATFORMS__;
+const FROM_SOURCE =
+  "With Rust installed, `cargo install localgpt` builds it here: https://localgpt.app/docs/installation/";
 
-const key = `${process.platform}-${process.arch}`;
-const target = PLATFORMS[key];
-if (!target) {
+let platform = `${process.platform}-${process.arch}`;
+// Windows on Arm runs x64 programs.
+if (platform === "win32-arm64") platform = "win32-x64";
+
+if (!PLATFORMS.includes(platform)) {
   console.error(
-    `localgpt: unsupported platform ${key} (available: ${Object.keys(PLATFORMS).join(", ")})`
+    `localgpt: no prebuilt binary for ${platform} (there is one for ${PLATFORMS.join(", ")}).\n${FROM_SOURCE}`
   );
   process.exit(1);
 }
 
-let bin;
-try {
-  bin = require.resolve(target);
-} catch {
-  const pkg = target.split("/").slice(0, 2).join("/");
-  console.error(
-    `localgpt: could not find ${pkg} for ${key}.\n` +
-      `Reinstall without --no-optional, or install with: cargo install localgpt`
-  );
-  process.exit(1);
+const bin = path.join(
+  __dirname,
+  "..",
+  "vendor",
+  platform,
+  process.platform === "win32" ? "localgpt.exe" : "localgpt"
+);
+const start = () =>
+  spawnSync(bin, process.argv.slice(2), { stdio: "inherit", windowsHide: true });
+
+let result = start();
+if (result.error && result.error.code === "EACCES") {
+  // Unpacked by something that dropped the executable bit.
+  try {
+    fs.chmodSync(bin, 0o755);
+    result = start();
+  } catch {
+    // The first error is the one to report.
+  }
 }
-
-const result = spawnSync(bin, process.argv.slice(2), {
-  stdio: "inherit",
-  windowsHide: true,
-});
-
 if (result.error) {
-  console.error(`localgpt: failed to start ${path.basename(bin)}: ${result.error.message}`);
+  // A file that is there and "not found" is its loader missing: a Linux
+  // without glibc, such as Alpine.
+  const noLoader =
+    process.platform === "linux" && result.error.code === "ENOENT" && fs.existsSync(bin);
+  console.error(
+    noLoader
+      ? `localgpt: the prebuilt binary needs glibc, which this system does not have.\n${FROM_SOURCE}`
+      : `localgpt: could not start ${bin}: ${result.error.message}`
+  );
   process.exit(1);
 }
-
-process.exit(result.status ?? 1);
-"#
+if (result.signal) {
+  // Ended by a signal: end the same way, so whoever started this sees it.
+  process.kill(process.pid, result.signal);
 }
+process.exit(result.status === null ? 1 : result.status);
+"#;
 
 const API: &str = "https://crates.io/api/v1";
 /// The configuration every crate is to trust: what release.yml runs as.
@@ -726,62 +738,183 @@ mod tests {
         assert!(rendered.lines().all(|line| line.trim_end() == line));
     }
 
-    #[test]
-    fn npm_package_writes_platform_and_root_packages() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let scratch = std::env::temp_dir().join(format!("xtask-npm-{}", std::process::id()));
+    /// A scratch folder holding a stand-in binary for every platform, each
+    /// in one of the three places the command looks. A stand-in is a shell
+    /// script that says what it was given and leaves with status 7.
+    fn stand_ins(name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+        let scratch = std::env::temp_dir().join(format!("xtask-npm-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&scratch);
         let bins = scratch.join("bins");
+        for (index, target) in NPM_TARGETS.iter().enumerate() {
+            let dir = match index % 3 {
+                0 => bins.join(target.node),
+                1 => bins.join(format!("localgpt-{}", target.node)),
+                _ => bins.join(target.rust_target).join("release"),
+            };
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(
+                dir.join(target.bin_name),
+                "#!/bin/sh\necho \"ran: $*\"\nexit 7\n",
+            )
+            .unwrap();
+        }
+        (scratch.clone(), bins)
+    }
+
+    fn repo() -> &'static Path {
+        Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap()
+    }
+
+    #[test]
+    fn the_npm_package_is_one_package_with_every_platform() {
+        let (scratch, bins) = stand_ins("whole");
         let out = scratch.join("out");
-        let arm_dir = bins.join("cli-aarch64-apple-darwin");
-        let win_dir = bins.join("x86_64-pc-windows-msvc");
-        std::fs::create_dir_all(&arm_dir).unwrap();
-        std::fs::create_dir_all(&win_dir).unwrap();
-        std::fs::write(arm_dir.join("localgpt"), b"arm64-bin").unwrap();
-        std::fs::write(win_dir.join("localgpt.exe"), b"win-bin").unwrap();
+        npm_package_at(repo(), "1.2.3", &bins, &out).unwrap();
 
-        npm_package(
-            root,
-            &[
-                "0.5.0".to_string(),
-                bins.to_string_lossy().into_owned(),
-                out.to_string_lossy().into_owned(),
-            ],
-        )
-        .unwrap();
-
-        let arm_pkg: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(out.join("cli-darwin-arm64/package.json")).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(arm_pkg["name"], "@localgpt/cli-darwin-arm64");
-        assert_eq!(arm_pkg["version"], "0.5.0");
-        assert_eq!(arm_pkg["os"], serde_json::json!(["darwin"]));
-        assert_eq!(arm_pkg["cpu"], serde_json::json!(["arm64"]));
-        assert!(out.join("cli-darwin-arm64/bin/localgpt").is_file());
-        assert!(out.join("cli-win32-x64/bin/localgpt.exe").is_file());
-
-        let root_pkg: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(out.join("localgpt/package.json")).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(root_pkg["name"], "localgpt");
-        assert_eq!(root_pkg["bin"]["localgpt"], "bin/localgpt.js");
+        let package: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(out.join("package.json")).unwrap())
+                .unwrap();
+        assert_eq!(package["name"], "localgpt");
+        assert_eq!(package["version"], "1.2.3");
+        assert_eq!(package["bin"]["localgpt"], "bin/localgpt.js");
+        assert_eq!(package["files"], serde_json::json!(["bin", "vendor"]));
+        // npm holds a provenance statement to this, to the letter.
         assert_eq!(
-            root_pkg["optionalDependencies"]["@localgpt/cli-darwin-arm64"],
-            "0.5.0"
+            package["repository"]["url"],
+            "git+https://github.com/localgpt-app/localgpt.git"
         );
-        assert_eq!(
-            root_pkg["optionalDependencies"]["@localgpt/cli-win32-x64"],
-            "0.5.0"
-        );
+        // One package: nothing else to fetch, nothing run at install, and
+        // no platform turned away by npm before the launcher can speak.
+        for absent in [
+            "dependencies",
+            "optionalDependencies",
+            "scripts",
+            "os",
+            "cpu",
+        ] {
+            assert!(package.get(absent).is_none(), "package.json has {absent}");
+        }
+
+        let launcher = std::fs::read_to_string(out.join("bin/localgpt.js")).unwrap();
+        assert!(launcher.starts_with("#!/usr/bin/env node\n"));
+        assert!(!launcher.contains("__PLATFORMS__"));
+        for target in &NPM_TARGETS {
+            let binary = out.join("vendor").join(target.node).join(target.bin_name);
+            assert!(binary.is_file(), "{} is not packed", binary.display());
+            assert!(
+                launcher.contains(&format!("\"{}\"", target.node)),
+                "the launcher does not know {}",
+                target.node
+            );
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = std::fs::metadata(&binary).unwrap().permissions().mode();
+                assert_eq!(mode & 0o111, 0o111, "{} cannot be run", binary.display());
+            }
+        }
+        assert!(out.join("README.md").is_file());
+        assert!(out.join("LICENSE").is_file());
+        let _ = std::fs::remove_dir_all(&scratch);
+    }
+
+    #[test]
+    fn a_platform_with_no_binary_stops_the_package() {
+        let (scratch, bins) = stand_ins("short");
+        std::fs::remove_dir_all(bins.join("localgpt-darwin-x64")).unwrap();
+        let out = scratch.join("out");
+        let refused = npm_package_at(repo(), "1.2.3", &bins, &out).unwrap_err();
+        assert!(refused.contains("darwin-x64"), "{refused}");
+        assert!(!refused.contains("linux-x64"), "{refused}");
         assert!(
-            root_pkg["optionalDependencies"]
-                .get("@localgpt/cli-linux-x64")
-                .is_none()
+            !out.join("package.json").exists(),
+            "a package was started without it"
         );
-        assert!(out.join("localgpt/bin/localgpt.js").is_file());
+        let _ = std::fs::remove_dir_all(&scratch);
+    }
 
+    #[test]
+    fn a_release_tag_names_the_version_it_packs() {
+        assert!(tag_names(Some("tag"), Some("v0.7.0"), "0.7.0").is_ok());
+        assert!(tag_names(Some("tag"), Some("v0.7.0-rc.1"), "0.7.0-rc.1").is_ok());
+        let refused = tag_names(Some("tag"), Some("v0.7.1"), "0.7.0").unwrap_err();
+        assert!(
+            refused.contains("v0.7.1") && refused.contains("0.7.0"),
+            "{refused}"
+        );
+        assert!(tag_names(Some("tag"), Some("0.7.0"), "0.7.0").is_err());
+        // A branch's run, and a run outside GitHub, pack what the tree says.
+        assert!(tag_names(Some("branch"), Some("main"), "0.7.0").is_ok());
+        assert!(tag_names(None, None, "0.7.0").is_ok());
+    }
+
+    /// This computer as Node names it, when the package has a binary for it.
+    #[cfg(unix)]
+    fn this_platform() -> Option<&'static str> {
+        let node = match (std::env::consts::OS, std::env::consts::ARCH) {
+            ("macos", "aarch64") => "darwin-arm64",
+            ("macos", "x86_64") => "darwin-x64",
+            ("linux", "aarch64") => "linux-arm64",
+            ("linux", "x86_64") => "linux-x64",
+            _ => return None,
+        };
+        Some(node)
+    }
+
+    /// The launcher itself, run by node over the stand-in for this
+    /// computer: it is the one piece of the package that is not Rust, and
+    /// what every `localgpt` from npm starts through.
+    #[cfg(unix)]
+    #[test]
+    fn the_launcher_hands_over_arguments_streams_and_the_exit_status() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::process::Command;
+
+        let Some(platform) = this_platform() else {
+            return;
+        };
+        if Command::new("node").arg("--version").output().is_err() {
+            assert!(
+                std::env::var_os("CI").is_none(),
+                "node is not installed, and CI is where the launcher must be run"
+            );
+            eprintln!("node is not installed: the launcher was not run");
+            return;
+        }
+        let (scratch, bins) = stand_ins("launcher");
+        let out = scratch.join("out");
+        npm_package_at(repo(), "1.2.3", &bins, &out).unwrap();
+        let launch = || {
+            Command::new("node")
+                .arg(out.join("bin/localgpt.js"))
+                .args(["world", "mcp", "--flag"])
+                .output()
+                .unwrap()
+        };
+
+        let ran = launch();
+        assert_eq!(
+            String::from_utf8_lossy(&ran.stdout),
+            "ran: world mcp --flag\n"
+        );
+        assert_eq!(ran.status.code(), Some(7));
+
+        // Unpacked without its mode, it is made runnable and run.
+        let binary = out.join("vendor").join(platform).join("localgpt");
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let ran = launch();
+        assert_eq!(
+            String::from_utf8_lossy(&ran.stdout),
+            "ran: world mcp --flag\n"
+        );
+        assert_eq!(ran.status.code(), Some(7));
+
+        // Gone, it says which file would not start.
+        std::fs::remove_file(&binary).unwrap();
+        let failed = launch();
+        assert_eq!(failed.status.code(), Some(1));
+        let said = String::from_utf8_lossy(&failed.stderr);
+        assert!(said.contains("localgpt: could not start"), "{said}");
         let _ = std::fs::remove_dir_all(&scratch);
     }
 }

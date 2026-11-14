@@ -239,7 +239,6 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// The workspace's one version (`[workspace.package]`).
 /// Whether the `localgpt` beside the app runs the audio models: wherever
 /// ONNX Runtime has a build, which leaves out an Intel Mac — `ort` ships none
 /// for x86_64-apple-darwin, and a build with the feature stops there.
@@ -258,7 +257,8 @@ fn app_build(release: bool, features: Option<&str>) -> Vec<String> {
 }
 
 /// The build of `Contents/MacOS/localgpt`. It names its features instead of
-/// taking the crate's defaults, so the bundle does not change when they do.
+/// taking the crate's defaults, so the bundle does not change when they do:
+/// `audio` is one the crate leaves off and the app's `localgpt` has.
 fn cli_build(release: bool, audio: bool) -> Vec<&'static str> {
     let mut build = vec!["build", "-p", "localgpt", "--no-default-features"];
     if audio {
@@ -270,7 +270,8 @@ fn cli_build(release: bool, audio: bool) -> Vec<&'static str> {
     build
 }
 
-fn version(root: &Path) -> Result<String, String> {
+/// The workspace's one version (`[workspace.package]`).
+pub(crate) fn version(root: &Path) -> Result<String, String> {
     let manifest =
         std::fs::read_to_string(root.join("Cargo.toml")).map_err(|e| format!("Cargo.toml: {e}"))?;
     manifest

@@ -35,7 +35,7 @@ A phone or a tablet on the same network can show the same terminals and the worl
 An MCP client gets the open world's tools from `localgpt world mcp`, registered once:
 
 ```bash
-cargo install localgpt
+npm install -g localgpt                           # prebuilt; or, with Rust, cargo install localgpt
 claude mcp add world -- localgpt world mcp        # Claude Code; Codex and Gemini CLI take the same command in their MCP config
 ```
 

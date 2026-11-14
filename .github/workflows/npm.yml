@@ -1,0 +1,241 @@
+# The `localgpt` npm package: the command line, prebuilt, so that
+# `npm install -g localgpt` and `npx -y localgpt world mcp` need no Rust.
+#
+# A `vX.Y.Z` tag publishes it, beside the crates (release.yml; neither waits
+# for the other). Run by hand it is a rehearsal, and publishes only when told
+# to:
+#   gh workflow run npm.yml                                # build, pack, install, run; publish nothing
+#   gh workflow run npm.yml --ref vX.Y.Z -f publish=true   # a release whose own run failed
+#
+# It builds `localgpt` for five platforms without the audio models (they link
+# ONNX Runtime, which has no build for an Intel Mac and asks a newer Linux
+# than the rest does); packs the five into one package (cargo xtask
+# npm-package, which on a tag's run refuses a tag that is not the workspace's
+# version); installs that tarball on each of the five and runs what it
+# installed; and only then publishes the same tarball. Either way the tarball
+# is kept, as the `npm-package` artifact.
+#
+# Credentials: npm's trusted publishing, so no token lives here once it is
+# set up, and npm records where the package was built. On npmjs.com, in the
+# package's Settings > Trusted Publisher > GitHub Actions: organization
+# `localgpt-app`, repository `localgpt`, workflow `npm.yml`, environment
+# `npm`. npm allows that only for a package that exists, and drops a
+# publisher that has not published within two days of being set up, so:
+#   - the first release goes up with a token: a granular access token with
+#     read and write on all packages (this one is not there to be chosen
+#     yet) that skips 2FA and expires in days, in the `npm` environment's
+#     `NPM_TOKEN` secret (gh secret set NPM_TOKEN --env npm). Delete both
+#     once the package is up.
+#   - set the trusted publisher up within the two days before the next one.
+# npm asks the trusted publisher first and falls back to the token.
+name: npm
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to npm (off: build, pack, install and run only)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: localgpt (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: darwin-arm64, target: aarch64-apple-darwin, os: macos-latest, bin: localgpt }
+          - { platform: darwin-x64, target: x86_64-apple-darwin, os: macos-15-intel, bin: localgpt }
+          # Ubuntu 22.04 for its glibc, 2.35: what is linked against it runs
+          # there, on Debian 12 and on everything newer.
+          - { platform: linux-x64, target: x86_64-unknown-linux-gnu, os: ubuntu-22.04, bin: localgpt }
+          - { platform: linux-arm64, target: aarch64-unknown-linux-gnu, os: ubuntu-22.04-arm, bin: localgpt }
+          # The C runtime linked in, so a Windows without the Visual C++
+          # redistributable runs it.
+          - { platform: win32-x64, target: x86_64-pc-windows-msvc, os: windows-latest, bin: localgpt.exe, rustflags: "-C target-feature=+crt-static" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: npm-${{ matrix.target }}
+
+      - name: Build localgpt
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
+        run: cargo build --release --locked -p localgpt --target ${{ matrix.target }}
+
+      - name: It runs where it was built
+        shell: bash
+        run: target/${{ matrix.target }}/release/${{ matrix.bin }} --version
+
+      - name: What the Linux binary asks of a system
+        if: runner.os == 'Linux'
+        run: |
+          bin=target/${{ matrix.target }}/release/localgpt
+          objdump -p "$bin" | grep NEEDED
+          echo "glibc: $(objdump -T "$bin" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: localgpt-${{ matrix.platform }}
+          path: target/${{ matrix.target }}/release/${{ matrix.bin }}
+          if-no-files-found: error
+          overwrite: true
+
+  pack:
+    name: Pack
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: localgpt-*
+          path: dist/binaries
+
+      - name: One package, every platform in it
+        run: |
+          cargo xtask npm-package dist/binaries dist/npm
+          cd dist/npm
+          npm pack
+          tar -tzvf localgpt-*.tgz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: dist/npm/localgpt-*.tgz
+          if-no-files-found: error
+          overwrite: true
+
+  # The tarball that would be published, installed the way a person installs
+  # it, on each platform it claims.
+  install:
+    name: Install and run (${{ matrix.platform }})
+    needs: pack
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: darwin-arm64, os: macos-latest }
+          - { platform: darwin-x64, os: macos-15-intel }
+          - { platform: linux-x64, os: ubuntu-22.04 }
+          - { platform: linux-arm64, os: ubuntu-22.04-arm }
+          - { platform: win32-x64, os: windows-latest }
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+
+      - name: Install the tarball and run what it installed
+        shell: bash
+        run: |
+          tarball=$(ls localgpt-*.tgz)
+          version=${tarball#localgpt-}
+          version=${version%.tgz}
+          prefix="$RUNNER_TEMP/npm-global"
+          npm install -g --prefix "$prefix" "./$tarball"
+          bin="$prefix/bin"; [ -d "$bin" ] || bin="$prefix"
+
+          test "$("$bin/localgpt" --version)" = "localgpt $version"
+          "$bin/localgpt" world init "$RUNNER_TEMP/smoke.world"
+          "$bin/localgpt" world verify "$RUNNER_TEMP/smoke.world"
+
+          # The binary's exit status and its stderr are the launcher's: this
+          # build has no audio models, and says so with status 1.
+          set +e
+          "$bin/localgpt" audio mcp > said.txt 2>&1; status=$?
+          set -e
+          cat said.txt
+          test "$status" = 1
+          grep -q "built without the audio models" said.txt
+
+      - name: The same through cmd.exe's shim
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: '"%RUNNER_TEMP%\npm-global\localgpt.cmd" --version'
+
+      # Node's Debian 12 image, where a web developer's container starts, and
+      # Alpine, which has no glibc: there the launcher has to say so, where
+      # the system would only say "not found".
+      - name: The same in node's Debian and Alpine images
+        if: matrix.platform == 'linux-x64'
+        run: |
+          docker run --rm -v "$PWD:/w:ro" node:22-bookworm-slim sh -ec '
+            npm install -g /w/localgpt-*.tgz > /dev/null
+            localgpt --version
+            localgpt world init /tmp/smoke.world
+            localgpt world verify /tmp/smoke.world'
+          docker run --rm -v "$PWD:/w:ro" node:22-alpine sh -c '
+            npm install -g /w/localgpt-*.tgz > /dev/null
+            localgpt --version' > alpine.txt 2>&1 || true
+          cat alpine.txt
+          grep -q -e "needs glibc" -e "^localgpt [0-9]" alpine.txt
+
+  publish:
+    name: Publish to npm
+    needs: install
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/localgpt
+    permissions:
+      contents: read
+      id-token: write # the trusted publisher's exchange, and the provenance statement
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+      # Trusted publishing needs npm 11.5.1, newer than node 22 brings.
+      - run: npm install -g npm@latest
+
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          tarball=$(ls localgpt-*.tgz)
+          version=${tarball#localgpt-}
+          version=${version%.tgz}
+          # A rerun after the upload went through has nothing left to do.
+          if curl -fsS -o /dev/null "https://registry.npmjs.org/localgpt/$version"; then
+            echo "localgpt@$version is up already"
+            exit 0
+          fi
+          # A pre-release (a hyphen in the version) is `next`, never `latest`.
+          tag=latest
+          case "$version" in *-*) tag=next ;; esac
+          npm publish "$tarball" --access public --provenance --tag "$tag"

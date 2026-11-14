@@ -112,7 +112,9 @@ cargo run -p localgpt-verse                        # --features ml: CLAP moods a
 `docs/releasing.md` has the steps. cargo-release with one shared version:
 pass `--workspace` to every step that selects packages (`version`,
 `publish`, `tag`, `push`), because the root's `default-members` is the CLI
-alone. A signed `vX.Y.Z` tag publishes the crates (`release.yml`); a
+alone. A signed `vX.Y.Z` tag publishes the crates (`release.yml`) and the
+`localgpt` npm package (`npm.yml`: the CLI prebuilt for five platforms, one
+package; run by hand it is the rehearsal and publishes nothing); a
 `desktop-vX.Y.Z` tag builds `LocalGPT.app` and drafts its release
 (`desktop.yml`).
 
