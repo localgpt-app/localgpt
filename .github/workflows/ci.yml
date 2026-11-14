@@ -59,6 +59,12 @@ jobs:
   # the line breaks into spaces, so each `\` escaped a space instead of a
   # newline and cargo rejected " --exclude" — the job failed in seconds from
   # the day it was split across lines.
+  #
+  # The CLI's audio models are a feature it leaves off (they link ONNX
+  # Runtime, which is not everywhere `localgpt` is), so `localgpt/audio` asks
+  # for them here, or nothing would lint and test them and the models crate's
+  # own code behind them. The second command is the CLI alone, as `cargo
+  # install` and npm give it: without them.
   clippy:
     name: Clippy
     if: github.event_name != 'schedule'
@@ -72,7 +78,9 @@ jobs:
       - run: |
           cargo clippy --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
             --exclude localgpt-doc --exclude localgpt-verse \
-            --exclude localgpt-world-audio --exclude localgpt-app -- -D warnings
+            --exclude localgpt-world-audio --exclude localgpt-app \
+            --features localgpt/audio -- -D warnings
+      - run: cargo clippy -p localgpt -- -D warnings
 
   test:
     name: Test
@@ -85,7 +93,9 @@ jobs:
       - run: |
           cargo test --workspace --exclude localgpt-gen --exclude localgpt-world-bevy \
             --exclude localgpt-doc --exclude localgpt-verse \
-            --exclude localgpt-world-audio --exclude localgpt-app
+            --exclude localgpt-world-audio --exclude localgpt-app \
+            --features localgpt/audio
+      - run: cargo test -p localgpt
       # world.schema.json must match the types (tests/schema_snapshot.rs).
       - run: cargo test -p localgpt-world-types --features schema
 
@@ -173,10 +183,6 @@ jobs:
         env:
           ORT_LIB_LOCATION: /opt/onnxruntime-1.23/lib
           ORT_PREFER_DYNAMIC_LINK: "1"
-      # The CLI without its audio models: what an Intel Mac gets, since ONNX
-      # Runtime has no build for one (`cargo xtask bundle` builds it so
-      # there). No other job compiles the CLI with the feature off.
-      - run: cargo check -p localgpt --no-default-features
 
   # The page a paired phone or tablet gets from the desktop app (crates/app/ui
   # — React, Tailwind, xterm.js), carried inside the release binary, and its

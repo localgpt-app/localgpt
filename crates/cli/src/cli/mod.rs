@@ -59,9 +59,37 @@ pub enum Commands {
         command: audio::AudioCommands,
     },
 
+    /// The optional audio models, which this build leaves out: it says where a build with them is
+    #[cfg(not(feature = "audio"))]
+    #[command(disable_help_flag = true, disable_version_flag = true)]
+    Audio {
+        /// Whatever was asked of the audio models
+        #[arg(
+            trailing_var_arg = true,
+            allow_hyphen_values = true,
+            value_name = "ARGS"
+        )]
+        args: Vec<OsString>,
+    },
+
     /// Generate shell completion scripts
     Completion(completion::CompletionArgs),
 }
+
+/// What `localgpt audio` answers in a build without the `audio` feature,
+/// which is what npm and a plain `cargo install localgpt` give: an agent
+/// whose MCP configuration starts `localgpt audio mcp` reads this in place
+/// of a server that never comes up.
+#[cfg(not(feature = "audio"))]
+pub const NO_AUDIO: &str = "this localgpt was built without the audio models.
+
+They run on ONNX Runtime, which has no build for an Intel Mac or for a Linux
+older than glibc 2.38, so a build has them only when asked:
+
+    cargo install localgpt --features audio
+
+On an Apple-silicon Mac, the localgpt inside LocalGPT.app has them.
+https://localgpt.app/docs/audio-models/#platforms";
 
 #[cfg(test)]
 mod tests {
@@ -102,5 +130,28 @@ mod tests {
             ),
             _ => panic!("expected gen"),
         }
+    }
+
+    /// Without the feature, anything asked of `audio` still parses, flags
+    /// and `--help` included, so every way in reaches the one answer: where
+    /// a build with the models is.
+    #[cfg(not(feature = "audio"))]
+    #[test]
+    fn audio_without_the_feature_takes_anything_and_says_where_it_is() {
+        for asked in [
+            &["localgpt", "audio"][..],
+            &["localgpt", "audio", "mcp"],
+            &["localgpt", "audio", "install", "--all"],
+            &["localgpt", "audio", "--help"],
+            &["localgpt", "audio", "notes", "a.wav", "--json"],
+        ] {
+            let cli = Cli::try_parse_from(asked).unwrap_or_else(|e| panic!("{asked:?}: {e}"));
+            assert!(
+                matches!(cli.command, Commands::Audio { .. }),
+                "{asked:?} is not the audio command"
+            );
+        }
+        assert!(NO_AUDIO.contains("cargo install localgpt --features audio"));
+        assert!(NO_AUDIO.contains("LocalGPT.app"));
     }
 }

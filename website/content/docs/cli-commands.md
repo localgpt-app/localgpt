@@ -158,7 +158,7 @@ localgpt audio tags <file> [--json]       # AudioSet labels, overall and every 1
 localgpt audio match <file> <description>...
 ```
 
-`--no-default-features` builds `localgpt` without it, and without ONNX Runtime.
+These are in a `localgpt` built with its `audio` feature: the one inside `LocalGPT.app` on an Apple-silicon Mac, or `cargo install localgpt --features audio`. The one from npm and a plain `cargo install localgpt` leave the models and ONNX Runtime out, and `localgpt audio` there says [where a build with them is](/docs/audio-models/#platforms).
 
 ## `localgpt completion`
 

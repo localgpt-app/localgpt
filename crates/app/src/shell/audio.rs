@@ -7,7 +7,9 @@
 //! The models run in the `localgpt` command an agent starts as its MCP
 //! server (`localgpt world mcp`), which offers a model's tool once the model
 //! is installed. A server already running lists its tools as it found them
-//! at its start, so the panel says to restart it.
+//! at its start, so the panel says to restart it. That `localgpt` is one
+//! built with its `audio` feature, which the one inside `LocalGPT.app` is
+//! and a plain `cargo install localgpt` is not, so the panel says that too.
 //!
 //! This is the window's own: the panel is not part of the interface
 //! protocol, because the models belong to the machine, not to a paired
@@ -28,6 +30,12 @@ pub struct Audio {
     jobs: Arc<Mutex<HashMap<&'static str, Job>>>,
 }
 
+/// Whether any `localgpt` on this kind of computer runs the models. ONNX
+/// Runtime has no build for an Intel Mac (`cargo xtask bundle` leaves the
+/// models out of that Mac's `localgpt` for the same reason), so there the
+/// button would install what nothing can use, and the bar has none.
+const RUNS_HERE: bool = !cfg!(all(target_os = "macos", target_arch = "x86_64"));
+
 #[derive(Clone)]
 enum Job {
     Installing { done: u64, total: u64 },
@@ -38,7 +46,7 @@ impl Audio {
     /// The Audio button, and its panel.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         use egui::containers::menu::{MenuButton, MenuConfig};
-        if MODELS.is_empty() {
+        if !RUNS_HERE || MODELS.is_empty() {
             return;
         }
         let Some(dir) = models::models_dir() else {
@@ -69,7 +77,8 @@ impl Audio {
             RichText::new(
                 "Optional. Once a model is installed, an agent's `localgpt world mcp` \
                  offers its tool; restart the agent's MCP server to see it. They run on \
-                 this computer's CPU, offline.",
+                 this computer's CPU, offline, in a `localgpt` built with them: the one \
+                 in LocalGPT.app, or `cargo install localgpt --features audio`.",
             )
             .color(theme::MUTED),
         );

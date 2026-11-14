@@ -15,10 +15,14 @@ name = "localgpt"
 path = "src/main.rs"
 
 [features]
-default = ["audio"]
+default = []
 # `localgpt audio`: install the optional audio-analysis models and run them,
-# and their tools in `world mcp` once installed. It links ONNX Runtime;
-# `--no-default-features` leaves it out.
+# and their tools in `world mcp` once installed. Asked for, not default: it
+# links ONNX Runtime, which has no build for an Intel Mac and whose Linux
+# build needs glibc 2.38, and `cargo install localgpt` has to work there
+# too. `cargo xtask bundle` turns it on for the `localgpt` inside
+# LocalGPT.app, CI lints and tests with it on, and the npm package is built
+# without it.
 audio = ["dep:localgpt-audio-models"]
 
 [dependencies]

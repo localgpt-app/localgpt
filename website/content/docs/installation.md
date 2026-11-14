@@ -24,7 +24,8 @@ description: "Install LocalGPT: the binaries from crates.io, the desktop app fro
 
 ```bash
 cargo install localgpt-gen       # the world builder: MCP server and relay, the live canvas, sessions, headless
-cargo install localgpt           # `localgpt world`, `localgpt world mcp` (the shim), `localgpt previs` and `localgpt audio`
+cargo install localgpt           # `localgpt world`, `localgpt world mcp` (the shim) and `localgpt previs`
+cargo install localgpt --features audio   # the same, with `localgpt audio`: the optional audio models
 ```
 
 For the `localgpt` command line and MCP shim without a Rust toolchain, install the prebuilt binary from npm (or run it directly with `npx`):
@@ -104,7 +105,7 @@ cargo install --path crates/cli               # or crates/gen, crates/app
 | Crate | Flag | What it adds | Fetch first |
 |---|---|---|---|
 | `localgpt-gen` | `physics`, `multiplayer` (default) | avian3d physics; `--host`/`--join`/`--web` sessions | — |
-| `localgpt` | `audio` (default) | `localgpt audio`: the optional [audio models](@/docs/audio-models.md), and their tools in `localgpt world mcp` once installed; links ONNX Runtime, so turn it off (`--no-default-features`) on an Intel Mac or a Linux older than glibc 2.38, [where it has no build](@/docs/audio-models.md#platforms) | `localgpt audio install <id>` |
+| `localgpt` | `audio` | `localgpt audio`: the optional [audio models](@/docs/audio-models.md), and their tools in `localgpt world mcp` once installed. Off unless asked for (`cargo install localgpt --features audio`): it links ONNX Runtime, which has [no build for an Intel Mac or a Linux older than glibc 2.38](@/docs/audio-models.md#platforms). The `localgpt` inside `LocalGPT.app` has it on Apple silicon; npm's does not | `localgpt audio install <id>` |
 | `localgpt-verse` | `ml` | CLAP zero-shot moods and embedding-ranked placement (Apache-2.0 weights), Demucs stems (MIT code; its author calls the weights' licence unclear) — audio analysis, not a language model | `localgpt audio install match` (Demucs downloads itself) |
 
 ```bash

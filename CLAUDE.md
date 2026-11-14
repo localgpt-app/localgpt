@@ -55,8 +55,9 @@ cargo xtask deploy world --dry-run  # the sites: app md world, or all
 
 cargo build                         # default-members is the CLI alone; --workspace builds everything,
                                     # --release is LTO and stripped (slow)
-cargo test --workspace              # or -p localgpt-gen; `-- --nocapture` shows stdout
-cargo clippy --workspace -- -D warnings   # both required before a commit
+cargo test --workspace --features localgpt/audio    # or -p localgpt-gen; `-- --nocapture` shows stdout
+cargo clippy --workspace --features localgpt/audio -- -D warnings   # both required before a commit; the
+                                    # feature is the CLI's audio models, which no default build compiles
 cargo fmt --check
 ```
 
@@ -67,7 +68,7 @@ cargo run -- world init demo.world  # also submit, undo, redo, log, tips, show, 
                                     # need an open app
 cargo run -- world mcp              # a stdio MCP server over an app's open canvas
 cargo run -- previs script.fdx --out previs/   # a screenplay → per-scene .world packages, shot list and board
-cargo run -- audio list             # the optional audio models; also install, remove, mcp,
+cargo run --features audio -- audio list   # the optional audio models; also install, remove, mcp,
                                     # and stems, notes, tags and match on a file
 
 # Gen: the world builder. An agent outside the window drives it
@@ -149,7 +150,7 @@ website-world/    # localgpt.world — the gallery and the one web viewer
 ```
 
 ```
-localgpt (CLI)  → world-agent (features: mcp), world-editor, previs (features: pdf), audio-models (features: mcp)
+localgpt (CLI)  → world-agent (features: mcp), world-editor, previs (features: pdf); with `audio`, audio-models (features: mcp)
 localgpt-gen    → world-agent (features: mcp-http), previs, world-*
 localgpt-app    → gen, doc (lib only), verse, previs, world-agent, world-bevy, world-types, audio-models (installer only)
 doc, verse      → world-agent (paths), world-*; verse (ml) → audio-models (features: run)
@@ -182,7 +183,7 @@ a mapping.
 | `doc` | `app` | yes | The Bevy bin; the lib builds without it, which is how `crates/app` takes it |
 | `verse` | `ml` | no | CLAP moods over the shared `match` model, and Demucs stems (`stem-splitter-core`) |
 | `world-types` | `schema` | no | Writes `world.schema.json` |
-| `cli` | `audio` | yes | `localgpt audio`, and the installed models' tools in `world mcp`; links ONNX Runtime |
+| `cli` | `audio` | no | `localgpt audio`, and the installed models' tools in `world mcp`; links ONNX Runtime, which has no build for an Intel Mac and needs glibc 2.38 on Linux, so `cargo xtask bundle` asks for it (Apple silicon), CI lints and tests with it, and npm's build is without it |
 | `audio-models` | `run` | no | The models themselves (`ort`, decoding, resampling); without it the crate is the catalog and installer the app takes |
 | `audio-models` | `mcp` | no | The models' tools (`audio_stems`, `audio_notes`, `audio_tags`, `audio_match`) |
 
@@ -267,7 +268,10 @@ unclear, which is why the agent's stems are Spleeter's.
 `world`, `previs`, `audio`, `gen` and `completion` are the whole binary: no
 chat, no config, no key. `audio` lists, installs and removes the audio models,
 runs each on a file and serves the installed ones' tools (`audio mcp`;
-`world mcp` adds them too, writing into the world's `assets/`). `world` is init, submit (`--at <id>` forks), undo, redo, log, tips,
+`world mcp` adds them too, writing into the world's `assets/`). It is the
+`audio` feature, off by default: without it the command is one answer, where
+a build with the models is (`cli::NO_AUDIO`).
+`world` is init, submit (`--at <id>` forks), undo, redo, log, tips,
 show, get, verify, history, lint (what each camera sees and what is probably
 a mistake: `world-agent::lint`, arithmetic over the document), find (which
 entities a phrase means: `world-agent::find`) and link (the manifest in a
@@ -377,10 +381,10 @@ assistant saved under `workspace/skills/` are copied into
 
 ## Conventions
 
-- **Lint clean before committing:** `cargo clippy --workspace -- -D warnings`
-  and `cargo fmt --check` must pass. After a Rust change, run `cargo check`
-  and fix every error before reporting it done. Never edit Rust files with
-  `sed`.
+- **Lint clean before committing:** `cargo clippy --workspace --features
+  localgpt/audio -- -D warnings` and `cargo fmt --check` must pass. After a
+  Rust change, run `cargo check` and fix every error before reporting it
+  done. Never edit Rust files with `sed`.
 - **Rust above the operating system** (`docs/rfcs/authoring/all-rust.md`):
   nothing new in another language — no JavaScript, TypeScript, Python or
   shell — and no new crate depending on `wry`. A script is an `xtask`
@@ -410,12 +414,12 @@ assistant saved under `workspace/skills/` are copied into
 verify` runs the same checks on this machine. Its jobs: `fmt`; `rule`
 (`cargo xtask rule`); `clippy` and `test` for the workspace minus the six
 crates that need audio and windowing headers (`app`, `gen`, `doc`, `verse`,
-`world-bevy`, `world-audio`), which the `bevy` job lints and tests;
-`features` (`cargo check -p localgpt-verse --features ml` and `cargo check
--p localgpt --no-default-features`, since nothing else compiles Verse's
-gated code or the CLI without its audio models, which is what an Intel Mac
-gets); `interface` (typecheck and build of the phone's
-page and its design sheet); `viewer` (`cargo xtask sync-viewer --check`, the
+`world-bevy`, `world-audio`: the `bevy` job lints and tests those), run
+with `--features localgpt/audio`, since the CLI's audio models are a feature
+it leaves off, and then for the CLI alone as it ships, without them;
+`features` (`cargo check -p localgpt-verse --features ml`, since nothing
+else compiles Verse's gated code); `interface` (typecheck and build of the
+phone's page and its design sheet); `viewer` (`cargo xtask sync-viewer --check`, the
 headless render check of `website-world`'s viewer and the localgpt.md page
 check — the only automated checks on the format's web renderer); `deps`
 (cargo-deny, `deny.toml`) on every change, and `advisories` on main and

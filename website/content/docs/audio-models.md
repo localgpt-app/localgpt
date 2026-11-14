@@ -18,7 +18,7 @@ They are optional and none is installed at first. Each runs on your computer's C
 
 ## Install {#install}
 
-In the desktop app, **Audio** in the top bar lists the models: **Install** downloads one, with its progress, and **Remove** deletes it. From a terminal:
+In the desktop app, **Audio** in the top bar lists the models: **Install** downloads one, with its progress, and **Remove** deletes it. From a terminal, in a `localgpt` [built with the models](#platforms):
 
 ```bash
 localgpt audio list                 # each model, its download, licence, and whether it is installed
@@ -32,7 +32,12 @@ An MCP server lists its tools when it starts, so after an install, restart or re
 
 ## Where they run {#platforms}
 
-The models run on ONNX Runtime, which `localgpt` links in. It has builds for an Apple-silicon Mac, for Windows, and for Linux with glibc 2.38 or newer (Ubuntu 24.04, Debian 13). It has none for an Intel Mac: `localgpt` there, the one inside `LocalGPT.app` included, has no `audio` command. Built from source on an Intel Mac or an older Linux, `localgpt` needs `cargo install localgpt --no-default-features`, which leaves the audio models out and everything else in.
+The models run inside `localgpt`, on ONNX Runtime, in a `localgpt` built with its `audio` feature:
+
+- **`LocalGPT.app` on an Apple-silicon Mac** carries one, and its terminals find it first.
+- **`cargo install localgpt --features audio`** builds one, on an Apple-silicon Mac, on Windows, and on Linux with glibc 2.38 or newer (Ubuntu 24.04, Debian 13).
+
+The `localgpt` from npm and from a plain `cargo install localgpt` is built without them: `localgpt audio` there says so and names these two, and `localgpt world mcp` serves the world's tools alone. That is because ONNX Runtime is not everywhere `localgpt` is. It has no build for an Intel Mac, so nothing runs the models there and the app's bar has no **Audio** button; and its Linux build needs a newer glibc than the rest of `localgpt` does.
 
 ## What an agent does with them {#agents}
 

@@ -57,7 +57,7 @@ It also serves the tools of the [audio models](#audio-models-installed-only) ins
 
 ### localgpt audio mcp (the audio models)
 
-The installed audio models' tools alone, for an agent that is not working on a world; they write into the directory the server was started in. It refuses to start when no model is installed.
+The installed audio models' tools alone, for an agent that is not working on a world; they write into the directory the server was started in. It refuses to start when no model is installed, and in a `localgpt` built without the models, which is what npm and a plain `cargo install localgpt` give: the one inside `LocalGPT.app` has them, and so does `cargo install localgpt --features audio`.
 
 ```bash
 localgpt audio list                 # what can be installed, and what is
@@ -262,7 +262,7 @@ Every tool below is Gen's, except the audio models' at the end; the names are wh
 
 ### Audio models (installed only)
 
-Served by `localgpt world mcp` and `localgpt audio mcp`, each only once its model is installed (`localgpt audio install <id>` or the desktop app's Audio button). They run on this machine's CPU, offline. A relative `file` is from the world's folder.
+Served by `localgpt world mcp` and `localgpt audio mcp`, in a `localgpt` built with the audio models (the one inside `LocalGPT.app`, or `cargo install localgpt --features audio`), each only once its model is installed (`localgpt audio install <id>` or the desktop app's Audio button). They run on this machine's CPU, offline. A relative `file` is from the world's folder.
 
 | Tool | Model (id) | Description | Required Params | Optional Params |
 |------|------------|-------------|-----------------|-----------------|

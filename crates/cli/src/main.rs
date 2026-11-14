@@ -40,6 +40,8 @@ async fn async_main(cli: Cli) -> Result<()> {
         Commands::Previs(args) => crate::cli::previs::run(args),
         #[cfg(feature = "audio")]
         Commands::Audio { command } => crate::cli::audio::run(command).await,
+        #[cfg(not(feature = "audio"))]
+        Commands::Audio { .. } => anyhow::bail!(crate::cli::NO_AUDIO),
         Commands::Completion(args) => crate::cli::completion::run(args),
     }
 }

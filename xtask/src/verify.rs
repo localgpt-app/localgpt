@@ -14,11 +14,12 @@ use std::time::Instant;
 pub const USAGE: &str = "  verify [--rust] [--bevy] [--features] [--web] [--deps]
                    the CI checks on this machine, in CI's order (default: all)
                      --rust      fmt, the rule, clippy and tests for the workspace
-                                 minus the Bevy crates, the world.schema.json snapshot
+                                 minus the Bevy crates, with the CLI's audio models
+                                 and then for the CLI as it ships, without them;
+                                 the world.schema.json snapshot
                      --bevy      clippy and tests for app, gen, doc, verse,
                                  world-bevy, world-audio
-                     --features  cargo check for the opt-in tier (Verse's ml) and for
-                                 the CLI without its audio models
+                     --features  cargo check for the opt-in tier (Verse's ml)
                      --web       the phone's page, the vendored viewer against npm,
                                  localgpt.world's render check, localgpt.md's page
                      --deps      cargo-deny: licenses, bans, sources, advisories";
@@ -33,6 +34,9 @@ const BEVY: [&str; 6] = [
     "localgpt-world-audio",
     "localgpt-app",
 ];
+
+/// The CLI's `audio` feature, as a workspace-wide build names it.
+const CLI_AUDIO: &str = "localgpt/audio";
 
 #[derive(Debug, Default, PartialEq)]
 struct Want {
@@ -99,19 +103,40 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
         crate::rule::run(root, false).map_err(|e| {
             format!("{e}\n\n'the all-Rust rule' FAILED — nothing after it was run.")
         })?;
+        // The CLI's audio models are a feature it leaves off, so they are
+        // asked for here, or nothing lints and tests them; then the CLI
+        // alone, as `cargo install` and npm give it, without them.
         let mut clippy = vec!["clippy", "--workspace"];
         let not_bevy = packages("--exclude");
         clippy.extend(not_bevy.iter().map(String::as_str));
-        clippy.extend(["--", "-D", "warnings"]);
+        clippy.extend(["--features", CLI_AUDIO, "--", "-D", "warnings"]);
         stage(
             root,
-            "cargo clippy --workspace (minus Bevy, -D warnings)",
+            "cargo clippy --workspace (minus Bevy, with the audio models, -D warnings)",
             &cargo,
             &clippy,
         )?;
+        stage(
+            root,
+            "cargo clippy -p localgpt (as it ships, -D warnings)",
+            &cargo,
+            &["clippy", "-p", "localgpt", "--", "-D", "warnings"],
+        )?;
         let mut test = vec!["test", "--workspace"];
         test.extend(not_bevy.iter().map(String::as_str));
-        stage(root, "cargo test --workspace (minus Bevy)", &cargo, &test)?;
+        test.extend(["--features", CLI_AUDIO]);
+        stage(
+            root,
+            "cargo test --workspace (minus Bevy, with the audio models)",
+            &cargo,
+            &test,
+        )?;
+        stage(
+            root,
+            "cargo test -p localgpt (as it ships)",
+            &cargo,
+            &["test", "-p", "localgpt"],
+        )?;
         stage(
             root,
             "world.schema.json snapshot",
@@ -147,13 +172,6 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
             "cargo check -p localgpt-verse --features ml",
             &cargo,
             &["check", "-p", "localgpt-verse", "--features", "ml"],
-        )?;
-        // What an Intel Mac's `localgpt` is: ONNX Runtime has no build for it.
-        stage(
-            root,
-            "cargo check -p localgpt --no-default-features",
-            &cargo,
-            &["check", "-p", "localgpt", "--no-default-features"],
         )?;
     }
 
