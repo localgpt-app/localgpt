@@ -61,8 +61,9 @@ jobs:
         include:
           - { platform: darwin-arm64, target: aarch64-apple-darwin, os: macos-latest, bin: localgpt }
           - { platform: darwin-x64, target: x86_64-apple-darwin, os: macos-15-intel, bin: localgpt }
-          # Ubuntu 22.04 for its glibc, 2.35: what is linked against it runs
-          # there, on Debian 12 and on everything newer.
+          # Ubuntu 22.04 for its glibc: what is linked there asks for 2.34
+          # (the build prints it), which Ubuntu 22.04, Debian 12, RHEL 9 and
+          # everything newer have.
           - { platform: linux-x64, target: x86_64-unknown-linux-gnu, os: ubuntu-22.04, bin: localgpt }
           - { platform: linux-arm64, target: aarch64-unknown-linux-gnu, os: ubuntu-22.04-arm, bin: localgpt }
           # The C runtime linked in, so a Windows without the Visual C++
@@ -178,6 +179,10 @@ jobs:
           test "$status" = 1
           grep -q "built without the audio models" said.txt
 
+          # And with nothing installed, as an MCP configuration's
+          # `npx -y localgpt world mcp` starts it.
+          test "$(npx -y "./$tarball" --version)" = "localgpt $version"
+
       - name: The same through cmd.exe's shim
         if: runner.os == 'Windows'
         shell: cmd
@@ -234,6 +239,11 @@ jobs:
           if curl -fsS -o /dev/null "https://registry.npmjs.org/localgpt/$version"; then
             echo "localgpt@$version is up already"
             exit 0
+          fi
+          # Without credentials npm answers a publish with 404, as if the
+          # name were the trouble.
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::notice::No NPM_TOKEN secret: this publish rests on npm's trusted publisher for localgpt (docs/releasing.md). A 404 or a need-auth error below means neither is set up."
           fi
           # A pre-release (a hyphen in the version) is `next`, never `latest`.
           tag=latest

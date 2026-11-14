@@ -43,10 +43,11 @@ the other.
 ## The npm package
 
 `localgpt` on npm is the command line, prebuilt: one package holding the
-binary for macOS (Apple silicon and Intel), Linux (x64 and arm64, glibc 2.35
+binary for macOS (Apple silicon and Intel), Linux (x64 and arm64, glibc 2.34
 or newer) and Windows (x64), and a launcher that starts the one for the
 computer it is on. It is built without the audio models (`cargo install
-localgpt --features audio` has them), so it is the same on all five.
+localgpt --features audio` has them), so it is the same on all five. With
+all five in it, it is a 25 MB download.
 
 `.github/workflows/npm.yml` builds the five, packs them (`cargo xtask
 npm-package`, which refuses a tag that is not the workspace's version),
@@ -67,11 +68,19 @@ the package are tried. Its tarball is the run's `npm-package` artifact.
   Settings > Trusted Publisher > GitHub Actions: organization `localgpt-app`,
   repository `localgpt`, workflow `npm.yml`, environment `npm`.
 - npm sets that up only for a package that exists, so the first release
-  goes up with a token: a granular access token with read and write on all
-  packages that skips 2FA and expires in days, as the `npm` environment's
-  `NPM_TOKEN` secret (`gh secret set NPM_TOKEN --env npm`). Delete the token
-  and the secret once the package is up. npm asks the trusted publisher
-  first and falls back to the token, so the workflow is the same for both.
+  goes up with a token: a granular access token (npmjs.com > Access Tokens:
+  "Read and write", "All packages" since this one is not there to choose
+  yet, "Bypass two-factor authentication" ticked, expiring in days) as the
+  `npm` environment's `NPM_TOKEN` secret:
+
+  ```bash
+  gh api -X PUT repos/localgpt-app/localgpt/environments/npm   # the environment, until a publish has made it
+  gh secret set NPM_TOKEN --env npm                            # asks for the token
+  ```
+
+  Delete the token and the secret once the package is up. npm asks the
+  trusted publisher first and falls back to the token, so the workflow is
+  the same for both.
 - npm drops a trusted publisher that has not published within two days of
   being set up. Set it up in the two days before the second release, not
   after the first.
