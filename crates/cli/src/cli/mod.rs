@@ -79,9 +79,17 @@ pub enum Commands {
 /// What `localgpt audio` answers in a build without the `audio` feature,
 /// which is what npm and a plain `cargo install localgpt` give: an agent
 /// whose MCP configuration starts `localgpt audio mcp` reads this in place
-/// of a server that never comes up.
+/// of a server that never comes up. An Intel Mac has its own answer, since
+/// no build has the models there and a `cargo install` asking for them fails.
 #[cfg(not(feature = "audio"))]
-pub const NO_AUDIO: &str = "this localgpt was built without the audio models.
+pub const NO_AUDIO: &str = if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+    NO_AUDIO_ON_AN_INTEL_MAC
+} else {
+    NO_AUDIO_IN_THIS_BUILD
+};
+
+#[cfg(not(feature = "audio"))]
+const NO_AUDIO_IN_THIS_BUILD: &str = "this localgpt was built without the audio models.
 
 They run on ONNX Runtime, which has no build for an Intel Mac or for a Linux
 older than glibc 2.38, so a build has them only when asked:
@@ -89,6 +97,13 @@ older than glibc 2.38, so a build has them only when asked:
     cargo install localgpt --features audio
 
 On an Apple-silicon Mac, the localgpt inside LocalGPT.app has them.
+https://localgpt.app/docs/audio-models/#platforms";
+
+#[cfg(not(feature = "audio"))]
+const NO_AUDIO_ON_AN_INTEL_MAC: &str = "this localgpt was built without the audio models.
+
+An Intel Mac cannot run them: they run on ONNX Runtime, which has no build
+for one. Where they do run:
 https://localgpt.app/docs/audio-models/#platforms";
 
 #[cfg(test)]
@@ -151,7 +166,18 @@ mod tests {
                 "{asked:?} is not the audio command"
             );
         }
-        assert!(NO_AUDIO.contains("cargo install localgpt --features audio"));
-        assert!(NO_AUDIO.contains("LocalGPT.app"));
+        // Both answers open with the words npm.yml's install job looks for
+        // on every platform, and end at the page that says where they run.
+        for said in [NO_AUDIO_IN_THIS_BUILD, NO_AUDIO_ON_AN_INTEL_MAC] {
+            assert!(said.starts_with("this localgpt was built without the audio models."));
+            assert!(said.ends_with("https://localgpt.app/docs/audio-models/#platforms"));
+        }
+        assert!(NO_AUDIO_IN_THIS_BUILD.contains("cargo install localgpt --features audio"));
+        assert!(NO_AUDIO_IN_THIS_BUILD.contains("LocalGPT.app"));
+        // Neither is to be had on an Intel Mac, so its answer names neither.
+        assert!(!NO_AUDIO_ON_AN_INTEL_MAC.contains("cargo install"));
+        assert!(!NO_AUDIO_ON_AN_INTEL_MAC.contains("LocalGPT.app"));
+        let intel_mac = cfg!(all(target_os = "macos", target_arch = "x86_64"));
+        assert_eq!(NO_AUDIO == NO_AUDIO_ON_AN_INTEL_MAC, intel_mac);
     }
 }

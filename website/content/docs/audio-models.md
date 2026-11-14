@@ -37,7 +37,7 @@ The models run inside `localgpt`, on ONNX Runtime, in a `localgpt` built with it
 - **`LocalGPT.app` on an Apple-silicon Mac** carries one, and its terminals find it first.
 - **`cargo install localgpt --features audio`** builds one, on an Apple-silicon Mac, on Windows, and on Linux with glibc 2.38 or newer (Ubuntu 24.04, Debian 13).
 
-The `localgpt` from npm and from a plain `cargo install localgpt` is built without them: `localgpt audio` there says so and names these two, and `localgpt world mcp` serves the world's tools alone. That is because ONNX Runtime is not everywhere `localgpt` is. It has no build for an Intel Mac, so nothing runs the models there and the app's bar has no **Audio** button; and its Linux build needs a newer glibc than the rest of `localgpt` does.
+The `localgpt` from npm and from a plain `cargo install localgpt` is built without them: `localgpt audio` there says so and names these two, and `localgpt world mcp` serves the world's tools alone. That is because ONNX Runtime is not everywhere `localgpt` is. It has no build for an Intel Mac, so nothing runs the models there: the app's bar has no **Audio** button, and `localgpt audio` says that rather than name a build; and its Linux build needs a newer glibc than the rest of `localgpt` does.
 
 ## What an agent does with them {#agents}
 
