@@ -204,6 +204,17 @@ and HTTP servers and Gen's relay answer through one `tool_result`.
 the default: a client that cannot take a three-megabyte result should not
 lose the path with it.
 
+The first version passed its tests and returned no picture. Every tool Gen
+serves is wrapped in its annotations, and the wrapper forwarded `execute`
+alone; the test used a bare tool. Driving `localgpt-gen mcp-server
+--headless` over stdio showed it, and the tests now ask both tools the way
+a client does. The habit to keep from that: a tool is checked through the
+list a server serves, not through the trait.
+
+- *Open:* headless, `gen_screenshot`'s `width` and `height` do not size the
+  picture, so one asked for at 320 × 240 comes back 1280 × 720 and about
+  0.7 MB.
+
 ## 8. "The one on the left"
 
 **Three-Live.** A phrase such as "the two red chairs on the left" resolves
@@ -275,3 +286,4 @@ sidecar rule again.
 8. What the lint cannot see: a mesh asset's size, where a visitor's avatar
    starts, a world with no light on it.
 9. The gallery's temple pool: lay its two rims flat (§3).
+10. `gen_screenshot`'s `width` and `height`, headless (§7).
