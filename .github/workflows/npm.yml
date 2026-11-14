@@ -132,6 +132,14 @@ jobs:
           if-no-files-found: error
           overwrite: true
 
+      # The publish job's own steps, short of the upload, so a rehearsal
+      # tries the npm that will publish and the command it will be given.
+      - name: What a publish would send
+        run: |
+          npm install -g npm@latest
+          npm --version
+          npm publish dist/npm/localgpt-*.tgz --access public --dry-run
+
   # The tarball that would be published, installed the way a person installs
   # it, on each platform it claims.
   install:
