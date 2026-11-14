@@ -17,9 +17,13 @@ its own commit first.
 ```bash
 cargo release version X.Y.Z --workspace --execute   # bumps every crate and the internal requirements
 cargo release commit --execute                      # the "chore: Release" commit
+git push origin main                                # CI runs; `gh workflow run npm.yml` rehearses this commit
 git tag -s vX.Y.Z -m vX.Y.Z                         # signed, like every v tag
-git push origin main vX.Y.Z                         # release.yml and npm.yml publish
+git push origin vX.Y.Z                              # release.yml and npm.yml publish
 ```
+
+Tag once CI and the rehearsal are green on the release commit: what a tag
+publishes stays published.
 
 The tag push runs `.github/workflows/release.yml`: it checks the tag
 against the version, asks crates.io which crates are already up
@@ -99,3 +103,20 @@ A hyphen after the version makes a pre-release; a manual run keeps the
 `.dmg` files as artifacts; signing and notarization run when their secrets
 are set. [`apps/app-desktop/README.md`](../apps/app-desktop/README.md) has
 the secrets and the steps after the draft.
+
+## What the tags leave to do by hand
+
+The published `localgpt` points at three things no tag puts up, so they are
+done the same day:
+
+- **localgpt.app**, once the crates and the npm package are up: `cargo xtask
+  deploy app`. Its docs name the new version's commands, and the command
+  line links into them: `localgpt audio` in a build without the models
+  answers with `/docs/audio-models/#platforms`.
+- **The desktop release and the cask**, once `desktop.yml` has drafted it:
+  publish the draft and put `localgpt.rb` in the tap. `localgpt gen` with no
+  app to hand over to, the installation page and the README all name
+  `brew install --cask localgpt-app/tap/localgpt`, and the README is the npm
+  package's page, as it stood when the version was published.
+- **The credentials of a first release**: delete the npm token and its
+  secret, run `cargo xtask trust-release` and delete `CARGO_REGISTRY_TOKEN`.

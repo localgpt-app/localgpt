@@ -205,14 +205,15 @@ Two renderers draw the conformance worlds, Bevy and three.js; `website-world`'s 
 ```bash
 cargo build                                   # the CLI (default member)
 cargo build --workspace                       # everything
-cargo test --workspace
-cargo clippy --workspace -- -D warnings       # required before commits
+# localgpt/audio is the CLI's audio models, which no default build compiles
+cargo test --workspace --features localgpt/audio
+cargo clippy --workspace --features localgpt/audio -- -D warnings   # required before commits
 cargo fmt --check
 cargo run -p localgpt-doc -- notes.md          # Document and Verse still run on their own
 cargo run -p localgpt-verse
 ```
 
-CI runs fmt, clippy and tests, the Bevy crates in their own job, a job for the opt-in feature tier (Verse's `ml`), the headless render check of the web viewer and the previs page, and cargo-deny. Releases publish every crate to crates.io from a signed `vX.Y.Z` tag through Trusted Publishing. [`CLAUDE.md`](CLAUDE.md) is the map of the workspace, [`AGENTS.md`](AGENTS.md) the tool catalog, [`docs/`](docs/) the living references and active designs, and [`world-strategy.md`](docs/world-strategy.md), the current product direction.
+CI runs fmt, clippy and tests, the Bevy crates in their own job, a job for the opt-in feature tier (Verse's `ml`), the headless render check of the web viewer and the previs page, and cargo-deny. A signed `vX.Y.Z` tag publishes every crate to crates.io and the `localgpt` package to npm, and a `desktop-vX.Y.Z` tag drafts the desktop app's release: [`docs/releasing.md`](docs/releasing.md). [`CLAUDE.md`](CLAUDE.md) is the map of the workspace, [`AGENTS.md`](AGENTS.md) the tool catalog, [`docs/`](docs/) the living references and active designs, and [`world-strategy.md`](docs/world-strategy.md), the current product direction.
 
 ## Devlog
 
