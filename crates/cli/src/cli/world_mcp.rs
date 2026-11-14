@@ -553,6 +553,62 @@ mod tests {
         assert!(err.to_string().contains("aren't JSON"), "{err}");
     }
 
+    /// The app's `/screenshot` answers with the picture's path; asked for
+    /// `inline`, the tool hands back the picture too. Asked the way a
+    /// client asks, against something that answers as the app does.
+    #[tokio::test]
+    async fn a_screenshot_asked_for_inline_comes_back_as_a_picture() {
+        use std::io::{BufRead as _, BufReader, Write as _};
+
+        let dir = tempfile::tempdir().unwrap();
+        let png = dir.path().join("shot-1.png");
+        std::fs::write(&png, b"\x89PNG not really").unwrap();
+        let reply =
+            json!({"path": png, "revision": 3, "tip": "sha256:aa", "at_head": true}).to_string();
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let said = reply.clone();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut line = String::new();
+                // The request's head, to its blank line: a GET has no body.
+                while reader.read_line(&mut line).is_ok_and(|n| n > 0) && line != "\r\n" {
+                    line.clear();
+                }
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{said}",
+                    said.len()
+                );
+            }
+        });
+        let tool = ScreenshotTool(Api::new(
+            Endpoint {
+                url,
+                token: "t".into(),
+                pid: None,
+            },
+            dir.path().to_path_buf(),
+        ));
+        use localgpt_world_agent::mcp::tool_result;
+
+        let plain = tool_result(&tool, &json!({})).await;
+        let content = plain["content"].as_array().unwrap();
+        assert_eq!(content.len(), 1, "unasked, the app's reply alone: {plain}");
+        assert_eq!(content[0]["text"], reply);
+
+        let inline = tool_result(&tool, &json!({"inline": true})).await;
+        let content = inline["content"].as_array().unwrap();
+        assert_eq!(content.len(), 2, "the reply, then the picture: {inline}");
+        assert_eq!(content[0]["text"], reply);
+        assert_eq!(content[1]["type"], "image");
+        assert_eq!(content[1]["mimeType"], "image/png");
+        assert_eq!(content[1]["data"], "iVBORyBub3QgcmVhbGx5");
+    }
+
     #[tokio::test]
     async fn a_world_nothing_has_open_fails_at_startup_not_per_call() {
         // An agent handed a server with no world behind it would keep trying
