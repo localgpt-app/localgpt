@@ -21,12 +21,10 @@
 # package was built. On npmjs.com, in the package's Settings > Trusted
 # Publisher > GitHub Actions: organization `localgpt-app`, repository
 # `localgpt`, workflow `npm.yml`, environment `npm`, with `npm publish`
-# allowed. npm allows that only for a package that exists, and drops a
-# publisher that has not published within two days of being set up. So the
-# publish job never guesses: where npm has no `localgpt`, or refuses the
-# publish, it fails and says how a person publishes this run's tarball; run
-# again, it finds the version up and checks that it is that tarball
-# (docs/releasing.md, "The first version on npm").
+# allowed. The publish job never guesses: where npm refuses the publish, it
+# fails and says how a person publishes this run's tarball; run again, it
+# finds the version up and checks that it is that tarball
+# (docs/releasing.md, "The npm package").
 name: npm
 
 on:
@@ -312,7 +310,7 @@ jobs:
               echo "gh run rerun $GITHUB_RUN_ID --repo $GITHUB_REPOSITORY --failed   # checks that npm has this tarball"
               echo '```'
               echo
-              echo 'Then the trusted publisher, so that the next version needs no one: docs/releasing.md, "The first version on npm".'
+              echo 'Then the trusted publisher, so that the next version needs no one: docs/releasing.md, "The npm package".'
             } >> "$GITHUB_STEP_SUMMARY"
             echo "::error title=Not on npm::$1 A person publishes this run's tarball: the commands are in this run's summary and in docs/releasing.md."
             exit 1
@@ -329,13 +327,6 @@ jobs:
               echo "::warning::localgpt@$version is up from another build: npm has $theirs, this run packed $ours"
             fi
             exit 0
-          fi
-
-          # npm trusts a workflow only for a package that exists, so the
-          # first version of all has no one here to publish it.
-          asked "$registry" /dev/null
-          if [ "$status" = 404 ]; then
-            by_hand "npm has no localgpt yet, and it trusts a workflow only for a package that exists."
           fi
 
           # No token: the trusted publisher is the whole of the credentials,

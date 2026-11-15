@@ -112,34 +112,17 @@ the package are tried. Its tarball is the run's `npm-package` artifact.
   ```
 
 - npm drops a trusted publisher that has not published within two days of
-  being set up: set it up in the two days before the release that is to
-  use it.
-- Where the publish job cannot publish (npm has no `localgpt`, or refuses
-  the workflow), it fails, and its summary has the commands that publish
-  that run's tarball with a person's own login. Run again, it finds the
-  version up and checks that npm has that tarball.
+  being set up: a publisher set up again (another workflow file, another
+  environment) is set up in the two days before the release that is to use
+  it.
+- Where npm refuses the workflow, the publish job fails, and its summary
+  has the commands that publish that run's tarball with a person's own
+  login. Run again, it finds the version up and checks that npm has that
+  tarball. A version a person publishes has no provenance statement: only a
+  workflow can make one.
 - A version on npm is there for good: a mistake is a new patch version.
   `npm deprecate localgpt@X.Y.Z "<why>"` warns whoever installs the old one.
 - A pre-release (`vX.Y.Z-rc.1`) is published as `next`, not `latest`.
-
-### The first version on npm
-
-npm sets a trusted publisher up only for a package that exists, so the
-first version of all needs a person once, with their own npm login and no
-token anywhere. Either way round:
-
-- **Before the tag**, so that the release itself comes from the workflow
-  and carries its provenance statement. Publish a placeholder under the
-  name (a folder holding a `package.json` with the name, version `0.0.0`
-  and nothing to run: `npm publish --access public`), set the trusted
-  publisher up, and tag within two days. Afterwards, `npm deprecate
-  localgpt@0.0.0 "a placeholder: install the latest"`.
-- **After the tag.** The publish job fails, since npm has no `localgpt`,
-  and its summary has three commands: download that run's tarball, `npm
-  publish` it, and run the job again, which checks that npm has that
-  tarball. Set the trusted publisher up in the two days before the next
-  release. That first version has no provenance statement: only a workflow
-  can make one.
 
 ## Homebrew
 
@@ -198,7 +181,6 @@ done the same day:
   stood when that version was published.
 - **The formula**, if the hour is too long to wait: `gh workflow run
   update.yml -R localgpt-app/homebrew-tap`, once the version is on npm.
-- **A first version's publisher**: a crate or a package a person uploaded
-  for the first time trusts no workflow yet. Give it its trusted publisher
-  before the next release ("A crate's first version", "The first version on
-  npm").
+- **A first version's publisher**: a crate a person uploaded for the first
+  time trusts no workflow yet. Give it its trusted publisher before the next
+  release ("A crate's first version").
