@@ -4,6 +4,8 @@ All notable changes to LocalGPT are documented in this file.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-15
+
 ### Added
 
 - **`localgpt world lint`: what each camera sees, in numbers, and what is probably a mistake.** A line per camera says what is in its frame and the share of the frame each thing covers; then a line per finding, with a stable code and what would change it: a camera inside a wall (`camera-inside`), a frame with nothing in it, a subject behind something (`subject-hidden`), a focus outside the frame, an aim at an entity that is gone, a shot and its reverse on opposite sides of the line (`line-crossed`), a shot with no length, the same shape twice in one place, a world a thousand times too small, a figure sunk into the floor (`sunk`: a position is a shape's centre), and content this app keeps and never runs (`carried-not-run`). It is arithmetic over the document — the shapes' boxes, the transforms, the cinematography extension's own projection — so it needs no window, no renderer and no app; `--strict` exits 1 on a warning, `--json` has every number, and the shim serves it as `world_lint`. The codes are one list (`world-agent::lint::RULES`), never renamed, and tests hold the package guide and the user docs to it.
@@ -541,7 +543,8 @@ Initial release of LocalGPT — a local-only AI assistant with persistent markdo
 - **Zero-config startup** defaulting to `claude-cli/opus`.
 - **Auto-migration** from OpenClaw config if present.
 
-[Unreleased]: https://github.com/localgpt-app/localgpt/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/localgpt-app/localgpt/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/localgpt-app/localgpt/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/localgpt-app/localgpt/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/localgpt-app/localgpt/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/localgpt-app/localgpt/compare/v0.4.1...v0.4.2
