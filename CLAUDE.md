@@ -118,7 +118,9 @@ package; run by hand it is the rehearsal and publishes nothing); a
 `desktop-vX.Y.Z` tag builds `LocalGPT.app` and drafts its release
 (`desktop.yml`). No workflow holds a token and none is to be given one:
 each registry trusts the workflow that uploads to it, and the first version
-of a new crate or package is a person's to upload, once.
+of a new crate or package is a person's to upload, once. Homebrew's formula
+for the command line installs out of the npm package (`cargo xtask
+formula`), and the tap fetches it.
 
 ## Architecture
 

@@ -2,7 +2,8 @@
 
 **Status:** current procedure. Two tags release three things: `vX.Y.Z`
 publishes the crates and the npm package, `desktop-vX.Y.Z` (the same
-version) drafts the desktop app's release.
+version) drafts the desktop app's release. Homebrew follows both, from the
+tap.
 
 No token is kept in the repository. Every upload is a registry trusting
 the workflow that makes it, and what a registry cannot trust yet, the first
@@ -140,6 +141,30 @@ token anywhere. Either way round:
   release. That first version has no provenance statement: only a workflow
   can make one.
 
+## Homebrew
+
+`brew install localgpt-app/tap/localgpt` installs the command line, on
+macOS and Linux, from a formula that takes this computer's binary out of
+the npm package: the build the npm workflow installed and ran, with nothing
+built or uploaded for Homebrew. `cargo xtask formula <version> <tarball>`
+renders it; `npm.yml` renders it beside the tarball (it is in the
+`npm-package` artifact), installs it with Homebrew on both Macs and on
+Linux, and runs its test.
+
+The tap, [localgpt-app/homebrew-tap](https://github.com/localgpt-app/homebrew-tap),
+holds `Formula/localgpt.rb` and `Casks/localgpt.rb`. A tap is a Git
+repository, not a registry, so nothing can be trusted to publish to it:
+what the release repository would need to push there is a stored token. So
+the tap fetches instead. Its `update.yml`, hourly and by hand (`gh workflow
+run update.yml -R localgpt-app/homebrew-tap`), asks npm what `latest` is
+and, when the formula is behind, has `cargo xtask formula` at that
+release's tag render it, installs it, runs its test and commits it, with
+the tap's own `GITHUB_TOKEN`. GitHub stops a schedule in a repository
+nothing has touched for 60 days: then run it by hand, which starts it
+again.
+
+The cask is the desktop app's, below.
+
 ## The desktop app
 
 `desktop-vX.Y.Z` runs `.github/workflows/desktop.yml`, which builds
@@ -162,10 +187,13 @@ done the same day:
   line links into them: `localgpt audio` in a build without the models
   answers with `/docs/audio-models/#platforms`.
 - **The desktop release and the cask**, once `desktop.yml` has drafted it:
-  publish the draft and put `localgpt.rb` in the tap. `localgpt gen` with no
-  app to hand over to, the installation page and the README all name
+  publish the draft and put its `localgpt.rb` in the tap as
+  `Casks/localgpt.rb`. `localgpt gen` with no app to hand over to, the
+  installation page and the README all name
   `brew install --cask localgpt-app/tap/localgpt`, and the README is the npm
   package's page, as it stood when the version was published.
+- **The formula**, if the hour is too long to wait: `gh workflow run
+  update.yml -R localgpt-app/homebrew-tap`, once the version is on npm.
 - **A first version's publisher**: a crate or a package a person uploaded
   for the first time trusts no workflow yet. Give it its trusted publisher
   before the next release ("A crate's first version", "The first version on

@@ -36,13 +36,19 @@ npm install -g localgpt          # or: npx -y localgpt world mcp
 
 The npm package holds the binary for macOS (Apple silicon and Intel), Linux (x64 and arm64, with glibc 2.34 or newer: Ubuntu 22.04, Debian 12, RHEL 9) and Windows (x64), and needs Node 18 or newer to start it. It is built without the [audio models](@/docs/audio-models.md#platforms).
 
-On macOS, `LocalGPT.app` carries `localgpt` inside `Contents/MacOS/localgpt` (and puts it on `PATH` in the app's terminals), so `localgpt gen …` hands off directly to the desktop binary (`localgpt-app gen …`); the Homebrew cask installs the app and links `localgpt` onto your `PATH`:
+Homebrew installs that same binary on macOS and Linux, with no Node and with the shell's completions:
+
+```bash
+brew install localgpt-app/tap/localgpt
+```
+
+On macOS, `LocalGPT.app` carries `localgpt` inside `Contents/MacOS/localgpt` (and puts it on `PATH` in the app's terminals), so `localgpt gen …` hands off directly to the desktop binary (`localgpt-app gen …`); the Homebrew cask installs the app and links its `localgpt` onto your `PATH`, unless the formula's is there already:
 
 ```bash
 brew install --cask localgpt-app/tap/localgpt
 ```
 
-Upgrade later with `cargo install <crate> --force`, `npm update -g localgpt`, or `brew upgrade --cask localgpt`. The desktop app, `localgpt-app`, is not on crates.io: it ships as a build.
+Upgrade later with `cargo install <crate> --force`, `npm update -g localgpt`, `brew upgrade localgpt`, or `brew upgrade --cask localgpt`. The desktop app, `localgpt-app`, is not on crates.io: it ships as a build.
 
 ## From source (for developers, and for the desktop app)
 

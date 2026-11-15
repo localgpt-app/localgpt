@@ -452,6 +452,69 @@ end
     )
 }
 
+pub const FORMULA_USAGE: &str = "  formula <version> <npm tarball>
+                   the Homebrew formula for the command line, to stdout: it installs
+                   this computer's `localgpt` out of the npm package";
+
+/// `cargo xtask formula <version> <npm tarball>`: the Homebrew formula for
+/// the command line, rendered for one release. It installs the binary the
+/// npm package carries for the computer it is on, so Homebrew gets the build
+/// npm.yml installed and ran on each platform, and nothing is built or
+/// uploaded for it. It belongs in the tap
+/// (github.com/localgpt-app/homebrew-tap) as `Formula/localgpt.rb` once that
+/// version is on npm, since its URL is the registry's; npm.yml renders it
+/// beside the tarball and installs it from there.
+pub fn formula(args: &[String]) -> Result<(), String> {
+    let [version, tarball] = args else {
+        return Err(format!(
+            "usage: cargo xtask formula <version> <npm tarball>\n{FORMULA_USAGE}"
+        ));
+    };
+    let sum = sha256(Path::new(tarball))?;
+    print!("{}", formula_text(version, &sum));
+    Ok(())
+}
+
+/// Where npm serves a version's tarball: the formula's URL, and what
+/// npm.yml points at the tarball it has just packed to install the formula
+/// before anything is published.
+const NPM_TARBALLS: &str = "https://registry.npmjs.org/localgpt/-/";
+
+fn formula_text(version: &str, sha256: &str) -> String {
+    format!(
+        r##"# The localgpt command line, prebuilt: the binary the npm package carries for
+# this computer. Rendered by `cargo xtask formula` in the localgpt repository.
+class Localgpt < Formula
+  desc "Command-line tool and MCP server for .world packages, and screenplay previs"
+  homepage "https://localgpt.app/"
+  url "{NPM_TARBALLS}localgpt-{version}.tgz"
+  sha256 "{sha256}"
+  license "Apache-2.0"
+
+  livecheck do
+    url "https://registry.npmjs.org/localgpt/latest"
+    strategy :json do |json|
+      json["version"]
+    end
+  end
+
+  def install
+    os = OS.mac? ? "darwin" : "linux"
+    arch = Hardware::CPU.arm? ? "arm64" : "x64"
+    bin.install "vendor/#{{os}}-#{{arch}}/localgpt"
+    generate_completions_from_executable(bin/"localgpt", "completion")
+  end
+
+  test do
+    assert_equal "localgpt #{{version}}", shell_output("#{{bin}}/localgpt --version").strip
+    system bin/"localgpt", "world", "init", testpath/"smoke.world"
+    system bin/"localgpt", "world", "verify", testpath/"smoke.world"
+  end
+end
+"##
+    )
+}
+
 pub const NPM_USAGE: &str = "  npm-package <binaries-dir> <out-dir>
                    the `localgpt` npm package, ready for `npm pack`: the launcher and
                    every platform's `localgpt` in vendor/ (npm.yml runs it)";
@@ -1055,6 +1118,42 @@ mod tests {
                 "{stanza} is not a stanza at two spaces"
             );
         }
+        assert!(rendered.ends_with("\nend\n"));
+        assert!(rendered.lines().all(|line| line.trim_end() == line));
+    }
+
+    #[test]
+    fn the_formula_installs_this_computers_binary_out_of_the_npm_package() {
+        let rendered = formula_text("0.7.0", "abc123");
+        assert!(rendered.contains("class Localgpt < Formula\n"));
+        assert!(
+            rendered
+                .contains("  url \"https://registry.npmjs.org/localgpt/-/localgpt-0.7.0.tgz\"\n")
+        );
+        assert!(rendered.contains("  sha256 \"abc123\"\n"));
+        assert!(rendered.contains("bin.install \"vendor/#{os}-#{arch}/localgpt\""));
+        // Every folder the formula can name is one the package has: the
+        // platforms Homebrew runs on, as Node names them.
+        for os in ["darwin", "linux"] {
+            assert!(rendered.contains(&format!("\"{os}\"")));
+            for arch in ["arm64", "x64"] {
+                assert!(rendered.contains(&format!("\"{arch}\"")));
+                assert!(
+                    NPM_TARGETS
+                        .iter()
+                        .any(|t| t.node == format!("{os}-{arch}") && t.bin_name == "localgpt"),
+                    "the npm package has no vendor/{os}-{arch}/localgpt"
+                );
+            }
+        }
+        // `brew style`: a description of 80 characters at most, `end` at
+        // the margin, nothing trailing.
+        let desc = rendered
+            .lines()
+            .find_map(|line| line.trim().strip_prefix("desc \""))
+            .and_then(|rest| rest.strip_suffix('"'))
+            .unwrap();
+        assert!(desc.len() <= 80, "{} characters: {desc}", desc.len());
         assert!(rendered.ends_with("\nend\n"));
         assert!(rendered.lines().all(|line| line.trim_end() == line));
     }
