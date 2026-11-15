@@ -129,8 +129,8 @@ pub fn run(verbose: bool, args: Vec<OsString>) -> Result<()> {
         if cfg!(target_os = "macos") {
             bail!(
                 "could not find `localgpt-app` (LocalGPT.app) or `localgpt-gen`.\n\
-                 Install the desktop app (`brew install --cask localgpt-app/tap/localgpt`), \
-                 or install Gen directly (`cargo install localgpt-gen`)."
+                 Install Gen (`cargo install localgpt-gen`), or build LocalGPT.app from source \
+                 (https://localgpt.app/docs/installation/)."
             );
         } else {
             bail!(

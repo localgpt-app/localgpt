@@ -94,11 +94,13 @@ the files as artifacts and makes no release.
 git tag -s desktop-v0.4.2 -m desktop-v0.4.2 && git push origin desktop-v0.4.2
 ```
 
-Then, by hand: check the draft and publish it, and put `localgpt.rb` in the
-tap (`localgpt-app/homebrew-tap`, as `Casks/localgpt.rb`), after which
-`brew install --cask localgpt-app/tap/localgpt` installs both `LocalGPT.app`
-and the `localgpt` command line. The cask's
-URLs are the release's, so the release is published first.
+Then, by hand: check the draft and publish it, and, for a notarized
+release, put `localgpt.rb` in the tap (`localgpt-app/homebrew-tap`, as
+`Casks/localgpt.rb`), after which `brew install --cask
+localgpt-app/tap/localgpt` installs both `LocalGPT.app` and the `localgpt`
+command line. The cask's URLs are the release's, so the release is
+published first. An app that is not notarized stays out of the tap: the
+cask would hand it over quarantined, and macOS would stop it on first open.
 
 Signing and notarization run when the secrets are set in the repository
 (Settings > Secrets and variables > Actions); without them the release is

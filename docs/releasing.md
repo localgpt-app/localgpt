@@ -152,7 +152,8 @@ renders it; `npm.yml` renders it beside the tarball (it is in the
 Linux, and runs its test.
 
 The tap, [localgpt-app/homebrew-tap](https://github.com/localgpt-app/homebrew-tap),
-holds `Formula/localgpt.rb` and `Casks/localgpt.rb`. A tap is a Git
+holds `Formula/localgpt.rb`, and `Casks/localgpt.rb` once a desktop release
+is notarized. A tap is a Git
 repository, not a registry, so nothing can be trusted to publish to it:
 what the release repository would need to push there is a stored token. So
 the tap fetches instead. Its `update.yml`, hourly and by hand (`gh workflow
@@ -187,11 +188,14 @@ done the same day:
   line links into them: `localgpt audio` in a build without the models
   answers with `/docs/audio-models/#platforms`.
 - **The desktop release and the cask**, once `desktop.yml` has drafted it:
-  publish the draft and put its `localgpt.rb` in the tap as
-  `Casks/localgpt.rb`. `localgpt gen` with no app to hand over to, the
-  installation page and the README all name
-  `brew install --cask localgpt-app/tap/localgpt`, and the README is the npm
-  package's page, as it stood when the version was published.
+  publish the draft and, if the app is notarized, put its `localgpt.rb` in
+  the tap as `Casks/localgpt.rb`. An app that is not notarized stays out of
+  the tap, since macOS stops it on first open, and so the README, the
+  installation page and `localgpt gen` with no app to hand over to name no
+  cask: they send a person to the source build. The first notarized release
+  puts `brew install --cask localgpt-app/tap/localgpt` back in all three, in
+  a version before it, since the README is the npm package's page as it
+  stood when that version was published.
 - **The formula**, if the hour is too long to wait: `gh workflow run
   update.yml -R localgpt-app/homebrew-tap`, once the version is on npm.
 - **A first version's publisher**: a crate or a package a person uploaded

@@ -42,13 +42,9 @@ Homebrew installs that same binary on macOS and Linux, with no Node and with the
 brew install localgpt-app/tap/localgpt
 ```
 
-On macOS, `LocalGPT.app` carries `localgpt` inside `Contents/MacOS/localgpt` (and puts it on `PATH` in the app's terminals), so `localgpt gen …` hands off directly to the desktop binary (`localgpt-app gen …`); the Homebrew cask installs the app and links its `localgpt` onto your `PATH`, unless the formula's is there already:
+On macOS, `LocalGPT.app` carries `localgpt` inside `Contents/MacOS/localgpt` (and puts it on `PATH` in the app's terminals), so `localgpt gen …` hands off directly to the desktop binary (`localgpt-app gen …`).
 
-```bash
-brew install --cask localgpt-app/tap/localgpt
-```
-
-Upgrade later with `cargo install <crate> --force`, `npm update -g localgpt`, `brew upgrade localgpt`, or `brew upgrade --cask localgpt`. The desktop app, `localgpt-app`, is not on crates.io: it ships as a build.
+Upgrade later with `cargo install <crate> --force`, `npm update -g localgpt` or `brew upgrade localgpt`. The desktop app, `localgpt-app`, is not on crates.io: build it from source, below.
 
 ## From source (for developers, and for the desktop app)
 
