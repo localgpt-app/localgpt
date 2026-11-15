@@ -12,17 +12,21 @@ use std::process::{Command, Stdio};
 
 /// What `cargo xtask release-plan` does, for the usage text.
 pub const PLAN_USAGE: &str =
-    "  release-plan     which workspace crates crates.io lacks at this version
-                   (release.yml's plan; writes $GITHUB_OUTPUT under Actions)";
+    "  release-plan     which workspace crates crates.io lacks at this version, and
+                   which of them it has never had: a first version is a person's
+                   to upload (release.yml's plan; writes $GITHUB_OUTPUT under Actions)";
 pub const TRUST_USAGE: &str = "  trust-release [--dry-run]
-                   make every published crate trust release.yml
-                   (CRATES_IO_TOKEN with the trusted-publishing scope)";
+                   make every published crate trust release.yml (a token with the
+                   trusted-publishing scope, in CRATES_IO_TOKEN or CARGO_REGISTRY_TOKEN)";
 
-/// A publishable member: its name and version.
+/// A publishable member: its name, its version, and the other publishable
+/// members its manifest names as a dependency of any kind (crates.io wants
+/// every one of them to exist before it takes the crate).
 #[derive(Debug, Clone, PartialEq)]
 struct Member {
     name: String,
     version: String,
+    needs: Vec<String>,
 }
 
 /// The members cargo would publish: `publish = false` ones are skipped, as
@@ -46,7 +50,7 @@ fn members(root: &Path) -> Result<Vec<Member>, String> {
 }
 
 fn publishable(meta: &serde_json::Value) -> Vec<Member> {
-    let mut members: Vec<Member> = meta["packages"]
+    let packages: Vec<&serde_json::Value> = meta["packages"]
         .as_array()
         .into_iter()
         .flatten()
@@ -55,10 +59,26 @@ fn publishable(meta: &serde_json::Value) -> Vec<Member> {
                 .as_array()
                 .is_none_or(|registries| !registries.is_empty())
         })
+        .collect();
+    let names: Vec<&str> = packages.iter().filter_map(|p| p["name"].as_str()).collect();
+    let mut members: Vec<Member> = packages
+        .iter()
         .filter_map(|p| {
+            let name = p["name"].as_str()?;
+            let mut needs: Vec<String> = p["dependencies"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|dependency| dependency["name"].as_str())
+                .filter(|needed| *needed != name && names.contains(needed))
+                .map(str::to_string)
+                .collect();
+            needs.sort();
+            needs.dedup();
             Some(Member {
-                name: p["name"].as_str()?.to_string(),
+                name: name.to_string(),
                 version: p["version"].as_str()?.to_string(),
+                needs,
             })
         })
         .collect();
@@ -152,53 +172,198 @@ fn published_versions(name: &str) -> Result<Vec<String>, String> {
     }
 }
 
-/// `cargo xtask release-plan`: which crates still need publishing at
-/// their current version. The release workflow runs it before
+/// What one run of the release workflow can do with each crate.
+#[derive(Debug, Default, PartialEq)]
+struct Plan {
+    /// On crates.io at this version already.
+    up: Vec<Member>,
+    /// What this run uploads.
+    now: Vec<Member>,
+    /// Never on crates.io. The workflow holds no token, and crates.io can
+    /// trust a workflow only for a crate that exists, so a first version is
+    /// a person's to upload. In the order to upload them.
+    first: Vec<Member>,
+    /// What names one of those, or another crate here, as a dependency: it
+    /// goes up in the run after. The crate, and the one it waits for.
+    waits: Vec<(Member, String)>,
+}
+
+/// Sorts the members by what crates.io has of each.
+fn sort_out(
+    members: Vec<Member>,
+    on_crates_io: impl Fn(&str) -> Result<Vec<String>, String>,
+) -> Result<Plan, String> {
+    let mut plan = Plan::default();
+    let mut first = Vec::new();
+    let mut left = Vec::new();
+    for member in members {
+        let versions = on_crates_io(&member.name)?;
+        if versions.contains(&member.version) {
+            plan.up.push(member);
+        } else if versions.is_empty() {
+            first.push(member);
+        } else {
+            left.push(member);
+        }
+    }
+    // Whatever needs a crate this run will not upload waits with it, and so
+    // does whatever needs that.
+    loop {
+        let held = |name: &String| {
+            first.iter().any(|m| m.name == *name) || plan.waits.iter().any(|(m, _)| m.name == *name)
+        };
+        let Some((index, for_what)) = left.iter().enumerate().find_map(|(index, member)| {
+            let for_what = member.needs.iter().find(|needed| held(needed))?;
+            Some((index, for_what.clone()))
+        }) else {
+            break;
+        };
+        let member = left.remove(index);
+        plan.waits.push((member, for_what));
+    }
+    plan.now = left;
+    // A first version that needs another one comes after it.
+    while !first.is_empty() {
+        let index = first
+            .iter()
+            .position(|member| {
+                !member
+                    .needs
+                    .iter()
+                    .any(|n| first.iter().any(|m| m.name == *n))
+            })
+            .unwrap_or(0);
+        plan.first.push(first.remove(index));
+    }
+    Ok(plan)
+}
+
+impl Plan {
+    /// The `--exclude` flags that leave `cargo publish --workspace` with
+    /// what this run uploads.
+    fn excludes(&self) -> String {
+        let held = self.first.iter().chain(self.waits.iter().map(|(m, _)| m));
+        let flags: Vec<String> = self
+            .up
+            .iter()
+            .chain(held)
+            .map(|m| format!("--exclude {}", m.name))
+            .collect();
+        flags.join(" ")
+    }
+
+    /// What a person does about the first versions, as lines of plain text
+    /// (the indented ones are the commands): none when there is nothing to do.
+    fn by_hand(&self) -> Vec<String> {
+        if self.first.is_empty() {
+            return Vec::new();
+        }
+        let mut lines = vec![
+            format!("Never on crates.io: {}.", names(self.first.iter(), ", ")),
+            "The workflow holds no token, and crates.io trusts a workflow only for a".into(),
+            "crate that exists, so a person uploads a first version (docs/releasing.md,".into(),
+            if self.now.is_empty() {
+                "\"A crate's first version\"). From a checkout of this commit:".into()
+            } else {
+                "\"A crate's first version\"). Once this run has uploaded the rest:".into()
+            },
+            String::new(),
+        ];
+        for member in &self.first {
+            // One that needs a crate still waiting cannot go up yet either.
+            let after = member.needs.iter().find(|needed| {
+                self.waits
+                    .iter()
+                    .any(|(waiting, _)| waiting.name == **needed)
+            });
+            lines.push(match after {
+                Some(after) => format!(
+                    "    cargo publish -p {}    # after {after}: run the workflow again first",
+                    member.name
+                ),
+                None => format!("    cargo publish -p {}", member.name),
+            });
+        }
+        lines.push(String::new());
+        lines.push(
+            "Then make it trust the workflow (`cargo xtask trust-release`, or the crate's".into(),
+        );
+        lines
+            .push("Settings > Trusted Publishing on crates.io) and run the workflow again.".into());
+        if !self.waits.is_empty() {
+            lines.push(format!(
+                "It uploads what waited: {}.",
+                names(self.waits.iter().map(|(m, _)| m), ", ")
+            ));
+        }
+        lines
+    }
+}
+
+fn names<'a>(members: impl Iterator<Item = &'a Member>, between: &str) -> String {
+    members
+        .map(|m| m.name.as_str())
+        .collect::<Vec<_>>()
+        .join(between)
+}
+
+/// `cargo xtask release-plan`: what is left to publish at the workspace's
+/// version, and who uploads it. The release workflow runs it before
 /// `cargo publish --workspace`, so a rerun after a partial publish (a rate
-/// limit, a network blip) picks up where the last run stopped. Under
-/// GitHub Actions it writes `excludes` (the `--exclude` flags for crates
-/// already up) and `remaining` to `$GITHUB_OUTPUT`, and a summary.
+/// limit, a network blip, a first version uploaded by hand) picks up where
+/// the last run stopped. Under GitHub Actions it writes to `$GITHUB_OUTPUT`
+/// `excludes` (the `--exclude` flags for what this run does not upload),
+/// `remaining` (how many it does), and `first` and `waits` (the crates a
+/// person has to start, and the ones behind them), and a summary.
 pub fn plan(root: &Path) -> Result<(), String> {
     let members = members(root)?;
     if members.is_empty() {
         return Err("no publishable members".into());
     }
-    let (mut done, mut left) = (Vec::new(), Vec::new());
-    for member in members {
-        if published_versions(&member.name)?.contains(&member.version) {
-            done.push(member);
-        } else {
-            left.push(member);
-        }
-    }
-    for m in &done {
+    let plan = sort_out(members, published_versions)?;
+    for m in &plan.up {
         println!("up already  {} {}", m.name, m.version);
     }
-    for m in &left {
+    for m in &plan.now {
         println!("to publish  {} {}", m.name, m.version);
     }
-    let excludes: Vec<String> = done
-        .iter()
-        .map(|m| format!("--exclude {}", m.name))
-        .collect();
+    for m in &plan.first {
+        println!("by hand     {} {} (never on crates.io)", m.name, m.version);
+    }
+    for (m, for_what) in &plan.waits {
+        println!("waits       {} {} (needs {for_what})", m.name, m.version);
+    }
+    let by_hand = plan.by_hand();
+    if !by_hand.is_empty() {
+        println!("\n{}", by_hand.join("\n"));
+    }
     if let Some(out) = std::env::var_os("GITHUB_OUTPUT") {
         append(
             Path::new(&out),
             &format!(
-                "excludes={}\nremaining={}\n",
-                excludes.join(" "),
-                left.len()
+                "excludes={}\nremaining={}\nfirst={}\nwaits={}\n",
+                plan.excludes(),
+                plan.now.len(),
+                names(plan.first.iter(), " "),
+                names(plan.waits.iter().map(|(m, _)| m), " "),
             ),
         )?;
     }
     if let Some(summary) = std::env::var_os("GITHUB_STEP_SUMMARY") {
         let mut text = format!(
             "### crates.io\n\n{} to publish, {} up already.\n\n",
-            left.len(),
-            done.len()
+            plan.now.len(),
+            plan.up.len()
         );
-        for m in &left {
+        for m in &plan.now {
             text.push_str(&format!("- `{}` {}\n", m.name, m.version));
+        }
+        if !by_hand.is_empty() {
+            // Indented lines are the commands: a code block in Markdown too.
+            text.push_str(&format!(
+                "\n#### A first version, by hand\n\n{}\n",
+                by_hand.join("\n")
+            ));
         }
         append(Path::new(&summary), &text)?;
     }
@@ -610,16 +775,21 @@ fn trusts(listing: &serde_json::Value) -> bool {
 /// on crates.io the configuration release.yml runs as. Crates that have it
 /// are left alone; crates not on crates.io yet are listed (crates.io can
 /// trust a workflow only for a crate that exists: publish it once, then run
-/// this again). The token, `CRATES_IO_TOKEN`, needs the
-/// `trusted-publishing` scope, best limited to `localgpt*`; delete it once
-/// this has run, since the workflow itself needs none.
+/// this again). The token needs the `trusted-publishing` scope, best
+/// limited to `localgpt*`, and is read from `CRATES_IO_TOKEN`, or from
+/// `CARGO_REGISTRY_TOKEN`, where the person who has just uploaded a first
+/// version with cargo has it; revoke it once this has run, since the
+/// workflow itself needs none.
 pub fn trust(root: &Path, args: &[String]) -> Result<(), String> {
     let dry_run = args.iter().any(|a| a == "--dry-run");
-    let token = std::env::var("CRATES_IO_TOKEN")
-        .ok()
-        .filter(|t| !t.is_empty());
+    let token = ["CRATES_IO_TOKEN", "CARGO_REGISTRY_TOKEN"]
+        .iter()
+        .filter_map(|name| std::env::var(name).ok())
+        .find(|token| !token.is_empty());
     if token.is_none() && !dry_run {
-        return Err(format!("CRATES_IO_TOKEN is not set\n\n{TRUST_USAGE}"));
+        return Err(format!(
+            "neither CRATES_IO_TOKEN nor CARGO_REGISTRY_TOKEN is set\n\n{TRUST_USAGE}"
+        ));
     }
     let mut failed = false;
     for member in members(root)? {
@@ -705,6 +875,157 @@ mod tests {
         ]});
         let names: Vec<String> = publishable(&meta).into_iter().map(|m| m.name).collect();
         assert_eq!(names, ["alpha", "zeta"]);
+    }
+
+    #[test]
+    fn a_member_needs_the_members_its_manifest_names() {
+        let meta = serde_json::json!({"packages": [
+            {"name": "cli", "version": "0.7.0", "publish": null, "dependencies": [
+                {"name": "agent", "kind": null},
+                {"name": "models", "kind": null, "optional": true},
+                {"name": "editor", "kind": "dev"},
+                {"name": "serde", "kind": null},
+                {"name": "app", "kind": "dev"},
+            ]},
+            {"name": "agent", "version": "0.7.0", "publish": null, "dependencies": [
+                {"name": "agent", "kind": "dev"},
+            ]},
+            {"name": "models", "version": "0.7.0", "publish": null},
+            {"name": "editor", "version": "0.7.0", "publish": null},
+            {"name": "app", "version": "0.7.0", "publish": []},
+        ]});
+        let members = publishable(&meta);
+        let needs = |name: &str| {
+            let member = members.iter().find(|m| m.name == name).unwrap();
+            member.needs.join(" ")
+        };
+        // Of any kind, optional or not; never a crate from elsewhere, one
+        // that is not published, or itself.
+        assert_eq!(needs("cli"), "agent editor models");
+        assert_eq!(needs("agent"), "");
+        assert_eq!(needs("models"), "");
+    }
+
+    fn member(name: &str, needs: &[&str]) -> Member {
+        Member {
+            name: name.into(),
+            version: "0.7.0".into(),
+            needs: needs.iter().map(|n| n.to_string()).collect(),
+        }
+    }
+
+    /// A stand-in for crates.io: the versions it has of each crate.
+    fn registry(
+        has: &'static [(&'static str, &'static [&'static str])],
+    ) -> impl Fn(&str) -> Result<Vec<String>, String> {
+        move |name| {
+            Ok(has
+                .iter()
+                .find(|(n, _)| *n == name)
+                .map(|(_, versions)| versions.iter().map(|v| v.to_string()).collect())
+                .unwrap_or_default())
+        }
+    }
+
+    /// The workspace as 0.7.0 finds it: one crate crates.io has never had,
+    /// under the command line, over the authority.
+    fn workspace() -> Vec<Member> {
+        vec![
+            member("agent", &["types"]),
+            member("cli", &["agent", "models"]),
+            member("gen", &["agent", "types"]),
+            member("models", &["agent"]),
+            member("types", &[]),
+        ]
+    }
+
+    #[test]
+    fn a_first_version_is_a_persons_and_holds_what_needs_it() {
+        let before = registry(&[
+            ("agent", &["0.6.0"]),
+            ("cli", &["0.6.0"]),
+            ("gen", &["0.6.0"]),
+            ("types", &["0.6.0"]),
+        ]);
+        let plan = sort_out(workspace(), before).unwrap();
+        assert_eq!(names(plan.now.iter(), " "), "agent gen types");
+        assert_eq!(names(plan.first.iter(), " "), "models");
+        assert_eq!(names(plan.waits.iter().map(|(m, _)| m), " "), "cli");
+        assert_eq!(plan.waits[0].1, "models");
+        assert!(plan.up.is_empty());
+        // The run uploads the three and leaves the other two alone.
+        assert_eq!(plan.excludes(), "--exclude models --exclude cli");
+        let said = plan.by_hand().join("\n");
+        assert!(said.contains("\n    cargo publish -p models\n"), "{said}");
+        assert!(
+            said.contains("Once this run has uploaded the rest"),
+            "{said}"
+        );
+        assert!(said.contains("It uploads what waited: cli."), "{said}");
+    }
+
+    #[test]
+    fn the_run_after_a_first_version_uploads_what_waited() {
+        let after = registry(&[
+            ("agent", &["0.6.0", "0.7.0"]),
+            ("cli", &["0.6.0"]),
+            ("gen", &["0.6.0", "0.7.0"]),
+            ("models", &["0.7.0"]),
+            ("types", &["0.6.0", "0.7.0"]),
+        ]);
+        let plan = sort_out(workspace(), after).unwrap();
+        assert_eq!(names(plan.up.iter(), " "), "agent gen models types");
+        assert_eq!(names(plan.now.iter(), " "), "cli");
+        assert!(plan.first.is_empty() && plan.waits.is_empty());
+        assert_eq!(
+            plan.excludes(),
+            "--exclude agent --exclude gen --exclude models --exclude types"
+        );
+        assert!(plan.by_hand().is_empty());
+    }
+
+    #[test]
+    fn a_first_version_uploaded_ahead_of_the_release_holds_nothing() {
+        // Its first version went up by hand at the version before, so this
+        // one is the workflow's like any other.
+        let ahead = registry(&[
+            ("agent", &["0.6.0"]),
+            ("cli", &["0.6.0"]),
+            ("gen", &["0.6.0"]),
+            ("models", &["0.6.0"]),
+            ("types", &["0.6.0"]),
+        ]);
+        let plan = sort_out(workspace(), ahead).unwrap();
+        assert_eq!(names(plan.now.iter(), " "), "agent cli gen models types");
+        assert!(plan.first.is_empty() && plan.waits.is_empty());
+        assert_eq!(plan.excludes(), "");
+    }
+
+    #[test]
+    fn first_versions_go_up_in_the_order_they_need_each_other() {
+        // Two new crates, one over the other, and a third over a crate that
+        // waits: it cannot go up until the run after has uploaded that one.
+        let members = vec![
+            member("alpha", &["beta"]),
+            member("beta", &[]),
+            member("old", &["beta"]),
+            member("top", &["old"]),
+        ];
+        let plan = sort_out(members, registry(&[("old", &["0.6.0"])])).unwrap();
+        assert_eq!(names(plan.first.iter(), " "), "beta alpha top");
+        assert_eq!(names(plan.waits.iter().map(|(m, _)| m), " "), "old");
+        assert!(plan.now.is_empty());
+        let said = plan.by_hand().join("\n");
+        let (beta, alpha) = (
+            said.find("cargo publish -p beta").unwrap(),
+            said.find("cargo publish -p alpha").unwrap(),
+        );
+        assert!(beta < alpha, "{said}");
+        assert!(
+            said.contains("cargo publish -p top    # after old: run the workflow again first"),
+            "{said}"
+        );
+        assert!(said.contains("From a checkout of this commit:"), "{said}");
     }
 
     #[test]

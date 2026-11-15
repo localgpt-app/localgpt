@@ -116,7 +116,9 @@ alone. A signed `vX.Y.Z` tag publishes the crates (`release.yml`) and the
 `localgpt` npm package (`npm.yml`: the CLI prebuilt for five platforms, one
 package; run by hand it is the rehearsal and publishes nothing); a
 `desktop-vX.Y.Z` tag builds `LocalGPT.app` and drafts its release
-(`desktop.yml`).
+(`desktop.yml`). No workflow holds a token and none is to be given one:
+each registry trusts the workflow that uploads to it, and the first version
+of a new crate or package is a person's to upload, once.
 
 ## Architecture
 

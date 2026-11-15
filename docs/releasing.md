@@ -4,6 +4,10 @@
 publishes the crates and the npm package, `desktop-vX.Y.Z` (the same
 version) drafts the desktop app's release.
 
+No token is kept in the repository. Every upload is a registry trusting
+the workflow that makes it, and what a registry cannot trust yet, the first
+version of a new name, a person uploads once.
+
 ## The crates
 
 cargo-release with one shared version (`[workspace.metadata.release]`).
@@ -32,10 +36,11 @@ the rest from their packages and uploads them in dependency order, through
 Trusted Publishing. The same push runs `npm.yml`, below; neither waits for
 the other.
 
-- A crate published for the first time needs the `CARGO_REGISTRY_TOKEN`
-  secret, since crates.io can only trust a workflow for a crate that
-  exists. `cargo xtask trust-release` then makes every published crate
-  trust `release.yml`.
+- Trusted Publishing is the whole of the credentials: each crate's
+  settings on crates.io name this repository, `release.yml` and the
+  `crates-io` environment, and crates.io hands the run a token that lasts
+  half an hour. `cargo xtask trust-release` gives every published crate
+  that configuration.
 - crates.io limits how many new crates go up at once, and cargo waits only
   a minute for an upload to reach the index before publishing what depends
   on it. When a publish fails that way, rerun the failed job: it picks up
@@ -43,6 +48,33 @@ the other.
 - Members with `publish = false` (app, doc, verse, relay, previs-web) stay
   off crates.io.
 - `cargo publish --workspace --dry-run` is the local check.
+
+### A crate's first version
+
+crates.io can trust a workflow only for a crate that exists, so a crate it
+has never had is not the workflow's to upload. `cargo xtask release-plan`
+names it (`by hand`) and whatever depends on it (`waits`); the workflow
+uploads the rest and then fails, saying so. A person uploads the first
+version with a crates.io token of their own, which never reaches the
+repository (crates.io > Account Settings > API Tokens: the `publish-new`
+and `trusted-publishing` scopes, the crate's name as the pattern, a day's
+expiry):
+
+```bash
+git worktree add ../first-version vX.Y.Z && cd ../first-version
+read -rs CARGO_REGISTRY_TOKEN && export CARGO_REGISTRY_TOKEN   # paste the token: nothing is shown
+cargo publish -p localgpt-<crate>   # packages it, builds the package, uploads it
+cargo xtask trust-release           # or the crate's Settings > Trusted Publishing on crates.io
+unset CARGO_REGISTRY_TOKEN
+```
+
+Then run the workflow's failed job again (`gh run rerun <run> --failed`),
+which uploads what waited, and revoke the token.
+
+It need not wait for the release. A new crate that builds against what
+crates.io already has (`cargo publish -p localgpt-<crate> --dry-run` says)
+can have its first version uploaded from `main` beforehand, at the version
+the workspace is at; the release is then the workflow's alone.
 
 ## The npm package
 
@@ -67,30 +99,46 @@ gh workflow run npm.yml --ref vX.Y.Z -f publish=true   # a release whose own run
 Run the rehearsal before tagging: it is the only place the five builds and
 the package are tried. Its tarball is the run's `npm-package` artifact.
 
-- Publishing is npm's trusted publishing: no token in the repository, and
-  npm records where the package was built. On npmjs.com, in the package's
-  Settings > Trusted Publisher > GitHub Actions: organization `localgpt-app`,
-  repository `localgpt`, workflow `npm.yml`, environment `npm`.
-- npm sets that up only for a package that exists, so the first release
-  goes up with a token: a granular access token (npmjs.com > Access Tokens:
-  "Read and write", "All packages" since this one is not there to choose
-  yet, "Bypass two-factor authentication" ticked, expiring in days) as the
-  `npm` environment's `NPM_TOKEN` secret:
+- Publishing is npm's trusted publishing and nothing else: no token in the
+  repository, and npm records where the package was built. On npmjs.com, in
+  the package's Settings > Trusted Publisher > GitHub Actions: organization
+  `localgpt-app`, repository `localgpt`, workflow `npm.yml`, environment
+  `npm`, with `npm publish` allowed. Or from a terminal, with npm 11.15 or
+  newer, which asks for the second factor:
 
   ```bash
-  gh api -X PUT repos/localgpt-app/localgpt/environments/npm   # the environment, until a publish has made it
-  gh secret set NPM_TOKEN --env npm                            # asks for the token
+  npm trust github localgpt --repo localgpt-app/localgpt --file npm.yml --env npm --allow-publish
   ```
 
-  Delete the token and the secret once the package is up. npm asks the
-  trusted publisher first and falls back to the token, so the workflow is
-  the same for both.
 - npm drops a trusted publisher that has not published within two days of
-  being set up. Set it up in the two days before the second release, not
-  after the first.
+  being set up: set it up in the two days before the release that is to
+  use it.
+- Where the publish job cannot publish (npm has no `localgpt`, or refuses
+  the workflow), it fails, and its summary has the commands that publish
+  that run's tarball with a person's own login. Run again, it finds the
+  version up and checks that npm has that tarball.
 - A version on npm is there for good: a mistake is a new patch version.
   `npm deprecate localgpt@X.Y.Z "<why>"` warns whoever installs the old one.
 - A pre-release (`vX.Y.Z-rc.1`) is published as `next`, not `latest`.
+
+### The first version on npm
+
+npm sets a trusted publisher up only for a package that exists, so the
+first version of all needs a person once, with their own npm login and no
+token anywhere. Either way round:
+
+- **Before the tag**, so that the release itself comes from the workflow
+  and carries its provenance statement. Publish a placeholder under the
+  name (a folder holding a `package.json` with the name, version `0.0.0`
+  and nothing to run: `npm publish --access public`), set the trusted
+  publisher up, and tag within two days. Afterwards, `npm deprecate
+  localgpt@0.0.0 "a placeholder: install the latest"`.
+- **After the tag.** The publish job fails, since npm has no `localgpt`,
+  and its summary has three commands: download that run's tarball, `npm
+  publish` it, and run the job again, which checks that npm has that
+  tarball. Set the trusted publisher up in the two days before the next
+  release. That first version has no provenance statement: only a workflow
+  can make one.
 
 ## The desktop app
 
@@ -118,5 +166,7 @@ done the same day:
   app to hand over to, the installation page and the README all name
   `brew install --cask localgpt-app/tap/localgpt`, and the README is the npm
   package's page, as it stood when the version was published.
-- **The credentials of a first release**: delete the npm token and its
-  secret, run `cargo xtask trust-release` and delete `CARGO_REGISTRY_TOKEN`.
+- **A first version's publisher**: a crate or a package a person uploaded
+  for the first time trusts no workflow yet. Give it its trusted publisher
+  before the next release ("A crate's first version", "The first version on
+  npm").

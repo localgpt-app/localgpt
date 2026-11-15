@@ -18,16 +18,20 @@
 # is still unstable, so it can't be lengthened); builds every remaining
 # crate from its package; and only then uploads them, in dependency order.
 #
-# Credentials: Trusted Publishing, so no token lives in the repository.
-# crates.io issues a short-lived token because each crate's settings name
-# this repository, this workflow file and the `crates-io` environment. Set
-# it up once per crate on crates.io, Settings > Trusted Publishing > GitHub:
-# owner `localgpt-app`, repository `localgpt`, workflow `release.yml`,
-# environment `crates-io`. crates.io allows that only for a crate that
-# already exists, so a crate's first release needs an API token instead:
-# put one with the publish-new and publish-update scopes in the
-# `CARGO_REGISTRY_TOKEN` secret and it is used in place of the exchange.
-# Delete the secret once every crate trusts this workflow.
+# Credentials: Trusted Publishing, and nothing else. No token lives in the
+# repository, as a secret or otherwise: crates.io issues a short-lived one
+# because each crate's settings name this repository, this workflow file
+# and the `crates-io` environment (on crates.io, the crate's Settings >
+# Trusted Publishing > GitHub: owner `localgpt-app`, repository `localgpt`,
+# workflow `release.yml`, environment `crates-io`; `cargo xtask
+# trust-release` does it for every crate).
+#
+# crates.io allows that only for a crate that exists, so a crate it has
+# never had is not this job's to upload. The plan names it and holds back
+# whatever depends on it; the job uploads the rest and then fails, saying
+# so. A person uploads the first version and makes the crate trust this
+# workflow, and the job run again uploads what waited
+# (docs/releasing.md, "A crate's first version").
 name: Release
 
 on:
@@ -60,8 +64,6 @@ jobs:
     permissions:
       contents: read
       id-token: write # the OIDC token crates.io exchanges; nothing else
-    env:
-      HAS_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -101,14 +103,25 @@ jobs:
       # The token comes after the long build, since it is short-lived.
       - name: A short-lived token from crates.io
         id: auth
-        if: steps.plan.outputs.remaining != '0' && env.HAS_TOKEN != 'true'
+        if: steps.plan.outputs.remaining != '0'
         uses: rust-lang/crates-io-auth-action@v1
 
       - name: Upload
         if: steps.plan.outputs.remaining != '0'
         env:
           EXCLUDES: ${{ steps.plan.outputs.excludes }}
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
           read -ra excludes <<< "$EXCLUDES"
           cargo publish --workspace --no-verify "${excludes[@]}"
+
+      # Last, so that everything this job could upload is up when it says
+      # what it could not: the plan's summary has the commands.
+      - name: A first version waits for a person
+        if: steps.plan.outputs.first != ''
+        env:
+          FIRST: ${{ steps.plan.outputs.first }}
+          WAITS: ${{ steps.plan.outputs.waits }}
+        run: |
+          echo "::error title=Not released yet::Never on crates.io, so a person uploads the first version: $FIRST. Held back until then: ${WAITS:-nothing}. The commands are in this run's summary and in docs/releasing.md; run this job again afterwards."
+          exit 1

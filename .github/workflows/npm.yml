@@ -15,19 +15,17 @@
 # installed; and only then publishes the same tarball. Either way the tarball
 # is kept, as the `npm-package` artifact.
 #
-# Credentials: npm's trusted publishing, so no token lives here once it is
-# set up, and npm records where the package was built. On npmjs.com, in the
-# package's Settings > Trusted Publisher > GitHub Actions: organization
-# `localgpt-app`, repository `localgpt`, workflow `npm.yml`, environment
-# `npm`. npm allows that only for a package that exists, and drops a
-# publisher that has not published within two days of being set up, so:
-#   - the first release goes up with a token: a granular access token with
-#     read and write on all packages (this one is not there to be chosen
-#     yet) that skips 2FA and expires in days, in the `npm` environment's
-#     `NPM_TOKEN` secret (gh secret set NPM_TOKEN --env npm). Delete both
-#     once the package is up.
-#   - set the trusted publisher up within the two days before the next one.
-# npm asks the trusted publisher first and falls back to the token.
+# Credentials: npm's trusted publishing, and nothing else. No token lives
+# in the repository, as a secret or otherwise, and npm records where the
+# package was built. On npmjs.com, in the package's Settings > Trusted
+# Publisher > GitHub Actions: organization `localgpt-app`, repository
+# `localgpt`, workflow `npm.yml`, environment `npm`, with `npm publish`
+# allowed. npm allows that only for a package that exists, and drops a
+# publisher that has not published within two days of being set up. So the
+# publish job never guesses: where npm has no `localgpt`, or refuses the
+# publish, it fails and says how a person publishes this run's tarball; run
+# again, it finds the version up and checks that it is that tarball
+# (docs/releasing.md, "The first version on npm").
 name: npm
 
 on:
@@ -237,23 +235,68 @@ jobs:
       - run: npm install -g npm@latest
 
       - name: Publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           tarball=$(ls localgpt-*.tgz)
           version=${tarball#localgpt-}
           version=${version%.tgz}
-          # A rerun after the upload went through has nothing left to do.
-          if curl -fsS -o /dev/null "https://registry.npmjs.org/localgpt/$version"; then
-            echo "localgpt@$version is up already"
-            exit 0
-          fi
-          # Without credentials npm answers a publish with 404, as if the
-          # name were the trouble.
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::notice::No NPM_TOKEN secret: this publish rests on npm's trusted publisher for localgpt (docs/releasing.md). A 404 or a need-auth error below means neither is set up."
-          fi
           # A pre-release (a hyphen in the version) is `next`, never `latest`.
           tag=latest
           case "$version" in *-*) tag=next ;; esac
-          npm publish "$tarball" --access public --provenance --tag "$tag"
+          registry=https://registry.npmjs.org/localgpt
+          ours="sha512-$(openssl dgst -sha512 -binary "$tarball" | openssl base64 -A)"
+
+          # What npm has of a URL: 200, 404, or an answer this job stops at.
+          asked() {
+            status=$(curl -sS -o "$2" -w '%{http_code}' "$1")
+            case "$status" in
+              200 | 404) ;;
+              *) echo "::error::$1 answered $status"; exit 1 ;;
+            esac
+          }
+
+          # Where this job cannot publish, a person can: the tarball is this
+          # run's artifact, installed and run on every platform above.
+          by_hand() {
+            {
+              echo "### localgpt $version is not on npm"
+              echo
+              echo "$1"
+              echo
+              echo "This run's tarball is the one it installed and ran on every platform. With your own npm login:"
+              echo
+              echo '```bash'
+              echo "gh run download $GITHUB_RUN_ID --repo $GITHUB_REPOSITORY --name npm-package --dir localgpt-npm"
+              echo "npm publish localgpt-npm/$tarball --access public --tag $tag"
+              echo "gh run rerun $GITHUB_RUN_ID --repo $GITHUB_REPOSITORY --failed   # checks that npm has this tarball"
+              echo '```'
+              echo
+              echo 'Then the trusted publisher, so that the next version needs no one: docs/releasing.md, "The first version on npm".'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Not on npm::$1 A person publishes this run's tarball: the commands are in this run's summary and in docs/releasing.md."
+            exit 1
+          }
+
+          # A rerun after the upload went through, or after a person
+          # published the tarball, has nothing to send: it says whose it is.
+          asked "$registry/$version" up.json
+          if [ "$status" = 200 ]; then
+            theirs=$(jq -r .dist.integrity up.json)
+            if [ "$theirs" = "$ours" ]; then
+              echo "localgpt@$version is up, and it is this run's tarball: $ours"
+            else
+              echo "::warning::localgpt@$version is up from another build: npm has $theirs, this run packed $ours"
+            fi
+            exit 0
+          fi
+
+          # npm trusts a workflow only for a package that exists, so the
+          # first version of all has no one here to publish it.
+          asked "$registry" /dev/null
+          if [ "$status" = 404 ]; then
+            by_hand "npm has no localgpt yet, and it trusts a workflow only for a package that exists."
+          fi
+
+          # No token: the trusted publisher is the whole of the credentials,
+          # and it brings the provenance statement.
+          npm publish "$tarball" --access public --provenance --tag "$tag" ||
+            by_hand "npm refused the publish. Its trusted publisher for localgpt has to name this repository, npm.yml and the npm environment, allow npm publish, and be no more than two days old at its first publish."
