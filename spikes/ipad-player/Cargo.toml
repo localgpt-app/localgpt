@@ -1,0 +1,59 @@
+[package]
+name = "spike-ipad-player"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "The native player spike: a song world on an iPad through world-bevy and world-audio, the desktop app's own crates — frame rate, heat, first launch, the audio session, touch"
+default-run = "bundle"
+
+# A crate of its own, outside the workspace: nothing here reaches the apps.
+[workspace]
+
+# The player. It runs on iOS; built for the Mac it only says how to run it.
+[[bin]]
+name = "ipad-player"
+path = "src/main.rs"
+
+# Builds the player, bundles it with a world, signs it and starts it on the
+# simulator or a paired iPad (README.md).
+[[bin]]
+name = "bundle"
+path = "src/bin/bundle.rs"
+
+[dependencies]
+serde_json = "1"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+# What the desktop app takes, less what a player has no use for: Bevy's own
+# audio (world-audio plays), gamepads, the clipboard, the system's fonts.
+# `jpeg` for the worlds' glTF textures.
+bevy = { version = "0.20", default-features = false, features = [
+    "std",
+    "async_executor",
+    "multi_threaded",
+    "bevy_log",
+    "bevy_asset",
+    "reflect_auto_register",
+    "bevy_winit",
+    "default_font",
+    "3d_bevy_render",
+    "scene",
+    "ui_bevy_render",
+    "jpeg",
+] }
+# Bevy's derives name `bevy_ecs` when `bevy` is not among a crate's plain
+# dependencies, as here, where it is iOS's alone.
+bevy_ecs = "0.20"
+localgpt-world-audio = { path = "../../crates/world-audio" }
+localgpt-world-bevy = { path = "../../crates/world-bevy" }
+localgpt-world-types = { path = "../../crates/world-types" }
+# The operating system's own interfaces: the audio session (cpal leaves its
+# category to the app), the thermal state and the battery.
+objc2 = "0.6"
+objc2-avf-audio = { version = "0.3", default-features = false, features = ["std", "AVAudioSession", "AVAudioSessionTypes"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSError", "NSString", "NSProcessInfo"] }
+objc2-ui-kit = { version = "0.3", default-features = false, features = ["std", "UIDevice"] }
+
+[profile.release]
+# Line tables, so a crash report from the device names the code.
+debug = "line-tables-only"
