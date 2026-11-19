@@ -52,8 +52,10 @@ futures = { workspace = true }
 
 clap = { version = "4.6", features = ["derive"] }
 
-# 3D generation via Bevy
-bevy = "0.20"
+# 3D generation via Bevy: its defaults without `audio`, since
+# `localgpt-world-audio` (kira) owns the sound device and Bevy's own engine
+# (rodio on a second cpal) played nothing.
+bevy = { version = "0.20", default-features = false, features = ["2d", "3d", "ui"] }
 image = "0.25"
 
 # glTF/GLB export
