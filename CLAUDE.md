@@ -91,6 +91,9 @@ cargo run -p localgpt-app -- --doc notes.md         # a document; the world rebu
 cargo run -p localgpt-app -- --song track.mp3      # a song as a world that performs it
 cargo run -p localgpt-app -- --world harbour.world # a package as a live canvas: agents edit through
                                                    # its API, the history panel draws the branches
+cargo run -p localgpt-app -- --replay castle       # a session played back (--replay-speed); the bar's
+cargo run -p localgpt-app -- --join 192.168.1.5    # Share opens these, and someone's session, in a
+                                                   # window of their own (src/share.rs)
 cargo run -p localgpt-app -- gen mcp-server        # Gen's CLI/MCP entry point inside the app binary
                                                    # (`localgpt gen …` forwards here)
 LOCALGPT_APP_REMOTE=on cargo run -p localgpt-app   # also serve a phone on this network: prints a
@@ -285,9 +288,11 @@ URL's fragment, `world_link.rs`), plus screenshot, selection, goto and
 proposals, which need an app, and `world mcp`, a stdio MCP server over an
 app's open canvas (`world.rs`, `world_mcp.rs`). `previs` stages a screenplay (`.fountain`,
 `.fdx`, `.pdf` or `.md`) into per-scene `.world` packages, `shotlist.csv` and
-`board.html` (`previs.rs`). `gen` builds nothing itself, so the CLI links no
-Bevy: it hands its arguments to `localgpt-app gen` (beside the binary, then
-on `PATH`, then in `/Applications`), else to `localgpt-gen` (`gen_cmd.rs`).
+`board.html` (`previs.rs`). `gen` links no Bevy: it runs the two things that
+need no window itself — `mcp-server --connect`, the stdio end of a window's
+relay (`world-agent::mcp::relay`), and `--export-session` — and hands
+anything else to `localgpt-app gen` (beside the binary, then on `PATH`, then
+in `/Applications`), else to `localgpt-gen` (`gen_cmd.rs`).
 
 One authority at a time. While an app answers at `.live/endpoint.json`,
 every command is a call to its API (`world_api.rs`, which the shim shares)
@@ -342,8 +347,13 @@ tool syncs, and committed ops apply back into its scene. No model runs for
 the room: a guest's prompt is accepted by the authority and failed with a
 reason (`net/web.rs`), and the agent that builds is the host's, outside the
 window. A session is a package under `<workspace>/sessions/<name>/` (the
-base `world.ron`, the one log `ops.jsonl`, `session.json`, snapshots), which
-`--resume` and `--replay` read. A room lasts as long as its host's window:
+base `world.ron`, the one log `ops.jsonl`, `session.json`, snapshots; a name
+already used gets `<name>-2`, …), which `--resume` and `--replay` read. The
+desktop app hosts the same room from its bar (`crates/app/src/share.rs`:
+`NetHostPlugin` dormant, started and stopped through `HostControl`), for
+watching guests only, since a guest's edit would go round a live canvas's
+authority; it opens `--join` and `--replay` in windows of their own. A room
+lasts as long as its host's window:
 `--host` takes no subcommand, so there is no headless host, and the relay
 (`crates/relay`) only forwards frames for a host behind NAT, holding no
 state. A persistent room is not built, and there is no cloud module.

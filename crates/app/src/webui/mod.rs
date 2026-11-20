@@ -26,9 +26,9 @@ pub mod link;
 mod remote;
 mod term;
 
-pub use remote::RemoteView;
 #[cfg(test)]
 pub use remote::{DeviceView, PairingView};
+pub use remote::{LOCALGPT_APP_REMOTE, RemoteView};
 pub use term::Tab;
 
 use std::path::PathBuf;
@@ -44,6 +44,7 @@ use serde::{Deserialize, Serialize};
 use crate::document::{Document, DocumentAsk, DocumentView};
 use crate::open::{OpenFile, Opener, Showing};
 use crate::scene::{Scene, SceneAsk, SceneEdit, SceneView};
+use crate::share::{Share, ShareAsk, ShareView};
 use crate::timeline::{ShotTime, Thumbs, Timeline, TimelineAsk, TimelineView, WorldClock};
 use remote::{Frames, Inbound, Mirror, Remote};
 use term::{TermOut, Terms};
@@ -76,6 +77,7 @@ impl Plugin for WebUiPlugin {
                 push_page,
                 pump_terms,
                 remote::show,
+                push_share,
                 remote::tick,
             )
                 .chain(),
@@ -134,6 +136,7 @@ struct Sent {
     clock: Option<ClockSent>,
     thumbs_rev: u64,
     remote_rev: Option<u64>,
+    share_rev: Option<u64>,
 }
 
 /// The clock as the page was last told it, and when: while it plays, the
@@ -319,6 +322,34 @@ pub enum FromPage {
     RemotePair,
     #[serde(rename = "remote.forget")]
     RemoteForget { id: String },
+    /// Share the world in the window (`share.rs`): with browsers on this
+    /// network too, and with anyone through a relay.
+    #[serde(rename = "share.host")]
+    ShareHost {
+        name: String,
+        web: bool,
+        relay: Option<String>,
+    },
+    #[serde(rename = "share.stop")]
+    ShareStop,
+    /// Gen's tools over this window's world, through the MCP relay.
+    #[serde(rename = "share.mcp")]
+    ShareMcp { on: bool },
+    /// The saved sessions, again.
+    #[serde(rename = "share.sessions")]
+    ShareSessions,
+    /// Browse this network for sessions.
+    #[serde(rename = "share.find")]
+    ShareFind,
+    /// Someone's session, in a window of its own.
+    #[serde(rename = "share.join")]
+    ShareJoin { addr: String, pin: Option<String> },
+    /// A saved session played back, in a window of its own.
+    #[serde(rename = "share.replay")]
+    ShareReplay { dir: PathBuf },
+    /// A saved session as one `.world` file, where the save dialog says.
+    #[serde(rename = "share.export")]
+    ShareExport { dir: PathBuf },
 }
 
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
@@ -403,6 +434,10 @@ enum ToPage<'a> {
     /// The phone's listener and its devices: the window's page alone.
     #[serde(rename = "remote")]
     Remote { view: &'a remote::RemoteView },
+    /// Sharing, joining, the sessions kept and Gen's MCP relay: the
+    /// window's page alone.
+    #[serde(rename = "share")]
+    Share { view: &'a ShareView },
 }
 
 fn base64_bytes<S: serde::Serializer>(bytes: &&[u8], serializer: S) -> Result<S::Ok, S::Error> {
@@ -451,6 +486,7 @@ struct Asks<'w> {
     open: Option<ResMut<'w, Messages<OpenFile>>>,
     timeline: Option<ResMut<'w, Messages<TimelineAsk>>>,
     scene: Option<ResMut<'w, Messages<SceneAsk>>>,
+    share: Option<ResMut<'w, Messages<ShareAsk>>>,
 }
 
 fn ask<T: Message>(messages: &mut Option<ResMut<Messages<T>>>, message: T) {
@@ -521,6 +557,14 @@ fn read_page(
                     | FromPage::RemoteOn { .. }
                     | FromPage::RemotePair
                     | FromPage::RemoteForget { .. }
+                    | FromPage::ShareHost { .. }
+                    | FromPage::ShareStop
+                    | FromPage::ShareMcp { .. }
+                    | FromPage::ShareSessions
+                    | FromPage::ShareFind
+                    | FromPage::ShareJoin { .. }
+                    | FromPage::ShareReplay { .. }
+                    | FromPage::ShareExport { .. }
             )
         {
             continue;
@@ -675,8 +719,31 @@ fn read_page(
                 remote.pair();
             }
             FromPage::RemoteForget { id } => remote.forget(&id),
+            FromPage::ShareHost { name, web, relay } => {
+                ask(&mut asks.share, ShareAsk::Host { name, web, relay })
+            }
+            FromPage::ShareStop => ask(&mut asks.share, ShareAsk::Stop),
+            FromPage::ShareMcp { on } => ask(&mut asks.share, ShareAsk::Mcp(on)),
+            FromPage::ShareSessions => ask(&mut asks.share, ShareAsk::Sessions),
+            FromPage::ShareFind => ask(&mut asks.share, ShareAsk::Find),
+            FromPage::ShareJoin { addr, pin } => ask(&mut asks.share, ShareAsk::Join { addr, pin }),
+            FromPage::ShareReplay { dir } => ask(&mut asks.share, ShareAsk::Replay(dir)),
+            FromPage::ShareExport { dir } => ask(&mut asks.share, ShareAsk::Export(dir)),
         }
     }
+}
+
+/// The share panel's view, to the window alone, when it changed.
+fn push_share(page: Option<NonSendMut<Page>>, share: Option<Res<Share>>) {
+    let (Some(mut page), Some(share)) = (page, share) else {
+        return;
+    };
+    let rev = share.rev();
+    if !page.ready || page.host.is_none() || page.sent.share_rev == Some(rev) {
+        return;
+    }
+    page.sent.share_rev = Some(rev);
+    page.send_window(&ToPage::Share { view: share.view() });
 }
 
 /// Where a step lands, in the order entries were written: `Some(None)` is

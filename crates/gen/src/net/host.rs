@@ -63,12 +63,24 @@ pub struct HostSessionInfo {
     /// Currently connected guests (kept in step by the room).
     pub clients: usize,
     pin: Option<String>,
+    /// The link a browser on this network joins with, when browsers may
+    /// (`--web`).
+    pub browser_link: Option<String>,
+    /// The relay client's link or trouble, when guests come through one
+    /// (`--relay`).
+    relay: Option<super::relay_client::RelayStatus>,
 }
 
 impl HostSessionInfo {
     /// The current session PIN, or `None` for an open session.
     pub fn pin(&self) -> Option<String> {
         self.pin.clone()
+    }
+
+    /// The relay's internet link, or why there is none, while the session
+    /// goes through one; `None` without a relay.
+    pub fn relay(&self) -> Option<super::relay_client::RelayState> {
+        self.relay.as_ref().map(|status| status.get())
     }
 
     /// One line for a status display.
@@ -90,6 +102,17 @@ impl HostSessionInfo {
 
 fn plural(count: usize) -> &'static str {
     if count == 1 { "" } else { "s" }
+}
+
+/// The link a browser on this network opens to join: the host's address on
+/// the LAN and the session port, the invite token in the fragment (which a
+/// browser never sends to the server) unless the session is open.
+fn browser_link(ip: Option<Ipv4Addr>, port: u16, token: Option<&str>) -> String {
+    let host = ip.map_or_else(|| "<this-host>".to_string(), |ip| ip.to_string());
+    match token {
+        Some(token) => format!("http://{host}:{port}/#t={token}"),
+        None => format!("http://{host}:{port}/"),
+    }
 }
 
 /// A request to start hosting a session — from the CLI (`--host`, before
@@ -120,6 +143,10 @@ pub enum HostControl {
     NotHosting,
     /// A start was requested; [`host_lifecycle`] runs it this frame.
     StartRequested(HostStartRequest),
+    /// A stop was requested; [`host_lifecycle`] ends the session this frame:
+    /// the listener and the guests' sockets, the relay, the announcement.
+    /// What the session wrote stays in its package.
+    StopRequested,
     /// The session is live. `warning` carries a non-fatal startup problem
     /// (e.g. mDNS failed).
     Active { warning: Option<String> },
@@ -144,6 +171,14 @@ pub fn hosting(control: Res<HostControl>) -> bool {
 #[derive(Resource)]
 struct HostAnnouncer {
     _announcer: SessionAnnouncer,
+}
+
+/// What serves a live session: its HTTP server and, through a relay, its
+/// relay client. Removing it stops both.
+#[derive(Resource)]
+struct HostServers {
+    _http: web::SessionHttp,
+    _relay: Option<super::relay_client::RelayClient>,
 }
 
 /// The host plugin. Always installed; dormant until a session starts.
@@ -221,6 +256,19 @@ fn host_lifecycle(
 ) {
     let request = match std::mem::take(&mut *control) {
         HostControl::StartRequested(request) => request,
+        HostControl::StopRequested => {
+            // The room (its log closes, the avatars go with it), the
+            // announcement, and the servers, whose threads end the sockets.
+            commands.remove_resource::<WebRoom>();
+            commands.remove_resource::<HostAnnouncer>();
+            commands.remove_resource::<HostServers>();
+            commands.remove_resource::<HostSessionInfo>();
+            if let Ok(mut window) = window.single_mut() {
+                window.title = "LocalGPT Gen".into();
+            }
+            eprintln!("Collaborative session stopped");
+            return;
+        }
         HostControl::NotHosting => return,
         active @ HostControl::Active { .. } | active @ HostControl::Failed(_) => {
             *control = active;
@@ -238,20 +286,28 @@ fn host_lifecycle(
     let http_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), request.port);
     let (bridge, inbound_rx) = web::WebBridge::new(token.clone(), &request.session_name);
     let router = web::web_router(bridge.clone());
-    if let Err(e) = web::spawn_session_http(router, http_addr) {
-        eprintln!(
-            "Collaborative session failed to start: session HTTP couldn't listen on \
-             tcp://{http_addr} ({e}) — free the port or pass --port"
-        );
-        *control = HostControl::Failed(format!(
-            "couldn't listen on port {port} ({e}) — is another session running?",
-            port = request.port
-        ));
-        return;
-    }
-    if let Some(relay_url) = &request.relay {
-        super::relay_client::start_relay_client(bridge.clone(), relay_url, token.clone());
-    }
+    let http = match web::spawn_session_http(router, http_addr) {
+        Ok(http) => http,
+        Err(e) => {
+            eprintln!(
+                "Collaborative session failed to start: session HTTP couldn't listen on \
+                 tcp://{http_addr} ({e}) — free the port or pass --port"
+            );
+            *control = HostControl::Failed(format!(
+                "couldn't listen on port {port} ({e}) — is another session running?",
+                port = request.port
+            ));
+            return;
+        }
+    };
+    let relay = request.relay.as_deref().map(|relay_url| {
+        super::relay_client::start_relay_client(bridge.clone(), relay_url, token.clone())
+    });
+    let relay_status = relay.as_ref().map(|client| client.status());
+    commands.insert_resource(HostServers {
+        _http: http,
+        _relay: relay,
+    });
     commands.insert_resource(WebRoom::new(
         &request.session_name,
         bridge,
@@ -264,25 +320,19 @@ fn host_lifecycle(
 
     match &session_pin {
         Some(pin) => eprintln!(
-            "\n  Session PIN: {pin}   (joiners: localgpt-gen --join <this-host> --pin <PIN>)\n"
+            "\n  Session PIN: {pin}   (joiners: localgpt gen --join <this-host> --pin <PIN>)\n"
         ),
         None => {
             eprintln!("\n  OPEN session: no PIN — anyone on the LAN can join\n")
         }
     }
-    if request.web {
-        match (web::primary_lan_ip(), &token) {
-            (Some(ip), Some(token)) => eprintln!(
-                "\n  Browser guests: http://{ip}:{port}/#t={token}\n",
-                port = request.port
-            ),
-            (Some(ip), None) => eprintln!(
-                "\n  Browser guests: http://{ip}:{port}/  (open session)\n",
-                port = request.port
-            ),
-            (None, _) => {
-                eprintln!("\n  Browser guests: http://<this-host>:{}/\n", request.port)
-            }
+    let browser_link = request
+        .web
+        .then(|| browser_link(web::primary_lan_ip(), request.port, token.as_deref()));
+    if let Some(link) = &browser_link {
+        match &token {
+            Some(_) => eprintln!("\n  Browser guests: {link}\n"),
+            None => eprintln!("\n  Browser guests: {link}  (open session)\n"),
         }
     }
     eprintln!("Collaborative session listening on {http_addr}");
@@ -313,6 +363,8 @@ fn host_lifecycle(
         port: request.port,
         clients: 0,
         pin: session_pin,
+        browser_link,
+        relay: relay_status,
     });
     if let Ok(mut window) = window.single_mut() {
         window.title = format!("LocalGPT Gen — Hosting '{}'", request.session_name);
@@ -331,7 +383,24 @@ mod tests {
             port: 9879,
             clients,
             pin,
+            browser_link: None,
+            relay: None,
         }
+    }
+
+    #[test]
+    fn a_browser_link_carries_the_token_in_its_fragment() {
+        let ip = Some(Ipv4Addr::new(192, 168, 1, 5));
+        assert_eq!(
+            browser_link(ip, 9879, Some("abc")),
+            "http://192.168.1.5:9879/#t=abc"
+        );
+        assert_eq!(browser_link(ip, 9879, None), "http://192.168.1.5:9879/");
+        assert_eq!(
+            browser_link(None, 9900, Some("abc")),
+            "http://<this-host>:9900/#t=abc"
+        );
+        assert_eq!(session_info(None, 0).relay(), None);
     }
 
     #[test]
@@ -366,6 +435,7 @@ mod tests {
             .is_active()
         );
         assert!(HostControl::Active { warning: None }.is_active());
+        assert!(!HostControl::StopRequested.is_active());
         assert!(!HostControl::Failed("x".into()).is_active());
     }
 }

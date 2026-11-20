@@ -24,11 +24,11 @@ The world builder's tools, with a Bevy window or without one. `localgpt gen …`
 ```bash
 localgpt gen mcp-server                     # the agent's own process: a window plus the tools
 localgpt gen mcp-server --headless          # no window: CI, batch generation
-localgpt gen mcp-server --connect           # the tools of a running `--mcp-relay` window
+localgpt gen mcp-server --connect           # the tools of a window whose relay is on
 localgpt gen mcp-server --mcp-http 8765     # also the streamable HTTP transport, at http://127.0.0.1:8765/mcp
 ```
 
-`localgpt-app mcp-server` and `localgpt-gen mcp-server` accept the exact same flags.
+`localgpt-app mcp-server` and `localgpt-gen mcp-server` accept the exact same flags. `--connect` is only a bridge to the window's relay, so `localgpt` runs it itself, with neither the app nor `localgpt-gen` installed; the relay is `localgpt gen --mcp-relay`, or **MCP** in the desktop app's bar (not on a live canvas, which agents change through `localgpt world mcp`).
 
 **Exposed tools:** 88 `gen_*` tools for scene manipulation, audio, behaviors, world management, avatars and NPCs, physics, terrain, interactions, UI, the worldgen pipeline, multi-file worlds and image input — the same set over every transport. None calls a model or a service.
 
@@ -73,7 +73,7 @@ A server lists its tools when it starts: after installing a model, restart the a
 |-----------|--------|-------|
 | stdio | Supported | JSON-RPC 2.0, one message per line |
 | Streamable HTTP | Supported | `localgpt-gen mcp-server --mcp-http <port>`; JSON-RPC at `/mcp` |
-| The relay | Supported | `localgpt-gen --mcp-relay` beside a window; `mcp-server --connect` is its stdio end |
+| The relay | Supported | `localgpt gen --mcp-relay` beside a window, or MCP in the desktop app's bar; `localgpt gen mcp-server --connect` is its stdio end |
 
 ### Protocol Version
 
@@ -94,7 +94,7 @@ Add to your MCP client config (using `localgpt` when `LocalGPT.app` is installed
 }
 ```
 
-For the window you are looking at, run `localgpt gen --mcp-relay` and give the client `["gen", "mcp-server", "--connect"]` instead.
+For the window you are looking at, run `localgpt gen --mcp-relay` (or turn on MCP in the desktop app's bar) and give the client `["gen", "mcp-server", "--connect"]` instead.
 
 ## Tool Catalog
 

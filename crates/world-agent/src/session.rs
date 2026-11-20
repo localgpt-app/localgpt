@@ -432,6 +432,157 @@ fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// Where sessions live
+// ---------------------------------------------------------------------------
+
+/// The folder of a workspace that holds its sessions, a package each.
+pub const SESSIONS_DIR: &str = "sessions";
+
+/// A session's folder name: its name in lowercase letters and digits, dashes
+/// between the runs, at most 48 characters; `session` when nothing is left.
+pub fn slug(name: &str) -> String {
+    let slug = name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    let slug: String = slug.chars().take(48).collect();
+    if slug.is_empty() {
+        "session".to_string()
+    } else {
+        slug
+    }
+}
+
+/// Where the session called `name` keeps its package in `workspace`.
+pub fn session_dir(workspace: &Path, name: &str) -> PathBuf {
+    workspace.join(SESSIONS_DIR).join(slug(name))
+}
+
+/// A folder for a new session called `name` in `workspace`: its own
+/// ([`session_dir`]) when nothing is there yet, else the first free one of
+/// `<slug>-2`, `<slug>-3`, … — a session started under a name already used
+/// must not write into the earlier one's history.
+pub fn new_session_dir(workspace: &Path, name: &str) -> PathBuf {
+    let own = session_dir(workspace, name);
+    if !own.exists() {
+        return own;
+    }
+    let base = slug(name);
+    (2u64..)
+        .map(|n| workspace.join(SESSIONS_DIR).join(format!("{base}-{n}")))
+        .find(|dir| !dir.exists())
+        .unwrap_or(own)
+}
+
+/// What a person names a session by (`--resume`, `--replay`,
+/// `--export-session`): a path when it looks like one — a separator in it,
+/// an `ops.jsonl`, a `.world` — with a leading `~` for the home folder;
+/// else a session's name, whose package is in `workspace`.
+pub fn resolve(workspace: &Path, spec: &str) -> PathBuf {
+    let path_like = spec.contains('/')
+        || spec.contains(std::path::MAIN_SEPARATOR)
+        || spec.ends_with(".jsonl")
+        || spec.ends_with(".world");
+    if !path_like {
+        return session_dir(workspace, spec);
+    }
+    let home = |rest: &str| etcetera::home_dir().ok().map(|home| home.join(rest));
+    let expanded = match spec.strip_prefix('~') {
+        Some("") => home(""),
+        Some(rest) if rest.starts_with('/') || rest.starts_with(std::path::MAIN_SEPARATOR) => {
+            home(&rest[1..])
+        }
+        _ => None,
+    };
+    expanded.unwrap_or_else(|| PathBuf::from(spec))
+}
+
+/// Where `export` writes a session's transport form when no destination is
+/// given: `<package folder's name>.world`, in the current directory.
+pub fn export_name(dir: &Path) -> PathBuf {
+    let name = dir
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| "session".into());
+    PathBuf::from(format!("{name}.world"))
+}
+
+/// Zip the session `spec` names (see [`resolve`]) into its transport form at
+/// `dest` (default [`export_name`]): what `--export-session` does, in Gen
+/// and in `localgpt gen`. Returns the package folder and the file written.
+pub fn export(
+    workspace: &Path,
+    spec: &str,
+    dest: Option<&Path>,
+) -> Result<(PathBuf, PathBuf), PackageError> {
+    let dir = resolve(workspace, spec);
+    if !dir.is_dir() {
+        return Err(PackageError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!(
+                "no session package at {} — pass a session name or a package directory",
+                dir.display()
+            ),
+        )));
+    }
+    let dest = dest.map_or_else(|| export_name(&dir), Path::to_path_buf);
+    export_zip(&dir, &dest)?;
+    Ok((dir, dest))
+}
+
+/// A saved session, as a list of them shows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionSummary {
+    /// The package's folder.
+    pub dir: PathBuf,
+    /// Its name, as `session.json` has it.
+    pub name: String,
+    /// The newest revision its log reaches.
+    pub head_revision: u64,
+    /// When it was last written, milliseconds since the epoch.
+    pub updated_ms: u64,
+}
+
+/// The sessions saved in `workspace`, the most recently written first. A
+/// folder without a readable `session.json` is not one, and is left out.
+pub fn list(workspace: &Path) -> Vec<SessionSummary> {
+    let Ok(entries) = std::fs::read_dir(workspace.join(SESSIONS_DIR)) else {
+        return Vec::new();
+    };
+    let mut sessions: Vec<SessionSummary> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|dir| dir.is_dir())
+        .filter_map(|dir| {
+            let meta = read_meta(&dir).ok()?;
+            Some(SessionSummary {
+                name: meta.name,
+                head_revision: meta.head_revision,
+                updated_ms: meta.updated_ms,
+                dir,
+            })
+        })
+        .collect();
+    sessions.sort_by(|a, b| {
+        b.updated_ms
+            .cmp(&a.updated_ms)
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    sessions
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -620,5 +771,66 @@ mod tests {
             read_package(&dir.0, None),
             Err(PackageError::MissingMeta)
         ));
+    }
+    #[test]
+    fn a_session_is_named_by_its_slug_or_by_a_path() {
+        assert_eq!(slug("Maya's World!"), "maya-s-world");
+        assert_eq!(slug("   "), "session");
+        assert_eq!(slug(&"x".repeat(60)).len(), 48);
+
+        let workspace = Path::new("/ws");
+        assert_eq!(
+            resolve(workspace, "Castle Build"),
+            Path::new("/ws/sessions/castle-build")
+        );
+        // A path stays one: a separator, a log, an archive.
+        assert_eq!(resolve(workspace, "./a/b"), Path::new("./a/b"));
+        assert_eq!(resolve(workspace, "ops.jsonl"), Path::new("ops.jsonl"));
+        assert_eq!(resolve(workspace, "x.world"), Path::new("x.world"));
+        // And `~/` is the home folder.
+        let home = etcetera::home_dir().unwrap();
+        assert_eq!(resolve(workspace, "~/s/x.world"), home.join("s/x.world"));
+    }
+
+    #[test]
+    fn saved_sessions_are_listed_newest_first_and_exported_by_name() {
+        let workspace = TempDir::new();
+        let older = session_dir(&workspace.0, "Older");
+        let newer = session_dir(&workspace.0, "Newer");
+        let mut meta = write_base(&older, &manifest_with(1), "gen", None, 0).unwrap();
+        meta.name = "Older".into();
+        meta.updated_ms = 1;
+        write_meta(&older, &meta).unwrap();
+        let mut meta = write_base(&newer, &manifest_with(2), "gen", None, 0).unwrap();
+        meta.name = "Newer".into();
+        meta.head_revision = 3;
+        meta.updated_ms = 2;
+        write_meta(&newer, &meta).unwrap();
+        // A folder that is not a package is not a session.
+        std::fs::create_dir_all(workspace.0.join(SESSIONS_DIR).join("stray")).unwrap();
+
+        let listed = list(&workspace.0);
+        let names: Vec<(&str, u64)> = listed
+            .iter()
+            .map(|s| (s.name.as_str(), s.head_revision))
+            .collect();
+        assert_eq!(names, [("Newer", 3), ("Older", 0)]);
+        assert_eq!(listed[0].dir, newer);
+
+        let dest = workspace.0.join("out.world");
+        let (dir, written) = export(&workspace.0, "Newer", Some(&dest)).unwrap();
+        assert_eq!((dir, written.clone()), (newer, dest));
+        let back = extract_zip(&written).unwrap();
+        assert_eq!(read_package(back.path(), None).unwrap().doc.len(), 2);
+
+        let missing = export(&workspace.0, "nobody", None).unwrap_err();
+        assert!(
+            missing.to_string().contains("no session package at"),
+            "{missing}"
+        );
+        assert_eq!(
+            export_name(Path::new("/ws/sessions/castle")),
+            Path::new("castle.world")
+        );
     }
 }

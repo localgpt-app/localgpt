@@ -30,6 +30,8 @@ image = { version = "0.25", default-features = false, features = ["jpeg"] }
 # The world-building protocol (tool specs, section prompt, Session) that the
 # app drives with its configured model, as Document drives it with a local GGUF.
 localgpt-world-agent = { workspace = true }
+# The batches a `--replay` plays back, as Gen's replay reads them.
+localgpt-world-sync = { workspace = true }
 # The bar's Audio panel installs and removes the optional audio models; the
 # catalog and the installer only, so the window links no model runtime.
 localgpt-audio-models = { workspace = true }

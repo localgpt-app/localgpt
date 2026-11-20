@@ -1,9 +1,10 @@
 //! The bar across the top: what is open, Open… for another document, song
-//! or world, the opener's or the history's status, the panels' menu, and
-//! the phone remote. The panels' menu shows and hides each panel and puts
-//! them back where they began. The phone's button names the attached
-//! devices; its panel turns the listener on and off, shows the pairing code
-//! and lists the devices, each of which can be forgotten.
+//! or world, the opener's or the history's status, the panels' menu, Gen's
+//! MCP relay, Share (`share.rs`), and the phone remote. The panels' menu
+//! shows and hides each panel and puts them back where they began. The
+//! phone's button names the attached devices; its panel turns the listener
+//! on and off, shows the pairing code and lists the devices, each of which
+//! can be forgotten.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -23,6 +24,8 @@ pub struct Bar {
     qr: Option<(String, usize, Vec<bool>)>,
     /// The optional audio models, installed and removed from its panel.
     audio: super::audio::Audio,
+    /// Share, join and the sessions kept; what is typed there.
+    share: super::share::Share,
 }
 
 impl Bar {
@@ -40,8 +43,15 @@ impl Bar {
                 Some(title) => ui.label(title),
                 None => ui.weak("Nothing open"),
             };
-            // A live world opens at launch: there is no Open… in it.
-            if !state.mode_history {
+            // A live world opens at launch: there is no Open… in it; nor in
+            // a replay or a guest's window, which a log and a room drive.
+            let driven = state.share.as_ref().is_some_and(|share| {
+                matches!(
+                    share.mode,
+                    crate::share::Mode::Replay | crate::share::Mode::Guest
+                )
+            });
+            if !state.mode_history && !driven {
                 let open = ui
                     .add_enabled(
                         !state.opener_busy,
@@ -54,6 +64,8 @@ impl Bar {
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 self.phone(ui, state, end);
+                self.share.ui(ui, state, end);
+                super::share::mcp(ui, state, end);
                 self.audio.ui(ui);
                 layout.menu(ui, state);
                 let status = if state.mode_history {
@@ -273,7 +285,7 @@ fn format(color: Color32) -> egui::TextFormat {
 }
 
 /// "3 min ago", for when a device was last attached, as the page says it.
-fn since(ms: u64) -> String {
+pub(super) fn since(ms: u64) -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_millis() as u64);
@@ -348,6 +360,23 @@ mod tests {
         harness.state_mut().state.mode_history = true;
         harness.run_steps(2);
         assert!(harness.query_by_label("Open…").is_none());
+
+        // And in a replay or a guest's window, which a log and a room drive.
+        harness.state_mut().state.mode_history = false;
+        for (mode, shown) in [
+            (crate::share::Mode::Scene, true),
+            (crate::share::Mode::Replay, false),
+            (crate::share::Mode::Guest, false),
+        ] {
+            harness.state_mut().state.share = Some(Box::new(crate::share::ShareView {
+                mode,
+                ..Default::default()
+            }));
+            harness.run_steps(2);
+            assert_eq!(harness.query_by_label("Open…").is_some(), shown, "{mode:?}");
+        }
+        harness.state_mut().state.share = None;
+        harness.run_steps(2);
 
         // Phone popup: turning on, forgetting a device, turning off.
         harness.get_by_label("Phone").click();

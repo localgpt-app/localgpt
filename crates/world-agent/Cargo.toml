@@ -43,8 +43,9 @@ sha2 = "0.11"
 # person opens, so no earlier version will do.
 zip = { version = "9", default-features = false }
 
-# `mcp` reads stdin and writes stdout with it and listens for Ctrl+C.
-tokio = { version = "1", features = ["rt", "time", "io-util", "io-std", "signal", "macros", "sync"], optional = true }
+# `mcp` reads stdin and writes stdout with it and listens for Ctrl+C;
+# `mcp::relay` carries them to a window's relay over a localhost socket.
+tokio = { version = "1", features = ["rt", "time", "io-util", "io-std", "net", "signal", "macros", "sync"], optional = true }
 # `mcp`: the `Tool` trait is async.
 async-trait = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }

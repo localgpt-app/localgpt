@@ -17,9 +17,11 @@ the window, the agents edit through the live API or `localgpt world`, and
 every entry in the history names who made it. Nobody on another computer can
 join. What exists for that is Gen's, and it falls short in four ways:
 
-- **The app has no rooms.** `localgpt-gen --host` is the only host, and it
-  hosts Gen's scene, kept as a session package, not the `.world` the app has
-  open.
+- **The app's room is Gen's.** Since 2026-11-18 the app's Share hosts Gen's
+  room ([one-app-and-cli.md](one-app-and-cli.md), step 3), but it is still
+  Gen's scene projected into a session package, not the `.world` the app has
+  open, and its guests only watch: an edit of theirs would go round
+  `LiveWorld`.
 - **A room is a second authority.** world-sync's `Authority` keeps its own
   document, revision and per-author undo stacks
   (`crates/world-sync/src/authority.rs:101–113`), beside `LiveWorld`, which
@@ -112,7 +114,8 @@ run with a shell on the host's computer, and text from another person is a
 prompt injection with that shell behind it. A guest who wants an agent
 brings their own (step 4).
 
-Gen's `--host` stays until the app's room does what it does, then goes.
+Gen's `--host`, and the app's Share that hosts Gen's room today, stay until
+the app's room does what they do, then go.
 
 ### Who is in the room: a key per person
 

@@ -172,22 +172,24 @@ localgpt completion fish > ~/.config/fish/completions/localgpt.fish
 
 The world builder's window, driven from outside. `localgpt gen …` forwards to `localgpt-app gen …` when the desktop app is installed, or falls back to `localgpt-gen` (`localgpt-app mcp-server` also works directly). No prompt is typed into Gen itself.
 
+Two of them need no window, and `localgpt` runs them itself, with nothing else installed: `mcp-server --connect`, which carries an MCP client's stdio to a window's relay — `localgpt gen --mcp-relay`, or **MCP** in the [desktop app's](/docs/app/#agents) bar — and `--export-session`. So `npx -y localgpt gen mcp-server --connect` is a whole MCP server entry for the window you are looking at.
+
 ```bash
 localgpt gen                               # the window alone (nothing drives it: pass one of the flags below)
 localgpt gen --mcp-relay                   # serve the MCP relay beside the window; an MCP client reaches it through `mcp-server --connect`
 localgpt gen mcp-server                    # the window as an MCP client's own process, tools over stdio
 localgpt gen mcp-server --mcp-http 8766    # and the streamable HTTP transport at http://127.0.0.1:8766/mcp
 localgpt gen mcp-server --headless         # no window: CI and batch work over MCP
-localgpt gen mcp-server --connect [PORT]   # the stdio end of a running window's relay (port auto-discovered)
+localgpt gen mcp-server --connect [PORT]   # the stdio end of a running window's relay (port auto-discovered); runs in localgpt
 localgpt gen --live scene-1.world [--review]   # a .world package as a live canvas; --review holds each batch for Enter or Esc
 localgpt gen --world <PATH|URL> | --scene <glb> # open a world, or a glTF scene, at start
 localgpt gen --replay <session|dir|ops.jsonl|.world> [--replay-speed 4]   # a time-lapse of a history
-localgpt gen --export-session <name|dir> [--out x.world]                  # zip a session package
+localgpt gen --export-session <name|dir> [--out x.world]                  # zip a session package; runs in localgpt
 localgpt gen --host [--session-name n] [--port 9879] [--open] [--web] [--web-edit] [--relay URL] [--resume x]
 localgpt gen --join [host[:port]] [--pin PIN]   # join a session as a viewer; lines typed are chat
 ```
 
-Invoking `localgpt-gen …` directly takes the exact same flags and subcommands.
+Invoking `localgpt-gen …` directly takes the exact same flags and subcommands. The desktop app does the session ones in its window too: **Share** hosts, joins, replays and exports, and `localgpt-app --join` and `--replay` open a guest's window and a replay ([The desktop app](/docs/app/#share)).
 
 See [MCP Server](/docs/gen/mcp-server/), [MCP Relay](/docs/gen/cli-mode/), [Live canvas](/docs/gen/live-canvas/) and [Collaborative Sessions](/docs/gen/multiplayer/).
 

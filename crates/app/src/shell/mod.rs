@@ -18,6 +18,7 @@ mod document;
 mod drive;
 mod history;
 mod scene;
+mod share;
 mod state;
 mod terminal;
 mod terminals;
@@ -25,6 +26,8 @@ mod theme;
 mod tiles;
 mod timeline;
 pub mod world;
+
+pub use drive::LOCALGPT_APP_SHELL_DRIVE;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};

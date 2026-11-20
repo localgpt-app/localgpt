@@ -4,6 +4,24 @@ All notable changes to LocalGPT are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Share, in the desktop app's bar.** It hosts Gen's collaborative session over the world in the window: a name, browsers on this network if wanted, a relay for people elsewhere; then the session's PIN, the link for a browser, the address another LocalGPT joins at and the relay's internet link, each copied with a click, the guests counted on the button, and **Stop sharing**, which ends the listener, the relay and every guest's connection. Guests watch, walk and talk; none of them edits, because on a package opened live an edit of theirs would change the world outside its one authority. The same panel joins someone's session — by address, or found on this network — in a window of its own, after asking its host, so a session that is gone or wants a PIN is said there; and it lists the sessions shared from this computer, each to replay or to export as one `.world` file.
+- **MCP, in the desktop app's bar.** Gen's relay over the world in the window, on and off, for an agent whose MCP server is `localgpt gen mcp-server --connect`; the panel has the line and the configuration to copy. Not on a package opened live, which changes only through its API (`localgpt world mcp`), nor in a replay or a guest's window.
+- **`localgpt-app --replay <session>` and `--join [host[:port]]`.** A session played back as a time-lapse (`--replay-speed`), and someone's session as a guest (`--pin`), each a window of its own, as the Share panel opens them. A guest's PIN goes to that window in its environment, never on its command line.
+- **`localgpt gen mcp-server --connect` and `localgpt gen --export-session` run in `localgpt` itself.** The bridge to a window's relay and the session's zip need no window, so the command line runs them with neither the desktop app nor `localgpt-gen` installed: `npx -y localgpt gen mcp-server --connect` is a whole MCP server entry for the window you are looking at. Everything else `localgpt gen` takes still goes to Gen as typed.
+
+### Changed
+
+- **A session hosted under a name already used gets a folder of its own** (`<name>-2`, …), in Gen and in the app. A second session under one name wrote its revisions after the first's in the same log, and neither folded; resuming a session under its own name still continues it.
+- **`localgpt gen --version` says `localgpt gen`,** not `localgpt-gen`.
+
+### Fixed
+
+- **A bridge whose input ends still hands on the answers.** `mcp-server --connect` stopped the moment its stdin closed, dropping the window's answers to what had just been asked; it now tells the window it is done and passes on what comes back until the window hangs up.
+- **A finished session says how far it got.** Its `session.json` named the head only at a snapshot, every 500 revisions, so a short session read as empty; the room records it when the session ends.
+- **The relay's port file is removed only by the window that wrote it,** so closing one window no longer sends a client away from another's relay.
+
 ## [0.7.0] - 2026-11-15
 
 ### Added

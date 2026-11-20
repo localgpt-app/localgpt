@@ -9,6 +9,7 @@ use localgpt_gen::gen3d::live::HistoryRow;
 
 use crate::document::DocumentView;
 use crate::scene::SceneView;
+use crate::share::ShareView;
 use crate::timeline::TimelineView;
 use crate::webui::link::ShellEvent;
 use crate::webui::{RemoteView, Tab};
@@ -47,6 +48,8 @@ pub struct State {
     /// When the remote's view came: its pairing code's seconds count down
     /// from there.
     pub remote_at: Option<Instant>,
+    /// Sharing, joining, the sessions kept and Gen's MCP relay.
+    pub share: Option<Box<ShareView>>,
 }
 
 impl State {
@@ -174,6 +177,7 @@ impl State {
                 self.remote = Some(view);
                 self.remote_at = Some(Instant::now());
             }
+            ShellEvent::Share(view) => self.share = Some(view),
         }
     }
 }

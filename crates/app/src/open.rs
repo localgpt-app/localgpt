@@ -24,6 +24,12 @@ use localgpt_gen::gen3d::plugin::GenInitialWorld;
 
 use crate::document::Document;
 
+/// A file to open a while after launch, as if it had been picked (a dev
+/// hook).
+pub const LOCALGPT_APP_OPEN: &str = "LOCALGPT_APP_OPEN";
+/// The while, in seconds (default 3).
+pub const LOCALGPT_APP_OPEN_AFTER: &str = "LOCALGPT_APP_OPEN_AFTER";
+
 /// What opening needs from the launch: the app's workspace.
 #[derive(Resource)]
 pub struct Launch {
@@ -121,8 +127,8 @@ impl Plugin for OpenPlugin {
             .init_resource::<Showing>()
             .add_message::<OpenFile>()
             .add_systems(Update, (ask_open, receive).chain());
-        if let Some(path) = std::env::var_os("LOCALGPT_APP_OPEN") {
-            let after = std::env::var("LOCALGPT_APP_OPEN_AFTER")
+        if let Some(path) = std::env::var_os(LOCALGPT_APP_OPEN) {
+            let after = std::env::var(LOCALGPT_APP_OPEN_AFTER)
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(3.0);

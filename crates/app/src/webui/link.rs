@@ -16,6 +16,7 @@ use localgpt_gen::gen3d::live::HistoryRow;
 use super::{FromPage, Host, ToPage, remote::RemoteView, term::Tab};
 use crate::document::DocumentView;
 use crate::scene::SceneView;
+use crate::share::ShareView;
 use crate::timeline::TimelineView;
 
 /// What the app tells the shell: [`ToPage`], owned.
@@ -75,6 +76,7 @@ pub enum ShellEvent {
         label: Option<String>,
     },
     Remote(Box<RemoteView>),
+    Share(Box<ShareView>),
 }
 
 impl ShellEvent {
@@ -154,6 +156,7 @@ impl ShellEvent {
                 label: label.map(str::to_string),
             },
             ToPage::Remote { view } => Self::Remote(Box::new((*view).clone())),
+            ToPage::Share { view } => Self::Share(Box::new((*view).clone())),
         }
     }
 }

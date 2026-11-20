@@ -172,6 +172,28 @@ impl Dirs {
     pub fn logs(&self) -> PathBuf {
         self.state.join("logs")
     }
+
+    /// `<data>/gen-workspace`: Gen's worlds (`skills/`), its sessions
+    /// (`sessions/`) and exports — the desktop app's too, which runs Gen.
+    pub fn gen_workspace(&self) -> PathBuf {
+        self.data.join("gen-workspace")
+    }
+}
+
+/// `$XDG_RUNTIME_DIR` — where a running process leaves the files others
+/// find it by.
+pub const XDG_RUNTIME_DIR: &str = "XDG_RUNTIME_DIR";
+
+/// `<XDG runtime dir>/localgpt`, else `<temp>/localgpt`: what says a process
+/// is running and how to reach it, such as the MCP relay's port. Not moved
+/// by the profile: a window and the agent that connects to it may have been
+/// started with different environments, and both must find the same file.
+pub fn runtime_dir() -> PathBuf {
+    std::env::var_os(XDG_RUNTIME_DIR)
+        .filter(|dir| !dir.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join("localgpt")
 }
 
 /// `<XDG data home>/localgpt` — the base the shared pack sits under.

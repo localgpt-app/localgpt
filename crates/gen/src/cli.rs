@@ -75,7 +75,7 @@ struct Cli {
     pin: Option<String>,
 
     /// Host an OPEN session: no PIN, public netcode key — anyone on the LAN
-    /// with localgpt-gen can join (with --host). Trusted networks only.
+    /// can join (with --host). Trusted networks only.
     #[cfg(feature = "multiplayer")]
     #[arg(long, requires = "host")]
     open: bool,
@@ -178,8 +178,10 @@ fn prog_name(arg0: Option<&OsString>) -> String {
         .to_string()
 }
 
+/// The parser, under the name it was run by: `localgpt gen --version` says
+/// `localgpt gen 0.7.0`, not `localgpt-gen`.
 fn command_for(prog: &str) -> clap::Command {
-    Cli::command().bin_name(prog)
+    Cli::command().bin_name(prog).display_name(prog)
 }
 
 fn try_parse_from_args<I, T>(args: I) -> std::result::Result<(String, Cli), clap::Error>
@@ -235,21 +237,10 @@ where
     let workspace = config.workspace.clone();
 
     // --export-session: zip a session's package into the transport form.
+    // `localgpt gen --export-session` does the same without starting Gen.
     if let Some(session) = cli.export_session.as_deref() {
-        let dir = crate::net::web::resolve_op_log_path(&workspace, session);
-        anyhow::ensure!(
-            dir.is_dir(),
-            "no session package at {} — pass a session name or a package directory",
-            dir.display()
-        );
-        let dest = cli.out.clone().unwrap_or_else(|| {
-            let slug = dir
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| "session".into());
-            std::path::PathBuf::from(format!("{slug}.world"))
-        });
-        localgpt_world_agent::session::export_zip(&dir, &dest)?;
+        let (dir, dest) =
+            localgpt_world_agent::session::export(&workspace, session, cli.out.as_deref())?;
         eprintln!(
             "exported {} → {} ({} KB)",
             dir.display(),
@@ -263,7 +254,7 @@ where
 
     // --replay: time-lapse a session in the window — no agent, no session.
     if let Some(replay_path) = cli.replay.as_deref() {
-        let resolved = crate::net::web::resolve_op_log_path(&workspace, replay_path);
+        let resolved = localgpt_world_agent::session::resolve(&workspace, replay_path);
         let entries = gen3d::replay::load_op_log(resolved.to_string_lossy().as_ref())?;
         eprintln!(
             "[replay] {} batches from {} ({}x speed)",
@@ -315,17 +306,11 @@ where
             mcp_http,
         }) => {
             // --connect: this process is the stdio end of a running window's
-            // relay, nothing more.
+            // relay, nothing more (`localgpt gen mcp-server --connect` runs the
+            // same bridge without starting Gen).
             if let Some(port_opt) = connect {
-                let port = port_opt
-                    .or_else(gen3d::mcp_relay::read_relay_port)
-                    .ok_or_else(|| {
-                        anyhow::anyhow!(
-                            "No relay port specified and no running gen process found.\n\
-                             Start `{prog} --mcp-relay` first, or pass --connect <port>."
-                        )
-                    })?;
-
+                use localgpt_world_agent::mcp::relay;
+                let port = relay::port_or_discovered(port_opt)?;
                 tracing::info!("Connecting to the gen window's relay on port {}", port);
 
                 let rt = tokio::runtime::Builder::new_multi_thread()
@@ -333,7 +318,7 @@ where
                     .build()
                     .expect("Failed to build tokio runtime");
 
-                return rt.block_on(gen3d::mcp_relay::run_stdio_relay(port));
+                return rt.block_on(relay::run_stdio_bridge(port));
             }
 
             // MCP server mode: Bevy on the main thread, the stdio server on a
@@ -435,26 +420,39 @@ where
                 opts
             };
 
+            // The relay's port, once it listens: forgotten when the window
+            // closes, so a client is not sent to a port nothing answers on.
+            let relay_port = std::sync::Arc::new(std::sync::OnceLock::<u16>::new());
             if enable_relay {
                 // The relay on a tokio thread (Bevy must own the main thread
                 // for windowing and the GPU on macOS).
+                let relay_port = relay_port.clone();
                 std::thread::spawn(move || {
                     let rt = tokio::runtime::Builder::new_multi_thread()
                         .enable_all()
                         .build()
                         .expect("Failed to build tokio runtime for the MCP relay");
                     rt.block_on(async move {
-                        match gen3d::mcp_relay::start_mcp_relay(bridge).await {
-                            Ok(port) => eprintln!(
-                                "MCP relay active on port {port} (external MCP clients can \
-                                 connect to this window)"
-                            ),
-                            Err(e) => tracing::warn!(
-                                "MCP relay failed to start: {e} (external MCP clients won't \
-                                 be able to connect)"
-                            ),
-                        }
-                        // Keep the runtime, and the relay's tasks, alive.
+                        // Held for the life of the runtime: the relay serves
+                        // while its handle lives.
+                        let _relay = match gen3d::mcp_relay::start_mcp_relay(bridge).await {
+                            Ok(relay) => {
+                                let _ = relay_port.set(relay.port());
+                                eprintln!(
+                                    "MCP relay active on port {} (external MCP clients can \
+                                     connect to this window)",
+                                    relay.port()
+                                );
+                                Some(relay)
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    "MCP relay failed to start: {e} (external MCP clients \
+                                     won't be able to connect)"
+                                );
+                                None
+                            }
+                        };
                         std::future::pending::<()>().await;
                     });
                 });
@@ -486,8 +484,8 @@ where
             );
 
             // Clean up the relay port file so stale ports aren't discovered
-            if enable_relay {
-                gen3d::mcp_relay::cleanup_relay_port();
+            if let Some(port) = relay_port.get() {
+                localgpt_world_agent::mcp::relay::clear_port(*port);
             }
 
             result
@@ -665,57 +663,13 @@ fn run_ops_client_app(
         options: std::sync::Mutex::new(Some(crate::net::ops_client::OpsClientOptions {
             server_addr,
             pin,
-            name: guest_display_name(),
+            name: crate::net::join::guest_name(),
             prompt_rx,
         })),
     });
     app.run();
 
     Ok(())
-}
-
-/// The guest's display name (env user, else "guest").
-#[cfg(feature = "multiplayer")]
-fn guest_display_name() -> String {
-    std::env::var("USER")
-        .or_else(|_| std::env::var("USERNAME"))
-        .unwrap_or_else(|_| "guest".to_string())
-}
-
-/// What `/session-info` returns.
-#[cfg(feature = "multiplayer")]
-#[derive(serde::Deserialize)]
-struct SessionInfoWire {
-    protocol: u32,
-    name: String,
-    secret_required: bool,
-}
-
-/// Fetch the host's session info (protocol, name, whether a secret is
-/// needed) before joining.
-#[cfg(feature = "multiplayer")]
-fn fetch_session_info(addr: &std::net::SocketAddr) -> Result<SessionInfoWire> {
-    let url = format!("http://{addr}/session-info");
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
-    rt.block_on(async {
-        let resp = reqwest::Client::new()
-            .get(&url)
-            .timeout(std::time::Duration::from_secs(3))
-            .send()
-            .await
-            .map_err(|e| {
-                anyhow::anyhow!(
-                    "Couldn't reach the host's session endpoint at {url} ({e}). Is the host running, and is TCP port {} open?",
-                    addr.port()
-                )
-            })?;
-        if !resp.status().is_success() {
-            anyhow::bail!("session endpoint answered HTTP {}", resp.status());
-        }
-        Ok(resp.json::<SessionInfoWire>().await?)
-    })
 }
 
 /// The session PIN from --pin, the env hand-off, or a line typed at the
@@ -726,13 +680,9 @@ fn resolve_session_pin(pin_arg: Option<&str>) -> Result<String> {
     if let Some(pin) = pin_arg {
         return Ok(crate::net::normalize_pin(pin));
     }
-    if let Ok(pin) = std::env::var(crate::net::JOIN_PIN_ENV) {
-        // SAFETY: called before any threads are spawned.
-        unsafe { std::env::remove_var(crate::net::JOIN_PIN_ENV) };
-        let pin = crate::net::normalize_pin(&pin);
-        if !pin.is_empty() {
-            return Ok(pin);
-        }
+    // SAFETY: called before any threads are spawned.
+    if let Some(pin) = unsafe { crate::net::join::take_env_pin() } {
+        return Ok(pin);
     }
     eprint!("Session PIN (shown on the host's console): ");
     let mut pin = String::new();
@@ -745,40 +695,10 @@ fn resolve_session_pin(pin_arg: Option<&str>) -> Result<String> {
 #[cfg(feature = "multiplayer")]
 fn run_join_mode(cli: &Cli, workspace: &Path) -> Result<()> {
     use std::io::BufRead as _;
-    use std::net::SocketAddr;
 
-    let addr: SocketAddr = match cli.join.clone().flatten() {
-        Some(spec) => crate::net::parse_peer_addr(&spec)?,
-        None => {
-            eprintln!("Browsing the LAN for collaborative sessions…");
-            let sessions = crate::net::mdns::browse_sessions(
-                std::time::Duration::from_secs(3),
-                crate::net::PROTOCOL_ID,
-            )?;
-            if sessions.is_empty() {
-                anyhow::bail!(
-                    "No sessions found. Host one with `localgpt-gen --host`, then join it,\n\
-                     or connect directly: localgpt-gen --join 192.168.1.5:9879"
-                );
-            }
-            for session in &sessions {
-                eprintln!("  found: {} — {}", session.session_name, session.addr);
-            }
-            let chosen = &sessions[0];
-            eprintln!("Joining '{}' at {}", chosen.session_name, chosen.addr);
-            chosen.addr
-        }
-    };
-
-    let info = fetch_session_info(&addr)?;
-    if info.protocol != localgpt_world_sync::PROTOCOL_VERSION {
-        anyhow::bail!(
-            "Host speaks session protocol {} but this client speaks {} — use matching localgpt-gen versions",
-            info.protocol,
-            localgpt_world_sync::PROTOCOL_VERSION
-        );
-    }
-    let pin = if info.secret_required {
+    let addr = crate::net::join::locate(cli.join.clone().flatten().as_deref())?;
+    let info = crate::net::join::ask(addr)?;
+    let pin = if info.needs_pin {
         Some(resolve_session_pin(cli.pin.as_deref())?)
     } else {
         eprintln!("Joining '{}' (open session).", info.name);
@@ -913,5 +833,19 @@ mod tests {
             rendered.contains("Usage: localgpt gen [OPTIONS] [COMMAND]"),
             "{rendered}"
         );
+
+        // The version line names the command it was run as, too.
+        let err = try_parse_from_args(["localgpt gen", "--version"])
+            .err()
+            .unwrap();
+        assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
+        assert_eq!(
+            err.to_string(),
+            format!("localgpt gen {}\n", env!("CARGO_PKG_VERSION"))
+        );
+        let err = try_parse_from_args(["localgpt-gen", "--version"])
+            .err()
+            .unwrap();
+        assert!(err.to_string().starts_with("localgpt-gen "));
     }
 }

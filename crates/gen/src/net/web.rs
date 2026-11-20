@@ -26,6 +26,7 @@ use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use bevy::prelude::*;
 use futures::{SinkExt, StreamExt};
+use localgpt_world_agent::session;
 use localgpt_world_sync as sync;
 use localgpt_world_sync::{
     Authority, AuthorityEvent, ClientMsg, Limits, Outbound, PeerId, Recipients, Role, ServerMsg,
@@ -184,6 +185,19 @@ pub struct WebRoom {
     wrong_pins: u32,
 }
 
+/// A session that ends says where its log reached: `session.json`'s head is
+/// otherwise refreshed only with a snapshot, every [`SNAPSHOT_EVERY`]
+/// revisions, and a short session would read as empty in a list of them.
+impl Drop for WebRoom {
+    fn drop(&mut self) {
+        if let Some(dir) = &self.session_dir
+            && let Err(e) = session::refresh_meta(dir, self.authority.revision())
+        {
+            eprintln!("web session: session metadata unavailable ({e})");
+        }
+    }
+}
+
 impl WebRoom {
     pub fn new(
         session_name: &str,
@@ -218,14 +232,28 @@ impl WebRoom {
         // next to the log (docs/rfcs/multiplayer/session-package-format.md).
         // The package comes before the log, because opening the log creates
         // it, and a log on disk tells `ensure_package` the directory already
-        // has history.
-        room.session_dir = Some(session_dir_path(workspace, session_name));
+        // has history. Resuming its own package continues it; any other
+        // session gets a folder of its own, since a second session under one
+        // name would write its revisions after the first's and fold neither.
+        let own = session_dir_path(workspace, session_name);
+        let continuing = resume.is_some_and(|resume| resolve_op_log_path(workspace, resume) == own);
+        let dir = if continuing {
+            own
+        } else {
+            session::new_session_dir(workspace, session_name)
+        };
+        room.session_dir = Some(dir.clone());
         room.ensure_package();
-        match OpLog::open(&session_op_log_path(workspace, session_name)) {
+        match OpLog::open(&dir.join(session::LOG_FILE)) {
             Ok(log) => room.op_log = Some(log),
             Err(e) => eprintln!("web session: op log unavailable ({e}) — history won't persist"),
         }
         room
+    }
+
+    /// Where this session's package is written.
+    pub fn session_dir(&self) -> Option<&std::path::Path> {
+        self.session_dir.as_deref()
     }
 
     /// The PIN has been guessed at too often to be taken any more.
@@ -425,48 +453,16 @@ impl OpLog {
     }
 }
 
-/// A filesystem-safe slug for a session name.
-fn session_slug(name: &str) -> String {
-    let slug = name
-        .chars()
-        .map(|c| {
-            if c.is_alphanumeric() {
-                c.to_ascii_lowercase()
-            } else {
-                '-'
-            }
-        })
-        .collect::<String>()
-        .split('-')
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join("-");
-    let slug: String = slug.chars().take(48).collect();
-    if slug.is_empty() {
-        "session".to_string()
-    } else {
-        slug
-    }
-}
-
-/// Where a session's package lives.
+/// Where a session's package lives (`world-agent::session`, which the
+/// command line and the desktop app read sessions by too).
 fn session_dir_path(workspace: &std::path::Path, session_name: &str) -> std::path::PathBuf {
-    workspace.join("sessions").join(session_slug(session_name))
-}
-
-/// Where a session's op log lives.
-fn session_op_log_path(workspace: &std::path::Path, session_name: &str) -> std::path::PathBuf {
-    session_dir_path(workspace, session_name).join("ops.jsonl")
+    session::session_dir(workspace, session_name)
 }
 
 /// Resolve `--resume` / `--replay`: a session name (its standard directory),
 /// a package directory, or an explicit path to an `ops.jsonl`.
 pub fn resolve_op_log_path(workspace: &std::path::Path, resume: &str) -> std::path::PathBuf {
-    if resume.contains('/') || resume.ends_with(".jsonl") || resume.ends_with(".world") {
-        std::path::PathBuf::from(shellexpand::tilde(resume).as_ref())
-    } else {
-        session_dir_path(workspace, resume)
-    }
+    session::resolve(workspace, resume)
 }
 
 fn now_ms() -> u64 {
@@ -523,11 +519,25 @@ pub fn web_router(bridge: WebBridge) -> axum::Router {
         .with_state(bridge)
 }
 
-/// Serve the session's HTTP routes on `addr` from a background thread.
-/// Binds synchronously so the caller learns about port conflicts.
-pub fn spawn_session_http(router: axum::Router, addr: std::net::SocketAddr) -> std::io::Result<()> {
+/// The session's HTTP server, on a thread of its own. Dropping it stops the
+/// server: the listener closes, and every guest's socket with it.
+pub struct SessionHttp {
+    /// Its other end ends the server when this one goes.
+    _stop: tokio::sync::oneshot::Sender<()>,
+}
+
+/// Serve the session's HTTP routes on `addr` from a background thread until
+/// the handle is dropped. Binds synchronously so the caller learns about
+/// port conflicts.
+pub fn spawn_session_http(
+    router: axum::Router,
+    addr: std::net::SocketAddr,
+) -> std::io::Result<SessionHttp> {
+    use std::future::IntoFuture as _;
+
     let listener = std::net::TcpListener::bind(addr)?;
     listener.set_nonblocking(true)?;
+    let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
     std::thread::Builder::new()
         .name("gen-session-http".into())
         .spawn(move || {
@@ -545,12 +555,19 @@ pub fn spawn_session_http(router: axum::Router, addr: std::net::SocketAddr) -> s
                 let Ok(listener) = tokio::net::TcpListener::from_std(listener) else {
                     return;
                 };
-                if let Err(e) = axum::serve(listener, router).await {
-                    eprintln!("Session HTTP server stopped: {e}");
+                tokio::select! {
+                    served = axum::serve(listener, router).into_future() => {
+                        if let Err(e) = served {
+                            eprintln!("Session HTTP server stopped: {e}");
+                        }
+                    }
+                    // The session ended. Returning drops the runtime, and
+                    // with it the guests' sockets.
+                    _ = stopped => {}
                 }
             });
         })?;
-    Ok(())
+    Ok(SessionHttp { _stop: stop })
 }
 
 async fn join_page() -> impl IntoResponse {
@@ -1158,6 +1175,29 @@ pub(crate) fn web_projection_sync(
 mod tests {
     use super::*;
 
+    /// Stopping a share from the desktop app drops this handle: the port is
+    /// free again, for the next share.
+    #[test]
+    fn dropping_the_session_http_handle_stops_the_server() {
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+        let http = spawn_session_http(axum::Router::new(), addr).unwrap();
+        std::net::TcpStream::connect(addr).expect("it serves");
+
+        drop(http);
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while std::net::TcpStream::connect(addr).is_ok() {
+            assert!(std::time::Instant::now() < deadline, "still serving");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        // Free for the next session.
+        drop(std::net::TcpListener::bind(addr).expect("the port is free again"));
+    }
+
     #[test]
     fn tokens_are_128_bits_of_hex() {
         let token = generate_web_token();
@@ -1312,6 +1352,38 @@ mod tests {
         }
         assert_eq!(room.wrong_pins, 0);
         assert!(room.pin_taken());
+    }
+
+    #[test]
+    fn a_second_session_under_one_name_gets_a_folder_of_its_own() {
+        let dir = tempfile::tempdir().unwrap();
+        let open = |resume: Option<&str>| {
+            let (bridge, rx) = WebBridge::new(None, "castle");
+            WebRoom::new("castle", bridge, rx, dir.path(), resume, false, None)
+        };
+        let castle = session_dir_path(dir.path(), "castle");
+
+        let mut first = open(None);
+        assert_eq!(first.session_dir(), Some(castle.as_path()));
+        let second = open(None);
+        assert_eq!(
+            second.session_dir(),
+            Some(dir.path().join("sessions/castle-2").as_path()),
+            "the second never writes into the first's history"
+        );
+
+        // A session that ends says where its log reached, short as it is.
+        first
+            .authority
+            .apply_replay(&[wt::EditOp::spawn(wt::WorldEntity::new(1, "tower"))])
+            .unwrap();
+        assert_eq!(session::read_meta(&castle).unwrap().head_revision, 0);
+        drop(first);
+        assert_eq!(session::read_meta(&castle).unwrap().head_revision, 1);
+
+        // Resuming its own package continues it, in its own folder.
+        let resumed = open(Some("castle"));
+        assert_eq!(resumed.session_dir(), Some(castle.as_path()));
     }
 
     #[test]

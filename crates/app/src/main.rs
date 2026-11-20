@@ -32,27 +32,40 @@ mod document;
 mod open;
 mod peaks;
 mod scene;
+mod share;
 mod shell;
 mod song;
 mod starter;
 mod timeline;
 mod webui;
 
+use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use bevy::prelude::*;
 use localgpt_gen::desktop;
 use localgpt_gen::gen3d;
+use localgpt_world_sync::OpLogEntry;
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq)]
 struct Args {
     md: Option<PathBuf>,
     song: Option<PathBuf>,
     world: Option<String>,
+    /// A session played back: a name, a package, an `ops.jsonl` or a
+    /// `.world` file.
+    replay: Option<String>,
+    /// Its pace, in batches a second.
+    replay_speed: Option<f32>,
+    /// Someone's session, as a guest; `Some(None)` finds one on this
+    /// network.
+    join: Option<Option<String>>,
+    /// The PIN it asks for.
+    pin: Option<String>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 enum LaunchAction {
     Window(Args),
     Gen(Vec<OsString>),
@@ -68,11 +81,20 @@ Usage: localgpt-app [OPTIONS]
        localgpt-app mcp-server [MCP_ARGS...]
 
 Options:
-      --doc <PATH>     Open a Markdown document as a world (alias: --md)
-      --song <PATH>    Open a song as a world that performs it
-      --world <PATH>   Open a .world package (folder, workspace name, or URL)
-  -h, --help           Print help
-  -V, --version        Print version";
+      --doc <PATH>          Open a Markdown document as a world (alias: --md)
+      --song <PATH>         Open a song as a world that performs it
+      --world <PATH>        Open a .world package (folder, workspace name, or URL)
+      --replay <SESSION>    Play a session back as a time-lapse: its name, its
+                            package, an ops.jsonl or a .world file
+      --replay-speed <N>    The replay's pace, in batches a second [default: 4]
+      --join [HOST[:PORT]]  Join someone's session as a guest (no address: the
+                            first found on this network)
+      --pin <PIN>           The session's PIN, when it asks for one
+  -h, --help                Print help
+  -V, --version             Print version";
+
+/// The replay's pace when none is asked for: Gen's.
+const REPLAY_SPEED: f32 = 4.0;
 
 /// Parse launch arguments from `raw` (`argv[0]` included). `gen …` and
 /// `mcp-server …` hand off directly to [`localgpt_gen::cli::run_from`] before
@@ -101,10 +123,11 @@ where
     }
 
     let mut args = Args::default();
-    let mut iter = rest.into_iter();
+    let mut iter = rest.into_iter().peekable();
+    const KNOWN: &str = "--doc, --song, --world, --replay, --join";
     while let Some(arg) = iter.next() {
         let Some(flag) = arg.to_str() else {
-            return Err(format!("unknown argument {arg:?} (--doc, --song, --world)"));
+            return Err(format!("unknown argument {arg:?} ({KNOWN})"));
         };
         match flag {
             "-h" | "--help" => return Ok(LaunchAction::Help),
@@ -112,12 +135,42 @@ where
             "--doc" | "--md" => args.md = iter.next().map(PathBuf::from),
             "--song" => args.song = iter.next().map(PathBuf::from),
             "--world" => args.world = iter.next().and_then(|s| s.into_string().ok()),
-            other => {
-                return Err(format!(
-                    "unknown argument {other:?} (--doc, --song, --world)"
-                ));
+            "--replay" => args.replay = iter.next().and_then(|s| s.into_string().ok()),
+            "--replay-speed" => {
+                let speed = iter.next().and_then(|s| s.into_string().ok());
+                args.replay_speed = Some(
+                    speed
+                        .as_deref()
+                        .and_then(|s| s.parse::<f32>().ok())
+                        .filter(|s| *s > 0.0)
+                        .ok_or_else(|| {
+                            format!("--replay-speed takes batches a second, not {speed:?}")
+                        })?,
+                );
             }
+            // The address is optional: without one, a session is found.
+            "--join" => {
+                let address = iter.next_if(|next| !next.to_string_lossy().starts_with('-'));
+                args.join = Some(address.and_then(|s| s.into_string().ok()));
+            }
+            "--pin" => args.pin = iter.next().and_then(|s| s.into_string().ok()),
+            other => return Err(format!("unknown argument {other:?} ({KNOWN})")),
         }
+    }
+    // A replay and a guest's window show what a log and a room drive: each
+    // opens on its own.
+    let opens = args.md.is_some() || args.song.is_some() || args.world.is_some();
+    if args.replay.is_some() && (opens || args.join.is_some()) {
+        return Err("--replay opens on its own, without --doc, --song, --world or --join".into());
+    }
+    if args.join.is_some() && opens {
+        return Err("--join opens on its own, without --doc, --song or --world".into());
+    }
+    if args.replay_speed.is_some() && args.replay.is_none() {
+        return Err("--replay-speed is the pace of a --replay".into());
+    }
+    if args.pin.is_some() && args.join.is_none() {
+        return Err("--pin is the PIN of a session to --join".into());
     }
     Ok(LaunchAction::Window(args))
 }
@@ -173,6 +226,10 @@ fn main() -> anyhow::Result<()> {
             std::process::exit(2);
         }
     };
+    // A guest's PIN, handed over by the window that opened this one: out of
+    // the environment before anything this app starts (its terminals) can
+    // inherit it. SAFETY: program start, before threads.
+    let handed_pin = unsafe { localgpt_gen::net::join::take_env_pin() };
     init_logging();
 
     // Launched from Finder, the app has launchd's minimal PATH: take the
@@ -197,7 +254,7 @@ fn main() -> anyhow::Result<()> {
         unsafe { std::env::set_var("PATH", merged) };
     }
 
-    let opened = open_launch(&args)?;
+    let opened = open_launch(&args, handed_pin)?;
 
     // The shell: eframe takes this thread, and the app is built and run on
     // a thread of its own, drawing on the shell's device.
@@ -220,15 +277,68 @@ struct Opened {
     live_canvas: Option<PathBuf>,
     /// Where the agents' terminals start: beside what is open.
     agents_dir: Option<PathBuf>,
+    /// A session played back (`--replay`): its batches, and their pace.
+    replay: Option<(VecDeque<OpLogEntry>, f32)>,
+    /// Someone's session (`--join`): where, and the PIN it asks for.
+    join: Option<(std::net::SocketAddr, Option<String>)>,
 }
 
-fn open_launch(args: &Args) -> anyhow::Result<Opened> {
+fn open_launch(args: &Args, handed_pin: Option<String>) -> anyhow::Result<Opened> {
     // Gen's directories and settings: a desktop app opens on a machine with
     // nothing on disk, reads no config file and writes none. Same path as
     // `localgpt-gen`.
     let config = localgpt_gen::config::gen_config();
     let settings = localgpt_gen::settings::load().unwrap_or_default();
     let workspace = config.workspace.clone();
+
+    // A replay and a guest's window open on their own, and are not
+    // remembered: neither is a place to come back to.
+    if let Some(spec) = &args.replay {
+        let path = localgpt_world_agent::session::resolve(&workspace, spec);
+        let entries = gen3d::replay::load_op_log(&path.to_string_lossy())?;
+        let speed = args.replay_speed.unwrap_or(REPLAY_SPEED);
+        eprintln!(
+            "localgpt-app: replaying {} batches from {} ({speed}/s)",
+            entries.len(),
+            path.display()
+        );
+        return Ok(Opened {
+            workspace,
+            showing: Some(format!("Replay · {}", file_name(&path))),
+            initial_world: None,
+            live_document: None,
+            live_canvas: None,
+            agents_dir: None,
+            replay: Some((entries, speed)),
+            join: None,
+        });
+    }
+    if let Some(spec) = &args.join {
+        let addr = localgpt_gen::net::join::locate(spec.as_deref())?;
+        let session = localgpt_gen::net::join::ask(addr)?;
+        let pin = match (
+            session.needs_pin,
+            args.pin.as_deref().or(handed_pin.as_deref()),
+        ) {
+            (false, _) => None,
+            (true, Some(pin)) => Some(localgpt_gen::net::normalize_pin(pin)),
+            (true, None) => anyhow::bail!(
+                "'{}' asks for its PIN: localgpt-app --join {addr} --pin <PIN>",
+                session.name
+            ),
+        };
+        eprintln!("localgpt-app: joining '{}' at {addr}", session.name);
+        return Ok(Opened {
+            workspace,
+            showing: Some(format!("Guest · {}", session.name)),
+            initial_world: None,
+            live_document: None,
+            live_canvas: None,
+            agents_dir: None,
+            replay: None,
+            join: Some((addr, pin)),
+        });
+    }
 
     // The initial world: an explicit --world arg, or a Markdown document
     // compiled in-process. Both land in the same place — GenInitialWorld —
@@ -392,6 +502,8 @@ fn open_launch(args: &Args) -> anyhow::Result<Opened> {
         live_document,
         live_canvas,
         agents_dir,
+        replay: None,
+        join: None,
     })
 }
 
@@ -406,11 +518,24 @@ fn assemble(app: &mut App, opened: Opened) -> anyhow::Result<()> {
         live_document,
         live_canvas,
         agents_dir,
+        replay,
+        join,
     } = opened;
 
-    // No agent runs in the window: Gen's command channel has no one on its
-    // far end, and the scene changes only through the modes below.
-    let (_no_agent, channels) = gen3d::create_gen_channels();
+    // No agent runs in the window. Gen's command channel has someone on its
+    // far end only while the bar's MCP relay is on, for an agent outside
+    // (`share.rs`), and never on a live canvas, which changes only through
+    // its API; otherwise the scene changes only through the modes below.
+    let (bridge, channels) = gen3d::create_gen_channels();
+    let mode = if join.is_some() {
+        share::Mode::Guest
+    } else if replay.is_some() {
+        share::Mode::Replay
+    } else if live_canvas.is_some() {
+        share::Mode::Canvas
+    } else {
+        share::Mode::Scene
+    };
 
     // **Canvas mode.** A package opened live makes the window the authority's
     // canvas: agents change the world from outside, through the ops API this
@@ -426,7 +551,7 @@ fn assemble(app: &mut App, opened: Opened) -> anyhow::Result<()> {
         workspace: workspace.clone(),
     })
     .insert_resource(open::Showing(showing));
-    gen3d::plugin::setup_gen_app(app, channels, workspace, None);
+    gen3d::plugin::setup_gen_app(app, channels, workspace.clone(), None);
     // A canvas starts from the package's own log — the live plugin builds the
     // scene from it — so there is no initial world to load. Any startup
     // defaults would collide with the ids the log reuses, the same reason a
@@ -438,9 +563,32 @@ fn assemble(app: &mut App, opened: Opened) -> anyhow::Result<()> {
         // The app has no `--review` of its own yet: an agent's batch commits
         // as soon as the authority takes it, as it did before Gen grew one.
         localgpt_gen::gen3d::live::setup_live(app, dir, false)?;
+    } else if let Some((entries, speed)) = replay {
+        // The log rebuilds the world batch by batch; nothing else opens.
+        gen3d::replay::setup_replay(app, entries, speed);
+    } else if let Some((addr, pin)) = join {
+        // The room drives the scene. What the guest would say in it has no
+        // box in the window yet, so its sender goes unused.
+        let (client, _say) = localgpt_gen::net::join::client(addr, pin);
+        app.add_plugins(client);
     } else {
         app.add_plugins((document::DocumentPlugin, open::OpenPlugin));
     }
+    // Gen's room, dormant until Share starts it — not in a guest's window,
+    // whose world is the host's to share.
+    if mode.can_host() {
+        app.add_plugins(localgpt_gen::net::host::NetHostPlugin {
+            options: std::sync::Mutex::new(Some(localgpt_gen::net::host::NetHostOptions {
+                session_name: localgpt_gen::net::default_session_name(),
+                ..Default::default()
+            })),
+        });
+    }
+    app.add_plugins(share::SharePlugin {
+        mode,
+        bridge,
+        workspace,
+    });
     // World time — the song, the shots, the tour — on one clock, in every
     // mode; and the world's things, from the same document.
     app.add_plugins((
@@ -545,5 +693,74 @@ mod tests {
             Ok(LaunchAction::Help)
         );
         assert!(parse_action(os(&["localgpt-app", "--unknown"])).is_err());
+    }
+
+    /// A replay and a guest's window are launch shapes of their own, which
+    /// the bar's Share panel opens in a new window.
+    #[test]
+    fn replay_and_join_open_on_their_own() {
+        let os = |items: &[&str]| items.iter().map(OsString::from).collect::<Vec<_>>();
+        let window = |items: &[&str]| match parse_action(os(items)) {
+            Ok(LaunchAction::Window(args)) => Ok(args),
+            Ok(other) => panic!("{other:?}"),
+            Err(e) => Err(e),
+        };
+
+        assert_eq!(
+            window(&["localgpt-app", "--replay", "castle", "--replay-speed", "8"]),
+            Ok(Args {
+                replay: Some("castle".into()),
+                replay_speed: Some(8.0),
+                ..Args::default()
+            })
+        );
+        assert_eq!(
+            window(&[
+                "localgpt-app",
+                "--join",
+                "192.168.1.5:9879",
+                "--pin",
+                "482913"
+            ]),
+            Ok(Args {
+                join: Some(Some("192.168.1.5:9879".into())),
+                pin: Some("482913".into()),
+                ..Args::default()
+            })
+        );
+        // No address: one is found on this network.
+        assert_eq!(
+            window(&["localgpt-app", "--join", "--pin", "482913"]),
+            Ok(Args {
+                join: Some(None),
+                pin: Some("482913".into()),
+                ..Args::default()
+            })
+        );
+        assert_eq!(
+            window(&["localgpt-app", "--join"]),
+            Ok(Args {
+                join: Some(None),
+                ..Args::default()
+            })
+        );
+
+        for refused in [
+            &["localgpt-app", "--replay", "castle", "--doc", "notes.md"][..],
+            &["localgpt-app", "--replay", "castle", "--join"],
+            &["localgpt-app", "--join", "host", "--world", "harbour.world"],
+            &["localgpt-app", "--replay-speed", "8"],
+            &[
+                "localgpt-app",
+                "--replay",
+                "castle",
+                "--replay-speed",
+                "fast",
+            ],
+            &["localgpt-app", "--replay", "castle", "--replay-speed", "0"],
+            &["localgpt-app", "--pin", "482913"],
+        ] {
+            assert!(window(refused).is_err(), "{refused:?}");
+        }
     }
 }

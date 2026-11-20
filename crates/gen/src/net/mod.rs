@@ -7,7 +7,8 @@
 //! - [`web`] — the host side: the room authority, the join page, the
 //!   WebSocket endpoint, and the scene projection (scene → ops).
 //! - [`ops_client`] — the native client (`--join`): the full gen scene
-//!   driven by the room.
+//!   driven by the room; [`join`] finds a session and asks its host about
+//!   it first, for Gen and the desktop app alike.
 //! - [`guest_avatars`] — peer capsules, rendered on both sides.
 //! - [`mdns`] — LAN session discovery.
 //!
@@ -23,6 +24,7 @@
 
 pub mod guest_avatars;
 pub mod host;
+pub mod join;
 pub mod mdns;
 pub mod ops_client;
 pub mod relay_client;
@@ -38,8 +40,9 @@ pub const DEFAULT_PORT: u16 = 9879;
 pub const PROTOCOL_ID: u64 = 4;
 
 /// Env var carrying a session PIN to a `--join` child process. Set by the
-/// desktop panel when it spawns a viewer window, so the child (which has no
-/// terminal to type a PIN into) can join immediately.
+/// desktop app's Share panel when it opens a guest window, so the child
+/// (which has no terminal to type a PIN into) can join immediately, and the
+/// PIN is never on a command line.
 pub const JOIN_PIN_ENV: &str = "LOCALGPT_GEN_JOIN_PIN";
 
 /// A fresh 6-digit session PIN.

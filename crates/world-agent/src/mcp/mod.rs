@@ -7,10 +7,12 @@
 //! transport ([`http`]). A tool is a name, a JSON schema and an async call;
 //! nothing here knows which agent is on the other end. A server answers a
 //! call through [`call_tool`], which refuses an argument the schema does
-//! not name.
+//! not name. [`relay`] is the client half of a window's MCP relay: stdio
+//! carried to the port it listens on (`localgpt gen mcp-server --connect`).
 
 #[cfg(feature = "mcp-http")]
 pub mod http;
+pub mod relay;
 
 use std::sync::Arc;
 

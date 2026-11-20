@@ -15,6 +15,8 @@ cargo run -p localgpt-app                             # reopens what was opened 
 cargo run -p localgpt-app -- --doc notes.md            # a document as a world
 cargo run -p localgpt-app -- --song track.mp3         # a song as a world that performs it
 cargo run -p localgpt-app -- --world scene-1.world    # a package, opened live
+cargo run -p localgpt-app -- --replay castle          # a session played back as a time-lapse
+cargo run -p localgpt-app -- --join 192.168.1.5       # someone's shared session, as a guest
 cargo run -p localgpt-app -- gen mcp-server --headless # Gen's MCP / CLI mode (`localgpt gen …` forwards here)
 ```
 
@@ -70,6 +72,8 @@ Under the tree the inspector shows the selected thing part by part. Its name, tr
 
 **Audio**, in the top bar, installs optional [audio models](/docs/audio-models/): once one is, an agent's `localgpt world mcp` also has its tool — splitting a song into stems, hearing its notes, labelling its sounds, matching it to a description — and writes what it makes into the world's `assets/`.
 
+**MCP**, in the top bar, serves [Gen's tools](/docs/gen/mcp-server/) over the world in the window, for an agent whose MCP server is `localgpt gen mcp-server --connect` (the panel has the line to copy, and the configuration an MCP client takes). It is Gen's [relay](/docs/gen/cli-mode/): off until you turn it on, on localhost only, and gone when you turn it off or close the window. A document's, a song's or a world file's scene takes it; a package opened live does not, because a live world changes only through its API — there the agent's MCP server is `localgpt world mcp`, as above — and neither do a replay or a guest's window, whose worlds a log and a room drive.
+
 The app knows no agent by name: no keys, no language models, no settings, no presets — those stay with the agent, and a tab is labelled with what the program in it calls itself in its terminal title and nothing else. A link in a terminal opens in your browser. **Shift+Enter** sends a new line the way the agents' prompts expect one. A tab whose program has ended stays open to read; close it with its **×**.
 
 ## A phone or a tablet {#phone}
@@ -89,6 +93,16 @@ A terminal has one size. The window or the device that last typed into it or cli
 The code works once, for ten minutes. The device keeps a key of its own, and the app keeps only the key's hash, in `~/.local/state/localgpt/app-remote.json`. The panel lists the paired devices and can forget any of them, and the button names a device while it is attached.
 
 The connection is plain HTTP on port 9880. A paired device can type into the terminals, which makes it a shell on your Mac, so use this on a network you trust or over a VPN you run. `LOCALGPT_APP_REMOTE=on` turns it on at launch and prints a pairing link to the terminal; `off` keeps it off whatever was remembered.
+
+## Share {#share}
+
+**Share**, in the top bar, lets other people into the world in the window — Gen's [collaborative session](/docs/gen/multiplayer/), hosted by the app. Give it a name, choose whether browsers on this network may join, and give it a [relay](/docs/gen/multiplayer/) for people elsewhere if you run one; **Start sharing** then shows the session's PIN, the link for a browser on this network, the address another LocalGPT joins at, and, once the relay has given a room, the link for anyone. A click copies each. The button counts the guests while it lasts, and **Stop sharing** ends it: the listener, the relay and every guest's connection.
+
+Guests watch, walk and talk; none of them edits. On a package opened live, an edit of theirs would change the world outside the one authority it has, so editing guests wait for a room that commits through it; the agents keep editing through the world's API as before. The session is plain HTTP with a PIN, for a network you trust, and a relay can read what passes through it.
+
+Under it, **Join a session** takes an address, or finds the sessions on this network, and the PIN when the session asks for one. The app asks the host first, so a session that is gone, or wants a PIN not typed, is said in the panel; the session then opens in a window of its own (`localgpt-app --join`). The PIN goes to that window in its environment, never on a command line.
+
+**Sessions** lists the sessions shared from this computer, each kept as a package in Gen's workspace (`sessions/`): **Replay** plays one back as a time-lapse in a window of its own (`localgpt-app --replay`, `--replay-speed` for its pace), and **Export…** saves it as one `.world` file, as `localgpt gen --export-session` does. A session shared under a name already used gets a folder of its own, so the earlier one's history stays as it was.
 
 ## Keys {#keys}
 
@@ -124,7 +138,7 @@ The script builds a phone's page first (`crates/app/ui`, which needs node 22) an
 
 For work on the interface itself: it is `crates/app/src/shell`, and `LOCALGPT_APP_SHELL_DRIVE` plays it a script of clicks, keys and pictures for a check without a hand; `LOCALGPT_APP_UI_OPEN=terminal` starts with a terminal open (`outliner` starts the left column on its Outliner tab). A phone's page is `crates/app/ui`: a debug build reads it from disk, so after `npm run build` a reload on the phone shows a change, and `npm run design` serves its design sheet with stand-in data.
 
-`localgpt-gen` stays a binary of its own for the MCP server, headless generation and `--host`/`--join`, and `cargo install localgpt-gen` keeps working; it takes no prompt of its own — an agent outside drives it over MCP or through a live package's API — and there is no second desktop bundle.
+`localgpt-gen` stays a binary of its own for the MCP server and headless generation where the app is not installed, and `cargo install localgpt-gen` keeps working; it takes no prompt of its own — an agent outside drives it over MCP or through a live package's API — and there is no second desktop bundle. What it does that the window did not — hosting, joining, replaying and exporting sessions, the MCP relay — the window now does too ([Share](#share), [MCP](#agents)).
 
 ## What is next {#next}
 

@@ -5,12 +5,120 @@
 //! lets `localgpt` stay fast and tiny across crates.io, npm and CI while giving
 //! users and MCP clients one command name (`localgpt gen mcp-server`,
 //! `localgpt gen --live`, …).
+//!
+//! What needs no renderer runs here instead, with nothing else installed
+//! ([`native`]): `mcp-server --connect`, the stdio end of a window's relay,
+//! and `--export-session`, a session's package zipped. Both behave as Gen's
+//! own; anything else, or anything they do not parse, goes to Gen as typed.
 
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result, bail};
+use clap::{Parser, Subcommand};
+use localgpt_world_agent::mcp::relay;
+use localgpt_world_agent::paths::Dirs;
+use localgpt_world_agent::session;
+
+/// The part of Gen's command line `localgpt` runs itself. Its flags are
+/// Gen's, spelled as Gen spells them; it takes no help or version, so those
+/// reach Gen.
+#[derive(Parser, Debug, PartialEq)]
+#[command(
+    no_binary_name = true,
+    disable_help_flag = true,
+    disable_version_flag = true
+)]
+struct Native {
+    #[arg(short, long, global = true)]
+    verbose: bool,
+    #[arg(long)]
+    export_session: Option<String>,
+    #[arg(long, requires = "export_session")]
+    out: Option<PathBuf>,
+    #[command(subcommand)]
+    command: Option<NativeCommand>,
+}
+
+#[derive(Subcommand, Debug, PartialEq)]
+enum NativeCommand {
+    #[command(disable_help_flag = true)]
+    McpServer {
+        #[arg(long)]
+        connect: Option<Option<u16>>,
+    },
+}
+
+/// What `localgpt gen` does without Gen.
+#[derive(Debug, PartialEq)]
+enum Job {
+    /// `mcp-server --connect [PORT]`: carry stdio to a window's relay.
+    Connect(Option<u16>),
+    /// `--export-session <NAME|DIR> [--out FILE]`.
+    Export {
+        session: String,
+        out: Option<PathBuf>,
+    },
+}
+
+/// The job, when `args` ask for one of them and nothing else; with it,
+/// whether `-v` was among them.
+fn native(args: &[OsString]) -> Option<(bool, Job)> {
+    match Native::try_parse_from(args).ok()? {
+        Native {
+            verbose,
+            export_session: None,
+            out: None,
+            command:
+                Some(NativeCommand::McpServer {
+                    connect: Some(port),
+                }),
+        } => Some((verbose, Job::Connect(port))),
+        Native {
+            verbose,
+            export_session: Some(session),
+            out,
+            command: None,
+        } => Some((verbose, Job::Export { session, out })),
+        _ => None,
+    }
+}
+
+fn run_native(verbose: bool, job: Job) -> Result<()> {
+    // Logs go to stderr: stdout is the transport while the bridge runs.
+    let level = if verbose { "debug" } else { "warn" };
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(level)),
+        )
+        .with_writer(std::io::stderr)
+        .init();
+    match job {
+        Job::Connect(asked) => {
+            let port = relay::port_or_discovered(asked)?;
+            tracing::info!("connecting to the MCP relay on port {port}");
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?
+                .block_on(relay::run_stdio_bridge(port))
+        }
+        Job::Export { session, out } => {
+            // Gen's workspace, by the rule Gen resolves it with.
+            let workspace = Dirs::resolve()
+                .unwrap_or_else(|| Dirs {
+                    data: PathBuf::from("."),
+                    state: PathBuf::from("."),
+                })
+                .gen_workspace();
+            let (dir, dest) = session::export(&workspace, &session, out.as_deref())?;
+            let kb = std::fs::metadata(&dest).map_or(0, |m| m.len() / 1024);
+            eprintln!("exported {} → {} ({kb} KB)", dir.display(), dest.display());
+            Ok(())
+        }
+    }
+}
 
 fn exe_name(stem: &str) -> String {
     format!("{stem}{}", std::env::consts::EXE_SUFFIX)
@@ -122,9 +230,13 @@ fn resolve_target() -> Option<Target> {
     )
 }
 
-/// Replace or spawn the Gen front end with `args` attached verbatim (including
-/// stdin/stdout/stderr for `mcp-server`).
+/// Run what needs no renderer here; replace or spawn the Gen front end with
+/// anything else, `args` attached verbatim (including stdin/stdout/stderr for
+/// `mcp-server`).
 pub fn run(verbose: bool, args: Vec<OsString>) -> Result<()> {
+    if let Some((asked_verbose, job)) = native(&args) {
+        return run_native(verbose || asked_verbose, job);
+    }
     let Some(target) = resolve_target() else {
         if cfg!(target_os = "macos") {
             bail!(
@@ -233,10 +345,78 @@ mod tests {
         );
     }
 
+    fn os(items: &[&str]) -> Vec<OsString> {
+        items.iter().map(OsString::from).collect()
+    }
+
+    /// The relay's stdio end and a session's export need no renderer, so
+    /// they run here, as Gen's flags spell them.
+    #[test]
+    fn connect_and_export_run_here() {
+        let job = |args: &[&str]| native(&os(args));
+        assert_eq!(
+            job(&["mcp-server", "--connect"]),
+            Some((false, Job::Connect(None)))
+        );
+        assert_eq!(
+            job(&["mcp-server", "--connect", "9878"]),
+            Some((false, Job::Connect(Some(9878))))
+        );
+        assert_eq!(
+            job(&["-v", "mcp-server", "--connect=4242"]),
+            Some((true, Job::Connect(Some(4242))))
+        );
+        assert_eq!(
+            job(&["mcp-server", "--connect", "--verbose"]),
+            Some((true, Job::Connect(None)))
+        );
+        assert_eq!(
+            job(&["--export-session", "castle"]),
+            Some((
+                false,
+                Job::Export {
+                    session: "castle".into(),
+                    out: None
+                }
+            ))
+        );
+        assert_eq!(
+            job(&["--export-session", "castle", "--out", "c.world"]),
+            Some((
+                false,
+                Job::Export {
+                    session: "castle".into(),
+                    out: Some(PathBuf::from("c.world"))
+                }
+            ))
+        );
+    }
+
+    /// Everything else is Gen's, help included, and so is anything these
+    /// jobs come with that they do not take.
+    #[test]
+    fn everything_else_goes_to_gen() {
+        for args in [
+            &[][..],
+            &["--help"],
+            &["--version"],
+            &["mcp-server"],
+            &["mcp-server", "--headless"],
+            &["mcp-server", "--help"],
+            &["mcp-server", "--connect", "--headless"],
+            &["mcp-server", "--connect", "--world", "castle"],
+            &["--mcp-relay"],
+            &["--live", "scene.world"],
+            &["--export-session", "castle", "--live", "scene.world"],
+            &["--replay", "castle"],
+            &["--host", "--web"],
+        ] {
+            assert_eq!(native(&os(args)), None, "{args:?}");
+        }
+    }
+
     #[test]
     fn command_prepends_gen_for_app_and_keeps_standalone_args() {
-        let os = |items: &[&str]| items.iter().map(OsString::from).collect::<Vec<_>>();
-
         let app_cmd = Target::App(PathBuf::from(
             "/Applications/LocalGPT.app/Contents/MacOS/localgpt-app",
         ))

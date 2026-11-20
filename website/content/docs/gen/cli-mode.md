@@ -6,6 +6,8 @@ title: "MCP Relay"
 
 When LocalGPT Gen runs interactively with `--mcp-relay`, an **MCP client outside it** — Claude Code, Gemini CLI, Codex, an editor — drives the **same Bevy window** you're looking at. Gen runs no agent and is nobody's model backend: the agent runs in its own terminal with its own login, and reaches the window through the relay.
 
+The [desktop app](/docs/app/#agents) has the same relay: **MCP** in its top bar turns it on over the world in its window, and off again.
+
 ## The Problem
 
 Without the relay, an MCP client configured with `localgpt-gen mcp-server` spawns its own process. This creates a **second Bevy window** that opens, renders the world, and immediately closes — while the original window stays empty.
@@ -25,7 +27,9 @@ Without the relay, an MCP client configured with `localgpt-gen mcp-server` spawn
 
 ## The Fix: MCP Relay
 
-LocalGPT Gen starts a **TCP relay server** alongside the Bevy window. When the client spawns `localgpt-gen mcp-server --connect`, it connects to the relay instead of creating its own Bevy instance. All tool calls route to your existing window.
+LocalGPT Gen starts a **TCP relay server** alongside the Bevy window. When the client spawns `localgpt gen mcp-server --connect`, it connects to the relay instead of creating its own Bevy instance. All tool calls route to your existing window.
+
+The `--connect` process is only a bridge, so `localgpt` runs it itself: it needs neither the desktop app nor `localgpt-gen` on the machine, only a window with the relay on. `localgpt-gen mcp-server --connect` and `localgpt-app mcp-server --connect` do the same.
 
 ```
   ┌──────────────────────────────────────────────────────────────────┐
@@ -75,7 +79,7 @@ When you run `localgpt-gen --mcp-relay`:
 3. Nothing else runs in the window: no agent, no prompt
 4. When you prompt the agent in its own terminal:
    - It reads its MCP config
-   - It spawns `localgpt-gen mcp-server --connect`
+   - It spawns `localgpt gen mcp-server --connect`
    - The `--connect` process connects to the relay on port 9878
    - Tool calls flow through to the **existing** Bevy window
 5. You see the world being built in real-time in your window
@@ -104,8 +108,8 @@ Add to project-level `.mcp.json`:
 {
   "mcpServers": {
     "localgpt-gen": {
-      "command": "localgpt-gen",
-      "args": ["mcp-server", "--connect"]
+      "command": "localgpt",
+      "args": ["gen", "mcp-server", "--connect"]
     }
   }
 }
@@ -119,8 +123,8 @@ Add to `~/.gemini/settings.json` or workspace `.gemini/settings.json`:
 {
   "mcpServers": {
     "localgpt-gen": {
-      "command": "localgpt-gen",
-      "args": ["mcp-server", "--connect"]
+      "command": "localgpt",
+      "args": ["gen", "mcp-server", "--connect"]
     }
   }
 }
@@ -132,9 +136,11 @@ Add to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.localgpt-gen]
-command = "localgpt-gen"
-args = ["mcp-server", "--connect"]
+command = "localgpt"
+args = ["gen", "mcp-server", "--connect"]
 ```
+
+A configuration that names `localgpt-gen` with `["mcp-server", "--connect"]` keeps working.
 
 A config that already names `localgpt-gen mcp-server` **without** `--connect` spawns a window of its own; add `"--connect"` to its args to reach the one you have open.
 
@@ -151,7 +157,7 @@ This is for desktop apps (Claude Desktop, Codex Desktop) and editors (VS Code, Z
 ## CLI Flags
 
 ```
-localgpt-gen mcp-server --connect [PORT]
+localgpt gen mcp-server --connect [PORT]
 ```
 
 | Flag | Description |
@@ -161,7 +167,7 @@ localgpt-gen mcp-server --connect [PORT]
 | `--headless` | Run without a window (for CI/batch generation) |
 | `--mcp-relay` | Start the MCP relay beside the window (the interactive `localgpt-gen`) |
 
-Port auto-discovery reads from `$XDG_RUNTIME_DIR/localgpt/gen-mcp-relay.port`, which the interactive gen process writes on startup.
+Port auto-discovery reads `$XDG_RUNTIME_DIR/localgpt/gen-mcp-relay.port` (the temporary folder's `localgpt/` without `XDG_RUNTIME_DIR`), which a window writes when its relay starts — `localgpt gen --mcp-relay`, or the desktop app's **MCP** — and removes when it stops. With two windows' relays on, it names the one that started last; pass the port to reach the other.
 
 ## MCP clients
 
@@ -175,21 +181,23 @@ Any MCP client that can spawn a stdio server. The three that come up most:
 
 ## Troubleshooting
 
-### "No relay port specified and no running gen process found"
+### "no MCP relay is running"
 
-The `--connect` process can't find the relay. Make sure a window with the relay is open first:
+The `--connect` process can't find the relay. Make sure a window with the relay is open first — or, in the desktop app, that **MCP** is on:
 
 ```bash
 # Terminal 1: the window, with the relay
-localgpt-gen --mcp-relay
+localgpt gen --mcp-relay
 
 # Terminal 2: the MCP connect process finds it automatically
-localgpt-gen mcp-server --connect
+localgpt gen mcp-server --connect
 ```
+
+"no MCP relay answers on port …" is a port written by a window that has since closed without saying so: start the relay again, or pass the port it prints.
 
 ### Still seeing two windows
 
-Check the client's own MCP config (`.mcp.json`, `.gemini/settings.json`, `~/.codex/config.toml`): the entry should have `["mcp-server", "--connect"]` in its args. If it shows `["mcp-server"]` without `--connect`, the client is spawning a window of its own.
+Check the client's own MCP config (`.mcp.json`, `.gemini/settings.json`, `~/.codex/config.toml`): the entry should have `--connect` in its args. If it shows `["gen", "mcp-server"]` (or `["mcp-server"]`) without `--connect`, the client is spawning a window of its own.
 
 ### Relay port conflict
 

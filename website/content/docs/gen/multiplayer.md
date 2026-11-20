@@ -19,7 +19,7 @@ localgpt-gen --host --mcp-relay     # and your agent builds in the hosted world 
 The host console prints the PIN:
 
 ```
-  Session PIN: 482 913   (joiners: localgpt-gen --join <this-host> --pin <PIN>)
+  Session PIN: 482 913   (joiners: localgpt gen --join <this-host> --pin <PIN>)
 ```
 
 On each joining machine:
@@ -30,6 +30,8 @@ localgpt-gen --join 192.168.1.5 --pin 482913   # or connect directly
 ```
 
 A browser guest opens the invite link the host prints (`http://<host>:<port>/#t=<token>`): nothing to install and no internet, since the host serves the page itself.
+
+The [desktop app](/docs/app/#share) hosts the same session from its top bar: **Share** starts and stops it over the world in the window and shows the PIN and the links; its guests watch, walk and talk, and none of them edits. Its **Join a session** opens someone's session in a window of its own (`localgpt-app --join`), and its sessions list replays and exports what was shared.
 
 ## Who builds
 
@@ -73,8 +75,9 @@ Every session is a package under `~/.local/share/localgpt/gen-workspace/sessions
 
 - `/undo` takes back your own newest batch; undoing an undo redoes it.
 - `localgpt-gen --host --web --resume <session>` restores a session before guests join.
-- `localgpt-gen --replay <session> [--replay-speed 4]` rebuilds it batch by batch in a window, as a time-lapse.
-- `localgpt-gen --export-session <name> [--out x.world]` zips the package into the one-file `.world` other software reads; `--resume` and `--replay` take those archives back.
+- `localgpt-gen --replay <session> [--replay-speed 4]` rebuilds it batch by batch in a window, as a time-lapse; so does `localgpt-app --replay`, with the app's panels.
+- `localgpt gen --export-session <name> [--out x.world]` zips the package into the one-file `.world` other software reads (`localgpt` does this itself, with no window); `--resume` and `--replay` take those archives back.
+- A session hosted under a name that already has a package gets a folder of its own (`<name>-2`, …), so one session never writes into another's history; `--resume` of a session under its own name continues it.
 
 ## Beyond the LAN {#beyond-the-lan}
 

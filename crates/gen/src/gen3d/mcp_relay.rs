@@ -1,54 +1,47 @@
-//! MCP relay server — lets an external MCP client use the existing GenBridge.
+//! MCP relay server — lets an external MCP client use a window's GenBridge.
 //!
-//! When `localgpt-gen` runs interactively, this relay listens on a TCP port.
-//! A separate `localgpt-gen mcp-server --connect <port>` process connects
-//! and forwards MCP stdio ↔ TCP, so tool calls go to the existing Bevy window
-//! instead of spawning a new one.
+//! A window with Gen's tools — `localgpt gen --mcp-relay`, or the desktop
+//! app with MCP switched on in its bar — listens on a localhost port and
+//! writes the port where a client finds it. A separate `localgpt gen
+//! mcp-server --connect` process, the MCP client's, carries its stdio to
+//! that port (`localgpt_world_agent::mcp::relay`, which `localgpt` runs
+//! without linking Gen), so tool calls go to the window that is open instead
+//! of spawning a new one.
 //!
 //! Protocol: JSON-RPC 2.0 (MCP) over newline-delimited TCP.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 
+use localgpt_world_agent::mcp::relay;
 use localgpt_world_agent::mcp::{Tool, error_result, tool_result};
 
 use crate::gen3d::GenBridge;
 
 /// Default port for the MCP relay server.
-pub const MCP_RELAY_PORT: u16 = 9878;
+pub const MCP_RELAY_PORT: u16 = relay::DEFAULT_PORT;
 
-/// File where the relay port is written for discovery.
-pub fn relay_port_file() -> PathBuf {
-    let runtime_dir = std::env::var("XDG_RUNTIME_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir())
-        .join("localgpt");
-    let _ = std::fs::create_dir_all(&runtime_dir);
-    runtime_dir.join("gen-mcp-relay.port")
+/// A relay serving a window's tools. Dropping it stops the relay — the
+/// listener and every client's connection — and forgets its port.
+pub struct McpRelay {
+    port: u16,
+    task: tokio::task::JoinHandle<()>,
 }
 
-/// Write the relay port to the discovery file.
-fn write_relay_port(port: u16) {
-    let path = relay_port_file();
-    if let Err(e) = std::fs::write(&path, port.to_string()) {
-        tracing::warn!("Failed to write relay port file: {}", e);
+impl McpRelay {
+    /// The localhost port it listens on.
+    pub fn port(&self) -> u16 {
+        self.port
     }
 }
 
-/// Read the relay port from the discovery file.
-pub fn read_relay_port() -> Option<u16> {
-    let path = relay_port_file();
-    std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| s.trim().parse().ok())
-}
-
-/// Clean up the relay port file.
-pub fn cleanup_relay_port() {
-    let _ = std::fs::remove_file(relay_port_file());
+impl Drop for McpRelay {
+    fn drop(&mut self) {
+        self.task.abort();
+        relay::clear_port(self.port);
+    }
 }
 
 /// Shared tool set for the relay server.
@@ -84,11 +77,12 @@ impl RelayTools {
     }
 }
 
-/// Start the MCP relay server on a TCP port.
+/// Start the MCP relay server on a TCP port, on the current tokio runtime.
 ///
 /// Creates the gen tools over the given GenBridge and serves them over TCP
-/// as newline-delimited JSON-RPC 2.0 (MCP). Returns the port.
-pub async fn start_mcp_relay(bridge: Arc<GenBridge>) -> anyhow::Result<u16> {
+/// as newline-delimited JSON-RPC 2.0 (MCP), on [`MCP_RELAY_PORT`] or, when
+/// that is taken, any free port. It serves until the handle is dropped.
+pub async fn start_mcp_relay(bridge: Arc<GenBridge>) -> anyhow::Result<McpRelay> {
     let tools = crate::mcp_server::create_mcp_tools(bridge);
 
     // Try the default port, then fall back to any available port
@@ -98,87 +92,35 @@ pub async fn start_mcp_relay(bridge: Arc<GenBridge>) -> anyhow::Result<u16> {
     };
 
     let port = listener.local_addr()?.port();
-    write_relay_port(port);
+    if let Err(e) = relay::write_port(port) {
+        tracing::warn!("Failed to write relay port file: {}", e);
+    }
     tracing::info!("MCP relay listening on 127.0.0.1:{}", port);
-    serve_relay(listener, tools);
-    Ok(port)
+    let task = tokio::spawn(serve_relay(listener, tools));
+    Ok(McpRelay { port, task })
 }
 
-/// The other end: MCP stdio ↔ TCP. An MCP client spawns this process as
-/// `localgpt-gen mcp-server --connect` — it reads from stdin, forwards to the
-/// window's relay, and writes the answers to stdout, so tool calls reach the
-/// window that is open instead of a second one.
-pub async fn run_stdio_relay(port: u16) -> anyhow::Result<()> {
-    use tokio::net::TcpStream;
-
-    let stream = TcpStream::connect(("127.0.0.1", port)).await.map_err(|e| {
-        anyhow::anyhow!(
-            "Failed to connect to the MCP relay on port {}: {}\n\
-             Make sure a LocalGPT Gen window is running with --mcp-relay.",
-            port,
-            e
-        )
-    })?;
-
-    let (tcp_reader, mut tcp_writer) = stream.into_split();
-    let mut tcp_lines = BufReader::new(tcp_reader).lines();
-    let mut stdin_lines = BufReader::new(tokio::io::stdin()).lines();
-    let mut stdout = tokio::io::stdout();
+/// Accept clients until the relay is stopped. Each client's task is in a set
+/// this future owns, so stopping it (aborting its task) ends them too.
+async fn serve_relay(listener: TcpListener, tools: Vec<Box<dyn Tool>>) {
+    let relay = Arc::new(RelayTools { tools });
+    let mut clients = tokio::task::JoinSet::new();
 
     loop {
         tokio::select! {
-            // stdin → TCP: the client's requests
-            line = stdin_lines.next_line() => {
-                match line {
-                    Ok(Some(line)) => {
-                        let mut buf = line;
-                        buf.push('\n');
-                        if tcp_writer.write_all(buf.as_bytes()).await.is_err() {
-                            break;
-                        }
-                    }
-                    Ok(None) => break, // stdin closed
-                    Err(_) => break,
-                }
-            }
-            // TCP → stdout: the window's answers
-            line = tcp_lines.next_line() => {
-                match line {
-                    Ok(Some(line)) => {
-                        let mut buf = line;
-                        buf.push('\n');
-                        if stdout.write_all(buf.as_bytes()).await.is_err() {
-                            break;
-                        }
-                        stdout.flush().await.ok();
-                    }
-                    Ok(None) => break, // TCP closed
-                    Err(_) => break,
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn serve_relay(listener: TcpListener, tools: Vec<Box<dyn Tool>>) {
-    let relay = Arc::new(RelayTools { tools });
-
-    tokio::spawn(async move {
-        loop {
-            match listener.accept().await {
+            accepted = listener.accept() => match accepted {
                 Ok((stream, addr)) => {
                     tracing::info!("MCP relay: client connected from {}", addr);
-                    let relay_clone = relay.clone();
-                    tokio::spawn(handle_relay_client(stream, relay_clone));
+                    clients.spawn(handle_relay_client(stream, relay.clone()));
                 }
                 Err(e) => {
                     tracing::warn!("MCP relay accept error: {}", e);
                 }
-            }
+            },
+            // Clients that left, so the set holds only the connected.
+            Some(_) = clients.join_next(), if !clients.is_empty() => {}
         }
-    });
+    }
 }
 
 /// Handle a single relay client: read JSON-RPC requests, dispatch to tools, write responses.
@@ -342,6 +284,52 @@ mod tests {
         assert!(
             channels.cmd_rx.try_recv().is_err(),
             "nothing may reach the scene"
+        );
+    }
+
+    /// The desktop app switches its relay off by dropping the handle: the
+    /// listener goes, and so does a client that was connected.
+    #[tokio::test]
+    async fn dropping_the_handle_ends_the_listener_and_its_clients() {
+        use std::time::Duration;
+        use tokio::io::AsyncReadExt;
+
+        // Its own listener, not `start_mcp_relay`: a test must not write the
+        // port file a window on this machine may be using.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (bridge, _channels) = create_gen_channels();
+        let tools = crate::mcp_server::create_mcp_tools(bridge);
+        let relay = McpRelay {
+            port,
+            task: tokio::spawn(serve_relay(listener, tools)),
+        };
+        assert_eq!(relay.port(), port);
+
+        let mut client = tokio::net::TcpStream::connect(("127.0.0.1", port))
+            .await
+            .unwrap();
+        client
+            .write_all(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n")
+            .await
+            .unwrap();
+        let mut answer = [0u8; 256];
+        let n = tokio::time::timeout(Duration::from_secs(5), client.read(&mut answer))
+            .await
+            .expect("a ping is answered")
+            .unwrap();
+        assert!(String::from_utf8_lossy(&answer[..n]).contains("\"id\":1"));
+
+        drop(relay);
+        let end = tokio::time::timeout(Duration::from_secs(5), client.read(&mut answer))
+            .await
+            .expect("the connection ends");
+        assert!(matches!(end, Ok(0) | Err(_)), "{end:?}");
+        assert!(
+            tokio::net::TcpStream::connect(("127.0.0.1", port))
+                .await
+                .is_err(),
+            "nothing listens"
         );
     }
 }

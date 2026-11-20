@@ -39,7 +39,7 @@ pub fn config_in(dirs: &Dirs) -> GenConfig {
     // Gen's own workspace: its worlds, gallery and sessions are its own, not
     // the assistant's `workspace/` the earlier LocalGPT kept beside it.
     GenConfig {
-        workspace: dirs.data.join("gen-workspace"),
+        workspace: dirs.gen_workspace(),
         state_dir: dirs.state.clone(),
     }
 }

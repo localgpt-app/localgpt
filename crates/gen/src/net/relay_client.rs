@@ -57,10 +57,66 @@ struct CreateRoomResponse {
     host_secret: String,
 }
 
+/// What the relay client has to say, for a window to show: the internet
+/// invite link once the relay has given a room, or why there is none.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RelayState {
+    pub link: Option<String>,
+    pub error: Option<String>,
+}
+
+/// The relay client's [`RelayState`], shared with the thread it runs on.
+#[derive(Clone, Default)]
+pub struct RelayStatus(Arc<StdMutex<RelayState>>);
+
+impl RelayStatus {
+    pub fn get(&self) -> RelayState {
+        self.0.lock().map(|s| s.clone()).unwrap_or_default()
+    }
+
+    fn set_link(&self, link: String) {
+        if let Ok(mut state) = self.0.lock() {
+            state.link = Some(link);
+            state.error = None;
+        }
+    }
+
+    /// The relay failed or went: said, and no link any more.
+    fn fail(&self, error: String) {
+        eprintln!("relay: {error}");
+        if let Ok(mut state) = self.0.lock() {
+            state.link = None;
+            state.error = Some(error);
+        }
+    }
+}
+
+/// A relay client on its thread. Dropping it ends the host's connection to
+/// the relay, and with it every internet guest's.
+pub struct RelayClient {
+    /// Its other end ends the client when this one goes.
+    _stop: tokio::sync::oneshot::Sender<()>,
+    status: RelayStatus,
+}
+
+impl RelayClient {
+    pub fn status(&self) -> RelayStatus {
+        self.status.clone()
+    }
+}
+
 /// Start the relay client on a background thread. Prints the internet
-/// invite link (the room code inside the page URL plus the invite token).
-pub fn start_relay_client(bridge: WebBridge, relay_url: &str, token: Option<String>) {
+/// invite link (the room code inside the page URL plus the invite token),
+/// and keeps it in the handle's [`RelayStatus`].
+pub fn start_relay_client(
+    bridge: WebBridge,
+    relay_url: &str,
+    token: Option<String>,
+) -> RelayClient {
     let relay_url = relay_url.to_string();
+    let status = RelayStatus::default();
+    let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+    let said = status.clone();
     std::thread::Builder::new()
         .name("gen-relay-client".into())
         .spawn(move || {
@@ -70,16 +126,27 @@ pub fn start_relay_client(bridge: WebBridge, relay_url: &str, token: Option<Stri
             {
                 Ok(rt) => rt,
                 Err(e) => {
-                    eprintln!("relay: runtime failed: {e}");
+                    said.fail(format!("runtime failed: {e}"));
                     return;
                 }
             };
-            rt.block_on(run(bridge, relay_url, token));
+            rt.block_on(async move {
+                tokio::select! {
+                    () = run(bridge, relay_url, token, said) => {}
+                    // The session ended: returning drops the runtime, and
+                    // with it the relay's socket.
+                    _ = stopped => {}
+                }
+            });
         })
         .expect("spawn relay client");
+    RelayClient {
+        _stop: stop,
+        status,
+    }
 }
 
-async fn run(bridge: WebBridge, relay_url: String, token: Option<String>) {
+async fn run(bridge: WebBridge, relay_url: String, token: Option<String>, status: RelayStatus) {
     use futures::{SinkExt, StreamExt};
 
     let http_base = relay_url.trim_end_matches('/');
@@ -93,12 +160,12 @@ async fn run(bridge: WebBridge, relay_url: String, token: Option<String>) {
         Ok(resp) => match resp.json().await {
             Ok(room) => room,
             Err(e) => {
-                eprintln!("relay: bad /rooms reply: {e}");
+                status.fail(format!("bad /rooms reply from {http_base}: {e}"));
                 return;
             }
         },
         Err(e) => {
-            eprintln!("relay: couldn't reach {http_base} ({e})");
+            status.fail(format!("couldn't reach {http_base} ({e})"));
             return;
         }
     };
@@ -113,24 +180,21 @@ async fn run(bridge: WebBridge, relay_url: String, token: Option<String>) {
     let (mut ws, _) = match tokio_tungstenite::connect_async(&ws_url).await {
         Ok(ok) => ok,
         Err(e) => {
-            eprintln!("relay: host socket failed: {e}");
+            status.fail(format!("host socket failed: {e}"));
             return;
         }
     };
 
     let page_url = format!("{http_base}/r/{}/", room.code);
+    let link = match &token {
+        Some(token) => format!("{page_url}#t={token}"),
+        None => page_url,
+    };
     match &token {
-        Some(token) => eprintln!(
-            "
-  Internet guests: {page_url}#t={token}
-"
-        ),
-        None => eprintln!(
-            "
-  Internet guests: {page_url}  (open session)
-"
-        ),
+        Some(_) => eprintln!("\n  Internet guests: {link}\n"),
+        None => eprintln!("\n  Internet guests: {link}  (open session)\n"),
     }
+    status.set_link(link);
 
     // Relay conn id ↔ bridge peer id, and each peer's frame sender.
     let peers: Arc<StdMutex<HashMap<u64, PeerId>>> = Arc::new(StdMutex::new(HashMap::new()));
@@ -186,11 +250,11 @@ async fn run(bridge: WebBridge, relay_url: String, token: Option<String>) {
                         }
                     }
                     Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_))) | None => {
-                        eprintln!("relay: connection closed — internet guests disconnected");
+                        status.fail("connection closed — internet guests disconnected".into());
                         return;
                     }
                     Some(Err(e)) => {
-                        eprintln!("relay: socket error: {e}");
+                        status.fail(format!("socket error: {e}"));
                         return;
                     }
                     Some(Ok(_)) => {}
@@ -199,6 +263,7 @@ async fn run(bridge: WebBridge, relay_url: String, token: Option<String>) {
             out = relay_out_rx.recv() => {
                 let Some(text) = out else { return };
                 if ws.send(tokio_tungstenite::tungstenite::Message::Text(text.into())).await.is_err() {
+                    status.fail("the relay stopped taking frames — internet guests disconnected".into());
                     return;
                 }
             }
