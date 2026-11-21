@@ -4462,10 +4462,7 @@ fn process_gen_commands(
                         let analysis_json = serde_json::to_string(&analysis).unwrap_or_default();
                         commands.insert_resource(crate::worldgen::CurrentBlockout { spec });
                         GenResponse::PanoramaWorldGenerated {
-                            world_name: format!(
-                                "panorama_{}",
-                                chrono::Utc::now().format("%Y%m%d_%H%M%S")
-                            ),
+                            world_name: panorama_world_name(jiff::Timestamp::now()),
                             regions_planned: region_count,
                             spawn_point: [0.0, 1.7, 0.0],
                             analysis_json,
@@ -7569,6 +7566,15 @@ fn is_leap_year(year: i32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
+/// A panorama world's name: the moment it was planned, as
+/// `panorama_YYYYMMDD_HHMMSS` — the shape chrono's
+/// `Utc::now().format("%Y%m%d_%H%M%S")` always gave it. A `jiff::Timestamp`
+/// carries no zone and formats as UTC, so the name never depends on the
+/// machine's local time.
+fn panorama_world_name(now: jiff::Timestamp) -> String {
+    format!("panorama_{}", now.strftime("%Y%m%d_%H%M%S"))
+}
+
 // ---------------------------------------------------------------------------
 // glTF path resolution
 // ---------------------------------------------------------------------------
@@ -8698,6 +8704,24 @@ mod tests {
             global
                 .translation()
                 .abs_diff_eq(Vec3::new(6.0, 2.0, 0.0), 1e-5)
+        );
+    }
+
+    #[test]
+    fn panorama_world_names_are_utc() {
+        // 2023-11-14T22:13:20Z — on a UTC+13 machine the local clock already
+        // reads November 15, so a local-time name would differ here.
+        let planned = jiff::Timestamp::new(1_700_000_000, 0).unwrap();
+        assert_eq!(panorama_world_name(planned), "panorama_20231114_221320");
+        // The UTC day boundary rolls the date: the last second of Nov 14 and
+        // the first of Nov 15 UTC.
+        assert_eq!(
+            panorama_world_name(jiff::Timestamp::new(1_700_006_399, 0).unwrap()),
+            "panorama_20231114_235959"
+        );
+        assert_eq!(
+            panorama_world_name(jiff::Timestamp::new(1_700_006_400, 0).unwrap()),
+            "panorama_20231115_000000"
         );
     }
 }

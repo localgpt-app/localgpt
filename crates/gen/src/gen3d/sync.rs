@@ -4,6 +4,7 @@
 //! claims from markdown, and compares against a stored `SyncManifest` to
 //! detect when representations drift apart.
 
+use jiff::Timestamp;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -231,7 +232,26 @@ pub fn save_sync_manifest(meta_dir: &Path, manifest: &SyncManifest) -> std::io::
 
 /// Return an ISO 8601 timestamp string for "now".
 fn now_iso8601() -> String {
-    chrono::Utc::now().to_rfc3339()
+    rfc3339_utc_autosi(Timestamp::now())
+}
+
+/// Format a UTC instant the way `chrono`'s `to_rfc3339` did, which is the
+/// shape `.sync.ron`'s timestamp strings have always had: RFC 3339 with an
+/// explicit `+00:00` offset and AutoSi fractional seconds (0, 3, 6 or 9
+/// digits). Jiff's `Display` would print `Z` with the fewest digits it can
+/// (`...20.5Z`), so the string is assembled here instead.
+fn rfc3339_utc_autosi(ts: Timestamp) -> String {
+    let subsec = ts.subsec_nanosecond().unsigned_abs();
+    let fraction = if subsec == 0 {
+        String::new()
+    } else if subsec.is_multiple_of(1_000_000) {
+        format!(".{:03}", subsec / 1_000_000)
+    } else if subsec.is_multiple_of(1_000) {
+        format!(".{:06}", subsec / 1_000)
+    } else {
+        format!(".{:09}", subsec)
+    };
+    format!("{}{}+00:00", ts.strftime("%Y-%m-%dT%H:%M:%S"), fraction)
 }
 
 /// Scan a world directory and detect drift across all domains.
@@ -841,5 +861,50 @@ mod tests {
         let result = apply_sync(&dir, "regions/town", "md", false, &None);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("LLM call"));
+    }
+
+    /// 2023-11-14T22:13:20Z, the fixed instant every timestamp-shape test
+    /// formats.
+    const NOV_14_22_13_20Z: i64 = 1_700_000_000;
+
+    #[test]
+    fn now_iso8601_keeps_the_chrono_shape() {
+        // AutoSi fractional seconds: 0, 3, 6 or 9 digits — never a shorter
+        // form, never a dropped fraction.
+        assert_eq!(
+            rfc3339_utc_autosi(Timestamp::new(NOV_14_22_13_20Z, 0).unwrap()),
+            "2023-11-14T22:13:20+00:00"
+        );
+        assert_eq!(
+            rfc3339_utc_autosi(Timestamp::new(NOV_14_22_13_20Z, 500_000_000).unwrap()),
+            "2023-11-14T22:13:20.500+00:00"
+        );
+        assert_eq!(
+            rfc3339_utc_autosi(Timestamp::new(NOV_14_22_13_20Z, 123_456_000).unwrap()),
+            "2023-11-14T22:13:20.123456+00:00"
+        );
+        assert_eq!(
+            rfc3339_utc_autosi(Timestamp::new(NOV_14_22_13_20Z, 123_456_789).unwrap()),
+            "2023-11-14T22:13:20.123456789+00:00"
+        );
+        // The explicit UTC offset survives, and the whole string is a
+        // timestamp a parser (jiff's own, here) accepts back.
+        let now = now_iso8601();
+        assert!(now.ends_with("+00:00"), "no +00:00 offset in {now}");
+        assert!(now.parse::<Timestamp>().is_ok(), "{now} does not parse");
+    }
+
+    #[test]
+    fn now_iso8601_is_not_jiff_display() {
+        // Jiff's Display prints Zulu time with the fewest digits it can;
+        // the sync manifest keeps chrono's offset and fixed precision. If
+        // jiff's display ever leaks in here, these two strings converge and
+        // this test fails.
+        let half_second = Timestamp::new(NOV_14_22_13_20Z, 500_000_000).unwrap();
+        assert_eq!(half_second.to_string(), "2023-11-14T22:13:20.5Z");
+        assert_eq!(
+            rfc3339_utc_autosi(half_second),
+            "2023-11-14T22:13:20.500+00:00"
+        );
     }
 }

@@ -71,8 +71,8 @@ ron = "0.12.1"
 sha2 = "0.11"
 hex = "0.4"
 
-# Timestamps for experiment tracking
-chrono = { workspace = true }
+# Timestamps: sync-manifest strings, panorama world names, gallery times
+jiff = { workspace = true }
 
 # WebSocket inspector protocol (Spec 0.6)
 axum = { version = "0.8", features = ["ws"] }

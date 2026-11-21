@@ -80,7 +80,12 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # Utilities
-chrono = { version = "0.4", features = ["serde"] }
+# Timestamps: UTC instants only — `Timestamp::now`, UTC `strftime`, RFC 3339
+# strings. std-only, so no time zone database rides along and no serde
+# impl exists to serialize a timestamp by accident. chrono
+# (RUSTSEC-2026-0543, unmaintained) needed defaults, `clock`, `now`,
+# `iana-time-zone` and `wasmbind` to do the same.
+jiff = { version = "1.0", default-features = false, features = ["std"] }
 uuid = { version = "1.22", features = ["v4"] }
 async-trait = "0.1"
 futures = "0.3"
