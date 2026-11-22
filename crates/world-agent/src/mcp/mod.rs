@@ -534,6 +534,7 @@ mod tests {
     #[tokio::test]
     async fn a_picture_rides_beside_the_text_when_a_tool_hands_one_back() {
         let dir = std::env::temp_dir().join(format!("localgpt-mcp-shot-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("shot.png");
         std::fs::write(&path, b"\x89PNG not really").unwrap();
@@ -556,8 +557,18 @@ mod tests {
         );
 
         // A picture too large for a result, or gone, still answers: the
-        // path, and why the picture is not beside it.
-        std::fs::write(&path, vec![0u8; MAX_INLINE_IMAGE_BYTES + 1]).unwrap();
+        // path, and why the picture is not beside it. The large one is
+        // sparse — `with_png` decides on the file's size and never reads
+        // its bytes, so the boundary is checked without asking a nearly
+        // full temp disk for 3 MiB of real zeros.
+        let big = std::fs::File::create(&path).unwrap();
+        big.set_len(MAX_INLINE_IMAGE_BYTES as u64 + 1).unwrap();
+        drop(big);
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().len(),
+            MAX_INLINE_IMAGE_BYTES as u64 + 1,
+            "the size check sees the boundary"
+        );
         let large = tool_result(&tool, &json!({"inline": true})).await;
         assert_eq!(large["content"].as_array().unwrap().len(), 1);
         assert!(
