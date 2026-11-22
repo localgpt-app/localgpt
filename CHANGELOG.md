@@ -13,6 +13,7 @@ All notable changes to LocalGPT are documented in this file.
 
 ### Changed
 
+- **Timestamps run on jiff, and chrono is gone.** chrono 0.4 is unmaintained (RUSTSEC-2026-0543), and every use of it in the workspace was a UTC instant in `localgpt-gen`: the `.sync.ron` manifest's timestamp strings, panorama world names and the gallery's creation times. jiff 1.0 with default features off and only `std` (and the `alloc` it implies) covers all three, and no time zone database or wasm bindings ride along with it. No shape a person or a file sees moves: `.sync.ron` keeps chrono's `to_rfc3339` byte shape — an explicit `+00:00` offset and AutoSi fractional seconds of 0, 3, 6 or 9 digits, not jiff's `Z` with as few digits as it can — panorama names stay `panorama_YYYYMMDD_HHMMSS` in UTC, and gallery dates stay `%Y-%m-%d` in UTC, each held by fixed-time tests. The one public break, on `localgpt-gen`'s 0.x surface: `WorldGalleryEntry::created_at` is now `Option<jiff::Timestamp>` where it was `Option<chrono::DateTime<Utc>>`. A file's metadata time beyond what jiff represents (years -9999..=9999) is refused to `None` with a warning naming the file: an unknown date in the gallery, sorted last, never a clamp.
 - **A session hosted under a name already used gets a folder of its own** (`<name>-2`, …), in Gen and in the app. A second session under one name wrote its revisions after the first's in the same log, and neither folded; resuming a session under its own name still continues it.
 - **`localgpt gen --version` says `localgpt gen`,** not `localgpt-gen`.
 
