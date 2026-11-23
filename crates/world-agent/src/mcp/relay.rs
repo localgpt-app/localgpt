@@ -166,12 +166,13 @@ mod tests {
 
     #[tokio::test]
     async fn a_port_nothing_answers_on_says_how_to_start_one() {
-        // Bound and dropped: nothing listens there now.
-        let port = std::net::TcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap()
-            .port();
+        // Port 1 on loopback, as headless's stale-endpoint test: nothing
+        // listens there. A port freshly freed by a dropped `bind(:0)`
+        // stays in the ephemeral range the OS keeps handing to new
+        // listeners, so on a busy machine — a workspace test run —
+        // another binder can be given it before the connect, and the
+        // bridge then connects where nothing was meant to answer.
+        let port = 1u16;
         let (_client, input) = tokio::io::duplex(64);
         let err = bridge(port, BufReader::new(input), tokio::io::sink())
             .await
